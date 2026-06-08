@@ -4,6 +4,15 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  /* O design system Menuzia é desenhado sobre uma base de 14px (não os 16px
+     padrão do navegador). Reduzir o root font-size faz com que todas as
+     classes do Tailwind baseadas em rem (text-, p-, gap-, h-, w- etc.)
+     resolvam proporcionalmente a essa base, deixando o layout com a mesma
+     densidade dos protótipos em vez de parecer ampliado a 100% de zoom. */
+  font-size: 87.5%;
+}
+
 body {
   @apply bg-page text-text-main font-sans;
   font-size: 14px;
