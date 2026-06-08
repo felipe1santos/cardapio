@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menuzia Burger — Cardápio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-main:#FFFFFF; --bg-page:#edeef1; --border-color:#E5E7EB;
+  --text-main:#1F2937; --text-subtle:#6B7280;
+  --primary:#06B6D4; --primary-dark:#0891B2;
+  --status-ready:#10B981; --status-pending:#F97316;
+  --bg-price:#DCFCE7; --text-price:#16A34A;
+  --danger:#EF4444;
+  --radius:3px;
+  --maxw:600px;
+}
+*{margin:0;padding:0;box-sizing:border-box;outline:none;-webkit-tap-highlight-color:transparent}
+body{font-family:'Inter',sans-serif;background:var(--bg-page);color:var(--text-main);font-size:14px}
+img{display:block;max-width:100%}
+
+/* CONTÊINER (vitrine centralizada tipo app) */
+.store{max-width:var(--maxw);margin:0 auto;background:var(--bg-main);min-height:100vh;position:relative;box-shadow:0 0 40px rgba(0,0,0,.06);padding-bottom:90px}
+
+/* CAPA + INFO LOJA */
+.cover{height:130px;background:linear-gradient(135deg,#0ea5e9,#0891B2)}
+.store-head{padding:0 18px;margin-top:-38px;position:relative;z-index:2}
+.store-card{background:#fff;border:1px solid var(--border-color);border-radius:var(--radius);padding:16px;display:flex;gap:14px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.logo{width:60px;height:60px;border-radius:var(--radius);background:linear-gradient(135deg,#fb923c,#f97316);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0}
+.store-info h1{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.store-meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:6px;font-size:12px;color:var(--text-subtle);font-weight:500}
+.store-meta .open{color:var(--text-price);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.store-meta .dot{width:7px;height:7px;border-radius:100px;background:var(--status-ready)}
+.store-meta svg{width:13px;height:13px;fill:currentColor;vertical-align:-2px;margin-right:3px}
+
+/* BUSCA */
+.search{margin:14px 18px 0;display:flex;align-items:center;gap:9px;background:var(--bg-page);border-radius:var(--radius);padding:11px 13px}
+.search svg{width:18px;height:18px;fill:var(--text-subtle)}
+.search input{border:none;background:none;font-family:inherit;font-size:14px;width:100%;color:var(--text-main)}
+
+/* CHIPS DE CATEGORIA (sticky) */
+.cats{position:sticky;top:0;z-index:10;background:var(--bg-main);border-bottom:1px solid var(--border-color);padding:12px 18px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;border:1px solid var(--border-color);background:#fff;color:var(--text-subtle);padding:7px 14px;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap}
+.chip.active{background:var(--primary);border-color:var(--primary);color:#fff}
+
+/* SEÇÕES + PRODUTOS */
+.section{padding:18px 18px 4px}
+.section-title{font-size:17px;font-weight:700;margin-bottom:4px;letter-spacing:-.2px}
+.section-desc{font-size:12px;color:var(--text-subtle);margin-bottom:12px}
+.product{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border-color);cursor:pointer}
+.product:last-child{border-bottom:none}
+.product-info{flex:1;min-width:0}
+.product-name{font-size:15px;font-weight:600;margin-bottom:3px}
+.product-desc{font-size:13px;color:var(--text-subtle);line-height:1.45;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.product-price{font-size:15px;font-weight:700;color:var(--text-price)}
+.product-from{font-size:11px;color:var(--text-subtle);font-weight:500}
+.product-thumb{position:relative;flex-shrink:0}
+.thumb-img{width:96px;height:96px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:40px;background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.add-fab{position:absolute;right:-6px;bottom:-6px;width:30px;height:30px;border-radius:var(--radius);background:var(--primary);color:#fff;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+
+/* BARRA SACOLA FLUTUANTE */
+.cartbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:var(--maxw);padding:12px 18px;z-index:40;transition:.25s;opacity:0;pointer-events:none}
+.cartbar.show{opacity:1;pointer-events:auto}
+.cartbar-inner{background:var(--primary);color:#fff;border-radius:var(--radius);padding:13px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 6px 18px rgba(6,182,212,.4)}
+.cartbar-inner:hover{background:var(--primary-dark)}
+.cb-badge{background:rgba(255,255,255,.25);border-radius:var(--radius);min-width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.cb-text{flex:1;font-weight:600;font-size:14px}
+.cb-total{font-weight:700;font-size:15px}
+
+/* OVERLAY + SHEETS */
+.overlay{position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:50;opacity:0;pointer-events:none;transition:.25s}
+.overlay.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:var(--maxw);background:#fff;z-index:60;border-radius:8px 8px 0 0;max-height:92vh;display:flex;flex-direction:column;transition:transform .3s ease}
+.sheet.open{transform:translateX(-50%) translateY(0)}
+.sheet-scroll{overflow-y:auto;flex:1}
+.sheet-close{position:absolute;top:12px;right:14px;width:34px;height:34px;border:none;background:rgba(255,255,255,.9);border-radius:100px;font-size:20px;cursor:pointer;color:var(--text-main);z-index:3;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+
+/* DETALHE PRODUTO */
+.p-hero{height:200px;display:flex;align-items:center;justify-content:center;font-size:80px;background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.p-body{padding:18px}
+.p-title{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.p-desc{font-size:14px;color:var(--text-subtle);line-height:1.5;margin:8px 0 12px}
+.p-price{font-size:18px;font-weight:700;color:var(--text-price)}
+.opt-group{margin-top:20px}
+.opt-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.opt-head h3{font-size:14px;font-weight:700}
+.opt-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 8px;border-radius:var(--radius)}
+.tag-req{background:#FEE2E2;color:var(--danger)}
+.tag-opt{background:var(--bg-page);color:var(--text-subtle)}
+.opt-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-color);cursor:pointer}
+.opt-row .o-name{flex:1;font-size:14px;font-weight:500}
+.opt-row .o-price{font-size:13px;color:var(--text-price);font-weight:600}
+.opt-ctrl{width:20px;height:20px;border:2px solid var(--border-color);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.opt-row.radio .opt-ctrl{border-radius:100px}
+.opt-row.check .opt-ctrl{border-radius:var(--radius)}
+.opt-row.selected .opt-ctrl{background:var(--primary);border-color:var(--primary)}
+.opt-row.selected .opt-ctrl svg{width:12px;height:12px;fill:#fff}
+.opt-ctrl svg{display:none} .opt-row.selected .opt-ctrl svg{display:block}
+.obs-area{width:100%;border:1px solid var(--border-color);border-radius:var(--radius);padding:11px;font-family:inherit;font-size:14px;margin-top:8px;resize:none;min-height:60px}
+
+/* footer com stepper + add */
+.sheet-foot{padding:14px 18px;border-top:1px solid var(--border-color);display:flex;gap:14px;align-items:center}
+.stepper{display:flex;align-items:center;border:1px solid var(--border-color);border-radius:var(--radius)}
+.stepper button{width:38px;height:42px;border:none;background:#fff;font-size:20px;cursor:pointer;color:var(--primary);font-weight:600}
+.stepper button:disabled{color:var(--border-color);cursor:default}
+.stepper .q{width:34px;text-align:center;font-weight:700;font-size:15px}
+.btn-add{flex:1;border:none;background:var(--primary);color:#fff;border-radius:var(--radius);padding:13px;font-weight:700;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.btn-add:hover{background:var(--primary-dark)}
+
+/* SACOLA */
+.cart-head{padding:16px 18px;border-bottom:1px solid var(--border-color)}
+.cart-head h2{font-size:18px;font-weight:700}
+.cart-items{padding:6px 18px}
+.cart-item{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-color)}
+.ci-thumb{width:54px;height:54px;border-radius:var(--radius);background:linear-gradient(135deg,#fef3c7,#fde68a);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.ci-info{flex:1;min-width:0}
+.ci-name{font-size:14px;font-weight:600}
+.ci-add{font-size:12px;color:var(--text-subtle);margin-top:2px}
+.ci-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.ci-price{font-weight:700;color:var(--text-price);font-size:14px}
+.ci-stepper{display:flex;align-items:center;border:1px solid var(--border-color);border-radius:var(--radius)}
+.ci-stepper button{width:30px;height:30px;border:none;background:#fff;font-size:16px;color:var(--primary);font-weight:600;cursor:pointer}
+.ci-stepper .q{width:26px;text-align:center;font-weight:700;font-size:13px}
+.summary{padding:14px 18px;background:var(--bg-page)}
+.sum-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--text-subtle)}
+.sum-row.total{font-size:16px;font-weight:700;color:var(--text-main);border-top:1px solid var(--border-color);margin-top:6px;padding-top:10px}
+
+/* CHECKOUT / TRACKING (telas cheias) */
+.screen{position:fixed;inset:0;background:var(--bg-page);z-index:70;transform:translateX(100%);transition:transform .3s ease;overflow-y:auto}
+.screen.open{transform:translateX(0)}
+.screen-inner{max-width:var(--maxw);margin:0 auto;background:#fff;min-height:100vh;padding-bottom:90px}
+.scr-top{height:56px;display:flex;align-items:center;gap:12px;padding:0 14px;border-bottom:1px solid var(--border-color);position:sticky;top:0;background:#fff;z-index:5}
+.scr-back{width:34px;height:34px;border:none;background:var(--bg-page);border-radius:var(--radius);cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center}
+.scr-title{font-weight:700;font-size:16px}
+.steps{display:flex;padding:16px 18px;gap:8px}
+.step{flex:1;height:4px;background:var(--border-color);border-radius:100px}
+.step.done{background:var(--primary)}
+.scr-section{padding:6px 18px 18px}
+.scr-section h3{font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-subtle);font-weight:600;margin-bottom:12px}
+.pay-opt,.addr-card{display:flex;align-items:center;gap:12px;border:1px solid var(--border-color);border-radius:var(--radius);padding:14px;margin-bottom:10px;cursor:pointer}
+.pay-opt.selected,.addr-card.selected{border-color:var(--primary);background:#ECFEFF}
+.pay-ic{width:38px;height:38px;border-radius:var(--radius);background:var(--bg-page);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.pay-opt .pname{flex:1;font-weight:600;font-size:14px}
+.pay-opt .check{width:20px;height:20px;border:2px solid var(--border-color);border-radius:100px;flex-shrink:0}
+.pay-opt.selected .check{background:var(--primary);border-color:var(--primary)}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--text-subtle);margin-bottom:6px}
+.field input{width:100%;border:1px solid var(--border-color);border-radius:var(--radius);padding:11px;font-family:inherit;font-size:14px}
+.field-row{display:flex;gap:12px}
+.bottom-cta{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:var(--maxw);padding:12px 18px;background:#fff;border-top:1px solid var(--border-color)}
+.btn-cta{width:100%;border:none;background:var(--primary);color:#fff;border-radius:var(--radius);padding:15px;font-weight:700;font-size:15px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.btn-cta:hover{background:var(--primary-dark)}
+
+/* TRACKING */
+.track-hero{text-align:center;padding:30px 18px 10px}
+.track-check{width:64px;height:64px;border-radius:100px;background:var(--bg-price);display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.track-check svg{width:34px;height:34px;fill:var(--status-ready)}
+.track-hero h2{font-size:20px;font-weight:700}
+.track-hero p{font-size:13px;color:var(--text-subtle);margin-top:4px}
+.track-eta{display:inline-block;background:var(--bg-alert);color:#0369A1;font-weight:600;font-size:13px;padding:6px 14px;border-radius:var(--radius);margin-top:12px}
+.tl{padding:24px 28px}
+.tl-step{display:flex;gap:14px;position:relative;padding-bottom:24px}
+.tl-step:last-child{padding-bottom:0}
+.tl-step::before{content:'';position:absolute;left:11px;top:24px;bottom:0;width:2px;background:var(--border-color)}
+.tl-step:last-child::before{display:none}
+.tl-step.done::before{background:var(--status-ready)}
+.tl-dot{width:24px;height:24px;border-radius:100px;border:2px solid var(--border-color);background:#fff;flex-shrink:0;z-index:2;display:flex;align-items:center;justify-content:center}
+.tl-step.done .tl-dot{background:var(--status-ready);border-color:var(--status-ready)}
+.tl-step.done .tl-dot svg{width:12px;height:12px;fill:#fff}
+.tl-step.current .tl-dot{border-color:var(--primary);background:var(--primary)}
+.tl-dot svg{display:none}.tl-step.done .tl-dot svg{display:block}
+.tl-label{font-weight:600;font-size:14px}.tl-step:not(.done):not(.current) .tl-label{color:var(--text-subtle)}
+.tl-time{font-size:12px;color:var(--text-subtle);margin-top:2px}
+</style>
+</head>
+<body>
+<div class="store">
+  <div class="cover"></div>
+  <div class="store-head">
+    <div class="store-card">
+      <div class="logo">🍔</div>
+      <div class="store-info">
+        <h1>Menuzia Burger</h1>
+        <div class="store-meta">
+          <span class="open"><span class="dot"></span> Aberto agora</span>
+          <span><svg viewBox="0 0 24 24"><path d="M20 8h-3V4H3v13h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5z"/></svg>30–45 min</span>
+          <span>Mín. R$ 20</span>
+          <span>⭐ 4,8</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="search">
+    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z"/></svg>
+    <input placeholder="Buscar no cardápio...">
+  </div>
+
+  <div class="cats" id="cats"></div>
+  <div id="menu"></div>
+</div>
+
+<!-- BARRA SACOLA -->
+<div class="cartbar" id="cartbar">
+  <div class="cartbar-inner" onclick="openCart()">
+    <div class="cb-badge" id="cbCount">0</div>
+    <div class="cb-text">Ver sacola</div>
+    <div class="cb-total" id="cbTotal">R$ 0,00</div>
+  </div>
+</div>
+
+<!-- OVERLAY -->
+<div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+<!-- SHEET PRODUTO -->
+<div class="sheet" id="sheetProduct">
+  <button class="sheet-close" onclick="closeAll()">×</button>
+  <div class="sheet-scroll" id="productScroll"></div>
+  <div class="sheet-foot">
+    <div class="stepper">
+      <button onclick="stepQty(-1)" id="qMinus">−</button>
+      <span class="q" id="qVal">1</span>
+      <button onclick="stepQty(1)">+</button>
+    </div>
+    <button class="btn-add" onclick="addToCart()"><span>Adicionar</span><span id="addPrice">R$ 0,00</span></button>
+  </div>
+</div>
+
+<!-- SHEET SACOLA -->
+<div class="sheet" id="sheetCart">
+  <button class="sheet-close" onclick="closeAll()">×</button>
+  <div class="cart-head"><h2>Sua sacola</h2></div>
+  <div class="sheet-scroll">
+    <div class="cart-items" id="cartItems"></div>
+    <div class="summary">
+      <div class="sum-row"><span>Subtotal</span><span id="sumSub">R$ 0,00</span></div>
+      <div class="sum-row"><span>Taxa de entrega</span><span id="sumFee">R$ 7,00</span></div>
+      <div class="sum-row total"><span>Total</span><span id="sumTotal">R$ 0,00</span></div>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn-add" onclick="goCheckout()"><span>Continuar</span><span id="ckTotal">R$ 0,00</span></button>
+  </div>
+</div>
+
+<!-- TELA CHECKOUT -->
+<div class="screen" id="screenCheckout">
+  <div class="screen-inner">
+    <div class="scr-top">
+      <button class="scr-back" onclick="checkoutBack()">←</button>
+      <div class="scr-title" id="ckTitle">Pagamento</div>
+    </div>
+    <div class="steps"><div class="step done" id="st1"></div><div class="step" id="st2"></div><div class="step" id="st3"></div></div>
+
+    <!-- Passo 1: Pagamento -->
+    <div id="step1">
+      <div class="scr-section">
+        <h3>Forma de pagamento</h3>
+        <div class="pay-opt selected" data-pay="Pix" onclick="selectPay(this)"><div class="pay-ic">🔑</div><div class="pname">Pix</div><div class="check"></div></div>
+        <div class="pay-opt" data-pay="Cartão na entrega" onclick="selectPay(this)"><div class="pay-ic">💳</div><div class="pname">Cartão na entrega</div><div class="check"></div></div>
+        <div class="pay-opt" data-pay="Dinheiro" onclick="selectPay(this)"><div class="pay-ic">💵</div><div class="pname">Dinheiro</div><div class="check"></div></div>
+        <div class="field" id="trocoField" style="display:none"><label>Troco para quanto?</label><input placeholder="R$ 50,00"></div>
+      </div>
+    </div>
+
+    <!-- Passo 2: Endereço -->
+    <div id="step2" style="display:none">
+      <div class="scr-section">
+        <h3>Endereço de entrega</h3>
+        <div class="field-row"><div class="field" style="flex:1"><label>CEP</label><input value="29090-000"></div><div class="field" style="flex:1"><label>Número</label><input value="245"></div></div>
+        <div class="field"><label>Rua</label><input value="Rua das Acácias"></div>
+        <div class="field"><label>Complemento</label><input placeholder="Apto, bloco, referência"></div>
+        <div class="field"><label>Bairro</label><input value="Jardim Camburi"></div>
+      </div>
+    </div>
+
+    <!-- Passo 3: Revisão -->
+    <div id="step3" style="display:none">
+      <div class="scr-section">
+        <h3>Resumo do pedido</h3>
+        <div id="reviewItems"></div>
+        <div class="summary" style="border-radius:var(--radius);margin-top:10px">
+          <div class="sum-row"><span>Subtotal</span><span id="rvSub">R$ 0,00</span></div>
+          <div class="sum-row"><span>Taxa de entrega</span><span>R$ 7,00</span></div>
+          <div class="sum-row total"><span>Total</span><span id="rvTotal">R$ 0,00</span></div>
+        </div>
+      </div>
+      <div class="scr-section">
+        <h3>Entrega & pagamento</h3>
+        <div class="addr-card"><div class="pay-ic">📍</div><div style="flex:1;font-size:13px;line-height:1.5">Rua das Acácias, 245<br><span style="color:var(--text-subtle)">Jardim Camburi · ~30 min</span></div></div>
+        <div class="addr-card"><div class="pay-ic">💳</div><div style="flex:1;font-size:13px;font-weight:600" id="rvPay">Pix</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-cta">
+    <button class="btn-cta" onclick="checkoutNext()"><span id="ckBtnLabel">Ir para endereço</span><span id="ckBtnVal"></span></button>
+  </div>
+</div>
+
+<!-- TELA ACOMPANHAMENTO -->
+<div class="screen" id="screenTrack">
+  <div class="screen-inner">
+    <div class="track-hero">
+      <div class="track-check"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+      <h2>Pedido confirmado!</h2>
+      <p>Pedido <b id="trackId">#MGB-0042</b> · Menuzia Burger</p>
+      <div class="track-eta">Chega em aproximadamente 35 min</div>
+    </div>
+    <div class="tl">
+      <div class="tl-step done"><div class="tl-dot"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div><div><div class="tl-label">Pedido recebido</div><div class="tl-time">19:42</div></div></div>
+      <div class="tl-step current"><div class="tl-dot"></div><div><div class="tl-label">Preparando seu pedido</div><div class="tl-time">em andamento</div></div></div>
+      <div class="tl-step"><div class="tl-dot"></div><div><div class="tl-label">Pedido pronto</div></div></div>
+      <div class="tl-step"><div class="tl-dot"></div><div><div class="tl-label">Saiu para entrega</div></div></div>
+      <div class="tl-step"><div class="tl-dot"></div><div><div class="tl-label">Entregue</div></div></div>
+    </div>
+  </div>
+  <div class="bottom-cta"><button class="btn-cta" style="background:var(--bg-page);color:var(--text-main)" onclick="resetApp()">Voltar ao cardápio</button></div>
+</div>
+
+<script>
+/* ===== Catálogo ===== */
+const MENU = [
+  {cat:'Lanches', desc:'Hambúrgueres artesanais', items:[
+    {id:'l1',name:'Burger Duplo Artesanal',desc:'Pão brioche, 2 carnes 120g, cheddar e molho da casa',price:32.90,emoji:'🍔',req:true,addons:true},
+    {id:'l2',name:'X-Bacon Supremo',desc:'Carne, bacon crocante, cheddar duplo e cebola',price:28.90,emoji:'🥓',req:true,addons:true},
+    {id:'l3',name:'X-Salada Clássico',desc:'Carne, queijo, alface, tomate e maionese',price:24.90,emoji:'🍔',req:true,addons:true},
+    {id:'l4',name:'Frango Crispy',desc:'Filé empanado, maionese temperada e picles',price:27.90,emoji:'🍗',req:false,addons:true},
+    {id:'l5',name:'Veggie Burger',desc:'Hambúrguer de grão-de-bico, legumes e rúcula',price:26.50,emoji:'🥗',req:false,addons:true},
+  ]},
+  {cat:'Combos', desc:'Refeição completa', items:[
+    {id:'c1',name:'Combo Família',desc:'4 burgers, 2 batatas G e refrigerante 2L',price:89.90,emoji:'🍱',addons:false},
+    {id:'c2',name:'Combo Kids',desc:'Mini burger, batata P, suco e brinde',price:29.00,emoji:'🧒',addons:false},
+  ]},
+  {cat:'Porções', desc:'Para compartilhar', items:[
+    {id:'p1',name:'Batata Frita G',desc:'Porção generosa com cheddar e bacon',price:18.90,emoji:'🍟',addons:false},
+    {id:'p2',name:'Onion Rings',desc:'Anéis de cebola empanados crocantes',price:16.00,emoji:'🧅',addons:false},
+  ]},
+  {cat:'Bebidas', desc:'Para acompanhar', items:[
+    {id:'b1',name:'Coca-Cola lata',desc:'350ml gelada',price:6.00,emoji:'🥤',addons:false},
+    {id:'b2',name:'Suco natural',desc:'Laranja, maracujá ou abacaxi',price:9.00,emoji:'🧃',addons:false},
+    {id:'b3',name:'Água mineral',desc:'500ml com ou sem gás',price:4.00,emoji:'💧',addons:false},
+  ]},
+  {cat:'Sobremesas', desc:'Doce final', items:[
+    {id:'s1',name:'Brownie com sorvete',desc:'Brownie quente com sorvete de creme',price:14.00,emoji:'🍫',addons:false},
+    {id:'s2',name:'Milkshake',desc:'Chocolate, morango ou ovomaltine',price:18.00,emoji:'🥤',addons:false},
+  ]},
+];
+const PONTOS=['Mal passada','Ao ponto','Bem passada'];
+const ADDONS=[{n:'Bacon extra',p:4.00},{n:'Cheddar extra',p:3.50},{n:'Ovo',p:2.50},{n:'Cebola caramelizada',p:3.00}];
+const FEE=7.00;
+
+/* ===== Estado ===== */
+let cart=[]; let cur=null; let curQty=1; let payMethod='Pix'; let ckStep=1;
+const brl=v=>'R$ '+v.toFixed(2).replace('.',',');
+
+/* ===== Render menu ===== */
+function renderMenu(){
+  document.getElementById('cats').innerHTML=MENU.map((g,i)=>`<div class="chip ${i===0?'active':''}" onclick="jump('${g.cat}',this)">${g.cat}</div>`).join('');
+  document.getElementById('menu').innerHTML=MENU.map(g=>`
+    <div class="section" id="sec-${g.cat}">
+      <div class="section-title">${g.cat}</div>
+      <div class="section-desc">${g.desc}</div>
+      ${g.items.map(it=>`
+        <div class="product" onclick="openProduct('${it.id}')">
+          <div class="product-info">
+            <div class="product-name">${it.name}</div>
+            <div class="product-desc">${it.desc}</div>
+            <div class="product-from">${it.addons||it.req?'a partir de':''}</div>
+            <div class="product-price">${brl(it.price)}</div>
+          </div>
+          <div class="product-thumb"><div class="thumb-img">${it.emoji}</div><div class="add-fab">+</div></div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+function jump(cat,el){
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('sec-'+cat).scrollIntoView({behavior:'smooth',block:'start'});
+}
+function findItem(id){ for(const g of MENU){const f=g.items.find(i=>i.id===id); if(f)return f;} }
+
+/* ===== Detalhe produto ===== */
+function openProduct(id){
+  cur=findItem(id); curQty=1;
+  let html=`<div class="p-hero">${cur.emoji}</div><div class="p-body">
+    <div class="p-title">${cur.name}</div>
+    <div class="p-desc">${cur.desc}</div>
+    <div class="p-price">${brl(cur.price)}</div>`;
+  if(cur.req){
+    html+=`<div class="opt-group"><div class="opt-head"><h3>Ponto da carne</h3><span class="opt-tag tag-req">Obrigatório</span></div>`;
+    html+=PONTOS.map((p,i)=>`<div class="opt-row radio ${i===1?'selected':''}" data-grp="ponto" onclick="pickRadio(this)"><span class="o-name">${p}</span><span class="opt-ctrl"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span></div>`).join('')+`</div>`;
+  }
+  if(cur.addons){
+    html+=`<div class="opt-group"><div class="opt-head"><h3>Adicionais</h3><span class="opt-tag tag-opt">Opcional</span></div>`;
+    html+=ADDONS.map(a=>`<div class="opt-row check" data-add="${a.n}" data-p="${a.p}" onclick="toggleCheck(this)"><span class="o-name">${a.n}</span><span class="o-price">+ ${brl(a.p)}</span><span class="opt-ctrl"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span></div>`).join('')+`</div>`;
+  }
+  html+=`<div class="opt-group"><div class="opt-head"><h3>Observações</h3></div><textarea class="obs-area" id="obs" placeholder="Ex: sem cebola, ponto da batata..."></textarea></div></div>`;
+  document.getElementById('productScroll').innerHTML=html;
+  updateAddBtn();
+  open('sheetProduct');
+}
+function pickRadio(el){ el.parentElement.querySelectorAll('[data-grp="ponto"]').forEach(r=>r.classList.remove('selected')); el.classList.add('selected'); }
+function toggleCheck(el){ el.classList.toggle('selected'); updateAddBtn(); }
+function stepQty(d){ curQty=Math.max(1,curQty+d); document.getElementById('qVal').textContent=curQty; document.getElementById('qMinus').disabled=curQty<=1; updateAddBtn(); }
+function curAddons(){ return [...document.querySelectorAll('.opt-row.check.selected')].map(e=>({n:e.dataset.add,p:parseFloat(e.dataset.p)})); }
+function curUnit(){ return cur.price + curAddons().reduce((s,a)=>s+a.p,0); }
+function updateAddBtn(){ document.getElementById('addPrice').textContent=brl(curUnit()*curQty); }
+
+function addToCart(){
+  const adds=curAddons();
+  const ponto = cur.req ? document.querySelector('[data-grp="ponto"].selected .o-name').textContent : null;
+  cart.push({name:cur.name,emoji:cur.emoji,qty:curQty,unit:curUnit(),adds:adds.map(a=>a.n),ponto});
+  closeAll(); updateCart();
+}
+
+/* ===== Carrinho ===== */
+function updateCart(){
+  const count=cart.reduce((s,i)=>s+i.qty,0);
+  const sub=cart.reduce((s,i)=>s+i.unit*i.qty,0);
+  document.getElementById('cbCount').textContent=count;
+  document.getElementById('cbTotal').textContent=brl(sub);
+  document.getElementById('cartbar').classList.toggle('show',count>0);
+}
+function renderCart(){
+  const sub=cart.reduce((s,i)=>s+i.unit*i.qty,0);
+  document.getElementById('cartItems').innerHTML=cart.length?cart.map((it,idx)=>`
+    <div class="cart-item">
+      <div class="ci-thumb">${it.emoji}</div>
+      <div class="ci-info">
+        <div class="ci-name">${it.qty}x ${it.name}</div>
+        <div class="ci-add">${[it.ponto,...it.adds].filter(Boolean).join(', ')||'Sem adicionais'}</div>
+        <div class="ci-bottom">
+          <span class="ci-price">${brl(it.unit*it.qty)}</span>
+          <div class="ci-stepper"><button onclick="cartQty(${idx},-1)">−</button><span class="q">${it.qty}</span><button onclick="cartQty(${idx},1)">+</button></div>
+        </div>
+      </div>
+    </div>`).join(''):'<p style="text-align:center;color:var(--text-subtle);padding:30px 0">Sua sacola está vazia</p>';
+  document.getElementById('sumSub').textContent=brl(sub);
+  document.getElementById('sumTotal').textContent=brl(sub+FEE);
+  document.getElementById('ckTotal').textContent=brl(sub+FEE);
+}
+function cartQty(idx,d){ cart[idx].qty+=d; if(cart[idx].qty<=0)cart.splice(idx,1); renderCart(); updateCart(); if(!cart.length)closeAll(); }
+function openCart(){ renderCart(); open('sheetCart'); }
+
+/* ===== Sheets helpers ===== */
+function open(id){ document.getElementById('overlay').classList.add('open'); document.getElementById(id).classList.add('open'); }
+function closeAll(){ document.getElementById('overlay').classList.remove('open'); document.getElementById('sheetProduct').classList.remove('open'); document.getElementById('sheetCart').classList.remove('open'); }
+
+/* ===== Checkout ===== */
+function goCheckout(){ closeAll(); ckStep=1; showStep(); document.getElementById('screenCheckout').classList.add('open'); }
+function selectPay(el){ document.querySelectorAll('.pay-opt').forEach(p=>p.classList.remove('selected')); el.classList.add('selected'); payMethod=el.dataset.pay; document.getElementById('trocoField').style.display = payMethod==='Dinheiro'?'block':'none'; }
+function showStep(){
+  [1,2,3].forEach(n=>document.getElementById('step'+n).style.display = n===ckStep?'block':'none');
+  document.getElementById('st1').classList.toggle('done',ckStep>=1);
+  document.getElementById('st2').classList.toggle('done',ckStep>=2);
+  document.getElementById('st3').classList.toggle('done',ckStep>=3);
+  const titles={1:'Pagamento',2:'Endereço',3:'Revisar pedido'};
+  document.getElementById('ckTitle').textContent=titles[ckStep];
+  const labels={1:'Ir para endereço',2:'Revisar pedido',3:'Fazer pedido'};
+  document.getElementById('ckBtnLabel').textContent=labels[ckStep];
+  if(ckStep===3){ renderReview(); document.getElementById('ckBtnVal').textContent=document.getElementById('rvTotal').textContent; }
+  else document.getElementById('ckBtnVal').textContent='';
+}
+function renderReview(){
+  const sub=cart.reduce((s,i)=>s+i.unit*i.qty,0);
+  document.getElementById('reviewItems').innerHTML=cart.map(it=>`<div class="sum-row" style="color:var(--text-main);font-weight:500"><span>${it.qty}x ${it.name}</span><span>${brl(it.unit*it.qty)}</span></div>`).join('');
+  document.getElementById('rvSub').textContent=brl(sub);
+  document.getElementById('rvTotal').textContent=brl(sub+FEE);
+  document.getElementById('rvPay').textContent=payMethod;
+}
+function checkoutNext(){ if(ckStep<3){ ckStep++; showStep(); window.scrollTo(0,0); } else placeOrder(); }
+function checkoutBack(){ if(ckStep>1){ ckStep--; showStep(); } else document.getElementById('screenCheckout').classList.remove('open'); }
+function placeOrder(){
+  document.getElementById('trackId').textContent='#MGB-'+Math.floor(1000+Math.random()*9000);
+  document.getElementById('screenCheckout').classList.remove('open');
+  document.getElementById('screenTrack').classList.add('open');
+}
+function resetApp(){ cart=[]; updateCart(); document.getElementById('screenTrack').classList.remove('open'); window.scrollTo(0,0); }
+
+renderMenu(); updateCart();
+</script>
+</body>
+</html>

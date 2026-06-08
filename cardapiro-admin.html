@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menuzia — Gestor de Cardápio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-main:#FFFFFF; --bg-page:#edeef1; --border-color:#E5E7EB;
+  --text-main:#1F2937; --text-subtle:#6B7280;
+  --sidebar-bg:#111827; --sidebar-hover:#1F2937; --sidebar-text:#9CA3AF;
+  --primary:#06B6D4; --primary-dark:#0891B2;
+  --status-pending:#F97316; --status-preparing:#3B82F6; --status-ready:#10B981;
+  --bg-price:#DCFCE7; --text-price:#16A34A;
+  --bg-alert:#E0F2FE; --text-alert:#0369A1;
+  --status-danger:#EF4444; --bg-danger:#FEE2E2;
+  --status-paused:#A855F7; --bg-paused:#F3E8FF;
+  --radius-max:3px;
+  --sidebar-width:240px; --sidebar-collapsed:70px; --header-height:60px;
+}
+*{margin:0;padding:0;box-sizing:border-box;outline:none}
+body{font-family:'Inter',sans-serif;background:var(--bg-page);color:var(--text-main);font-size:14px;overflow:hidden}
+.hidden{display:none!important}
+.app-container{display:flex;height:100vh}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar-width);background:var(--sidebar-bg);display:flex;flex-direction:column;z-index:30;transition:width .3s ease;flex-shrink:0;box-shadow:2px 0 10px rgba(0,0,0,.1)}
+.sidebar-brand{height:var(--header-height);background:var(--primary);display:flex;align-items:center;justify-content:space-between;padding:0 18px;color:#fff;flex-shrink:0}
+.brand-text{font-weight:700;font-size:20px;letter-spacing:.5px;white-space:nowrap;text-transform:lowercase}
+.brand-burger{background:none;border:none;cursor:pointer;color:#fff;display:flex;align-items:center;padding:2px}
+.brand-burger svg{width:22px;height:22px;fill:currentColor}
+.sidebar-nav{padding:10px 0;display:flex;flex-direction:column;gap:2px;overflow-x:hidden;overflow-y:auto}
+.nav-item{padding:14px 6px;color:var(--sidebar-text);text-decoration:none;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;transition:.2s;border-left:3px solid transparent;text-align:center}
+.nav-item:hover{background:var(--sidebar-hover);color:#fff}
+.nav-item.active{color:var(--primary);font-weight:600;border-left-color:var(--primary);background:var(--sidebar-hover)}
+.nav-icon{width:22px;height:22px;fill:currentColor;flex-shrink:0}
+.nav-text{font-size:12px;line-height:1.2}
+.sidebar.collapsed{width:var(--sidebar-collapsed)}
+.sidebar.collapsed .brand-text{display:none}
+.sidebar.collapsed .sidebar-brand{justify-content:center}
+.sidebar.collapsed .nav-text{display:none}
+.sidebar.collapsed .nav-item{padding:14px 0}
+
+/* MAIN */
+.main-content{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.top-bar{height:var(--header-height);background:var(--bg-main);border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0}
+.toggle-btn{background:none;border:none;cursor:pointer;color:var(--text-subtle);display:flex;align-items:center;padding:5px}
+.toggle-btn:hover{color:var(--primary)}
+.toggle-icon{width:24px;height:24px;fill:currentColor}
+.section-title{font-size:16px;font-weight:600}
+.breadcrumb{font-size:12px;color:var(--text-subtle);margin-top:1px}
+.breadcrumb b{color:var(--text-main);font-weight:600}
+.page-content{flex:1;overflow:hidden;padding:20px;display:flex;flex-direction:column;gap:16px}
+
+/* BOTÕES */
+.button{padding:7px 12px;font-weight:600;font-size:11px;text-transform:uppercase;cursor:pointer;border:none;transition:.15s;border-radius:var(--radius-max);display:inline-flex;align-items:center;justify-content:center;gap:6px;letter-spacing:.3px}
+.button svg{width:14px;height:14px;fill:currentColor}
+.button-primary{background:var(--primary);color:#fff}
+.button-primary:hover{background:var(--primary-dark)}
+.button-secondary{background:#E5E7EB;color:var(--text-main)}
+.button-secondary:hover{background:#D1D5DB}
+.button-outline{background:#fff;color:var(--text-main);border:1px solid var(--border-color)}
+.button-outline:hover{border-color:var(--primary);color:var(--primary)}
+.button-success{background:var(--status-ready);color:#fff}
+.button-ghost{background:transparent;color:var(--text-subtle)}
+.button-ghost:hover{background:var(--bg-page);color:var(--text-main)}
+
+/* TOOLBAR */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toolbar .spacer{flex:1}
+.search-box{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-max);padding:7px 10px;min-width:220px}
+.search-box svg{width:16px;height:16px;fill:var(--text-subtle)}
+.search-box input{border:none;font-family:inherit;font-size:13px;width:100%;color:var(--text-main)}
+.view-toggle{display:flex;border:1px solid var(--border-color);border-radius:var(--radius-max);overflow:hidden;background:#fff}
+.view-toggle button{border:none;background:#fff;padding:7px 10px;cursor:pointer;display:flex;align-items:center;color:var(--text-subtle)}
+.view-toggle button svg{width:16px;height:16px;fill:currentColor}
+.view-toggle button.active{background:var(--primary);color:#fff}
+
+/* DROPDOWN AÇÃO */
+.dropdown{position:relative}
+.dropdown-menu{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-max);box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:160px;z-index:40;padding:4px;display:none}
+.dropdown-menu.open{display:block}
+.dropdown-item{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--text-main);cursor:pointer;border-radius:var(--radius-max)}
+.dropdown-item svg{width:15px;height:15px;fill:var(--text-subtle)}
+.dropdown-item:hover{background:var(--bg-page)}
+.dropdown-item.danger{color:var(--status-danger)}
+.dropdown-item.danger svg{fill:var(--status-danger)}
+
+/* LAYOUT 2 COLUNAS (grupos + conteudo) */
+.cardapio-layout{flex:1;display:flex;gap:16px;overflow:hidden}
+.groups-panel{width:230px;flex-shrink:0;background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-max);display:flex;flex-direction:column;overflow:hidden}
+.panel-head{padding:12px 14px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between}
+.panel-head h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-subtle);font-weight:600}
+.groups-list{flex:1;overflow-y:auto;padding:8px}
+.group-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--radius-max);cursor:pointer;font-weight:500;color:var(--text-main);border-left:3px solid transparent}
+.group-item:hover{background:var(--bg-page)}
+.group-item.active{background:#ECFEFF;border-left-color:var(--primary);color:var(--primary-dark);font-weight:600}
+.group-item .count{font-size:11px;font-weight:700;color:var(--text-subtle);background:var(--bg-page);padding:2px 8px;border-radius:100px}
+.group-item.active .count{background:#fff;color:var(--primary-dark)}
+.groups-foot{padding:10px;border-top:1px solid var(--border-color);display:flex;gap:6px}
+.groups-foot .button{flex:1}
+
+.content-panel{flex:1;background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-max);display:flex;flex-direction:column;overflow:hidden}
+.content-head{padding:12px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.content-head .total{font-size:13px;color:var(--text-subtle)}
+.content-head .total b{color:var(--text-main)}
+.content-scroll{flex:1;overflow-y:auto}
+
+/* TABELA (edicao em massa - img 2) */
+table.menu-table{width:100%;border-collapse:collapse}
+.menu-table thead th{position:sticky;top:0;background:#F9FAFB;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-subtle);font-weight:600;padding:11px 14px;border-bottom:1px solid var(--border-color);white-space:nowrap}
+.menu-table tbody td{padding:12px 14px;border-bottom:1px solid var(--border-color);vertical-align:middle}
+.menu-table tbody tr{transition:.12s}
+.menu-table tbody tr:hover{background:#F9FAFB}
+.menu-table tbody tr.selected{background:#ECFEFF}
+.chk{width:16px;height:16px;accent-color:var(--primary);cursor:pointer}
+.item-cell{display:flex;align-items:center;gap:12px}
+.thumb{width:42px;height:42px;border-radius:var(--radius-max);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f1f5f9,#e2e8f0)}
+.thumb svg{width:24px;height:24px;opacity:.55}
+.item-name{font-weight:600;font-size:13px}
+.item-desc{font-size:11px;color:var(--text-subtle);margin-top:1px}
+.price-input{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border-color);border-radius:var(--radius-max);padding:5px 8px;font-weight:600;font-size:13px;background:#fff;min-width:92px}
+.price-input span{color:var(--text-subtle);font-size:11px}
+.price-input input{border:none;width:60px;font-family:inherit;font-weight:600;font-size:13px;color:var(--text-main)}
+.cat-tag{font-size:12px;color:var(--text-subtle)}
+
+/* TOGGLES DE DIA (quadrados 3px - identidade Menuzia) */
+.days{display:flex;gap:4px}
+.day{width:24px;height:24px;border-radius:var(--radius-max);border:1px solid var(--border-color);background:#fff;color:var(--text-subtle);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.12s;user-select:none}
+.day.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.day:hover{border-color:var(--primary)}
+
+/* STATUS BADGE */
+.badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:3px 8px;border-radius:var(--radius-max);display:inline-block}
+.badge-ok{background:var(--bg-price);color:var(--text-price)}
+.badge-out{background:var(--bg-danger);color:var(--status-danger)}
+.badge-paused{background:var(--bg-paused);color:var(--status-paused)}
+
+.row-actions{display:flex;gap:4px;align-items:center}
+.icon-btn{width:30px;height:30px;border:1px solid var(--border-color);background:#fff;border-radius:var(--radius-max);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-subtle)}
+.icon-btn svg{width:15px;height:15px;fill:currentColor}
+.icon-btn:hover{border-color:var(--primary);color:var(--primary)}
+
+/* GRADE (img 1) */
+.grid-view{padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.product-card{border:1px solid var(--border-color);border-radius:var(--radius-max);overflow:hidden;background:#fff;display:flex;flex-direction:column}
+.product-img{height:120px;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);display:flex;align-items:center;justify-content:center;position:relative}
+.product-img svg{width:46px;height:46px;opacity:.5}
+.product-img .badge{position:absolute;top:8px;left:8px}
+.product-body{padding:12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.product-name{font-weight:600;font-size:14px}
+.product-desc{font-size:12px;color:var(--text-subtle);line-height:1.4;flex:1}
+.product-foot{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.product-price{font-weight:700;color:var(--text-price);background:var(--bg-price);padding:4px 8px;border-radius:var(--radius-max);font-size:13px}
+
+/* SELECTION BAR */
+.sel-bar{display:flex;align-items:center;gap:14px;padding:10px 16px;background:#111827;color:#fff;border-radius:var(--radius-max);margin-bottom:12px}
+.sel-bar b{color:var(--primary)}
+.sel-bar .spacer{flex:1}
+.sel-bar .button-secondary{background:#374151;color:#fff}
+.sel-bar .button-secondary:hover{background:#4B5563}
+
+/* DRAWER (presets / edicao) */
+.overlay{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:50;opacity:0;pointer-events:none;transition:.25s}
+.overlay.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100vh;width:420px;max-width:92vw;background:#fff;z-index:60;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s ease;box-shadow:-8px 0 30px rgba(0,0,0,.15)}
+.drawer.open{transform:translateX(0)}
+.drawer-head{padding:16px 18px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between}
+.drawer-head h2{font-size:15px;font-weight:700}
+.drawer-head p{font-size:12px;color:var(--text-subtle);margin-top:2px}
+.drawer-close{width:30px;height:30px;border:none;background:var(--bg-page);border-radius:var(--radius-max);cursor:pointer;font-size:18px;color:var(--text-subtle);display:flex;align-items:center;justify-content:center}
+.drawer-close:hover{background:#E5E7EB}
+.drawer-body{flex:1;overflow-y:auto;padding:18px}
+.drawer-foot{padding:14px 18px;border-top:1px solid var(--border-color);display:flex;gap:10px}
+.drawer-foot .button{flex:1}
+
+.preset-card{border:1px solid var(--border-color);border-radius:var(--radius-max);padding:14px;margin-bottom:12px}
+.preset-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.preset-top h4{font-size:14px;font-weight:600}
+.preset-meta{font-size:11px;color:var(--text-subtle);background:var(--bg-page);padding:2px 8px;border-radius:100px;font-weight:600}
+.preset-items{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{font-size:11px;background:var(--bg-page);color:var(--text-subtle);padding:4px 8px;border-radius:var(--radius-max);font-weight:500}
+
+/* EDICAO DE COMPLEMENTOS POR LANCHE */
+.field-label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-subtle);font-weight:600;margin:16px 0 8px}
+.input{width:100%;border:1px solid var(--border-color);border-radius:var(--radius-max);padding:9px 11px;font-family:inherit;font-size:13px;color:var(--text-main)}
+.comp-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--border-color);border-radius:var(--radius-max);margin-bottom:8px}
+.comp-row .name{flex:1;font-size:13px;font-weight:500}
+.comp-row .price{font-size:12px;font-weight:600;color:var(--text-price)}
+.comp-row .rm{width:26px;height:26px;border:none;background:var(--bg-danger);color:var(--status-danger);border-radius:var(--radius-max);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.comp-row .rm:hover{background:#FCA5A5;color:#fff}
+.add-comp{width:100%;border:1px dashed var(--border-color);background:#fff;color:var(--text-subtle);padding:9px;border-radius:var(--radius-max);cursor:pointer;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+.add-comp:hover{border-color:var(--primary);color:var(--primary)}
+.imported-tag{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-alert);background:var(--bg-alert);padding:2px 6px;border-radius:var(--radius-max);margin-left:6px}
+
+/* RESPONSIVO */
+@media(max-width:900px){
+  .groups-panel{display:none}
+  .cardapio-layout{flex-direction:column}
+}
+@media(max-width:680px){
+  .sidebar{position:fixed;height:100vh;transform:translateX(-100%);transition:transform .3s}
+  .sidebar.mobile-open{transform:translateX(0)}
+  .menu-table thead{display:none}
+  .menu-table tbody td{display:block;border:none;padding:4px 14px}
+  .menu-table tbody tr{display:block;border:1px solid var(--border-color);border-radius:var(--radius-max);margin:10px;padding:8px 0}
+  .days{flex-wrap:wrap}
+  .search-box{min-width:140px;flex:1}
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-text">menuzia</div>
+      <button class="brand-burger" id="brandBurger"><svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg><span class="nav-text">Dashboard</span></a>
+      <a class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span class="nav-text">Painel de Pedidos</span></a>
+      <a class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M20 8h-3V4H3v13h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM8 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm10 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg><span class="nav-text">Logística</span></a>
+      <a class="nav-item active"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 13l1.47-1.47z"/></svg><span class="nav-text">Cardápio</span></a>
+      <a class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7 7 0 00-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 00-.59.22L2.74 8.87a.49.49 0 00.12.61l2.03 1.58c-.05.3-.07.62-.07.94 0 .31.02.63.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 110-7.2 3.6 3.6 0 010 7.2z"/></svg><span class="nav-text">Ajustes</span></a>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <header class="top-bar">
+      <div style="display:flex;align-items:center;gap:16px">
+        <button class="toggle-btn" id="toggleBtn"><svg class="toggle-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+        <div>
+          <div class="section-title">Gestor de Cardápio</div>
+          <div class="breadcrumb">Cardápio › <b>Lanches</b></div>
+        </div>
+      </div>
+      <button class="button button-outline" onclick="openDrawer('preset')">
+        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Importar preset
+      </button>
+    </header>
+
+    <div class="page-content">
+      <!-- TOOLBAR -->
+      <div class="toolbar">
+        <button class="button button-primary" onclick="openDrawer('edit')">
+          <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Novo item
+        </button>
+        <button class="button button-outline">
+          <svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16 0h2v-2h-2v2zm0-10v2h2V7h-2zm0 6h2v-2h-2v2z"/></svg> Ordenação
+        </button>
+        <div class="spacer"></div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z"/></svg>
+          <input placeholder="Pesquise pelo nome...">
+        </div>
+        <div class="view-toggle">
+          <button class="active" id="btnTable" onclick="setView('table')" title="Tabela"><svg viewBox="0 0 24 24"><path d="M3 5h18v2H3zm0 6h18v2H3zm0 6h18v2H3z"/></svg></button>
+          <button id="btnGrid" onclick="setView('grid')" title="Grade"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg></button>
+        </div>
+        <div class="dropdown">
+          <button class="button button-secondary" onclick="toggleActions(event)">
+            Ação <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+          </button>
+          <div class="dropdown-menu" id="actionsMenu">
+            <div class="dropdown-item"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm5 11H7v-2h10v2z"/></svg> Esgotar</div>
+            <div class="dropdown-item"><svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg> Pausar</div>
+            <div class="dropdown-item danger"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8a2 2 0 002-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"/></svg> Excluir</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LAYOUT: GRUPOS + CONTEUDO -->
+      <div class="cardapio-layout">
+        <!-- GRUPOS (img 3) -->
+        <div class="groups-panel">
+          <div class="panel-head"><h3>Grupos do cardápio</h3></div>
+          <div class="groups-list" id="groupsList">
+            <div class="group-item active"><span>Lanches</span><span class="count">5</span></div>
+            <div class="group-item"><span>Combos</span><span class="count">4</span></div>
+            <div class="group-item"><span>Bebidas</span><span class="count">6</span></div>
+            <div class="group-item"><span>Sobremesas</span><span class="count">3</span></div>
+            <div class="group-item"><span>Porções</span><span class="count">4</span></div>
+          </div>
+          <div class="groups-foot">
+            <button class="button button-primary" style="flex:1">
+              <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Grupo
+            </button>
+            <button class="button button-outline icon-only" title="Reordenar grupos">
+              <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M7 14l5 5 5-5zm0-4l5-5 5 5z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- CONTEUDO -->
+        <div class="content-panel">
+          <div class="content-head">
+            <div class="total">Total de <b>5 itens</b> em <b>Lanches</b></div>
+            <div style="font-size:12px;color:var(--text-subtle)">Edição em massa ativa</div>
+          </div>
+          <div class="content-scroll">
+            <!-- VISÃO TABELA (img 2) -->
+            <div id="tableView">
+              <table class="menu-table">
+                <thead>
+                  <tr>
+                    <th style="width:36px"><input type="checkbox" class="chk" id="chkAll" onchange="toggleAll(this)"></th>
+                    <th>Item</th>
+                    <th style="width:120px">Preço</th>
+                    <th style="width:110px">Categoria</th>
+                    <th style="width:230px">Disponibilidade</th>
+                    <th style="width:110px">Status</th>
+                    <th style="width:90px">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+            <!-- VISÃO GRADE (img 1) -->
+            <div id="gridView" class="grid-view hidden"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- OVERLAY + DRAWERS -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+
+<!-- DRAWER PRESET -->
+<aside class="drawer" id="drawerPreset">
+  <div class="drawer-head">
+    <div><h2>Importar preset de complementos</h2><p>Selecione uma lista salva para aplicar a este lanche.</p></div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body" id="presetBody"></div>
+  <div class="drawer-foot">
+    <button class="button button-secondary" onclick="closeDrawer()" style="flex:1">Cancelar</button>
+  </div>
+</aside>
+
+<!-- DRAWER EDIÇÃO DE ITEM (com complementos) -->
+<aside class="drawer" id="drawerEdit">
+  <div class="drawer-head">
+    <div><h2>Editar lanche</h2><p>Burger Duplo Artesanal</p></div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body">
+    <div class="field-label">Nome do item</div>
+    <input class="input" value="Burger Duplo Artesanal">
+    <div class="field-label">Descrição</div>
+    <input class="input" value="Pão brioche, 2 hambúrgueres 120g, cheddar e molho da casa">
+    <div style="display:flex;gap:12px">
+      <div style="flex:1"><div class="field-label">Preço</div><input class="input" value="R$ 32,90"></div>
+      <div style="flex:1"><div class="field-label">Categoria</div><input class="input" value="Lanches"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px">
+      <div class="field-label" style="margin:0">Complementos <span class="imported-tag">Preset: Adicionais de Burger</span></div>
+      <button class="button button-ghost" style="padding:4px 6px" onclick="openDrawer('preset')">Trocar preset</button>
+    </div>
+    <p style="font-size:12px;color:var(--text-subtle);margin:6px 0 12px">Você importou uma família de complementos. Pode adicionar ou remover itens só neste lanche, sem afetar o preset.</p>
+
+    <div id="compList">
+      <div class="comp-row"><span class="name">Bacon extra</span><span class="price">+ R$ 4,00</span><button class="rm" onclick="this.parentElement.remove()">×</button></div>
+      <div class="comp-row"><span class="name">Cheddar extra</span><span class="price">+ R$ 3,50</span><button class="rm" onclick="this.parentElement.remove()">×</button></div>
+      <div class="comp-row"><span class="name">Ovo</span><span class="price">+ R$ 2,50</span><button class="rm" onclick="this.parentElement.remove()">×</button></div>
+      <div class="comp-row"><span class="name">Cebola caramelizada</span><span class="price">+ R$ 3,00</span><button class="rm" onclick="this.parentElement.remove()">×</button></div>
+    </div>
+    <button class="add-comp" onclick="addComp()">+ Adicionar complemento avulso</button>
+  </div>
+  <div class="drawer-foot">
+    <button class="button button-secondary" onclick="closeDrawer()">Cancelar</button>
+    <button class="button button-primary" onclick="closeDrawer()">Salvar item</button>
+  </div>
+</aside>
+
+<script>
+/* ===== Dados de exemplo ===== */
+const items = [
+  {name:'Burger Duplo Artesanal', desc:'2 carnes, cheddar e molho da casa', price:'32,90', cat:'Lanches', status:'ok'},
+  {name:'X-Salada Clássico', desc:'Carne, queijo, alface e tomate', price:'24,90', cat:'Lanches', status:'ok'},
+  {name:'X-Bacon Supremo', desc:'Carne, bacon crocante e cheddar', price:'28,90', cat:'Lanches', status:'paused'},
+  {name:'Veggie Burger', desc:'Hambúrguer de grão-de-bico e legumes', price:'26,50', cat:'Lanches', status:'out'},
+  {name:'Frango Crispy', desc:'Filé empanado, maionese e picles', price:'27,90', cat:'Lanches', status:'ok'},
+];
+const dayLabels = ['D','S','T','Q','Q','S','S'];
+const foodIcon = '<svg viewBox="0 0 24 24"><path d="M12 6c-3.87 0-7 2.46-7 5.5 0 .5.09.98.26 1.43.07.2.27.32.49.27.21-.05.34-.26.3-.47A4 4 0 017 11.5C7 9.57 9.24 8 12 8s5 1.57 5 3.5c0 .42-.07.82-.2 1.2-.05.21.08.42.29.47.22.05.42-.07.49-.27.17-.45.26-.93.26-1.4C19 8.46 15.87 6 12 6zM4 15h16v2H4zm0 3h16v2H4z"/></svg>';
+
+function statusBadge(s){
+  if(s==='out') return '<span class="badge badge-out">Esgotado</span>';
+  if(s==='paused') return '<span class="badge badge-paused">Pausado</span>';
+  return '<span class="badge badge-ok">Disponível</span>';
+}
+function daysHTML(activeArr){
+  return '<div class="days">'+dayLabels.map((d,i)=>
+    `<div class="day ${activeArr.includes(i)?'on':''}" onclick="this.classList.toggle('on')">${d}</div>`
+  ).join('')+'</div>';
+}
+
+/* ===== Render Tabela ===== */
+function renderTable(){
+  const def = [0,1,2,3,4,5,6];
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = items.map((it,idx)=>{
+    const active = it.status==='out' ? [0,6] : def;
+    return `<tr>
+      <td><input type="checkbox" class="chk row-chk" onchange="onRowCheck(this)"></td>
+      <td><div class="item-cell">
+        <div class="thumb">${foodIcon}</div>
+        <div><div class="item-name">${it.name}</div><div class="item-desc">${it.desc}</div></div>
+      </div></td>
+      <td><span class="price-input"><span>R$</span><input value="${it.price}"></span></td>
+      <td><span class="cat-tag">${it.cat}</span></td>
+      <td>${daysHTML(active)}</td>
+      <td>${statusBadge(it.status)}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" title="Editar" onclick="openDrawer('edit')"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z"/></svg></button>
+        <button class="icon-btn" title="Duplicar"><svg viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11z"/></svg></button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ===== Render Grade ===== */
+function renderGrid(){
+  const grid = document.getElementById('gridView');
+  grid.innerHTML = items.map(it=>`
+    <div class="product-card">
+      <div class="product-img">${foodIcon}${it.status!=='ok'?statusBadge(it.status):''}</div>
+      <div class="product-body">
+        <div class="product-name">${it.name}</div>
+        <div class="product-desc">${it.desc}</div>
+        <div class="product-foot">
+          <span class="product-price">R$ ${it.price}</span>
+          <button class="icon-btn" onclick="openDrawer('edit')"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z"/></svg></button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+/* ===== Presets ===== */
+const presets = [
+  {name:'Adicionais de Burger', items:['Bacon extra','Cheddar extra','Ovo','Cebola caramelizada','Picles','Molho barbecue']},
+  {name:'Bordas & Massas', items:['Borda catupiry','Borda cheddar','Massa fina','Massa tradicional']},
+  {name:'Bebidas extras', items:['Coca 350ml','Guaraná 350ml','Suco natural','Água com gás']},
+];
+function renderPresets(){
+  document.getElementById('presetBody').innerHTML = presets.map(p=>`
+    <div class="preset-card">
+      <div class="preset-top">
+        <h4>${p.name}</h4>
+        <span class="preset-meta">${p.items.length} itens</span>
+      </div>
+      <div class="preset-items">${p.items.map(i=>`<span class="chip">${i}</span>`).join('')}</div>
+      <button class="button button-primary" style="width:100%" onclick="importPreset('${p.name}')">
+        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Importar com 1 clique
+      </button>
+    </div>`).join('');
+}
+function importPreset(name){
+  closeDrawer();
+  setTimeout(()=>openDrawer('edit'),300);
+}
+
+/* ===== Interações ===== */
+function setView(v){
+  document.getElementById('tableView').classList.toggle('hidden', v!=='table');
+  document.getElementById('gridView').classList.toggle('hidden', v!=='grid');
+  document.getElementById('btnTable').classList.toggle('active', v==='table');
+  document.getElementById('btnGrid').classList.toggle('active', v==='grid');
+}
+function toggleAll(cb){
+  document.querySelectorAll('.row-chk').forEach(c=>{c.checked=cb.checked; c.closest('tr').classList.toggle('selected',cb.checked)});
+}
+function onRowCheck(cb){ cb.closest('tr').classList.toggle('selected',cb.checked); }
+function toggleActions(e){ e.stopPropagation(); document.getElementById('actionsMenu').classList.toggle('open'); }
+document.addEventListener('click',()=>document.getElementById('actionsMenu').classList.remove('open'));
+
+function openDrawer(which){
+  document.getElementById('overlay').classList.add('open');
+  if(which==='preset'){ renderPresets(); document.getElementById('drawerPreset').classList.add('open'); document.getElementById('drawerEdit').classList.remove('open'); }
+  else { document.getElementById('drawerEdit').classList.add('open'); document.getElementById('drawerPreset').classList.remove('open'); }
+}
+function closeDrawer(){
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('drawerPreset').classList.remove('open');
+  document.getElementById('drawerEdit').classList.remove('open');
+}
+function addComp(){
+  const div=document.createElement('div');
+  div.className='comp-row';
+  div.innerHTML='<input class="input" style="flex:1;border:none;padding:0" placeholder="Nome do complemento"><span class="price">+ R$ 0,00</span><button class="rm" onclick="this.parentElement.remove()">×</button>';
+  document.getElementById('compList').appendChild(div);
+}
+
+/* Grupos */
+document.getElementById('groupsList').addEventListener('click',e=>{
+  const item=e.target.closest('.group-item'); if(!item)return;
+  document.querySelectorAll('.group-item').forEach(g=>g.classList.remove('active'));
+  item.classList.add('active');
+});
+/* Sidebar */
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  if(window.innerWidth<=680) sb.classList.toggle('mobile-open');
+  else sb.classList.toggle('collapsed');
+}
+document.getElementById('toggleBtn').addEventListener('click',toggleSidebar);
+document.getElementById('brandBurger').addEventListener('click',toggleSidebar);
+
+renderTable(); renderGrid();
+</script>
+</body>
+</html>
