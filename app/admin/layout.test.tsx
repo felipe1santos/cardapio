@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import AdminLayout from './layout'
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/dashboard' }))
+vi.mock('next/navigation', () => ({ usePathname: () => '/admin/dashboard' }))
 
 describe('AdminLayout', () => {
   it('renders the sidebar navigation alongside the page content', () => {

@@ -4,11 +4,11 @@ import { usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/pedidos', label: 'Painel de Pedidos' },
-  { href: '/logistica', label: 'Logística' },
-  { href: '/cardapio', label: 'Cardápio' },
-  { href: '/ajustes', label: 'Ajustes' },
+  { href: '/admin/dashboard', label: 'Dashboard' },
+  { href: '/admin/pedidos', label: 'Painel de Pedidos' },
+  { href: '/admin/logistica', label: 'Logística' },
+  { href: '/admin/cardapio', label: 'Cardápio' },
+  { href: '/admin/ajustes', label: 'Ajustes' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
