@@ -70,12 +70,17 @@ interface ItemFormState {
   status: StatusItem
   diasDisponiveis: number[]
   imagemUrl: string | null
+  promocaoPreco: string
+  maisVendido: boolean
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function blankForm(grupoId: string | null): ItemFormState {
-  return { id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null }
+  return {
+    id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null,
+    promocaoPreco: '', maisVendido: false,
+  }
 }
 
 function formFromItem(item: ItemCardapio): ItemFormState {
@@ -88,6 +93,8 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     status: item.status,
     diasDisponiveis: item.diasDisponiveis,
     imagemUrl: item.imagemUrl,
+    promocaoPreco: item.promocaoPreco !== null ? item.promocaoPreco.toFixed(2).replace('.', ',') : '',
+    maisVendido: item.maisVendido,
   }
 }
 
@@ -1177,6 +1184,8 @@ export default function CardapioPage() {
         preco: parsePreco(form.preco),
         status: form.status,
         diasDisponiveis: form.diasDisponiveis,
+        promocaoPreco: form.promocaoPreco.trim() ? parsePreco(form.promocaoPreco) : null,
+        maisVendido: form.maisVendido,
       }
       if (form.id) {
         const updated = await atualizarItem(supabase, form.id, { ...payload, imagemUrl: form.imagemUrl })
@@ -1485,13 +1494,23 @@ export default function CardapioPage() {
                           <div className="flex items-center gap-3">
                             <ItemThumb item={item} />
                             <div>
-                              <div className="text-[13px] font-semibold">{item.nome}</div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-semibold">{item.nome}</span>
+                                {item.maisVendido && <Badge tone="highlight">Mais vendido</Badge>}
+                              </div>
                               <div className="mt-0.5 text-[11px] text-text-subtle">{item.descricao}</div>
                             </div>
                           </div>
                         </td>
                         <td className="border-b border-border px-3.5 py-3 text-[13px] font-semibold">
-                          R$ {item.preco.toFixed(2).replace('.', ',')}
+                          {item.promocaoPreco !== null ? (
+                            <div className="flex flex-col">
+                              <span className="text-price-text">R$ {item.promocaoPreco.toFixed(2).replace('.', ',')}</span>
+                              <span className="text-[11px] font-normal text-text-subtle line-through">R$ {item.preco.toFixed(2).replace('.', ',')}</span>
+                            </div>
+                          ) : (
+                            <>R$ {item.preco.toFixed(2).replace('.', ',')}</>
+                          )}
                         </td>
                         <td className="border-b border-border px-3.5 py-3">
                           <DayToggles
@@ -1501,6 +1520,7 @@ export default function CardapioPage() {
                               atualizarItem(supabase, item.id, {
                                 grupoId: item.grupoId, nome: item.nome, descricao: item.descricao,
                                 preco: item.preco, status: item.status, diasDisponiveis: days, imagemUrl: item.imagemUrl,
+                                promocaoPreco: item.promocaoPreco, maisVendido: item.maisVendido,
                               }).catch(() => setError('Não foi possível salvar a disponibilidade.'))
                             }}
                           />
@@ -1530,14 +1550,24 @@ export default function CardapioPage() {
                           : <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] fill-text-subtle/50"><path d="M12 6c-3.87 0-7 2.46-7 5.5 0 .5.09.98.26 1.43.07.2.27.32.49.27.21-.05.34-.26.3-.47A4 4 0 017 11.5C7 9.57 9.24 8 12 8s5 1.57 5 3.5c0 .42-.07.82-.2 1.2-.05.21.08.42.29.47.22.05.42-.07.49-.27.17-.45.26-.93.26-1.4C19 8.46 15.87 6 12 6zM4 15h16v2H4zm0 3h16v2H4z" /></svg>
                         }
                         {item.status !== 'disponivel' && <div className="absolute left-2 top-2"><StatusBadge status={item.status} /></div>}
+                        {item.maisVendido && <div className="absolute right-2 top-2"><Badge tone="highlight">Mais vendido</Badge></div>}
                       </div>
                       <div className="flex flex-1 flex-col gap-1.5 p-3">
                         <div className="text-sm font-semibold">{item.nome}</div>
                         <div className="flex-1 text-xs leading-relaxed text-text-subtle">{item.descricao}</div>
                         <div className="mt-1 flex items-center justify-between">
-                          <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-bold text-price-text">
-                            R$ {item.preco.toFixed(2).replace('.', ',')}
-                          </span>
+                          {item.promocaoPreco !== null ? (
+                            <span className="flex flex-col">
+                              <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-bold text-price-text">
+                                R$ {item.promocaoPreco.toFixed(2).replace('.', ',')}
+                              </span>
+                              <span className="mt-0.5 text-[11px] text-text-subtle line-through">R$ {item.preco.toFixed(2).replace('.', ',')}</span>
+                            </span>
+                          ) : (
+                            <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-bold text-price-text">
+                              R$ {item.preco.toFixed(2).replace('.', ',')}
+                            </span>
+                          )}
                           <button onClick={() => openEditItem(item)}
                             className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
                             <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
@@ -1706,6 +1736,25 @@ export default function CardapioPage() {
                 <option value="">Sem categoria</option>
                 {groups.map((group) => <option key={group.id} value={group.id}>{group.nome}</option>)}
               </select>
+            </div>
+          </div>
+
+          <div className="mt-4 flex gap-3">
+            <div className="flex-1">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preço promocional (R$)</div>
+              <input value={form.promocaoPreco} onChange={(e) => setForm((prev) => ({ ...prev, promocaoPreco: e.target.value }))}
+                placeholder="Opcional"
+                className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
+              <p className="mt-1 text-[11px] text-text-subtle">Se preenchido, o item aparece em promoção (com desconto) no cardápio.</p>
+            </div>
+            <div className="flex-1">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Destaque</div>
+              <label className="flex h-[34px] cursor-pointer items-center gap-2 rounded-menuzia border border-border px-2.5 text-[13px] font-medium text-text-main">
+                <input type="checkbox" checked={form.maisVendido} onChange={(e) => setForm((prev) => ({ ...prev, maisVendido: e.target.checked }))}
+                  className="h-3.5 w-3.5 accent-primary" />
+                Mais vendido
+              </label>
+              <p className="mt-1 text-[11px] text-text-subtle">Mostra a tag &ldquo;Mais Vendido&rdquo; no cardápio do cliente.</p>
             </div>
           </div>
 

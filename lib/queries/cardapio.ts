@@ -35,6 +35,7 @@ export interface ItemCardapio {
   status: StatusItem
   diasDisponiveis: number[]
   promocaoPreco: number | null
+  maisVendido: boolean
   grupos: GrupoItemComplementos[]
   complementos: ComplementoItem[]
 }
@@ -58,6 +59,7 @@ interface ItemRow {
   status: StatusItem
   dias_disponiveis: number[]
   promocao_preco: number | null
+  mais_vendido: boolean
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number }[]
 }
@@ -87,6 +89,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     status: row.status,
     diasDisponiveis: row.dias_disponiveis ?? [],
     promocaoPreco: row.promocao_preco === null ? null : Number(row.promocao_preco),
+    maisVendido: row.mais_vendido,
     grupos,
     complementos: (row.item_complementos ?? [])
       .filter((c) => !c.grupo_id)
@@ -132,7 +135,7 @@ export async function criarGrupo(supabase: SupabaseClient, restauranteId: string
 }
 
 const ITEM_SELECT = `
-  id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco,
+  id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao )
 `
@@ -155,6 +158,8 @@ export interface NovoItemInput {
   preco: number
   status: StatusItem
   diasDisponiveis: number[]
+  promocaoPreco: number | null
+  maisVendido: boolean
 }
 
 export async function criarItem(supabase: SupabaseClient, restauranteId: string, input: NovoItemInput): Promise<ItemCardapio> {
@@ -168,6 +173,8 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       preco: input.preco,
       status: input.status,
       dias_disponiveis: input.diasDisponiveis,
+      promocao_preco: input.promocaoPreco,
+      mais_vendido: input.maisVendido,
     })
     .select(ITEM_SELECT)
     .single()
@@ -184,6 +191,8 @@ export interface AtualizarItemInput {
   status: StatusItem
   diasDisponiveis: number[]
   imagemUrl: string | null
+  promocaoPreco: number | null
+  maisVendido: boolean
 }
 
 export async function atualizarItem(supabase: SupabaseClient, itemId: string, input: AtualizarItemInput): Promise<ItemCardapio> {
@@ -197,6 +206,8 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
       status: input.status,
       dias_disponiveis: input.diasDisponiveis,
       imagem_url: input.imagemUrl,
+      promocao_preco: input.promocaoPreco,
+      mais_vendido: input.maisVendido,
     })
     .eq('id', itemId)
     .select(ITEM_SELECT)
@@ -420,6 +431,8 @@ export async function removerComplemento(supabase: SupabaseClient, complementoId
 
 // --- Public storefront -------------------------------------------------
 
+export type LayoutCardapio = 'categoria' | 'lista'
+
 export interface RestauranteVitrine {
   id: string
   nome: string
@@ -431,12 +444,13 @@ export interface RestauranteVitrine {
   facebookPixelId: string | null
   googleTagId: string | null
   orderBumpMax: number
+  layoutCardapio: LayoutCardapio
 }
 
 export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
-    .select('id, nome, slug, logo_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, order_bump_max')
+    .select('id, nome, slug, logo_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio')
     .eq('slug', slug)
     .maybeSingle()
   if (error) throw error
@@ -452,6 +466,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     facebookPixelId: data.facebook_pixel_id,
     googleTagId: data.google_tag_id,
     orderBumpMax: Number(data.order_bump_max ?? 4),
+    layoutCardapio: (data.layout_cardapio as LayoutCardapio) ?? 'categoria',
   }
 }
 

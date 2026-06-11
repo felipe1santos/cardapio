@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { LayoutCardapio } from './cardapio'
 
 export interface ConfigLoja {
   id: string
@@ -10,6 +11,7 @@ export interface ConfigLoja {
   taxaEntregaPadrao: number
   facebookPixelId: string | null
   googleTagId: string | null
+  layoutCardapio: LayoutCardapio
 }
 
 interface ConfigRow {
@@ -22,9 +24,10 @@ interface ConfigRow {
   taxa_entrega_padrao: number
   facebook_pixel_id: string | null
   google_tag_id: string | null
+  layout_cardapio: LayoutCardapio
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -37,6 +40,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     taxaEntregaPadrao: Number(row.taxa_entrega_padrao),
     facebookPixelId: row.facebook_pixel_id,
     googleTagId: row.google_tag_id,
+    layoutCardapio: row.layout_cardapio ?? 'categoria',
   }
 }
 
@@ -54,6 +58,7 @@ export interface ConfigLojaPatch {
   taxaEntregaPadrao?: number
   facebookPixelId?: string | null
   googleTagId?: string | null
+  layoutCardapio?: LayoutCardapio
 }
 
 export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteId: string, patch: ConfigLojaPatch): Promise<ConfigLoja> {
@@ -65,6 +70,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.taxaEntregaPadrao !== undefined) row.taxa_entrega_padrao = patch.taxaEntregaPadrao
   if (patch.facebookPixelId !== undefined) row.facebook_pixel_id = patch.facebookPixelId
   if (patch.googleTagId !== undefined) row.google_tag_id = patch.googleTagId
+  if (patch.layoutCardapio !== undefined) row.layout_cardapio = patch.layoutCardapio
 
   const { data, error } = await supabase.from('restaurantes').update(row).eq('id', restauranteId).select(CONFIG_SELECT).single()
   if (error) throw error

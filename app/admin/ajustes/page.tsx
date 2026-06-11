@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { buscarRestauranteIdDoUsuario, type LayoutCardapio } from '@/lib/queries/cardapio'
 import {
   buscarConfigLoja,
   atualizarConfigLoja,
@@ -66,7 +66,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', logoUrl: '' })
+  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', logoUrl: '', layoutCardapio: 'categoria' as LayoutCardapio })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,13 +76,18 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     buscarConfigLoja(supabase, restauranteId).then((c) => {
       if (!c) return
       setConfig(c)
-      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, logoUrl: c.logoUrl ?? '' })
+      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, logoUrl: c.logoUrl ?? '', layoutCardapio: c.layoutCardapio })
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
 
-  function set(key: keyof typeof form, value: string) {
+  function set(key: 'nome' | 'telefone' | 'endereco' | 'logoUrl', value: string) {
     setForm((f) => ({ ...f, [key]: value }))
+    setSaved(false)
+  }
+
+  function setLayout(value: LayoutCardapio) {
+    setForm((f) => ({ ...f, layoutCardapio: value }))
     setSaved(false)
   }
 
@@ -96,6 +101,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         telefone: form.telefone.trim(),
         endereco: form.endereco.trim(),
         logoUrl: form.logoUrl.trim() || null,
+        layoutCardapio: form.layoutCardapio,
       })
       setConfig(updated)
       setSaved(true)
@@ -125,6 +131,32 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               onChange={(e) => set('logoUrl', e.target.value)}
               placeholder="https://..."
             />
+          </Field>
+          <Field label="Apresentação do cardápio" hint="Define como os itens aparecem para o cliente na vitrine pública.">
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setLayout('categoria')}
+                className={[
+                  'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                  form.layoutCardapio === 'categoria' ? 'border-primary bg-[#ECFEFF]' : 'border-border bg-white hover:border-primary/50',
+                ].join(' ')}
+              >
+                <div className="text-[13px] font-semibold text-text-main">Categorias</div>
+                <div className="mt-0.5 text-[11px] text-text-subtle">Cards grandes, 2 por linha</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayout('lista')}
+                className={[
+                  'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                  form.layoutCardapio === 'lista' ? 'border-primary bg-[#ECFEFF]' : 'border-border bg-white hover:border-primary/50',
+                ].join(' ')}
+              >
+                <div className="text-[13px] font-semibold text-text-main">Lista</div>
+                <div className="mt-0.5 text-[11px] text-text-subtle">Itens em lista compacta</div>
+              </button>
+            </div>
           </Field>
           {config && (
             <Field label="Slug (endereço público da loja)" hint="O slug é gerado automaticamente e não pode ser alterado por aqui.">
