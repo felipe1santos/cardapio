@@ -44,13 +44,13 @@ function PriceTag({ price, originalPrice }: { price: number; originalPrice?: num
     const off = Math.round((1 - price / originalPrice) * 100)
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="rounded bg-[#1cce93]/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1cce93]">-{off}% desconto</span>
-        <span className="rounded bg-[#D1FAE5] px-2 py-0.5 text-[15px] font-bold text-[#1cce93]">{brl(price)}</span>
+        <span className="rounded bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">-{off}% desconto</span>
+        <span className="text-[15px] font-bold text-price-text">{brl(price)}</span>
         <span className="text-xs text-text-subtle line-through">{brl(originalPrice)}</span>
       </span>
     )
   }
-  return <span className="text-[15px] font-bold text-[#1cce93]">{brl(price)}</span>
+  return <span className="text-[15px] font-bold text-text-main">{brl(price)}</span>
 }
 
 function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number }) {
@@ -418,6 +418,13 @@ export default function StorefrontPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [cliente, setCliente] = useState({ nome: '', telefone: '' })
 
+  // ── Lock background scroll while a full-screen overlay is open ────────────
+  useEffect(() => {
+    const open = !!productSheet || checkoutOpen
+    document.body.style.overflow = open ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [productSheet, checkoutOpen])
+
   // ── Order tracking ────────────────────────────────────────────────────────
   const [pedidoId, setPedidoId] = useState<string | null>(null)
   const [pedidoStatus, setPedidoStatus] = useState<string>('recebido')
@@ -505,11 +512,11 @@ export default function StorefrontPage() {
 
   // ── Loading / error ────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="font-loja flex min-h-screen items-center justify-center bg-[#F3F4F6] text-sm text-text-subtle">Carregando cardápio…</div>
+    return <div className="font-loja flex min-h-dvh items-center justify-center bg-[#F3F4F6] text-sm text-text-subtle">Carregando cardápio…</div>
   }
   if (error || !restaurante) {
     return (
-      <div className="font-loja flex min-h-screen items-center justify-center bg-[#F3F4F6] p-6">
+      <div className="font-loja flex min-h-dvh items-center justify-center bg-[#F3F4F6] p-6">
         <div className="max-w-sm rounded border border-border bg-white p-5 text-center">
           <h1 className="text-sm font-bold text-danger">Loja indisponível</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error}</p>
@@ -522,7 +529,7 @@ export default function StorefrontPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="font-loja min-h-screen bg-[#F3F4F6] text-text-main">
+    <div className="font-loja min-h-dvh bg-[#F3F4F6] text-text-main">
       <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
 
       {/* ── Desktop top nav ──────────────────────────────────────────────── */}
@@ -533,7 +540,7 @@ export default function StorefrontPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={restaurante.logoUrl} alt={storeName} className="h-8 w-8 rounded object-cover" />
             ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded bg-gradient-to-br from-[#06b4d4] to-[#0891B2] text-sm font-extrabold text-white">
+              <div className="flex h-8 w-8 items-center justify-center rounded bg-gradient-to-br from-[#008fba] to-[#007599] text-sm font-extrabold text-white">
                 {storeName.charAt(0).toUpperCase()}
               </div>
             )}
@@ -548,7 +555,7 @@ export default function StorefrontPage() {
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={['rounded px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-[#F3F4F6] text-[#06b4d4]' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                className={['rounded px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-[#F3F4F6] text-[#008fba]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.label}
               </button>
@@ -556,7 +563,7 @@ export default function StorefrontPage() {
           </nav>
           <button
             onClick={() => setTab('cart')}
-            className={['ml-auto flex items-center gap-2.5 rounded border px-4 py-2 text-[13px] font-bold transition-colors', tab === 'cart' ? 'border-[#06b4d4] bg-[#06b4d4] text-white' : 'border-border bg-white text-text-main hover:border-[#06b4d4]'].join(' ')}
+            className={['ml-auto flex items-center gap-2.5 rounded border px-4 py-2 text-[13px] font-bold transition-colors', tab === 'cart' ? 'border-[#008fba] bg-[#008fba] text-white' : 'border-border bg-white text-text-main hover:border-[#008fba]'].join(' ')}
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.9 18 9 18h12v-2H9.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" /></svg>
             Sacola
@@ -566,17 +573,20 @@ export default function StorefrontPage() {
         </div>
       </header>
 
-      <div className="relative mx-auto min-h-screen max-w-[600px] bg-[#F3F4F6] pb-24 lg:max-w-[1280px] lg:pb-16">
+      <div className="relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-24 lg:max-w-[1280px] lg:pb-16">
 
         {/* ── HOME header: cover banner + profile + search + category nav ── */}
         {tab === 'home' && (
           <>
             {/* Cover banner */}
             <div className="h-40 w-full overflow-hidden sm:h-56 lg:mx-8 lg:mt-6 lg:h-72 lg:rounded-md">
-              {collageImages[0] ? (
+              {restaurante.bannerUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={restaurante.bannerUrl} alt={storeName} className="h-full w-full object-cover" />
+              ) : collageImages[0] ? (
                 <ProductImage item={collageImages[0]} className="h-full w-full" />
               ) : (
-                <div className="h-full w-full bg-gradient-to-br from-[#22D3EE] via-[#06b4d4] to-[#0891B2]" />
+                <div className="h-full w-full bg-gradient-to-br from-[#22D3EE] via-[#008fba] to-[#007599]" />
               )}
             </div>
 
@@ -588,7 +598,7 @@ export default function StorefrontPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={restaurante.logoUrl} alt={storeName} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#06b4d4] to-[#0891B2] text-3xl font-extrabold text-white">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#008fba] to-[#007599] text-3xl font-extrabold text-white">
                       {storeName.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -625,7 +635,7 @@ export default function StorefrontPage() {
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#1cce93] bg-[#D1FAE5] text-[#1cce93]' : 'border-border bg-white text-text-subtle hover:border-[#06b4d4] hover:text-[#06b4d4]'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#1cce93] bg-[#D1FAE5] text-[#1cce93]' : 'border-border bg-white text-text-subtle hover:border-[#008fba] hover:text-[#008fba]'].join(' ')}
                 >
                   🏷️ Promoções
                 </button>
@@ -634,7 +644,7 @@ export default function StorefrontPage() {
                 <button
                   key={cat.id}
                   onClick={() => { setActiveCategory(cat.nome); document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
-                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-[#06b4d4] bg-[#06b4d4] text-white' : 'border-border bg-white text-text-subtle hover:border-[#06b4d4] hover:text-[#06b4d4]'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-[#008fba] bg-[#008fba] text-white' : 'border-border bg-white text-text-subtle hover:border-[#008fba] hover:text-[#008fba]'].join(' ')}
                 >
                   {cat.nome}
                 </button>
@@ -664,7 +674,7 @@ export default function StorefrontPage() {
             </div>
             <button
               onClick={() => setTab('home')}
-              className="flex flex-shrink-0 items-center gap-1.5 rounded border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-[#06b4d4] hover:text-[#06b4d4] active:scale-95"
+              className="flex flex-shrink-0 items-center gap-1.5 rounded border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-[#008fba] hover:text-[#008fba] active:scale-95"
             >
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
               Continuar comprando
@@ -722,7 +732,7 @@ export default function StorefrontPage() {
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🛍️</div>
                 <p className="font-semibold text-text-main">Sua sacola está vazia</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Escolha seus itens favoritos no cardápio.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[#06b4d4] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#0891B2]">
+                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[#008fba] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#007599]">
                   Ver cardápio
                 </button>
               </div>
@@ -749,9 +759,9 @@ export default function StorefrontPage() {
                           <div className="mt-2 flex items-center justify-between">
                             <span className="text-[14px] font-bold text-[#1cce93]">{brl(line.unit * line.qty)}</span>
                             <div className="flex items-center rounded border border-border">
-                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#06b4d4] hover:bg-[#F3F4F6] active:bg-border">−</button>
+                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#008fba] hover:bg-[#F3F4F6] active:bg-border">−</button>
                               <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
-                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#06b4d4] hover:bg-[#F3F4F6] active:bg-border">+</button>
+                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#008fba] hover:bg-[#F3F4F6] active:bg-border">+</button>
                             </div>
                           </div>
                         </div>
@@ -768,7 +778,7 @@ export default function StorefrontPage() {
                           <button
                             key={item.id}
                             onClick={() => quickAddOrderBump(item)}
-                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded border border-border bg-white transition-all duration-150 hover:border-[#06b4d4] hover:shadow-lg active:scale-[0.97]"
+                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded border border-border bg-white transition-all duration-150 hover:border-[#008fba] hover:shadow-lg active:scale-[0.97]"
                           >
                             <div className="h-[100px] w-full overflow-hidden">
                               <ProductThumb item={item} size={142} />
@@ -776,7 +786,7 @@ export default function StorefrontPage() {
                             <div className="flex flex-1 flex-col p-2.5">
                               <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
                               <div className="mt-1 text-[12px] font-bold text-[#1cce93]">{brl(item.promocaoPreco ?? item.preco)}</div>
-                              <div className="mt-2 rounded bg-[#06b4d4] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[#0891B2]">
+                              <div className="mt-2 rounded bg-[#008fba] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[#007599]">
                                 + Adicionar
                               </div>
                             </div>
@@ -803,7 +813,7 @@ export default function StorefrontPage() {
 
                   <button
                     onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
-                    className="flex w-full items-center justify-between rounded bg-[#06b4d4] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#0891B2] active:scale-[0.99]"
+                    className="flex w-full items-center justify-between rounded bg-[#008fba] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#007599] active:scale-[0.99]"
                   >
                     <span>Continuar para pagamento</span>
                     <span>{brl(total)}</span>
@@ -834,12 +844,12 @@ export default function StorefrontPage() {
                     return (
                       <div key={step} className="relative flex gap-3.5 pb-6 last:pb-0">
                         {i < arr.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />}
-                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[#06b4d4] bg-[#06b4d4]' : 'border-border'].join(' ')}>
+                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
                           {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                         <div>
                           <div className={`text-sm font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{labels[i]}</div>
-                          {state === 'active' && <div className="mt-0.5 text-[12px] text-[#06b4d4]">Em andamento…</div>}
+                          {state === 'active' && <div className="mt-0.5 text-[12px] text-[#008fba]">Em andamento…</div>}
                           {state === 'done' && <div className="mt-0.5 text-[12px] text-status-ready">Concluído</div>}
                         </div>
                       </div>
@@ -852,7 +862,7 @@ export default function StorefrontPage() {
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">📦</div>
                 <p className="font-semibold text-text-main">Nenhum pedido ativo</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Quando você finalizar um pedido, o acompanhamento aparece aqui.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[#06b4d4] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#0891B2]">
+                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[#008fba] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#007599]">
                   Ver cardápio
                 </button>
               </div>
@@ -885,12 +895,12 @@ export default function StorefrontPage() {
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', tab === item.id ? 'text-[#06b4d4]' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', tab === item.id ? 'text-[#008fba]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.icon}
                 {item.label}
                 {'badge' in item && item.badge > 0 && (
-                  <span className="absolute right-[20%] top-1 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#06b4d4] px-1 text-[9px] font-bold text-white">
+                  <span className="absolute right-[20%] top-1 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#008fba] px-1 text-[9px] font-bold text-white">
                     {item.badge}
                   </span>
                 )}
@@ -902,15 +912,15 @@ export default function StorefrontPage() {
 
       {/* ── Product sheet overlay ─────────────────────────────────────── */}
       {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={() => setProductSheet(null)} />}
-      <div className={['fixed bottom-0 left-1/2 z-50 flex max-h-[92vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-md bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded lg:max-h-[85vh]', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+      <div className={['fixed inset-y-0 left-1/2 z-50 flex h-dvh w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden bg-white transition-all duration-300 lg:inset-y-auto lg:bottom-auto lg:top-1/2 lg:h-auto lg:max-h-[85vh] lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
         {productSheet && (
           <>
             <button onClick={() => setProductSheet(null)} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
             <div className="flex-1 overflow-y-auto">
               {productSheet.imagemUrl
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-[200px] w-full object-cover" />
-                : <div className="flex h-[180px] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70">{productSheet.nome.charAt(0)}</div>
+                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-[42vh] w-full object-cover lg:h-[260px]" />
+                : <div className="flex h-[42vh] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70 lg:h-[260px]">{productSheet.nome.charAt(0)}</div>
               }
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
@@ -949,11 +959,11 @@ export default function StorefrontPage() {
                               : <span className="rounded bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#1cce93]">Grátis</span>
                             }
                             {isRadio ? (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#06b4d4] bg-[#06b4d4]' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             ) : (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', isSelected ? 'border-[#06b4d4] bg-[#06b4d4]' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
                                 {isSelected && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                               </span>
                             )}
@@ -982,7 +992,7 @@ export default function StorefrontPage() {
                           ? <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(addon.preco)}</span>
                           : <span className="rounded bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#1cce93]">Grátis</span>
                         }
-                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', selectedAddons.has(addon.nome) ? 'border-[#06b4d4] bg-[#06b4d4]' : 'border-border'].join(' ')}>
+                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', selectedAddons.has(addon.nome) ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                       </button>
@@ -992,22 +1002,22 @@ export default function StorefrontPage() {
 
                 <div className="mt-5">
                   <h3 className="mb-2.5 text-sm font-bold">Observações</h3>
-                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
               </div>
             </div>
-            <div className="flex flex-col gap-2 border-t border-border p-4.5">
+            <div className="flex flex-shrink-0 flex-col gap-2 border-t border-border p-4.5 pb-[max(env(safe-area-inset-bottom),1.125rem)]">
               {!gruposValidos && <p className="text-center text-[11px] font-medium text-danger">Preencha todos os campos obrigatórios para continuar.</p>}
               <div className="flex items-center gap-3.5">
                 <div className="flex items-center rounded border border-border">
-                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#06b4d4] disabled:text-border">−</button>
+                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#008fba] disabled:text-border">−</button>
                   <span className="w-[34px] text-center text-[15px] font-bold">{qty}</span>
-                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#06b4d4]">+</button>
+                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#008fba]">+</button>
                 </div>
                 <button
                   onClick={addToCart}
                   disabled={!gruposValidos}
-                  className={['flex flex-1 items-center justify-between rounded px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-[#06b4d4] hover:bg-[#0891B2] active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
+                  className={['flex flex-1 items-center justify-between rounded px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-[#008fba] hover:bg-[#007599] active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
                 >
                   <span>Adicionar</span>
                   <span>{brl(unitPrice * qty)}</span>
@@ -1020,13 +1030,13 @@ export default function StorefrontPage() {
 
       {/* ── Checkout screen ───────────────────────────────────────────── */}
       <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`}>
-        <div className="mx-auto min-h-screen max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
+        <div className="mx-auto min-h-dvh max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
             <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded bg-[#F3F4F6] text-lg">←</button>
             <span className="text-base font-bold">{checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
           </div>
           <div className="flex gap-2 px-4 py-4">
-            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[#06b4d4]' : 'bg-border'}`} />)}
+            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[#008fba]' : 'bg-border'}`} />)}
           </div>
 
           {checkoutStep === 1 && (
@@ -1034,17 +1044,17 @@ export default function StorefrontPage() {
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Forma de pagamento</h3>
               {[{ id: 'Pix', icon: '🔑' }, { id: 'Cartão na entrega', icon: '💳' }, { id: 'Dinheiro', icon: '💵' }].map((opt) => (
                 <button key={opt.id} onClick={() => setPayMethod(opt.id)}
-                  className={['mb-2.5 flex w-full items-center gap-3 rounded border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[#06b4d4] bg-[#FFFBEB]' : 'border-border'].join(' ')}>
+                  className={['mb-2.5 flex w-full items-center gap-3 rounded border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[#008fba] bg-[#FFFBEB]' : 'border-border'].join(' ')}>
                   <span className="flex h-[38px] w-[38px] items-center justify-center rounded bg-[#F3F4F6] text-lg">{opt.icon}</span>
                   <span className="flex-1 text-sm font-semibold">{opt.id}</span>
-                  <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[#06b4d4] bg-[#06b4d4]' : 'border-border'].join(' ')} />
+                  <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')} />
                 </button>
               ))}
               {payMethod === 'Dinheiro' && (
                 <div className="mt-2">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Troco para quanto? (deixe em branco se não precisar)</label>
                   <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
               )}
             </div>
@@ -1057,12 +1067,12 @@ export default function StorefrontPage() {
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome *</label>
                   <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
                   <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: e.target.value }))} placeholder="(00) 00000-0000"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
               </div>
               <h3 className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
@@ -1070,30 +1080,30 @@ export default function StorefrontPage() {
                 <div className="flex-[2]">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua *</label>
                   <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número *</label>
                   <input value={endereco.numero} onChange={(e) => setEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
               </div>
               <div className="mt-3 flex gap-3">
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
                   <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
                   <input value={endereco.cep} onChange={(e) => setEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
                 </div>
               </div>
               <div className="mt-3">
                 <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
                 <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
-                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#06b4d4]" />
+                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
               </div>
             </div>
           )}
@@ -1127,10 +1137,10 @@ export default function StorefrontPage() {
             </div>
           )}
 
-          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4 lg:sticky lg:left-auto lg:max-w-none lg:translate-x-0">
+          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:left-auto lg:max-w-none lg:translate-x-0 lg:pb-4">
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
-              className="flex w-full items-center justify-between rounded bg-[#06b4d4] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#0891B2] disabled:opacity-60 active:scale-[0.99]">
+              className="flex w-full items-center justify-between rounded bg-[#008fba] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60 active:scale-[0.99]">
               <span>{submitting ? 'Enviando…' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
               {checkoutStep === 3 && !submitting && <span>{brl(total)}</span>}
             </button>

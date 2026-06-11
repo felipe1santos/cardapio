@@ -66,7 +66,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', logoUrl: '', layoutCardapio: 'categoria' as LayoutCardapio })
+  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', logoUrl: '', bannerUrl: '', layoutCardapio: 'categoria' as LayoutCardapio })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,12 +76,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     buscarConfigLoja(supabase, restauranteId).then((c) => {
       if (!c) return
       setConfig(c)
-      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, logoUrl: c.logoUrl ?? '', layoutCardapio: c.layoutCardapio })
+      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, logoUrl: c.logoUrl ?? '', bannerUrl: c.bannerUrl ?? '', layoutCardapio: c.layoutCardapio })
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
 
-  function set(key: 'nome' | 'telefone' | 'endereco' | 'logoUrl', value: string) {
+  function set(key: 'nome' | 'telefone' | 'endereco' | 'logoUrl' | 'bannerUrl', value: string) {
     setForm((f) => ({ ...f, [key]: value }))
     setSaved(false)
   }
@@ -101,6 +101,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         telefone: form.telefone.trim(),
         endereco: form.endereco.trim(),
         logoUrl: form.logoUrl.trim() || null,
+        bannerUrl: form.bannerUrl.trim() || null,
         layoutCardapio: form.layoutCardapio,
       })
       setConfig(updated)
@@ -129,6 +130,13 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             <Input
               value={form.logoUrl}
               onChange={(e) => set('logoUrl', e.target.value)}
+              placeholder="https://..."
+            />
+          </Field>
+          <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
+            <Input
+              value={form.bannerUrl}
+              onChange={(e) => set('bannerUrl', e.target.value)}
               placeholder="https://..."
             />
           </Field>

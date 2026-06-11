@@ -6,6 +6,7 @@ export interface ConfigLoja {
   nome: string
   slug: string
   logoUrl: string | null
+  bannerUrl: string | null
   telefone: string
   endereco: string
   taxaEntregaPadrao: number
@@ -19,6 +20,7 @@ interface ConfigRow {
   nome: string
   slug: string
   logo_url: string | null
+  banner_url: string | null
   telefone: string
   endereco: string
   taxa_entrega_padrao: number
@@ -27,7 +29,7 @@ interface ConfigRow {
   layout_cardapio: LayoutCardapio
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -35,6 +37,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     nome: row.nome,
     slug: row.slug,
     logoUrl: row.logo_url,
+    bannerUrl: row.banner_url,
     telefone: row.telefone,
     endereco: row.endereco,
     taxaEntregaPadrao: Number(row.taxa_entrega_padrao),
@@ -53,6 +56,7 @@ export async function buscarConfigLoja(supabase: SupabaseClient, restauranteId: 
 export interface ConfigLojaPatch {
   nome?: string
   logoUrl?: string | null
+  bannerUrl?: string | null
   telefone?: string
   endereco?: string
   taxaEntregaPadrao?: number
@@ -65,6 +69,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   const row: Record<string, unknown> = {}
   if (patch.nome !== undefined) row.nome = patch.nome
   if (patch.logoUrl !== undefined) row.logo_url = patch.logoUrl
+  if (patch.bannerUrl !== undefined) row.banner_url = patch.bannerUrl
   if (patch.telefone !== undefined) row.telefone = patch.telefone
   if (patch.endereco !== undefined) row.endereco = patch.endereco
   if (patch.taxaEntregaPadrao !== undefined) row.taxa_entrega_padrao = patch.taxaEntregaPadrao

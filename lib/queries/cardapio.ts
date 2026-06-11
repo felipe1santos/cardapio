@@ -438,6 +438,7 @@ export interface RestauranteVitrine {
   nome: string
   slug: string
   logoUrl: string | null
+  bannerUrl: string | null
   telefone: string
   endereco: string
   taxaEntregaPadrao: number
@@ -450,7 +451,7 @@ export interface RestauranteVitrine {
 export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
-    .select('id, nome, slug, logo_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio')
+    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio')
     .eq('slug', slug)
     .maybeSingle()
   if (error) throw error
@@ -460,6 +461,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     nome: data.nome,
     slug: data.slug,
     logoUrl: data.logo_url,
+    bannerUrl: data.banner_url,
     telefone: data.telefone,
     endereco: data.endereco,
     taxaEntregaPadrao: Number(data.taxa_entrega_padrao),
