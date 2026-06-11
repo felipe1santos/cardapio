@@ -1,107 +1,44 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { getBrowserSupabase } from '@/lib/supabase/client'
+import {
+  buscarRestaurantePorSlug,
+  listarBairrosVitrine,
+  listarCardapioPublico,
+  listarOrderBumpsPublico,
+  type GrupoComItens,
+  type ItemCardapio,
+  type RestauranteVitrine,
+} from '@/lib/queries/cardapio'
 
-interface Addon {
-  name: string
-  price: number
-}
-
-interface Product {
-  id: string
-  name: string
-  desc: string
-  price: number
-  originalPrice?: number
-  emoji: string
-  gradient: string
-  requiresPonto?: boolean
-  hasAddons?: boolean
-}
-
-interface Category {
-  name: string
-  desc: string
-  items: Product[]
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CartLine {
   key: string
+  itemId: string
   name: string
-  emoji: string
-  gradient: string
+  imagemUrl: string | null
   qty: number
   unit: number
-  addons: string[]
-  ponto: string | null
+  addons: { nome: string; preco: number }[]
   obs: string
 }
 
-const PONTOS = ['Mal passada', 'Ao ponto', 'Bem passada']
-const ADDONS: Addon[] = [
-  { name: 'Bacon extra', price: 4.0 },
-  { name: 'Cheddar extra', price: 3.5 },
-  { name: 'Ovo', price: 2.5 },
-  { name: 'Cebola caramelizada', price: 3.0 },
-]
-const FEE = 7.0
+interface ToastItem {
+  id: string
+  message: string
+}
 
-const MENU: Category[] = [
-  {
-    name: 'Lanches',
-    desc: 'Hambúrgueres artesanais, feitos na hora',
-    items: [
-      { id: 'l1', name: 'Burger Duplo Artesanal', desc: 'Pão brioche, 2 carnes 120g, cheddar e molho da casa', price: 32.9, emoji: '🍔', gradient: 'from-amber-200 to-orange-300', requiresPonto: true, hasAddons: true },
-      { id: 'l2', name: 'X-Bacon Supremo', desc: 'Carne, bacon crocante, cheddar duplo e cebola', price: 24.9, originalPrice: 28.9, emoji: '🥓', gradient: 'from-rose-200 to-orange-300', requiresPonto: true, hasAddons: true },
-      { id: 'l3', name: 'X-Salada Clássico', desc: 'Carne, queijo, alface, tomate e maionese da casa', price: 24.9, emoji: '🍔', gradient: 'from-yellow-200 to-amber-300', requiresPonto: true, hasAddons: true },
-      { id: 'l4', name: 'Frango Crispy', desc: 'Filé empanado, maionese temperada e picles', price: 27.9, emoji: '🍗', gradient: 'from-orange-200 to-amber-300', hasAddons: true },
-      { id: 'l5', name: 'Veggie Burger', desc: 'Hambúrguer de grão-de-bico, legumes e rúcula', price: 26.5, emoji: '🥗', gradient: 'from-lime-200 to-green-300', hasAddons: true },
-    ],
-  },
-  {
-    name: 'Combos',
-    desc: 'Refeição completa com economia',
-    items: [
-      { id: 'c1', name: 'Combo Família', desc: '4 burgers, 2 batatas G e refrigerante 2L', price: 79.9, originalPrice: 89.9, emoji: '🍱', gradient: 'from-cyan-200 to-blue-300' },
-      { id: 'c2', name: 'Combo Kids', desc: 'Mini burger, batata P, suco e brinde surpresa', price: 29.0, emoji: '🧒', gradient: 'from-sky-200 to-cyan-300' },
-    ],
-  },
-  {
-    name: 'Porções',
-    desc: 'Para compartilhar à mesa',
-    items: [
-      { id: 'p1', name: 'Batata Frita G', desc: 'Porção generosa com cheddar e bacon', price: 18.9, emoji: '🍟', gradient: 'from-yellow-200 to-orange-200' },
-      { id: 'p2', name: 'Onion Rings', desc: 'Anéis de cebola empanados crocantes', price: 16.0, emoji: '🧅', gradient: 'from-amber-200 to-yellow-300' },
-    ],
-  },
-  {
-    name: 'Bebidas',
-    desc: 'Para acompanhar o pedido',
-    items: [
-      { id: 'b1', name: 'Coca-Cola lata', desc: '350ml gelada', price: 6.0, emoji: '🥤', gradient: 'from-red-200 to-rose-200' },
-      { id: 'b2', name: 'Suco natural', desc: 'Laranja, maracujá ou abacaxi', price: 9.0, emoji: '🧃', gradient: 'from-orange-200 to-yellow-200' },
-      { id: 'b3', name: 'Água mineral', desc: '500ml com ou sem gás', price: 4.0, emoji: '💧', gradient: 'from-sky-200 to-cyan-100' },
-    ],
-  },
-  {
-    name: 'Sobremesas',
-    desc: 'Para fechar com chave de ouro',
-    items: [
-      { id: 's1', name: 'Brownie com sorvete', desc: 'Brownie quente com sorvete de creme', price: 11.9, originalPrice: 14.0, emoji: '🍫', gradient: 'from-stone-300 to-amber-200' },
-      { id: 's2', name: 'Milkshake', desc: 'Chocolate, morango ou ovomaltine', price: 18.0, emoji: '🥤', gradient: 'from-pink-200 to-rose-200' },
-    ],
-  },
-]
+type Tab = 'home' | 'cart' | 'pedidos' | 'cupons'
+type CheckoutStep = 1 | 2 | 3
 
-const PROMO_ITEMS = MENU.flatMap((cat) => cat.items.filter((item) => item.originalPrice))
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 
-type Tab = 'home' | 'promos' | 'cart'
-type CheckoutStep = 1 | 2 | 3
-
-function PriceTag({ price, originalPrice }: { price: number; originalPrice?: number }) {
+function PriceTag({ price, originalPrice }: { price: number; originalPrice?: number | null }) {
   if (originalPrice) {
     return (
       <span className="inline-flex items-center gap-2">
@@ -113,120 +50,358 @@ function PriceTag({ price, originalPrice }: { price: number; originalPrice?: num
   return <span className="text-[15px] font-bold text-price-text">{brl(price)}</span>
 }
 
-function ProductThumb({ product, size = 96 }: { product: Product; size?: number }) {
+function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number }) {
+  if (item.imagemUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={item.imagemUrl}
+        alt={item.nome}
+        className="flex-shrink-0 rounded-menuzia object-cover"
+        style={{ width: size, height: size }}
+      />
+    )
+  }
   return (
     <div
-      className={`flex flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br ${product.gradient}`}
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
+      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-menuzia bg-gradient-to-br from-amber-200 to-orange-300"
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
     >
-      {product.emoji}
+      <span className="font-extrabold text-white/80">{item.nome.charAt(0).toUpperCase()}</span>
     </div>
   )
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function StorefrontPage() {
   const params = useParams<{ slug: string }>()
-  const storeName = params?.slug
-    ? params.slug
-        .split('-')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ')
-    : 'Menuzia Burger'
+  const slug = params?.slug ?? ''
+  const supabase = useMemo(() => getBrowserSupabase(), [])
 
+  // ── Data ──────────────────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [restaurante, setRestaurante] = useState<RestauranteVitrine | null>(null)
+  const [groups, setGroups] = useState<GrupoComItens[]>([])
+  const [bairros, setBairros] = useState<{ bairro: string; taxa: number }[]>([])
+  const [orderBumps, setOrderBumps] = useState<ItemCardapio[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const loja = await buscarRestaurantePorSlug(supabase, slug)
+        if (cancelled) return
+        if (!loja) {
+          setError('Não encontramos essa loja. Confira o endereço e tente novamente.')
+          setLoading(false)
+          return
+        }
+        setRestaurante(loja)
+        const [cardapio, taxasBairro, bumps] = await Promise.all([
+          listarCardapioPublico(supabase, loja.id),
+          listarBairrosVitrine(supabase, loja.id),
+          listarOrderBumpsPublico(supabase, loja.id, loja.orderBumpMax),
+        ])
+        if (cancelled) return
+        setGroups(cardapio)
+        setBairros(taxasBairro)
+        setOrderBumps(bumps)
+      } catch {
+        if (!cancelled) setError('Não foi possível carregar o cardápio agora. Tente novamente em instantes.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    if (slug) load()
+    return () => { cancelled = true }
+  }, [supabase, slug])
+
+  // ── Tracking pixel injection ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!restaurante) return
+    const { facebookPixelId: pixelId, googleTagId: tagId } = restaurante
+    const scripts: HTMLScriptElement[] = []
+    if (pixelId) {
+      const s = document.createElement('script')
+      s.id = 'fb-pixel'
+      s.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');`
+      document.head.appendChild(s)
+      scripts.push(s)
+    }
+    if (tagId) {
+      const s = document.createElement('script')
+      s.id = 'google-tag'
+      s.async = true
+      s.src = `https://www.googletagmanager.com/gtag/js?id=${tagId}`
+      document.head.appendChild(s)
+      scripts.push(s)
+      const s2 = document.createElement('script')
+      s2.id = 'google-tag-init'
+      s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${tagId}');`
+      document.head.appendChild(s2)
+      scripts.push(s2)
+    }
+    return () => scripts.forEach((el) => el.parentNode?.removeChild(el))
+  }, [restaurante])
+
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const allItems = useMemo(() => groups.flatMap((g) => g.itens), [groups])
+  const promoItems = useMemo(() => allItems.filter((item) => item.promocaoPreco !== null), [allItems])
+
+  // ── Navigation ────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('home')
-  const [activeCategory, setActiveCategory] = useState(MENU[0].name)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    if (!activeCategory && groups.length > 0) setActiveCategory(groups[0].nome)
+  }, [groups, activeCategory])
+
+  // ── Cart ──────────────────────────────────────────────────────────────────
   const [cart, setCart] = useState<CartLine[]>([])
 
-  const [productSheet, setProductSheet] = useState<Product | null>(null)
+  const cartCount = cart.reduce((sum, l) => sum + l.qty, 0)
+  const subtotal = cart.reduce((sum, l) => sum + l.unit * l.qty, 0)
+
+  // ── Checkout form state (hoisted so fee can access endereco) ───────────────
+  const [endereco, setEndereco] = useState({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+
+  const fee = useMemo(() => {
+    const padrao = restaurante?.taxaEntregaPadrao ?? 0
+    const alvo = endereco.bairro.trim().toLowerCase()
+    if (!alvo) return padrao
+    const match = bairros.find((b) => b.bairro.trim().toLowerCase() === alvo)
+    return match ? match.taxa : padrao
+  }, [restaurante, bairros, endereco.bairro])
+
+  const total = subtotal + (cart.length ? fee : 0)
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  function showToast(message: string) {
+    const id = Date.now().toString()
+    setToasts((prev) => [...prev, { id, message }])
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2600)
+  }
+
+  // ── Product sheet ─────────────────────────────────────────────────────────
+  const [productSheet, setProductSheet] = useState<ItemCardapio | null>(null)
   const [qty, setQty] = useState(1)
-  const [ponto, setPonto] = useState(PONTOS[1])
+  const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set())
   const [obs, setObs] = useState('')
 
-  const [checkoutOpen, setCheckoutOpen] = useState(false)
-  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>(1)
-  const [payMethod, setPayMethod] = useState('Pix')
-  const [changeFor, setChangeFor] = useState('')
-  const [trackingId, setTrackingId] = useState<string | null>(null)
-
-  const filteredCategories = useMemo(() => {
-    if (!search.trim()) return MENU
-    const term = search.toLowerCase()
-    return MENU.map((cat) => ({ ...cat, items: cat.items.filter((item) => item.name.toLowerCase().includes(term)) })).filter(
-      (cat) => cat.items.length > 0
-    )
-  }, [search])
-
-  const cartCount = cart.reduce((sum, line) => sum + line.qty, 0)
-  const subtotal = cart.reduce((sum, line) => sum + line.unit * line.qty, 0)
-  const total = subtotal + (cart.length ? FEE : 0)
-
-  function openProduct(product: Product) {
-    setProductSheet(product)
+  function openProduct(item: ItemCardapio) {
+    setProductSheet(item)
     setQty(1)
-    setPonto(PONTOS[1])
+    setGroupSelections(new Map())
     setSelectedAddons(new Set())
     setObs('')
   }
 
-  function toggleAddon(name: string) {
-    setSelectedAddons((prev) => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
+  function selectRadio(grupoId: string, compId: string) {
+    setGroupSelections((prev) => { const next = new Map(prev); next.set(grupoId, new Set([compId])); return next })
+  }
+
+  function toggleCheckbox(grupoId: string, compId: string, maxEscolhas: number) {
+    setGroupSelections((prev) => {
+      const next = new Map(prev)
+      const cur = new Set(next.get(grupoId) ?? [])
+      if (cur.has(compId)) cur.delete(compId)
+      else if (cur.size < maxEscolhas) cur.add(compId)
+      next.set(grupoId, cur)
       return next
     })
   }
 
-  const addonsTotal = useMemo(
-    () => ADDONS.filter((a) => selectedAddons.has(a.name)).reduce((sum, a) => sum + a.price, 0),
-    [selectedAddons]
-  )
-  const unitPrice = productSheet ? productSheet.price + addonsTotal : 0
+  function toggleAddon(nome: string) {
+    setSelectedAddons((prev) => { const next = new Set(prev); if (next.has(nome)) next.delete(nome); else next.add(nome); return next })
+  }
+
+  const gruposValidos = useMemo(() => {
+    if (!productSheet) return true
+    return productSheet.grupos.every((g) => {
+      if (!g.obrigatorio) return true
+      const sel = groupSelections.get(g.id) ?? new Set()
+      return sel.size >= g.minEscolhas
+    })
+  }, [productSheet, groupSelections])
+
+  const addonsTotal = useMemo(() => {
+    if (!productSheet) return 0
+    let sum = 0
+    for (const grupo of productSheet.grupos) {
+      const sel = groupSelections.get(grupo.id) ?? new Set()
+      for (const compId of sel) {
+        const comp = grupo.complementos.find((c) => c.id === compId)
+        if (comp) sum += comp.preco
+      }
+    }
+    for (const comp of productSheet.complementos) {
+      if (selectedAddons.has(comp.nome)) sum += comp.preco
+    }
+    return sum
+  }, [productSheet, groupSelections, selectedAddons])
+
+  const basePrice = productSheet ? productSheet.promocaoPreco ?? productSheet.preco : 0
+  const unitPrice = basePrice + addonsTotal
 
   function addToCart() {
-    if (!productSheet) return
+    if (!productSheet || !gruposValidos) return
+    const addonsList: { nome: string; preco: number }[] = []
+    for (const grupo of productSheet.grupos) {
+      const sel = groupSelections.get(grupo.id) ?? new Set()
+      for (const compId of sel) {
+        const comp = grupo.complementos.find((c) => c.id === compId)
+        if (comp) addonsList.push({ nome: comp.nome, preco: comp.preco })
+      }
+    }
+    for (const comp of productSheet.complementos) {
+      if (selectedAddons.has(comp.nome)) addonsList.push({ nome: comp.nome, preco: comp.preco })
+    }
     setCart((prev) => [
       ...prev,
       {
         key: `${productSheet.id}-${Date.now()}`,
-        name: productSheet.name,
-        emoji: productSheet.emoji,
-        gradient: productSheet.gradient,
+        itemId: productSheet.id,
+        name: productSheet.nome,
+        imagemUrl: productSheet.imagemUrl,
         qty,
         unit: unitPrice,
-        addons: [...selectedAddons],
-        ponto: productSheet.requiresPonto ? ponto : null,
+        addons: addonsList,
         obs,
       },
     ])
+    showToast(`${productSheet.nome} adicionado!`)
     setProductSheet(null)
     setTab('cart')
   }
 
+  // ── Order bump quick-add ──────────────────────────────────────────────────
+  function quickAddOrderBump(item: ItemCardapio) {
+    if (item.grupos.some((g) => g.obrigatorio)) {
+      openProduct(item)
+      return
+    }
+    setCart((prev) => {
+      const existingIdx = prev.findIndex((l) => l.itemId === item.id && l.addons.length === 0)
+      if (existingIdx >= 0) {
+        return prev.map((l, i) => (i === existingIdx ? { ...l, qty: l.qty + 1 } : l))
+      }
+      return [
+        ...prev,
+        {
+          key: `bump-${item.id}-${Date.now()}`,
+          itemId: item.id,
+          name: item.nome,
+          imagemUrl: item.imagemUrl,
+          qty: 1,
+          unit: item.promocaoPreco ?? item.preco,
+          addons: [],
+          obs: '',
+        },
+      ]
+    })
+    showToast(`${item.nome} adicionado!`)
+  }
+
   function changeLineQty(key: string, delta: number) {
     setCart((prev) =>
-      prev
-        .map((line) => (line.key === key ? { ...line, qty: line.qty + delta } : line))
-        .filter((line) => line.qty > 0)
+      prev.map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l)).filter((l) => l.qty > 0)
     )
   }
 
-  function startCheckout() {
-    setCheckoutOpen(true)
-    setCheckoutStep(1)
+  // ── Checkout ──────────────────────────────────────────────────────────────
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>(1)
+  const [payMethod, setPayMethod] = useState('Pix')
+  const [changeFor, setChangeFor] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [cliente, setCliente] = useState({ nome: '', telefone: '' })
+
+  // ── Order tracking ────────────────────────────────────────────────────────
+  const [pedidoId, setPedidoId] = useState<string | null>(null)
+  const [pedidoStatus, setPedidoStatus] = useState<string>('recebido')
+  const [trackingNr, setTrackingNr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!pedidoId) return
+    let active = true
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/loja/${slug}/pedido/${pedidoId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (active && data.status) setPedidoStatus(data.status)
+      } catch { /* keep last status */ }
+    }
+    tick()
+    const interval = setInterval(tick, 5000)
+    return () => { active = false; clearInterval(interval) }
+  }, [pedidoId, slug])
+
+  const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
+    Pix: 'pix',
+    'Cartão na entrega': 'cartao',
+    Dinheiro: 'dinheiro',
+  }
+
+  function parseMoney(value: string): number | null {
+    const n = Number(value.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.').trim())
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+
+  async function submitOrder() {
+    setSubmitting(true)
+    setCheckoutError(null)
+    try {
+      const payload = {
+        tipo: 'entrega' as const,
+        cliente: { nome: cliente.nome.trim(), telefone: cliente.telefone.trim() },
+        endereco,
+        pagamento: PAY_MAP[payMethod] ?? 'pix',
+        trocoPara: payMethod === 'Dinheiro' ? parseMoney(changeFor) : null,
+        taxaEntrega: fee,
+        itens: cart.map((l) => ({
+          itemId: l.itemId,
+          quantidade: l.qty,
+          observacao: l.obs,
+          complementos: l.addons.map((a) => a.nome),
+        })),
+      }
+      const res = await fetch(`/api/loja/${slug}/pedido`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
+      setTrackingNr(`#${data.numero}`)
+      setPedidoId(data.id)
+      setPedidoStatus('recebido')
+      setCheckoutOpen(false)
+      setCart([])
+      setTab('pedidos')
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'Não foi possível enviar o pedido.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function checkoutNext() {
-    if (checkoutStep < 3) {
-      setCheckoutStep((s) => (s + 1) as CheckoutStep)
+    if (checkoutStep === 2 && (!cliente.nome.trim() || !endereco.rua.trim() || !endereco.numero.trim())) {
+      setCheckoutError('Preencha nome, rua e número para continuar.')
       return
     }
-    setTrackingId(`#MGB-${Math.floor(1000 + Math.random() * 9000)}`)
-    setCheckoutOpen(false)
-    setCart([])
-    setTab('home')
+    setCheckoutError(null)
+    if (checkoutStep < 3) { setCheckoutStep((s) => (s + 1) as CheckoutStep); return }
+    submitOrder()
   }
 
   function checkoutBack() {
@@ -234,163 +409,259 @@ export default function StorefrontPage() {
     else setCheckoutOpen(false)
   }
 
+  // ── Loading / error ────────────────────────────────────────────────────────
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-page font-sans text-sm text-text-subtle">Carregando cardápio…</div>
+  }
+  if (error || !restaurante) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-page p-6 font-sans">
+        <div className="max-w-sm rounded-menuzia border border-border bg-white p-5 text-center">
+          <h1 className="text-sm font-bold text-danger">Loja indisponível</h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const storeName = restaurante.nome
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-page font-sans text-text-main">
-      <div className="relative mx-auto min-h-screen max-w-[600px] bg-main pb-28 shadow-2xl shadow-black/5">
-        {/* Cover + store card */}
-        <div className="h-36 bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
-        <div className="relative z-10 -mt-10 px-4.5">
-          <div className="flex items-center gap-3.5 rounded-menuzia border border-border bg-white p-4 shadow-md">
-            <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-3xl">
-              🍔
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-extrabold tracking-tight">{storeName}</h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle">
-                <span className="inline-flex items-center gap-1.5 font-semibold text-price-text">
-                  <span className="h-1.5 w-1.5 rounded-full bg-status-ready" /> Aberto agora
-                </span>
-                <span>⏱ 30–45 min</span>
-                <span>Mín. {brl(20)}</span>
-                <span>⭐ 4,8</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
 
-        {/* Search */}
-        {tab === 'home' && (
-          <div className="mx-4.5 mt-3.5 flex items-center gap-2.5 rounded-menuzia bg-page px-3.5 py-2.5">
-            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-text-subtle">
-              <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-            </svg>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar no cardápio..."
-              className="w-full border-none bg-transparent font-sans text-sm text-text-main outline-none placeholder:text-text-subtle"
-            />
-          </div>
-        )}
+      <div className="relative mx-auto min-h-screen max-w-[600px] bg-main pb-24 shadow-2xl shadow-black/5">
 
-        {/* HOME TAB */}
+        {/* ── HOME header: hero + store card + search + category chips ── */}
         {tab === 'home' && (
           <>
-            <div className="sticky top-0 z-10 mt-3.5 flex gap-2 overflow-x-auto border-b border-border bg-main px-4.5 py-3 [scrollbar-width:none]">
-              {filteredCategories.map((cat) => (
+            <div className="h-36 bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
+            <div className="relative z-10 -mt-10 px-4">
+              <div className="flex items-center gap-3.5 rounded-menuzia border border-border bg-white p-4 shadow-md">
+                <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-2xl font-extrabold text-white">
+                  {storeName.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-[18px] font-extrabold tracking-tight">{storeName}</h1>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-price-text">
+                      <span className="h-1.5 w-1.5 rounded-full bg-status-ready" /> Aberto agora
+                    </span>
+                    <span>⏱ 30–45 min</span>
+                    <span>Mín. {brl(20)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mx-4 mt-3.5 flex items-center gap-2.5 rounded-menuzia bg-page px-3.5 py-2.5">
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle">
+                <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+              </svg>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar no cardápio…"
+                className="w-full border-none bg-transparent font-sans text-sm text-text-main outline-none placeholder:text-text-subtle"
+              />
+              {search && <button onClick={() => setSearch('')} className="text-text-subtle hover:text-text-main">×</button>}
+            </div>
+            <div className="sticky top-0 z-10 mt-3 flex gap-2 overflow-x-auto border-b border-border bg-main px-4 py-3 [scrollbar-width:none]">
+              {promoItems.length > 0 && (
                 <button
-                  key={cat.name}
-                  onClick={() => {
-                    setActiveCategory(cat.name)
-                    document.getElementById(`sec-${cat.name}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }}
-                  className={[
-                    'flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors',
-                    activeCategory === cat.name
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
-                  ].join(' ')}
+                  onClick={() => setActiveCategory('__promos__')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-price-text bg-price-bg text-price-text' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary'].join(' ')}
                 >
-                  {cat.name}
+                  🏷️ Promoções
+                </button>
+              )}
+              {groups.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => { setActiveCategory(cat.nome); document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
+                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary'].join(' ')}
+                >
+                  {cat.nome}
                 </button>
               ))}
             </div>
+          </>
+        )}
 
-            <div>
-              {filteredCategories.map((cat) => (
-                <div key={cat.name} id={`sec-${cat.name}`} className="px-4.5 pb-1 pt-4.5">
-                  <h2 className="mb-1 text-[17px] font-bold tracking-tight">{cat.name}</h2>
-                  <p className="mb-3 text-xs text-text-subtle">{cat.desc}</p>
-                  {cat.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => openProduct(item)}
-                      className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none"
-                    >
+        {/* ── CART header: minimal ── */}
+        {tab === 'cart' && (
+          <div className="flex h-14 items-center gap-3.5 border-b border-border bg-white px-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Sua sacola</div>
+              <div className="truncate text-[14px] font-bold">{storeName}</div>
+            </div>
+            <button
+              onClick={() => setTab('home')}
+              className="flex flex-shrink-0 items-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-primary hover:text-primary active:scale-95"
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
+              Continuar comprando
+            </button>
+          </div>
+        )}
+
+        {tab === 'pedidos' && (
+          <div className="flex h-14 items-center border-b border-border bg-white px-4">
+            <h2 className="text-base font-bold">Meus pedidos</h2>
+          </div>
+        )}
+        {tab === 'cupons' && (
+          <div className="flex h-14 items-center border-b border-border bg-white px-4">
+            <h2 className="text-base font-bold">Cupons</h2>
+          </div>
+        )}
+
+        {/* ── HOME tab ──────────────────────────────────────────────────── */}
+        {tab === 'home' && (
+          <div>
+            {/* Promo filter view */}
+            {activeCategory === '__promos__' && (
+              <div className="px-4 pb-1 pt-4.5">
+                <div className="mb-3 flex items-center gap-2">
+                  <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
+                  <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-bold text-price-text">{promoItems.length} itens</span>
+                </div>
+                {promoItems.map((item) => (
+                  <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
+                    <div className="min-w-0 flex-1">
+                      <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
+                      <div className="mb-1 mt-0.5 text-[15px] font-semibold">{item.nome}</div>
+                      <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
+                      <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.preco} />
+                    </div>
+                    <div className="relative flex-shrink-0">
+                      <ProductThumb item={item} />
+                      <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Regular categories (or search results) */}
+            {activeCategory !== '__promos__' &&
+              (search.trim()
+                ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
+                : groups
+              ).map((cat) => (
+                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4.5">
+                  <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
+                  {cat.itens.map((item) => (
+                    <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
                       <div className="min-w-0 flex-1">
-                        <div className="mb-0.5 text-[15px] font-semibold">{item.name}</div>
-                        <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.desc}</p>
-                        <PriceTag price={item.price} originalPrice={item.originalPrice} />
+                        {item.promocaoPreco !== null && (
+                          <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
+                        )}
+                        <div className="mb-0.5 text-[15px] font-semibold">{item.nome}</div>
+                        <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
+                        <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
                       </div>
                       <div className="relative flex-shrink-0">
-                        <ProductThumb product={item} />
-                        <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">
-                          +
-                        </span>
+                        <ProductThumb item={item} />
+                        <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
                       </div>
                     </button>
                   ))}
                 </div>
               ))}
-              {filteredCategories.length === 0 && (
-                <div className="px-4.5 py-16 text-center text-sm text-text-subtle">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* PROMOS TAB */}
-        {tab === 'promos' && (
-          <div className="px-4.5 pt-5">
-            <h2 className="mb-1 text-[18px] font-bold tracking-tight">Promoções</h2>
-            <p className="mb-4 text-xs text-text-subtle">Ofertas especiais por tempo limitado — aproveite antes que acabe.</p>
-            {PROMO_ITEMS.length === 0 && <div className="py-16 text-center text-sm text-text-subtle">Nenhuma promoção ativa no momento.</div>}
-            {PROMO_ITEMS.map((item) => (
-              <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
-                <div className="min-w-0 flex-1">
-                  <div className="mb-0.5 inline-flex items-center gap-1.5">
-                    <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promoção</span>
-                  </div>
-                  <div className="mb-0.5 mt-1 text-[15px] font-semibold">{item.name}</div>
-                  <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.desc}</p>
-                  <PriceTag price={item.price} originalPrice={item.originalPrice} />
-                </div>
-                <div className="relative flex-shrink-0">
-                  <ProductThumb product={item} />
-                  <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">
-                    +
-                  </span>
-                </div>
-              </button>
-            ))}
+            {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
+              <div className="px-4 py-16 text-center text-sm text-text-subtle">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
+            )}
           </div>
         )}
 
-        {/* CART TAB */}
+        {/* ── CART tab ──────────────────────────────────────────────────── */}
         {tab === 'cart' && (
-          <div className="px-4.5 pt-5">
-            <h2 className="mb-4 text-[18px] font-bold tracking-tight">Sua sacola</h2>
+          <div className="px-4 pt-5">
             {cart.length === 0 ? (
-              <div className="py-16 text-center text-sm text-text-subtle">Sua sacola está vazia. Volte ao cardápio e monte seu pedido.</div>
+              <div className="py-20 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">🛍️</div>
+                <p className="font-semibold text-text-main">Sua sacola está vazia</p>
+                <p className="mt-1 text-[13px] text-text-subtle">Escolha seus itens favoritos no cardápio.</p>
+                <button onClick={() => setTab('home')} className="mt-5 rounded-menuzia bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-dark">
+                  Ver cardápio
+                </button>
+              </div>
             ) : (
               <>
-                {cart.map((line) => (
-                  <div key={line.key} className="flex gap-3 border-b border-border py-3.5 last:border-none">
-                    <div className={`flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br ${line.gradient} text-2xl`}>
-                      {line.emoji}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold">{line.qty}x {line.name}</div>
-                      <div className="mt-0.5 text-xs text-text-subtle">{[line.ponto, ...line.addons].filter(Boolean).join(', ') || 'Sem adicionais'}</div>
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-sm font-bold text-price-text">{brl(line.unit * line.qty)}</span>
-                        <div className="flex items-center rounded-menuzia border border-border">
-                          <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[30px] w-[30px] items-center justify-center text-base font-semibold text-primary">−</button>
-                          <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
-                          <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[30px] w-[30px] items-center justify-center text-base font-semibold text-primary">+</button>
+                <p className="mb-4 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">
+                  {cartCount} item{cartCount !== 1 ? 's' : ''} no carrinho
+                </p>
+
+                {/* Lines */}
+                <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
+                  {cart.map((line, i) => (
+                    <div key={line.key} className={['flex gap-3.5 p-3.5', i < cart.length - 1 ? 'border-b border-border' : ''].join(' ')}>
+                      <div className="h-[54px] w-[54px] flex-shrink-0 overflow-hidden rounded-menuzia">
+                        <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={54} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[14px] font-semibold">{line.name}</div>
+                        {line.addons.length > 0 && (
+                          <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
+                        )}
+                        {line.obs && <div className="mt-0.5 text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-[14px] font-bold text-price-text">{brl(line.unit * line.qty)}</span>
+                          <div className="flex items-center rounded-menuzia border border-border">
+                            <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">−</button>
+                            <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
+                            <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">+</button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div className="mt-3 rounded-menuzia bg-page p-3.5 text-sm">
-                  <div className="flex justify-between py-1 text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
-                  <div className="flex justify-between py-1 text-text-subtle"><span>Taxa de entrega</span><span>{brl(FEE)}</span></div>
-                  <div className="mt-1.5 flex justify-between border-t border-border pt-2.5 text-base font-bold"><span>Total</span><span>{brl(total)}</span></div>
+                  ))}
                 </div>
+
+                {/* Order bumps — "Peça também" */}
+                {orderBumps.length > 0 && (
+                  <div className="mb-5">
+                    <h3 className="mb-3 text-[15px] font-bold tracking-tight">Peça também</h3>
+                    <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
+                      {orderBumps.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => quickAddOrderBump(item)}
+                          className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white transition-all duration-150 hover:border-primary hover:shadow-lg active:scale-[0.97]"
+                        >
+                          <div className="h-[100px] w-full overflow-hidden">
+                            <ProductThumb item={item} size={142} />
+                          </div>
+                          <div className="flex flex-1 flex-col p-2.5">
+                            <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
+                            <div className="mt-1 text-[12px] font-bold text-price-text">{brl(item.promocaoPreco ?? item.preco)}</div>
+                            <div className="mt-2 rounded-menuzia bg-primary py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-primary-dark">
+                              + Adicionar
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Summary */}
+                <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
+                  <div className="flex items-center justify-between px-4 py-3 text-[13px] text-text-subtle">
+                    <span>Subtotal</span><span>{brl(subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px] text-text-subtle">
+                    <span>Taxa de entrega</span><span>{brl(fee)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
+                    <span>Total</span><span className="text-price-text">{brl(total)}</span>
+                  </div>
+                </div>
+
                 <button
-                  onClick={startCheckout}
-                  className="mt-4 flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-3.5 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark"
+                  onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
+                  className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.99]"
                 >
                   <span>Continuar para pagamento</span>
                   <span>{brl(total)}</span>
@@ -400,27 +671,84 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        {/* Bottom nav */}
-        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
-          <div className="flex items-center justify-around">
-            {[
-              { id: 'home' as Tab, label: 'Home', icon: '🏠' },
-              { id: 'promos' as Tab, label: 'Promoções', icon: '🏷️' },
-              { id: 'cart' as Tab, label: 'Carrinho', icon: '🛍️' },
-            ].map((item) => (
+        {/* ── PEDIDOS tab ───────────────────────────────────────────────── */}
+        {tab === 'pedidos' && (
+          <div className="px-4 pt-6">
+            {trackingNr ? (
+              <>
+                <div className="mb-5 rounded-menuzia border border-border bg-white p-5 text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-price-bg">
+                    <svg viewBox="0 0 24 24" className="h-7 w-7 fill-status-ready"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
+                  </div>
+                  <div className="text-[16px] font-bold">Pedido {trackingNr} confirmado!</div>
+                  <div className="mt-0.5 text-[12px] text-text-subtle">{storeName} · Chega em ~35 min</div>
+                </div>
+                <div className="rounded-menuzia border border-border bg-white p-5">
+                  {(['recebido', 'preparando', 'pronto', 'em_rota', 'entregue'] as const).map((step, i, arr) => {
+                    const labels = ['Pedido recebido', 'Preparando seu pedido', 'Pronto para despacho', 'Saiu para entrega', 'Entregue!']
+                    const statusIdx = arr.indexOf(pedidoStatus as typeof step)
+                    const state = i < statusIdx ? 'done' : i === statusIdx ? 'active' : 'pending'
+                    return (
+                      <div key={step} className="relative flex gap-3.5 pb-6 last:pb-0">
+                        {i < arr.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />}
+                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                          {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
+                        </span>
+                        <div>
+                          <div className={`text-sm font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{labels[i]}</div>
+                          {state === 'active' && <div className="mt-0.5 text-[12px] text-primary">Em andamento…</div>}
+                          {state === 'done' && <div className="mt-0.5 text-[12px] text-status-ready">Concluído</div>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="py-20 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">📦</div>
+                <p className="font-semibold text-text-main">Nenhum pedido ativo</p>
+                <p className="mt-1 text-[13px] text-text-subtle">Quando você finalizar um pedido, o acompanhamento aparece aqui.</p>
+                <button onClick={() => setTab('home')} className="mt-5 rounded-menuzia bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-dark">
+                  Ver cardápio
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── CUPONS tab ────────────────────────────────────────────────── */}
+        {tab === 'cupons' && (
+          <div className="px-4 pt-6">
+            <div className="rounded-menuzia border border-dashed border-border py-20 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">🏷️</div>
+              <p className="font-semibold text-text-main">Cupons em breve</p>
+              <p className="mx-auto mt-1.5 max-w-[240px] text-[13px] leading-relaxed text-text-subtle">
+                Em breve você poderá usar cupons de desconto nessa loja.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Bottom nav ────────────────────────────────────────────────── */}
+        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]">
+          <div className="flex">
+            {([
+              { id: 'home' as Tab, label: 'Home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg> },
+              { id: 'pedidos' as Tab, label: 'Pedidos', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" /></svg> },
+              { id: 'cupons' as Tab, label: 'Cupons', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M20 12c0-1.1.9-2 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v4c1.1 0 2 .9 2 2s-.9 2-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c-1.1 0-2-.9-2-2zm-5-1.46l-3 1.75-3-1.75v-3.08l3-1.75 3 1.75v3.08z" /></svg> },
+              { id: 'cart' as Tab, label: 'Carrinho', badge: cartCount, icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.9 18 9 18h12v-2H9.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" /></svg> },
+            ] as const).map((item) => (
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={[
-                  'relative flex flex-1 flex-col items-center gap-1 rounded-menuzia py-1.5 text-xs font-semibold transition-colors',
-                  tab === item.id ? 'text-primary' : 'text-text-subtle',
-                ].join(' ')}
+                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', tab === item.id ? 'text-primary' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
-                <span className="text-lg leading-none">{item.icon}</span>
+                {item.icon}
                 {item.label}
-                {item.id === 'cart' && cartCount > 0 && (
-                  <span className="absolute -top-0.5 right-[28%] flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
-                    {cartCount}
+                {'badge' in item && item.badge > 0 && (
+                  <span className="absolute right-[20%] top-1 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                    {item.badge}
                   </span>
                 )}
               </button>
@@ -429,86 +757,90 @@ export default function StorefrontPage() {
         </nav>
       </div>
 
-      {/* Overlay for sheets */}
-      {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/50" onClick={() => setProductSheet(null)} />}
-
-      {/* Product detail sheet */}
-      <div
-        className={[
-          'fixed bottom-0 left-1/2 z-50 flex max-h-[92vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl bg-white transition-transform duration-300',
-          productSheet ? 'translate-y-0' : 'translate-y-full',
-        ].join(' ')}
-      >
+      {/* ── Product sheet overlay ─────────────────────────────────────── */}
+      {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={() => setProductSheet(null)} />}
+      <div className={['fixed bottom-0 left-1/2 z-50 flex max-h-[92vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl bg-white transition-transform duration-300', productSheet ? 'translate-y-0' : 'translate-y-full'].join(' ')}>
         {productSheet && (
           <>
-            <button
-              onClick={() => setProductSheet(null)}
-              className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl shadow-md"
-            >
-              ×
-            </button>
+            <button onClick={() => setProductSheet(null)} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
             <div className="flex-1 overflow-y-auto">
-              <div className={`flex h-[200px] items-center justify-center bg-gradient-to-br ${productSheet.gradient} text-7xl`}>{productSheet.emoji}</div>
+              {productSheet.imagemUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-[200px] w-full object-cover" />
+                : <div className="flex h-[180px] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70">{productSheet.nome.charAt(0)}</div>
+              }
               <div className="p-4.5">
-                <h2 className="text-xl font-bold tracking-tight">{productSheet.name}</h2>
-                <p className="my-2 text-sm leading-relaxed text-text-subtle">{productSheet.desc}</p>
-                <PriceTag price={productSheet.price} originalPrice={productSheet.originalPrice} />
+                <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
+                <p className="my-2 text-sm leading-relaxed text-text-subtle">{productSheet.descricao}</p>
+                <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
 
-                {productSheet.requiresPonto && (
-                  <div className="mt-5">
-                    <div className="mb-2.5 flex items-center justify-between">
-                      <h3 className="text-sm font-bold">Ponto da carne</h3>
-                      <span className="rounded-menuzia bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger">Obrigatório</span>
-                    </div>
-                    {PONTOS.map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setPonto(p)}
-                        className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none"
-                      >
-                        <span className="flex-1 text-sm font-medium">{p}</span>
-                        <span
-                          className={[
-                            'flex h-5 w-5 items-center justify-center rounded-full border-2',
-                            ponto === p ? 'border-primary bg-primary' : 'border-border',
-                          ].join(' ')}
-                        >
-                          {ponto === p && (
-                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
-                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                            </svg>
-                          )}
+                {productSheet.grupos.map((grupo) => {
+                  const sel = groupSelections.get(grupo.id) ?? new Set()
+                  const isRadio = grupo.maxEscolhas === 1
+                  const showError = grupo.obrigatorio && sel.size > 0 && sel.size < grupo.minEscolhas
+                  return (
+                    <div key={grupo.id} className="mt-5">
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-bold">{grupo.nome}</h3>
+                          <div className="mt-0.5 text-[11px] text-text-subtle">
+                            {grupo.obrigatorio
+                              ? grupo.minEscolhas === grupo.maxEscolhas ? `Escolha ${grupo.minEscolhas}` : `Escolha ${grupo.minEscolhas}–${grupo.maxEscolhas}`
+                              : grupo.maxEscolhas === 1 ? 'Opcional' : `Até ${grupo.maxEscolhas}`}
+                          </div>
+                        </div>
+                        <span className={['mt-0.5 flex-shrink-0 rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase', grupo.obrigatorio ? 'bg-danger-bg text-danger' : 'bg-page text-text-subtle'].join(' ')}>
+                          {grupo.obrigatorio ? 'Obrigatório' : 'Opcional'}
                         </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      </div>
+                      {!isRadio && grupo.maxEscolhas > 1 && (
+                        <div className="mb-1.5 text-[11px] text-text-subtle">{sel.size}/{grupo.maxEscolhas} selecionado{sel.size !== 1 ? 's' : ''}</div>
+                      )}
+                      {grupo.complementos.map((comp) => {
+                        const isSelected = sel.has(comp.id)
+                        return (
+                          <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                            <span className="flex-1 text-sm font-medium">{comp.nome}</span>
+                            {comp.preco > 0
+                              ? <span className="text-[13px] font-semibold text-price-text">+ {brl(comp.preco)}</span>
+                              : <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">Grátis</span>
+                            }
+                            {isRadio ? (
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                                {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                              </span>
+                            ) : (
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-menuzia border-2', isSelected ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                                {isSelected && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                      {showError && (
+                        <div className="mt-1.5 rounded-menuzia border border-danger/30 bg-danger-bg px-2.5 py-1.5 text-[11px] font-medium text-danger">
+                          Selecione ao menos {grupo.minEscolhas} item{grupo.minEscolhas > 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
 
-                {productSheet.hasAddons && (
+                {productSheet.complementos.length > 0 && (
                   <div className="mt-5">
                     <div className="mb-2.5 flex items-center justify-between">
                       <h3 className="text-sm font-bold">Adicionais</h3>
                       <span className="rounded-menuzia bg-page px-2 py-0.5 text-[10px] font-bold uppercase text-text-subtle">Opcional</span>
                     </div>
-                    {ADDONS.map((addon) => (
-                      <button
-                        key={addon.name}
-                        onClick={() => toggleAddon(addon.name)}
-                        className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none"
-                      >
-                        <span className="flex-1 text-sm font-medium">{addon.name}</span>
-                        <span className="text-[13px] font-semibold text-price-text">+ {brl(addon.price)}</span>
-                        <span
-                          className={[
-                            'flex h-5 w-5 items-center justify-center rounded-menuzia border-2',
-                            selectedAddons.has(addon.name) ? 'border-primary bg-primary' : 'border-border',
-                          ].join(' ')}
-                        >
-                          {selectedAddons.has(addon.name) && (
-                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
-                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                            </svg>
-                          )}
+                    {productSheet.complementos.map((addon) => (
+                      <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                        <span className="flex-1 text-sm font-medium">{addon.nome}</span>
+                        {addon.preco > 0
+                          ? <span className="text-[13px] font-semibold text-price-text">+ {brl(addon.preco)}</span>
+                          : <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">Grátis</span>
+                        }
+                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-menuzia border-2', selectedAddons.has(addon.nome) ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                          {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                       </button>
                     ))}
@@ -517,59 +849,49 @@ export default function StorefrontPage() {
 
                 <div className="mt-5">
                   <h3 className="mb-2.5 text-sm font-bold">Observações</h3>
-                  <textarea
-                    value={obs}
-                    onChange={(e) => setObs(e.target.value)}
-                    placeholder="Ex: sem cebola, ponto da batata..."
-                    className="min-h-[64px] w-full resize-none rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary"
-                  />
+                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3.5 border-t border-border p-4.5">
-              <div className="flex items-center rounded-menuzia border border-border">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[42px] w-[38px] items-center justify-center text-xl font-semibold text-primary disabled:text-border">−</button>
-                <span className="w-[34px] text-center text-[15px] font-bold">{qty}</span>
-                <button onClick={() => setQty((q) => q + 1)} className="flex h-[42px] w-[38px] items-center justify-center text-xl font-semibold text-primary">+</button>
+            <div className="flex flex-col gap-2 border-t border-border p-4.5">
+              {!gruposValidos && <p className="text-center text-[11px] font-medium text-danger">Preencha todos os campos obrigatórios para continuar.</p>}
+              <div className="flex items-center gap-3.5">
+                <div className="flex items-center rounded-menuzia border border-border">
+                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-primary disabled:text-border">−</button>
+                  <span className="w-[34px] text-center text-[15px] font-bold">{qty}</span>
+                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-primary">+</button>
+                </div>
+                <button
+                  onClick={addToCart}
+                  disabled={!gruposValidos}
+                  className={['flex flex-1 items-center justify-between rounded-menuzia px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-primary hover:bg-primary-dark active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
+                >
+                  <span>Adicionar</span>
+                  <span>{brl(unitPrice * qty)}</span>
+                </button>
               </div>
-              <button onClick={addToCart} className="flex flex-1 items-center justify-between rounded-menuzia bg-primary px-4 py-3.5 text-sm font-bold text-white hover:bg-primary-dark">
-                <span>Adicionar</span>
-                <span>{brl(unitPrice * qty)}</span>
-              </button>
             </div>
           </>
         )}
       </div>
 
-      {/* Checkout screen */}
+      {/* ── Checkout screen ───────────────────────────────────────────── */}
       <div className={`fixed inset-0 z-[60] overflow-y-auto bg-page transition-transform duration-300 ${checkoutOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="mx-auto min-h-screen max-w-[600px] bg-white pb-28">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
             <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded-menuzia bg-page text-lg">←</button>
             <span className="text-base font-bold">{checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
           </div>
-          <div className="flex gap-2 px-4.5 py-4">
-            {[1, 2, 3].map((step) => (
-              <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-primary' : 'bg-border'}`} />
-            ))}
+          <div className="flex gap-2 px-4 py-4">
+            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-primary' : 'bg-border'}`} />)}
           </div>
 
           {checkoutStep === 1 && (
-            <div className="px-4.5 pb-5">
+            <div className="px-4 pb-5">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Forma de pagamento</h3>
-              {[
-                { id: 'Pix', icon: '🔑' },
-                { id: 'Cartão na entrega', icon: '💳' },
-                { id: 'Dinheiro', icon: '💵' },
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => setPayMethod(opt.id)}
-                  className={[
-                    'mb-2.5 flex w-full items-center gap-3 rounded-menuzia border p-3.5 text-left transition-colors',
-                    payMethod === opt.id ? 'border-primary bg-[#ECFEFF]' : 'border-border',
-                  ].join(' ')}
-                >
+              {[{ id: 'Pix', icon: '🔑' }, { id: 'Cartão na entrega', icon: '💳' }, { id: 'Dinheiro', icon: '💵' }].map((opt) => (
+                <button key={opt.id} onClick={() => setPayMethod(opt.id)}
+                  className={['mb-2.5 flex w-full items-center gap-3 rounded-menuzia border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-primary bg-[#ECFEFF]' : 'border-border'].join(' ')}>
                   <span className="flex h-[38px] w-[38px] items-center justify-center rounded-menuzia bg-page text-lg">{opt.icon}</span>
                   <span className="flex-1 text-sm font-semibold">{opt.id}</span>
                   <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-primary bg-primary' : 'border-border'].join(' ')} />
@@ -577,140 +899,116 @@ export default function StorefrontPage() {
               ))}
               {payMethod === 'Dinheiro' && (
                 <div className="mt-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Precisa de troco para quanto?</label>
-                  <input
-                    value={changeFor}
-                    onChange={(e) => setChangeFor(e.target.value)}
-                    placeholder="Ex: R$ 50,00 (deixe em branco se não precisar)"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary"
-                  />
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Troco para quanto? (deixe em branco se não precisar)</label>
+                  <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00"
+                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
                 </div>
               )}
             </div>
           )}
 
           {checkoutStep === 2 && (
-            <div className="px-4.5 pb-5">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
+            <div className="px-4 pb-5">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seus dados</h3>
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
-                  <input defaultValue="29090-000" className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome *</label>
+                  <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
+                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número</label>
-                  <input defaultValue="245" className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
+                  <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: e.target.value }))} placeholder="(00) 00000-0000"
+                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
                 </div>
               </div>
-              <div className="mt-3">
-                <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua</label>
-                <input defaultValue="Rua das Acácias" className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+              <h3 className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
+              <div className="flex gap-3">
+                <div className="flex-[2]">
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua *</label>
+                  <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
+                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número *</label>
+                  <input value={endereco.numero} onChange={(e) => setEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
+                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                </div>
+              </div>
+              <div className="mt-3 flex gap-3">
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
+                  <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
+                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
+                  <input value={endereco.cep} onChange={(e) => setEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
+                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                </div>
               </div>
               <div className="mt-3">
                 <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
-                <input placeholder="Apto, bloco, referência" className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
-              </div>
-              <div className="mt-3">
-                <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
-                <input defaultValue="Jardim Camburi" className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
+                  className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
               </div>
             </div>
           )}
 
           {checkoutStep === 3 && (
-            <div className="px-4.5 pb-5">
+            <div className="px-4 pb-5">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Resumo do pedido</h3>
-              <div className="mb-3 space-y-1.5 text-sm">
-                {cart.map((line) => (
-                  <div key={line.key} className="flex justify-between"><span>{line.qty}x {line.name}</span><span className="font-semibold">{brl(line.unit * line.qty)}</span></div>
+              <div className="mb-4 overflow-hidden rounded-menuzia border border-border bg-white">
+                {cart.map((l) => (
+                  <div key={l.key} className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5 last:border-none text-sm">
+                    <span className="text-text-subtle">{l.qty}× {l.name}</span>
+                    <span className="font-semibold">{brl(l.unit * l.qty)}</span>
+                  </div>
                 ))}
+                <div className="flex justify-between px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
+                <div className="flex justify-between border-t border-border px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Taxa de entrega</span><span>{brl(fee)}</span></div>
+                <div className="flex justify-between border-t border-border px-3.5 py-3 text-[15px] font-bold"><span>Total</span><span className="text-price-text">{brl(total)}</span></div>
               </div>
-              <div className="rounded-menuzia bg-page p-3.5 text-sm">
-                <div className="flex justify-between py-0.5 text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
-                <div className="flex justify-between py-0.5 text-text-subtle"><span>Taxa de entrega</span><span>{brl(FEE)}</span></div>
-                <div className="mt-1.5 flex justify-between border-t border-border pt-2 text-base font-bold"><span>Total</span><span>{brl(total)}</span></div>
-              </div>
-              <h3 className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega & pagamento</h3>
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega & pagamento</h3>
               <div className="mb-2.5 flex items-center gap-3 rounded-menuzia border border-border p-3.5">
-                <span className="flex h-[38px] w-[38px] items-center justify-center rounded-menuzia bg-page text-lg">📍</span>
-                <div className="text-[13px] leading-relaxed">Rua das Acácias, 245<br /><span className="text-text-subtle">Jardim Camburi · ~30 min</span></div>
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg">📍</span>
+                <div className="text-[13px] leading-relaxed">
+                  {endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}
+                  <br /><span className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</span>
+                </div>
               </div>
               <div className="flex items-center gap-3 rounded-menuzia border border-border p-3.5">
-                <span className="flex h-[38px] w-[38px] items-center justify-center rounded-menuzia bg-page text-lg">💳</span>
-                <div className="text-[13px] font-semibold">
-                  {payMethod}
-                  {payMethod === 'Dinheiro' && changeFor && <span className="font-normal text-text-subtle"> · troco para {changeFor}</span>}
-                </div>
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg">💳</span>
+                <div className="text-[13px] font-semibold">{payMethod}{payMethod === 'Dinheiro' && changeFor && <span className="font-normal text-text-subtle"> · troco para R$ {changeFor}</span>}</div>
               </div>
             </div>
           )}
 
-          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-3.5">
-            <button onClick={checkoutNext} className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-3.5 text-[15px] font-bold text-white hover:bg-primary-dark">
-              <span>{checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
-              <span>{checkoutStep === 3 ? brl(total) : ''}</span>
+          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4">
+            {checkoutError && <div className="mb-2.5 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
+            <button onClick={checkoutNext} disabled={submitting}
+              className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark disabled:opacity-60 active:scale-[0.99]">
+              <span>{submitting ? 'Enviando…' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
+              {checkoutStep === 3 && !submitting && <span>{brl(total)}</span>}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Tracking screen */}
-      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-page transition-transform duration-300 ${trackingId ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="mx-auto min-h-screen max-w-[600px] bg-white pb-28">
-          <div className="px-4.5 pb-3 pt-9 text-center">
-            <div className="mx-auto mb-3.5 flex h-16 w-16 items-center justify-center rounded-full bg-price-bg">
-              <svg viewBox="0 0 24 24" className="h-9 w-9 fill-status-ready">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold">Pedido confirmado!</h2>
-            <p className="mt-1 text-[13px] text-text-subtle">
-              Pedido <b className="text-text-main">{trackingId}</b> · {storeName}
-            </p>
-            <span className="mt-3 inline-block rounded-menuzia bg-alert-bg px-3.5 py-1.5 text-[13px] font-semibold text-alert-text">
-              Chega em aproximadamente 35 min
-            </span>
+      {/* ── Toast container ───────────────────────────────────────────── */}
+      <div className="pointer-events-none fixed bottom-24 left-1/2 z-[70] flex w-full max-w-[380px] -translate-x-1/2 flex-col items-center gap-2 px-4">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className="flex w-full items-center gap-2.5 rounded-full bg-[#111827]/95 px-5 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-sm"
+            style={{ animation: 'toast-pop 0.25s ease-out both' }}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-status-ready">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+            </svg>
+            {toast.message}
           </div>
-          <div className="px-7 py-6">
-            {[
-              { label: 'Pedido recebido', time: 'agora', state: 'done' },
-              { label: 'Preparando seu pedido', time: 'em andamento', state: 'current' },
-              { label: 'Pedido pronto', time: '', state: 'pending' },
-              { label: 'Saiu para entrega', time: '', state: 'pending' },
-              { label: 'Entregue', time: '', state: 'pending' },
-            ].map((step, index, arr) => (
-              <div key={step.label} className="relative flex gap-3.5 pb-6 last:pb-0">
-                {index < arr.length - 1 && (
-                  <span className={`absolute left-[11px] top-6 h-full w-0.5 ${step.state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />
-                )}
-                <span
-                  className={[
-                    'z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white',
-                    step.state === 'done' ? 'border-status-ready bg-status-ready' : step.state === 'current' ? 'border-primary bg-primary' : 'border-border',
-                  ].join(' ')}
-                >
-                  {step.state === 'done' && (
-                    <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                    </svg>
-                  )}
-                </span>
-                <div>
-                  <div className={`text-sm font-semibold ${step.state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{step.label}</div>
-                  {step.time && <div className="mt-0.5 text-xs text-text-subtle">{step.time}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-3.5">
-            <button
-              onClick={() => setTrackingId(null)}
-              className="w-full rounded-menuzia bg-page px-5 py-3.5 text-[15px] font-bold text-text-main hover:bg-border"
-            >
-              Voltar ao cardápio
-            </button>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   )

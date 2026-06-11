@@ -1,49 +1,55 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Children, useCallback, useEffect, useMemo, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { getBrowserSupabase } from '@/lib/supabase/client'
+import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import {
+  avancarStatusPedido,
+  listarPedidosConcluidos,
+  listarPedidosKanban,
+  listarPedidosLogistica,
+  marcarPedidoEntregue,
+  recusarPedido,
+  type Pedido,
+  type StatusPedido,
+} from '@/lib/queries/pedidos'
 
-type Stage = 'pending' | 'preparing' | 'ready'
-type OrderType = 'delivery' | 'pickup'
-
-interface Order {
-  id: string
-  stage: Stage
-  type: OrderType
-  customer: string
-  area: string
-  items: string[]
-  pay: string
-  paid: boolean
-  total: string
-  mins: number
-  isNew?: boolean
+function inicioDoDiaISO() {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
 }
 
-const INITIAL_ORDERS: Order[] = [
-  { id: '#1042', stage: 'pending', type: 'delivery', customer: 'Marina Souza', area: 'Jardim Camburi · 3,2 km', items: ['1x Burger Duplo Artesanal', '1x Batata Frita G', '+1 item'], pay: 'Pix', paid: true, total: 'R$ 58,80', mins: 2, isNew: true },
-  { id: '#1041', stage: 'pending', type: 'pickup', customer: 'Carlos Eduardo', area: 'Retirada no balcão', items: ['2x X-Salada Clássico', '1x Coca-Cola lata'], pay: 'Cartão', paid: false, total: 'R$ 55,80', mins: 6 },
-  { id: '#1039', stage: 'preparing', type: 'delivery', customer: 'Renata Lima', area: 'Praia do Canto · 5,1 km', items: ['1x Combo Família'], pay: 'Dinheiro', paid: false, total: 'R$ 89,90', mins: 14 },
-  { id: '#1038', stage: 'preparing', type: 'delivery', customer: 'João Pedro', area: 'Mata da Praia · 4,0 km', items: ['1x Frango Crispy', '1x Onion Rings', '+2 itens'], pay: 'Pix', paid: true, total: 'R$ 72,40', mins: 21 },
-  { id: '#1035', stage: 'ready', type: 'pickup', customer: 'Beatriz Alves', area: 'Retirada no balcão', items: ['1x Veggie Burger', '1x Suco natural'], pay: 'Pix', paid: true, total: 'R$ 35,50', mins: 9 },
-  { id: '#1033', stage: 'ready', type: 'delivery', customer: 'Felipe Tavares', area: 'Jardim da Penha · 2,8 km', items: ['1x Burger Duplo Artesanal', '1x Milkshake'], pay: 'Dinheiro', paid: false, total: 'R$ 50,90', mins: 24 },
+type Coluna = 'recebido' | 'preparando' | 'pronto'
+
+const COLUNA_LABELS: Record<Coluna, string> = {
+  recebido: 'Pedido Recebido',
+  preparando: 'Preparando',
+  pronto: 'Pronto p/ Despacho',
+}
+
+const COLUNA_BORDER: Record<Coluna, string> = {
+  recebido: 'border-t-status-pending',
+  preparando: 'border-t-status-preparing',
+  pronto: 'border-t-status-ready',
+}
+
+const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
+  { label: 'Recebido', status: 'recebido' },
+  { label: 'Preparando', status: 'preparando' },
+  { label: 'Pronto', status: 'pronto' },
+  { label: 'Em rota', status: 'em_rota' },
+  { label: 'Entregue', status: 'entregue' },
 ]
 
-const STAGE_LABELS: Record<Stage, string> = {
-  pending: 'Pedido Recebido',
-  preparing: 'Preparando',
-  ready: 'Pronto p/ Despacho',
-}
+const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
-const STAGE_BORDER: Record<Stage, string> = {
-  pending: 'border-t-status-pending',
-  preparing: 'border-t-status-preparing',
-  ready: 'border-t-status-ready',
+function minutesSince(iso: string, now: number) {
+  return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
 }
-
-const TIMELINE_STEPS = ['Recebido', 'Preparando', 'Pronto', 'Em rota', 'Entregue']
 
 function timerTone(mins: number) {
   if (mins < 10) return 'bg-price-bg text-price-text'
@@ -51,197 +57,332 @@ function timerTone(mins: number) {
   return 'bg-danger-bg text-danger'
 }
 
-function timelineIndex(stage: Stage, type: OrderType) {
-  if (stage === 'pending') return 0
-  if (stage === 'preparing') return 1
-  return type === 'pickup' ? 2 : 2
+function resumoItens(p: Pedido): string[] {
+  const linhas = p.itens.map((i) => `${i.quantidade}x ${i.nome}`)
+  if (linhas.length <= 3) return linhas
+  return [...linhas.slice(0, 2), `+${linhas.length - 2} item(ns)`]
+}
+
+function SubSecao({ titulo, cor, vazio, children }: { titulo: string; cor: string; vazio: string; children: React.ReactNode }) {
+  const count = Children.count(children)
+  return (
+    <div>
+      <div className={`mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide ${cor}`}>
+        <span>{titulo}</span>
+        <span className="rounded-full bg-page px-1.5 text-text-subtle">{count}</span>
+      </div>
+      {count === 0 ? (
+        <div className="rounded-menuzia border border-dashed border-border py-3 text-center text-[11px] text-text-subtle">{vazio}</div>
+      ) : (
+        <div className="space-y-2">{children}</div>
+      )}
+    </div>
+  )
+}
+
+function FluxoCard({ order, tone, onClick }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void }) {
+  const bg = tone === 'done' ? 'bg-price-bg' : tone === 'failed' ? 'bg-danger-bg' : 'bg-white'
+  const badge = tone === 'done' ? 'ok' : tone === 'failed' ? 'danger' : 'preparing'
+  const label = tone === 'done' ? 'Entregue' : tone === 'failed' ? 'Não entregue' : 'Em rota'
+  return (
+    <button onClick={onClick} className={`w-full rounded-menuzia border border-border p-3 text-left transition-shadow hover:shadow-sm ${bg}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold">#{order.numero}</span>
+        <Badge tone={badge}>{label}</Badge>
+      </div>
+      <div className="mt-1 text-xs text-text-subtle">
+        {order.clienteNome || 'Cliente'}
+        {order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}
+      </div>
+      <div className="mt-1 text-sm font-bold text-price-text">{brl(order.total)}</div>
+    </button>
+  )
 }
 
 export default function PedidosPage() {
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS)
-  const [detail, setDetail] = useState<Order | null>(null)
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [arrived, setArrived] = useState(false)
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [orders, setOrders] = useState<Pedido[]>([])
+  const [transit, setTransit] = useState<Pedido[]>([])
+  const [concluded, setConcluded] = useState<Pedido[]>([])
+  const [detail, setDetail] = useState<Pedido | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [showCol4, setShowCol4] = useState(false)
 
+  // restaura preferência do 4º kanban
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setOrders((prev) => [
-        {
-          id: '#1043',
-          stage: 'pending',
-          type: 'delivery',
-          customer: 'Ana Paula Reis',
-          area: 'Bento Ferreira · 3,8 km',
-          items: ['1x X-Bacon Supremo', '1x Batata Frita G', '1x Coca-Cola lata'],
-          pay: 'Cartão',
-          paid: false,
-          total: 'R$ 53,80',
-          mins: 0,
-          isNew: true,
-        },
-        ...prev,
-      ])
-      setArrived(true)
-      setTimeout(() => setArrived(false), 4000)
-    }, 5000)
-    return () => clearTimeout(timeout)
+    setShowCol4(localStorage.getItem('menuzia:kanban-col4') === '1')
   }, [])
 
-  function advance(order: Order) {
-    setOrders((prev) => {
-      if (order.stage === 'pending') {
-        return prev.map((o) => (o.id === order.id ? { ...o, stage: 'preparing', isNew: false } : o))
-      }
-      if (order.stage === 'preparing') {
-        return prev.map((o) => (o.id === order.id ? { ...o, stage: 'ready' } : o))
-      }
-      // ready -> delivered/dispatched: leaves the board
-      return prev.filter((o) => o.id !== order.id)
+  function toggleCol4() {
+    setShowCol4((v) => {
+      const next = !v
+      localStorage.setItem('menuzia:kanban-col4', next ? '1' : '0')
+      return next
     })
   }
 
-  function moveToStage(id: string, stage: Stage) {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, stage, isNew: false } : o)))
+  const refetch = useCallback(
+    async (id: string) => {
+      try {
+        const [kanban, logistica, finalizados] = await Promise.all([
+          listarPedidosKanban(supabase, id),
+          listarPedidosLogistica(supabase, id),
+          listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
+        ])
+        setOrders(kanban)
+        setTransit(logistica.filter((p) => p.status === 'em_rota'))
+        setConcluded(finalizados)
+      } catch {
+        setError('Não foi possível carregar os pedidos.')
+      }
+    },
+    [supabase]
+  )
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const id = await buscarRestauranteIdDoUsuario(supabase)
+      if (!active) return
+      if (!id) {
+        setError('Não encontramos uma loja vinculada ao seu usuário.')
+        setLoading(false)
+        return
+      }
+      setRestauranteId(id)
+      await refetch(id)
+      setLoading(false)
+
+      const channel = supabase
+        .channel(`pedidos-kanban-${id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [supabase, refetch])
+
+  // relógio para os tempos decorridos
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  function colunaDe(p: Pedido): Coluna | null {
+    if (p.status === 'recebido') return 'recebido'
+    if (p.status === 'preparando') return 'preparando'
+    if (p.status === 'pronto') return 'pronto'
+    return null
   }
 
-  const open = orders.length
-  const inDelivery = orders.filter((o) => o.stage === 'ready' && o.type === 'delivery').length
-  const revenue = orders.reduce((sum, o) => sum + parseFloat(o.total.replace('R$ ', '').replace('.', '').replace(',', '.')), 0)
+  async function avancar(p: Pedido) {
+    let novo: StatusPedido | null = null
+    if (p.status === 'recebido') novo = 'preparando'
+    else if (p.status === 'preparando') novo = 'pronto'
+    else if (p.status === 'pronto' && p.tipo === 'retirada') novo = 'entregue'
+    if (!novo || !restauranteId) return
+
+    // otimista
+    setOrders((prev) =>
+      novo === 'entregue' ? prev.filter((o) => o.id !== p.id) : prev.map((o) => (o.id === p.id ? { ...o, status: novo! } : o))
+    )
+    try {
+      if (novo === 'entregue') await marcarPedidoEntregue(supabase, p.id)
+      else await avancarStatusPedido(supabase, p.id, novo)
+    } catch {
+      setError('Não foi possível atualizar o pedido.')
+      refetch(restauranteId)
+    }
+  }
+
+  async function recusar(p: Pedido) {
+    if (!restauranteId) return
+    setOrders((prev) => prev.filter((o) => o.id !== p.id))
+    try {
+      await recusarPedido(supabase, p.id)
+      refetch(restauranteId)
+    } catch {
+      setError('Não foi possível recusar o pedido.')
+      refetch(restauranteId)
+    }
+  }
+
+  const abertos = orders.length
+  const emPreparo = orders.filter((o) => o.status === 'preparando').length
+  const faturamento = orders.reduce((s, o) => s + o.total, 0)
+
+  if (loading) {
+    return (
+      <>
+        <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" />
+        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando pedidos…</div>
+      </>
+    )
+  }
 
   return (
     <>
       <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" />
 
       <div className="flex flex-1 flex-col gap-4 overflow-hidden p-5">
-        {/* Live indicator + sound toggle */}
+        {error && (
+          <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 rounded-full bg-price-bg px-3 py-1.5 text-xs font-semibold text-price-text">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-price-text opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-price-text" />
             </span>
-            Recebendo pedidos
+            Recebendo pedidos em tempo real
           </div>
-          <Button variant="outline">🔊 Som</Button>
+          <Button variant={showCol4 ? 'primary' : 'outline'} onClick={toggleCol4}>
+            {showCol4 ? '✓ Coluna de entregas' : '+ Coluna de entregas'}
+          </Button>
         </div>
 
-        {/* Stats strip */}
+        {/* Stats */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="rounded-menuzia border border-border bg-white p-4">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pedidos abertos</div>
-            <div className="mt-1.5 text-2xl font-bold">{open}</div>
+            <div className="mt-1.5 text-2xl font-bold">{abertos}</div>
           </div>
           <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tempo médio</div>
-            <div className="mt-1.5 text-2xl font-bold">14 min</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Em preparo</div>
+            <div className="mt-1.5 text-2xl font-bold">{emPreparo}</div>
           </div>
           <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Em entrega</div>
-            <div className="mt-1.5 text-2xl font-bold">{inDelivery}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Aguardando despacho</div>
+            <div className="mt-1.5 text-2xl font-bold">{orders.filter((o) => o.status === 'pronto').length}</div>
           </div>
           <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Faturamento do turno</div>
-            <div className="mt-1.5 text-2xl font-bold text-price-text">
-              R$ {revenue.toFixed(2).replace('.', ',')}
-            </div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Valor em aberto</div>
+            <div className="mt-1.5 text-2xl font-bold text-price-text">{brl(faturamento)}</div>
           </div>
         </div>
 
         {/* Board */}
-        <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-3">
-          {(['pending', 'preparing', 'ready'] as Stage[]).map((stage) => {
-            const stageOrders = orders.filter((o) => o.stage === stage)
+        <div className={`grid flex-1 grid-cols-1 gap-4 overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+          {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
+            const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             return (
-              <div
-                key={stage}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (dragId) moveToStage(dragId, stage)
-                  setDragId(null)
-                }}
-                className={`flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] bg-white ${STAGE_BORDER[stage]}`}
-              >
+              <div key={coluna} className={`flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] bg-white ${COLUNA_BORDER[coluna]}`}>
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                  <h3 className="text-sm font-semibold">{STAGE_LABELS[stage]}</h3>
-                  <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{stageOrders.length}</span>
+                  <h3 className="text-sm font-semibold">{COLUNA_LABELS[coluna]}</h3>
+                  <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{colOrders.length}</span>
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-3">
-                  {stageOrders.map((order) => (
-                    <div
-                      key={order.id}
-                      draggable
-                      onDragStart={() => setDragId(order.id)}
-                      className={[
-                        'cursor-grab rounded-menuzia border border-border bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md',
-                        order.isNew ? 'ring-2 ring-primary/40' : '',
-                      ].join(' ')}
-                    >
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-bold">{order.id}</span>
-                        <Badge tone={order.type === 'delivery' ? 'alert' : 'paused'}>
-                          {order.type === 'delivery' ? 'Entrega' : 'Retirada'}
-                        </Badge>
-                      </div>
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold ${timerTone(order.mins)}`}>{order.mins} min</span>
-                        <span className="text-[13px] font-semibold">{order.customer}</span>
-                      </div>
-                      <div className="mb-2 text-xs text-text-subtle">{order.area}</div>
-                      <ul className="mb-3 space-y-0.5 text-xs text-text-subtle">
-                        {order.items.map((line) => (
-                          <li key={line}>{line}</li>
-                        ))}
-                      </ul>
-                      <div className="mb-3 flex items-center justify-between">
-                        <Badge tone={order.paid ? 'ok' : 'pending'}>{order.paid ? 'Pago' : 'A receber'} · {order.pay}</Badge>
-                        <span className="text-sm font-bold text-price-text">{order.total}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="secondary" className="flex-1" onClick={() => setDetail(order)}>
-                          Detalhes
-                        </Button>
-                        {order.stage === 'pending' && (
-                          <Button variant="primary" className="flex-1" onClick={() => advance(order)}>
-                            Aceitar
-                          </Button>
+                  {colOrders.map((order) => {
+                    const mins = minutesSince(order.criadoEm, now)
+                    return (
+                      <div key={order.id} className="rounded-menuzia border border-border bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm font-bold">#{order.numero}</span>
+                          <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
+                        </div>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold ${timerTone(mins)}`}>{mins} min</span>
+                          <span className="text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</span>
+                        </div>
+                        {order.tipo === 'entrega' && order.enderecoBairro && (
+                          <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
                         )}
-                        {order.stage === 'preparing' && (
-                          <Button variant="success" className="flex-1" onClick={() => advance(order)}>
-                            Pronto
+                        <ul className="mb-3 space-y-0.5 text-xs text-text-subtle">
+                          {resumoItens(order).map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                        <div className="mb-3 flex items-center justify-between">
+                          <Badge tone={order.pago ? 'ok' : 'pending'}>
+                            {order.pago ? 'Pago' : 'A receber'} · {PAY_LABEL[order.formaPagamento]}
+                          </Badge>
+                          <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="secondary" className="flex-1" onClick={() => setDetail(order)}>
+                            Detalhes
                           </Button>
-                        )}
-                        {order.stage === 'ready' && order.type === 'pickup' && (
-                          <Button variant="success" className="flex-1" onClick={() => advance(order)}>
-                            Entregue
-                          </Button>
-                        )}
-                        {order.stage === 'ready' && order.type === 'delivery' && (
-                          <Button variant="dispatch" className="flex-1" onClick={() => advance(order)}>
-                            Despachar
-                          </Button>
-                        )}
+                          {order.status === 'recebido' && (
+                            <>
+                              <Button variant="primary" className="flex-1" onClick={() => avancar(order)}>
+                                Aceitar
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="border-danger px-2.5 text-danger hover:bg-danger-bg"
+                                onClick={() => recusar(order)}
+                                title="Recusar pedido"
+                              >
+                                ✕
+                              </Button>
+                            </>
+                          )}
+                          {order.status === 'preparando' && (
+                            <Button variant="success" className="flex-1" onClick={() => avancar(order)}>
+                              Pronto
+                            </Button>
+                          )}
+                          {order.status === 'pronto' && order.tipo === 'retirada' && (
+                            <Button variant="success" className="flex-1" onClick={() => avancar(order)}>
+                              Entregue
+                            </Button>
+                          )}
+                          {order.status === 'pronto' && order.tipo === 'entrega' && (
+                            <span className="flex flex-1 items-center justify-center rounded-menuzia bg-page text-[11px] font-semibold uppercase text-text-subtle">
+                              Na logística
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {stageOrders.length === 0 && (
-                    <div className="flex h-full items-center justify-center text-xs text-text-subtle">Nenhum pedido nesta etapa</div>
+                    )
+                  })}
+                  {colOrders.length === 0 && (
+                    <div className="flex h-full items-center justify-center py-10 text-xs text-text-subtle">Nenhum pedido nesta etapa</div>
                   )}
                 </div>
               </div>
             )
           })}
+
+          {/* 4ª coluna opcional: entregas e concluídos */}
+          {showCol4 && (
+            <div className="flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] border-t-purple bg-white">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <h3 className="text-sm font-semibold">Entregas & concluídos</h3>
+                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{transit.length + concluded.length}</span>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto p-3">
+                <SubSecao titulo="Em trânsito" cor="text-status-preparing" vazio="Ninguém em rota">
+                  {transit.map((o) => (
+                    <FluxoCard key={o.id} order={o} tone="transit" onClick={() => setDetail(o)} />
+                  ))}
+                </SubSecao>
+                <SubSecao titulo="Concluídos" cor="text-price-text" vazio="Nada concluído hoje">
+                  {concluded.filter((o) => o.status === 'entregue').map((o) => (
+                    <FluxoCard key={o.id} order={o} tone="done" onClick={() => setDetail(o)} />
+                  ))}
+                </SubSecao>
+                <SubSecao titulo="Não concluídos" cor="text-danger" vazio="Nenhum recusado hoje">
+                  {concluded.filter((o) => o.status === 'cancelado').map((o) => (
+                    <FluxoCard key={o.id} order={o} tone="failed" onClick={() => setDetail(o)} />
+                  ))}
+                </SubSecao>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Toast: new order arrived */}
-      {arrived && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-menuzia bg-sidebar-bg px-4 py-3 text-sm font-semibold text-white shadow-2xl">
-          <span className="h-2 w-2 rounded-full bg-status-ready" />
-          Novo pedido recebido — #1043
-        </div>
-      )}
-
-      {/* Overlay + drawer */}
+      {/* Drawer de detalhes */}
       {detail && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setDetail(null)} />}
       <aside
         className={[
@@ -253,23 +394,22 @@ export default function PedidosPage() {
           <>
             <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
               <div>
-                <h2 className="text-[15px] font-bold">Pedido {detail.id}</h2>
-                <p className="mt-0.5 text-xs text-text-subtle">{detail.customer} · {detail.type === 'delivery' ? 'Entrega' : 'Retirada'}</p>
+                <h2 className="text-[15px] font-bold">Pedido #{detail.numero}</h2>
+                <p className="mt-0.5 text-xs text-text-subtle">{detail.clienteNome || 'Cliente'} · {detail.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</p>
               </div>
               <button onClick={() => setDetail(null)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
                 ×
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4.5">
-              {/* Timeline */}
               <div className="mb-5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Linha do tempo</div>
               <div className="mb-6 space-y-0">
                 {TIMELINE_STEPS.map((step, index) => {
-                  const active = timelineIndex(detail.stage, detail.type)
-                  const done = index < active || (index === active && detail.stage === 'ready')
-                  const current = index === active && detail.stage !== 'ready'
+                  const active = TIMELINE_STEPS.findIndex((s) => s.status === detail.status)
+                  const done = index < active || detail.status === 'entregue'
+                  const current = index === active && detail.status !== 'entregue'
                   return (
-                    <div key={step} className="relative flex gap-3 pb-5 last:pb-0">
+                    <div key={step.label} className="relative flex gap-3 pb-5 last:pb-0">
                       {index < TIMELINE_STEPS.length - 1 && (
                         <span className={`absolute left-[11px] top-6 h-full w-0.5 ${done ? 'bg-status-ready' : 'bg-border'}`} />
                       )}
@@ -285,43 +425,57 @@ export default function PedidosPage() {
                           </svg>
                         )}
                       </span>
-                      <span className={`text-sm font-medium ${done || current ? 'text-text-main' : 'text-text-subtle'}`}>{step}</span>
+                      <span className={`text-sm font-medium ${done || current ? 'text-text-main' : 'text-text-subtle'}`}>{step.label}</span>
                     </div>
                   )
                 })}
               </div>
 
-              {/* Items */}
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Itens do pedido</div>
-              <ul className="mb-5 space-y-1.5 rounded-menuzia border border-border p-3 text-sm">
-                {detail.items.map((line) => (
-                  <li key={line} className="flex justify-between text-text-main">
-                    <span>{line}</span>
+              <ul className="mb-5 space-y-2 rounded-menuzia border border-border p-3 text-sm">
+                {detail.itens.map((linha) => (
+                  <li key={linha.id}>
+                    <div className="flex justify-between text-text-main">
+                      <span>{linha.quantidade}x {linha.nome}</span>
+                      <span className="font-semibold">{brl(linha.precoUnitario * linha.quantidade)}</span>
+                    </div>
+                    {linha.complementos.length > 0 && (
+                      <div className="mt-0.5 text-xs text-text-subtle">{linha.complementos.map((c) => c.nome).join(', ')}</div>
+                    )}
+                    {linha.observacao && <div className="mt-0.5 text-xs italic text-text-subtle">obs: {linha.observacao}</div>}
                   </li>
                 ))}
-                <li className="flex justify-between border-t border-border pt-2 font-bold">
-                  <span>Total</span>
-                  <span className="text-price-text">{detail.total}</span>
-                </li>
+                <li className="flex justify-between border-t border-border pt-2 text-text-subtle"><span>Subtotal</span><span>{brl(detail.subtotal)}</span></li>
+                {detail.taxaEntrega > 0 && (
+                  <li className="flex justify-between text-text-subtle"><span>Taxa de entrega</span><span>{brl(detail.taxaEntrega)}</span></li>
+                )}
+                <li className="flex justify-between font-bold"><span>Total</span><span className="text-price-text">{brl(detail.total)}</span></li>
               </ul>
 
-              {/* Customer & payment */}
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cliente & pagamento</div>
               <div className="mb-5 space-y-1.5 rounded-menuzia border border-border p-3 text-sm">
-                <div className="flex justify-between"><span className="text-text-subtle">Cliente</span><span className="font-medium">{detail.customer}</span></div>
-                <div className="flex justify-between"><span className="text-text-subtle">Pagamento</span><span className="font-medium">{detail.pay}</span></div>
+                <div className="flex justify-between"><span className="text-text-subtle">Cliente</span><span className="font-medium">{detail.clienteNome || '—'}</span></div>
+                {detail.clienteTelefone && <div className="flex justify-between"><span className="text-text-subtle">Telefone</span><span className="font-medium">{detail.clienteTelefone}</span></div>}
+                <div className="flex justify-between"><span className="text-text-subtle">Pagamento</span><span className="font-medium">{PAY_LABEL[detail.formaPagamento]}</span></div>
+                {detail.formaPagamento === 'dinheiro' && detail.trocoPara !== null && (
+                  <div className="flex justify-between"><span className="text-text-subtle">Troco para</span><span className="font-medium">{brl(detail.trocoPara)}</span></div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-text-subtle">Status</span>
-                  <Badge tone={detail.paid ? 'ok' : 'pending'}>{detail.paid ? 'Pago' : 'A receber'}</Badge>
+                  <Badge tone={detail.pago ? 'ok' : 'pending'}>{detail.pago ? 'Pago' : 'A receber'}</Badge>
                 </div>
               </div>
 
-              {/* Delivery info */}
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Entrega</div>
-              <div className="rounded-menuzia border border-border p-3 text-sm">
-                <div className="mb-2 text-text-main">{detail.area}</div>
-                <div className="flex h-28 items-center justify-center rounded-menuzia bg-page text-xs text-text-subtle">Mapa indisponível (mock)</div>
-              </div>
+              {detail.tipo === 'entrega' && (
+                <>
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</div>
+                  <div className="rounded-menuzia border border-border p-3 text-sm text-text-main">
+                    {detail.enderecoRua}, {detail.enderecoNumero}
+                    {detail.enderecoComplemento && ` · ${detail.enderecoComplemento}`}
+                    <div className="text-text-subtle">{detail.enderecoBairro}{detail.enderecoCep && ` · ${detail.enderecoCep}`}</div>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}

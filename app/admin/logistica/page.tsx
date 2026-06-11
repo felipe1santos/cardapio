@@ -1,86 +1,194 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { getBrowserSupabase } from '@/lib/supabase/client'
+import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import {
+  atribuirEntregador,
+  criarEntregador,
+  listarEntregadores,
+  listarPedidosConcluidos,
+  listarPedidosLogistica,
+  listarResumoCaixa,
+  marcarPedidoEntregue,
+  recusarPedido,
+  registrarFechamentoCaixa,
+  type Entregador,
+  type Pedido,
+  type ResumoCaixa,
+  type StatusEntregador,
+} from '@/lib/queries/pedidos'
 
-type DriverStatus = 'online' | 'busy' | 'offline'
-
-interface Driver {
-  id: string
-  name: string
-  status: DriverStatus
-  active: number
+function inicioDoDiaISO() {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
 }
 
-interface ReadyOrder {
-  id: string
-  customer: string
-  area: string
-  pay: string
-  needsChange: boolean
-  changeFor?: string
-  total: string
-  driverId: string | null
-}
+const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
-interface CashClosing {
-  driver: string
-  expected: string
-  declared: string
-  diff: string
-  ok: boolean
-}
+const STATUS_LABEL: Record<StatusEntregador, string> = { online: 'Disponível', ocupado: 'Ocupado', offline: 'Offline' }
+const STATUS_DOT: Record<StatusEntregador, string> = { online: 'bg-status-ready', ocupado: 'bg-status-pending', offline: 'bg-text-subtle' }
 
-const DRIVERS: Driver[] = [
-  { id: 'd1', name: 'Lucas Andrade', status: 'online', active: 1 },
-  { id: 'd2', name: 'Patrícia Gomes', status: 'online', active: 0 },
-  { id: 'd3', name: 'Diego Martins', status: 'busy', active: 2 },
-  { id: 'd4', name: 'Wellington Costa', status: 'offline', active: 0 },
-]
-
-const STATUS_LABEL: Record<DriverStatus, string> = {
-  online: 'Disponível',
-  busy: 'Ocupado',
-  offline: 'Offline',
-}
-
-const STATUS_DOT: Record<DriverStatus, string> = {
-  online: 'bg-status-ready',
-  busy: 'bg-status-pending',
-  offline: 'bg-text-subtle',
-}
-
-const INITIAL_READY: ReadyOrder[] = [
-  { id: '#1033', customer: 'Felipe Tavares', area: 'Jardim da Penha · 2,8 km', pay: 'Dinheiro', needsChange: true, changeFor: 'R$ 60,00', total: 'R$ 50,90', driverId: null },
-  { id: '#1031', customer: 'Carla Mendes', area: 'Praia do Suá · 3,5 km', pay: 'Pix', needsChange: false, total: 'R$ 41,30', driverId: 'd1' },
-  { id: '#1029', customer: 'Henrique Dias', area: 'Bento Ferreira · 4,1 km', pay: 'Cartão na entrega', needsChange: false, total: 'R$ 67,00', driverId: 'd3' },
-  { id: '#1027', customer: 'Sofia Almeida', area: 'Mata da Praia · 2,2 km', pay: 'Dinheiro', needsChange: true, changeFor: 'R$ 100,00', total: 'R$ 38,50', driverId: 'd3' },
-]
-
-const CLOSINGS: CashClosing[] = [
-  { driver: 'Diego Martins', expected: 'R$ 106,50', declared: 'R$ 106,50', diff: 'R$ 0,00', ok: true },
-  { driver: 'Lucas Andrade', expected: 'R$ 50,90', declared: 'R$ 45,90', diff: '− R$ 5,00', ok: false },
-]
-
-function driverName(id: string | null) {
-  if (!id) return null
-  return DRIVERS.find((d) => d.id === id)?.name ?? null
+function endereco(p: Pedido) {
+  const partes = [p.enderecoBairro, p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`].filter(Boolean)
+  return partes.join(' · ') || 'Entrega'
 }
 
 export default function LogisticaPage() {
-  const [orders, setOrders] = useState<ReadyOrder[]>(INITIAL_READY)
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [orders, setOrders] = useState<Pedido[]>([])
+  const [concluidos, setConcluidos] = useState<Pedido[]>([])
+  const [drivers, setDrivers] = useState<Entregador[]>([])
   const [assigning, setAssigning] = useState<string | null>(null)
   const [closingOpen, setClosingOpen] = useState(false)
 
-  const available = DRIVERS.filter((d) => d.status === 'online')
-  const unassigned = orders.filter((o) => !o.driverId)
-  const inRoute = orders.filter((o) => o.driverId)
+  const [novoDriver, setNovoDriver] = useState({ nome: '', telefone: '' })
+  const [addingDriver, setAddingDriver] = useState(false)
 
-  function assign(orderId: string, driverId: string) {
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, driverId } : o)))
+  const [resumo, setResumo] = useState<ResumoCaixa[]>([])
+  const [declarado, setDeclarado] = useState<Record<string, string>>({})
+
+  const refetch = useCallback(
+    async (id: string) => {
+      try {
+        const [pedidos, entregadores, finalizados] = await Promise.all([
+          listarPedidosLogistica(supabase, id),
+          listarEntregadores(supabase, id),
+          listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
+        ])
+        setOrders(pedidos)
+        setDrivers(entregadores)
+        setConcluidos(finalizados.filter((p) => p.tipo === 'entrega'))
+      } catch {
+        setError('Não foi possível carregar a logística.')
+      }
+    },
+    [supabase]
+  )
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const id = await buscarRestauranteIdDoUsuario(supabase)
+      if (!active) return
+      if (!id) {
+        setError('Não encontramos uma loja vinculada ao seu usuário.')
+        setLoading(false)
+        return
+      }
+      setRestauranteId(id)
+      await refetch(id)
+      setLoading(false)
+
+      const channel = supabase
+        .channel(`logistica-${id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [supabase, refetch])
+
+  const available = drivers.filter((d) => d.status === 'online')
+  const unassigned = orders.filter((o) => o.status === 'pronto' && !o.entregadorId)
+  const inRoute = orders.filter((o) => o.status === 'em_rota')
+
+  function driverName(id: string | null) {
+    if (!id) return '—'
+    return drivers.find((d) => d.id === id)?.nome ?? '—'
+  }
+
+  async function assign(orderId: string, driverId: string) {
     setAssigning(null)
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, entregadorId: driverId, status: 'em_rota' } : o)))
+    try {
+      await atribuirEntregador(supabase, orderId, driverId)
+    } catch {
+      setError('Não foi possível atribuir o entregador.')
+      if (restauranteId) refetch(restauranteId)
+    }
+  }
+
+  async function deliver(orderId: string) {
+    setOrders((prev) => prev.filter((o) => o.id !== orderId))
+    try {
+      await marcarPedidoEntregue(supabase, orderId)
+      if (restauranteId) refetch(restauranteId)
+    } catch {
+      setError('Não foi possível marcar como entregue.')
+      if (restauranteId) refetch(restauranteId)
+    }
+  }
+
+  async function naoEntregue(orderId: string) {
+    setOrders((prev) => prev.filter((o) => o.id !== orderId))
+    try {
+      await recusarPedido(supabase, orderId)
+      if (restauranteId) refetch(restauranteId)
+    } catch {
+      setError('Não foi possível marcar como não entregue.')
+      if (restauranteId) refetch(restauranteId)
+    }
+  }
+
+  async function addDriver() {
+    if (!restauranteId || !novoDriver.nome.trim()) return
+    setAddingDriver(true)
+    try {
+      await criarEntregador(supabase, restauranteId, novoDriver.nome.trim(), novoDriver.telefone.trim())
+      setNovoDriver({ nome: '', telefone: '' })
+      await refetch(restauranteId)
+    } catch {
+      setError('Não foi possível cadastrar o entregador.')
+    } finally {
+      setAddingDriver(false)
+    }
+  }
+
+  async function openClosing() {
+    if (!restauranteId) return
+    try {
+      setResumo(await listarResumoCaixa(supabase, restauranteId))
+    } catch {
+      setError('Não foi possível calcular o caixa.')
+    }
+    setClosingOpen(true)
+  }
+
+  async function saveClosing(r: ResumoCaixa) {
+    if (!restauranteId) return
+    const valor = Number((declarado[r.entregadorId] ?? '').replace(/\./g, '').replace(',', '.'))
+    if (!Number.isFinite(valor)) return
+    try {
+      await registrarFechamentoCaixa(supabase, restauranteId, r.entregadorId, r.valorEsperado, r.trocoLevado, valor)
+      setResumo(await listarResumoCaixa(supabase, restauranteId))
+      setDeclarado((prev) => ({ ...prev, [r.entregadorId]: '' }))
+    } catch {
+      setError('Não foi possível registrar o fechamento.')
+    }
+  }
+
+  if (loading) {
+    return (
+      <>
+        <TopBar title="Logística" breadcrumb="Logística › Despacho de entregas" />
+        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando logística…</div>
+      </>
+    )
   }
 
   return (
@@ -88,6 +196,10 @@ export default function LogisticaPage() {
       <TopBar title="Logística" breadcrumb="Logística › Despacho de entregas" />
 
       <div className="flex flex-1 flex-col gap-4 overflow-hidden p-5">
+        {error && (
+          <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="rounded-menuzia border border-border bg-white p-4">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Entregadores online</div>
@@ -102,39 +214,57 @@ export default function LogisticaPage() {
             <div className="mt-1.5 text-2xl font-bold text-status-preparing">{inRoute.length}</div>
           </div>
           <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pendências de caixa</div>
-            <div className="mt-1.5 text-2xl font-bold text-danger">{CLOSINGS.filter((c) => !c.ok).length}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Entregadores cadastrados</div>
+            <div className="mt-1.5 text-2xl font-bold">{drivers.length}</div>
           </div>
         </div>
 
         <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[280px_1fr]">
-          {/* Drivers */}
+          {/* Entregadores */}
           <aside className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
             <div className="border-b border-border px-4 py-3">
               <h3 className="text-sm font-semibold">Entregadores</h3>
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-3">
-              {DRIVERS.map((driver) => (
+              {drivers.length === 0 && (
+                <div className="px-2 py-6 text-center text-xs text-text-subtle">Nenhum entregador cadastrado ainda.</div>
+              )}
+              {drivers.map((driver) => (
                 <div key={driver.id} className="rounded-menuzia border border-border p-3">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="text-sm font-semibold">{driver.name}</span>
+                    <span className="text-sm font-semibold">{driver.nome}</span>
                     <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[driver.status]}`} />
                   </div>
                   <div className="flex items-center justify-between text-xs text-text-subtle">
                     <span>{STATUS_LABEL[driver.status]}</span>
-                    <span>{driver.active} entrega(s) em rota</span>
+                    <span>{driver.emRota} entrega(s) em rota</span>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="border-t border-border p-3">
-              <Button variant="outline" className="w-full" onClick={() => setClosingOpen(true)}>
+            <div className="space-y-2 border-t border-border p-3">
+              <input
+                value={novoDriver.nome}
+                onChange={(e) => setNovoDriver((d) => ({ ...d, nome: e.target.value }))}
+                placeholder="Nome do entregador"
+                className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+              />
+              <input
+                value={novoDriver.telefone}
+                onChange={(e) => setNovoDriver((d) => ({ ...d, telefone: e.target.value }))}
+                placeholder="Telefone (opcional)"
+                className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+              />
+              <Button variant="primary" className="w-full" onClick={addDriver} disabled={addingDriver || !novoDriver.nome.trim()}>
+                {addingDriver ? 'Adicionando…' : '+ Entregador'}
+              </Button>
+              <Button variant="outline" className="w-full" onClick={openClosing}>
                 Fechamento de caixa
               </Button>
             </div>
           </aside>
 
-          {/* Orders to dispatch + in route */}
+          {/* Pedidos */}
           <section className="flex flex-col gap-4 overflow-y-auto">
             <div className="rounded-menuzia border border-border bg-white">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -142,23 +272,21 @@ export default function LogisticaPage() {
                 <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{unassigned.length}</span>
               </div>
               <div className="divide-y divide-border">
-                {unassigned.length === 0 && (
-                  <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido aguardando despacho</div>
-                )}
+                {unassigned.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido aguardando despacho</div>}
                 {unassigned.map((order) => (
                   <div key={order.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="mb-1 flex items-center gap-2">
-                        <span className="text-sm font-bold">{order.id}</span>
-                        <span className="text-sm font-medium">{order.customer}</span>
+                        <span className="text-sm font-bold">#{order.numero}</span>
+                        <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
                       </div>
-                      <div className="mb-1.5 text-xs text-text-subtle">{order.area}</div>
+                      <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={order.pay === 'Dinheiro' ? 'pending' : 'alert'}>{order.pay}</Badge>
-                        {order.needsChange && (
-                          <Badge tone="paused">Troco para {order.changeFor}</Badge>
+                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+                        {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
+                          <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
                         )}
-                        <span className="text-sm font-bold text-price-text">{order.total}</span>
+                        <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
                       </div>
                     </div>
                     <div className="relative">
@@ -167,17 +295,15 @@ export default function LogisticaPage() {
                       </Button>
                       {assigning === order.id && (
                         <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[200px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
-                          {available.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-text-subtle">Nenhum entregador disponível</div>
-                          )}
+                          {available.length === 0 && <div className="px-3 py-2 text-xs text-text-subtle">Nenhum entregador disponível</div>}
                           {available.map((driver) => (
                             <button
                               key={driver.id}
                               onClick={() => assign(order.id, driver.id)}
                               className="flex w-full items-center justify-between rounded-menuzia px-3 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page"
                             >
-                              <span>{driver.name}</span>
-                              <span className="text-xs text-text-subtle">{driver.active} em rota</span>
+                              <span>{driver.nome}</span>
+                              <span className="text-xs text-text-subtle">{driver.emRota} em rota</span>
                             </button>
                           ))}
                         </div>
@@ -194,31 +320,78 @@ export default function LogisticaPage() {
                 <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{inRoute.length}</span>
               </div>
               <div className="divide-y divide-border">
+                {inRoute.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhuma entrega em rota</div>}
                 {inRoute.map((order) => (
                   <div key={order.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="mb-1 flex items-center gap-2">
-                        <span className="text-sm font-bold">{order.id}</span>
-                        <span className="text-sm font-medium">{order.customer}</span>
+                        <span className="text-sm font-bold">#{order.numero}</span>
+                        <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
                         <Badge tone="preparing">Saiu para entrega</Badge>
                       </div>
-                      <div className="mb-1.5 text-xs text-text-subtle">{order.area} · entregador: <b className="text-text-main">{driverName(order.driverId)}</b></div>
+                      <div className="mb-1.5 text-xs text-text-subtle">
+                        {endereco(order)} · entregador: <b className="text-text-main">{driverName(order.entregadorId)}</b>
+                      </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={order.pay === 'Dinheiro' ? 'pending' : 'alert'}>{order.pay}</Badge>
-                        {order.needsChange && <Badge tone="paused">Troco para {order.changeFor}</Badge>}
-                        <span className="text-sm font-bold text-price-text">{order.total}</span>
+                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+                        {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
+                          <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
+                        )}
+                        <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
                       </div>
                     </div>
-                    <Button variant="success">Marcar como entregue</Button>
+                    <div className="flex flex-shrink-0 gap-2">
+                      <Button variant="success" onClick={() => deliver(order.id)}>
+                        Entregue
+                      </Button>
+                      <Button variant="outline" className="border-danger text-danger hover:bg-danger-bg" onClick={() => naoEntregue(order.id)}>
+                        Não entregue
+                      </Button>
+                    </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Concluídas hoje */}
+            <div className="rounded-menuzia border border-border bg-white">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <h3 className="text-sm font-semibold">Concluídas hoje</h3>
+                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{concluidos.length}</span>
+              </div>
+              <div className="divide-y divide-border">
+                {concluidos.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhuma entrega finalizada hoje</div>}
+                {concluidos.map((order) => {
+                  const entregue = order.status === 'entregue'
+                  return (
+                    <div
+                      key={order.id}
+                      className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between ${entregue ? 'bg-price-bg' : 'bg-danger-bg'}`}
+                    >
+                      <div>
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-sm font-bold">#{order.numero}</span>
+                          <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
+                          <Badge tone={entregue ? 'ok' : 'danger'}>{entregue ? 'Entregue' : 'Não entregue'}</Badge>
+                        </div>
+                        <div className="text-xs text-text-subtle">
+                          {endereco(order)} · entregador: <b className="text-text-main">{driverName(order.entregadorId)}</b>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+                        <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </section>
         </div>
       </div>
 
-      {/* Cash closing drawer */}
+      {/* Fechamento de caixa */}
       {closingOpen && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setClosingOpen(false)} />}
       <aside
         className={[
@@ -229,7 +402,7 @@ export default function LogisticaPage() {
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
             <h2 className="text-[15px] font-bold">Fechamento de caixa</h2>
-            <p className="mt-0.5 text-xs text-text-subtle">Conferência entre valor esperado e valor declarado por entregador.</p>
+            <p className="mt-0.5 text-xs text-text-subtle">Conferência entre o dinheiro esperado e o declarado por entregador.</p>
           </div>
           <button onClick={() => setClosingOpen(false)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
             ×
@@ -237,28 +410,48 @@ export default function LogisticaPage() {
         </div>
         <div className="flex-1 overflow-y-auto p-4.5">
           <p className="mb-4 text-xs leading-relaxed text-text-subtle">
-            Some o dinheiro recebido em pedidos pagos em espécie e o troco que o entregador levou consigo. Compare com o
-            valor declarado ao final da rota para identificar diferenças.
+            Valor esperado = soma dos pedidos pagos em dinheiro (em rota + entregues) de cada entregador. Informe o valor declarado ao
+            final da rota para registrar a diferença.
           </p>
-          {CLOSINGS.map((closing) => (
-            <div key={closing.driver} className="mb-3 rounded-menuzia border border-border p-3.5">
-              <div className="mb-2 flex items-center justify-between">
-                <h4 className="text-sm font-semibold">{closing.driver}</h4>
-                <Badge tone={closing.ok ? 'ok' : 'danger'}>{closing.ok ? 'Confere' : 'Divergência'}</Badge>
-              </div>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between"><span className="text-text-subtle">Valor esperado</span><span className="font-medium">{closing.expected}</span></div>
-                <div className="flex justify-between"><span className="text-text-subtle">Valor declarado</span><span className="font-medium">{closing.declared}</span></div>
-                <div className="flex justify-between border-t border-border pt-1.5 font-bold">
-                  <span>Diferença</span>
-                  <span className={closing.ok ? 'text-price-text' : 'text-danger'}>{closing.diff}</span>
-                </div>
-              </div>
+          {resumo.length === 0 && (
+            <div className="rounded-menuzia border border-dashed border-border p-4 text-center text-xs text-text-subtle">
+              Nenhum pedido em dinheiro atribuído a entregadores ainda.
             </div>
-          ))}
-          <div className="rounded-menuzia border border-dashed border-border p-3.5 text-center text-xs text-text-subtle">
-            Novo fechamento é gerado automaticamente ao final de cada rota do entregador.
-          </div>
+          )}
+          {resumo.map((r) => {
+            const valor = Number((declarado[r.entregadorId] ?? '').replace(/\./g, '').replace(',', '.'))
+            const diff = Number.isFinite(valor) && (declarado[r.entregadorId] ?? '') !== '' ? valor - r.valorEsperado : null
+            return (
+              <div key={r.entregadorId} className="mb-3 rounded-menuzia border border-border p-3.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <h4 className="text-sm font-semibold">{r.nome}</h4>
+                  <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-semibold text-text-subtle">{r.pedidos} pedido(s)</span>
+                </div>
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex justify-between"><span className="text-text-subtle">Valor esperado</span><span className="font-medium">{brl(r.valorEsperado)}</span></div>
+                  <div className="flex justify-between"><span className="text-text-subtle">Troco levado</span><span className="font-medium">{brl(r.trocoLevado)}</span></div>
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className="text-text-subtle">Valor declarado</span>
+                    <input
+                      value={declarado[r.entregadorId] ?? ''}
+                      onChange={(e) => setDeclarado((prev) => ({ ...prev, [r.entregadorId]: e.target.value }))}
+                      placeholder="0,00"
+                      className="w-28 rounded-menuzia border border-border px-2.5 py-1.5 text-right font-sans text-[13px] outline-none focus:border-primary"
+                    />
+                  </div>
+                  {diff !== null && (
+                    <div className="flex justify-between border-t border-border pt-1.5 font-bold">
+                      <span>Diferença</span>
+                      <span className={diff === 0 ? 'text-price-text' : 'text-danger'}>{diff < 0 ? '− ' : ''}{brl(Math.abs(diff))}</span>
+                    </div>
+                  )}
+                </div>
+                <Button variant="primary" className="mt-3 w-full" onClick={() => saveClosing(r)} disabled={(declarado[r.entregadorId] ?? '') === ''}>
+                  Registrar fechamento
+                </Button>
+              </div>
+            )
+          })}
         </div>
         <div className="flex gap-2.5 border-t border-border p-4.5">
           <Button variant="secondary" className="flex-1" onClick={() => setClosingOpen(false)}>
