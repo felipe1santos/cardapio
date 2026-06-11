@@ -42,12 +42,12 @@ function PriceTag({ price, originalPrice }: { price: number; originalPrice?: num
   if (originalPrice) {
     return (
       <span className="inline-flex items-center gap-2">
-        <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[15px] font-bold text-price-text">{brl(price)}</span>
+        <span className="rounded-xl bg-[#D1FAE5] px-2 py-0.5 text-[15px] font-bold text-[#10B981]">{brl(price)}</span>
         <span className="text-xs text-text-subtle line-through">{brl(originalPrice)}</span>
       </span>
     )
   }
-  return <span className="text-[15px] font-bold text-price-text">{brl(price)}</span>
+  return <span className="text-[15px] font-bold text-[#10B981]">{brl(price)}</span>
 }
 
 function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number }) {
@@ -57,14 +57,14 @@ function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | '
       <img
         src={item.imagemUrl}
         alt={item.nome}
-        className="flex-shrink-0 rounded-menuzia object-cover"
+        className="flex-shrink-0 rounded-xl object-cover"
         style={{ width: size, height: size }}
       />
     )
   }
   return (
     <div
-      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-menuzia bg-gradient-to-br from-amber-200 to-orange-300"
+      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-200 to-orange-300"
       style={{ width: size, height: size, fontSize: size * 0.38 }}
     >
       <span className="font-extrabold text-white/80">{item.nome.charAt(0).toUpperCase()}</span>
@@ -86,22 +86,24 @@ function ProductImage({ item, className = '' }: { item: Pick<ItemCardapio, 'nome
   )
 }
 
-function HighlightCard({ item, onClick }: { item: ItemCardapio; onClick: () => void }) {
+function ProductCard({ item, onClick }: { item: ItemCardapio; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group flex w-[160px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white text-left transition-all duration-150 hover:border-primary hover:shadow-lg active:scale-[0.98] lg:w-full"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-white text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.98]"
     >
-      <div className="relative h-[110px] w-full overflow-hidden lg:h-40">
-        <ProductImage item={item} className="h-full w-full" />
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl">
+        <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
         {item.promocaoPreco !== null && (
-          <span className="absolute left-2 top-2 rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
+          <span className="absolute left-2.5 top-2.5 rounded-lg bg-[#EC4899] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">Promoção</span>
         )}
-        <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-2.5">
-        <div className="line-clamp-2 min-h-[34px] text-[13px] font-semibold leading-snug">{item.nome}</div>
-        <div className="mt-auto pt-1">
+      <div className="flex flex-1 flex-col gap-1 p-3">
+        <div className="line-clamp-2 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
+        {item.descricao && (
+          <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
+        )}
+        <div className="mt-auto pt-1.5">
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
         </div>
       </div>
@@ -458,12 +460,12 @@ export default function StorefrontPage() {
 
   // ── Loading / error ────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-page font-sans text-sm text-text-subtle">Carregando cardápio…</div>
+    return <div className="flex min-h-screen items-center justify-center bg-[#F3F4F6] font-sans text-sm text-text-subtle">Carregando cardápio…</div>
   }
   if (error || !restaurante) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-page p-6 font-sans">
-        <div className="max-w-sm rounded-menuzia border border-border bg-white p-5 text-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#F3F4F6] p-6 font-sans">
+        <div className="max-w-sm rounded-xl border border-border bg-white p-5 text-center">
           <h1 className="text-sm font-bold text-danger">Loja indisponível</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error}</p>
         </div>
@@ -475,7 +477,7 @@ export default function StorefrontPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-page font-sans text-text-main">
+    <div className="min-h-screen bg-[#F3F4F6] font-sans text-text-main">
       <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
 
       {/* ── Desktop top nav ──────────────────────────────────────────────── */}
@@ -484,9 +486,9 @@ export default function StorefrontPage() {
           <div className="flex items-center gap-2.5 font-extrabold tracking-tight">
             {restaurante.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={restaurante.logoUrl} alt={storeName} className="h-8 w-8 rounded-menuzia object-cover" />
+              <img src={restaurante.logoUrl} alt={storeName} className="h-8 w-8 rounded-xl object-cover" />
             ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-sm font-extrabold text-white">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-500 text-sm font-extrabold text-white">
                 {storeName.charAt(0).toUpperCase()}
               </div>
             )}
@@ -501,7 +503,7 @@ export default function StorefrontPage() {
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={['rounded-menuzia px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-page text-primary' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                className={['rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-[#F3F4F6] text-[#F59E0B]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.label}
               </button>
@@ -509,110 +511,59 @@ export default function StorefrontPage() {
           </nav>
           <button
             onClick={() => setTab('cart')}
-            className={['ml-auto flex items-center gap-2.5 rounded-menuzia border px-4 py-2 text-[13px] font-bold transition-colors', tab === 'cart' ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'].join(' ')}
+            className={['ml-auto flex items-center gap-2.5 rounded-xl border px-4 py-2 text-[13px] font-bold transition-colors', tab === 'cart' ? 'border-[#F59E0B] bg-[#F59E0B] text-white' : 'border-border bg-white text-text-main hover:border-[#F59E0B]'].join(' ')}
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.9 18 9 18h12v-2H9.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" /></svg>
             Sacola
-            {cartCount > 0 && <span className="rounded-menuzia bg-white/20 px-1.5 py-0.5 text-[11px]">{cartCount}</span>}
+            {cartCount > 0 && <span className="rounded-xl bg-white/20 px-1.5 py-0.5 text-[11px]">{cartCount}</span>}
             {cartCount > 0 && <span>{brl(total)}</span>}
           </button>
         </div>
       </header>
 
-      <div className="relative mx-auto min-h-screen max-w-[600px] bg-main pb-24 shadow-2xl shadow-black/5 lg:max-w-[1280px] lg:bg-transparent lg:pb-16 lg:shadow-none">
+      <div className="relative mx-auto min-h-screen max-w-[600px] bg-[#F3F4F6] pb-24 lg:max-w-[1280px] lg:pb-16">
 
-        {/* ── HOME header: hero + store card + search + category chips ── */}
+        {/* ── HOME header: cover banner + profile + search + category nav ── */}
         {tab === 'home' && (
           <>
-            {/* Mobile hero */}
-            <div className="lg:hidden">
-              <div className="h-36 bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
-              <div className="relative z-10 -mt-10 px-4">
-                <div className="flex items-center gap-3.5 rounded-menuzia border border-border bg-white p-4 shadow-md">
-                  <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-2xl font-extrabold text-white">
-                    {storeName.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <h1 className="text-[18px] font-extrabold tracking-tight">{storeName}</h1>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-price-text">
-                        <span className="h-1.5 w-1.5 rounded-full bg-status-ready" /> Aberto agora
-                      </span>
-                      <span>⏱ 30–45 min</span>
-                      <span>Mín. {brl(20)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            {/* Cover banner */}
+            <div className="h-40 w-full overflow-hidden sm:h-56 lg:mx-8 lg:mt-6 lg:h-72 lg:rounded-2xl">
+              {collageImages[0] ? (
+                <ProductImage item={collageImages[0]} className="h-full w-full" />
+              ) : (
+                <div className="h-full w-full bg-gradient-to-br from-[#FBBF24] via-[#F59E0B] to-[#D97706]" />
+              )}
             </div>
 
-            {/* Desktop hero */}
-            <div className="hidden lg:block lg:px-8 lg:pt-6">
-              <div className="grid h-64 grid-cols-3 gap-1.5 overflow-hidden rounded-menuzia">
-                {collageImages.length > 0 ? (
-                  Array.from({ length: 3 }).map((_, i) => {
-                    const item = collageImages[i % collageImages.length]
-                    return item ? (
-                      <ProductImage key={i} item={item} className="h-full w-full" />
-                    ) : (
-                      <div key={i} className="h-full w-full bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
-                    )
-                  })
-                ) : (
-                  <div className="col-span-3 h-full w-full bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
-                )}
-              </div>
-              <div className="relative z-10 -mt-12 grid grid-cols-[1fr_320px] gap-5 px-2">
-                <div className="flex items-center gap-4 rounded-menuzia border border-border bg-white p-5 shadow-md">
+            {/* Profile photo overlapping the banner + store info */}
+            <div className="px-4 lg:px-8">
+              <div className="-mt-10 flex items-end gap-3.5 sm:-mt-12 lg:-mt-14">
+                <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md sm:h-24 sm:w-24 lg:h-28 lg:w-28">
                   {restaurante.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={restaurante.logoUrl} alt={storeName} className="h-16 w-16 flex-shrink-0 rounded-menuzia object-cover" />
+                    <img src={restaurante.logoUrl} alt={storeName} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-2xl font-extrabold text-white">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#F59E0B] to-[#D97706] text-3xl font-extrabold text-white">
                       {storeName.charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <div className="min-w-0">
-                    <h1 className="text-[22px] font-extrabold tracking-tight">{storeName}</h1>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium text-text-subtle">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-price-text">
-                        <span className="h-1.5 w-1.5 rounded-full bg-status-ready" /> Aberto agora
-                      </span>
-                      <span>⏱ 30–45 min de entrega</span>
-                      <span>Pedido mínimo {brl(20)}</span>
-                      {restaurante.endereco && <span className="truncate">📍 {restaurante.endereco}</span>}
-                    </div>
+                </div>
+                <div className="min-w-0 flex-1 pb-1.5">
+                  <h1 className="truncate text-[19px] font-extrabold tracking-tight text-text-main sm:text-[22px] lg:text-[26px]">{storeName}</h1>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle sm:text-[13px]">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-[#10B981]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" /> Aberto agora
+                    </span>
+                    <span>⏱ 30–45 min</span>
                   </div>
                 </div>
-                <div className="self-start rounded-menuzia border border-border bg-white p-5 shadow-md">
-                  <h3 className="mb-3 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Informações</h3>
-                  <dl className="space-y-2.5 text-[13px]">
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-text-subtle">Taxa de entrega</dt>
-                      <dd className="font-semibold">{brl(restaurante.taxaEntregaPadrao)}</dd>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-text-subtle">Tempo estimado</dt>
-                      <dd className="font-semibold">30–45 min</dd>
-                    </div>
-                    {restaurante.telefone && (
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-text-subtle">Telefone</dt>
-                        <dd className="font-semibold">{restaurante.telefone}</dd>
-                      </div>
-                    )}
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-text-subtle">Pagamento</dt>
-                      <dd className="text-right font-semibold">Pix, cartão, dinheiro</dd>
-                    </div>
-                  </dl>
-                </div>
               </div>
+              {restaurante.endereco && <p className="mt-2.5 truncate text-[12px] text-text-subtle">📍 {restaurante.endereco}</p>}
             </div>
 
             {/* Search */}
-            <div className="mx-4 mt-3.5 flex items-center gap-2.5 rounded-menuzia bg-page px-3.5 py-2.5 lg:mx-8 lg:mt-5">
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle">
+            <div className="mx-4 mt-4 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-sm lg:mx-8">
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
                 <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
               </svg>
               <input
@@ -624,12 +575,12 @@ export default function StorefrontPage() {
               {search && <button onClick={() => setSearch('')} className="text-text-subtle hover:text-text-main">×</button>}
             </div>
 
-            {/* Category chips */}
-            <div className="sticky top-0 z-10 mt-3 flex gap-2 overflow-x-auto border-b border-border bg-main px-4 py-3 [scrollbar-width:none] lg:top-16 lg:mx-8 lg:rounded-menuzia lg:border lg:bg-white lg:px-3.5">
+            {/* Category nav */}
+            <div className="sticky top-0 z-10 mt-4 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-3 [scrollbar-width:none] lg:top-16 lg:mx-8">
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-price-text bg-price-bg text-price-text' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#10B981] bg-[#D1FAE5] text-[#10B981]' : 'border-border bg-white text-text-subtle hover:border-[#F59E0B] hover:text-[#F59E0B]'].join(' ')}
                 >
                   🏷️ Promoções
                 </button>
@@ -638,7 +589,7 @@ export default function StorefrontPage() {
                 <button
                   key={cat.id}
                   onClick={() => { setActiveCategory(cat.nome); document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
-                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-[#F59E0B] bg-[#F59E0B] text-white' : 'border-border bg-white text-text-subtle hover:border-[#F59E0B] hover:text-[#F59E0B]'].join(' ')}
                 >
                   {cat.nome}
                 </button>
@@ -647,11 +598,11 @@ export default function StorefrontPage() {
 
             {/* Destaques */}
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
-              <div className="px-4 pb-1 pt-4.5 lg:px-8">
+              <div className="px-4 pb-1 pt-4 lg:px-8">
                 <h2 className="mb-3 text-[17px] font-bold tracking-tight">Destaques</h2>
-                <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
                   {destaques.map((item) => (
-                    <HighlightCard key={item.id} item={item} onClick={() => openProduct(item)} />
+                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} />
                   ))}
                 </div>
               </div>
@@ -668,7 +619,7 @@ export default function StorefrontPage() {
             </div>
             <button
               onClick={() => setTab('home')}
-              className="flex flex-shrink-0 items-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-primary hover:text-primary active:scale-95"
+              className="flex flex-shrink-0 items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-[#F59E0B] hover:text-[#F59E0B] active:scale-95"
             >
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
               Continuar comprando
@@ -692,30 +643,14 @@ export default function StorefrontPage() {
           <div>
             {/* Promo filter view */}
             {activeCategory === '__promos__' && (
-              <div className="px-4 pb-1 pt-4.5 lg:px-8">
+              <div className="px-4 pb-1 pt-4 lg:px-8">
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
-                  <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-bold text-price-text">{promoItems.length} itens</span>
+                  <span className="rounded-xl bg-[#D1FAE5] px-2 py-0.5 text-[11px] font-bold text-[#10B981]">{promoItems.length} itens</span>
                 </div>
-                <div className="lg:hidden">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
                   {promoItems.map((item) => (
-                    <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
-                      <div className="min-w-0 flex-1">
-                        <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
-                        <div className="mb-1 mt-0.5 text-[15px] font-semibold">{item.nome}</div>
-                        <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
-                        <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.preco} />
-                      </div>
-                      <div className="relative flex-shrink-0">
-                        <ProductThumb item={item} />
-                        <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <div className="hidden lg:grid lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
-                  {promoItems.map((item) => (
-                    <HighlightCard key={item.id} item={item} onClick={() => openProduct(item)} />
+                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} />
                   ))}
                 </div>
               </div>
@@ -727,29 +662,11 @@ export default function StorefrontPage() {
                 ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
                 : groups
               ).map((cat) => (
-                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4.5 lg:px-8">
+                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4 lg:px-8">
                   <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
-                  <div className="lg:hidden">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
                     {cat.itens.map((item) => (
-                      <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
-                        <div className="min-w-0 flex-1">
-                          {item.promocaoPreco !== null && (
-                            <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
-                          )}
-                          <div className="mb-0.5 text-[15px] font-semibold">{item.nome}</div>
-                          <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
-                          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
-                        </div>
-                        <div className="relative flex-shrink-0">
-                          <ProductThumb item={item} />
-                          <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="hidden lg:grid lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
-                    {cat.itens.map((item) => (
-                      <HighlightCard key={item.id} item={item} onClick={() => openProduct(item)} />
+                      <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} />
                     ))}
                   </div>
                 </div>
@@ -765,10 +682,10 @@ export default function StorefrontPage() {
           <div className="px-4 pt-5 lg:px-8 lg:pt-8">
             {cart.length === 0 ? (
               <div className="py-20 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">🛍️</div>
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🛍️</div>
                 <p className="font-semibold text-text-main">Sua sacola está vazia</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Escolha seus itens favoritos no cardápio.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded-menuzia bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-dark">
+                <button onClick={() => setTab('home')} className="mt-5 rounded-xl bg-[#F59E0B] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#D97706]">
                   Ver cardápio
                 </button>
               </div>
@@ -780,10 +697,10 @@ export default function StorefrontPage() {
                   </p>
 
                   {/* Lines */}
-                  <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
+                  <div className="mb-5 overflow-hidden rounded-xl border border-border bg-white">
                     {cart.map((line, i) => (
                       <div key={line.key} className={['flex gap-3.5 p-3.5', i < cart.length - 1 ? 'border-b border-border' : ''].join(' ')}>
-                        <div className="h-[54px] w-[54px] flex-shrink-0 overflow-hidden rounded-menuzia">
+                        <div className="h-[54px] w-[54px] flex-shrink-0 overflow-hidden rounded-xl">
                           <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={54} />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -793,11 +710,11 @@ export default function StorefrontPage() {
                           )}
                           {line.obs && <div className="mt-0.5 text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
                           <div className="mt-2 flex items-center justify-between">
-                            <span className="text-[14px] font-bold text-price-text">{brl(line.unit * line.qty)}</span>
-                            <div className="flex items-center rounded-menuzia border border-border">
-                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">−</button>
+                            <span className="text-[14px] font-bold text-[#10B981]">{brl(line.unit * line.qty)}</span>
+                            <div className="flex items-center rounded-xl border border-border">
+                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#F59E0B] hover:bg-[#F3F4F6] active:bg-border">−</button>
                               <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
-                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">+</button>
+                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#F59E0B] hover:bg-[#F3F4F6] active:bg-border">+</button>
                             </div>
                           </div>
                         </div>
@@ -814,15 +731,15 @@ export default function StorefrontPage() {
                           <button
                             key={item.id}
                             onClick={() => quickAddOrderBump(item)}
-                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white transition-all duration-150 hover:border-primary hover:shadow-lg active:scale-[0.97]"
+                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-white transition-all duration-150 hover:border-[#F59E0B] hover:shadow-lg active:scale-[0.97]"
                           >
                             <div className="h-[100px] w-full overflow-hidden">
                               <ProductThumb item={item} size={142} />
                             </div>
                             <div className="flex flex-1 flex-col p-2.5">
                               <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
-                              <div className="mt-1 text-[12px] font-bold text-price-text">{brl(item.promocaoPreco ?? item.preco)}</div>
-                              <div className="mt-2 rounded-menuzia bg-primary py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-primary-dark">
+                              <div className="mt-1 text-[12px] font-bold text-[#10B981]">{brl(item.promocaoPreco ?? item.preco)}</div>
+                              <div className="mt-2 rounded-xl bg-[#F59E0B] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[#D97706]">
                                 + Adicionar
                               </div>
                             </div>
@@ -835,7 +752,7 @@ export default function StorefrontPage() {
 
                 <div className="lg:sticky lg:top-24">
                   {/* Summary */}
-                  <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
+                  <div className="mb-5 overflow-hidden rounded-xl border border-border bg-white">
                     <div className="flex items-center justify-between px-4 py-3 text-[13px] text-text-subtle">
                       <span>Subtotal</span><span>{brl(subtotal)}</span>
                     </div>
@@ -843,13 +760,13 @@ export default function StorefrontPage() {
                       <span>Taxa de entrega</span><span>{brl(fee)}</span>
                     </div>
                     <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
-                      <span>Total</span><span className="text-price-text">{brl(total)}</span>
+                      <span>Total</span><span className="text-[#10B981]">{brl(total)}</span>
                     </div>
                   </div>
 
                   <button
                     onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
-                    className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.99]"
+                    className="flex w-full items-center justify-between rounded-xl bg-[#F59E0B] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#D97706] active:scale-[0.99]"
                   >
                     <span>Continuar para pagamento</span>
                     <span>{brl(total)}</span>
@@ -865,14 +782,14 @@ export default function StorefrontPage() {
           <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
             {trackingNr ? (
               <>
-                <div className="mb-5 rounded-menuzia border border-border bg-white p-5 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-price-bg">
+                <div className="mb-5 rounded-xl border border-border bg-white p-5 text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#D1FAE5]">
                     <svg viewBox="0 0 24 24" className="h-7 w-7 fill-status-ready"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
                   </div>
                   <div className="text-[16px] font-bold">Pedido {trackingNr} confirmado!</div>
                   <div className="mt-0.5 text-[12px] text-text-subtle">{storeName} · Chega em ~35 min</div>
                 </div>
-                <div className="rounded-menuzia border border-border bg-white p-5">
+                <div className="rounded-xl border border-border bg-white p-5">
                   {(['recebido', 'preparando', 'pronto', 'em_rota', 'entregue'] as const).map((step, i, arr) => {
                     const labels = ['Pedido recebido', 'Preparando seu pedido', 'Pronto para despacho', 'Saiu para entrega', 'Entregue!']
                     const statusIdx = arr.indexOf(pedidoStatus as typeof step)
@@ -880,12 +797,12 @@ export default function StorefrontPage() {
                     return (
                       <div key={step} className="relative flex gap-3.5 pb-6 last:pb-0">
                         {i < arr.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />}
-                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[#F59E0B] bg-[#F59E0B]' : 'border-border'].join(' ')}>
                           {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                         <div>
                           <div className={`text-sm font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{labels[i]}</div>
-                          {state === 'active' && <div className="mt-0.5 text-[12px] text-primary">Em andamento…</div>}
+                          {state === 'active' && <div className="mt-0.5 text-[12px] text-[#F59E0B]">Em andamento…</div>}
                           {state === 'done' && <div className="mt-0.5 text-[12px] text-status-ready">Concluído</div>}
                         </div>
                       </div>
@@ -895,10 +812,10 @@ export default function StorefrontPage() {
               </>
             ) : (
               <div className="py-20 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">📦</div>
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">📦</div>
                 <p className="font-semibold text-text-main">Nenhum pedido ativo</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Quando você finalizar um pedido, o acompanhamento aparece aqui.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded-menuzia bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-dark">
+                <button onClick={() => setTab('home')} className="mt-5 rounded-xl bg-[#F59E0B] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#D97706]">
                   Ver cardápio
                 </button>
               </div>
@@ -909,8 +826,8 @@ export default function StorefrontPage() {
         {/* ── CUPONS tab ────────────────────────────────────────────────── */}
         {tab === 'cupons' && (
           <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
-            <div className="rounded-menuzia border border-dashed border-border py-20 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">🏷️</div>
+            <div className="rounded-xl border border-dashed border-border py-20 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🏷️</div>
               <p className="font-semibold text-text-main">Cupons em breve</p>
               <p className="mx-auto mt-1.5 max-w-[240px] text-[13px] leading-relaxed text-text-subtle">
                 Em breve você poderá usar cupons de desconto nessa loja.
@@ -923,20 +840,20 @@ export default function StorefrontPage() {
         <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
           <div className="flex">
             {([
-              { id: 'home' as Tab, label: 'Home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg> },
-              { id: 'pedidos' as Tab, label: 'Pedidos', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" /></svg> },
-              { id: 'cupons' as Tab, label: 'Cupons', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M20 12c0-1.1.9-2 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v4c1.1 0 2 .9 2 2s-.9 2-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c-1.1 0-2-.9-2-2zm-5-1.46l-3 1.75-3-1.75v-3.08l3-1.75 3 1.75v3.08z" /></svg> },
-              { id: 'cart' as Tab, label: 'Carrinho', badge: cartCount, icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.9 18 9 18h12v-2H9.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" /></svg> },
+              { id: 'home' as Tab, label: 'Home', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0l8.954 8.955M4.5 9.75v10.125a.75.75 0 00.75.75H9a.75.75 0 00.75-.75v-4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v4.5c0 .414.336.75.75.75h3.75a.75.75 0 00.75-.75V9.75" /></svg> },
+              { id: 'pedidos' as Tab, label: 'Pedidos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 15.75h6M9 19.5h6M5.25 5.25h13.5A1.5 1.5 0 0120.25 6.75v13.5a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5zM9 5.25V3.75a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v1.5" /></svg> },
+              { id: 'cupons' as Tab, label: 'Cupons', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v3m0 3v3m0 3v1.5m-9-12.75h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg> },
+              { id: 'cart' as Tab, label: 'Carrinho', badge: cartCount, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.263-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0Zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Z" /></svg> },
             ] as const).map((item) => (
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', tab === item.id ? 'text-primary' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', tab === item.id ? 'text-[#F59E0B]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.icon}
                 {item.label}
                 {'badge' in item && item.badge > 0 && (
-                  <span className="absolute right-[20%] top-1 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                  <span className="absolute right-[20%] top-1 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#F59E0B] px-1 text-[9px] font-bold text-white">
                     {item.badge}
                   </span>
                 )}
@@ -948,7 +865,7 @@ export default function StorefrontPage() {
 
       {/* ── Product sheet overlay ─────────────────────────────────────── */}
       {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={() => setProductSheet(null)} />}
-      <div className={['fixed bottom-0 left-1/2 z-50 flex max-h-[92vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded-menuzia lg:max-h-[85vh]', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+      <div className={['fixed bottom-0 left-1/2 z-50 flex max-h-[92vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded-xl lg:max-h-[85vh]', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
         {productSheet && (
           <>
             <button onClick={() => setProductSheet(null)} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
@@ -978,7 +895,7 @@ export default function StorefrontPage() {
                               : grupo.maxEscolhas === 1 ? 'Opcional' : `Até ${grupo.maxEscolhas}`}
                           </div>
                         </div>
-                        <span className={['mt-0.5 flex-shrink-0 rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase', grupo.obrigatorio ? 'bg-danger-bg text-danger' : 'bg-page text-text-subtle'].join(' ')}>
+                        <span className={['mt-0.5 flex-shrink-0 rounded-xl px-2 py-0.5 text-[10px] font-bold uppercase', grupo.obrigatorio ? 'bg-danger-bg text-danger' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
                           {grupo.obrigatorio ? 'Obrigatório' : 'Opcional'}
                         </span>
                       </div>
@@ -991,15 +908,15 @@ export default function StorefrontPage() {
                           <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                             <span className="flex-1 text-sm font-medium">{comp.nome}</span>
                             {comp.preco > 0
-                              ? <span className="text-[13px] font-semibold text-price-text">+ {brl(comp.preco)}</span>
-                              : <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">Grátis</span>
+                              ? <span className="text-[13px] font-semibold text-[#10B981]">+ {brl(comp.preco)}</span>
+                              : <span className="rounded-xl bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#10B981]">Grátis</span>
                             }
                             {isRadio ? (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#F59E0B] bg-[#F59E0B]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             ) : (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-menuzia border-2', isSelected ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-xl border-2', isSelected ? 'border-[#F59E0B] bg-[#F59E0B]' : 'border-border'].join(' ')}>
                                 {isSelected && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                               </span>
                             )}
@@ -1007,7 +924,7 @@ export default function StorefrontPage() {
                         )
                       })}
                       {showError && (
-                        <div className="mt-1.5 rounded-menuzia border border-danger/30 bg-danger-bg px-2.5 py-1.5 text-[11px] font-medium text-danger">
+                        <div className="mt-1.5 rounded-xl border border-danger/30 bg-danger-bg px-2.5 py-1.5 text-[11px] font-medium text-danger">
                           Selecione ao menos {grupo.minEscolhas} item{grupo.minEscolhas > 1 ? 's' : ''}
                         </div>
                       )}
@@ -1019,16 +936,16 @@ export default function StorefrontPage() {
                   <div className="mt-5">
                     <div className="mb-2.5 flex items-center justify-between">
                       <h3 className="text-sm font-bold">Adicionais</h3>
-                      <span className="rounded-menuzia bg-page px-2 py-0.5 text-[10px] font-bold uppercase text-text-subtle">Opcional</span>
+                      <span className="rounded-xl bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-bold uppercase text-text-subtle">Opcional</span>
                     </div>
                     {productSheet.complementos.map((addon) => (
                       <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                         <span className="flex-1 text-sm font-medium">{addon.nome}</span>
                         {addon.preco > 0
-                          ? <span className="text-[13px] font-semibold text-price-text">+ {brl(addon.preco)}</span>
-                          : <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">Grátis</span>
+                          ? <span className="text-[13px] font-semibold text-[#10B981]">+ {brl(addon.preco)}</span>
+                          : <span className="rounded-xl bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#10B981]">Grátis</span>
                         }
-                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-menuzia border-2', selectedAddons.has(addon.nome) ? 'border-primary bg-primary' : 'border-border'].join(' ')}>
+                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-xl border-2', selectedAddons.has(addon.nome) ? 'border-[#F59E0B] bg-[#F59E0B]' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                       </button>
@@ -1038,22 +955,22 @@ export default function StorefrontPage() {
 
                 <div className="mt-5">
                   <h3 className="mb-2.5 text-sm font-bold">Observações</h3>
-                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
               </div>
             </div>
             <div className="flex flex-col gap-2 border-t border-border p-4.5">
               {!gruposValidos && <p className="text-center text-[11px] font-medium text-danger">Preencha todos os campos obrigatórios para continuar.</p>}
               <div className="flex items-center gap-3.5">
-                <div className="flex items-center rounded-menuzia border border-border">
-                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-primary disabled:text-border">−</button>
+                <div className="flex items-center rounded-xl border border-border">
+                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#F59E0B] disabled:text-border">−</button>
                   <span className="w-[34px] text-center text-[15px] font-bold">{qty}</span>
-                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-primary">+</button>
+                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#F59E0B]">+</button>
                 </div>
                 <button
                   onClick={addToCart}
                   disabled={!gruposValidos}
-                  className={['flex flex-1 items-center justify-between rounded-menuzia px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-primary hover:bg-primary-dark active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
+                  className={['flex flex-1 items-center justify-between rounded-xl px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-[#F59E0B] hover:bg-[#D97706] active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
                 >
                   <span>Adicionar</span>
                   <span>{brl(unitPrice * qty)}</span>
@@ -1065,14 +982,14 @@ export default function StorefrontPage() {
       </div>
 
       {/* ── Checkout screen ───────────────────────────────────────────── */}
-      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-page transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`}>
-        <div className="mx-auto min-h-screen max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded-menuzia lg:pb-0 lg:shadow-2xl">
+      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`}>
+        <div className="mx-auto min-h-screen max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded-xl lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
-            <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded-menuzia bg-page text-lg">←</button>
+            <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded-xl bg-[#F3F4F6] text-lg">←</button>
             <span className="text-base font-bold">{checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
           </div>
           <div className="flex gap-2 px-4 py-4">
-            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-primary' : 'bg-border'}`} />)}
+            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[#F59E0B]' : 'bg-border'}`} />)}
           </div>
 
           {checkoutStep === 1 && (
@@ -1080,17 +997,17 @@ export default function StorefrontPage() {
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Forma de pagamento</h3>
               {[{ id: 'Pix', icon: '🔑' }, { id: 'Cartão na entrega', icon: '💳' }, { id: 'Dinheiro', icon: '💵' }].map((opt) => (
                 <button key={opt.id} onClick={() => setPayMethod(opt.id)}
-                  className={['mb-2.5 flex w-full items-center gap-3 rounded-menuzia border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-primary bg-[#ECFEFF]' : 'border-border'].join(' ')}>
-                  <span className="flex h-[38px] w-[38px] items-center justify-center rounded-menuzia bg-page text-lg">{opt.icon}</span>
+                  className={['mb-2.5 flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[#F59E0B] bg-[#FFFBEB]' : 'border-border'].join(' ')}>
+                  <span className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-[#F3F4F6] text-lg">{opt.icon}</span>
                   <span className="flex-1 text-sm font-semibold">{opt.id}</span>
-                  <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-primary bg-primary' : 'border-border'].join(' ')} />
+                  <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[#F59E0B] bg-[#F59E0B]' : 'border-border'].join(' ')} />
                 </button>
               ))}
               {payMethod === 'Dinheiro' && (
                 <div className="mt-2">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Troco para quanto? (deixe em branco se não precisar)</label>
                   <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                    className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
               )}
             </div>
@@ -1103,12 +1020,12 @@ export default function StorefrontPage() {
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome *</label>
                   <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                    className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
                   <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: e.target.value }))} placeholder="(00) 00000-0000"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                    className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
               </div>
               <h3 className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
@@ -1116,30 +1033,30 @@ export default function StorefrontPage() {
                 <div className="flex-[2]">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua *</label>
                   <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                    className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número *</label>
                   <input value={endereco.numero} onChange={(e) => setEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                    className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
               </div>
               <div className="mt-3 flex gap-3">
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
                   <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                    className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
                   <input value={endereco.cep} onChange={(e) => setEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
-                    className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                    className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
                 </div>
               </div>
               <div className="mt-3">
                 <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
                 <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
-                  className="w-full rounded-menuzia border border-border p-2.5 font-sans text-sm outline-none focus:border-primary" />
+                  className="w-full rounded-xl border border-border p-2.5 font-sans text-sm outline-none focus:border-[#F59E0B]" />
               </div>
             </div>
           )}
@@ -1147,7 +1064,7 @@ export default function StorefrontPage() {
           {checkoutStep === 3 && (
             <div className="px-4 pb-5">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Resumo do pedido</h3>
-              <div className="mb-4 overflow-hidden rounded-menuzia border border-border bg-white">
+              <div className="mb-4 overflow-hidden rounded-xl border border-border bg-white">
                 {cart.map((l) => (
                   <div key={l.key} className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5 last:border-none text-sm">
                     <span className="text-text-subtle">{l.qty}× {l.name}</span>
@@ -1156,27 +1073,27 @@ export default function StorefrontPage() {
                 ))}
                 <div className="flex justify-between px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
                 <div className="flex justify-between border-t border-border px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Taxa de entrega</span><span>{brl(fee)}</span></div>
-                <div className="flex justify-between border-t border-border px-3.5 py-3 text-[15px] font-bold"><span>Total</span><span className="text-price-text">{brl(total)}</span></div>
+                <div className="flex justify-between border-t border-border px-3.5 py-3 text-[15px] font-bold"><span>Total</span><span className="text-[#10B981]">{brl(total)}</span></div>
               </div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega & pagamento</h3>
-              <div className="mb-2.5 flex items-center gap-3 rounded-menuzia border border-border p-3.5">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg">📍</span>
+              <div className="mb-2.5 flex items-center gap-3 rounded-xl border border-border p-3.5">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#F3F4F6] text-lg">📍</span>
                 <div className="text-[13px] leading-relaxed">
                   {endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}
                   <br /><span className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</span>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-menuzia border border-border p-3.5">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg">💳</span>
+              <div className="flex items-center gap-3 rounded-xl border border-border p-3.5">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#F3F4F6] text-lg">💳</span>
                 <div className="text-[13px] font-semibold">{payMethod}{payMethod === 'Dinheiro' && changeFor && <span className="font-normal text-text-subtle"> · troco para R$ {changeFor}</span>}</div>
               </div>
             </div>
           )}
 
           <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4 lg:sticky lg:left-auto lg:max-w-none lg:translate-x-0">
-            {checkoutError && <div className="mb-2.5 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
+            {checkoutError && <div className="mb-2.5 rounded-xl border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
-              className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark disabled:opacity-60 active:scale-[0.99]">
+              className="flex w-full items-center justify-between rounded-xl bg-[#F59E0B] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#D97706] disabled:opacity-60 active:scale-[0.99]">
               <span>{submitting ? 'Enviando…' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
               {checkoutStep === 3 && !submitting && <span>{brl(total)}</span>}
             </button>
