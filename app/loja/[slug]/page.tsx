@@ -72,6 +72,43 @@ function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | '
   )
 }
 
+function ProductImage({ item, className = '' }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; className?: string }) {
+  if (item.imagemUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={item.imagemUrl} alt={item.nome} className={`object-cover ${className}`} />
+    )
+  }
+  return (
+    <div className={`flex items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 ${className}`}>
+      <span className="text-3xl font-extrabold text-white/80">{item.nome.charAt(0).toUpperCase()}</span>
+    </div>
+  )
+}
+
+function HighlightCard({ item, onClick }: { item: ItemCardapio; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex w-[160px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white text-left transition-all duration-150 hover:border-primary hover:shadow-lg active:scale-[0.98] lg:w-full"
+    >
+      <div className="relative h-[110px] w-full overflow-hidden lg:h-40">
+        <ProductImage item={item} className="h-full w-full" />
+        {item.promocaoPreco !== null && (
+          <span className="absolute left-2 top-2 rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
+        )}
+        <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
+      </div>
+      <div className="flex flex-1 flex-col gap-1 p-2.5">
+        <div className="line-clamp-2 min-h-[34px] text-[13px] font-semibold leading-snug">{item.nome}</div>
+        <div className="mt-auto pt-1">
+          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
+        </div>
+      </div>
+    </button>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function StorefrontPage() {
@@ -151,6 +188,16 @@ export default function StorefrontPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const allItems = useMemo(() => groups.flatMap((g) => g.itens), [groups])
   const promoItems = useMemo(() => allItems.filter((item) => item.promocaoPreco !== null), [allItems])
+  const destaques = useMemo(() => {
+    if (promoItems.length > 0) return promoItems.slice(0, 8)
+    const result: ItemCardapio[] = []
+    for (const g of groups) {
+      if (g.itens[0]) result.push(g.itens[0])
+      if (result.length >= 8) break
+    }
+    return result
+  }, [groups, promoItems])
+  const collageImages = useMemo(() => allItems.filter((item) => item.imagemUrl).slice(0, 3), [allItems])
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('home')
@@ -431,30 +478,140 @@ export default function StorefrontPage() {
     <div className="min-h-screen bg-page font-sans text-text-main">
       <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
 
-      <div className="relative mx-auto min-h-screen max-w-[600px] bg-main pb-24 shadow-2xl shadow-black/5">
+      {/* ── Desktop top nav ──────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 hidden border-b border-border bg-white lg:block">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-2 px-8">
+          <div className="flex items-center gap-2.5 font-extrabold tracking-tight">
+            {restaurante.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={restaurante.logoUrl} alt={storeName} className="h-8 w-8 rounded-menuzia object-cover" />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-sm font-extrabold text-white">
+                {storeName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="text-[15px]">{storeName}</span>
+          </div>
+          <nav className="ml-6 flex items-center gap-1">
+            {([
+              { id: 'home' as Tab, label: 'Cardápio' },
+              { id: 'pedidos' as Tab, label: 'Pedidos' },
+              { id: 'cupons' as Tab, label: 'Cupons' },
+            ] as const).map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                className={['rounded-menuzia px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-page text-primary' : 'text-text-subtle hover:text-text-main'].join(' ')}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <button
+            onClick={() => setTab('cart')}
+            className={['ml-auto flex items-center gap-2.5 rounded-menuzia border px-4 py-2 text-[13px] font-bold transition-colors', tab === 'cart' ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'].join(' ')}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.9 18 9 18h12v-2H9.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" /></svg>
+            Sacola
+            {cartCount > 0 && <span className="rounded-menuzia bg-white/20 px-1.5 py-0.5 text-[11px]">{cartCount}</span>}
+            {cartCount > 0 && <span>{brl(total)}</span>}
+          </button>
+        </div>
+      </header>
+
+      <div className="relative mx-auto min-h-screen max-w-[600px] bg-main pb-24 shadow-2xl shadow-black/5 lg:max-w-[1280px] lg:bg-transparent lg:pb-16 lg:shadow-none">
 
         {/* ── HOME header: hero + store card + search + category chips ── */}
         {tab === 'home' && (
           <>
-            <div className="h-36 bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
-            <div className="relative z-10 -mt-10 px-4">
-              <div className="flex items-center gap-3.5 rounded-menuzia border border-border bg-white p-4 shadow-md">
-                <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-2xl font-extrabold text-white">
-                  {storeName.charAt(0).toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-[18px] font-extrabold tracking-tight">{storeName}</h1>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle">
-                    <span className="inline-flex items-center gap-1.5 font-semibold text-price-text">
-                      <span className="h-1.5 w-1.5 rounded-full bg-status-ready" /> Aberto agora
-                    </span>
-                    <span>⏱ 30–45 min</span>
-                    <span>Mín. {brl(20)}</span>
+            {/* Mobile hero */}
+            <div className="lg:hidden">
+              <div className="h-36 bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
+              <div className="relative z-10 -mt-10 px-4">
+                <div className="flex items-center gap-3.5 rounded-menuzia border border-border bg-white p-4 shadow-md">
+                  <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-2xl font-extrabold text-white">
+                    {storeName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-[18px] font-extrabold tracking-tight">{storeName}</h1>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-price-text">
+                        <span className="h-1.5 w-1.5 rounded-full bg-status-ready" /> Aberto agora
+                      </span>
+                      <span>⏱ 30–45 min</span>
+                      <span>Mín. {brl(20)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="mx-4 mt-3.5 flex items-center gap-2.5 rounded-menuzia bg-page px-3.5 py-2.5">
+
+            {/* Desktop hero */}
+            <div className="hidden lg:block lg:px-8 lg:pt-6">
+              <div className="grid h-64 grid-cols-3 gap-1.5 overflow-hidden rounded-menuzia">
+                {collageImages.length > 0 ? (
+                  Array.from({ length: 3 }).map((_, i) => {
+                    const item = collageImages[i % collageImages.length]
+                    return item ? (
+                      <ProductImage key={i} item={item} className="h-full w-full" />
+                    ) : (
+                      <div key={i} className="h-full w-full bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
+                    )
+                  })
+                ) : (
+                  <div className="col-span-3 h-full w-full bg-gradient-to-br from-sky-500 via-cyan-500 to-primary-dark" />
+                )}
+              </div>
+              <div className="relative z-10 -mt-12 grid grid-cols-[1fr_320px] gap-5 px-2">
+                <div className="flex items-center gap-4 rounded-menuzia border border-border bg-white p-5 shadow-md">
+                  {restaurante.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={restaurante.logoUrl} alt={storeName} className="h-16 w-16 flex-shrink-0 rounded-menuzia object-cover" />
+                  ) : (
+                    <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-orange-400 to-orange-500 text-2xl font-extrabold text-white">
+                      {storeName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <h1 className="text-[22px] font-extrabold tracking-tight">{storeName}</h1>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium text-text-subtle">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-price-text">
+                        <span className="h-1.5 w-1.5 rounded-full bg-status-ready" /> Aberto agora
+                      </span>
+                      <span>⏱ 30–45 min de entrega</span>
+                      <span>Pedido mínimo {brl(20)}</span>
+                      {restaurante.endereco && <span className="truncate">📍 {restaurante.endereco}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="self-start rounded-menuzia border border-border bg-white p-5 shadow-md">
+                  <h3 className="mb-3 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Informações</h3>
+                  <dl className="space-y-2.5 text-[13px]">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-text-subtle">Taxa de entrega</dt>
+                      <dd className="font-semibold">{brl(restaurante.taxaEntregaPadrao)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-text-subtle">Tempo estimado</dt>
+                      <dd className="font-semibold">30–45 min</dd>
+                    </div>
+                    {restaurante.telefone && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-text-subtle">Telefone</dt>
+                        <dd className="font-semibold">{restaurante.telefone}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-text-subtle">Pagamento</dt>
+                      <dd className="text-right font-semibold">Pix, cartão, dinheiro</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="mx-4 mt-3.5 flex items-center gap-2.5 rounded-menuzia bg-page px-3.5 py-2.5 lg:mx-8 lg:mt-5">
               <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle">
                 <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
               </svg>
@@ -466,7 +623,9 @@ export default function StorefrontPage() {
               />
               {search && <button onClick={() => setSearch('')} className="text-text-subtle hover:text-text-main">×</button>}
             </div>
-            <div className="sticky top-0 z-10 mt-3 flex gap-2 overflow-x-auto border-b border-border bg-main px-4 py-3 [scrollbar-width:none]">
+
+            {/* Category chips */}
+            <div className="sticky top-0 z-10 mt-3 flex gap-2 overflow-x-auto border-b border-border bg-main px-4 py-3 [scrollbar-width:none] lg:top-16 lg:mx-8 lg:rounded-menuzia lg:border lg:bg-white lg:px-3.5">
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
@@ -485,12 +644,24 @@ export default function StorefrontPage() {
                 </button>
               ))}
             </div>
+
+            {/* Destaques */}
+            {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
+              <div className="px-4 pb-1 pt-4.5 lg:px-8">
+                <h2 className="mb-3 text-[17px] font-bold tracking-tight">Destaques</h2>
+                <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible">
+                  {destaques.map((item) => (
+                    <HighlightCard key={item.id} item={item} onClick={() => openProduct(item)} />
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {/* ── CART header: minimal ── */}
         {tab === 'cart' && (
-          <div className="flex h-14 items-center gap-3.5 border-b border-border bg-white px-4">
+          <div className="flex h-14 items-center gap-3.5 border-b border-border bg-white px-4 lg:hidden">
             <div className="min-w-0 flex-1">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Sua sacola</div>
               <div className="truncate text-[14px] font-bold">{storeName}</div>
@@ -506,12 +677,12 @@ export default function StorefrontPage() {
         )}
 
         {tab === 'pedidos' && (
-          <div className="flex h-14 items-center border-b border-border bg-white px-4">
+          <div className="flex h-14 items-center border-b border-border bg-white px-4 lg:hidden">
             <h2 className="text-base font-bold">Meus pedidos</h2>
           </div>
         )}
         {tab === 'cupons' && (
-          <div className="flex h-14 items-center border-b border-border bg-white px-4">
+          <div className="flex h-14 items-center border-b border-border bg-white px-4 lg:hidden">
             <h2 className="text-base font-bold">Cupons</h2>
           </div>
         )}
@@ -521,25 +692,32 @@ export default function StorefrontPage() {
           <div>
             {/* Promo filter view */}
             {activeCategory === '__promos__' && (
-              <div className="px-4 pb-1 pt-4.5">
+              <div className="px-4 pb-1 pt-4.5 lg:px-8">
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
                   <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-bold text-price-text">{promoItems.length} itens</span>
                 </div>
-                {promoItems.map((item) => (
-                  <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
-                    <div className="min-w-0 flex-1">
-                      <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
-                      <div className="mb-1 mt-0.5 text-[15px] font-semibold">{item.nome}</div>
-                      <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
-                      <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.preco} />
-                    </div>
-                    <div className="relative flex-shrink-0">
-                      <ProductThumb item={item} />
-                      <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
-                    </div>
-                  </button>
-                ))}
+                <div className="lg:hidden">
+                  {promoItems.map((item) => (
+                    <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
+                      <div className="min-w-0 flex-1">
+                        <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
+                        <div className="mb-1 mt-0.5 text-[15px] font-semibold">{item.nome}</div>
+                        <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
+                        <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.preco} />
+                      </div>
+                      <div className="relative flex-shrink-0">
+                        <ProductThumb item={item} />
+                        <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <div className="hidden lg:grid lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
+                  {promoItems.map((item) => (
+                    <HighlightCard key={item.id} item={item} onClick={() => openProduct(item)} />
+                  ))}
+                </div>
               </div>
             )}
 
@@ -549,35 +727,42 @@ export default function StorefrontPage() {
                 ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
                 : groups
               ).map((cat) => (
-                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4.5">
+                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4.5 lg:px-8">
                   <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
-                  {cat.itens.map((item) => (
-                    <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
-                      <div className="min-w-0 flex-1">
-                        {item.promocaoPreco !== null && (
-                          <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
-                        )}
-                        <div className="mb-0.5 text-[15px] font-semibold">{item.nome}</div>
-                        <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
-                        <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
-                      </div>
-                      <div className="relative flex-shrink-0">
-                        <ProductThumb item={item} />
-                        <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
-                      </div>
-                    </button>
-                  ))}
+                  <div className="lg:hidden">
+                    {cat.itens.map((item) => (
+                      <button key={item.id} onClick={() => openProduct(item)} className="flex w-full gap-3.5 border-b border-border py-3.5 text-left last:border-none">
+                        <div className="min-w-0 flex-1">
+                          {item.promocaoPreco !== null && (
+                            <span className="mb-1 inline-block rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">Promo</span>
+                          )}
+                          <div className="mb-0.5 text-[15px] font-semibold">{item.nome}</div>
+                          <p className="mb-2 line-clamp-2 text-[13px] leading-relaxed text-text-subtle">{item.descricao}</p>
+                          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
+                        </div>
+                        <div className="relative flex-shrink-0">
+                          <ProductThumb item={item} />
+                          <span className="absolute -bottom-1.5 -right-1.5 flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border-2 border-white bg-primary text-lg font-bold text-white shadow-md">+</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="hidden lg:grid lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
+                    {cat.itens.map((item) => (
+                      <HighlightCard key={item.id} item={item} onClick={() => openProduct(item)} />
+                    ))}
+                  </div>
                 </div>
               ))}
             {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
-              <div className="px-4 py-16 text-center text-sm text-text-subtle">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
+              <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-8">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
             )}
           </div>
         )}
 
         {/* ── CART tab ──────────────────────────────────────────────────── */}
         {tab === 'cart' && (
-          <div className="px-4 pt-5">
+          <div className="px-4 pt-5 lg:px-8 lg:pt-8">
             {cart.length === 0 ? (
               <div className="py-20 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">🛍️</div>
@@ -588,92 +773,96 @@ export default function StorefrontPage() {
                 </button>
               </div>
             ) : (
-              <>
-                <p className="mb-4 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">
-                  {cartCount} item{cartCount !== 1 ? 's' : ''} no carrinho
-                </p>
+              <div className="lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-6">
+                <div>
+                  <p className="mb-4 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">
+                    {cartCount} item{cartCount !== 1 ? 's' : ''} no carrinho
+                  </p>
 
-                {/* Lines */}
-                <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
-                  {cart.map((line, i) => (
-                    <div key={line.key} className={['flex gap-3.5 p-3.5', i < cart.length - 1 ? 'border-b border-border' : ''].join(' ')}>
-                      <div className="h-[54px] w-[54px] flex-shrink-0 overflow-hidden rounded-menuzia">
-                        <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={54} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[14px] font-semibold">{line.name}</div>
-                        {line.addons.length > 0 && (
-                          <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
-                        )}
-                        {line.obs && <div className="mt-0.5 text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="text-[14px] font-bold text-price-text">{brl(line.unit * line.qty)}</span>
-                          <div className="flex items-center rounded-menuzia border border-border">
-                            <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">−</button>
-                            <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
-                            <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">+</button>
+                  {/* Lines */}
+                  <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
+                    {cart.map((line, i) => (
+                      <div key={line.key} className={['flex gap-3.5 p-3.5', i < cart.length - 1 ? 'border-b border-border' : ''].join(' ')}>
+                        <div className="h-[54px] w-[54px] flex-shrink-0 overflow-hidden rounded-menuzia">
+                          <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={54} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[14px] font-semibold">{line.name}</div>
+                          {line.addons.length > 0 && (
+                            <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
+                          )}
+                          {line.obs && <div className="mt-0.5 text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
+                          <div className="mt-2 flex items-center justify-between">
+                            <span className="text-[14px] font-bold text-price-text">{brl(line.unit * line.qty)}</span>
+                            <div className="flex items-center rounded-menuzia border border-border">
+                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">−</button>
+                              <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
+                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-primary hover:bg-page active:bg-border">+</button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
 
-                {/* Order bumps — "Peça também" */}
-                {orderBumps.length > 0 && (
-                  <div className="mb-5">
-                    <h3 className="mb-3 text-[15px] font-bold tracking-tight">Peça também</h3>
-                    <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
-                      {orderBumps.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => quickAddOrderBump(item)}
-                          className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white transition-all duration-150 hover:border-primary hover:shadow-lg active:scale-[0.97]"
-                        >
-                          <div className="h-[100px] w-full overflow-hidden">
-                            <ProductThumb item={item} size={142} />
-                          </div>
-                          <div className="flex flex-1 flex-col p-2.5">
-                            <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
-                            <div className="mt-1 text-[12px] font-bold text-price-text">{brl(item.promocaoPreco ?? item.preco)}</div>
-                            <div className="mt-2 rounded-menuzia bg-primary py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-primary-dark">
-                              + Adicionar
+                  {/* Order bumps — "Peça também" */}
+                  {orderBumps.length > 0 && (
+                    <div className="mb-5">
+                      <h3 className="mb-3 text-[15px] font-bold tracking-tight">Peça também</h3>
+                      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:flex-wrap">
+                        {orderBumps.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => quickAddOrderBump(item)}
+                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white transition-all duration-150 hover:border-primary hover:shadow-lg active:scale-[0.97]"
+                          >
+                            <div className="h-[100px] w-full overflow-hidden">
+                              <ProductThumb item={item} size={142} />
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                            <div className="flex flex-1 flex-col p-2.5">
+                              <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
+                              <div className="mt-1 text-[12px] font-bold text-price-text">{brl(item.promocaoPreco ?? item.preco)}</div>
+                              <div className="mt-2 rounded-menuzia bg-primary py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-primary-dark">
+                                + Adicionar
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Summary */}
-                <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
-                  <div className="flex items-center justify-between px-4 py-3 text-[13px] text-text-subtle">
-                    <span>Subtotal</span><span>{brl(subtotal)}</span>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px] text-text-subtle">
-                    <span>Taxa de entrega</span><span>{brl(fee)}</span>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
-                    <span>Total</span><span className="text-price-text">{brl(total)}</span>
-                  </div>
+                  )}
                 </div>
 
-                <button
-                  onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
-                  className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.99]"
-                >
-                  <span>Continuar para pagamento</span>
-                  <span>{brl(total)}</span>
-                </button>
-              </>
+                <div className="lg:sticky lg:top-24">
+                  {/* Summary */}
+                  <div className="mb-5 overflow-hidden rounded-menuzia border border-border bg-white">
+                    <div className="flex items-center justify-between px-4 py-3 text-[13px] text-text-subtle">
+                      <span>Subtotal</span><span>{brl(subtotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px] text-text-subtle">
+                      <span>Taxa de entrega</span><span>{brl(fee)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
+                      <span>Total</span><span className="text-price-text">{brl(total)}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
+                    className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.99]"
+                  >
+                    <span>Continuar para pagamento</span>
+                    <span>{brl(total)}</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
 
         {/* ── PEDIDOS tab ───────────────────────────────────────────────── */}
         {tab === 'pedidos' && (
-          <div className="px-4 pt-6">
+          <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
             {trackingNr ? (
               <>
                 <div className="mb-5 rounded-menuzia border border-border bg-white p-5 text-center">
@@ -719,7 +908,7 @@ export default function StorefrontPage() {
 
         {/* ── CUPONS tab ────────────────────────────────────────────────── */}
         {tab === 'cupons' && (
-          <div className="px-4 pt-6">
+          <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
             <div className="rounded-menuzia border border-dashed border-border py-20 text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-page text-3xl">🏷️</div>
               <p className="font-semibold text-text-main">Cupons em breve</p>
@@ -730,8 +919,8 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        {/* ── Bottom nav ────────────────────────────────────────────────── */}
-        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]">
+        {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
+        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
           <div className="flex">
             {([
               { id: 'home' as Tab, label: 'Home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg> },
@@ -759,7 +948,7 @@ export default function StorefrontPage() {
 
       {/* ── Product sheet overlay ─────────────────────────────────────── */}
       {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={() => setProductSheet(null)} />}
-      <div className={['fixed bottom-0 left-1/2 z-50 flex max-h-[92vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl bg-white transition-transform duration-300', productSheet ? 'translate-y-0' : 'translate-y-full'].join(' ')}>
+      <div className={['fixed bottom-0 left-1/2 z-50 flex max-h-[92vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded-menuzia lg:max-h-[85vh]', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
         {productSheet && (
           <>
             <button onClick={() => setProductSheet(null)} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
@@ -876,8 +1065,8 @@ export default function StorefrontPage() {
       </div>
 
       {/* ── Checkout screen ───────────────────────────────────────────── */}
-      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-page transition-transform duration-300 ${checkoutOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="mx-auto min-h-screen max-w-[600px] bg-white pb-28">
+      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-page transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`}>
+        <div className="mx-auto min-h-screen max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded-menuzia lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
             <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded-menuzia bg-page text-lg">←</button>
             <span className="text-base font-bold">{checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
@@ -984,7 +1173,7 @@ export default function StorefrontPage() {
             </div>
           )}
 
-          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4">
+          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4 lg:sticky lg:left-auto lg:max-w-none lg:translate-x-0">
             {checkoutError && <div className="mb-2.5 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
               className="flex w-full items-center justify-between rounded-menuzia bg-primary px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-primary-dark disabled:opacity-60 active:scale-[0.99]">
