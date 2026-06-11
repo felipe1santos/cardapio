@@ -1458,7 +1458,7 @@ export default function CardapioPage() {
               )}
               {activeGroupId && visibleItems.length === 0 && (
                 <div className="flex h-full items-center justify-center p-8 text-center text-sm text-text-subtle">
-                  Nenhum item nesta categoria ainda. Use "+ Novo item" para cadastrar o primeiro.
+                  Nenhum item nesta categoria ainda. Use &ldquo;+ Novo item&rdquo; para cadastrar o primeiro.
                 </div>
               )}
               {activeGroupId && visibleItems.length > 0 && view === 'table' && (
