@@ -139,8 +139,8 @@ function DayToggles({ days, onChange }: { days: number[]; onChange: (days: numbe
           className={[
             'flex h-6 w-6 select-none items-center justify-center rounded-menuzia border text-[11px] font-bold transition-colors',
             active.has(day)
-              ? 'border-primary bg-primary text-white'
-              : 'border-border bg-white text-text-subtle hover:border-primary',
+              ? 'border-[#0688D4] bg-[#0688D4] text-white'
+              : 'border-border bg-white text-text-subtle hover:border-[#0688D4]',
           ].join(' ')}
         >
           {label}
@@ -1366,10 +1366,10 @@ export default function CardapioPage() {
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button variant="primary" onClick={openNewItem} disabled={!activeGroupId}>
+          <Button variant="primary" className="!bg-[#0688D4] hover:!bg-[#0574B4]" onClick={openNewItem} disabled={!activeGroupId}>
             + Novo item
           </Button>
-          <Button variant="outline" onClick={() => setDrawer('categoria')}>
+          <Button variant="primary" className="!bg-[#0688D4] hover:!bg-[#0574B4]" onClick={() => setDrawer('categoria')}>
             + Categoria
           </Button>
           <div className="flex-1" />
@@ -1439,7 +1439,7 @@ export default function CardapioPage() {
               ))}
             </div>
             <div className="flex gap-1.5 border-t border-border p-2.5">
-              <Button variant="primary" className="flex-1" onClick={() => setDrawer('categoria')}>
+              <Button variant="primary" className="flex-1 !bg-[#0688D4] hover:!bg-[#0574B4]" onClick={() => setDrawer('categoria')}>
                 + Categoria
               </Button>
             </div>
@@ -1777,7 +1777,7 @@ export default function CardapioPage() {
             <>
               <div className="mt-6 flex items-center justify-between">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Grupos de complementos</div>
-                <button onClick={() => setDrawer('preset')} className="px-1.5 py-1 text-[11px] font-semibold text-purple-600 hover:text-purple-800">
+                <button onClick={() => setDrawer('preset')} className="rounded-menuzia bg-purple-600 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-purple-700">
                   Importar grupo
                 </button>
               </div>
