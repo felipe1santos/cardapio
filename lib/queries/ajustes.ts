@@ -117,3 +117,18 @@ export async function removerTaxaBairro(supabase: SupabaseClient, id: string) {
   const { error } = await supabase.from('taxas_entrega_bairro').delete().eq('id', id)
   if (error) throw error
 }
+
+/** Uploads the store logo to the tenant-scoped folder of the public `cardapio` bucket and returns its public URL. */
+export async function enviarLogoLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
+  const extensao = file.name.split('.').pop() ?? 'jpg'
+  const caminho = `${restauranteId}/perfil/logo-${crypto.randomUUID()}.${extensao}`
+
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw error
+
+  const { data } = supabase.storage.from('cardapio').getPublicUrl(caminho)
+  return data.publicUrl
+}

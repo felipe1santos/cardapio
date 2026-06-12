@@ -89,11 +89,11 @@ function ProductImage({ item, className = '' }: { item: Pick<ItemCardapio, 'nome
   )
 }
 
-function ProductCard({ item, onClick }: { item: ItemCardapio; onClick: () => void }) {
+function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; onClick: () => void; className?: string }) {
   return (
     <button
       onClick={onClick}
-      className="group flex flex-col overflow-hidden rounded-md border border-border bg-white text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.98]"
+      className={`group flex flex-col overflow-hidden rounded-md border border-border bg-white text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.98] ${className}`}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md">
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
@@ -655,9 +655,9 @@ export default function StorefrontPage() {
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
               <div className="px-4 pb-1 pt-4 lg:px-8">
                 <h2 className="mb-3 text-[17px] font-bold tracking-tight">Destaques</h2>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
+                <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
                   {destaques.map((item) => (
-                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} />
+                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[150px] flex-shrink-0 lg:w-auto" />
                   ))}
                 </div>
               </div>

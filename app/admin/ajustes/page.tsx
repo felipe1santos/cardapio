@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -8,6 +8,7 @@ import { buscarRestauranteIdDoUsuario, type LayoutCardapio } from '@/lib/queries
 import {
   buscarConfigLoja,
   atualizarConfigLoja,
+  enviarLogoLoja,
   listarTaxasBairro,
   criarTaxaBairro,
   atualizarTaxaBairro,
@@ -70,6 +71,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (loaded) return
@@ -84,6 +87,22 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   function set(key: 'nome' | 'telefone' | 'endereco' | 'logoUrl' | 'bannerUrl', value: string) {
     setForm((f) => ({ ...f, [key]: value }))
     setSaved(false)
+  }
+
+  async function handleLogoPick(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setUploadingLogo(true)
+    setError(null)
+    try {
+      const url = await enviarLogoLoja(supabase, restauranteId, file)
+      set('logoUrl', url)
+    } catch {
+      setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
+    } finally {
+      setUploadingLogo(false)
+    }
   }
 
   function setLayout(value: LayoutCardapio) {
@@ -126,12 +145,25 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           <Field label="Endereço">
             <Input value={form.endereco} onChange={(e) => set('endereco', e.target.value)} placeholder="Rua, número, bairro, cidade" />
           </Field>
-          <Field label="URL do logotipo" hint="Deixe em branco para usar a inicial do nome como avatar.">
-            <Input
-              value={form.logoUrl}
-              onChange={(e) => set('logoUrl', e.target.value)}
-              placeholder="https://..."
-            />
+          <Field label="Logotipo" hint="Exibido como avatar da loja no painel e no cardápio do cliente. Deixe em branco para usar a inicial do nome.">
+            <div className="flex items-center gap-3">
+              {form.logoUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={form.logoUrl} alt="Logotipo" className="h-16 w-16 rounded-menuzia border border-border object-cover" />
+                : <div className="flex h-16 w-16 items-center justify-center rounded-menuzia border border-border bg-page text-xl font-bold text-text-subtle">
+                    {form.nome.trim().charAt(0).toUpperCase() || '?'}
+                  </div>
+              }
+              <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoPick} />
+              <div className="flex flex-col gap-1.5">
+                <Button variant="outline" type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                  {uploadingLogo ? 'Enviando…' : form.logoUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                </Button>
+                {form.logoUrl && (
+                  <button type="button" onClick={() => set('logoUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                )}
+              </div>
+            </div>
           </Field>
           <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
             <Input
