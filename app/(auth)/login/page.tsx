@@ -29,7 +29,7 @@ export default async function LoginPage({
           </span>
           <input
             name="email"
-            type="email"
+            type="text"
             required
             className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
           />
