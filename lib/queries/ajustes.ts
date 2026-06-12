@@ -118,10 +118,10 @@ export async function removerTaxaBairro(supabase: SupabaseClient, id: string) {
   if (error) throw error
 }
 
-/** Uploads the store logo to the tenant-scoped folder of the public `cardapio` bucket and returns its public URL. */
-export async function enviarLogoLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
+/** Uploads a profile image (logo/banner) to the tenant-scoped folder of the public `cardapio` bucket and returns its public URL. */
+async function enviarImagemPerfil(supabase: SupabaseClient, restauranteId: string, file: File, prefixo: string): Promise<string> {
   const extensao = file.name.split('.').pop() ?? 'jpg'
-  const caminho = `${restauranteId}/perfil/logo-${crypto.randomUUID()}.${extensao}`
+  const caminho = `${restauranteId}/perfil/${prefixo}-${crypto.randomUUID()}.${extensao}`
 
   const { error } = await supabase.storage.from('cardapio').upload(caminho, file, {
     cacheControl: '3600',
@@ -131,4 +131,12 @@ export async function enviarLogoLoja(supabase: SupabaseClient, restauranteId: st
 
   const { data } = supabase.storage.from('cardapio').getPublicUrl(caminho)
   return data.publicUrl
+}
+
+export function enviarLogoLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
+  return enviarImagemPerfil(supabase, restauranteId, file, 'logo')
+}
+
+export function enviarBannerLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
+  return enviarImagemPerfil(supabase, restauranteId, file, 'banner')
 }

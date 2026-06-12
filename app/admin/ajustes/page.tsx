@@ -9,6 +9,7 @@ import {
   buscarConfigLoja,
   atualizarConfigLoja,
   enviarLogoLoja,
+  enviarBannerLoja,
   listarTaxasBairro,
   criarTaxaBairro,
   atualizarTaxaBairro,
@@ -73,6 +74,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const [error, setError] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingBanner, setUploadingBanner] = useState(false)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (loaded) return
@@ -102,6 +105,22 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
     } finally {
       setUploadingLogo(false)
+    }
+  }
+
+  async function handleBannerPick(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setUploadingBanner(true)
+    setError(null)
+    try {
+      const url = await enviarBannerLoja(supabase, restauranteId, file)
+      set('bannerUrl', url)
+    } catch {
+      setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
+    } finally {
+      setUploadingBanner(false)
     }
   }
 
@@ -166,11 +185,21 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             </div>
           </Field>
           <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
-            <Input
-              value={form.bannerUrl}
-              onChange={(e) => set('bannerUrl', e.target.value)}
-              placeholder="https://..."
-            />
+            <div className="space-y-2.5">
+              {form.bannerUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.bannerUrl} alt="Banner de capa" className="h-28 w-full rounded-menuzia border border-border object-cover" />
+              )}
+              <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerPick} />
+              <div className="flex items-center gap-3">
+                <Button variant="outline" type="button" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}>
+                  {uploadingBanner ? 'Enviando…' : form.bannerUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                </Button>
+                {form.bannerUrl && (
+                  <button type="button" onClick={() => set('bannerUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                )}
+              </div>
+            </div>
           </Field>
           <Field label="Apresentação do cardápio" hint="Define como os itens aparecem para o cliente na vitrine pública.">
             <div className="grid grid-cols-2 gap-2.5">
