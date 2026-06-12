@@ -485,3 +485,20 @@ export async function buscarStatusPedido(admin: SupabaseClient, pedidoId: string
   if (error) throw error
   return data ? { numero: data.numero, status: data.status as StatusPedido } : null
 }
+
+/** Pedido completo + nome da loja, para montar a mensagem de WhatsApp. */
+export async function buscarPedidoParaNotificacao(
+  admin: SupabaseClient,
+  pedidoId: string
+): Promise<{ pedido: Pedido; restauranteNome: string } | null> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .select(`${PEDIDO_SELECT}, restaurantes ( nome )`)
+    .eq('id', pedidoId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+
+  const { restaurantes, ...row } = data as unknown as PedidoRow & { restaurantes: { nome: string } | null }
+  return { pedido: mapPedido(row as PedidoRow), restauranteNome: restaurantes?.nome ?? '' }
+}

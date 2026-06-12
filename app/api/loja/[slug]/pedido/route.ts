@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { criarPedido, type NovoPedidoInput } from '@/lib/queries/pedidos'
+import { notificarPedido } from '@/lib/whatsapp'
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -20,6 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
 
   try {
     const pedido = await criarPedido(admin, loja.id, body)
+    notificarPedido(admin, pedido.id, 'recebido').catch((err) => console.error('[whatsapp] erro ao notificar pedido recebido', err))
     return NextResponse.json(pedido, { status: 201 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Não foi possível registrar o pedido'

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { notificarPedido } from '@/lib/notificar'
 import {
   atribuirEntregador,
   criarEntregador,
@@ -117,6 +118,7 @@ export default function LogisticaPage() {
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, entregadorId: driverId, status: 'em_rota' } : o)))
     try {
       await atribuirEntregador(supabase, orderId, driverId)
+      notificarPedido(orderId, 'em_rota')
     } catch {
       setError('Não foi possível atribuir o entregador.')
       if (restauranteId) refetch(restauranteId)

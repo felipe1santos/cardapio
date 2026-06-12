@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { notificarPedido } from '@/lib/notificar'
 import {
   avancarStatusPedido,
   listarPedidosConcluidos,
@@ -197,6 +198,7 @@ export default function PedidosPage() {
     try {
       if (novo === 'entregue') await marcarPedidoEntregue(supabase, p.id)
       else await avancarStatusPedido(supabase, p.id, novo)
+      if (novo === 'preparando' || novo === 'pronto') notificarPedido(p.id, novo)
     } catch {
       setError('Não foi possível atualizar o pedido.')
       refetch(restauranteId)
