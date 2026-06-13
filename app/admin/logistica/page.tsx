@@ -38,6 +38,16 @@ const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinhe
 const STATUS_LABEL: Record<StatusEntregador, string> = { online: 'Disponível', ocupado: 'Ocupado', offline: 'Offline' }
 const STATUS_DOT: Record<StatusEntregador, string> = { online: 'bg-status-ready', ocupado: 'bg-status-pending', offline: 'bg-text-subtle' }
 
+const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+function tempoRelativo(iso: string) {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 1) return 'agora mesmo'
+  if (min === 1) return 'há 1 min'
+  if (min < 60) return `há ${min} min`
+  return `há ${Math.floor(min / 60)}h`
+}
+
 function endereco(p: Pedido) {
   const partes = [p.enderecoBairro, p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`].filter(Boolean)
   return partes.join(' · ') || 'Entrega'
@@ -58,6 +68,7 @@ export default function LogisticaPage() {
   const [linkDriver, setLinkDriver] = useState<Entregador | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [locationDriverId, setLocationDriverId] = useState<string | null>(null)
 
   const [tab, setTab] = useState<Tab>('despacho')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -121,9 +132,18 @@ export default function LogisticaPage() {
     }
   }, [supabase, refetch])
 
+  // Refetch periódico — "motoboy online" depende do horário atual, então precisa
+  // recalcular mesmo sem eventos de realtime (ex.: motoboy fechou o app).
+  useEffect(() => {
+    if (!restauranteId) return
+    const interval = setInterval(() => refetch(restauranteId), 30000)
+    return () => clearInterval(interval)
+  }, [restauranteId, refetch])
+
   const available = drivers.filter((d) => d.status === 'online')
   const unassigned = orders.filter((o) => o.status === 'pronto' && !o.entregadorId)
   const inRoute = orders.filter((o) => o.status === 'em_rota')
+  const locationDriver = drivers.find((d) => d.id === locationDriverId) ?? null
 
   const concluidosFiltrados = useMemo(() => {
     const busca = filtroBusca.trim().toLowerCase()
@@ -350,19 +370,43 @@ export default function LogisticaPage() {
               {drivers.map((driver) => (
                 <div key={driver.id} className="rounded-menuzia border border-border p-3">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="text-sm font-semibold">{driver.nome}</span>
-                    <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[driver.status]}`} />
+                    <div className="flex items-center gap-1.5">
+                      <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[driver.status]}`} />
+                      {driver.online && (
+                        <span title="Motoboy logado no app" className="flex h-4 w-4 items-center justify-center text-status-ready">
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                            <path d="M17,1.01L7,1C5.9,1,5,1.9,5,3v18c0,1.1,0.9,2,2,2h10c1.1,0,2-0.9,2-2V3C19,1.9,18.1,1.01,17,1.01z M17,19H7V5h10V19z" />
+                          </svg>
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setLocationDriverId(driver.id)}
+                        title={driver.localizacao ? 'Ver localização do motoboy' : 'Localização ainda não disponível'}
+                        className={`flex h-4 w-4 items-center justify-center ${driver.localizacao ? 'text-primary hover:text-primary-dark' : 'text-border'}`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                        </svg>
+                      </button>
+                      <span className="text-sm font-semibold">{driver.nome}</span>
+                    </div>
                   </div>
                   <div className="mb-2 flex items-center justify-between text-xs text-text-subtle">
                     <span>{STATUS_LABEL[driver.status]}</span>
                     <span>{driver.emRota} entrega(s) em rota</span>
                   </div>
-                  <button
-                    onClick={() => setLinkDriver(driver)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-menuzia border border-border py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:border-primary hover:text-primary"
-                  >
-                    Acesso do entregador (link/QR)
-                  </button>
+                  {driver.online ? (
+                    <div className="flex w-full items-center justify-center gap-1.5 rounded-menuzia border border-status-ready/30 bg-status-ready/10 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-status-ready">
+                      Motoboy online no app
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setLinkDriver(driver)}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-menuzia border border-border py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:border-primary hover:text-primary"
+                    >
+                      Acesso do entregador (link/QR)
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -714,6 +758,40 @@ export default function LogisticaPage() {
           </Button>
         </div>
       </aside>
+
+      {/* Localização do entregador */}
+      {locationDriver && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#111827]/55 p-4" onClick={() => setLocationDriverId(null)}>
+          <div className="w-full max-w-[480px] rounded-menuzia bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
+              <div>
+                <h2 className="text-[15px] font-bold">Localização — {locationDriver.nome}</h2>
+                {locationDriver.localizacao && (
+                  <p className="mt-0.5 text-xs text-text-subtle">Atualizado {tempoRelativo(locationDriver.localizacao.atualizadaEm)}</p>
+                )}
+              </div>
+              <button onClick={() => setLocationDriverId(null)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+                ×
+              </button>
+            </div>
+            <div className="p-4.5">
+              {locationDriver.localizacao && MAPS_KEY ? (
+                <iframe
+                  title="Localização do entregador"
+                  src={`https://www.google.com/maps/embed/api/1?key=${MAPS_KEY}&q=${locationDriver.localizacao.lat},${locationDriver.localizacao.lng}&zoom=15`}
+                  className="h-[320px] w-full rounded-menuzia border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : (
+                <div className="rounded-menuzia border border-dashed border-border p-8 text-center text-sm text-text-subtle">
+                  Localização ainda não disponível. O motoboy precisa abrir o link de acesso e permitir a localização no celular.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

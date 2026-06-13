@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import type { FormaPagamento, Pedido } from '@/lib/queries/pedidos'
+import type { CaixaEntregador, FormaPagamento, Pedido } from '@/lib/queries/pedidos'
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 const PAY_LABEL: Record<FormaPagamento, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
@@ -12,6 +12,7 @@ interface PortalData {
   entregador: { nome: string; restauranteNome: string }
   pedidos: Pedido[]
   concluidosHoje: number
+  caixaHoje: CaixaEntregador
 }
 
 function enderecoCompleto(p: Pedido) {
@@ -70,6 +71,20 @@ export default function EntregadorPortalPage() {
   useEffect(() => {
     atualizarLocalizacao()
   }, [atualizarLocalizacao])
+
+  // Heartbeat: avisa o painel que o motoboy está com o app aberto e onde ele está.
+  useEffect(() => {
+    const enviar = () => {
+      fetch(`/api/entregador/${token}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(geo ?? {}),
+      }).catch(() => {})
+    }
+    enviar()
+    const interval = setInterval(enviar, 30000)
+    return () => clearInterval(interval)
+  }, [token, geo])
 
   const pedidos = data?.pedidos ?? []
   const addresses = useMemo(() => pedidos.map(enderecoCompleto), [pedidos])
@@ -147,6 +162,26 @@ export default function EntregadorPortalPage() {
               <div className="text-xl font-bold">{data.concluidosHoje}</div>
             </div>
           </div>
+
+          {data.caixaHoje.recebido > 0 && (
+            <div className="mt-2 rounded-menuzia bg-white/10 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-text">Caixa em dinheiro hoje</div>
+              <div className="mt-1 grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-[10px] text-sidebar-text">Recebido</div>
+                  <div className="text-sm font-bold">{brl(data.caixaHoje.recebido)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-sidebar-text">Troco dado</div>
+                  <div className="text-sm font-bold">{brl(data.caixaHoje.trocoDado)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-sidebar-text">Devolver</div>
+                  <div className="text-sm font-bold text-status-ready">{brl(data.caixaHoje.aDevolver)}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -158,6 +193,9 @@ export default function EntregadorPortalPage() {
         {/* Mapa da rota */}
         {mapsSrc && (
           <div className="mb-4 overflow-hidden rounded-menuzia border border-border bg-white">
+            <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+              Sua rota — paradas na ordem da lista abaixo
+            </div>
             <iframe
               title="Rota das entregas"
               src={mapsSrc}
@@ -185,10 +223,15 @@ export default function EntregadorPortalPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {pedidos.map((order) => (
+            {pedidos.map((order, index) => (
               <div key={order.id} className="overflow-hidden rounded-menuzia border border-border bg-white">
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                  <span className="text-sm font-bold">Pedido #{order.numero}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
+                      {index + 1}
+                    </span>
+                    <span className="text-sm font-bold">Pedido #{order.numero}</span>
+                  </div>
                   <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
                 </div>
 

@@ -51,6 +51,8 @@ export interface Entregador {
   status: StatusEntregador
   token: string
   emRota: number
+  online: boolean
+  localizacao: { lat: number; lng: number; atualizadaEm: string } | null
 }
 
 interface PedidoRow {
@@ -161,10 +163,13 @@ export async function avancarStatusPedido(supabase: SupabaseClient, pedidoId: st
   if (error) throw error
 }
 
+/** App do motoboy considerado "online" se enviou um heartbeat nos últimos 2 minutos. */
+const ENTREGADOR_ONLINE_MS = 2 * 60 * 1000
+
 export async function listarEntregadores(supabase: SupabaseClient, restauranteId: string): Promise<Entregador[]> {
   const { data, error } = await supabase
     .from('entregadores')
-    .select('id, nome, telefone, status, token')
+    .select('id, nome, telefone, status, token, ultimo_acesso_em, localizacao_lat, localizacao_lng, localizacao_atualizada_em')
     .eq('restaurante_id', restauranteId)
     .order('nome', { ascending: true })
   if (error) throw error
@@ -181,6 +186,7 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
     if (r.entregador_id) counts.set(r.entregador_id, (counts.get(r.entregador_id) ?? 0) + 1)
   }
 
+  const agora = Date.now()
   return (data ?? []).map((d) => ({
     id: d.id,
     nome: d.nome,
@@ -188,6 +194,11 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
     status: d.status as StatusEntregador,
     token: d.token,
     emRota: counts.get(d.id) ?? 0,
+    online: !!d.ultimo_acesso_em && agora - new Date(d.ultimo_acesso_em).getTime() < ENTREGADOR_ONLINE_MS,
+    localizacao:
+      d.localizacao_lat === null || d.localizacao_lng === null
+        ? null
+        : { lat: Number(d.localizacao_lat), lng: Number(d.localizacao_lng), atualizadaEm: d.localizacao_atualizada_em as string },
   }))
 }
 
@@ -322,6 +333,47 @@ export async function marcarEntregaComProblema(admin: SupabaseClient, pedidoId: 
 
   if (error) throw error
   if (!data) throw new Error('Pedido não encontrado para esse entregador.')
+}
+
+/** Heartbeat do portal do motoboy: marca presença (online) e, se disponível, atualiza a localização. */
+export async function registrarPresencaEntregador(admin: SupabaseClient, entregadorId: string, lat: number | null, lng: number | null) {
+  const agora = new Date().toISOString()
+  const update: Record<string, unknown> = { ultimo_acesso_em: agora }
+  if (lat !== null && lng !== null) {
+    update.localizacao_lat = lat
+    update.localizacao_lng = lng
+    update.localizacao_atualizada_em = agora
+  }
+  const { error } = await admin.from('entregadores').update(update).eq('id', entregadorId)
+  if (error) throw error
+}
+
+export interface CaixaEntregador {
+  recebido: number // total em dinheiro que passou pela mão do motoboy (inclui o valor usado p/ troco)
+  trocoDado: number // quanto ele devolveu de troco aos clientes
+  aDevolver: number // quanto ele deve devolver ao estabelecimento (recebido - trocoDado)
+}
+
+/** Caixa em dinheiro do entregador hoje — para o portal do motoboy saber quanto deve devolver à loja. */
+export async function calcularCaixaEntregadorHoje(admin: SupabaseClient, entregadorId: string, desdeISO: string): Promise<CaixaEntregador> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .select('total, troco_para')
+    .eq('entregador_id', entregadorId)
+    .eq('forma_pagamento', 'dinheiro')
+    .eq('status', 'entregue')
+    .gte('atualizado_em', desdeISO)
+  if (error) throw error
+
+  let recebido = 0
+  let aDevolver = 0
+  for (const row of (data ?? []) as { total: number; troco_para: number | null }[]) {
+    const total = Number(row.total)
+    const troco = row.troco_para === null ? null : Number(row.troco_para)
+    recebido += troco ?? total
+    aDevolver += total
+  }
+  return { recebido, trocoDado: recebido - aDevolver, aDevolver }
 }
 
 export interface BadgesNav {
