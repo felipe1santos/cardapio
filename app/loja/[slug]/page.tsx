@@ -13,6 +13,7 @@ import {
   type LayoutCardapio,
   type RestauranteVitrine,
 } from '@/lib/queries/cardapio'
+import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -250,6 +251,7 @@ export default function StorefrontPage() {
   const [tab, setTab] = useState<Tab>('home')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
     if (!activeCategory && groups.length > 0) setActiveCategory(groups[0].nome)
@@ -280,6 +282,188 @@ export default function StorefrontPage() {
     const id = Date.now().toString()
     setToasts((prev) => [...prev, { id, message }])
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2600)
+  }
+
+  // ── Delivery banner (cidade via IP) + calculadora de frete (CEP) ───────────
+  const [ipCidade, setIpCidade] = useState<string | null>(null)
+  const [freteOpen, setFreteOpen] = useState(false)
+  const [freteCep, setFreteCep] = useState('')
+  const [freteLoading, setFreteLoading] = useState(false)
+  const [freteError, setFreteError] = useState<string | null>(null)
+  const [freteResult, setFreteResult] = useState<{ rua: string; bairro: string; cidade: string; taxa: number } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/geo')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data?.cidade) setIpCidade(data.cidade) })
+      .catch(() => {})
+  }, [])
+
+  async function calcularFrete() {
+    const cepLimpo = freteCep.replace(/\D/g, '')
+    if (cepLimpo.length !== 8) {
+      setFreteError('Digite um CEP válido (8 dígitos).')
+      return
+    }
+    setFreteLoading(true)
+    setFreteError(null)
+    setFreteResult(null)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
+      const data = await res.json()
+      if (data.erro) {
+        setFreteError('CEP não encontrado.')
+        return
+      }
+      const bairro = (data.bairro as string) || ''
+      const cidade = (data.localidade as string) || ''
+      const match = bairros.find((b) => b.bairro.trim().toLowerCase() === bairro.trim().toLowerCase())
+      const taxa = match ? match.taxa : restaurante?.taxaEntregaPadrao ?? 0
+      setFreteResult({ rua: (data.logradouro as string) || '', bairro, cidade, taxa })
+    } catch {
+      setFreteError('Não foi possível consultar o CEP agora. Tente novamente.')
+    } finally {
+      setFreteLoading(false)
+    }
+  }
+
+  function usarEnderecoDoFrete() {
+    if (!freteResult) return
+    setEndereco((prev) => ({
+      ...prev,
+      rua: freteResult.rua || prev.rua,
+      bairro: freteResult.bairro || prev.bairro,
+      cep: freteCep.replace(/\D/g, ''),
+    }))
+    setFreteOpen(false)
+    showToast('Endereço preenchido! Confira no checkout.')
+  }
+
+  // ── Conta do cliente (login por código enviado via WhatsApp) ───────────────
+  const [clienteSessao, setClienteSessao] = useState<{ telefone: string; token: string } | null>(null)
+  const [perfilCliente, setPerfilCliente] = useState<ClientePerfil | null>(null)
+  const [contaOpen, setContaOpen] = useState(false)
+  const [contaStep, setContaStep] = useState<'telefone' | 'codigo'>('telefone')
+  const [contaTelefone, setContaTelefone] = useState('')
+  const [contaCodigo, setContaCodigo] = useState('')
+  const [contaNome, setContaNome] = useState('')
+  const [contaEndereco, setContaEndereco] = useState<EnderecoCliente>({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+  const [contaLoading, setContaLoading] = useState(false)
+  const [contaError, setContaError] = useState<string | null>(null)
+  const [contaSaved, setContaSaved] = useState(false)
+
+  // Restaura sessão salva no navegador.
+  useEffect(() => {
+    if (!slug) return
+    try {
+      const raw = localStorage.getItem(`menuzia_cliente_${slug}`)
+      if (raw) {
+        const sessao = JSON.parse(raw)
+        if (sessao?.telefone && sessao?.token) setClienteSessao(sessao)
+      }
+    } catch { /* sessão inválida, ignora */ }
+  }, [slug])
+
+  // Carrega o perfil salvo e pré-preenche o checkout.
+  useEffect(() => {
+    if (!clienteSessao || !slug) return
+    let cancelled = false
+    fetch(`/api/loja/${slug}/conta?telefone=${encodeURIComponent(clienteSessao.telefone)}&token=${encodeURIComponent(clienteSessao.token)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ClientePerfil | null) => {
+        if (cancelled) return
+        if (!data) {
+          localStorage.removeItem(`menuzia_cliente_${slug}`)
+          setClienteSessao(null)
+          return
+        }
+        setPerfilCliente(data)
+        setContaNome(data.nome)
+        setContaEndereco(data.endereco)
+        setCliente((c) => ({ nome: data.nome || c.nome, telefone: data.telefone }))
+        if (data.endereco.rua || data.endereco.bairro) setEndereco(data.endereco)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [clienteSessao, slug])
+
+  async function enviarCodigoConta() {
+    setContaLoading(true)
+    setContaError(null)
+    try {
+      const res = await fetch(`/api/loja/${slug}/conta/codigo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefone: contaTelefone }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o código.')
+      setContaStep('codigo')
+    } catch (err) {
+      setContaError(err instanceof Error ? err.message : 'Não foi possível enviar o código.')
+    } finally {
+      setContaLoading(false)
+    }
+  }
+
+  async function confirmarCodigoConta() {
+    setContaLoading(true)
+    setContaError(null)
+    try {
+      const res = await fetch(`/api/loja/${slug}/conta/verificar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefone: contaTelefone, codigo: contaCodigo }),
+      })
+      const data: ClientePerfil & { error?: string } = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Código inválido.')
+      localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token }))
+      setClienteSessao({ telefone: data.telefone, token: data.token })
+      setPerfilCliente(data)
+      setContaNome(data.nome)
+      setContaEndereco(data.endereco)
+      setContaCodigo('')
+    } catch (err) {
+      setContaError(err instanceof Error ? err.message : 'Código inválido.')
+    } finally {
+      setContaLoading(false)
+    }
+  }
+
+  async function salvarPerfilConta() {
+    if (!clienteSessao) return
+    setContaLoading(true)
+    setContaError(null)
+    setContaSaved(false)
+    try {
+      const res = await fetch(`/api/loja/${slug}/conta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefone: clienteSessao.telefone, token: clienteSessao.token, nome: contaNome, endereco: contaEndereco }),
+      })
+      const data: ClientePerfil & { error?: string } = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Não foi possível salvar.')
+      setPerfilCliente(data)
+      setCliente((c) => ({ nome: data.nome, telefone: data.telefone || c.telefone }))
+      setEndereco(data.endereco)
+      setContaSaved(true)
+    } catch (err) {
+      setContaError(err instanceof Error ? err.message : 'Não foi possível salvar.')
+    } finally {
+      setContaLoading(false)
+    }
+  }
+
+  function sairConta() {
+    if (!slug) return
+    localStorage.removeItem(`menuzia_cliente_${slug}`)
+    setClienteSessao(null)
+    setPerfilCliente(null)
+    setContaStep('telefone')
+    setContaTelefone('')
+    setContaCodigo('')
+    setContaNome('')
+    setContaEndereco({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
   }
 
   // ── Product sheet ─────────────────────────────────────────────────────────
@@ -420,10 +604,10 @@ export default function StorefrontPage() {
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
   useEffect(() => {
-    const open = !!productSheet || checkoutOpen
+    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [productSheet, checkoutOpen])
+  }, [productSheet, checkoutOpen, freteOpen, contaOpen])
 
   // ── Order tracking ────────────────────────────────────────────────────────
   const [pedidoId, setPedidoId] = useState<string | null>(null)
@@ -579,7 +763,7 @@ export default function StorefrontPage() {
         {tab === 'home' && (
           <>
             {/* Cover banner */}
-            <div className="h-40 w-full overflow-hidden sm:h-56 lg:mx-8 lg:mt-6 lg:h-72 lg:rounded-md">
+            <div className="relative h-40 w-full overflow-hidden sm:h-56 lg:mx-8 lg:mt-6 lg:h-72 lg:rounded-md">
               {restaurante.bannerUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={restaurante.bannerUrl} alt={storeName} className="h-full w-full object-cover" />
@@ -588,6 +772,21 @@ export default function StorefrontPage() {
               ) : (
                 <div className="h-full w-full bg-gradient-to-br from-[#22D3EE] via-[#008fba] to-[#007599]" />
               )}
+
+              {/* Minha conta */}
+              <button
+                onClick={() => setContaOpen(true)}
+                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-black/45 sm:right-4 sm:top-4"
+                aria-label="Minha conta"
+              >
+                {perfilCliente ? (
+                  <span className="text-sm font-bold">{(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}</span>
+                ) : (
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-white">
+                    <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 001 1h14a1 1 0 001-1v-1c0-2.76-3.58-5-8-5z" />
+                  </svg>
+                )}
+              </button>
             </div>
 
             {/* Profile photo overlapping the banner + store info */}
@@ -617,18 +816,49 @@ export default function StorefrontPage() {
             </div>
 
             {/* Search */}
-            <div className="mx-4 mt-4 flex items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm lg:mx-8">
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
-                <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+            {searchOpen ? (
+              <div className="mx-4 mt-4 flex items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm lg:mx-8">
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
+                  <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                </svg>
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar no cardápio…"
+                  className="w-full border-none bg-transparent font-sans text-sm text-text-main outline-none placeholder:text-text-subtle"
+                />
+                <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
+              </div>
+            ) : (
+              <div className="mx-4 mt-4 lg:mx-8">
+                <button
+                  onClick={() => setSearchOpen(true)}
+                  className="flex h-11 w-11 items-center justify-center rounded-md bg-white shadow-sm"
+                  aria-label="Buscar no cardápio"
+                >
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
+                    <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {/* Delivery banner */}
+            <button
+              onClick={() => setFreteOpen(true)}
+              className="mx-4 mt-3 flex w-[calc(100%-2rem)] items-center gap-2.5 rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-4 py-3 text-left shadow-sm lg:mx-8 lg:w-[calc(100%-4rem)]"
+            >
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#0369A1]">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z" />
               </svg>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar no cardápio…"
-                className="w-full border-none bg-transparent font-sans text-sm text-text-main outline-none placeholder:text-text-subtle"
-              />
-              {search && <button onClick={() => setSearch('')} className="text-text-subtle hover:text-text-main">×</button>}
-            </div>
+              <span className="flex-1 truncate text-[13px] font-medium text-[#0369A1]">
+                {ipCidade ? `Entregamos em ${ipCidade}` : 'Calcular frete e prazo de entrega'}
+              </span>
+              <span className="flex-shrink-0 whitespace-nowrap text-[12px] font-bold uppercase tracking-wide text-[#0369A1] underline">
+                Calcular frete
+              </span>
+            </button>
 
             {/* Category nav */}
             <div className="sticky top-0 z-10 mt-4 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-3 [scrollbar-width:none] lg:top-16 lg:mx-8">
@@ -1183,6 +1413,145 @@ export default function StorefrontPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ── Frete calculator overlay ──────────────────────────────────── */}
+      {freteOpen && <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setFreteOpen(false)} />}
+      <div className={['fixed bottom-0 left-1/2 z-[65] flex max-h-[85vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-md bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[480px] lg:-translate-y-1/2 lg:rounded', freteOpen ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+        {freteOpen && (
+          <>
+            <div className="flex items-center justify-between border-b border-border p-4.5">
+              <h2 className="text-base font-bold">Calcular frete</h2>
+              <button onClick={() => setFreteOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4.5 pb-[max(env(safe-area-inset-bottom),1.125rem)]">
+              <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
+              <div className="flex gap-2">
+                <input
+                  value={freteCep}
+                  onChange={(e) => setFreteCep(e.target.value)}
+                  placeholder="00000-000"
+                  inputMode="numeric"
+                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]"
+                />
+                <button onClick={calcularFrete} disabled={freteLoading} className="flex-shrink-0 rounded bg-[#008fba] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                  {freteLoading ? '...' : 'Calcular'}
+                </button>
+              </div>
+              {freteError && <p className="mt-2.5 text-[13px] font-medium text-danger">{freteError}</p>}
+              {freteResult && (
+                <div className="mt-4 rounded border border-border p-3.5">
+                  <p className="text-sm font-semibold">{freteResult.rua || 'Endereço encontrado'}</p>
+                  <p className="text-[13px] text-text-subtle">{freteResult.bairro}{freteResult.bairro && freteResult.cidade ? ' · ' : ''}{freteResult.cidade}</p>
+                  <div className="mt-2.5 flex items-center justify-between rounded bg-[#DCFCE7] px-3 py-2">
+                    <span className="text-[13px] font-semibold text-[#16A34A]">Taxa de entrega</span>
+                    <span className="text-sm font-bold text-[#16A34A]">{brl(freteResult.taxa)}</span>
+                  </div>
+                  <button onClick={usarEnderecoDoFrete} className="mt-3 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599]">
+                    Usar este endereço no pedido
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Conta do cliente overlay ──────────────────────────────────── */}
+      {contaOpen && <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setContaOpen(false)} />}
+      <div className={['fixed bottom-0 left-1/2 z-[65] flex max-h-[85vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-md bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[480px] lg:-translate-y-1/2 lg:rounded', contaOpen ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+        {contaOpen && (
+          <>
+            <div className="flex items-center justify-between border-b border-border p-4.5">
+              <h2 className="text-base font-bold">Minha conta</h2>
+              <button onClick={() => setContaOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4.5 pb-[max(env(safe-area-inset-bottom),1.125rem)]">
+              {!perfilCliente ? (
+                contaStep === 'telefone' ? (
+                  <>
+                    <p className="mb-3 text-[13px] text-text-subtle">Informe seu telefone com DDD para receber um código de confirmação pelo WhatsApp.</p>
+                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
+                    <input value={contaTelefone} onChange={(e) => setContaTelefone(e.target.value)} placeholder="(00) 00000-0000" inputMode="tel"
+                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
+                    <button onClick={enviarCodigoConta} disabled={contaLoading || !contaTelefone}
+                      className="mt-4 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                      {contaLoading ? 'Enviando…' : 'Receber código por WhatsApp'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-3 text-[13px] text-text-subtle">Enviamos um código de 6 dígitos pelo WhatsApp para {contaTelefone}.</p>
+                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Código</label>
+                    <input value={contaCodigo} onChange={(e) => setContaCodigo(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6}
+                      className="w-full rounded border border-border p-2.5 text-center font-sans text-lg font-bold tracking-[0.5em] outline-none focus:border-[#008fba]" />
+                    {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
+                    <button onClick={confirmarCodigoConta} disabled={contaLoading || contaCodigo.length < 6}
+                      className="mt-4 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                      {contaLoading ? 'Confirmando…' : 'Confirmar código'}
+                    </button>
+                    <button onClick={() => { setContaStep('telefone'); setContaCodigo(''); setContaError(null) }} className="mt-3 w-full text-center text-[13px] font-semibold text-[#008fba]">
+                      Trocar número / reenviar código
+                    </button>
+                  </>
+                )
+              ) : (
+                <>
+                  <div className="mb-4 flex items-center justify-between rounded border border-border p-3.5">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Telefone confirmado</p>
+                      <p className="text-sm font-bold">{perfilCliente.telefone}</p>
+                    </div>
+                    <button onClick={sairConta} className="text-[13px] font-semibold text-danger">Sair</button>
+                  </div>
+
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome</label>
+                  <input value={contaNome} onChange={(e) => setContaNome(e.target.value)} placeholder="Seu nome"
+                    className="mb-3 w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+
+                  <h3 className="mb-2.5 mt-4 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço salvo</h3>
+                  <div className="flex gap-3">
+                    <div className="flex-[2]">
+                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua</label>
+                      <input value={contaEndereco.rua} onChange={(e) => setContaEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número</label>
+                      <input value={contaEndereco.numero} onChange={(e) => setContaEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-3">
+                    <div className="flex-1">
+                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
+                      <input value={contaEndereco.bairro} onChange={(e) => setContaEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
+                      <input value={contaEndereco.cep} onChange={(e) => setContaEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
+                    <input value={contaEndereco.complemento} onChange={(e) => setContaEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
+                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                  </div>
+
+                  {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
+                  {contaSaved && <p className="mt-2.5 text-[13px] font-medium text-[#16A34A]">Dados salvos!</p>}
+                  <button onClick={salvarPerfilConta} disabled={contaLoading}
+                    className="mt-4 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                    {contaLoading ? 'Salvando…' : 'Salvar'}
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Toast container ───────────────────────────────────────────── */}

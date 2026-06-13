@@ -80,13 +80,13 @@ export function montarMensagemStatus(pedido: Pedido, status: StatusPedido): stri
   }
 }
 
-/** Envia uma mensagem de texto via Evolution API, usando a instância (WhatsApp) do restaurante. Falha silenciosamente (best-effort). */
-export async function enviarWhatsapp(numero: string, texto: string, instance: string): Promise<void> {
+/** Envia uma mensagem de texto via Evolution API, usando a instância (WhatsApp) do restaurante. Retorna se o envio foi bem-sucedido. */
+export async function enviarWhatsapp(numero: string, texto: string, instance: string): Promise<boolean> {
   const url = process.env.EVOLUTION_API_URL
   const apiKey = process.env.EVOLUTION_API_KEY
   if (!url || !apiKey) {
     console.warn('[whatsapp] EVOLUTION_API_URL/EVOLUTION_API_KEY não configurados — notificação não enviada.')
-    return
+    return false
   }
 
   try {
@@ -95,9 +95,14 @@ export async function enviarWhatsapp(numero: string, texto: string, instance: st
       headers: { 'Content-Type': 'application/json', apikey: apiKey },
       body: JSON.stringify({ number: numero, text: texto }),
     })
-    if (!res.ok) console.error('[whatsapp] Evolution API respondeu', res.status, await res.text())
+    if (!res.ok) {
+      console.error('[whatsapp] Evolution API respondeu', res.status, await res.text())
+      return false
+    }
+    return true
   } catch (err) {
     console.error('[whatsapp] falha ao enviar mensagem', err)
+    return false
   }
 }
 
