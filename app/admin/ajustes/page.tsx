@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -455,6 +455,12 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
 // ─── Aba Integrações ──────────────────────────────────────────────────────────
 
+interface WaStatus {
+  configurado: boolean
+  connected: boolean
+  state: string | null
+}
+
 function TabIntegracoes({ restauranteId, active }: { restauranteId: string; active: boolean }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
@@ -462,6 +468,12 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [wa, setWa] = useState<WaStatus | null>(null)
+  const [waQr, setWaQr] = useState<string | null>(null)
+  const [waPairingCode, setWaPairingCode] = useState<string | null>(null)
+  const [waBusy, setWaBusy] = useState(false)
+  const [waError, setWaError] = useState<string | null>(null)
 
   useEffect(() => {
     if (loaded) return
@@ -471,6 +483,61 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
+
+  const atualizarStatusWhatsapp = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/whatsapp/status')
+      const data: WaStatus = await res.json()
+      setWa(data)
+      if (data.connected) setWaQr(null)
+      return data
+    } catch {
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    atualizarStatusWhatsapp()
+  }, [atualizarStatusWhatsapp])
+
+  // Enquanto o QR está na tela, verifica a cada 3s se o WhatsApp já foi conectado.
+  useEffect(() => {
+    if (!waQr) return
+    const interval = setInterval(async () => {
+      const data = await atualizarStatusWhatsapp()
+      if (data?.connected) clearInterval(interval)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [waQr, atualizarStatusWhatsapp])
+
+  async function conectarWhatsapp() {
+    setWaBusy(true)
+    setWaError(null)
+    try {
+      const res = await fetch('/api/admin/whatsapp/conectar', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido')
+      setWaQr(data.base64 ?? null)
+      setWaPairingCode(data.pairingCode ?? null)
+    } catch {
+      setWaError('Não foi possível conectar. Verifique a configuração da Evolution API no servidor.')
+    } finally {
+      setWaBusy(false)
+    }
+  }
+
+  async function desconectarWhatsapp() {
+    setWaBusy(true)
+    setWaError(null)
+    try {
+      await fetch('/api/admin/whatsapp/desconectar', { method: 'POST' })
+      setWaQr(null)
+      setWaPairingCode(null)
+      await atualizarStatusWhatsapp()
+    } finally {
+      setWaBusy(false)
+    }
+  }
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -497,6 +564,48 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="max-w-xl space-y-8">
+          <div>
+            <div className="mb-0.5 flex items-center gap-2">
+              <h3 className="text-[13px] font-bold text-text-main">WhatsApp (Evolution API)</h3>
+              {wa?.connected && (
+                <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold text-price-text">Conectado</span>
+              )}
+            </div>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+              Conecte o WhatsApp da loja para enviar automaticamente a confirmação do pedido (aceito), e os avisos de
+              preparo, pronto e saiu para entrega ao cliente.
+            </p>
+
+            {wa === null ? (
+              <p className="text-[12px] text-text-subtle">Verificando conexão…</p>
+            ) : !wa.configurado ? (
+              <p className="rounded-menuzia border border-warn bg-warn-bg px-3 py-2 text-[12px] text-warn">
+                Evolution API não configurada no servidor (variáveis EVOLUTION_API_URL / EVOLUTION_API_KEY).
+              </p>
+            ) : wa.connected ? (
+              <Button variant="outline" onClick={desconectarWhatsapp} disabled={waBusy}>
+                {waBusy ? 'Desconectando…' : 'Desconectar WhatsApp'}
+              </Button>
+            ) : waQr ? (
+              <div className="flex flex-col items-start gap-2">
+                <img
+                  src={waQr.startsWith('data:') ? waQr : `data:image/png;base64,${waQr}`}
+                  alt="QR code para conectar o WhatsApp"
+                  className="h-48 w-48 rounded-menuzia border border-border"
+                />
+                {waPairingCode && <p className="text-[12px] text-text-subtle">Código de pareamento: <span className="font-mono font-semibold">{waPairingCode}</span></p>}
+                <p className="text-[12px] leading-relaxed text-text-subtle">
+                  No celular da loja, abra o WhatsApp em <strong>Aparelhos conectados → Conectar um aparelho</strong> e escaneie o QR code acima.
+                  A página atualiza automaticamente quando conectar.
+                </p>
+              </div>
+            ) : (
+              <Button onClick={conectarWhatsapp} disabled={waBusy}>
+                {waBusy ? 'Gerando QR code…' : 'Conectar WhatsApp'}
+              </Button>
+            )}
+            {waError && <p className="mt-2 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[12px] text-danger">{waError}</p>}
+          </div>
           <div>
             <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Facebook Pixel</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">

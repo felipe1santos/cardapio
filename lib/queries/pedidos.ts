@@ -486,19 +486,25 @@ export async function buscarStatusPedido(admin: SupabaseClient, pedidoId: string
   return data ? { numero: data.numero, status: data.status as StatusPedido } : null
 }
 
-/** Pedido completo + nome da loja, para montar a mensagem de WhatsApp. */
+/** Pedido completo + dados da loja, para montar e enviar a mensagem de WhatsApp. */
 export async function buscarPedidoParaNotificacao(
   admin: SupabaseClient,
   pedidoId: string
-): Promise<{ pedido: Pedido; restauranteNome: string } | null> {
+): Promise<{ pedido: Pedido; restauranteNome: string; evolutionInstance: string | null } | null> {
   const { data, error } = await admin
     .from('pedidos')
-    .select(`${PEDIDO_SELECT}, restaurantes ( nome )`)
+    .select(`${PEDIDO_SELECT}, restaurantes ( nome, evolution_instance )`)
     .eq('id', pedidoId)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
 
-  const { restaurantes, ...row } = data as unknown as PedidoRow & { restaurantes: { nome: string } | null }
-  return { pedido: mapPedido(row as PedidoRow), restauranteNome: restaurantes?.nome ?? '' }
+  const { restaurantes, ...row } = data as unknown as PedidoRow & {
+    restaurantes: { nome: string; evolution_instance: string | null } | null
+  }
+  return {
+    pedido: mapPedido(row as PedidoRow),
+    restauranteNome: restaurantes?.nome ?? '',
+    evolutionInstance: restaurantes?.evolution_instance ?? null,
+  }
 }

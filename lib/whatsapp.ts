@@ -18,22 +18,28 @@ export function formatarTelefoneWhatsapp(telefone: string): string | null {
   return digitos.startsWith('55') ? digitos : `55${digitos}`
 }
 
-/** Resumo completo do pedido — enviado na primeira notificação (pedido recebido/aceito). */
+/** Resumo completo do pedido — enviado quando o pedido é ACEITO (recebido → preparando). */
 export function montarResumoPedido(pedido: Pedido, restauranteNome: string): string {
   const linhas: string[] = []
-  linhas.push(`✅ *Pedido #${pedido.numero} confirmado!*`)
-  if (restauranteNome) linhas.push(`_${restauranteNome}_`)
+  linhas.push(`✅ *Pedido #${pedido.numero} aceito!*`)
+  if (restauranteNome) linhas.push(`_${restauranteNome} já está preparando seu pedido_`)
   linhas.push('')
-  linhas.push('🛍️ *Itens:*')
+  linhas.push('```')
+  linhas.push(`PEDIDO #${pedido.numero}`)
+  linhas.push('```')
+  linhas.push('')
+  linhas.push('*Itens:*')
   for (const item of pedido.itens) {
-    linhas.push(`${item.quantidade}x ${item.nome}`)
-    for (const c of item.complementos) linhas.push(`   + ${c.nome}`)
+    linhas.push(`*${item.quantidade}x ${item.nome} — ${brl(item.precoUnitario)}*`)
+    for (const c of item.complementos) linhas.push(`   + ${c.nome} (+${brl(c.preco)})`)
     if (item.observacao.trim()) linhas.push(`   _obs: ${item.observacao.trim()}_`)
   }
   linhas.push('')
-  linhas.push(`*Subtotal:* ${brl(pedido.subtotal)}`)
-  if (pedido.tipo === 'entrega') linhas.push(`*Taxa de entrega:* ${brl(pedido.taxaEntrega)}`)
-  linhas.push(`*Total: ${brl(pedido.total)}*`)
+  linhas.push(`*Subtotal: ${brl(pedido.subtotal)}*`)
+  if (pedido.tipo === 'entrega') linhas.push(`*Taxa de entrega: ${brl(pedido.taxaEntrega)}*`)
+  linhas.push('```')
+  linhas.push(`TOTAL: ${brl(pedido.total)}`)
+  linhas.push('```')
   linhas.push('')
 
   let pagamento = `💳 *Pagamento:* ${FORMA_PAGAMENTO_LABEL[pedido.formaPagamento]}`
@@ -56,11 +62,11 @@ export function montarResumoPedido(pedido: Pedido, restauranteNome: string): str
   return linhas.join('\n')
 }
 
-/** Mensagens curtas de atualização de status (preparando, pronto, saiu para entrega). */
+/** Mensagens curtas de atualização de status (recebido, pronto, saiu para entrega). */
 export function montarMensagemStatus(pedido: Pedido, status: StatusPedido): string | null {
   switch (status) {
-    case 'preparando':
-      return `👨‍🍳 Seu pedido *#${pedido.numero}* está sendo *preparado*!`
+    case 'recebido':
+      return `📥 Recebemos seu pedido *#${pedido.numero}*! Aguarde a confirmação da loja 🙌`
     case 'pronto':
       return pedido.tipo === 'retirada'
         ? `✅ Seu pedido *#${pedido.numero}* está *pronto* para retirada!`
@@ -72,13 +78,12 @@ export function montarMensagemStatus(pedido: Pedido, status: StatusPedido): stri
   }
 }
 
-/** Envia uma mensagem de texto via Evolution API. Falha silenciosamente (best-effort) se não configurada. */
-export async function enviarWhatsapp(numero: string, texto: string): Promise<void> {
+/** Envia uma mensagem de texto via Evolution API, usando a instância (WhatsApp) do restaurante. Falha silenciosamente (best-effort). */
+export async function enviarWhatsapp(numero: string, texto: string, instance: string): Promise<void> {
   const url = process.env.EVOLUTION_API_URL
   const apiKey = process.env.EVOLUTION_API_KEY
-  const instance = process.env.EVOLUTION_INSTANCE
-  if (!url || !apiKey || !instance) {
-    console.warn('[whatsapp] EVOLUTION_API_URL/EVOLUTION_API_KEY/EVOLUTION_INSTANCE não configurados — notificação não enviada.')
+  if (!url || !apiKey) {
+    console.warn('[whatsapp] EVOLUTION_API_URL/EVOLUTION_API_KEY não configurados — notificação não enviada.')
     return
   }
 
@@ -99,14 +104,16 @@ export async function notificarPedido(admin: SupabaseClient, pedidoId: string, s
   const dados = await buscarPedidoParaNotificacao(admin, pedidoId)
   if (!dados) return
 
-  const { pedido, restauranteNome } = dados
+  const { pedido, restauranteNome, evolutionInstance } = dados
+  if (!evolutionInstance) return
+
   const numero = formatarTelefoneWhatsapp(pedido.clienteTelefone)
   if (!numero) return
 
-  const texto = status === 'recebido'
+  const texto = status === 'preparando'
     ? montarResumoPedido(pedido, restauranteNome)
     : montarMensagemStatus(pedido, status)
   if (!texto) return
 
-  await enviarWhatsapp(numero, texto)
+  await enviarWhatsapp(numero, texto, evolutionInstance)
 }
