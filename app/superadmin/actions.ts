@@ -9,7 +9,6 @@ import {
   autorizarLojista,
   criarRestaurante,
   revogarAcessoLojista,
-  type PapelUsuario,
 } from '@/lib/queries/lojistas'
 
 async function ensureSuperAdmin() {
@@ -57,13 +56,12 @@ export async function autorizarLojistaAction(formData: FormData) {
 
   const usuarioId = String(formData.get('usuarioId') ?? '')
   const restauranteId = String(formData.get('restauranteId') ?? '')
-  const papel = String(formData.get('papel') ?? 'dono') as PapelUsuario
   if (!usuarioId || !restauranteId) {
     redirect(`/superadmin?error=${encodeURIComponent('Selecione a loja para vincular.')}`)
   }
 
   const admin = getAdminSupabase()
-  const result = await autorizarLojista(admin, usuarioId, restauranteId, papel)
+  const result = await autorizarLojista(admin, usuarioId, restauranteId)
   if (!result.ok) {
     redirect(`/superadmin?error=${encodeURIComponent(result.error)}`)
   }

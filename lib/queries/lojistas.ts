@@ -138,9 +138,9 @@ export async function criarRestaurante(admin: SupabaseClient, nome: string, slug
   return { ok: true }
 }
 
-/** Vincula o lojista a uma loja, define o papel e libera o acesso. */
-export async function autorizarLojista(admin: SupabaseClient, usuarioId: string, restauranteId: string, papel: PapelUsuario): Promise<Resultado> {
-  const { error } = await admin.from('usuarios').update({ restaurante_id: restauranteId, papel, autorizado: true }).eq('id', usuarioId)
+/** Vincula o lojista a uma loja (papel "dono") e libera o acesso. */
+export async function autorizarLojista(admin: SupabaseClient, usuarioId: string, restauranteId: string): Promise<Resultado> {
+  const { error } = await admin.from('usuarios').update({ restaurante_id: restauranteId, papel: 'dono', autorizado: true }).eq('id', usuarioId)
   if (error) return { ok: false, error: 'Não foi possível autorizar o acesso.' }
   return { ok: true }
 }
