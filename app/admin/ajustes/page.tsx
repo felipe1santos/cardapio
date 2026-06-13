@@ -18,12 +18,13 @@ import {
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
 
-type Tab = 'loja' | 'entrega' | 'integracoes'
+type Tab = 'loja' | 'entrega' | 'integracoes' | 'conta'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
   { id: 'entrega', label: 'Entrega' },
   { id: 'integracoes', label: 'Integrações' },
+  { id: 'conta', label: 'Conta' },
 ]
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -635,6 +636,68 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
   )
 }
 
+// ─── Aba Conta ────────────────────────────────────────────────────────────────
+
+function TabConta({ active }: { active: boolean }) {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [novaSenha, setNovaSenha] = useState('')
+  const [confirmarSenha, setConfirmarSenha] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function salvar() {
+    setError(null)
+    if (novaSenha.length < 6) { setError('A senha deve ter no mínimo 6 caracteres.'); return }
+    if (novaSenha !== confirmarSenha) { setError('As senhas não coincidem.'); return }
+    setSaving(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: novaSenha })
+      if (error) throw error
+      setNovaSenha('')
+      setConfirmarSenha('')
+      setSaved(true)
+    } catch {
+      setError('Não foi possível alterar a senha. Tente novamente.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
+      <div className="flex-1 overflow-y-auto px-5 py-6">
+        <div className="max-w-xl space-y-5">
+          <div>
+            <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Alterar senha</h3>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+              Defina uma nova senha de acesso ao painel. Você continuará logado nesta sessão.
+            </p>
+          </div>
+          <Field label="Nova senha">
+            <Input
+              type="password"
+              value={novaSenha}
+              onChange={(e) => { setNovaSenha(e.target.value); setSaved(false) }}
+              placeholder="Mínimo 6 caracteres"
+            />
+          </Field>
+          <Field label="Confirmar nova senha">
+            <Input
+              type="password"
+              value={confirmarSenha}
+              onChange={(e) => { setConfirmarSenha(e.target.value); setSaved(false) }}
+              placeholder="Repita a nova senha"
+            />
+          </Field>
+          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
+        </div>
+      </div>
+      <SaveBar saved={saved} saving={saving} onSave={salvar} />
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function AjustesPage() {
@@ -674,6 +737,7 @@ export default function AjustesPage() {
           <TabLoja restauranteId={restauranteId} active={tab === 'loja'} />
           <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
           <TabIntegracoes restauranteId={restauranteId} active={tab === 'integracoes'} />
+          <TabConta active={tab === 'conta'} />
         </>
       )}
     </div>

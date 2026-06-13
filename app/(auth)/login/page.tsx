@@ -1,12 +1,23 @@
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { signIn } from './actions'
+
+const ERROR_MESSAGES: Record<string, string> = {
+  pendente: 'Seu cadastro ainda não foi autorizado. Você receberá um aviso quando o acesso for liberado.',
+}
+
+const NOTICE_MESSAGES: Record<string, string> = {
+  'cadastro-recebido': 'Cadastro recebido! Você poderá acessar quando autorizarmos seu acesso.',
+}
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; notice?: string }>
 }) {
-  const { error } = await searchParams
+  const { error, notice } = await searchParams
+  const errorMessage = error ? ERROR_MESSAGES[error] ?? error : null
+  const noticeMessage = notice ? NOTICE_MESSAGES[notice] ?? null : null
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-page">
@@ -17,9 +28,15 @@ export default async function LoginPage({
         <h1 className="mb-1 text-lg font-semibold text-text-main">menuzia</h1>
         <p className="mb-5 text-xs text-text-subtle">Entre com sua conta da loja</p>
 
-        {error && (
+        {noticeMessage && (
+          <p className="mb-4 rounded-menuzia bg-price-bg px-3 py-2 text-xs text-price-text">
+            {noticeMessage}
+          </p>
+        )}
+
+        {errorMessage && (
           <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
-            {error}
+            {errorMessage}
           </p>
         )}
 
@@ -50,6 +67,13 @@ export default async function LoginPage({
         <Button type="submit" className="w-full">
           Entrar
         </Button>
+
+        <p className="mt-4 text-center text-xs text-text-subtle">
+          Ainda não tem conta?{' '}
+          <Link href="/cadastro" className="font-semibold text-primary">
+            Cadastrar
+          </Link>
+        </p>
       </form>
     </main>
   )
