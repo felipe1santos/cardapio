@@ -45,25 +45,22 @@ function PriceTag({ price, originalPrice }: { price: number; originalPrice?: num
     const off = Math.round((1 - price / originalPrice) * 100)
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="rounded bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">-{off}% desconto</span>
-        <span className="text-[15px] font-bold text-price-text">{brl(price)}</span>
-        <span className="text-xs text-text-subtle line-through">{brl(originalPrice)}</span>
+        <span className="rounded bg-price-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-price-text">-{off}% desconto</span>
+        <span className="text-[13px] font-bold text-price-text">{brl(price)}</span>
+        <span className="text-[11px] text-text-subtle line-through">{brl(originalPrice)}</span>
       </span>
     )
   }
-  return <span className="text-[15px] font-bold text-text-main">{brl(price)}</span>
+  return <span className="text-[13px] font-bold text-text-main">{brl(price)}</span>
 }
 
 function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number }) {
   if (item.imagemUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={item.imagemUrl}
-        alt={item.nome}
-        className="flex-shrink-0 rounded object-cover"
-        style={{ width: size, height: size }}
-      />
+      <div className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded bg-[#F3F4F6]" style={{ width: size, height: size }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-contain" />
+      </div>
     )
   }
   return (
@@ -96,8 +93,13 @@ function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; on
       onClick={onClick}
       className={`group flex flex-col overflow-hidden rounded-md border border-border bg-white text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.98] ${className}`}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md">
-        <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md bg-[#F3F4F6]">
+        {item.imagemUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105" />
+        ) : (
+          <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
+        )}
         {item.maisVendido && (
           <span className="absolute left-2.5 top-2.5 rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
         )}
@@ -107,7 +109,7 @@ function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; on
         {item.descricao && (
           <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
-        <div className="mt-auto pt-1.5">
+        <div className="pt-1">
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
         </div>
       </div>
@@ -126,14 +128,16 @@ function ProductListRow({ item, onClick }: { item: ItemCardapio; onClick: () => 
         {item.descricao && (
           <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {item.maisVendido && (
-            <span className="rounded bg-pink-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-pink-600">Mais vendido</span>
-          )}
+        <div className="mt-1.5">
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
         </div>
       </div>
-      <ProductThumb item={item} size={76} />
+      <div className="relative flex-shrink-0">
+        <ProductThumb item={item} size={76} />
+        {item.maisVendido && (
+          <span className="absolute left-1 top-1 rounded bg-pink-100 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
+        )}
+      </div>
     </button>
   )
 }
@@ -791,7 +795,7 @@ export default function StorefrontPage() {
                 <div className="flex min-w-0 flex-1 items-start justify-between gap-2 pb-1.5">
                   <div className="min-w-0">
                     <h1 className="-mx-2 line-clamp-2 break-words rounded bg-white px-2 py-0.5 text-[17px] font-extrabold leading-[1.2] tracking-tight text-text-main sm:text-[22px] sm:leading-snug lg:text-[26px]">{storeName}</h1>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle sm:text-[13px]">
+                    <div className="-mx-2 mt-1.5 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded bg-white px-2 py-1 text-xs font-medium text-text-subtle sm:text-[13px]">
                       <span className="inline-flex items-center gap-1.5 font-semibold text-[#1cce93]">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#1cce93]" /> Aberto agora
                       </span>
@@ -1171,11 +1175,14 @@ export default function StorefrontPage() {
           <>
             <button onClick={() => setProductSheet(null)} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
             <div className="flex-1 overflow-y-auto">
-              {productSheet.imagemUrl
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-[42vh] w-full object-cover lg:h-[260px]" />
-                : <div className="flex h-[42vh] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70 lg:h-[260px]">{productSheet.nome.charAt(0)}</div>
-              }
+              {productSheet.imagemUrl ? (
+                <div className="flex h-[42vh] w-full items-center justify-center overflow-hidden bg-[#F3F4F6] lg:h-[260px]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-full w-full object-contain" />
+                </div>
+              ) : (
+                <div className="flex h-[42vh] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70 lg:h-[260px]">{productSheet.nome.charAt(0)}</div>
+              )}
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
                 <p className="my-2 text-sm leading-relaxed text-text-subtle">{productSheet.descricao}</p>
