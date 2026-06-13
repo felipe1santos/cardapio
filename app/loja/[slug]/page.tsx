@@ -763,7 +763,7 @@ export default function StorefrontPage() {
         {tab === 'home' && (
           <>
             {/* Cover banner */}
-            <div className="relative h-40 w-full overflow-hidden sm:h-56 lg:mx-8 lg:mt-6 lg:h-72 lg:rounded-md">
+            <div className="h-40 w-full overflow-hidden sm:h-56 lg:mx-8 lg:mt-6 lg:h-72 lg:rounded-md">
               {restaurante.bannerUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={restaurante.bannerUrl} alt={storeName} className="h-full w-full object-cover" />
@@ -772,26 +772,11 @@ export default function StorefrontPage() {
               ) : (
                 <div className="h-full w-full bg-gradient-to-br from-[#22D3EE] via-[#008fba] to-[#007599]" />
               )}
-
-              {/* Minha conta */}
-              <button
-                onClick={() => setContaOpen(true)}
-                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-black/45 sm:right-4 sm:top-4"
-                aria-label="Minha conta"
-              >
-                {perfilCliente ? (
-                  <span className="text-sm font-bold">{(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}</span>
-                ) : (
-                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-white">
-                    <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 001 1h14a1 1 0 001-1v-1c0-2.76-3.58-5-8-5z" />
-                  </svg>
-                )}
-              </button>
             </div>
 
             {/* Profile photo overlapping the banner + store info */}
             <div className="px-4 lg:px-8">
-              <div className="-mt-10 flex items-end gap-3.5 sm:-mt-12 lg:-mt-14">
+              <div className="-mt-6 flex items-end gap-3.5 sm:-mt-8 lg:-mt-10">
                 <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border-4 border-white bg-white shadow-md sm:h-24 sm:w-24 lg:h-28 lg:w-28">
                   {restaurante.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -815,50 +800,52 @@ export default function StorefrontPage() {
               {restaurante.endereco && <p className="mt-2.5 truncate text-[12px] text-text-subtle">📍 {restaurante.endereco}</p>}
             </div>
 
-            {/* Search */}
-            {searchOpen ? (
-              <div className="mx-4 mt-4 flex items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm lg:mx-8">
-                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
-                  <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-                </svg>
-                <input
-                  autoFocus
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar no cardápio…"
-                  className="w-full border-none bg-transparent font-sans text-sm text-text-main outline-none placeholder:text-text-subtle"
-                />
-                <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
-              </div>
-            ) : (
-              <div className="mx-4 mt-4 lg:mx-8">
-                <button
-                  onClick={() => setSearchOpen(true)}
-                  className="flex h-11 w-11 items-center justify-center rounded-md bg-white shadow-sm"
-                  aria-label="Buscar no cardápio"
-                >
+            {/* Search + delivery banner */}
+            <div className="mx-4 mt-4 flex items-stretch gap-2.5 lg:mx-8">
+              {searchOpen ? (
+                <div className="flex flex-1 items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm">
                   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
                     <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
                   </svg>
-                </button>
-              </div>
-            )}
+                  <input
+                    autoFocus
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Buscar no cardápio…"
+                    className="w-full border-none bg-transparent font-sans text-sm text-text-main outline-none placeholder:text-text-subtle"
+                  />
+                  <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setSearchOpen(true)}
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md bg-white shadow-sm"
+                    aria-label="Buscar no cardápio"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
+                      <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                    </svg>
+                  </button>
 
-            {/* Delivery banner */}
-            <button
-              onClick={() => setFreteOpen(true)}
-              className="mx-4 mt-3 flex w-[calc(100%-2rem)] items-center gap-2.5 rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-4 py-3 text-left shadow-sm lg:mx-8 lg:w-[calc(100%-4rem)]"
-            >
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#0369A1]">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z" />
-              </svg>
-              <span className="flex-1 truncate text-[13px] font-medium text-[#0369A1]">
-                {ipCidade ? `Entregamos em ${ipCidade}` : 'Calcular frete e prazo de entrega'}
-              </span>
-              <span className="flex-shrink-0 whitespace-nowrap text-[12px] font-bold uppercase tracking-wide text-[#0369A1] underline">
-                Calcular frete
-              </span>
-            </button>
+                  {/* Delivery banner */}
+                  <button
+                    onClick={() => setFreteOpen(true)}
+                    className="flex flex-1 items-center gap-2.5 overflow-hidden rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-4 py-3 text-left shadow-sm"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#0369A1]">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z" />
+                    </svg>
+                    <span className="flex-1 truncate text-[13px] font-medium text-[#0369A1]">
+                      {ipCidade ? `Entregamos em ${ipCidade}` : 'Calcular frete e prazo de entrega'}
+                    </span>
+                    <span className="flex-shrink-0 whitespace-nowrap text-[12px] font-bold uppercase tracking-wide text-[#0369A1] underline">
+                      Calcular frete
+                    </span>
+                  </button>
+                </>
+              )}
+            </div>
 
             {/* Category nav */}
             <div className="sticky top-0 z-10 mt-4 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-3 [scrollbar-width:none] lg:top-16 lg:mx-8">
@@ -1119,27 +1106,48 @@ export default function StorefrontPage() {
           </div>
         )}
 
+        {/* ── Floating cart bar (mobile only) ──────────────────────────── */}
+        {cartCount > 0 && tab !== 'cart' && (
+          <button
+            onClick={() => setTab('cart')}
+            className="fixed bottom-[78px] left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-[568px] -translate-x-1/2 items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg lg:hidden"
+          >
+            <span className="flex items-center gap-2.5 text-sm font-bold">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{cartCount}</span>
+              Ver carrinho
+            </span>
+            <span className="text-sm font-bold">{brl(total)}</span>
+          </button>
+        )}
+
         {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
         <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
           <div className="flex">
             {([
-              { id: 'home' as Tab, label: 'Home', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0l8.954 8.955M4.5 9.75v10.125a.75.75 0 00.75.75H9a.75.75 0 00.75-.75v-4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v4.5c0 .414.336.75.75.75h3.75a.75.75 0 00.75-.75V9.75" /></svg> },
-              { id: 'pedidos' as Tab, label: 'Pedidos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 15.75h6M9 19.5h6M5.25 5.25h13.5A1.5 1.5 0 0120.25 6.75v13.5a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5zM9 5.25V3.75a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v1.5" /></svg> },
-              { id: 'cupons' as Tab, label: 'Cupons', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v3m0 3v3m0 3v1.5m-9-12.75h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg> },
-              { id: 'cart' as Tab, label: 'Carrinho', badge: cartCount, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.263-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0Zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0Z" /></svg> },
+              { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0l8.954 8.955M4.5 9.75v10.125a.75.75 0 00.75.75H9a.75.75 0 00.75-.75v-4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v4.5c0 .414.336.75.75.75h3.75a.75.75 0 00.75-.75V9.75" /></svg> },
+              { id: 'pedidos' as Tab, label: 'Pedidos', onClick: () => setTab('pedidos'), active: tab === 'pedidos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 15.75h6M9 19.5h6M5.25 5.25h13.5A1.5 1.5 0 0120.25 6.75v13.5a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5zM9 5.25V3.75a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v1.5" /></svg> },
+              { id: 'cupons' as Tab, label: 'Cupons', onClick: () => setTab('cupons'), active: tab === 'cupons', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v3m0 3v3m0 3v1.5m-9-12.75h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg> },
+              {
+                id: 'perfil' as const,
+                label: perfilCliente ? 'Perfil' : 'Entrar',
+                onClick: () => setContaOpen(true),
+                active: contaOpen,
+                icon: perfilCliente ? (
+                  <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#008fba] text-[11px] font-bold text-white">
+                    {(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}
+                  </span>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.964 0a9 9 0 10-11.964 0m11.964 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                ),
+              },
             ] as const).map((item) => (
               <button
                 key={item.id}
-                onClick={() => setTab(item.id)}
-                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', tab === item.id ? 'text-[#008fba]' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                onClick={item.onClick}
+                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', item.active ? 'text-[#008fba]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.icon}
                 {item.label}
-                {'badge' in item && item.badge > 0 && (
-                  <span className="absolute right-[20%] top-1 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#008fba] px-1 text-[9px] font-bold text-white">
-                    {item.badge}
-                  </span>
-                )}
               </button>
             ))}
           </div>
