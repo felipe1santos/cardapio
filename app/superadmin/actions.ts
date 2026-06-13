@@ -56,7 +56,10 @@ export async function revogarAcessoAction(formData: FormData) {
   if (!usuarioId) return
 
   const admin = getAdminSupabase()
-  await revogarAcessoLojista(admin, usuarioId)
+  const result = await revogarAcessoLojista(admin, usuarioId)
+  if (!result.ok) {
+    redirect(`/superadmin?error=${encodeURIComponent(result.error)}`)
+  }
 
   revalidatePath('/superadmin')
   redirect('/superadmin')

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { listarLojistas } from '@/lib/queries/lojistas'
+import { ConfirmSubmitButton } from '@/components/ui/confirm-submit-button'
 import { convidarLojistaAction, removerConviteAction, revogarAcessoAction, sairAction } from './actions'
 
 function formatarData(iso: string | null): string {
@@ -136,12 +137,22 @@ export default async function SuperadminPage({
                     {lojista.autorizado ? (
                       <form action={revogarAcessoAction}>
                         <input type="hidden" name="usuarioId" value={lojista.id} />
-                        <button type="submit" className="text-[12px] font-semibold text-danger hover:underline">Revogar acesso</button>
+                        <ConfirmSubmitButton
+                          confirmMessage={`Revogar o acesso de ${lojista.email}? O lojista não vai conseguir entrar até você reativar.`}
+                          className="text-[12px] font-semibold text-danger hover:underline"
+                        >
+                          Revogar acesso
+                        </ConfirmSubmitButton>
                       </form>
                     ) : (
                       <form action={removerConviteAction}>
                         <input type="hidden" name="usuarioId" value={lojista.id} />
-                        <button type="submit" className="text-[12px] font-semibold text-danger hover:underline">Remover</button>
+                        <ConfirmSubmitButton
+                          confirmMessage={`Remover o pré-cadastro de ${lojista.email}? Essa ação não pode ser desfeita.`}
+                          className="text-[12px] font-semibold text-danger hover:underline"
+                        >
+                          Remover
+                        </ConfirmSubmitButton>
                       </form>
                     )}
                   </td>

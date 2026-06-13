@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 
 export type PapelUsuario = 'dono' | 'atendente' | 'cozinha' | 'logistica' | 'entregador'
 
@@ -70,9 +71,11 @@ export async function convidarLojista(admin: SupabaseClient, email: string): Pro
 
 /** Remove um pré-cadastro que ainda não completou o primeiro acesso (corrige e-mail digitado errado). */
 export async function removerConvitePendente(admin: SupabaseClient, usuarioId: string): Promise<Resultado> {
-  const { data: usuario, error: usuarioError } = await admin.from('usuarios').select('restaurante_id').eq('id', usuarioId).maybeSingle()
+  const { data: usuario, error: usuarioError } = await admin.from('usuarios').select('email, restaurante_id').eq('id', usuarioId).maybeSingle()
   if (usuarioError) throw usuarioError
-  if (!usuario || usuario.restaurante_id) return { ok: false, error: 'Esta conta já está ativa e não pode ser removida por aqui.' }
+  if (!usuario) return { ok: false, error: 'Conta não encontrada.' }
+  if (isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível remover o acesso do administrador da plataforma.' }
+  if (usuario.restaurante_id) return { ok: false, error: 'Esta conta já está ativa e não pode ser removida por aqui.' }
 
   await admin.from('usuarios').delete().eq('id', usuarioId)
   await admin.auth.admin.deleteUser(usuarioId)
@@ -214,6 +217,10 @@ export async function listarLojistas(admin: SupabaseClient): Promise<LojistaRow[
 
 /** Revoga o acesso (mantém o vínculo com a loja e o papel, para facilitar reativar depois). */
 export async function revogarAcessoLojista(admin: SupabaseClient, usuarioId: string): Promise<Resultado> {
+  const { data: usuario, error: usuarioError } = await admin.from('usuarios').select('email').eq('id', usuarioId).maybeSingle()
+  if (usuarioError) throw usuarioError
+  if (usuario && isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível revogar o acesso do administrador da plataforma.' }
+
   const { error } = await admin.from('usuarios').update({ autorizado: false }).eq('id', usuarioId)
   if (error) return { ok: false, error: 'Não foi possível revogar o acesso.' }
   return { ok: true }
