@@ -58,6 +58,11 @@ export default function LogisticaPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkAssigning, setBulkAssigning] = useState(false)
 
+  const [filtroBusca, setFiltroBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'entregue' | 'cancelado'>('todos')
+  const [filtroValorMin, setFiltroValorMin] = useState('')
+  const [filtroValorMax, setFiltroValorMax] = useState('')
+
   const [novoDriver, setNovoDriver] = useState({ nome: '', telefone: '' })
   const [addingDriver, setAddingDriver] = useState(false)
 
@@ -74,7 +79,7 @@ export default function LogisticaPage() {
         ])
         setOrders(pedidos)
         setDrivers(entregadores)
-        setConcluidos(finalizados.filter((p) => p.tipo === 'entrega'))
+        setConcluidos(finalizados)
       } catch {
         setError('Não foi possível carregar a logística.')
       }
@@ -114,6 +119,28 @@ export default function LogisticaPage() {
   const available = drivers.filter((d) => d.status === 'online')
   const unassigned = orders.filter((o) => o.status === 'pronto' && !o.entregadorId)
   const inRoute = orders.filter((o) => o.status === 'em_rota')
+
+  const concluidosFiltrados = useMemo(() => {
+    const busca = filtroBusca.trim().toLowerCase()
+    const min = filtroValorMin.trim() === '' ? null : Number(filtroValorMin.replace(/\./g, '').replace(',', '.'))
+    const max = filtroValorMax.trim() === '' ? null : Number(filtroValorMax.replace(/\./g, '').replace(',', '.'))
+    return concluidos.filter((o) => {
+      if (filtroStatus !== 'todos' && o.status !== filtroStatus) return false
+      if (busca && !(o.clienteNome.toLowerCase().includes(busca) || o.enderecoBairro.toLowerCase().includes(busca))) return false
+      if (min !== null && Number.isFinite(min) && o.total < min) return false
+      if (max !== null && Number.isFinite(max) && o.total > max) return false
+      return true
+    })
+  }, [concluidos, filtroBusca, filtroStatus, filtroValorMin, filtroValorMax])
+
+  const filtrosAtivos = filtroBusca !== '' || filtroStatus !== 'todos' || filtroValorMin !== '' || filtroValorMax !== ''
+
+  function limparFiltros() {
+    setFiltroBusca('')
+    setFiltroStatus('todos')
+    setFiltroValorMin('')
+    setFiltroValorMax('')
+  }
 
   function driverName(id: string | null) {
     if (!id) return '—'
@@ -460,12 +487,53 @@ export default function LogisticaPage() {
             {tab === 'concluidos' && (
             <div className="rounded-menuzia border border-border bg-white">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold">Concluídas hoje</h3>
-                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{concluidos.length}</span>
+                <h3 className="text-sm font-semibold">Pedidos do dia</h3>
+                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">
+                  {filtrosAtivos ? `${concluidosFiltrados.length} de ${concluidos.length}` : concluidos.length}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+                <input
+                  value={filtroBusca}
+                  onChange={(e) => setFiltroBusca(e.target.value)}
+                  placeholder="Buscar por cliente ou bairro"
+                  className="min-w-[180px] flex-1 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                />
+                <select
+                  value={filtroStatus}
+                  onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)}
+                  className="rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                >
+                  <option value="todos">Todos os status</option>
+                  <option value="entregue">Concluído</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+                <input
+                  value={filtroValorMin}
+                  onChange={(e) => setFiltroValorMin(e.target.value)}
+                  placeholder="Valor mín."
+                  inputMode="decimal"
+                  className="w-24 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                />
+                <input
+                  value={filtroValorMax}
+                  onChange={(e) => setFiltroValorMax(e.target.value)}
+                  placeholder="Valor máx."
+                  inputMode="decimal"
+                  className="w-24 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                />
+                {filtrosAtivos && (
+                  <button onClick={limparFiltros} className="text-xs font-semibold text-text-subtle hover:text-text-main">
+                    Limpar filtros
+                  </button>
+                )}
               </div>
               <div className="divide-y divide-border">
-                {concluidos.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhuma entrega finalizada hoje</div>}
-                {concluidos.map((order) => {
+                {concluidos.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido finalizado hoje</div>}
+                {concluidos.length > 0 && concluidosFiltrados.length === 0 && (
+                  <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido encontrado com esses filtros</div>
+                )}
+                {concluidosFiltrados.map((order) => {
                   const entregue = order.status === 'entregue'
                   return (
                     <div
@@ -476,10 +544,15 @@ export default function LogisticaPage() {
                         <div className="mb-1 flex items-center gap-2">
                           <span className="text-sm font-bold">#{order.numero}</span>
                           <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
-                          <Badge tone={entregue ? 'ok' : 'danger'}>{entregue ? 'Entregue' : 'Não entregue'}</Badge>
+                          <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
+                          <Badge tone={entregue ? 'ok' : 'danger'}>{entregue ? 'Concluído' : 'Cancelado'}</Badge>
                         </div>
                         <div className="text-xs text-text-subtle">
-                          {endereco(order)} · entregador: <b className="text-text-main">{driverName(order.entregadorId)}</b>
+                          {order.tipo === 'entrega' ? (
+                            <>{endereco(order)} · entregador: <b className="text-text-main">{driverName(order.entregadorId)}</b></>
+                          ) : (
+                            'Retirada no balcão'
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
