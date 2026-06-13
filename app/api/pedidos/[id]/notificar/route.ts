@@ -3,7 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { notificarPedido } from '@/lib/whatsapp'
 import type { StatusPedido } from '@/lib/queries/pedidos'
 
-const STATUS_NOTIFICAVEIS: StatusPedido[] = ['recebido', 'preparando', 'pronto', 'em_rota']
+const STATUS_NOTIFICAVEIS: StatusPedido[] = ['recebido', 'preparando', 'pronto', 'em_rota', 'entregue']
 
 /** Envia a notificação de WhatsApp correspondente à nova etapa do pedido. Fogo-e-esquece: chamado pelo painel após avançar o status. */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

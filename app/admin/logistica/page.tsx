@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import QRCode from 'qrcode'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -53,6 +54,10 @@ export default function LogisticaPage() {
   const [drivers, setDrivers] = useState<Entregador[]>([])
   const [assigning, setAssigning] = useState<string | null>(null)
   const [closingOpen, setClosingOpen] = useState(false)
+
+  const [linkDriver, setLinkDriver] = useState<Entregador | null>(null)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const [tab, setTab] = useState<Tab>('despacho')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -145,6 +150,32 @@ export default function LogisticaPage() {
   function driverName(id: string | null) {
     if (!id) return '—'
     return drivers.find((d) => d.id === id)?.nome ?? '—'
+  }
+
+  function portalUrl(driver: Entregador) {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/entregador/${driver.token}`
+  }
+
+  useEffect(() => {
+    if (!linkDriver) {
+      setQrDataUrl(null)
+      return
+    }
+    setLinkCopied(false)
+    QRCode.toDataURL(portalUrl(linkDriver), { width: 240, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null))
+  }, [linkDriver])
+
+  async function copiarLink() {
+    if (!linkDriver) return
+    try {
+      await navigator.clipboard.writeText(portalUrl(linkDriver))
+      setLinkCopied(true)
+    } catch {
+      setLinkCopied(false)
+    }
   }
 
   async function assign(orderId: string, driverId: string) {
@@ -322,10 +353,16 @@ export default function LogisticaPage() {
                     <span className="text-sm font-semibold">{driver.nome}</span>
                     <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[driver.status]}`} />
                   </div>
-                  <div className="flex items-center justify-between text-xs text-text-subtle">
+                  <div className="mb-2 flex items-center justify-between text-xs text-text-subtle">
                     <span>{STATUS_LABEL[driver.status]}</span>
                     <span>{driver.emRota} entrega(s) em rota</span>
                   </div>
+                  <button
+                    onClick={() => setLinkDriver(driver)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-menuzia border border-border py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:border-primary hover:text-primary"
+                  >
+                    Acesso do entregador (link/QR)
+                  </button>
                 </div>
               ))}
             </div>
@@ -634,6 +671,46 @@ export default function LogisticaPage() {
         <div className="flex gap-2.5 border-t border-border p-4.5">
           <Button variant="secondary" className="flex-1" onClick={() => setClosingOpen(false)}>
             Fechar
+          </Button>
+        </div>
+      </aside>
+
+      {/* Acesso do entregador (link/QR) */}
+      {linkDriver && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setLinkDriver(null)} />}
+      <aside
+        className={[
+          'fixed right-0 top-0 z-[60] flex h-screen w-[380px] max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300',
+          linkDriver ? 'translate-x-0' : 'translate-x-full',
+        ].join(' ')}
+      >
+        <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
+          <div>
+            <h2 className="text-[15px] font-bold">Acesso do entregador</h2>
+            <p className="mt-0.5 text-xs text-text-subtle">{linkDriver?.nome}</p>
+          </div>
+          <button onClick={() => setLinkDriver(null)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+            ×
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4.5">
+          <p className="mb-4 text-xs leading-relaxed text-text-subtle">
+            Compartilhe esse QR code ou link com {linkDriver?.nome}. Ao abrir, o painel de entregas dele aparece direto — sem precisar
+            de login ou senha.
+          </p>
+          {qrDataUrl && (
+            <div className="mb-4 flex items-center justify-center rounded-menuzia border border-border p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="QR code de acesso do entregador" className="h-[240px] w-[240px]" />
+            </div>
+          )}
+          {linkDriver && (
+            <div className="mb-3">
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Link de acesso</div>
+              <div className="break-all rounded-menuzia border border-border bg-page px-2.5 py-2 text-[12px] text-text-main">{portalUrl(linkDriver)}</div>
+            </div>
+          )}
+          <Button variant="primary" className="w-full" onClick={copiarLink}>
+            {linkCopied ? 'Link copiado!' : 'Copiar link'}
           </Button>
         </div>
       </aside>

@@ -49,6 +49,7 @@ export interface Entregador {
   nome: string
   telefone: string
   status: StatusEntregador
+  token: string
   emRota: number
 }
 
@@ -163,7 +164,7 @@ export async function avancarStatusPedido(supabase: SupabaseClient, pedidoId: st
 export async function listarEntregadores(supabase: SupabaseClient, restauranteId: string): Promise<Entregador[]> {
   const { data, error } = await supabase
     .from('entregadores')
-    .select('id, nome, telefone, status')
+    .select('id, nome, telefone, status, token')
     .eq('restaurante_id', restauranteId)
     .order('nome', { ascending: true })
   if (error) throw error
@@ -185,6 +186,7 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
     nome: d.nome,
     telefone: d.telefone,
     status: d.status as StatusEntregador,
+    token: d.token,
     emRota: counts.get(d.id) ?? 0,
   }))
 }
@@ -234,6 +236,92 @@ export async function listarPedidosConcluidos(supabase: SupabaseClient, restaura
 
   if (error) throw error
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+}
+
+// --- Portal do entregador (acesso público por token, sem login) -----------
+
+export interface EntregadorPortal {
+  id: string
+  nome: string
+  restauranteId: string
+  restauranteNome: string
+}
+
+/** Localiza o entregador pelo token público (link/QR do portal do motoboy). */
+export async function buscarEntregadorPorToken(admin: SupabaseClient, token: string): Promise<EntregadorPortal | null> {
+  const { data, error } = await admin
+    .from('entregadores')
+    .select('id, nome, restaurante_id, restaurantes ( nome )')
+    .eq('token', token)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+
+  const restaurantes = data.restaurantes as unknown as { nome: string } | { nome: string }[] | null
+  const restauranteNome = Array.isArray(restaurantes) ? restaurantes[0]?.nome : restaurantes?.nome
+
+  return {
+    id: data.id,
+    nome: data.nome,
+    restauranteId: data.restaurante_id,
+    restauranteNome: restauranteNome ?? '',
+  }
+}
+
+/** Pedidos em rota atribuídos a um entregador — a "rota" do portal do motoboy. */
+export async function listarPedidosEmRotaDoEntregador(admin: SupabaseClient, entregadorId: string): Promise<Pedido[]> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .select(PEDIDO_SELECT)
+    .eq('entregador_id', entregadorId)
+    .eq('status', 'em_rota')
+    .order('criado_em', { ascending: true })
+
+  if (error) throw error
+  return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+}
+
+/** Quantas entregas esse entregador já concluiu hoje — estatística do portal. */
+export async function contarEntregasConcluidasHoje(admin: SupabaseClient, entregadorId: string, desdeISO: string): Promise<number> {
+  const { count, error } = await admin
+    .from('pedidos')
+    .select('id', { count: 'exact', head: true })
+    .eq('entregador_id', entregadorId)
+    .eq('status', 'entregue')
+    .gte('atualizado_em', desdeISO)
+
+  if (error) throw error
+  return count ?? 0
+}
+
+/** Marca como entregue, mas só se o pedido pertencer mesmo a esse entregador e ainda estiver em rota. */
+export async function marcarEntregaConcluida(admin: SupabaseClient, pedidoId: string, entregadorId: string) {
+  const { data, error } = await admin
+    .from('pedidos')
+    .update({ status: 'entregue' })
+    .eq('id', pedidoId)
+    .eq('entregador_id', entregadorId)
+    .eq('status', 'em_rota')
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw new Error('Pedido não encontrado para esse entregador.')
+}
+
+/** Marca um pedido da rota como não entregue/cancelado, só se pertencer a esse entregador. */
+export async function marcarEntregaComProblema(admin: SupabaseClient, pedidoId: string, entregadorId: string) {
+  const { data, error } = await admin
+    .from('pedidos')
+    .update({ status: 'cancelado' })
+    .eq('id', pedidoId)
+    .eq('entregador_id', entregadorId)
+    .eq('status', 'em_rota')
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw new Error('Pedido não encontrado para esse entregador.')
 }
 
 export interface BadgesNav {

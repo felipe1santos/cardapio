@@ -73,6 +73,8 @@ export function montarMensagemStatus(pedido: Pedido, status: StatusPedido): stri
         : `✅ Seu pedido *#${pedido.numero}* está *pronto* e logo sairá para entrega!`
     case 'em_rota':
       return `🛵 Seu pedido *#${pedido.numero}* *saiu para entrega*! Chega rapidinho 🚀`
+    case 'entregue':
+      return `🎉 Pedido *#${pedido.numero}* entregue! Bom apetite 😋`
     default:
       return null
   }
