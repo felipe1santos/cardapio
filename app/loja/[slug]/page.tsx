@@ -57,10 +57,13 @@ function PriceTag({ price, originalPrice }: { price: number; originalPrice?: num
 function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number }) {
   if (item.imagemUrl) {
     return (
-      <div className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded bg-[#F3F4F6]" style={{ width: size, height: size }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-contain" />
-      </div>
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={item.imagemUrl}
+        alt={item.nome}
+        className="flex-shrink-0 rounded object-cover"
+        style={{ width: size, height: size }}
+      />
     )
   }
   return (
@@ -93,13 +96,8 @@ function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; on
       onClick={onClick}
       className={`group flex flex-col overflow-hidden rounded-md border border-border bg-white text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.98] ${className}`}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md bg-[#F3F4F6]">
-        {item.imagemUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105" />
-        ) : (
-          <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
-        )}
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md">
+        <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
         {item.maisVendido && (
           <span className="absolute left-2.5 top-2.5 rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
         )}
@@ -1189,14 +1187,11 @@ export default function StorefrontPage() {
           <>
             <button onClick={() => setProductSheet(null)} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
             <div className="flex-1 overflow-y-auto">
-              {productSheet.imagemUrl ? (
-                <div className="flex h-[42vh] w-full items-center justify-center overflow-hidden bg-[#F3F4F6] lg:h-[260px]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-full w-full object-contain" />
-                </div>
-              ) : (
-                <div className="flex h-[42vh] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70 lg:h-[260px]">{productSheet.nome.charAt(0)}</div>
-              )}
+              {productSheet.imagemUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-[42vh] w-full object-cover lg:h-[260px]" />
+                : <div className="flex h-[42vh] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70 lg:h-[260px]">{productSheet.nome.charAt(0)}</div>
+              }
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
                 <p className="my-2 text-sm leading-relaxed text-text-subtle">{productSheet.descricao}</p>
