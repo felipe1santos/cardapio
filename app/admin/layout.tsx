@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [badges, setBadges] = useState<BadgesNav>({ novosPedidos: 0, logisticaPendente: 0 })
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
@@ -60,9 +61,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return item
   })
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar items={items} activeHref={pathname} storeSlug={storeSlug} />
+      <Sidebar items={items} activeHref={pathname} storeSlug={storeSlug} onSignOut={handleSignOut} />
       <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
     </div>
   )
