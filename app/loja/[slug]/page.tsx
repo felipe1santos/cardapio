@@ -252,6 +252,7 @@ export default function StorefrontPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
 
   useEffect(() => {
     if (!activeCategory && groups.length > 0) setActiveCategory(groups[0].nome)
@@ -604,10 +605,10 @@ export default function StorefrontPage() {
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
   useEffect(() => {
-    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen
+    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [productSheet, checkoutOpen, freteOpen, contaOpen])
+  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen])
 
   // ── Order tracking ────────────────────────────────────────────────────────
   const [pedidoId, setPedidoId] = useState<string | null>(null)
@@ -787,23 +788,44 @@ export default function StorefrontPage() {
                     </div>
                   )}
                 </div>
-                <div className="min-w-0 flex-1 pb-1.5">
-                  <h1 className="-mx-2 line-clamp-2 break-words rounded bg-white px-2 py-0.5 text-[17px] font-extrabold leading-[1.2] tracking-tight text-text-main sm:text-[22px] sm:leading-snug lg:text-[26px]">{storeName}</h1>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle sm:text-[13px]">
-                    <span className="inline-flex items-center gap-1.5 font-semibold text-[#1cce93]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#1cce93]" /> Aberto agora
-                    </span>
-                    <span>⏱ 30–45 min</span>
+                <div className="flex min-w-0 flex-1 items-start justify-between gap-2 pb-1.5">
+                  <div className="min-w-0">
+                    <h1 className="-mx-2 line-clamp-2 break-words rounded bg-white px-2 py-0.5 text-[17px] font-extrabold leading-[1.2] tracking-tight text-text-main sm:text-[22px] sm:leading-snug lg:text-[26px]">{storeName}</h1>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle sm:text-[13px]">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#1cce93]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#1cce93]" /> Aberto agora
+                      </span>
+                      <span>⏱ 30–45 min</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => setSearchOpen((v) => !v)}
+                      className="flex h-9 w-9 items-center justify-center rounded-md bg-white shadow-sm"
+                      aria-label="Buscar no cardápio"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/60">
+                        <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setInfoOpen(true)}
+                      className="flex h-9 w-9 items-center justify-center rounded-md bg-white shadow-sm"
+                      aria-label="Informações da loja"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/60">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
-              {restaurante.endereco && <p className="mt-2.5 truncate text-[12px] text-text-subtle">📍 {restaurante.endereco}</p>}
             </div>
 
-            {/* Search + delivery banner */}
-            <div className="mx-4 mt-4 flex items-stretch gap-2.5 lg:mx-8">
-              {searchOpen ? (
-                <div className="flex flex-1 items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm">
+            {/* Search (collapsible) + delivery banner */}
+            <div className="mx-4 mt-4 space-y-3 lg:mx-8">
+              {searchOpen && (
+                <div className="flex items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm">
                   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
                     <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
                   </svg>
@@ -816,35 +838,23 @@ export default function StorefrontPage() {
                   />
                   <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
                 </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setSearchOpen(true)}
-                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md bg-white shadow-sm"
-                    aria-label="Buscar no cardápio"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
-                      <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-                    </svg>
-                  </button>
-
-                  {/* Delivery banner */}
-                  <button
-                    onClick={() => setFreteOpen(true)}
-                    className="flex flex-1 items-center gap-2.5 overflow-hidden rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-4 py-3 text-left shadow-sm"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#0369A1]">
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z" />
-                    </svg>
-                    <span className="flex-1 truncate text-[13px] font-medium text-[#0369A1]">
-                      {ipCidade ? `Entregamos em ${ipCidade}` : 'Calcular frete e prazo de entrega'}
-                    </span>
-                    <span className="flex-shrink-0 whitespace-nowrap text-[12px] font-bold uppercase tracking-wide text-[#0369A1] underline">
-                      Calcular frete
-                    </span>
-                  </button>
-                </>
               )}
+
+              {/* Delivery banner */}
+              <button
+                onClick={() => setFreteOpen(true)}
+                className="flex w-full items-center gap-2.5 rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-4 py-3 text-left shadow-sm"
+              >
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#0369A1]">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z" />
+                </svg>
+                <span className="flex-1 text-[13px] font-medium text-[#0369A1]">
+                  {ipCidade ? `Entregamos em ${ipCidade}` : 'Calcular frete e prazo de entrega'}
+                </span>
+                <span className="flex-shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-[#0369A1] underline">
+                  Calcular frete
+                </span>
+              </button>
             </div>
 
             {/* Category nav */}
@@ -1561,6 +1571,52 @@ export default function StorefrontPage() {
           </>
         )}
       </div>
+
+      {/* ── Informações da empresa (modal centralizado) ─────────────────── */}
+      {infoOpen && (
+        <>
+          <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setInfoOpen(false)} />
+          <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+            <div className="max-h-[85vh] w-full max-w-[420px] overflow-y-auto rounded-md bg-white">
+              <div className="flex items-center justify-between border-b border-border p-4.5">
+                <h2 className="text-base font-bold">Sobre {storeName}</h2>
+                <button onClick={() => setInfoOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
+              </div>
+              <div className="p-4.5">
+                {restaurante.endereco && (
+                  <div className="mb-4">
+                    <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço</h3>
+                    <p className="text-sm">{restaurante.endereco}</p>
+                  </div>
+                )}
+                <div className="mb-4">
+                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">Tempo médio de entrega</h3>
+                  <p className="text-sm">⏱ 30–45 min</p>
+                </div>
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-subtle">Bairros atendidos</h3>
+                  {bairros.length > 0 ? (
+                    <div className="overflow-hidden rounded border border-border">
+                      {bairros.map((b) => (
+                        <div key={b.bairro} className="flex items-center justify-between border-b border-border px-3.5 py-2.5 text-sm last:border-none">
+                          <span>{b.bairro}</span>
+                          <span className="font-semibold text-[#1cce93]">{b.taxa === 0 ? 'Grátis' : brl(b.taxa)}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between border-t border-border bg-[#F3F4F6] px-3.5 py-2.5 text-sm">
+                        <span className="text-text-subtle">Demais bairros</span>
+                        <span className="font-semibold">{brl(restaurante.taxaEntregaPadrao)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="rounded border border-border px-3.5 py-2.5 text-sm text-text-subtle">Taxa de entrega: {brl(restaurante.taxaEntregaPadrao)}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Toast container ───────────────────────────────────────────── */}
       <div className="pointer-events-none fixed bottom-24 left-1/2 z-[70] flex w-full max-w-[380px] -translate-x-1/2 flex-col items-center gap-2 px-4">
