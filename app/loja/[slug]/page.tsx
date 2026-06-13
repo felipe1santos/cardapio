@@ -604,7 +604,7 @@ export default function StorefrontPage() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1 pb-1.5">
-                  <h1 className="line-clamp-2 break-words text-[17px] font-extrabold leading-[1.2] tracking-tight text-text-main sm:text-[22px] sm:leading-snug lg:text-[26px]">{storeName}</h1>
+                  <h1 className="-mx-2 line-clamp-2 break-words rounded bg-white px-2 py-0.5 text-[17px] font-extrabold leading-[1.2] tracking-tight text-text-main sm:text-[22px] sm:leading-snug lg:text-[26px]">{storeName}</h1>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-subtle sm:text-[13px]">
                     <span className="inline-flex items-center gap-1.5 font-semibold text-[#1cce93]">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#1cce93]" /> Aberto agora
@@ -813,10 +813,16 @@ export default function StorefrontPage() {
 
                   <button
                     onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
-                    className="flex w-full items-center justify-between rounded bg-[#008fba] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#007599] active:scale-[0.99]"
+                    className="flex w-full items-center justify-between rounded bg-[#008fba] px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-[#007599] active:scale-[0.99]"
                   >
                     <span>Continuar para pagamento</span>
                     <span>{brl(total)}</span>
+                  </button>
+                  <button
+                    onClick={() => setTab('home')}
+                    className="mt-2.5 flex w-full items-center justify-center rounded bg-[#1F2937] px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-[#111827] active:scale-[0.99]"
+                  >
+                    Continuar comprando
                   </button>
                 </div>
               </div>
@@ -1042,10 +1048,41 @@ export default function StorefrontPage() {
           {checkoutStep === 1 && (
             <div className="px-4 pb-5">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Forma de pagamento</h3>
-              {[{ id: 'Pix', icon: '🔑' }, { id: 'Cartão na entrega', icon: '💳' }, { id: 'Dinheiro', icon: '💵' }].map((opt) => (
+              {[
+                {
+                  id: 'Pix',
+                  icon: (
+                    <svg viewBox="0 0 24 24" className="h-6 w-6">
+                      <rect x="4" y="4" width="16" height="16" rx="5" fill="#32BCAD" transform="rotate(45 12 12)" />
+                      <rect x="9" y="9" width="6" height="6" rx="2" fill="#fff" transform="rotate(45 12 12)" />
+                    </svg>
+                  ),
+                },
+                {
+                  id: 'Cartão na entrega',
+                  icon: (
+                    <svg viewBox="0 0 24 24" className="h-6 w-6">
+                      <rect x="1.5" y="5" width="21" height="14" rx="2.5" fill="#008fba" />
+                      <rect x="1.5" y="8.5" width="21" height="3" fill="#fff" fillOpacity="0.85" />
+                      <rect x="4.5" y="14.5" width="7" height="1.8" rx="0.9" fill="#fff" fillOpacity="0.7" />
+                    </svg>
+                  ),
+                },
+                {
+                  id: 'Dinheiro',
+                  icon: (
+                    <svg viewBox="0 0 24 24" className="h-6 w-6">
+                      <rect x="1" y="5.5" width="22" height="13" rx="2.5" fill="#16A34A" />
+                      <circle cx="12" cy="12" r="3" fill="#fff" fillOpacity="0.9" />
+                      <circle cx="4.5" cy="12" r="1.1" fill="#fff" fillOpacity="0.6" />
+                      <circle cx="19.5" cy="12" r="1.1" fill="#fff" fillOpacity="0.6" />
+                    </svg>
+                  ),
+                },
+              ].map((opt) => (
                 <button key={opt.id} onClick={() => setPayMethod(opt.id)}
-                  className={['mb-2.5 flex w-full items-center gap-3 rounded border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[#008fba] bg-[#FFFBEB]' : 'border-border'].join(' ')}>
-                  <span className="flex h-[38px] w-[38px] items-center justify-center rounded bg-[#F3F4F6] text-lg">{opt.icon}</span>
+                  className={['mb-2.5 flex w-full items-center gap-3 rounded border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[#008fba] bg-[#E0F2FE]' : 'border-border'].join(' ')}>
+                  <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded bg-[#F3F4F6]">{opt.icon}</span>
                   <span className="flex-1 text-sm font-semibold">{opt.id}</span>
                   <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')} />
                 </button>
