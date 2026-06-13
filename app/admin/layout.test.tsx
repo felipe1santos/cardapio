@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import AdminLayout from './layout'
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/admin/dashboard' }))
+vi.mock('next/navigation', () => ({ usePathname: () => '/admin/dashboard', useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/lib/supabase/client', () => ({ getBrowserSupabase: () => ({}) }))
 vi.mock('@/lib/queries/cardapio', () => ({ buscarRestauranteIdDoUsuario: vi.fn().mockResolvedValue(null) }))
 

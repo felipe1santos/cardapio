@@ -16,7 +16,9 @@ export default async function CadastroPage({
         className="w-full max-w-sm rounded-menuzia border border-border bg-main p-6 shadow-sm"
       >
         <h1 className="mb-1 text-lg font-semibold text-text-main">menuzia</h1>
-        <p className="mb-5 text-xs text-text-subtle">Crie sua conta para usar a plataforma</p>
+        <p className="mb-5 text-xs text-text-subtle">
+          Primeiro acesso — use o e-mail que a Menuzia cadastrou para você
+        </p>
 
         {error && (
           <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
@@ -26,12 +28,38 @@ export default async function CadastroPage({
 
         <label className="mb-3 block">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
-            Nome da hamburgueria
+            E-mail
           </span>
           <input
-            name="nomeLoja"
-            type="text"
+            name="email"
+            type="email"
             required
+            className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
+          />
+        </label>
+
+        <label className="mb-3 block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
+            Senha
+          </span>
+          <input
+            name="senha"
+            type="password"
+            required
+            minLength={6}
+            className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
+          />
+        </label>
+
+        <label className="mb-3 block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
+            Confirmar senha
+          </span>
+          <input
+            name="confirmarSenha"
+            type="password"
+            required
+            minLength={6}
             className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
           />
         </label>
@@ -61,46 +89,20 @@ export default async function CadastroPage({
           />
         </label>
 
-        <label className="mb-3 block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
-            E-mail
-          </span>
-          <input
-            name="email"
-            type="email"
-            required
-            className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
-          />
-        </label>
-
-        <label className="mb-3 block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
-            Senha
-          </span>
-          <input
-            name="senha"
-            type="password"
-            required
-            minLength={6}
-            className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
-          />
-        </label>
-
         <label className="mb-5 block">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
-            Confirmar senha
+            Nome da hamburgueria
           </span>
           <input
-            name="confirmarSenha"
-            type="password"
+            name="nomeLoja"
+            type="text"
             required
-            minLength={6}
             className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
           />
         </label>
 
         <Button type="submit" className="w-full">
-          Cadastrar
+          Concluir cadastro
         </Button>
 
         <p className="mt-4 text-center text-xs text-text-subtle">

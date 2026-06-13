@@ -3,11 +3,11 @@ import { Button } from '@/components/ui/button'
 import { signIn } from './actions'
 
 const ERROR_MESSAGES: Record<string, string> = {
-  pendente: 'Seu cadastro ainda não foi autorizado. Você receberá um aviso quando o acesso for liberado.',
+  pendente: 'Seu cadastro ainda não foi concluído. Acesse o link de primeiro acesso enviado pela Menuzia.',
 }
 
 const NOTICE_MESSAGES: Record<string, string> = {
-  'cadastro-recebido': 'Cadastro recebido! Você poderá acessar quando autorizarmos seu acesso.',
+  'cadastro-concluido': 'Cadastro concluído! Faça login com seu e-mail e senha.',
 }
 
 export default async function LoginPage({
@@ -69,9 +69,9 @@ export default async function LoginPage({
         </Button>
 
         <p className="mt-4 text-center text-xs text-text-subtle">
-          Ainda não tem conta?{' '}
+          Primeiro acesso?{' '}
           <Link href="/cadastro" className="font-semibold text-primary">
-            Cadastrar
+            Complete seu cadastro
           </Link>
         </p>
       </form>

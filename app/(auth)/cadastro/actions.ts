@@ -2,17 +2,17 @@
 
 import { redirect } from 'next/navigation'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { cadastrarLojista } from '@/lib/queries/lojistas'
+import { completarPrimeiroAcesso } from '@/lib/queries/lojistas'
 
 export async function cadastrar(formData: FormData) {
-  const nomeLoja = String(formData.get('nomeLoja') ?? '').trim()
-  const nome = String(formData.get('nome') ?? '').trim()
-  const telefone = String(formData.get('telefone') ?? '').trim()
   const email = String(formData.get('email') ?? '').trim()
   const senha = String(formData.get('senha') ?? '')
   const confirmarSenha = String(formData.get('confirmarSenha') ?? '')
+  const nome = String(formData.get('nome') ?? '').trim()
+  const telefone = String(formData.get('telefone') ?? '').trim()
+  const nomeLoja = String(formData.get('nomeLoja') ?? '').trim()
 
-  if (!nomeLoja || !nome || !telefone || !email) {
+  if (!email || !nome || !telefone || !nomeLoja) {
     redirect(`/cadastro?error=${encodeURIComponent('Preencha todos os campos.')}`)
   }
   if (senha.length < 6) {
@@ -23,10 +23,10 @@ export async function cadastrar(formData: FormData) {
   }
 
   const admin = getAdminSupabase()
-  const result = await cadastrarLojista(admin, { nomeLoja, nome, telefone, email, senha })
+  const result = await completarPrimeiroAcesso(admin, { email, senha, nome, telefone, nomeLoja })
   if (!result.ok) {
     redirect(`/cadastro?error=${encodeURIComponent(result.error)}`)
   }
 
-  redirect('/login?notice=cadastro-recebido')
+  redirect('/login?notice=cadastro-concluido')
 }
