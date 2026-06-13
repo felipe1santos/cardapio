@@ -72,6 +72,13 @@ export default function EntregadorPortalPage() {
     atualizarLocalizacao()
   }, [atualizarLocalizacao])
 
+  // Registra o service worker para permitir instalar o app na tela inicial.
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw-entregador.js', { scope: '/entregador/' }).catch(() => {})
+    }
+  }, [])
+
   // Heartbeat: avisa o painel que o motoboy está com o app aberto e onde ele está.
   useEffect(() => {
     const enviar = () => {

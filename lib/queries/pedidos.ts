@@ -53,6 +53,9 @@ export interface Entregador {
   emRota: number
   online: boolean
   localizacao: { lat: number; lng: number; atualizadaEm: string } | null
+  fotoUrl: string | null
+  veiculo: string
+  placa: string
 }
 
 interface PedidoRow {
@@ -169,7 +172,9 @@ const ENTREGADOR_ONLINE_MS = 2 * 60 * 1000
 export async function listarEntregadores(supabase: SupabaseClient, restauranteId: string): Promise<Entregador[]> {
   const { data, error } = await supabase
     .from('entregadores')
-    .select('id, nome, telefone, status, token, ultimo_acesso_em, localizacao_lat, localizacao_lng, localizacao_atualizada_em')
+    .select(
+      'id, nome, telefone, status, token, ultimo_acesso_em, localizacao_lat, localizacao_lng, localizacao_atualizada_em, foto_url, veiculo, placa'
+    )
     .eq('restaurante_id', restauranteId)
     .order('nome', { ascending: true })
   if (error) throw error
@@ -199,7 +204,48 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
       d.localizacao_lat === null || d.localizacao_lng === null
         ? null
         : { lat: Number(d.localizacao_lat), lng: Number(d.localizacao_lng), atualizadaEm: d.localizacao_atualizada_em as string },
+    fotoUrl: d.foto_url ?? null,
+    veiculo: d.veiculo ?? '',
+    placa: d.placa ?? '',
   }))
+}
+
+export interface PerfilEntregadorInput {
+  nome: string
+  telefone: string
+  veiculo: string
+  placa: string
+  fotoUrl: string | null
+}
+
+/** Atualiza os dados de perfil do entregador (nome, telefone, veículo, placa, foto). */
+export async function atualizarPerfilEntregador(supabase: SupabaseClient, entregadorId: string, input: PerfilEntregadorInput) {
+  const { error } = await supabase
+    .from('entregadores')
+    .update({
+      nome: input.nome,
+      telefone: input.telefone,
+      veiculo: input.veiculo,
+      placa: input.placa,
+      foto_url: input.fotoUrl,
+    })
+    .eq('id', entregadorId)
+  if (error) throw error
+}
+
+/** Envia a foto de perfil do entregador para o bucket público `cardapio` e retorna a URL pública. */
+export async function enviarFotoEntregador(supabase: SupabaseClient, restauranteId: string, entregadorId: string, file: File): Promise<string> {
+  const extensao = file.name.split('.').pop() ?? 'jpg'
+  const caminho = `${restauranteId}/entregadores/${entregadorId}-${crypto.randomUUID()}.${extensao}`
+
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw error
+
+  const { data } = supabase.storage.from('cardapio').getPublicUrl(caminho)
+  return data.publicUrl
 }
 
 export async function criarEntregador(supabase: SupabaseClient, restauranteId: string, nome: string, telefone: string) {
