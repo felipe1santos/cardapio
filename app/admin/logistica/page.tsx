@@ -9,6 +9,7 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
 import {
   atribuirEntregador,
+  atribuirEntregadorEmLote,
   criarEntregador,
   listarEntregadores,
   listarPedidosConcluidos,
@@ -22,6 +23,8 @@ import {
   type ResumoCaixa,
   type StatusEntregador,
 } from '@/lib/queries/pedidos'
+
+type Tab = 'despacho' | 'concluidos'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -50,6 +53,10 @@ export default function LogisticaPage() {
   const [drivers, setDrivers] = useState<Entregador[]>([])
   const [assigning, setAssigning] = useState<string | null>(null)
   const [closingOpen, setClosingOpen] = useState(false)
+
+  const [tab, setTab] = useState<Tab>('despacho')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkAssigning, setBulkAssigning] = useState(false)
 
   const [novoDriver, setNovoDriver] = useState({ nome: '', telefone: '' })
   const [addingDriver, setAddingDriver] = useState(false)
@@ -116,11 +123,41 @@ export default function LogisticaPage() {
   async function assign(orderId: string, driverId: string) {
     setAssigning(null)
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, entregadorId: driverId, status: 'em_rota' } : o)))
+    setSelected((prev) => {
+      if (!prev.has(orderId)) return prev
+      const next = new Set(prev)
+      next.delete(orderId)
+      return next
+    })
     try {
       await atribuirEntregador(supabase, orderId, driverId)
       notificarPedido(orderId, 'em_rota')
     } catch {
       setError('Não foi possível atribuir o entregador.')
+      if (restauranteId) refetch(restauranteId)
+    }
+  }
+
+  function toggleSelect(orderId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(orderId)) next.delete(orderId)
+      else next.add(orderId)
+      return next
+    })
+  }
+
+  async function assignBulk(driverId: string) {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    setBulkAssigning(false)
+    setOrders((prev) => prev.map((o) => (ids.includes(o.id) ? { ...o, entregadorId: driverId, status: 'em_rota' } : o)))
+    setSelected(new Set())
+    try {
+      await atribuirEntregadorEmLote(supabase, ids, driverId)
+      for (const id of ids) notificarPedido(id, 'em_rota')
+    } catch {
+      setError('Não foi possível atribuir os pedidos selecionados.')
       if (restauranteId) refetch(restauranteId)
     }
   }
@@ -221,6 +258,27 @@ export default function LogisticaPage() {
           </div>
         </div>
 
+        <div className="flex flex-shrink-0 gap-0.5 border-b border-border">
+          {([
+            { id: 'despacho', label: 'Despacho' },
+            { id: 'concluidos', label: 'Concluídos' },
+          ] as { id: Tab; label: string }[]).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={[
+                'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
+                tab === t.id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
+              ].join(' ')}
+            >
+              {t.label}
+              {t.id === 'concluidos' && concluidos.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-page px-1.5 py-0.5 text-[11px] font-bold text-text-subtle">{concluidos.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
         <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[280px_1fr]">
           {/* Entregadores */}
           <aside className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
@@ -268,27 +326,69 @@ export default function LogisticaPage() {
 
           {/* Pedidos */}
           <section className="flex flex-col gap-4 overflow-y-auto">
+            {tab === 'despacho' && (
+            <>
             <div className="rounded-menuzia border border-border bg-white">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold">Prontos para despachar</h3>
-                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{unassigned.length}</span>
+                <div className="flex items-center gap-2">
+                  {unassigned.length > 0 && (
+                    <input
+                      type="checkbox"
+                      checked={unassigned.every((o) => selected.has(o.id))}
+                      onChange={(e) => setSelected(e.target.checked ? new Set(unassigned.map((o) => o.id)) : new Set())}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                  )}
+                  <h3 className="text-sm font-semibold">Prontos para despachar</h3>
+                  <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{unassigned.length}</span>
+                </div>
+                {selected.size > 0 && (
+                  <div className="relative">
+                    <Button variant="dispatch" onClick={() => setBulkAssigning((v) => !v)}>
+                      Atribuir {selected.size} selecionado{selected.size > 1 ? 's' : ''}
+                    </Button>
+                    {bulkAssigning && (
+                      <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[200px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
+                        {available.length === 0 && <div className="px-3 py-2 text-xs text-text-subtle">Nenhum entregador disponível</div>}
+                        {available.map((driver) => (
+                          <button
+                            key={driver.id}
+                            onClick={() => assignBulk(driver.id)}
+                            className="flex w-full items-center justify-between rounded-menuzia px-3 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page"
+                          >
+                            <span>{driver.nome}</span>
+                            <span className="text-xs text-text-subtle">{driver.emRota} em rota</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="divide-y divide-border">
                 {unassigned.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido aguardando despacho</div>}
                 {unassigned.map((order) => (
                   <div key={order.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="mb-1 flex items-center gap-2">
-                        <span className="text-sm font-bold">#{order.numero}</span>
-                        <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
-                      </div>
-                      <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
-                        {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
-                          <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
-                        )}
-                        <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(order.id)}
+                        onChange={() => toggleSelect(order.id)}
+                        className="mt-1 h-4 w-4 rounded border-border accent-primary"
+                      />
+                      <div>
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-sm font-bold">#{order.numero}</span>
+                          <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
+                        </div>
+                        <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+                          {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
+                            <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
+                          )}
+                          <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="relative">
@@ -354,8 +454,10 @@ export default function LogisticaPage() {
                 ))}
               </div>
             </div>
+            </>
+            )}
 
-            {/* Concluídas hoje */}
+            {tab === 'concluidos' && (
             <div className="rounded-menuzia border border-border bg-white">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Concluídas hoje</h3>
@@ -389,6 +491,7 @@ export default function LogisticaPage() {
                 })}
               </div>
             </div>
+            )}
           </section>
         </div>
       </div>

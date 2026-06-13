@@ -205,6 +205,12 @@ export async function atribuirEntregador(supabase: SupabaseClient, pedidoId: str
   if (error) throw error
 }
 
+/** Atribui o mesmo entregador a vários pedidos de uma vez (despacho em lote). */
+export async function atribuirEntregadorEmLote(supabase: SupabaseClient, pedidoIds: string[], entregadorId: string) {
+  const { error } = await supabase.from('pedidos').update({ entregador_id: entregadorId, status: 'em_rota' }).in('id', pedidoIds)
+  if (error) throw error
+}
+
 export async function marcarPedidoEntregue(supabase: SupabaseClient, pedidoId: string) {
   const { error } = await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId)
   if (error) throw error
