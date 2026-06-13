@@ -356,6 +356,7 @@ export default function StorefrontPage() {
   const [contaLoading, setContaLoading] = useState(false)
   const [contaError, setContaError] = useState<string | null>(null)
   const [contaSaved, setContaSaved] = useState(false)
+  const [contaEditando, setContaEditando] = useState(false)
 
   // Restaura sessão salva no navegador.
   useEffect(() => {
@@ -385,6 +386,7 @@ export default function StorefrontPage() {
         setPerfilCliente(data)
         setContaNome(data.nome)
         setContaEndereco(data.endereco)
+        setContaEditando(!data.nome && !data.endereco.rua)
         setCliente((c) => ({ nome: data.nome || c.nome, telefone: data.telefone }))
         if (data.endereco.rua || data.endereco.bairro) setEndereco(data.endereco)
       })
@@ -427,6 +429,7 @@ export default function StorefrontPage() {
       setPerfilCliente(data)
       setContaNome(data.nome)
       setContaEndereco(data.endereco)
+      setContaEditando(!data.nome && !data.endereco.rua)
       setContaCodigo('')
     } catch (err) {
       setContaError(err instanceof Error ? err.message : 'Código inválido.')
@@ -452,11 +455,20 @@ export default function StorefrontPage() {
       setCliente((c) => ({ nome: data.nome, telefone: data.telefone || c.telefone }))
       setEndereco(data.endereco)
       setContaSaved(true)
+      setContaEditando(false)
     } catch (err) {
       setContaError(err instanceof Error ? err.message : 'Não foi possível salvar.')
     } finally {
       setContaLoading(false)
     }
+  }
+
+  function cancelarEdicaoConta() {
+    if (!perfilCliente) return
+    setContaNome(perfilCliente.nome)
+    setContaEndereco(perfilCliente.endereco)
+    setContaError(null)
+    setContaEditando(false)
   }
 
   function sairConta() {
@@ -469,6 +481,8 @@ export default function StorefrontPage() {
     setContaCodigo('')
     setContaNome('')
     setContaEndereco({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+    setContaEditando(false)
+    setContaSaved(false)
   }
 
   // ── Product sheet ─────────────────────────────────────────────────────────
@@ -1521,7 +1535,7 @@ export default function StorefrontPage() {
                     </button>
                   </>
                 )
-              ) : (
+              ) : contaEditando ? (
                 <>
                   <div className="mb-4 flex items-center justify-between rounded border border-border p-3.5">
                     <div>
@@ -1567,10 +1581,53 @@ export default function StorefrontPage() {
                   </div>
 
                   {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
-                  {contaSaved && <p className="mt-2.5 text-[13px] font-medium text-[#16A34A]">Dados salvos!</p>}
                   <button onClick={salvarPerfilConta} disabled={contaLoading}
                     className="mt-4 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
                     {contaLoading ? 'Salvando…' : 'Salvar'}
+                  </button>
+                  {(perfilCliente.nome || perfilCliente.endereco.rua) && (
+                    <button onClick={cancelarEdicaoConta} className="mt-2.5 w-full text-center text-[13px] font-semibold text-text-subtle">
+                      Cancelar
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="mb-4 flex items-center justify-between rounded border border-border p-3.5">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Telefone confirmado</p>
+                      <p className="text-sm font-bold">{perfilCliente.telefone}</p>
+                    </div>
+                    <button onClick={sairConta} className="text-[13px] font-semibold text-danger">Sair</button>
+                  </div>
+
+                  {contaSaved && <p className="mb-3 text-[13px] font-medium text-[#16A34A]">Dados salvos!</p>}
+
+                  <div className="overflow-hidden rounded border border-border">
+                    <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Nome</span>
+                      <span className="text-sm font-semibold">{perfilCliente.nome || '—'}</span>
+                    </div>
+                    <div className="px-3.5 py-2.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Endereço</span>
+                      <p className="mt-1 text-sm">
+                        {perfilCliente.endereco.rua
+                          ? `${perfilCliente.endereco.rua}, ${perfilCliente.endereco.numero}${perfilCliente.endereco.complemento ? ` · ${perfilCliente.endereco.complemento}` : ''}`
+                          : '—'}
+                      </p>
+                      {(perfilCliente.endereco.bairro || perfilCliente.endereco.cep) && (
+                        <p className="mt-0.5 text-[13px] text-text-subtle">
+                          {perfilCliente.endereco.bairro}{perfilCliente.endereco.bairro && perfilCliente.endereco.cep ? ' · ' : ''}{perfilCliente.endereco.cep}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => { setContaSaved(false); setContaEditando(true) }}
+                    className="mt-4 w-full rounded border border-[#008fba] px-4 py-3 text-sm font-bold text-[#008fba] transition-colors hover:bg-[#E0F2FE]"
+                  >
+                    Editar dados
                   </button>
                 </>
               )}
