@@ -98,12 +98,12 @@ export default function EntregadorPortalPage() {
 
   const mapsSrc = useMemo(() => {
     if (!MAPS_KEY || addresses.length === 0) return null
-    if (!geo) return `https://www.google.com/maps/embed/api/1?key=${MAPS_KEY}&q=${encodeURIComponent(addresses[0])}`
+    if (!geo) return `https://www.google.com/maps/embed/v1/place?key=${MAPS_KEY}&q=${encodeURIComponent(addresses[0])}`
     const destination = addresses[addresses.length - 1]
     const waypoints = addresses.slice(0, -1)
     const sp = new URLSearchParams({ key: MAPS_KEY, origin: `${geo.lat},${geo.lng}`, destination, mode: 'driving' })
     if (waypoints.length) sp.set('waypoints', waypoints.join('|'))
-    return `https://www.google.com/maps/embed/api/1?${sp.toString()}`
+    return `https://www.google.com/maps/embed/v1/directions?${sp.toString()}`
   }, [addresses, geo])
 
   async function confirmarEntrega(pedidoId: string) {

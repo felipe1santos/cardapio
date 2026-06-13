@@ -890,7 +890,7 @@ export default function LogisticaPage() {
               {locationDriver.localizacao && MAPS_KEY ? (
                 <iframe
                   title="Localização do entregador"
-                  src={`https://www.google.com/maps/embed/api/1?key=${MAPS_KEY}&q=${locationDriver.localizacao.lat},${locationDriver.localizacao.lng}&zoom=15`}
+                  src={`https://www.google.com/maps/embed/v1/place?key=${MAPS_KEY}&q=${locationDriver.localizacao.lat},${locationDriver.localizacao.lng}&zoom=15`}
                   className="h-full w-full rounded-menuzia border-0"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
