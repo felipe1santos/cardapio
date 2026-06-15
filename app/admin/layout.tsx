@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/admin/pedidos', label: 'Painel de Pedidos' },
   { href: '/admin/logistica', label: 'Logística' },
   { href: '/admin/cardapio', label: 'Cardápio' },
+  { href: '/admin/clientes', label: 'Clientes' },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ]
 

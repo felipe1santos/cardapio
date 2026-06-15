@@ -182,3 +182,144 @@ export async function atualizarPerfilCliente(admin: SupabaseClient, restauranteI
   if (error) throw error
   return data ? mapCliente(data as ClienteRow) : null
 }
+
+// ── Base de clientes (admin) ────────────────────────────────────────────────
+
+export type SexoCliente = '' | 'M' | 'F'
+
+export interface ClienteMetrica {
+  telefone: string
+  nome: string
+  endereco: EnderecoCliente
+  sexo: SexoCliente
+  totalPedidos: number
+  valorTotal: number
+  ticketMedio: number
+  primeiraCompraEm: string
+  ultimaCompraEm: string
+  pedidosPorSemana: number
+  gastoSemanalMedio: number
+  diaSemanaPreferido: number | null // 0 = domingo .. 6 = sábado
+}
+
+interface PedidoClienteRow {
+  cliente_nome: string
+  cliente_telefone: string
+  endereco_rua: string
+  endereco_numero: string
+  endereco_complemento: string
+  endereco_bairro: string
+  endereco_cep: string
+  total: number
+  criado_em: string
+}
+
+/** Normaliza um telefone (qualquer formatação) para a chave usada para agrupar pedidos do mesmo cliente. */
+export function normalizarTelefone(telefone: string): string {
+  return formatarTelefoneWhatsapp(telefone) ?? telefone.replace(/\D/g, '')
+}
+
+const MS_POR_SEMANA = 7 * 24 * 60 * 60 * 1000
+
+/** Agrega os pedidos da loja por cliente (telefone) com as métricas de recorrência exibidas em /admin/clientes. */
+export async function listarClientesComMetricas(supabase: SupabaseClient, restauranteId: string): Promise<ClienteMetrica[]> {
+  const [{ data: pedidos, error: pedidosError }, { data: perfis, error: perfisError }] = await Promise.all([
+    supabase
+      .from('pedidos')
+      .select('cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, total, criado_em')
+      .eq('restaurante_id', restauranteId)
+      .neq('status', 'cancelado')
+      .order('criado_em', { ascending: true }),
+    supabase.from('clientes').select('telefone, sexo').eq('restaurante_id', restauranteId),
+  ])
+  if (pedidosError) throw pedidosError
+  if (perfisError) throw perfisError
+
+  const sexoPorTelefone = new Map<string, SexoCliente>(
+    (perfis ?? []).map((p: { telefone: string; sexo: SexoCliente }) => [normalizarTelefone(p.telefone), p.sexo])
+  )
+
+  const grupos = new Map<string, PedidoClienteRow[]>()
+  for (const pedido of (pedidos ?? []) as PedidoClienteRow[]) {
+    const chave = normalizarTelefone(pedido.cliente_telefone)
+    const lista = grupos.get(chave)
+    if (lista) lista.push(pedido)
+    else grupos.set(chave, [pedido])
+  }
+
+  const resultado: ClienteMetrica[] = []
+  for (const [chave, lista] of grupos) {
+    const primeiro = lista[0]
+    const ultimo = lista[lista.length - 1]
+    const valorTotal = lista.reduce((s, p) => s + Number(p.total), 0)
+    const totalPedidos = lista.length
+    const primeiraTs = new Date(primeiro.criado_em).getTime()
+    const ultimaTs = new Date(ultimo.criado_em).getTime()
+    const semanas = Math.max(1, (ultimaTs - primeiraTs) / MS_POR_SEMANA)
+
+    const contagemPorDia = [0, 0, 0, 0, 0, 0, 0]
+    for (const p of lista) contagemPorDia[new Date(p.criado_em).getDay()]++
+    let diaSemanaPreferido: number | null = null
+    let maxContagem = 0
+    for (let dia = 0; dia < 7; dia++) {
+      if (contagemPorDia[dia] > maxContagem) {
+        maxContagem = contagemPorDia[dia]
+        diaSemanaPreferido = dia
+      }
+    }
+
+    resultado.push({
+      telefone: ultimo.cliente_telefone,
+      nome: ultimo.cliente_nome,
+      endereco: {
+        rua: ultimo.endereco_rua,
+        numero: ultimo.endereco_numero,
+        complemento: ultimo.endereco_complemento,
+        bairro: ultimo.endereco_bairro,
+        cep: ultimo.endereco_cep,
+      },
+      sexo: sexoPorTelefone.get(chave) ?? '',
+      totalPedidos,
+      valorTotal,
+      ticketMedio: valorTotal / totalPedidos,
+      primeiraCompraEm: primeiro.criado_em,
+      ultimaCompraEm: ultimo.criado_em,
+      pedidosPorSemana: totalPedidos / semanas,
+      gastoSemanalMedio: valorTotal / semanas,
+      diaSemanaPreferido,
+    })
+  }
+
+  resultado.sort((a, b) => new Date(b.ultimaCompraEm).getTime() - new Date(a.ultimaCompraEm).getTime())
+  return resultado
+}
+
+/** Define o sexo de um cliente (telefone), criando/atualizando o registro em `clientes` sem afetar os demais campos. */
+export async function atualizarSexoCliente(supabase: SupabaseClient, restauranteId: string, telefone: string, sexo: SexoCliente): Promise<void> {
+  const { error } = await supabase
+    .from('clientes')
+    .upsert({ restaurante_id: restauranteId, telefone: normalizarTelefone(telefone), sexo }, { onConflict: 'restaurante_id,telefone' })
+  if (error) throw error
+}
+
+/** Remove acentos/pontuação e deixa em minúsculas — normalização recomendada pelo Meta para nome/cidade no upload de "Customer list". */
+function normalizarTextoMeta(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z\s]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+/** Gera o CSV de clientes no formato de upload de "Customer list" (Custom Audiences) do Meta Ads. */
+export function gerarCsvMetaAds(clientes: ClienteMetrica[]): string {
+  const cabecalho = ['phone', 'fn', 'ln', 'zip', 'country', 'gen']
+  const linhas = clientes.map((c) => {
+    const [fn = '', ...resto] = normalizarTextoMeta(c.nome).split(' ').filter(Boolean)
+    const gen = c.sexo === 'M' ? 'm' : c.sexo === 'F' ? 'f' : ''
+    return [normalizarTelefone(c.telefone), fn, resto.join(' '), c.endereco.cep.replace(/\D/g, ''), 'br', gen]
+  })
+  return [cabecalho, ...linhas].map((linha) => linha.join(',')).join('\r\n')
+}
