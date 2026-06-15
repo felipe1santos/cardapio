@@ -1,6 +1,6 @@
 import { HTMLAttributes } from 'react'
 
-type Tone = 'ok' | 'danger' | 'paused' | 'pending' | 'preparing' | 'ready' | 'alert' | 'highlight'
+type Tone = 'ok' | 'danger' | 'paused' | 'pending' | 'preparing' | 'ready' | 'alert' | 'highlight' | 'new'
 
 const toneClasses: Record<Tone, string> = {
   ok: 'bg-price-bg text-price-text',
@@ -11,6 +11,7 @@ const toneClasses: Record<Tone, string> = {
   ready: 'bg-status-ready/10 text-status-ready',
   alert: 'bg-alert-bg text-alert-text',
   highlight: 'bg-pink-100 text-pink-600',
+  new: 'bg-yellow-300 text-black',
 }
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {

@@ -1,6 +1,6 @@
 'use client'
 
-import { Children, useCallback, useEffect, useMemo, useState } from 'react'
+import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -48,14 +48,43 @@ const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
-function minutesSince(iso: string, now: number) {
-  return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
+function tempoDecorrido(iso: string, now: number) {
+  const totalSec = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000))
+  const mins = Math.floor(totalSec / 60)
+  const secs = totalSec % 60
+  return { mins, label: `${mins}:${secs.toString().padStart(2, '0')}` }
 }
 
 function timerTone(mins: number) {
   if (mins < 10) return 'bg-price-bg text-price-text'
   if (mins < 20) return 'bg-warn-bg text-warn'
   return 'bg-danger-bg text-danger'
+}
+
+/** Beep curto (dois tons) tocado quando um pedido novo chega via realtime. */
+function playNewOrderSound() {
+  try {
+    const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    const ctx = new AudioCtx()
+    const beep = (freq: number, start: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + start)
+      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + start + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + 0.25)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(ctx.currentTime + start)
+      osc.stop(ctx.currentTime + start + 0.25)
+    }
+    beep(880, 0)
+    beep(1175, 0.18)
+    setTimeout(() => ctx.close(), 600)
+  } catch {
+    /* navegador sem suporte a Web Audio — silencioso */
+  }
 }
 
 function resumoItens(p: Pedido): string[] {
@@ -111,6 +140,8 @@ export default function PedidosPage() {
   const [detail, setDetail] = useState<Pedido | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [showCol4, setShowCol4] = useState(false)
+  const [pulsando, setPulsando] = useState<Set<string>>(new Set())
+  const recebidosConhecidos = useRef<Set<string> | null>(null)
 
   // restaura preferência do 4º kanban
   useEffect(() => {
@@ -136,6 +167,27 @@ export default function PedidosPage() {
         setOrders(kanban)
         setTransit(logistica.filter((p) => p.status === 'em_rota'))
         setConcluded(finalizados)
+
+        // detecta pedidos novos (status "recebido") para tocar som e pulsar o card
+        const recebidosAgora = new Set(kanban.filter((p) => p.status === 'recebido').map((p) => p.id))
+        const anteriores = recebidosConhecidos.current
+        if (anteriores) {
+          const novos = [...recebidosAgora].filter((pid) => !anteriores.has(pid))
+          if (novos.length > 0) {
+            playNewOrderSound()
+            setPulsando((prev) => new Set([...prev, ...novos]))
+            for (const pid of novos) {
+              setTimeout(() => {
+                setPulsando((prev) => {
+                  const next = new Set(prev)
+                  next.delete(pid)
+                  return next
+                })
+              }, 3000)
+            }
+          }
+        }
+        recebidosConhecidos.current = recebidosAgora
       } catch {
         setError('Não foi possível carregar os pedidos.')
       }
@@ -171,9 +223,9 @@ export default function PedidosPage() {
     }
   }, [supabase, refetch])
 
-  // relógio para os tempos decorridos
+  // relógio para os tempos decorridos (ticando a cada segundo)
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30000)
+    const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
 
@@ -284,17 +336,26 @@ export default function PedidosPage() {
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-3">
                   {colOrders.map((order) => {
-                    const mins = minutesSince(order.criadoEm, now)
+                    const tempo = tempoDecorrido(order.criadoEm, now)
                     return (
-                      <div key={order.id} className="rounded-menuzia border border-border bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-sm font-bold">#{order.numero}</span>
-                          <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
+                      <div
+                        key={order.id}
+                        className={[
+                          'rounded-menuzia border border-border bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md',
+                          pulsando.has(order.id) ? 'animate-new-order' : '',
+                        ].join(' ')}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-bold">#{order.numero}</span>
+                            {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold tabular-nums ${timerTone(tempo.mins)}`}>{tempo.label}</span>
+                            <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
+                          </div>
                         </div>
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold ${timerTone(mins)}`}>{mins} min</span>
-                          <span className="text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</span>
-                        </div>
+                        <div className="mb-2 text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</div>
                         {order.tipo === 'entrega' && order.enderecoBairro && (
                           <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
                         )}
@@ -303,10 +364,8 @@ export default function PedidosPage() {
                             <li key={line}>{line}</li>
                           ))}
                         </ul>
-                        <div className="mb-3 flex items-center justify-between">
-                          <Badge tone={order.pago ? 'ok' : 'pending'}>
-                            {order.pago ? 'Pago' : 'A receber'} · {PAY_LABEL[order.formaPagamento]}
-                          </Badge>
+                        <div className="mb-3 flex flex-col items-end leading-tight">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">{PAY_LABEL[order.formaPagamento]}</span>
                           <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
                         </div>
                         <div className="flex gap-2">
