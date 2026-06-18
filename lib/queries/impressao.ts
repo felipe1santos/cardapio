@@ -227,6 +227,9 @@ export interface PedidoParaImprimir {
     precoUnitario: number
     observacao: string
     tamanhoNome: string
+    saborNome: string
+    bordaNome: string
+    massaNome: string
     complementos: { nome: string; preco: number }[]
   }[]
 }
@@ -238,7 +241,7 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
     .select(
       `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, endereco_rua, endereco_numero, endereco_bairro,
        observacao, subtotal, taxa_entrega, total, criado_em,
-       pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, complementos )`
+       pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
     .eq('restaurante_id', restauranteId)
     .eq('status', 'recebido')
@@ -261,12 +264,15 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
     taxaEntrega: Number(p.taxa_entrega),
     total: Number(p.total),
     criadoEm: p.criado_em,
-    itens: (p.pedido_itens ?? []).map((i: { nome: string; quantidade: number; preco_unitario: number; observacao: string; tamanho_nome: string; complementos: { nome: string; preco: number }[] }) => ({
+    itens: (p.pedido_itens ?? []).map((i: { nome: string; quantidade: number; preco_unitario: number; observacao: string; tamanho_nome: string; sabor_nome: string; borda_nome: string; massa_nome: string; complementos: { nome: string; preco: number }[] }) => ({
       nome: i.nome,
       quantidade: i.quantidade,
       precoUnitario: Number(i.preco_unitario),
       observacao: i.observacao,
       tamanhoNome: i.tamanho_nome ?? '',
+      saborNome: i.sabor_nome ?? '',
+      bordaNome: i.borda_nome ?? '',
+      massaNome: i.massa_nome ?? '',
       complementos: (i.complementos ?? []).map((c) => ({ nome: c.nome, preco: Number(c.preco) })),
     })),
   }))

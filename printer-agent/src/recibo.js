@@ -24,8 +24,11 @@ function montarRecibo(pedido, config, largura) {
 
   for (const item of pedido.itens) {
     const nomeItem = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
-    const nomeComTamanho = item.tamanhoNome ? `${nomeItem} (${item.tamanhoNome})` : nomeItem
-    out.push(colunas(largura, nomeComTamanho, brl(item.precoUnitario * item.quantidade)))
+    const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
+    const nomeComVariacao = variacao ? `${nomeItem} (${variacao})` : nomeItem
+    out.push(colunas(largura, nomeComVariacao, brl(item.precoUnitario * item.quantidade)))
+    if (item.bordaNome) out.push(`   + Borda: ${item.bordaNome}`)
+    if (item.massaNome) out.push(`   + Massa: ${item.massaNome}`)
     if (config.mostrarNomeComplementos) {
       for (const comp of item.complementos) {
         const precoTxt = config.mostrarPrecoComplementos && comp.preco > 0 ? ` (+${brl(comp.preco)})` : ''

@@ -30,7 +30,10 @@ export function montarResumoPedido(pedido: Pedido, restauranteNome: string): str
   linhas.push('')
   linhas.push('*Itens:*')
   for (const item of pedido.itens) {
-    linhas.push(`*${item.quantidade}x ${item.nome}${item.tamanhoNome ? ` (${item.tamanhoNome})` : ''} — ${brl(item.precoUnitario)}*`)
+    const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
+    linhas.push(`*${item.quantidade}x ${item.nome}${variacao ? ` (${variacao})` : ''} — ${brl(item.precoUnitario)}*`)
+    if (item.bordaNome) linhas.push(`   + Borda: ${item.bordaNome}`)
+    if (item.massaNome) linhas.push(`   + Massa: ${item.massaNome}`)
     for (const c of item.complementos) linhas.push(`   + ${c.nome} (+${brl(c.preco)})`)
     if (item.observacao.trim()) linhas.push(`   _obs: ${item.observacao.trim()}_`)
   }

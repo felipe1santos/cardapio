@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
+export type TipoItem = 'simples' | 'pizza' | 'marmita'
 
 export interface GrupoCardapio {
   id: string
@@ -32,6 +33,21 @@ export interface TamanhoItem {
   posicao: number
 }
 
+export interface PrecoSaborTamanho {
+  tamanhoPadraoId: string
+  preco: number
+}
+
+export interface PizzaSabor {
+  id: string
+  nome: string
+  descricao: string
+  imagemUrl: string | null
+  status: StatusItem
+  posicao: number
+  precos: PrecoSaborTamanho[]
+}
+
 export interface ItemCardapio {
   id: string
   grupoId: string | null
@@ -43,9 +59,11 @@ export interface ItemCardapio {
   diasDisponiveis: number[]
   promocaoPreco: number | null
   maisVendido: boolean
+  tipoItem: TipoItem
   grupos: GrupoItemComplementos[]
   complementos: ComplementoItem[]
   tamanhos: TamanhoItem[]
+  sabores: PizzaSabor[]
 }
 
 export interface PresetComplementos {
@@ -68,9 +86,19 @@ interface ItemRow {
   dias_disponiveis: number[]
   promocao_preco: number | null
   mais_vendido: boolean
+  tipo_item: TipoItem
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number }[]
   tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
+  pizza_sabores: {
+    id: string
+    nome: string
+    descricao: string
+    imagem_url: string | null
+    status: StatusItem
+    posicao: number
+    pizza_sabor_precos: { tamanho_padrao_id: string; preco: number }[]
+  }[]
 }
 
 function mapItem(row: ItemRow): ItemCardapio {
@@ -99,6 +127,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     diasDisponiveis: row.dias_disponiveis ?? [],
     promocaoPreco: row.promocao_preco === null ? null : Number(row.promocao_preco),
     maisVendido: row.mais_vendido,
+    tipoItem: row.tipo_item ?? 'simples',
     grupos,
     complementos: (row.item_complementos ?? [])
       .filter((c) => !c.grupo_id)
@@ -106,6 +135,17 @@ function mapItem(row: ItemRow): ItemCardapio {
     tamanhos: (row.tamanhos_item ?? [])
       .sort((a, b) => a.posicao - b.posicao)
       .map((t) => ({ id: t.id, nome: t.nome, preco: Number(t.preco), posicao: t.posicao })),
+    sabores: (row.pizza_sabores ?? [])
+      .sort((a, b) => a.posicao - b.posicao)
+      .map((s) => ({
+        id: s.id,
+        nome: s.nome,
+        descricao: s.descricao,
+        imagemUrl: s.imagem_url,
+        status: s.status,
+        posicao: s.posicao,
+        precos: (s.pizza_sabor_precos ?? []).map((p) => ({ tamanhoPadraoId: p.tamanho_padrao_id, preco: Number(p.preco) })),
+      })),
   }
 }
 
@@ -165,10 +205,11 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 }
 
 const ITEM_SELECT = `
-  id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido,
+  id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido, tipo_item,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao ),
-  tamanhos_item ( id, nome, preco, posicao )
+  tamanhos_item ( id, nome, preco, posicao ),
+  pizza_sabores ( id, nome, descricao, imagem_url, status, posicao, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
 `
 
 export async function listarItens(supabase: SupabaseClient, restauranteId: string): Promise<ItemCardapio[]> {
@@ -191,6 +232,7 @@ export interface NovoItemInput {
   diasDisponiveis: number[]
   promocaoPreco: number | null
   maisVendido: boolean
+  tipoItem: TipoItem
 }
 
 export async function criarItem(supabase: SupabaseClient, restauranteId: string, input: NovoItemInput): Promise<ItemCardapio> {
@@ -206,6 +248,7 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       dias_disponiveis: input.diasDisponiveis,
       promocao_preco: input.promocaoPreco,
       mais_vendido: input.maisVendido,
+      tipo_item: input.tipoItem,
     })
     .select(ITEM_SELECT)
     .single()
@@ -224,6 +267,7 @@ export interface AtualizarItemInput {
   imagemUrl: string | null
   promocaoPreco: number | null
   maisVendido: boolean
+  tipoItem: TipoItem
 }
 
 export async function atualizarItem(supabase: SupabaseClient, itemId: string, input: AtualizarItemInput): Promise<ItemCardapio> {
@@ -239,6 +283,7 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
       imagem_url: input.imagemUrl,
       promocao_preco: input.promocaoPreco,
       mais_vendido: input.maisVendido,
+      tipo_item: input.tipoItem,
     })
     .eq('id', itemId)
     .select(ITEM_SELECT)
@@ -346,6 +391,46 @@ export async function atualizarTamanho(supabase: SupabaseClient, tamanhoId: stri
 
 export async function removerTamanho(supabase: SupabaseClient, tamanhoId: string) {
   const { error } = await supabase.from('tamanhos_item').delete().eq('id', tamanhoId)
+  if (error) throw error
+}
+
+// ─── Sabores de pizza (item de tipo 'pizza') ──────────────────────────────────
+
+export async function criarSabor(supabase: SupabaseClient, itemId: string, nome: string, posicao: number): Promise<PizzaSabor> {
+  const { data, error } = await supabase
+    .from('pizza_sabores')
+    .insert({ item_id: itemId, nome, posicao })
+    .select('id, nome, descricao, imagem_url, status, posicao')
+    .single()
+  if (error) throw error
+  return { id: data.id, nome: data.nome, descricao: data.descricao, imagemUrl: data.imagem_url, status: data.status, posicao: data.posicao, precos: [] }
+}
+
+export interface AtualizarSaborInput {
+  nome: string
+  descricao: string
+  status: StatusItem
+  imagemUrl: string | null
+}
+
+export async function atualizarSabor(supabase: SupabaseClient, saborId: string, input: AtualizarSaborInput) {
+  const { error } = await supabase
+    .from('pizza_sabores')
+    .update({ nome: input.nome, descricao: input.descricao, status: input.status, imagem_url: input.imagemUrl })
+    .eq('id', saborId)
+  if (error) throw error
+}
+
+export async function removerSabor(supabase: SupabaseClient, saborId: string) {
+  const { error } = await supabase.from('pizza_sabores').delete().eq('id', saborId)
+  if (error) throw error
+}
+
+/** Define (cria ou atualiza) o preço do sabor pra um tamanho padrão de pizza da loja. */
+export async function definirPrecoSabor(supabase: SupabaseClient, saborId: string, tamanhoPadraoId: string, preco: number) {
+  const { error } = await supabase
+    .from('pizza_sabor_precos')
+    .upsert({ sabor_id: saborId, tamanho_padrao_id: tamanhoPadraoId, preco }, { onConflict: 'sabor_id,tamanho_padrao_id' })
   if (error) throw error
 }
 

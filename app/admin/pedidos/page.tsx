@@ -88,7 +88,7 @@ function playNewOrderSound() {
 }
 
 function resumoItens(p: Pedido): string[] {
-  const linhas = p.itens.map((i) => `${i.quantidade}x ${i.nome}${i.tamanhoNome ? ` (${i.tamanhoNome})` : ''}`)
+  const linhas = p.itens.map((i) => `${i.quantidade}x ${i.nome}${i.tamanhoNome ? ` (${i.tamanhoNome})` : ''}${i.saborNome ? ` - ${i.saborNome}` : ''}`)
   if (linhas.length <= 3) return linhas
   return [...linhas.slice(0, 2), `+${linhas.length - 2} item(ns)`]
 }
@@ -497,9 +497,16 @@ export default function PedidosPage() {
                 {detail.itens.map((linha) => (
                   <li key={linha.id}>
                     <div className="flex justify-between text-text-main">
-                      <span>{linha.quantidade}x {linha.nome}{linha.tamanhoNome && <span className="text-text-subtle"> · {linha.tamanhoNome}</span>}</span>
+                      <span>
+                        {linha.quantidade}x {linha.nome}
+                        {linha.tamanhoNome && <span className="text-text-subtle"> · {linha.tamanhoNome}</span>}
+                        {linha.saborNome && <span className="text-text-subtle"> · {linha.saborNome}</span>}
+                      </span>
                       <span className="font-semibold">{brl(linha.precoUnitario * linha.quantidade)}</span>
                     </div>
+                    {(linha.bordaNome || linha.massaNome) && (
+                      <div className="mt-0.5 text-xs text-text-subtle">{[linha.bordaNome, linha.massaNome].filter(Boolean).join(', ')}</div>
+                    )}
                     {linha.complementos.length > 0 && (
                       <div className="mt-0.5 text-xs text-text-subtle">{linha.complementos.map((c) => c.nome).join(', ')}</div>
                     )}

@@ -48,7 +48,35 @@ import {
   type PresetComplementos,
   type StatusItem,
   type TamanhoItem,
+  type TipoItem,
+  type PizzaSabor,
+  criarSabor,
+  atualizarSabor,
+  removerSabor,
+  definirPrecoSabor,
 } from '@/lib/queries/cardapio'
+import {
+  listarTamanhosPadraoPizza,
+  criarTamanhoPadraoPizza,
+  atualizarTamanhoPadraoPizza,
+  removerTamanhoPadraoPizza,
+  listarTamanhosPadraoMarmita,
+  criarTamanhoPadraoMarmita,
+  atualizarTamanhoPadraoMarmita,
+  removerTamanhoPadraoMarmita,
+  listarBordasPizza,
+  criarBordaPizza,
+  atualizarBordaPizza,
+  removerBordaPizza,
+  listarMassasPizza,
+  criarMassaPizza,
+  atualizarMassaPizza,
+  removerMassaPizza,
+  type TamanhoPadraoPizza,
+  type TamanhoPadraoMarmita,
+  type BordaPizza,
+  type MassaPizza,
+} from '@/lib/queries/pizza'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -64,7 +92,7 @@ const STATUS_OPTIONS: { value: StatusItem; label: string }[] = [
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type View = 'table' | 'grid'
-type CardapioTab = 'itens' | 'complementos' | 'orderbump'
+type CardapioTab = 'itens' | 'complementos' | 'tamanhos' | 'orderbump'
 type Drawer = null | 'edit' | 'preset' | 'categoria'
 
 interface ItemFormState {
@@ -78,14 +106,21 @@ interface ItemFormState {
   imagemUrl: string | null
   promocaoPreco: string
   maisVendido: boolean
+  tipoItem: TipoItem
 }
+
+const TIPO_ITEM_OPTIONS: { value: TipoItem; label: string }[] = [
+  { value: 'simples', label: 'Simples (lanche, bebida, etc.)' },
+  { value: 'pizza', label: 'Pizza (sabores + tamanho)' },
+  { value: 'marmita', label: 'Marmita (tamanhos com peso)' },
+]
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function blankForm(grupoId: string | null): ItemFormState {
   return {
     id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null,
-    promocaoPreco: '', maisVendido: false,
+    promocaoPreco: '', maisVendido: false, tipoItem: 'simples',
   }
 }
 
@@ -101,6 +136,7 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     imagemUrl: item.imagemUrl,
     promocaoPreco: item.promocaoPreco !== null ? item.promocaoPreco.toFixed(2).replace('.', ',') : '',
     maisVendido: item.maisVendido,
+    tipoItem: item.tipoItem,
   }
 }
 
@@ -449,6 +485,140 @@ function GrupoItemCard({
   )
 }
 
+const SABOR_STATUS_CYCLE: StatusItem[] = ['disponivel', 'pausado', 'esgotado']
+const SABOR_STATUS_LABEL: Record<StatusItem, string> = { disponivel: 'Ativo', pausado: 'Inativo', esgotado: 'Em falta' }
+
+function SaborCard({
+  sabor,
+  tamanhos,
+  restauranteId,
+  onRefresh,
+}: {
+  sabor: PizzaSabor
+  tamanhos: TamanhoPadraoPizza[]
+  restauranteId: string
+  onRefresh: () => Promise<void>
+}) {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [editingHeader, setEditingHeader] = useState(false)
+  const [nome, setNome] = useState(sabor.nome)
+  const [descricao, setDescricao] = useState(sabor.descricao)
+  const [precoInputs, setPrecoInputs] = useState<Record<string, string>>(() =>
+    Object.fromEntries(tamanhos.map((t) => [t.id, String(sabor.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0)]))
+  )
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function saveHeader() {
+    const trimmed = nome.trim() || sabor.nome
+    try {
+      await atualizarSabor(supabase, sabor.id, { nome: trimmed, descricao, status: sabor.status, imagemUrl: sabor.imagemUrl })
+      setEditingHeader(false)
+      await onRefresh()
+    } catch { /* silencioso */ }
+  }
+
+  async function cycleStatus() {
+    const next = SABOR_STATUS_CYCLE[(SABOR_STATUS_CYCLE.indexOf(sabor.status) + 1) % SABOR_STATUS_CYCLE.length]
+    try {
+      await atualizarSabor(supabase, sabor.id, { nome: sabor.nome, descricao: sabor.descricao, status: next, imagemUrl: sabor.imagemUrl })
+      await onRefresh()
+    } catch { /* silencioso */ }
+  }
+
+  async function removeSabor() {
+    if (!confirm(`Remover o sabor "${sabor.nome}"?`)) return
+    try {
+      await removerSabor(supabase, sabor.id)
+      await onRefresh()
+    } catch { /* silencioso */ }
+  }
+
+  async function savePreco(tamanhoId: string) {
+    const val = Number((precoInputs[tamanhoId] ?? '0').replace(',', '.'))
+    const preco = Number.isFinite(val) && val >= 0 ? val : 0
+    try {
+      await definirPrecoSabor(supabase, sabor.id, tamanhoId, preco)
+      await onRefresh()
+    } catch { /* silencioso */ }
+  }
+
+  async function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const url = await enviarImagemItem(supabase, restauranteId, file)
+      await atualizarSabor(supabase, sabor.id, { nome: sabor.nome, descricao: sabor.descricao, status: sabor.status, imagemUrl: url })
+      await onRefresh()
+    } catch { /* silencioso */ }
+    finally { setUploading(false) }
+  }
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-menuzia border border-border bg-white">
+      <div className="flex items-center gap-2.5 border-b border-border bg-page px-3 py-2.5">
+        {sabor.imagemUrl
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={sabor.imagemUrl} alt={sabor.nome} className="h-8 w-8 flex-shrink-0 rounded-menuzia object-cover" />
+          : <div className="h-8 w-8 flex-shrink-0 rounded-menuzia bg-gradient-to-br from-slate-100 to-slate-200" />
+        }
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFoto} />
+        <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="text-[11px] text-text-subtle hover:text-primary">
+          {uploading ? '…' : 'Foto'}
+        </button>
+        {editingHeader ? (
+          <input value={nome} onChange={(e) => setNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveHeader()}
+            autoFocus className="flex-1 rounded-menuzia border border-primary px-2 py-1 text-[13px] outline-none" />
+        ) : (
+          <span className="flex-1 text-[13px] font-semibold text-text-main">{sabor.nome}</span>
+        )}
+        <button
+          onClick={cycleStatus}
+          className={[
+            'rounded-menuzia px-1.5 py-0.5 text-[10px] font-bold',
+            sabor.status === 'disponivel' ? 'bg-price-bg text-price-text' : sabor.status === 'pausado' ? 'bg-warn/10 text-warn' : 'bg-danger-bg text-danger',
+          ].join(' ')}
+        >
+          {SABOR_STATUS_LABEL[sabor.status]}
+        </button>
+        {editingHeader ? (
+          <button onClick={saveHeader} className="text-[11px] font-semibold text-primary hover:underline">Salvar</button>
+        ) : (
+          <button onClick={() => setEditingHeader(true)} className="text-[11px] text-text-subtle hover:text-primary">Editar</button>
+        )}
+        <button onClick={removeSabor} className="text-[11px] text-text-subtle hover:text-danger">Remover</button>
+      </div>
+      {editingHeader && (
+        <div className="border-b border-border px-3 py-2">
+          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição do sabor (opcional)"
+            className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-[12px] outline-none focus:border-primary" />
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
+        {tamanhos.length === 0 && (
+          <p className="col-span-full text-[11px] text-text-subtle">Cadastre tamanhos de pizza na aba &ldquo;Tamanhos&rdquo; pra definir preços aqui.</p>
+        )}
+        {tamanhos.map((t) => (
+          <div key={t.id}>
+            <div className="mb-1 text-[11px] font-medium text-text-subtle">{t.nome} ({t.fatias} fatias)</div>
+            <div className="flex items-center gap-1">
+              <span className="text-[12px] text-text-subtle">R$</span>
+              <input
+                value={precoInputs[t.id] ?? '0'}
+                onChange={(e) => setPrecoInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                onBlur={() => savePreco(t.id)}
+                onKeyDown={(e) => e.key === 'Enter' && savePreco(t.id)}
+                className="w-full rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Preset Group Card (for Grupos de Complementos tab) ──────────────────────
 
 interface PresetItemEdit {
@@ -780,6 +950,278 @@ function GruposComplementos({
   )
 }
 
+// ─── Tamanhos Tab (catálogos da loja: tamanhos de pizza/marmita, bordas, massas) ──
+
+interface LinhaCatalogo {
+  id: string
+  nome: string
+  extra: string
+}
+
+function ListaCatalogo({
+  titulo,
+  hint,
+  itens,
+  extraLabel,
+  extraPlaceholder,
+  extraType,
+  formatExtra,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  titulo: string
+  hint: string
+  itens: LinhaCatalogo[]
+  extraLabel: string
+  extraPlaceholder: string
+  extraType: 'text' | 'number'
+  formatExtra: (extra: string) => string
+  onAdd: (nome: string, extra: string) => Promise<void>
+  onUpdate: (id: string, nome: string, extra: string) => Promise<void>
+  onRemove: (id: string) => Promise<void>
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editNome, setEditNome] = useState('')
+  const [editExtra, setEditExtra] = useState('')
+  const [newNome, setNewNome] = useState('')
+  const [newExtra, setNewExtra] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  function startEdit(linha: LinhaCatalogo) {
+    setEditingId(linha.id)
+    setEditNome(linha.nome)
+    setEditExtra(linha.extra)
+  }
+
+  async function saveEdit() {
+    if (!editingId || !editNome.trim()) return
+    setBusy(true)
+    try {
+      await onUpdate(editingId, editNome.trim(), editExtra)
+      setEditingId(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function add() {
+    if (!newNome.trim()) return
+    setBusy(true)
+    try {
+      await onAdd(newNome.trim(), newExtra)
+      setNewNome('')
+      setNewExtra('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <h3 className="mb-1 text-[13px] font-bold text-text-main">{titulo}</h3>
+      <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">{hint}</p>
+      <div className="overflow-hidden rounded-menuzia border border-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-page">
+              <th className="px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Nome</th>
+              <th className="px-3.5 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{extraLabel}</th>
+              <th className="w-24 px-3.5 py-2.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {itens.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3.5 py-4 text-center text-[13px] text-text-subtle">Nenhum cadastrado ainda.</td>
+              </tr>
+            )}
+            {itens.map((linha) =>
+              editingId === linha.id ? (
+                <tr key={linha.id} className="border-b border-border bg-[#ECFEFF]">
+                  <td className="px-2.5 py-2">
+                    <input value={editNome} onChange={(e) => setEditNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                      className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <input type={extraType} value={editExtra} onChange={(e) => setEditExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                      placeholder={extraPlaceholder} className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <div className="flex justify-end gap-1.5">
+                      <button onClick={saveEdit} disabled={busy} className="text-[12px] font-semibold text-primary hover:underline">Salvar</button>
+                      <button onClick={() => setEditingId(null)} className="text-[12px] text-text-subtle hover:text-text-main">Cancelar</button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={linha.id} className="border-b border-border last:border-none hover:bg-page">
+                  <td className="px-3.5 py-2.5 font-medium">{linha.nome}</td>
+                  <td className="px-3.5 py-2.5 text-right tabular-nums">{formatExtra(linha.extra)}</td>
+                  <td className="px-3.5 py-2.5">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => startEdit(linha)} className="text-[12px] text-text-subtle hover:text-primary">Editar</button>
+                      <button onClick={() => onRemove(linha.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            )}
+            <tr className="bg-page">
+              <td className="px-2.5 py-2">
+                <input value={newNome} onChange={(e) => setNewNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
+                  placeholder="Nome" className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
+              </td>
+              <td className="px-2.5 py-2">
+                <input type={extraType} value={newExtra} onChange={(e) => setNewExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
+                  placeholder={extraPlaceholder} className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
+              </td>
+              <td className="px-2.5 py-2">
+                <Button variant="outline" onClick={add} disabled={busy || !newNome.trim()} className="w-full justify-center">+ Adicionar</Button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function TamanhosTab({ restauranteId }: { restauranteId: string }) {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [loaded, setLoaded] = useState(false)
+  const [tamanhosPizza, setTamanhosPizza] = useState<TamanhoPadraoPizza[]>([])
+  const [tamanhosMarmita, setTamanhosMarmita] = useState<TamanhoPadraoMarmita[]>([])
+  const [bordas, setBordas] = useState<BordaPizza[]>([])
+  const [massas, setMassas] = useState<MassaPizza[]>([])
+
+  useEffect(() => {
+    if (loaded) return
+    Promise.all([
+      listarTamanhosPadraoPizza(supabase, restauranteId),
+      listarTamanhosPadraoMarmita(supabase, restauranteId),
+      listarBordasPizza(supabase, restauranteId),
+      listarMassasPizza(supabase, restauranteId),
+    ]).then(([p, m, b, ma]) => {
+      setTamanhosPizza(p)
+      setTamanhosMarmita(m)
+      setBordas(b)
+      setMassas(ma)
+      setLoaded(true)
+    })
+  }, [supabase, restauranteId, loaded])
+
+  if (!loaded) {
+    return <div className="flex flex-1 items-center justify-center text-sm text-text-subtle">Carregando…</div>
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5">
+      <div className="mb-5">
+        <h2 className="text-[15px] font-bold text-text-main">Tamanhos</h2>
+        <p className="mt-0.5 max-w-2xl text-[12px] leading-relaxed text-text-subtle">
+          Defina aqui o que significa Pequena/Média/Grande na sua loja — cada item de pizza ou marmita reaproveita
+          esses tamanhos. Bordas e massas cadastradas aqui ficam disponíveis em todas as pizzas automaticamente.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <ListaCatalogo
+          titulo="Tamanhos de pizza"
+          hint='Ex.: "Pequena" com 4 fatias, "Grande" com 8 fatias. Cada sabor define o preço para cada um desses tamanhos.'
+          itens={tamanhosPizza.map((t) => ({ id: t.id, nome: t.nome, extra: String(t.fatias) }))}
+          extraLabel="Fatias"
+          extraPlaceholder="Ex: 8"
+          extraType="number"
+          formatExtra={(e) => `${e} fatias`}
+          onAdd={async (nome, extra) => {
+            const novo = await criarTamanhoPadraoPizza(supabase, restauranteId, nome, Number(extra) || 0, tamanhosPizza.length)
+            setTamanhosPizza((prev) => [...prev, novo])
+          }}
+          onUpdate={async (id, nome, extra) => {
+            await atualizarTamanhoPadraoPizza(supabase, id, nome, Number(extra) || 0)
+            setTamanhosPizza((prev) => prev.map((t) => (t.id === id ? { ...t, nome, fatias: Number(extra) || 0 } : t)))
+          }}
+          onRemove={async (id) => {
+            if (!confirm('Excluir este tamanho de pizza? Preços de sabores cadastrados pra ele também serão excluídos.')) return
+            await removerTamanhoPadraoPizza(supabase, id)
+            setTamanhosPizza((prev) => prev.filter((t) => t.id !== id))
+          }}
+        />
+        <ListaCatalogo
+          titulo="Tamanhos de marmita"
+          hint='Ex.: "Pequena" 500g, "Grande" 700g. Ao criar um item de marmita, importe esses tamanhos com 1 clique e só ajuste o preço.'
+          itens={tamanhosMarmita.map((t) => ({ id: t.id, nome: t.nome, extra: t.peso }))}
+          extraLabel="Peso"
+          extraPlaceholder="Ex: 500g"
+          extraType="text"
+          formatExtra={(e) => e}
+          onAdd={async (nome, extra) => {
+            const novo = await criarTamanhoPadraoMarmita(supabase, restauranteId, nome, extra, tamanhosMarmita.length)
+            setTamanhosMarmita((prev) => [...prev, novo])
+          }}
+          onUpdate={async (id, nome, extra) => {
+            await atualizarTamanhoPadraoMarmita(supabase, id, nome, extra)
+            setTamanhosMarmita((prev) => prev.map((t) => (t.id === id ? { ...t, nome, peso: extra } : t)))
+          }}
+          onRemove={async (id) => {
+            if (!confirm('Excluir este tamanho de marmita?')) return
+            await removerTamanhoPadraoMarmita(supabase, id)
+            setTamanhosMarmita((prev) => prev.filter((t) => t.id !== id))
+          }}
+        />
+        <ListaCatalogo
+          titulo="Bordas de pizza"
+          hint="Oferecidas como opção (com preço extra) em todas as pizzas da loja."
+          itens={bordas.map((b) => ({ id: b.id, nome: b.nome, extra: String(b.preco) }))}
+          extraLabel="Preço extra (R$)"
+          extraPlaceholder="Ex: 8,00"
+          extraType="text"
+          formatExtra={(e) => `+ R$ ${(Number(e) || 0).toFixed(2).replace('.', ',')}`}
+          onAdd={async (nome, extra) => {
+            const preco = Number(extra.replace(',', '.')) || 0
+            const novo = await criarBordaPizza(supabase, restauranteId, nome, preco, bordas.length)
+            setBordas((prev) => [...prev, novo])
+          }}
+          onUpdate={async (id, nome, extra) => {
+            const preco = Number(extra.replace(',', '.')) || 0
+            await atualizarBordaPizza(supabase, id, nome, preco)
+            setBordas((prev) => prev.map((b) => (b.id === id ? { ...b, nome, preco } : b)))
+          }}
+          onRemove={async (id) => {
+            if (!confirm('Excluir esta borda?')) return
+            await removerBordaPizza(supabase, id)
+            setBordas((prev) => prev.filter((b) => b.id !== id))
+          }}
+        />
+        <ListaCatalogo
+          titulo="Massas de pizza"
+          hint="Oferecidas como opção (com preço extra) em todas as pizzas da loja."
+          itens={massas.map((m) => ({ id: m.id, nome: m.nome, extra: String(m.preco) }))}
+          extraLabel="Preço extra (R$)"
+          extraPlaceholder="Ex: 5,00"
+          extraType="text"
+          formatExtra={(e) => `+ R$ ${(Number(e) || 0).toFixed(2).replace('.', ',')}`}
+          onAdd={async (nome, extra) => {
+            const preco = Number(extra.replace(',', '.')) || 0
+            const novo = await criarMassaPizza(supabase, restauranteId, nome, preco, massas.length)
+            setMassas((prev) => [...prev, novo])
+          }}
+          onUpdate={async (id, nome, extra) => {
+            const preco = Number(extra.replace(',', '.')) || 0
+            await atualizarMassaPizza(supabase, id, nome, preco)
+            setMassas((prev) => prev.map((m) => (m.id === id ? { ...m, nome, preco } : m)))
+          }}
+          onRemove={async (id) => {
+            if (!confirm('Excluir esta massa?')) return
+            await removerMassaPizza(supabase, id)
+            setMassas((prev) => prev.filter((m) => m.id !== id))
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 // ─── Order Bump Tab ────────────────────────────────────────────────────────────
 
 function OrderBumpTab({ restauranteId, items }: { restauranteId: string; items: ItemCardapio[] }) {
@@ -1049,6 +1491,8 @@ export default function CardapioPage() {
   const [groups, setGroups] = useState<GrupoCardapio[]>([])
   const [items, setItems] = useState<ItemCardapio[]>([])
   const [presets, setPresets] = useState<PresetComplementos[]>([])
+  const [tamanhosPizzaCatalogo, setTamanhosPizzaCatalogo] = useState<TamanhoPadraoPizza[]>([])
+  const [tamanhosMarmitaCatalogo, setTamanhosMarmitaCatalogo] = useState<TamanhoPadraoMarmita[]>([])
 
   const [cardapioTab, setCardapioTab] = useState<CardapioTab>('itens')
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
@@ -1072,6 +1516,8 @@ export default function CardapioPage() {
   const [newTamanhoForm, setNewTamanhoForm] = useState({ nome: '', preco: '' })
   const [editingTamanhoId, setEditingTamanhoId] = useState<string | null>(null)
   const [editingTamanhoForm, setEditingTamanhoForm] = useState({ nome: '', preco: '' })
+  const [creatingSabor, setCreatingSabor] = useState(false)
+  const [newSaborNome, setNewSaborNome] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -1087,15 +1533,19 @@ export default function CardapioPage() {
       }
       setRestauranteId(id)
       try {
-        const [gruposData, itensData, presetsData] = await Promise.all([
+        const [gruposData, itensData, presetsData, tamanhosPizzaData, tamanhosMarmitaData] = await Promise.all([
           listarGrupos(supabase, id),
           listarItens(supabase, id),
           listarPresets(supabase, id),
+          listarTamanhosPadraoPizza(supabase, id),
+          listarTamanhosPadraoMarmita(supabase, id),
         ])
         if (cancelled) return
         setGroups(gruposData)
         setItems(itensData)
         setPresets(presetsData)
+        setTamanhosPizzaCatalogo(tamanhosPizzaData)
+        setTamanhosMarmitaCatalogo(tamanhosMarmitaData)
         setActiveGroup((current) => current ?? gruposData[0]?.nome ?? null)
       } catch {
         if (!cancelled) setError('Não foi possível carregar o cardápio. Verifique sua conexão com o Supabase e tente novamente.')
@@ -1198,6 +1648,7 @@ export default function CardapioPage() {
         diasDisponiveis: form.diasDisponiveis,
         promocaoPreco: form.promocaoPreco.trim() ? parsePreco(form.promocaoPreco) : null,
         maisVendido: form.maisVendido,
+        tipoItem: form.tipoItem,
       }
       if (form.id) {
         const updated = await atualizarItem(supabase, form.id, { ...payload, imagemUrl: form.imagemUrl })
@@ -1367,6 +1818,33 @@ export default function CardapioPage() {
     }
   }
 
+  async function importarTamanhosMarmita() {
+    if (!form.id) return
+    const existentes = new Set((currentItem?.tamanhos ?? []).map((t) => t.nome))
+    const faltantes = tamanhosMarmitaCatalogo.filter((t) => !existentes.has(t.nome))
+    if (faltantes.length === 0) return
+    try {
+      for (const [i, t] of faltantes.entries()) {
+        await criarTamanho(supabase, form.id, `${t.nome} (${t.peso})`, 0, (currentItem?.tamanhos.length ?? 0) + i)
+      }
+      await refreshItems()
+    } catch {
+      setError('Não foi possível importar os tamanhos da loja.')
+    }
+  }
+
+  async function createSaborNoItem() {
+    if (!form.id || !newSaborNome.trim()) return
+    try {
+      await criarSabor(supabase, form.id, newSaborNome.trim(), currentItem?.sabores.length ?? 0)
+      setNewSaborNome('')
+      setCreatingSabor(false)
+      await refreshItems()
+    } catch {
+      setError('Não foi possível criar o sabor.')
+    }
+  }
+
   async function removeComplementoFromItem(complementoId: string) {
     try {
       await removerComplemento(supabase, complementoId)
@@ -1414,6 +1892,8 @@ export default function CardapioPage() {
             ? `Cardápio › ${activeGroup ?? 'Sem categorias'}`
             : cardapioTab === 'complementos'
             ? 'Cardápio › Grupos de complementos'
+            : cardapioTab === 'tamanhos'
+            ? 'Cardápio › Tamanhos'
             : 'Cardápio › Order Bump'
         }
       />
@@ -1423,6 +1903,7 @@ export default function CardapioPage() {
         {([
           { id: 'itens' as CardapioTab, label: 'Itens do cardápio' },
           { id: 'complementos' as CardapioTab, label: 'Grupos de complementos' },
+          { id: 'tamanhos' as CardapioTab, label: 'Tamanhos' },
           { id: 'orderbump' as CardapioTab, label: 'Order Bump' },
         ]).map((t) => (
           <button
@@ -1625,7 +2106,7 @@ export default function CardapioPage() {
                               atualizarItem(supabase, item.id, {
                                 grupoId: item.grupoId, nome: item.nome, descricao: item.descricao,
                                 preco: item.preco, status: item.status, diasDisponiveis: days, imagemUrl: item.imagemUrl,
-                                promocaoPreco: item.promocaoPreco, maisVendido: item.maisVendido,
+                                promocaoPreco: item.promocaoPreco, maisVendido: item.maisVendido, tipoItem: item.tipoItem,
                               }).catch(() => setError('Não foi possível salvar a disponibilidade.'))
                             }}
                           />
@@ -1695,6 +2176,11 @@ export default function CardapioPage() {
         {restauranteId && (
           <GruposComplementos restauranteId={restauranteId} presets={presets} setPresets={setPresets} />
         )}
+      </div>
+
+      {/* ── Tab: Tamanhos ── */}
+      <div className={cardapioTab !== 'tamanhos' ? 'hidden' : 'flex flex-1 flex-col overflow-hidden'}>
+        {restauranteId && <TamanhosTab restauranteId={restauranteId} />}
       </div>
 
       {/* ── Tab: Order Bump ── */}
@@ -1827,13 +2313,24 @@ export default function CardapioPage() {
             placeholder="Ex.: Pão brioche, 2 hambúrgueres 120g, cheddar e molho da casa"
             className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
 
+          <div className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tipo de item</div>
+          <select value={form.tipoItem} onChange={(e) => setForm((prev) => ({ ...prev, tipoItem: e.target.value as TipoItem }))}
+            className="w-full rounded-menuzia border border-border bg-white px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary">
+            {TIPO_ITEM_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+          {form.tipoItem === 'pizza' && (
+            <p className="mt-1 text-[11px] text-text-subtle">Pizza não usa preço base — o preço vem do sabor escolhido em cada tamanho (seção &ldquo;Sabores&rdquo; abaixo).</p>
+          )}
+
           <div className="mt-4 flex gap-3">
-            <div className="flex-1">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preço (R$)</div>
-              <input value={form.preco} onChange={(e) => setForm((prev) => ({ ...prev, preco: e.target.value }))}
-                placeholder="32,90"
-                className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
-            </div>
+            {form.tipoItem !== 'pizza' && (
+              <div className="flex-1">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preço (R$)</div>
+                <input value={form.preco} onChange={(e) => setForm((prev) => ({ ...prev, preco: e.target.value }))}
+                  placeholder="32,90"
+                  className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
+              </div>
+            )}
             <div className="flex-1">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Categoria</div>
               <select value={form.grupoId ?? ''} onChange={(e) => setForm((prev) => ({ ...prev, grupoId: e.target.value || null }))}
@@ -1877,14 +2374,69 @@ export default function CardapioPage() {
             </div>
           </div>
 
-          {/* Tamanhos section (only after item is saved) — ex.: marmitex P/M/G, preço próprio por tamanho */}
-          {form.id && (
+          {/* Sabores de pizza (só pra itens tipo pizza) */}
+          {form.id && form.tipoItem === 'pizza' && (
             <>
               <div className="mt-6 flex items-center justify-between">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tamanhos (ex.: marmitex P/M/G)</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Sabores</div>
               </div>
               <p className="mb-3 mt-1 text-[11px] text-text-subtle">
-                Se o item tiver tamanhos, o cliente escolhe um no cardápio e o preço do tamanho substitui o preço base do item.
+                Cada sabor tem seu próprio preço por tamanho. Cadastre os tamanhos da pizza na aba &ldquo;Tamanhos&rdquo; antes de definir os preços aqui.
+              </p>
+
+              {(currentItem?.sabores ?? []).map((sabor) => (
+                <SaborCard key={sabor.id} sabor={sabor} tamanhos={tamanhosPizzaCatalogo} restauranteId={restauranteId!} onRefresh={refreshItems} />
+              ))}
+
+              {(currentItem?.sabores ?? []).length === 0 && !creatingSabor && (
+                <div className="mb-3 rounded-menuzia border border-dashed border-border p-3 text-center text-[11px] text-text-subtle">
+                  Nenhum sabor cadastrado ainda.
+                </div>
+              )}
+
+              {creatingSabor ? (
+                <div className="mb-2 mt-2 flex items-center gap-2 rounded-menuzia border border-border bg-page p-2.5">
+                  <input
+                    autoFocus
+                    value={newSaborNome}
+                    onChange={(e) => setNewSaborNome(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && createSaborNoItem()}
+                    placeholder="Nome do sabor (ex: Mussarela)"
+                    className="flex-1 rounded-menuzia border border-border px-2.5 py-1.5 text-[13px] outline-none focus:border-primary"
+                  />
+                  <button onClick={createSaborNoItem} disabled={!newSaborNome.trim()}
+                    className="rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-50">
+                    Adicionar
+                  </button>
+                  <button onClick={() => { setCreatingSabor(false); setNewSaborNome('') }}
+                    className="rounded-menuzia border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:bg-page">
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setCreatingSabor(true)}
+                  className="mt-2 w-full rounded-menuzia border border-dashed border-border bg-white py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:border-primary hover:text-primary"
+                >
+                  + Novo sabor
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Tamanhos section (only after item is saved, tipo marmita) — preço próprio por tamanho */}
+          {form.id && form.tipoItem === 'marmita' && (
+            <>
+              <div className="mt-6 flex items-center justify-between">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tamanhos</div>
+                {tamanhosMarmitaCatalogo.length > 0 && (
+                  <button onClick={importarTamanhosMarmita} className="rounded-menuzia bg-purple-600 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-purple-700">
+                    Importar tamanhos da loja
+                  </button>
+                )}
+              </div>
+              <p className="mb-3 mt-1 text-[11px] text-text-subtle">
+                O cliente escolhe um tamanho no cardápio e o preço do tamanho substitui o preço base do item.
               </p>
 
               {(currentItem?.tamanhos ?? []).map((tamanho) =>

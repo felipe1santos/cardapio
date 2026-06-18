@@ -18,6 +18,9 @@ export interface PedidoItem {
   observacao: string
   complementos: PedidoComplementoSnapshot[]
   tamanhoNome: string
+  saborNome: string
+  bordaNome: string
+  massaNome: string
 }
 
 export interface Pedido {
@@ -89,6 +92,9 @@ interface PedidoRow {
     observacao: string
     complementos: PedidoComplementoSnapshot[]
     tamanho_nome: string
+    sabor_nome: string
+    borda_nome: string
+    massa_nome: string
   }[]
 }
 
@@ -97,7 +103,7 @@ const PEDIDO_SELECT = `
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
   entregador_id, criado_em, atualizado_em,
-  pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome )
+  pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome )
 `
 
 function mapPedido(row: PedidoRow): Pedido {
@@ -131,6 +137,9 @@ function mapPedido(row: PedidoRow): Pedido {
       observacao: i.observacao,
       complementos: (i.complementos ?? []).map((c) => ({ nome: c.nome, preco: Number(c.preco) })),
       tamanhoNome: i.tamanho_nome ?? '',
+      saborNome: i.sabor_nome ?? '',
+      bordaNome: i.borda_nome ?? '',
+      massaNome: i.massa_nome ?? '',
     })),
   }
 }
@@ -583,7 +592,10 @@ export interface NovoPedidoItemInput {
   quantidade: number
   observacao: string
   complementos: string[] // nomes dos complementos escolhidos
-  tamanhoNome?: string // nome do tamanho escolhido (substitui o preço base, não soma)
+  tamanhoNome?: string // nome do tamanho escolhido (substitui o preço base, não soma) — pra pizza, é o tamanho padrão da loja
+  saborNome?: string // pizza: nome do sabor escolhido
+  bordaNome?: string // pizza: nome da borda escolhida (opcional)
+  massaNome?: string // pizza: nome da massa escolhida (opcional)
 }
 
 export interface NovoPedidoInput {
@@ -608,12 +620,32 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   const itemIds = [...new Set(input.itens.map((i) => i.itemId))]
   const { data: itensDb, error: itensError } = await admin
     .from('itens_cardapio')
-    .select('id, nome, preco, promocao_preco, status, item_complementos ( nome, preco ), tamanhos_item ( nome, preco )')
+    .select(`
+      id, nome, preco, promocao_preco, status, tipo_item,
+      item_complementos ( nome, preco ),
+      tamanhos_item ( nome, preco ),
+      pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
+    `)
     .eq('restaurante_id', restauranteId)
     .in('id', itemIds)
   if (itensError) throw itensError
 
   const byId = new Map((itensDb ?? []).map((i) => [i.id, i]))
+
+  const precisaCatalogoPizza = (itensDb ?? []).some((i) => i.tipo_item === 'pizza')
+  let tamanhosPizza: { id: string; nome: string }[] = []
+  let bordasPizza: { nome: string; preco: number }[] = []
+  let massasPizza: { nome: string; preco: number }[] = []
+  if (precisaCatalogoPizza) {
+    const [tamanhosRes, bordasRes, massasRes] = await Promise.all([
+      admin.from('tamanhos_padrao_pizza').select('id, nome').eq('restaurante_id', restauranteId),
+      admin.from('bordas_pizza').select('nome, preco').eq('restaurante_id', restauranteId),
+      admin.from('massas_pizza').select('nome, preco').eq('restaurante_id', restauranteId),
+    ])
+    tamanhosPizza = tamanhosRes.data ?? []
+    bordasPizza = (bordasRes.data ?? []).map((b) => ({ nome: b.nome, preco: Number(b.preco) }))
+    massasPizza = (massasRes.data ?? []).map((m) => ({ nome: m.nome, preco: Number(m.preco) }))
+  }
 
   const linhas = input.itens.map((linha) => {
     const item = byId.get(linha.itemId)
@@ -622,12 +654,35 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
 
     let base = item.promocao_preco === null || item.promocao_preco === undefined ? Number(item.preco) : Number(item.promocao_preco)
     let tamanhoNome = ''
-    if (linha.tamanhoNome) {
+    let saborNome = ''
+    let bordaNome = ''
+    let massaNome = ''
+
+    if (item.tipo_item === 'pizza') {
+      if (!linha.tamanhoNome || !linha.saborNome) throw new Error(`Selecione tamanho e sabor pra "${item.nome}"`)
+      const tamanho = tamanhosPizza.find((t) => t.nome === linha.tamanhoNome)
+      if (!tamanho) throw new Error(`Tamanho "${linha.tamanhoNome}" não encontrado`)
+      const sabor = (item.pizza_sabores ?? []).find((s: { nome: string; status: string }) => s.nome === linha.saborNome)
+      if (!sabor || sabor.status !== 'disponivel') throw new Error(`Sabor "${linha.saborNome}" não encontrado para o item "${item.nome}"`)
+      const precoSabor = sabor.pizza_sabor_precos.find((p: { tamanho_padrao_id: string; preco: number }) => p.tamanho_padrao_id === tamanho.id)
+      base = precoSabor ? Number(precoSabor.preco) : 0
+      tamanhoNome = tamanho.nome
+      saborNome = sabor.nome
+      if (linha.bordaNome) {
+        const borda = bordasPizza.find((b) => b.nome === linha.bordaNome)
+        if (borda) { base += borda.preco; bordaNome = borda.nome }
+      }
+      if (linha.massaNome) {
+        const massa = massasPizza.find((m) => m.nome === linha.massaNome)
+        if (massa) { base += massa.preco; massaNome = massa.nome }
+      }
+    } else if (linha.tamanhoNome) {
       const tamanho = (item.tamanhos_item ?? []).find((t: { nome: string; preco: number }) => t.nome === linha.tamanhoNome)
       if (!tamanho) throw new Error(`Tamanho "${linha.tamanhoNome}" não encontrado para o item "${item.nome}"`)
       base = Number(tamanho.preco)
       tamanhoNome = tamanho.nome
     }
+
     const complementos: PedidoComplementoSnapshot[] = []
     for (const nome of linha.complementos) {
       const comp = (item.item_complementos ?? []).find((c: { nome: string; preco: number }) => c.nome === nome)
@@ -643,6 +698,9 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       observacao: linha.observacao ?? '',
       complementos,
       tamanho_nome: tamanhoNome,
+      sabor_nome: saborNome,
+      borda_nome: bordaNome,
+      massa_nome: massaNome,
     }
   })
 

@@ -10,10 +10,19 @@ import {
   listarOrderBumpsPublico,
   type GrupoComItens,
   type ItemCardapio,
+  type PizzaSabor,
   type LayoutCardapio,
   type RestauranteVitrine,
 } from '@/lib/queries/cardapio'
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
+import {
+  listarTamanhosPadraoPizza,
+  listarBordasPizza,
+  listarMassasPizza,
+  type TamanhoPadraoPizza,
+  type BordaPizza,
+  type MassaPizza,
+} from '@/lib/queries/pizza'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +36,9 @@ interface CartLine {
   addons: { nome: string; preco: number }[]
   obs: string
   tamanhoNome: string
+  saborNome: string
+  bordaNome: string
+  massaNome: string
 }
 
 interface ToastItem {
@@ -174,6 +186,9 @@ export default function StorefrontPage() {
   const [groups, setGroups] = useState<GrupoComItens[]>([])
   const [bairros, setBairros] = useState<{ bairro: string; taxa: number }[]>([])
   const [orderBumps, setOrderBumps] = useState<ItemCardapio[]>([])
+  const [tamanhosPizza, setTamanhosPizza] = useState<TamanhoPadraoPizza[]>([])
+  const [bordasPizza, setBordasPizza] = useState<BordaPizza[]>([])
+  const [massasPizza, setMassasPizza] = useState<MassaPizza[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -189,15 +204,21 @@ export default function StorefrontPage() {
           return
         }
         setRestaurante(loja)
-        const [cardapio, taxasBairro, bumps] = await Promise.all([
+        const [cardapio, taxasBairro, bumps, tamanhosPizzaData, bordasData, massasData] = await Promise.all([
           listarCardapioPublico(supabase, loja.id),
           listarBairrosVitrine(supabase, loja.id),
           listarOrderBumpsPublico(supabase, loja.id, loja.orderBumpMax),
+          listarTamanhosPadraoPizza(supabase, loja.id),
+          listarBordasPizza(supabase, loja.id),
+          listarMassasPizza(supabase, loja.id),
         ])
         if (cancelled) return
         setGroups(cardapio)
         setBairros(taxasBairro)
         setOrderBumps(bumps)
+        setTamanhosPizza(tamanhosPizzaData)
+        setBordasPizza(bordasData)
+        setMassasPizza(massasData)
       } catch {
         if (!cancelled) setError('Não foi possível carregar o cardápio agora. Tente novamente em instantes.')
       } finally {
@@ -491,6 +512,10 @@ export default function StorefrontPage() {
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set())
   const [obs, setObs] = useState('')
   const [selectedTamanhoId, setSelectedTamanhoId] = useState<string | null>(null)
+  const [selectedTamanhoPizzaId, setSelectedTamanhoPizzaId] = useState<string | null>(null)
+  const [selectedSaborId, setSelectedSaborId] = useState<string | null>(null)
+  const [selectedBordaId, setSelectedBordaId] = useState<string | null>(null)
+  const [selectedMassaId, setSelectedMassaId] = useState<string | null>(null)
 
   function openProduct(item: ItemCardapio) {
     setProductSheet(item)
@@ -499,6 +524,10 @@ export default function StorefrontPage() {
     setSelectedAddons(new Set())
     setObs('')
     setSelectedTamanhoId(item.tamanhos[0]?.id ?? null)
+    setSelectedTamanhoPizzaId(tamanhosPizza[0]?.id ?? null)
+    setSelectedSaborId(item.sabores.find((s) => s.status === 'disponivel')?.id ?? null)
+    setSelectedBordaId(null)
+    setSelectedMassaId(null)
   }
 
   function selectRadio(grupoId: string, compId: string) {
@@ -523,12 +552,13 @@ export default function StorefrontPage() {
   const gruposValidos = useMemo(() => {
     if (!productSheet) return true
     if (productSheet.tamanhos.length > 0 && !selectedTamanhoId) return false
+    if (productSheet.tipoItem === 'pizza' && (!selectedTamanhoPizzaId || !selectedSaborId)) return false
     return productSheet.grupos.every((g) => {
       if (!g.obrigatorio) return true
       const sel = groupSelections.get(g.id) ?? new Set()
       return sel.size >= g.minEscolhas
     })
-  }, [productSheet, groupSelections, selectedTamanhoId])
+  }, [productSheet, groupSelections, selectedTamanhoId, selectedTamanhoPizzaId, selectedSaborId])
 
   const addonsTotal = useMemo(() => {
     if (!productSheet) return 0
@@ -547,7 +577,18 @@ export default function StorefrontPage() {
   }, [productSheet, groupSelections, selectedAddons])
 
   const selectedTamanho = productSheet?.tamanhos.find((t) => t.id === selectedTamanhoId) ?? null
-  const basePrice = productSheet ? (selectedTamanho ? selectedTamanho.preco : productSheet.promocaoPreco ?? productSheet.preco) : 0
+  const selectedSabor = productSheet?.sabores.find((s) => s.id === selectedSaborId) ?? null
+  const selectedBorda = bordasPizza.find((b) => b.id === selectedBordaId) ?? null
+  const selectedMassa = massasPizza.find((m) => m.id === selectedMassaId) ?? null
+  const precoSaborTamanho = selectedSabor?.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
+
+  const basePrice = productSheet
+    ? productSheet.tipoItem === 'pizza'
+      ? precoSaborTamanho + (selectedBorda?.preco ?? 0) + (selectedMassa?.preco ?? 0)
+      : selectedTamanho
+      ? selectedTamanho.preco
+      : productSheet.promocaoPreco ?? productSheet.preco
+    : 0
   const unitPrice = basePrice + addonsTotal
 
   function addToCart() {
@@ -574,7 +615,10 @@ export default function StorefrontPage() {
         unit: unitPrice,
         addons: addonsList,
         obs,
-        tamanhoNome: selectedTamanho?.nome ?? '',
+        tamanhoNome: productSheet.tipoItem === 'pizza' ? (tamanhosPizza.find((t) => t.id === selectedTamanhoPizzaId)?.nome ?? '') : selectedTamanho?.nome ?? '',
+        saborNome: selectedSabor?.nome ?? '',
+        bordaNome: selectedBorda?.nome ?? '',
+        massaNome: selectedMassa?.nome ?? '',
       },
     ])
     showToast(`${productSheet.nome} adicionado!`)
@@ -605,6 +649,9 @@ export default function StorefrontPage() {
           addons: [],
           obs: '',
           tamanhoNome: '',
+          saborNome: '',
+          bordaNome: '',
+          massaNome: '',
         },
       ]
     })
@@ -682,6 +729,9 @@ export default function StorefrontPage() {
           observacao: l.obs,
           complementos: l.addons.map((a) => a.nome),
           tamanhoNome: l.tamanhoNome || undefined,
+          saborNome: l.saborNome || undefined,
+          bordaNome: l.bordaNome || undefined,
+          massaNome: l.massaNome || undefined,
         })),
       }
       const res = await fetch(`/api/loja/${slug}/pedido`, {
@@ -1002,7 +1052,10 @@ export default function StorefrontPage() {
                           <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={54} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-[14px] font-semibold">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}</div>
+                          <div className="text-[14px] font-semibold">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}{line.saborNome && <span className="font-normal text-text-subtle"> · {line.saborNome}</span>}</div>
+                          {(line.bordaNome || line.massaNome) && (
+                            <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
+                          )}
                           {line.addons.length > 0 && (
                             <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
                           )}
@@ -1203,8 +1256,103 @@ export default function StorefrontPage() {
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
                 <p className="my-2 text-sm leading-relaxed text-text-subtle">{productSheet.descricao}</p>
-                {productSheet.tamanhos.length === 0 && (
+                {productSheet.tipoItem !== 'pizza' && productSheet.tamanhos.length === 0 && (
                   <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
+                )}
+
+                {productSheet.tipoItem === 'pizza' && (
+                  <div className="mt-1">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-bold">Tamanho</h3>
+                        <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
+                      </div>
+                      <span className="mt-0.5 flex-shrink-0 rounded bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger">Obrigatório</span>
+                    </div>
+                    {tamanhosPizza.map((tamanho) => {
+                      const isSelected = selectedTamanhoPizzaId === tamanho.id
+                      return (
+                        <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                          <span className="flex-1 text-sm font-medium">{tamanho.nome} <span className="text-text-subtle">({tamanho.fatias} fatias)</span></span>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                            {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                          </span>
+                        </button>
+                      )
+                    })}
+
+                    <div className="mb-2 mt-5 flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-bold">Sabor</h3>
+                        <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
+                      </div>
+                      <span className="mt-0.5 flex-shrink-0 rounded bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger">Obrigatório</span>
+                    </div>
+                    {productSheet.sabores.filter((s) => s.status === 'disponivel').map((sabor) => {
+                      const isSelected = selectedSaborId === sabor.id
+                      const preco = sabor.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
+                      return (
+                        <button key={sabor.id} onClick={() => setSelectedSaborId(sabor.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">{sabor.nome}</div>
+                            {sabor.descricao && <div className="text-[11px] text-text-subtle">{sabor.descricao}</div>}
+                          </div>
+                          <span className="text-[13px] font-semibold text-price-text">{brl(preco)}</span>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                            {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                          </span>
+                        </button>
+                      )
+                    })}
+
+                    {bordasPizza.length > 0 && (
+                      <>
+                        <div className="mb-2 mt-5 text-sm font-bold">Borda</div>
+                        <button onClick={() => setSelectedBordaId(null)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left">
+                          <span className="flex-1 text-sm font-medium">Sem borda</span>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedBordaId ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                            {!selectedBordaId && <span className="h-2 w-2 rounded-full bg-white" />}
+                          </span>
+                        </button>
+                        {bordasPizza.map((borda) => {
+                          const isSelected = selectedBordaId === borda.id
+                          return (
+                            <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                              <span className="flex-1 text-sm font-medium">{borda.nome}</span>
+                              <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(borda.preco)}</span>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                                {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </>
+                    )}
+
+                    {massasPizza.length > 0 && (
+                      <>
+                        <div className="mb-2 mt-5 text-sm font-bold">Massa</div>
+                        <button onClick={() => setSelectedMassaId(null)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left">
+                          <span className="flex-1 text-sm font-medium">Massa tradicional</span>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedMassaId ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                            {!selectedMassaId && <span className="h-2 w-2 rounded-full bg-white" />}
+                          </span>
+                        </button>
+                        {massasPizza.map((massa) => {
+                          const isSelected = selectedMassaId === massa.id
+                          return (
+                            <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                              <span className="flex-1 text-sm font-medium">{massa.nome}</span>
+                              <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(massa.preco)}</span>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                                {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </>
+                    )}
+                  </div>
                 )}
 
                 {productSheet.tamanhos.length > 0 && (
