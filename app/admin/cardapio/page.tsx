@@ -146,6 +146,15 @@ function parsePreco(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+/** Classes do modal centralizado (substitui o antigo drawer lateral). */
+function modalClass(isOpen: boolean, width: string): string {
+  return [
+    'fixed left-1/2 top-1/2 z-[60] flex max-h-[88vh] -translate-x-1/2 -translate-y-1/2 flex-col rounded-menuzia bg-white shadow-2xl transition-all duration-200',
+    width,
+    isOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
+  ].join(' ')
+}
+
 function ruleHint(grupo: { obrigatorio: boolean; minEscolhas: number; maxEscolhas: number }): string {
   if (grupo.obrigatorio) {
     return grupo.minEscolhas === grupo.maxEscolhas
@@ -2192,7 +2201,7 @@ export default function CardapioPage() {
       {drawer && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={closeDrawer} />}
 
       {/* Drawer: nova categoria */}
-      <aside className={['fixed right-0 top-0 z-[60] flex h-screen w-[380px] max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300', drawer === 'categoria' ? 'translate-x-0' : 'translate-x-full'].join(' ')}>
+      <aside className={modalClass(drawer === 'categoria', 'w-[380px] max-w-[92vw]')}>
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
             <h2 className="text-[15px] font-bold">Nova categoria</h2>
@@ -2217,7 +2226,7 @@ export default function CardapioPage() {
       </aside>
 
       {/* Drawer: importar grupo de complementos */}
-      <aside className={['fixed right-0 top-0 z-[60] flex h-screen w-[420px] max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300', drawer === 'preset' ? 'translate-x-0' : 'translate-x-full'].join(' ')}>
+      <aside className={modalClass(drawer === 'preset', 'w-[420px] max-w-[92vw]')}>
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
             <h2 className="text-[15px] font-bold">Importar grupo de complementos</h2>
@@ -2279,7 +2288,7 @@ export default function CardapioPage() {
       </aside>
 
       {/* Drawer: editar/criar item */}
-      <aside className={['fixed right-0 top-0 z-[60] flex h-screen w-[420px] max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300', drawer === 'edit' ? 'translate-x-0' : 'translate-x-full'].join(' ')}>
+      <aside className={modalClass(drawer === 'edit', 'w-[420px] max-w-[92vw]')}>
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
             <h2 className="text-[15px] font-bold">{form.id ? 'Editar item' : 'Novo item'}</h2>
@@ -2319,7 +2328,15 @@ export default function CardapioPage() {
             {TIPO_ITEM_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
           {form.tipoItem === 'pizza' && (
-            <p className="mt-1 text-[11px] text-text-subtle">Pizza não usa preço base — o preço vem do sabor escolhido em cada tamanho (seção &ldquo;Sabores&rdquo; abaixo).</p>
+            <p className="mt-1 text-[11px] text-text-subtle">
+              Pizza não usa preço base — o preço vem do sabor escolhido em cada tamanho.{' '}
+              {!form.id && <b>Salve o item (botão no rodapé) pra liberar o cadastro de sabores.</b>}
+            </p>
+          )}
+          {form.tipoItem === 'marmita' && !form.id && (
+            <p className="mt-1 text-[11px] text-text-subtle">
+              <b>Salve o item (botão no rodapé)</b> pra liberar a importação dos tamanhos cadastrados na aba &ldquo;Tamanhos&rdquo;.
+            </p>
           )}
 
           <div className="mt-4 flex gap-3">
@@ -2342,13 +2359,15 @@ export default function CardapioPage() {
           </div>
 
           <div className="mt-4 flex gap-3">
-            <div className="flex-1">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preço promocional (R$)</div>
-              <input value={form.promocaoPreco} onChange={(e) => setForm((prev) => ({ ...prev, promocaoPreco: e.target.value }))}
-                placeholder="Opcional"
-                className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
-              <p className="mt-1 text-[11px] text-text-subtle">Se preenchido, o item aparece em promoção (com desconto) no cardápio.</p>
-            </div>
+            {form.tipoItem !== 'pizza' && (
+              <div className="flex-1">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preço promocional (R$)</div>
+                <input value={form.promocaoPreco} onChange={(e) => setForm((prev) => ({ ...prev, promocaoPreco: e.target.value }))}
+                  placeholder="Opcional"
+                  className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
+                <p className="mt-1 text-[11px] text-text-subtle">Se preenchido, o item aparece em promoção (com desconto) no cardápio.</p>
+              </div>
+            )}
             <div className="flex-1">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Destaque</div>
               <label className="flex h-[34px] cursor-pointer items-center gap-2 rounded-menuzia border border-border px-2.5 text-[13px] font-medium text-text-main">
@@ -2635,7 +2654,11 @@ export default function CardapioPage() {
           )}
           {!form.id && (
             <p className="mt-5 rounded-menuzia border border-dashed border-border p-3 text-center text-xs text-text-subtle">
-              Salve o item para poder cadastrar grupos de complementos e importar grupos.
+              {form.tipoItem === 'pizza'
+                ? 'Salve o item pra poder cadastrar sabores, grupos de complementos e importar grupos.'
+                : form.tipoItem === 'marmita'
+                ? 'Salve o item pra poder importar tamanhos, cadastrar grupos de complementos e importar grupos.'
+                : 'Salve o item para poder cadastrar grupos de complementos e importar grupos.'}
             </p>
           )}
         </div>
