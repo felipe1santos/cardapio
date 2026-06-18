@@ -586,11 +586,80 @@ function ImpressoraModal({
   )
 }
 
+// Pedido fictício só pra ilustrar o preview — não vem do banco.
+const PEDIDO_PREVIEW = {
+  numero: 1234,
+  tipo: 'Entrega',
+  cliente: 'João Silva',
+  endereco: 'Rua das Flores, 123 - Centro',
+  pagamento: 'Pix',
+  itens: [
+    { qtd: 2, nome: 'Pizza Grande - Calabresa', precoUnit: 45, complementos: [{ nome: 'Borda: Catupiry', preco: 8 }] },
+    { qtd: 1, nome: 'Coca-Cola 2L', precoUnit: 12, complementos: [] },
+  ],
+  taxaEntrega: 6,
+}
+
+function gerarPreviewRecibo(config: ConfigImpressao, nomeLoja: string): string[] {
+  const linhas: string[] = []
+  if (config.imprimirLogo) linhas.push(`[ LOGO — ${nomeLoja || 'SUA LOJA'} ]`)
+  linhas.push(`PEDIDO #${PEDIDO_PREVIEW.numero}  ·  ${PEDIDO_PREVIEW.tipo.toUpperCase()}`)
+  linhas.push('--------------------------------')
+  linhas.push(`Cliente: ${PEDIDO_PREVIEW.cliente}`)
+  linhas.push(`End.: ${PEDIDO_PREVIEW.endereco}`)
+  linhas.push('--------------------------------')
+
+  let subtotal = 0
+  for (const item of PEDIDO_PREVIEW.itens) {
+    const nomeItem = config.mostrarNumeroItem ? `${item.qtd}x ${item.nome}` : item.nome
+    const totalItem = item.precoUnit * item.qtd
+    subtotal += totalItem
+    linhas.push(`${config.fonteMaiorProducao ? nomeItem.toUpperCase() : nomeItem}  R$ ${totalItem.toFixed(2).replace('.', ',')}`)
+    if (config.mostrarNomeComplementos) {
+      for (const comp of item.complementos) {
+        const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.qtd : 1)
+        const precoTxt = config.mostrarPrecoComplementos ? ` (+R$ ${precoComp.toFixed(2).replace('.', ',')})` : ''
+        linhas.push(`   + ${comp.nome}${precoTxt}`)
+      }
+    }
+  }
+
+  linhas.push('--------------------------------')
+  linhas.push(`Subtotal              R$ ${subtotal.toFixed(2).replace('.', ',')}`)
+  linhas.push(`Taxa de entrega       R$ ${PEDIDO_PREVIEW.taxaEntrega.toFixed(2).replace('.', ',')}`)
+  linhas.push(`TOTAL                 R$ ${(subtotal + PEDIDO_PREVIEW.taxaEntrega).toFixed(2).replace('.', ',')}`)
+  linhas.push('--------------------------------')
+  linhas.push(`Pagamento: ${PEDIDO_PREVIEW.pagamento.toUpperCase()}`)
+  if (config.imprimirQrcodeAvaliacao) linhas.push('', '[ QR CODE — avalie seu pedido ]')
+  return linhas
+}
+
+function ReciboPreview({ config, nomeLoja }: { config: ConfigImpressao; nomeLoja: string }) {
+  const linhas = useMemo(() => gerarPreviewRecibo(config, nomeLoja), [config, nomeLoja])
+  return (
+    <div className="sticky top-0">
+      <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
+      <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+        Prévia ilustrativa — atualiza ao vivo conforme você muda as configurações. O agente desktop usa essas mesmas regras de verdade.
+      </p>
+      <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-white p-3 font-mono text-[11px] leading-relaxed text-text-main shadow-sm">
+          {linhas.join('\n')}
+        </pre>
+      </div>
+      {config.imprimirComprovanteCancelamento && (
+        <p className="mt-2 text-[11px] text-text-subtle">+ pedidos cancelados também geram um comprovante extra (não mostrado aqui).</p>
+      )}
+    </div>
+  )
+}
+
 function TabImpressao({ restauranteId, active }: { restauranteId: string; active: boolean }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigImpressao | null>(null)
   const [impressoras, setImpressoras] = useState<Impressora[]>([])
+  const [nomeLoja, setNomeLoja] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [modal, setModal] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
   const [gerandoToken, setGerandoToken] = useState(false)
@@ -598,9 +667,10 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
 
   useEffect(() => {
     if (loaded) return
-    Promise.all([buscarConfigImpressao(supabase, restauranteId), listarImpressoras(supabase, restauranteId)]).then(([cfg, lista]) => {
+    Promise.all([buscarConfigImpressao(supabase, restauranteId), listarImpressoras(supabase, restauranteId), buscarConfigLoja(supabase, restauranteId)]).then(([cfg, lista, loja]) => {
       setConfig(cfg)
       setImpressoras(lista)
+      setNomeLoja(loja?.nome ?? '')
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -663,6 +733,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_360px]">
         <div className="max-w-2xl space-y-8">
           {/* Assistente de Impressão */}
           <div>
@@ -745,6 +816,9 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
           </div>
 
           {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
+        </div>
+
+        <ReciboPreview config={config} nomeLoja={nomeLoja} />
         </div>
       </div>
       {modal && (

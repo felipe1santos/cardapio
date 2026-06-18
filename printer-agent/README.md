@@ -36,7 +36,20 @@ npm start
 npm run dist
 ```
 
-Gera o instalador em `printer-agent/dist/`.
+Gera o instalador NSIS (`.exe` único, com tela de instalação) em `printer-agent/dist/`.
+
+**Pré-requisito no Windows:** sem isso, o build quebra na etapa de empacotamento
+(`Cannot create symbolic link`) porque o usuário comum não tem permissão pra criar
+links simbólicos — precisa de uma destas duas opções:
+
+- Ativar o **Modo de Desenvolvedor**: Configurações → Privacidade e segurança → Para
+  desenvolvedores → ligar "Modo de desenvolvedor". (Não precisa reiniciar.)
+- Ou rodar o terminal/PowerShell **como Administrador** antes de `npm run dist`.
+
+Sem isso, o `npm run dist` ainda gera um build funcional em
+`printer-agent/dist/win-unpacked/Assistente de Impressão Menuzia.exe` — só não
+empacota num instalador único (dá pra zipar essa pasta inteira e rodar o `.exe`
+de dentro dela direto, sem instalar nada).
 
 ## Limitações desta primeira versão (MVP)
 

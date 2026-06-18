@@ -8,6 +8,7 @@ const DEFAULTS = {
   apiBaseUrl: '',
   token: '',
   impressoraWindows: '',
+  impressoraCloudId: '',
   intervaloSegundos: 5,
 }
 

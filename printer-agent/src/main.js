@@ -50,9 +50,14 @@ async function cicloDePolling() {
     if (!config.impressoraWindows) return
     if (!pedidos || pedidos.length === 0) return
 
+    const impressoras = data.impressoras ?? []
+    const impressoraCfg = impressoras.find((i) => i.id === config.impressoraCloudId)
+    const largura = impressoraCfg?.largura ?? 48
+    const copias = impressoraCfg?.copias ?? 1
+
     for (const pedido of pedidos) {
-      const recibo = montarRecibo(pedido, configImpressao, 48)
-      await imprimirTexto(config.impressoraWindows, recibo, 1)
+      const recibo = montarRecibo(pedido, configImpressao, largura)
+      await imprimirTexto(config.impressoraWindows, recibo, copias)
       await fetch(`${config.apiBaseUrl}/api/agente/pedidos/${pedido.id}/imprimir`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,6 +118,17 @@ ipcMain.handle('testar-pareamento', async (_e, { apiBaseUrl, token }) => {
     return { ok: true }
   } catch (err) {
     return { ok: false, erro: err.message }
+  }
+})
+
+ipcMain.handle('buscar-impressoras-cloud', async (_e, { apiBaseUrl, token }) => {
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
+    if (!res.ok) return { erro: `HTTP ${res.status}` }
+    const data = await res.json()
+    return data.impressoras ?? []
+  } catch (err) {
+    return { erro: err.message }
   }
 })
 
