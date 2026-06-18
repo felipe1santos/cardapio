@@ -30,7 +30,7 @@ export function montarResumoPedido(pedido: Pedido, restauranteNome: string): str
   linhas.push('')
   linhas.push('*Itens:*')
   for (const item of pedido.itens) {
-    linhas.push(`*${item.quantidade}x ${item.nome} — ${brl(item.precoUnitario)}*`)
+    linhas.push(`*${item.quantidade}x ${item.nome}${item.tamanhoNome ? ` (${item.tamanhoNome})` : ''} — ${brl(item.precoUnitario)}*`)
     for (const c of item.complementos) linhas.push(`   + ${c.nome} (+${brl(c.preco)})`)
     if (item.observacao.trim()) linhas.push(`   _obs: ${item.observacao.trim()}_`)
   }

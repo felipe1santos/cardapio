@@ -17,15 +17,58 @@ import {
   type ConfigLoja,
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
+import {
+  buscarConfigImpressao,
+  atualizarConfigImpressao,
+  gerarTokenAgente,
+  listarImpressoras,
+  criarImpressora,
+  atualizarImpressora,
+  removerImpressora,
+  type ConfigImpressao,
+  type Impressora,
+  type ImpressoraInput,
+} from '@/lib/queries/impressao'
 
-type Tab = 'loja' | 'entrega' | 'integracoes' | 'conta'
+type Tab = 'loja' | 'entrega' | 'impressao' | 'integracoes' | 'conta'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
   { id: 'entrega', label: 'Entrega' },
+  { id: 'impressao', label: 'Impressão' },
   { id: 'integracoes', label: 'Integrações' },
   { id: 'conta', label: 'Conta' },
 ]
+
+function ToggleSwitch({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={[
+        'relative h-[22px] w-[38px] flex-shrink-0 rounded-full transition-colors disabled:opacity-50',
+        checked ? 'bg-primary' : 'bg-border',
+      ].join(' ')}
+    >
+      <span className={['absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-[2px]'].join(' ')} />
+    </button>
+  )
+}
+
+function ToggleRow({ label, hint, checked, onChange, disabled }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-none">
+      <div>
+        <div className="text-[13px] font-medium text-text-main">{label}</div>
+        {hint && <p className="mt-0.5 text-[11px] text-text-subtle">{hint}</p>}
+      </div>
+      <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} />
+    </div>
+  )
+}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -454,6 +497,267 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   )
 }
 
+// ─── Aba Impressão ──────────────────────────────────────────────────────────
+
+const FABRICANTES = ['Epson', 'Bematech', 'Elgin', 'Daruma', 'Outra']
+const TAMANHOS_FONTE = [
+  { value: 'pequena', label: 'Pequena (recomendado)' },
+  { value: 'media', label: 'Média' },
+  { value: 'grande', label: 'Grande' },
+]
+
+const IMPRESSORA_VAZIA: ImpressoraInput = { nome: '', fabricante: 'Epson', impressoraSistema: '', tamanhoFonte: 'pequena', largura: 48, copias: 1 }
+
+function ImpressoraModal({
+  initial,
+  onSave,
+  onClose,
+}: {
+  initial: ImpressoraInput
+  onSave: (input: ImpressoraInput) => Promise<void>
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<ImpressoraInput>(initial)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    if (!form.nome.trim() || !form.impressoraSistema.trim()) {
+      setError('Preencha o nome da impressora e o nome dela no sistema operacional.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(form)
+    } catch {
+      setError('Não foi possível salvar a impressora.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-menuzia bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-4.5 py-3.5">
+          <h3 className="text-[15px] font-bold">Editar impressora</h3>
+          <button onClick={onClose} className="flex h-[28px] w-[28px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
+        </div>
+        <div className="space-y-3.5 p-4.5">
+          <Field label="Nome da impressora">
+            <Input value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} placeholder="Ex: Impressora Padrão" />
+          </Field>
+          <Field label="Fabricante da impressora">
+            <select value={form.fabricante} onChange={(e) => setForm((p) => ({ ...p, fabricante: e.target.value }))}
+              className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
+              {FABRICANTES.map((f) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </Field>
+          <Field label="Nome da impressora no Windows" hint='Copie o nome exato como aparece em "Impressoras e scanners" do Windows. Depois que o Assistente de Impressão estiver pareado, essa lista passa a ser preenchida automaticamente.'>
+            <Input value={form.impressoraSistema} onChange={(e) => setForm((p) => ({ ...p, impressoraSistema: e.target.value }))} placeholder="Ex: EPSON TM-T20X" />
+          </Field>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Field label="Tamanho da fonte">
+                <select value={form.tamanhoFonte} onChange={(e) => setForm((p) => ({ ...p, tamanhoFonte: e.target.value }))}
+                  className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
+                  {TAMANHOS_FONTE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="w-28">
+              <Field label="Largura" hint="colunas">
+                <Input type="number" min={32} value={form.largura} onChange={(e) => setForm((p) => ({ ...p, largura: Number(e.target.value) || 0 }))} />
+              </Field>
+            </div>
+          </div>
+          <Field label="Cópias impressas por pedido">
+            <Input type="number" min={1} max={5} value={form.copias} onChange={(e) => setForm((p) => ({ ...p, copias: Number(e.target.value) || 1 }))} />
+          </Field>
+          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
+        </div>
+        <div className="flex gap-2.5 border-t border-border p-4.5">
+          <Button variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button className="flex-1" onClick={handleSave} disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TabImpressao({ restauranteId, active }: { restauranteId: string; active: boolean }) {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [loaded, setLoaded] = useState(false)
+  const [config, setConfig] = useState<ConfigImpressao | null>(null)
+  const [impressoras, setImpressoras] = useState<Impressora[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [modal, setModal] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
+  const [gerandoToken, setGerandoToken] = useState(false)
+  const [tokenCopiado, setTokenCopiado] = useState(false)
+
+  useEffect(() => {
+    if (loaded) return
+    Promise.all([buscarConfigImpressao(supabase, restauranteId), listarImpressoras(supabase, restauranteId)]).then(([cfg, lista]) => {
+      setConfig(cfg)
+      setImpressoras(lista)
+      setLoaded(true)
+    })
+  }, [supabase, restauranteId, loaded])
+
+  async function patch(p: Partial<ConfigImpressao>) {
+    if (!config) return
+    setConfig({ ...config, ...p })
+    try {
+      await atualizarConfigImpressao(supabase, restauranteId, p)
+    } catch {
+      setError('Não foi possível salvar a configuração.')
+    }
+  }
+
+  async function handleGerarToken() {
+    setGerandoToken(true)
+    try {
+      const token = await gerarTokenAgente(supabase, restauranteId)
+      setConfig((prev) => (prev ? { ...prev, agenteToken: token } : prev))
+    } catch {
+      setError('Não foi possível gerar o token de pareamento.')
+    } finally {
+      setGerandoToken(false)
+    }
+  }
+
+  function copiarToken() {
+    if (!config?.agenteToken) return
+    navigator.clipboard.writeText(config.agenteToken).then(() => {
+      setTokenCopiado(true)
+      setTimeout(() => setTokenCopiado(false), 2000)
+    })
+  }
+
+  async function salvarImpressora(input: ImpressoraInput) {
+    if (modal?.id) {
+      await atualizarImpressora(supabase, modal.id, input)
+      setImpressoras((prev) => prev.map((i) => (i.id === modal.id ? { ...i, ...input } : i)))
+    } else {
+      const nova = await criarImpressora(supabase, restauranteId, input, impressoras.length)
+      setImpressoras((prev) => [...prev, nova])
+    }
+    setModal(null)
+  }
+
+  async function excluirImpressora(id: string) {
+    if (!confirm('Excluir esta impressora?')) return
+    try {
+      await removerImpressora(supabase, id)
+      setImpressoras((prev) => prev.filter((i) => i.id !== id))
+    } catch {
+      setError('Não foi possível excluir a impressora.')
+    }
+  }
+
+  if (!loaded || !config) {
+    return <div className={['flex flex-1 items-center justify-center text-sm text-text-subtle', !active ? 'hidden' : ''].join(' ')}>Carregando…</div>
+  }
+
+  return (
+    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
+      <div className="flex-1 overflow-y-auto px-5 py-6">
+        <div className="max-w-2xl space-y-8">
+          {/* Assistente de Impressão */}
+          <div>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Assistente de Impressão Menuzia</h3>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+              Programa instalado no computador da loja que liga o Menuzia à impressora física. Ative aqui, gere o
+              token abaixo e cole-o no Assistente ao abrir pela primeira vez — depois disso, os pedidos podem ser
+              impressos automaticamente sem precisar abrir o navegador.
+            </p>
+            <div className="rounded-menuzia border border-border p-4">
+              <ToggleRow label="Ativar uso do Assistente de Impressão" checked={config.ativarAssistente} onChange={(v) => patch({ ativarAssistente: v })} />
+              <ToggleRow label="Impressão automática de pedidos" hint="Imprime sozinho assim que o pedido chega, sem precisar clicar em nada." checked={config.impressaoAutomatica} onChange={(v) => patch({ impressaoAutomatica: v })} />
+              <ToggleRow label="Aceitar pedidos automaticamente" hint="Move o pedido para “Preparando” no Kanban assim que ele chega." checked={config.aceitarPedidosAutomaticamente} onChange={(v) => patch({ aceitarPedidosAutomaticamente: v })} />
+
+              <div className="mt-3 rounded-menuzia bg-page p-3">
+                {config.agenteToken ? (
+                  <>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Token de pareamento</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 truncate rounded-menuzia border border-border bg-white px-2.5 py-2 text-[12px]">{config.agenteToken}</code>
+                      <Button variant="outline" onClick={copiarToken}>{tokenCopiado ? 'Copiado!' : 'Copiar'}</Button>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-text-subtle">Cole esse token na tela de pareamento do Assistente de Impressão instalado no computador da loja.</p>
+                    <button onClick={handleGerarToken} disabled={gerandoToken} className="mt-2 text-[11px] font-semibold text-primary hover:underline disabled:opacity-50">
+                      {gerandoToken ? 'Gerando…' : 'Gerar novo token (invalida o atual)'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2 text-[12px] text-text-subtle">Nenhum token gerado ainda. Gere um para parear o Assistente de Impressão com esta loja.</p>
+                    <Button variant="outline" onClick={handleGerarToken} disabled={gerandoToken}>{gerandoToken ? 'Gerando…' : 'Gerar token de pareamento'}</Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Impressoras cadastradas */}
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-[13px] font-bold text-text-main">Impressoras</h3>
+              <Button variant="outline" onClick={() => setModal({ id: null, input: IMPRESSORA_VAZIA })}>+ Nova impressora</Button>
+            </div>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">Cadastre uma ou mais impressoras (ex.: cozinha e balcão).</p>
+            <div className="overflow-hidden rounded-menuzia border border-border">
+              {impressoras.length === 0 && (
+                <div className="px-3.5 py-5 text-center text-[13px] text-text-subtle">Nenhuma impressora cadastrada ainda.</div>
+              )}
+              {impressoras.map((imp) => (
+                <div key={imp.id} className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-3 last:border-none">
+                  <div>
+                    <div className="text-[13px] font-semibold text-text-main">{imp.nome}</div>
+                    <div className="text-[11px] text-text-subtle">{imp.fabricante} · {imp.impressoraSistema || 'sem impressora do sistema vinculada'}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setModal({ id: imp.id, input: { nome: imp.nome, fabricante: imp.fabricante, impressoraSistema: imp.impressoraSistema, tamanhoFonte: imp.tamanhoFonte, largura: imp.largura, copias: imp.copias } })}
+                      className="text-[12px] font-semibold text-primary hover:underline"
+                    >Editar</button>
+                    <button onClick={() => excluirImpressora(imp.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Configurações gerais de impressão */}
+          <div>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Configurações gerais</h3>
+            <div className="rounded-menuzia border border-border p-4">
+              <ToggleRow label="Mostrar número do item na impressão" checked={config.mostrarNumeroItem} onChange={(v) => patch({ mostrarNumeroItem: v })} />
+              <ToggleRow label="Mostrar preço dos complementos na impressão" checked={config.mostrarPrecoComplementos} onChange={(v) => patch({ mostrarPrecoComplementos: v })} />
+              <ToggleRow label="Mostrar nome dos complementos na impressão" checked={config.mostrarNomeComplementos} onChange={(v) => patch({ mostrarNomeComplementos: v })} />
+              <ToggleRow label="Usar fonte maior na via de produção" checked={config.fonteMaiorProducao} onChange={(v) => patch({ fonteMaiorProducao: v })} />
+              <ToggleRow label="Multiplicar opções pela quantidade do produto" checked={config.multiplicarOpcoesQtd} onChange={(v) => patch({ multiplicarOpcoesQtd: v })} />
+              <ToggleRow label="Imprimir logo da loja na nota" checked={config.imprimirLogo} onChange={(v) => patch({ imprimirLogo: v })} />
+              <ToggleRow label="Imprimir comprovante de cancelamento" checked={config.imprimirComprovanteCancelamento} onChange={(v) => patch({ imprimirComprovanteCancelamento: v })} />
+              <ToggleRow label="Imprimir QR Code de avaliação do pedido" hint="Entrega, retirada e no local. Nem toda impressora suporta essa função." checked={config.imprimirQrcodeAvaliacao} onChange={(v) => patch({ imprimirQrcodeAvaliacao: v })} />
+            </div>
+          </div>
+
+          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
+        </div>
+      </div>
+      {modal && (
+        <ImpressoraModal
+          initial={modal.input}
+          onClose={() => setModal(null)}
+          onSave={salvarImpressora}
+        />
+      )}
+    </div>
+  )
+}
+
 // ─── Aba Integrações ──────────────────────────────────────────────────────────
 
 interface WaStatus {
@@ -736,6 +1040,7 @@ export default function AjustesPage() {
         <>
           <TabLoja restauranteId={restauranteId} active={tab === 'loja'} />
           <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
+          <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
           <TabIntegracoes restauranteId={restauranteId} active={tab === 'integracoes'} />
           <TabConta active={tab === 'conta'} />
         </>

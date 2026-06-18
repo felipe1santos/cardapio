@@ -26,6 +26,7 @@ interface CartLine {
   unit: number
   addons: { nome: string; preco: number }[]
   obs: string
+  tamanhoNome: string
 }
 
 interface ToastItem {
@@ -489,6 +490,7 @@ export default function StorefrontPage() {
   const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set())
   const [obs, setObs] = useState('')
+  const [selectedTamanhoId, setSelectedTamanhoId] = useState<string | null>(null)
 
   function openProduct(item: ItemCardapio) {
     setProductSheet(item)
@@ -496,6 +498,7 @@ export default function StorefrontPage() {
     setGroupSelections(new Map())
     setSelectedAddons(new Set())
     setObs('')
+    setSelectedTamanhoId(item.tamanhos[0]?.id ?? null)
   }
 
   function selectRadio(grupoId: string, compId: string) {
@@ -519,12 +522,13 @@ export default function StorefrontPage() {
 
   const gruposValidos = useMemo(() => {
     if (!productSheet) return true
+    if (productSheet.tamanhos.length > 0 && !selectedTamanhoId) return false
     return productSheet.grupos.every((g) => {
       if (!g.obrigatorio) return true
       const sel = groupSelections.get(g.id) ?? new Set()
       return sel.size >= g.minEscolhas
     })
-  }, [productSheet, groupSelections])
+  }, [productSheet, groupSelections, selectedTamanhoId])
 
   const addonsTotal = useMemo(() => {
     if (!productSheet) return 0
@@ -542,7 +546,8 @@ export default function StorefrontPage() {
     return sum
   }, [productSheet, groupSelections, selectedAddons])
 
-  const basePrice = productSheet ? productSheet.promocaoPreco ?? productSheet.preco : 0
+  const selectedTamanho = productSheet?.tamanhos.find((t) => t.id === selectedTamanhoId) ?? null
+  const basePrice = productSheet ? (selectedTamanho ? selectedTamanho.preco : productSheet.promocaoPreco ?? productSheet.preco) : 0
   const unitPrice = basePrice + addonsTotal
 
   function addToCart() {
@@ -569,6 +574,7 @@ export default function StorefrontPage() {
         unit: unitPrice,
         addons: addonsList,
         obs,
+        tamanhoNome: selectedTamanho?.nome ?? '',
       },
     ])
     showToast(`${productSheet.nome} adicionado!`)
@@ -598,6 +604,7 @@ export default function StorefrontPage() {
           unit: item.promocaoPreco ?? item.preco,
           addons: [],
           obs: '',
+          tamanhoNome: '',
         },
       ]
     })
@@ -674,6 +681,7 @@ export default function StorefrontPage() {
           quantidade: l.qty,
           observacao: l.obs,
           complementos: l.addons.map((a) => a.nome),
+          tamanhoNome: l.tamanhoNome || undefined,
         })),
       }
       const res = await fetch(`/api/loja/${slug}/pedido`, {
@@ -994,7 +1002,7 @@ export default function StorefrontPage() {
                           <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={54} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-[14px] font-semibold">{line.name}</div>
+                          <div className="text-[14px] font-semibold">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}</div>
                           {line.addons.length > 0 && (
                             <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
                           )}
@@ -1195,7 +1203,33 @@ export default function StorefrontPage() {
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
                 <p className="my-2 text-sm leading-relaxed text-text-subtle">{productSheet.descricao}</p>
-                <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
+                {productSheet.tamanhos.length === 0 && (
+                  <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
+                )}
+
+                {productSheet.tamanhos.length > 0 && (
+                  <div className="mt-1">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-bold">Tamanho</h3>
+                        <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
+                      </div>
+                      <span className="mt-0.5 flex-shrink-0 rounded bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger">Obrigatório</span>
+                    </div>
+                    {productSheet.tamanhos.map((tamanho) => {
+                      const isSelected = selectedTamanhoId === tamanho.id
+                      return (
+                        <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                          <span className="flex-1 text-sm font-medium">{tamanho.nome}</span>
+                          <span className="text-[13px] font-semibold text-price-text">{brl(tamanho.preco)}</span>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                            {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
 
                 {productSheet.grupos.map((grupo) => {
                   const sel = groupSelections.get(grupo.id) ?? new Set()

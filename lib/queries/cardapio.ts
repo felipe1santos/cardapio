@@ -25,6 +25,13 @@ export interface GrupoItemComplementos {
   complementos: ComplementoItem[]
 }
 
+export interface TamanhoItem {
+  id: string
+  nome: string
+  preco: number
+  posicao: number
+}
+
 export interface ItemCardapio {
   id: string
   grupoId: string | null
@@ -38,6 +45,7 @@ export interface ItemCardapio {
   maisVendido: boolean
   grupos: GrupoItemComplementos[]
   complementos: ComplementoItem[]
+  tamanhos: TamanhoItem[]
 }
 
 export interface PresetComplementos {
@@ -62,6 +70,7 @@ interface ItemRow {
   mais_vendido: boolean
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number }[]
+  tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
 }
 
 function mapItem(row: ItemRow): ItemCardapio {
@@ -94,6 +103,9 @@ function mapItem(row: ItemRow): ItemCardapio {
     complementos: (row.item_complementos ?? [])
       .filter((c) => !c.grupo_id)
       .map((c) => ({ id: c.id, nome: c.nome, preco: Number(c.preco), presetOrigemId: c.preset_origem_id })),
+    tamanhos: (row.tamanhos_item ?? [])
+      .sort((a, b) => a.posicao - b.posicao)
+      .map((t) => ({ id: t.id, nome: t.nome, preco: Number(t.preco), posicao: t.posicao })),
   }
 }
 
@@ -134,10 +146,29 @@ export async function criarGrupo(supabase: SupabaseClient, restauranteId: string
   return data as GrupoCardapio
 }
 
+export async function atualizarGrupo(supabase: SupabaseClient, grupoId: string, nome: string) {
+  const { data, error } = await supabase
+    .from('grupos_cardapio')
+    .update({ nome })
+    .eq('id', grupoId)
+    .select('id, nome, posicao')
+    .single()
+
+  if (error) throw error
+  return data as GrupoCardapio
+}
+
+/** Deleting a category does not delete its items — `grupo_id` is set to null (FK ON DELETE SET NULL). */
+export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
+  const { error } = await supabase.from('grupos_cardapio').delete().eq('id', grupoId)
+  if (error) throw error
+}
+
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id ),
-  grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao )
+  grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao ),
+  tamanhos_item ( id, nome, preco, posicao )
 `
 
 export async function listarItens(supabase: SupabaseClient, restauranteId: string): Promise<ItemCardapio[]> {
@@ -287,6 +318,34 @@ export async function atualizarGrupoItem(
 
 export async function removerGrupoItem(supabase: SupabaseClient, grupoId: string) {
   const { error } = await supabase.from('grupos_item_complementos').delete().eq('id', grupoId)
+  if (error) throw error
+}
+
+// ─── Tamanhos do item (ex.: marmitex P/M/G) ───────────────────────────────────
+
+export async function criarTamanho(
+  supabase: SupabaseClient,
+  itemId: string,
+  nome: string,
+  preco: number,
+  posicao: number
+): Promise<TamanhoItem> {
+  const { data, error } = await supabase
+    .from('tamanhos_item')
+    .insert({ item_id: itemId, nome, preco, posicao })
+    .select('id, nome, preco, posicao')
+    .single()
+  if (error) throw error
+  return { id: data.id, nome: data.nome, preco: Number(data.preco), posicao: data.posicao }
+}
+
+export async function atualizarTamanho(supabase: SupabaseClient, tamanhoId: string, nome: string, preco: number) {
+  const { error } = await supabase.from('tamanhos_item').update({ nome, preco }).eq('id', tamanhoId)
+  if (error) throw error
+}
+
+export async function removerTamanho(supabase: SupabaseClient, tamanhoId: string) {
+  const { error } = await supabase.from('tamanhos_item').delete().eq('id', tamanhoId)
   if (error) throw error
 }
 

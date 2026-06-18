@@ -37,3 +37,7 @@ next-env.d.ts
 
 # reference screenshots/assets (not part of the app)
 /referencias/
+
+# printer-agent (Electron app, separate package)
+/printer-agent/node_modules
+/printer-agent/dist

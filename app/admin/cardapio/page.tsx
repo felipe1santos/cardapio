@@ -9,6 +9,7 @@ import {
   adicionarComplemento,
   adicionarItemPreset,
   adicionarOrderBump,
+  atualizarGrupo,
   atualizarGrupoItem,
   atualizarItem,
   atualizarItemPreset,
@@ -20,6 +21,7 @@ import {
   criarGrupoItem,
   criarItem,
   criarPreset,
+  criarTamanho,
   definirStatusEmLote,
   enviarImagemItem,
   excluirItens,
@@ -29,19 +31,23 @@ import {
   listarOrderBumps,
   listarPresets,
   removerComplemento,
+  removerGrupo,
   removerGrupoItem,
   removerItemPreset,
   removerOrderBump,
   removerPreset,
+  removerTamanho,
   renomearPreset,
   reordenarOrderBumps,
   toggleOrderBumpAtivo,
+  atualizarTamanho,
   type GrupoCardapio,
   type GrupoItemComplementos,
   type ItemCardapio,
   type OrderBumpEntry,
   type PresetComplementos,
   type StatusItem,
+  type TamanhoItem,
 } from '@/lib/queries/cardapio'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1046,6 +1052,8 @@ export default function CardapioPage() {
 
   const [cardapioTab, setCardapioTab] = useState<CardapioTab>('itens')
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [editingGroupName, setEditingGroupName] = useState('')
   const [view, setView] = useState<View>('table')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -1060,6 +1068,10 @@ export default function CardapioPage() {
   // State for creating a new complement group inside the item drawer
   const [creatingGrupo, setCreatingGrupo] = useState(false)
   const [newGrupoForm, setNewGrupoForm] = useState({ nome: '', obrigatorio: false, min: 0, max: 1 })
+  const [creatingTamanho, setCreatingTamanho] = useState(false)
+  const [newTamanhoForm, setNewTamanhoForm] = useState({ nome: '', preco: '' })
+  const [editingTamanhoId, setEditingTamanhoId] = useState<string | null>(null)
+  const [editingTamanhoForm, setEditingTamanhoForm] = useState({ nome: '', preco: '' })
 
   useEffect(() => {
     let cancelled = false
@@ -1248,6 +1260,36 @@ export default function CardapioPage() {
     }
   }
 
+  function startEditCategoria(group: GrupoCardapio) {
+    setEditingGroupId(group.id)
+    setEditingGroupName(group.nome)
+  }
+
+  async function saveEditCategoria() {
+    if (!editingGroupId || !editingGroupName.trim()) return
+    try {
+      const updated = await atualizarGrupo(supabase, editingGroupId, editingGroupName.trim())
+      setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
+      if (activeGroup && groups.find((g) => g.id === editingGroupId)?.nome === activeGroup) {
+        setActiveGroup(updated.nome)
+      }
+      setEditingGroupId(null)
+    } catch {
+      setError('Não foi possível renomear a categoria.')
+    }
+  }
+
+  async function deleteCategoria(group: GrupoCardapio) {
+    if (!confirm(`Excluir a categoria "${group.nome}"? Os itens dela não serão excluídos, apenas ficarão sem categoria.`)) return
+    try {
+      await removerGrupo(supabase, group.id)
+      setGroups((prev) => prev.filter((g) => g.id !== group.id))
+      if (activeGroup === group.nome) setActiveGroup(null)
+    } catch {
+      setError('Não foi possível excluir a categoria.')
+    }
+  }
+
   async function importPreset(preset: PresetComplementos) {
     if (!form.id) {
       setError('Salve o item antes de importar um grupo de complementos.')
@@ -1281,6 +1323,47 @@ export default function CardapioPage() {
       await refreshItems()
     } catch {
       setError('Não foi possível criar o grupo de complementos.')
+    }
+  }
+
+  async function createTamanho() {
+    if (!form.id || !newTamanhoForm.nome.trim()) return
+    const preco = Number(newTamanhoForm.preco.replace(',', '.')) || 0
+    const posicao = currentItem?.tamanhos.length ?? 0
+    try {
+      await criarTamanho(supabase, form.id, newTamanhoForm.nome.trim(), preco, posicao)
+      setCreatingTamanho(false)
+      setNewTamanhoForm({ nome: '', preco: '' })
+      await refreshItems()
+    } catch {
+      setError('Não foi possível criar o tamanho.')
+    }
+  }
+
+  function startEditTamanho(tamanho: TamanhoItem) {
+    setEditingTamanhoId(tamanho.id)
+    setEditingTamanhoForm({ nome: tamanho.nome, preco: String(tamanho.preco).replace('.', ',') })
+  }
+
+  async function saveEditTamanho() {
+    if (!editingTamanhoId || !editingTamanhoForm.nome.trim()) return
+    const preco = Number(editingTamanhoForm.preco.replace(',', '.')) || 0
+    try {
+      await atualizarTamanho(supabase, editingTamanhoId, editingTamanhoForm.nome.trim(), preco)
+      setEditingTamanhoId(null)
+      await refreshItems()
+    } catch {
+      setError('Não foi possível atualizar o tamanho.')
+    }
+  }
+
+  async function deleteTamanho(tamanho: TamanhoItem) {
+    if (!confirm(`Excluir o tamanho "${tamanho.nome}"?`)) return
+    try {
+      await removerTamanho(supabase, tamanho.id)
+      await refreshItems()
+    } catch {
+      setError('Não foi possível excluir o tamanho.')
     }
   }
 
@@ -1420,23 +1503,45 @@ export default function CardapioPage() {
               {groups.length === 0 && (
                 <div className="px-2 py-6 text-center text-xs text-text-subtle">Nenhuma categoria cadastrada ainda.</div>
               )}
-              {groups.map((group) => (
-                <button
-                  key={group.id}
-                  onClick={() => setActiveGroup(group.nome)}
-                  className={[
-                    'flex w-full items-center justify-between rounded-menuzia border-l-[3px] px-3 py-2.5 text-left text-sm font-medium transition-colors',
-                    group.nome === activeGroup
-                      ? 'border-l-primary bg-[#ECFEFF] font-semibold text-primary-dark'
-                      : 'border-l-transparent text-text-main hover:bg-page',
-                  ].join(' ')}
-                >
-                  <span>{group.nome}</span>
-                  <span className={['rounded-full px-2 py-0.5 text-[11px] font-bold', group.nome === activeGroup ? 'bg-white text-primary-dark' : 'bg-page text-text-subtle'].join(' ')}>
-                    {groupCounts.get(group.id) ?? 0}
-                  </span>
-                </button>
-              ))}
+              {groups.map((group) =>
+                editingGroupId === group.id ? (
+                  <div key={group.id} className="flex items-center gap-1 px-1 py-1">
+                    <input
+                      autoFocus
+                      value={editingGroupName}
+                      onChange={(e) => setEditingGroupName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveEditCategoria()
+                        if (e.key === 'Escape') setEditingGroupId(null)
+                      }}
+                      className="flex-1 rounded-menuzia border border-primary px-2 py-1.5 text-sm outline-none"
+                    />
+                    <button onClick={saveEditCategoria} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page">✓</button>
+                    <button onClick={() => setEditingGroupId(null)} title="Cancelar" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-page">✕</button>
+                  </div>
+                ) : (
+                  <div
+                    key={group.id}
+                    className={[
+                      'group flex w-full items-center justify-between rounded-menuzia border-l-[3px] px-3 py-1 text-left text-sm font-medium transition-colors',
+                      group.nome === activeGroup
+                        ? 'border-l-primary bg-[#ECFEFF] font-semibold text-primary-dark'
+                        : 'border-l-transparent text-text-main hover:bg-page',
+                    ].join(' ')}
+                  >
+                    <button onClick={() => setActiveGroup(group.nome)} className="flex flex-1 items-center gap-2 py-1.5 text-left">
+                      <span>{group.nome}</span>
+                      <span className={['rounded-full px-2 py-0.5 text-[11px] font-bold', group.nome === activeGroup ? 'bg-white text-primary-dark' : 'bg-page text-text-subtle'].join(' ')}>
+                        {groupCounts.get(group.id) ?? 0}
+                      </span>
+                    </button>
+                    <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button onClick={() => startEditCategoria(group)} title="Renomear categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">✎</button>
+                      <button onClick={() => deleteCategoria(group)} title="Excluir categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-danger">🗑</button>
+                    </span>
+                  </div>
+                )
+              )}
             </div>
             <div className="flex gap-1.5 border-t border-border p-2.5">
               <Button variant="primary" className="flex-1 !bg-[#0688D4] hover:!bg-[#0574B4]" onClick={() => setDrawer('categoria')}>
@@ -1771,6 +1876,89 @@ export default function CardapioPage() {
               <DayToggles days={form.diasDisponiveis} onChange={(days) => setForm((prev) => ({ ...prev, diasDisponiveis: days }))} />
             </div>
           </div>
+
+          {/* Tamanhos section (only after item is saved) — ex.: marmitex P/M/G, preço próprio por tamanho */}
+          {form.id && (
+            <>
+              <div className="mt-6 flex items-center justify-between">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tamanhos (ex.: marmitex P/M/G)</div>
+              </div>
+              <p className="mb-3 mt-1 text-[11px] text-text-subtle">
+                Se o item tiver tamanhos, o cliente escolhe um no cardápio e o preço do tamanho substitui o preço base do item.
+              </p>
+
+              {(currentItem?.tamanhos ?? []).map((tamanho) =>
+                editingTamanhoId === tamanho.id ? (
+                  <div key={tamanho.id} className="mb-1.5 flex items-center gap-2 rounded-menuzia border border-primary bg-page px-2.5 py-2">
+                    <input
+                      autoFocus
+                      value={editingTamanhoForm.nome}
+                      onChange={(e) => setEditingTamanhoForm((prev) => ({ ...prev, nome: e.target.value }))}
+                      placeholder="Nome (ex: P)"
+                      className="w-20 rounded-menuzia border border-border px-2 py-1 text-[13px] outline-none focus:border-primary"
+                    />
+                    <input
+                      value={editingTamanhoForm.preco}
+                      onChange={(e) => setEditingTamanhoForm((prev) => ({ ...prev, preco: e.target.value }))}
+                      placeholder="Preço"
+                      className="w-20 rounded-menuzia border border-border px-2 py-1 text-[13px] outline-none focus:border-primary"
+                    />
+                    <button onClick={saveEditTamanho} className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-white">✓</button>
+                    <button onClick={() => setEditingTamanhoId(null)} className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white">✕</button>
+                  </div>
+                ) : (
+                  <div key={tamanho.id} className="mb-1.5 flex items-center gap-2.5 rounded-menuzia border border-border px-2.5 py-2">
+                    <span className="flex-1 text-[13px] font-medium">{tamanho.nome}</span>
+                    <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">R$ {tamanho.preco.toFixed(2).replace('.', ',')}</span>
+                    <button onClick={() => startEditTamanho(tamanho)} title="Editar" className="flex h-[26px] w-[26px] items-center justify-center rounded-menuzia bg-page text-[13px] text-text-subtle hover:bg-border">✎</button>
+                    <button onClick={() => deleteTamanho(tamanho)} title="Excluir"
+                      className="flex h-[26px] w-[26px] items-center justify-center rounded-menuzia bg-danger-bg text-[15px] text-danger hover:bg-[#FCA5A5] hover:text-white">
+                      ×
+                    </button>
+                  </div>
+                )
+              )}
+
+              {(currentItem?.tamanhos ?? []).length === 0 && !creatingTamanho && (
+                <div className="mb-3 rounded-menuzia border border-dashed border-border p-3 text-center text-[11px] text-text-subtle">
+                  Nenhum tamanho cadastrado. Sem tamanhos, o item usa só o preço base.
+                </div>
+              )}
+
+              {creatingTamanho ? (
+                <div className="mb-2 mt-2 flex items-center gap-2 rounded-menuzia border border-border bg-page p-2.5">
+                  <input
+                    autoFocus
+                    value={newTamanhoForm.nome}
+                    onChange={(e) => setNewTamanhoForm((prev) => ({ ...prev, nome: e.target.value }))}
+                    placeholder="Nome (ex: G)"
+                    className="w-24 rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary"
+                  />
+                  <input
+                    value={newTamanhoForm.preco}
+                    onChange={(e) => setNewTamanhoForm((prev) => ({ ...prev, preco: e.target.value }))}
+                    placeholder="Preço (ex: 24,90)"
+                    className="w-28 rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary"
+                  />
+                  <button onClick={createTamanho} disabled={!newTamanhoForm.nome.trim()}
+                    className="rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-50">
+                    Adicionar
+                  </button>
+                  <button onClick={() => { setCreatingTamanho(false); setNewTamanhoForm({ nome: '', preco: '' }) }}
+                    className="rounded-menuzia border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:bg-page">
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setCreatingTamanho(true)}
+                  className="mt-2 w-full rounded-menuzia border border-dashed border-border bg-white py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:border-primary hover:text-primary"
+                >
+                  + Novo tamanho
+                </button>
+              )}
+            </>
+          )}
 
           {/* Complementos section (only after item is saved) */}
           {form.id && (

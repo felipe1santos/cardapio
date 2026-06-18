@@ -88,7 +88,7 @@ function playNewOrderSound() {
 }
 
 function resumoItens(p: Pedido): string[] {
-  const linhas = p.itens.map((i) => `${i.quantidade}x ${i.nome}`)
+  const linhas = p.itens.map((i) => `${i.quantidade}x ${i.nome}${i.tamanhoNome ? ` (${i.tamanhoNome})` : ''}`)
   if (linhas.length <= 3) return linhas
   return [...linhas.slice(0, 2), `+${linhas.length - 2} item(ns)`]
 }
@@ -497,7 +497,7 @@ export default function PedidosPage() {
                 {detail.itens.map((linha) => (
                   <li key={linha.id}>
                     <div className="flex justify-between text-text-main">
-                      <span>{linha.quantidade}x {linha.nome}</span>
+                      <span>{linha.quantidade}x {linha.nome}{linha.tamanhoNome && <span className="text-text-subtle"> · {linha.tamanhoNome}</span>}</span>
                       <span className="font-semibold">{brl(linha.precoUnitario * linha.quantidade)}</span>
                     </div>
                     {linha.complementos.length > 0 && (

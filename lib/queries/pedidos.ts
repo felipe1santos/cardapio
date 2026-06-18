@@ -17,6 +17,7 @@ export interface PedidoItem {
   quantidade: number
   observacao: string
   complementos: PedidoComplementoSnapshot[]
+  tamanhoNome: string
 }
 
 export interface Pedido {
@@ -87,6 +88,7 @@ interface PedidoRow {
     quantidade: number
     observacao: string
     complementos: PedidoComplementoSnapshot[]
+    tamanho_nome: string
   }[]
 }
 
@@ -95,7 +97,7 @@ const PEDIDO_SELECT = `
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
   entregador_id, criado_em, atualizado_em,
-  pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos )
+  pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome )
 `
 
 function mapPedido(row: PedidoRow): Pedido {
@@ -128,6 +130,7 @@ function mapPedido(row: PedidoRow): Pedido {
       quantidade: i.quantidade,
       observacao: i.observacao,
       complementos: (i.complementos ?? []).map((c) => ({ nome: c.nome, preco: Number(c.preco) })),
+      tamanhoNome: i.tamanho_nome ?? '',
     })),
   }
 }
@@ -580,6 +583,7 @@ export interface NovoPedidoItemInput {
   quantidade: number
   observacao: string
   complementos: string[] // nomes dos complementos escolhidos
+  tamanhoNome?: string // nome do tamanho escolhido (substitui o preço base, não soma)
 }
 
 export interface NovoPedidoInput {
@@ -604,7 +608,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   const itemIds = [...new Set(input.itens.map((i) => i.itemId))]
   const { data: itensDb, error: itensError } = await admin
     .from('itens_cardapio')
-    .select('id, nome, preco, promocao_preco, status, item_complementos ( nome, preco )')
+    .select('id, nome, preco, promocao_preco, status, item_complementos ( nome, preco ), tamanhos_item ( nome, preco )')
     .eq('restaurante_id', restauranteId)
     .in('id', itemIds)
   if (itensError) throw itensError
@@ -616,7 +620,14 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     if (!item) throw new Error(`Item ${linha.itemId} não encontrado nesta loja`)
     if (item.status !== 'disponivel') throw new Error(`Item "${item.nome}" não está disponível`)
 
-    const base = item.promocao_preco === null || item.promocao_preco === undefined ? Number(item.preco) : Number(item.promocao_preco)
+    let base = item.promocao_preco === null || item.promocao_preco === undefined ? Number(item.preco) : Number(item.promocao_preco)
+    let tamanhoNome = ''
+    if (linha.tamanhoNome) {
+      const tamanho = (item.tamanhos_item ?? []).find((t: { nome: string; preco: number }) => t.nome === linha.tamanhoNome)
+      if (!tamanho) throw new Error(`Tamanho "${linha.tamanhoNome}" não encontrado para o item "${item.nome}"`)
+      base = Number(tamanho.preco)
+      tamanhoNome = tamanho.nome
+    }
     const complementos: PedidoComplementoSnapshot[] = []
     for (const nome of linha.complementos) {
       const comp = (item.item_complementos ?? []).find((c: { nome: string; preco: number }) => c.nome === nome)
@@ -631,6 +642,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       quantidade,
       observacao: linha.observacao ?? '',
       complementos,
+      tamanho_nome: tamanhoNome,
     }
   })
 
