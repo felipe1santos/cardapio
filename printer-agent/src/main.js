@@ -66,7 +66,7 @@ async function cicloDePolling() {
       log(`Pedido #${pedido.numero} impresso.`)
     }
   } catch (err) {
-    log(`Falha na consulta/impressão: ${err.message}`)
+    log(`Falha na consulta/impressão: ${descreverErro(err)}`)
   }
 }
 
@@ -111,13 +111,17 @@ ipcMain.handle('listar-impressoras-windows', async () => {
   }
 })
 
+function descreverErro(err) {
+  return err.cause ? `${err.message} (causa: ${err.cause.code || err.cause.message || err.cause})` : err.message
+}
+
 ipcMain.handle('testar-pareamento', async (_e, { apiBaseUrl, token }) => {
   try {
     const res = await fetch(`${apiBaseUrl}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
     if (!res.ok) return { ok: false, erro: `HTTP ${res.status}` }
     return { ok: true }
   } catch (err) {
-    return { ok: false, erro: err.message }
+    return { ok: false, erro: descreverErro(err) }
   }
 })
 
@@ -128,7 +132,7 @@ ipcMain.handle('buscar-impressoras-cloud', async (_e, { apiBaseUrl, token }) => 
     const data = await res.json()
     return data.impressoras ?? []
   } catch (err) {
-    return { erro: err.message }
+    return { erro: descreverErro(err) }
   }
 })
 
