@@ -739,9 +739,19 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
           <div>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Assistente de Impressão Menuzia</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Programa instalado no computador da loja que liga o Menuzia à impressora física. Ative aqui, gere o
+              Programa instalado no computador da loja que liga o Menuzia à impressora física. Baixe, gere o
               token abaixo e cole-o no Assistente ao abrir pela primeira vez — depois disso, os pedidos podem ser
               impressos automaticamente sem precisar abrir o navegador.
+            </p>
+            <a
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.0/AssistenteImpressaoMenuzia-win.zip"
+              className="mb-3 inline-flex items-center gap-2 rounded-menuzia bg-primary px-3.5 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
+            >
+              ⬇ Baixar Assistente de Impressão (Windows)
+            </a>
+            <p className="mb-3 text-[11px] text-text-subtle">
+              Baixa um .zip (~105MB) — extraia a pasta e abra &ldquo;Assistente de Impressão Menuzia.exe&rdquo; de dentro
+              dela. Ainda não tem instalador com assistente passo a passo, é só extrair e rodar.
             </p>
             <div className="rounded-menuzia border border-border p-4">
               <ToggleRow label="Ativar uso do Assistente de Impressão" checked={config.ativarAssistente} onChange={(v) => patch({ ativarAssistente: v })} />
