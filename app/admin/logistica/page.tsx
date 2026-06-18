@@ -545,7 +545,11 @@ export default function LogisticaPage() {
                   + Entregador
                 </Button>
               )}
-              <Button variant="outline" className="w-full" onClick={openClosing}>
+              <Button
+                variant="outline"
+                className="w-full !border-yellow-300 !bg-yellow-300 !text-black hover:!bg-yellow-400"
+                onClick={openClosing}
+              >
                 Fechamento de caixa
               </Button>
             </div>
