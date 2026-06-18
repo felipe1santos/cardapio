@@ -51,11 +51,16 @@ function ToggleSwitch({ checked, onChange, disabled }: { checked: boolean; onCha
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={[
-        'relative h-[22px] w-[38px] flex-shrink-0 rounded-full transition-colors disabled:opacity-50',
-        checked ? 'bg-primary' : 'bg-border',
+        'inline-flex h-[22px] w-[38px] flex-shrink-0 items-center rounded-full border p-[2px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+        checked ? 'border-primary bg-primary' : 'border-border bg-border',
       ].join(' ')}
     >
-      <span className={['absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-[2px]'].join(' ')} />
+      <span
+        className={[
+          'block h-[16px] w-[16px] flex-shrink-0 rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-[16px]' : 'translate-x-0',
+        ].join(' ')}
+      />
     </button>
   )
 }
@@ -602,9 +607,9 @@ const PEDIDO_PREVIEW = {
   taxaEntrega: 6,
 }
 
-function gerarPreviewRecibo(config: ConfigImpressao, nomeLoja: string): string[] {
+function gerarPreviewRecibo(config: ConfigImpressao, nomeLoja: string, logoUrl: string | null): string[] {
   const linhas: string[] = []
-  if (config.imprimirLogo) linhas.push(`[ LOGO — ${nomeLoja || 'SUA LOJA'} ]`)
+  if (config.imprimirLogo && !logoUrl) linhas.push(`[ LOGO — ${nomeLoja || 'SUA LOJA'} ]`)
   linhas.push(`PEDIDO #${PEDIDO_PREVIEW.numero}  ·  ${PEDIDO_PREVIEW.tipo.toUpperCase()}`)
   linhas.push('--------------------------------')
   linhas.push(`Cliente: ${PEDIDO_PREVIEW.cliente}`)
@@ -636,8 +641,8 @@ function gerarPreviewRecibo(config: ConfigImpressao, nomeLoja: string): string[]
   return linhas
 }
 
-function ReciboPreview({ config, nomeLoja }: { config: ConfigImpressao; nomeLoja: string }) {
-  const linhas = useMemo(() => gerarPreviewRecibo(config, nomeLoja), [config, nomeLoja])
+function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao; nomeLoja: string; logoUrl: string | null }) {
+  const linhas = useMemo(() => gerarPreviewRecibo(config, nomeLoja, logoUrl), [config, nomeLoja, logoUrl])
   return (
     <div className="sticky top-0">
       <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
@@ -645,6 +650,10 @@ function ReciboPreview({ config, nomeLoja }: { config: ConfigImpressao; nomeLoja
         Prévia ilustrativa — atualiza ao vivo conforme você muda as configurações. O agente desktop usa essas mesmas regras de verdade.
       </p>
       <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
+        {config.imprimirLogo && logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="Logo da loja" className="mx-auto mb-2 h-12 w-12 rounded-menuzia border border-border bg-white object-contain" />
+        )}
         <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-white p-3 font-mono text-[11px] leading-relaxed text-text-main shadow-sm">
           {linhas.join('\n')}
         </pre>
@@ -662,6 +671,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
   const [config, setConfig] = useState<ConfigImpressao | null>(null)
   const [impressoras, setImpressoras] = useState<Impressora[]>([])
   const [nomeLoja, setNomeLoja] = useState('')
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [modal, setModal] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
   const [gerandoToken, setGerandoToken] = useState(false)
@@ -673,6 +683,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
       setConfig(cfg)
       setImpressoras(lista)
       setNomeLoja(loja?.nome ?? '')
+      setLogoUrl(loja?.logoUrl ?? null)
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -735,8 +746,8 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_360px]">
-        <div className="max-w-2xl space-y-6">
+        <div className="grid grid-cols-1 gap-5 xl:max-w-[1040px] xl:grid-cols-[1fr_340px]">
+        <div className="space-y-6">
           {/* Assistente de Impressão */}
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Assistente de Impressão Menuzia</h3>
@@ -747,7 +758,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
             </p>
             <a
               href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.1/AssistenteImpressaoMenuzia-win-v0.1.1.zip"
-              className="mb-3 inline-flex items-center gap-2 rounded-menuzia bg-primary px-3.5 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
+              className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)
             </a>
@@ -765,7 +776,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
                   <>
                     <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Token de pareamento</div>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 truncate rounded-menuzia border border-border bg-white px-2.5 py-2 text-[12px]">{config.agenteToken}</code>
+                      <code className="flex-1 truncate rounded-menuzia border border-[#0B1220] bg-[#0B1220] px-2.5 py-2 font-mono text-[12px] tracking-wide text-cyan-300">{config.agenteToken}</code>
                       <Button variant="outline" onClick={copiarToken}>{tokenCopiado ? 'Copiado!' : 'Copiar'}</Button>
                     </div>
                     <p className="mt-1.5 text-[11px] text-text-subtle">Cole esse token na tela de pareamento do Assistente de Impressão instalado no computador da loja.</p>
@@ -831,7 +842,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
         </div>
 
         <Card className="sticky top-0">
-          <ReciboPreview config={config} nomeLoja={nomeLoja} />
+          <ReciboPreview config={config} nomeLoja={nomeLoja} logoUrl={logoUrl} />
         </Card>
         </div>
       </div>
