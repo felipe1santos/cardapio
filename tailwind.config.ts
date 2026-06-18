@@ -20,9 +20,10 @@ const config: Config = {
           text: "#9CA3AF",
         },
         primary: {
-          DEFAULT: "#06B6D4",
-          dark: "#0891B2",
+          DEFAULT: "#0688D4",
+          dark: "#0570AE",
         },
+        "tab-active": "#B91C1C",
         "status-pending": "#F97316",
         "status-preparing": "#3B82F6",
         "status-ready": "#10B981",

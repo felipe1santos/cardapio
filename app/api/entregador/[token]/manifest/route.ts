@@ -14,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
       display: 'standalone',
       orientation: 'portrait',
       background_color: '#111827',
-      theme_color: '#06B6D4',
+      theme_color: '#0688D4',
       icons: [
         { src: '/icons/motoboy-192.png', sizes: '192x192', type: 'image/png' },
         { src: '/icons/motoboy-512.png', sizes: '512x512', type: 'image/png' },

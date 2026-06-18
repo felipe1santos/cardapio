@@ -416,7 +416,7 @@ export default function LogisticaPage() {
               onClick={() => setTab(t.id)}
               className={[
                 'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-                tab === t.id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
+                tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
               ].join(' ')}
             >
               {t.label}
@@ -607,6 +607,7 @@ export default function LogisticaPage() {
                         <div className="mb-1 flex items-center gap-2">
                           <span className="text-sm font-bold">#{order.numero}</span>
                           <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
+                          <Badge tone="new">Novo</Badge>
                         </div>
                         <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -650,8 +651,14 @@ export default function LogisticaPage() {
               </div>
               <div className="divide-y divide-border">
                 {inRoute.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhuma entrega em rota</div>}
-                {inRoute.map((order) => (
-                  <div key={order.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                {inRoute.map((order, i) => (
+                  <div
+                    key={order.id}
+                    className={[
+                      'flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between',
+                      i % 2 === 1 ? 'bg-page' : 'bg-white',
+                    ].join(' ')}
+                  >
                     <div>
                       <div className="mb-1 flex items-center gap-2">
                         <span className="text-sm font-bold">#{order.numero}</span>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   adicionarComplemento,
@@ -1027,7 +1028,7 @@ function ListaCatalogo({
   }
 
   return (
-    <div>
+    <Card>
       <h3 className="mb-1 text-[13px] font-bold text-text-main">{titulo}</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">{hint}</p>
       <div className="overflow-hidden rounded-menuzia border border-border">
@@ -1047,7 +1048,7 @@ function ListaCatalogo({
             )}
             {itens.map((linha) =>
               editingId === linha.id ? (
-                <tr key={linha.id} className="border-b border-border bg-[#ECFEFF]">
+                <tr key={linha.id} className="border-b border-border bg-primary/10">
                   <td className="px-2.5 py-2">
                     <input value={editNome} onChange={(e) => setEditNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                       className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
@@ -1092,7 +1093,7 @@ function ListaCatalogo({
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -1920,7 +1921,7 @@ export default function CardapioPage() {
             onClick={() => setCardapioTab(t.id)}
             className={[
               'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-              cardapioTab === t.id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
+              cardapioTab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
             ].join(' ')}
           >
             {t.label}
@@ -2015,7 +2016,7 @@ export default function CardapioPage() {
                     className={[
                       'group flex w-full items-center justify-between rounded-menuzia border-l-[3px] px-3 py-1 text-left text-sm font-medium transition-colors',
                       group.nome === activeGroup
-                        ? 'border-l-primary bg-[#ECFEFF] font-semibold text-primary-dark'
+                        ? 'border-l-primary bg-primary/10 font-semibold text-primary-dark'
                         : 'border-l-transparent text-text-main hover:bg-page',
                     ].join(' ')}
                   >
@@ -2081,7 +2082,7 @@ export default function CardapioPage() {
                   </thead>
                   <tbody>
                     {visibleItems.map((item) => (
-                      <tr key={item.id} className={selected.has(item.id) ? 'bg-[#ECFEFF]' : 'hover:bg-[#F9FAFB]'}>
+                      <tr key={item.id} className={selected.has(item.id) ? 'bg-primary/10' : 'hover:bg-[#F9FAFB]'}>
                         <td className="border-b border-border px-3.5 py-3">
                           <input type="checkbox" className="h-4 w-4 accent-primary" checked={selected.has(item.id)} onChange={() => toggleRow(item.id)} />
                         </td>

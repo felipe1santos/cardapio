@@ -71,8 +71,8 @@ um contexto mobile-first de vitrine).
 --sidebar-hover: #1F2937
 --sidebar-text:  #9CA3AF
 
---primary:      #06B6D4   (ciano — cor de marca)
---primary-dark: #0891B2
+--primary:      #0688D4   (azul — cor de marca)
+--primary-dark: #0570AE
 
 --status-pending:   #F97316  (laranja — pedido recebido)
 --status-preparing: #3B82F6  (azul — preparando)

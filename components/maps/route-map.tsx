@@ -34,7 +34,7 @@ const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
 function motoboyIcon(): google.maps.Icon {
   const svg = `
     <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="20" cy="20" r="18" fill="#06B6D4" stroke="white" stroke-width="3"/>
+      <circle cx="20" cy="20" r="18" fill="#0688D4" stroke="white" stroke-width="3"/>
       <text x="20" y="27" font-size="18" text-anchor="middle">🛵</text>
     </svg>`
   return {
@@ -109,7 +109,7 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
       preserveViewport: true,
       polylineOptions: {
         strokeOpacity: 0,
-        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3, strokeColor: '#06B6D4' }, offset: '0', repeat: '12px' }],
+        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3, strokeColor: '#0688D4' }, offset: '0', repeat: '12px' }],
       },
     })
     const renderer = directionsRendererRef.current

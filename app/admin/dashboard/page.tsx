@@ -17,7 +17,7 @@ const PERIODS: { id: Period; label: string }[] = [
 ]
 
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
-const PAY_COLOR: Record<string, string> = { pix: '#06B6D4', cartao: '#3B82F6', dinheiro: '#F97316' }
+const PAY_COLOR: Record<string, string> = { pix: '#0688D4', cartao: '#3B82F6', dinheiro: '#F97316' }
 
 const brl = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 

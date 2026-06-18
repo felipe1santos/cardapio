@@ -7,7 +7,7 @@ describe('Menuzia Tailwind theme tokens', () => {
     expect(colors.page).toBe('#EDEEF1')
     expect(colors['text-main']).toBe('#1F2937')
     expect(colors['text-subtle']).toBe('#6B7280')
-    expect(colors.primary).toEqual({ DEFAULT: '#06B6D4', dark: '#0891B2' })
+    expect(colors.primary).toEqual({ DEFAULT: '#0688D4', dark: '#0570AE' })
     expect(colors['status-pending']).toBe('#F97316')
     expect(colors['status-preparing']).toBe('#3B82F6')
     expect(colors['status-ready']).toBe('#10B981')

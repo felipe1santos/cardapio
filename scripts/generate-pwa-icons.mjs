@@ -11,7 +11,7 @@ function svg(size, scale) {
   const inner = size * scale
   const offset = (size - inner) / 2
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <rect width="${size}" height="${size}" fill="#06B6D4"/>
+    <rect width="${size}" height="${size}" fill="#0688D4"/>
     <g transform="translate(${offset} ${offset}) scale(${inner / 24})">
       <path fill="#ffffff" d="${ICON_PATH}"/>
     </g>

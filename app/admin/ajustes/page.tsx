@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { FacebookIcon, GoogleIcon, WhatsAppIcon } from '@/components/ui/brand-icons'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, type LayoutCardapio } from '@/lib/queries/cardapio'
 import {
@@ -198,7 +200,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="max-w-xl space-y-5">
+        <Card className="max-w-xl space-y-5">
           <Field label="Nome do estabelecimento">
             <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} placeholder="Ex: Burger House" />
           </Field>
@@ -252,7 +254,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 onClick={() => setLayout('categoria')}
                 className={[
                   'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                  form.layoutCardapio === 'categoria' ? 'border-primary bg-[#ECFEFF]' : 'border-border bg-white hover:border-primary/50',
+                  form.layoutCardapio === 'categoria' ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
                 ].join(' ')}
               >
                 <div className="text-[13px] font-semibold text-text-main">Categorias</div>
@@ -263,7 +265,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 onClick={() => setLayout('lista')}
                 className={[
                   'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                  form.layoutCardapio === 'lista' ? 'border-primary bg-[#ECFEFF]' : 'border-border bg-white hover:border-primary/50',
+                  form.layoutCardapio === 'lista' ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
                 ].join(' ')}
               >
                 <div className="text-[13px] font-semibold text-text-main">Lista</div>
@@ -280,7 +282,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             </Field>
           )}
           {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-        </div>
+        </Card>
       </div>
       <SaveBar saved={saved} saving={saving} onSave={save} />
     </div>
@@ -387,9 +389,9 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="max-w-xl space-y-8">
+        <div className="max-w-xl space-y-6">
           {/* Taxa padrão */}
-          <div>
+          <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Taxa padrão de entrega</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Aplicada quando o bairro do cliente não constar na tabela abaixo, ou quando nenhuma taxa por bairro estiver cadastrada.
@@ -408,10 +410,10 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
               </Button>
             </div>
             {savedTaxa && !taxaChanged && <p className="mt-1.5 text-[12px] font-medium text-status-ready">Taxa padrão salva.</p>}
-          </div>
+          </Card>
 
           {/* Taxas por bairro */}
-          <div>
+          <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Taxas por bairro</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Quando o cliente informa o bairro no checkout, o sistema usa a taxa correspondente (ou a padrão acima).
@@ -435,7 +437,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
                   )}
                   {bairros.map((b) =>
                     editingId === b.id ? (
-                      <tr key={b.id} className="border-b border-border bg-[#ECFEFF]">
+                      <tr key={b.id} className="border-b border-border bg-primary/10">
                         <td className="px-2.5 py-2">
                           <Input value={editBairro} onChange={(e) => setEditBairro(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && saveEditRow(b.id)} className="py-1.5" />
@@ -488,7 +490,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
 
           {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
         </div>
@@ -734,9 +736,9 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_360px]">
-        <div className="max-w-2xl space-y-8">
+        <div className="max-w-2xl space-y-6">
           {/* Assistente de Impressão */}
-          <div>
+          <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Assistente de Impressão Menuzia</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Programa instalado no computador da loja que liga o Menuzia à impressora física. Baixe, gere o
@@ -779,10 +781,10 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
                 )}
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Impressoras cadastradas */}
-          <div>
+          <Card>
             <div className="mb-1 flex items-center justify-between">
               <h3 className="text-[13px] font-bold text-text-main">Impressoras</h3>
               <Button variant="outline" onClick={() => setModal({ id: null, input: IMPRESSORA_VAZIA })}>+ Nova impressora</Button>
@@ -808,10 +810,10 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Configurações gerais de impressão */}
-          <div>
+          <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Configurações gerais</h3>
             <div className="rounded-menuzia border border-border p-4">
               <ToggleRow label="Mostrar número do item na impressão" checked={config.mostrarNumeroItem} onChange={(v) => patch({ mostrarNumeroItem: v })} />
@@ -823,12 +825,14 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               <ToggleRow label="Imprimir comprovante de cancelamento" checked={config.imprimirComprovanteCancelamento} onChange={(v) => patch({ imprimirComprovanteCancelamento: v })} />
               <ToggleRow label="Imprimir QR Code de avaliação do pedido" hint="Entrega, retirada e no local. Nem toda impressora suporta essa função." checked={config.imprimirQrcodeAvaliacao} onChange={(v) => patch({ imprimirQrcodeAvaliacao: v })} />
             </div>
-          </div>
+          </Card>
 
           {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
         </div>
 
-        <ReciboPreview config={config} nomeLoja={nomeLoja} />
+        <Card className="sticky top-0">
+          <ReciboPreview config={config} nomeLoja={nomeLoja} />
+        </Card>
         </div>
       </div>
       {modal && (
@@ -952,9 +956,10 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="max-w-xl space-y-8">
-          <div>
+        <div className="max-w-xl space-y-6">
+          <Card>
             <div className="mb-0.5 flex items-center gap-2">
+              <WhatsAppIcon className="h-5 w-5 flex-shrink-0" />
               <h3 className="text-[13px] font-bold text-text-main">WhatsApp (Evolution API)</h3>
               {wa?.connected && (
                 <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold text-price-text">Conectado</span>
@@ -994,9 +999,12 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
               </Button>
             )}
             {waError && <p className="mt-2 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[12px] text-danger">{waError}</p>}
-          </div>
-          <div>
-            <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Facebook Pixel</h3>
+          </Card>
+          <Card>
+            <div className="mb-0.5 flex items-center gap-2">
+              <FacebookIcon className="h-5 w-5 flex-shrink-0" />
+              <h3 className="text-[13px] font-bold text-text-main">Facebook Pixel</h3>
+            </div>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Rastreie visualizações, adições ao carrinho e pedidos concluídos no cardápio da sua loja.
               Cada loja tem seu próprio Pixel — o código é injetado apenas no cardápio público desta loja.
@@ -1004,9 +1012,12 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
             <Field label="Pixel ID">
               <Input value={form.facebookPixelId} onChange={(e) => set('facebookPixelId', e.target.value)} placeholder="Ex: 1234567890123456" />
             </Field>
-          </div>
-          <div>
-            <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Google Tag (GA4 / GTM)</h3>
+          </Card>
+          <Card>
+            <div className="mb-0.5 flex items-center gap-2">
+              <GoogleIcon className="h-5 w-5 flex-shrink-0" />
+              <h3 className="text-[13px] font-bold text-text-main">Google Tag (GA4 / GTM)</h3>
+            </div>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Insira o ID de medição do Google Analytics 4 (<code className="rounded bg-page px-1 text-[11px]">G-XXXXXXXXXX</code>) ou o ID do
               Google Tag Manager (<code className="rounded bg-page px-1 text-[11px]">GTM-XXXXXX</code>).
@@ -1015,7 +1026,7 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
             <Field label="Tag ID">
               <Input value={form.googleTagId} onChange={(e) => set('googleTagId', e.target.value)} placeholder="Ex: G-ABC123XYZ ou GTM-XXXXXX" />
             </Field>
-          </div>
+          </Card>
           {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
         </div>
       </div>
@@ -1055,7 +1066,7 @@ function TabConta({ active }: { active: boolean }) {
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="max-w-xl space-y-5">
+        <Card className="max-w-xl space-y-5">
           <div>
             <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Alterar senha</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
@@ -1079,7 +1090,7 @@ function TabConta({ active }: { active: boolean }) {
             />
           </Field>
           {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-        </div>
+        </Card>
       </div>
       <SaveBar saved={saved} saving={saving} onSave={salvar} />
     </div>
@@ -1109,7 +1120,7 @@ export default function AjustesPage() {
             onClick={() => setTab(t.id)}
             className={[
               'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-              tab === t.id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
+              tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
             ].join(' ')}
           >
             {t.label}
