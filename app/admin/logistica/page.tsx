@@ -5,6 +5,7 @@ import QRCode from 'qrcode'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { RouteMap } from '@/components/maps/route-map'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
@@ -13,6 +14,7 @@ import {
   atribuirEntregadorEmLote,
   atualizarPerfilEntregador,
   criarEntregador,
+  enderecoCompletoPedido,
   enviarFotoEntregador,
   listarEntregadores,
   listarPedidosConcluidos,
@@ -155,6 +157,11 @@ export default function LogisticaPage() {
   const inRoute = orders.filter((o) => o.status === 'em_rota')
   const locationDriver = drivers.find((d) => d.id === locationDriverId) ?? null
   const profileDriver = drivers.find((d) => d.id === profileDriverId) ?? null
+  const locationDriverStops = locationDriver
+    ? orders
+        .filter((o) => o.entregadorId === locationDriver.id && o.status === 'em_rota')
+        .map((o, i) => ({ id: o.id, numero: i + 1, address: enderecoCompletoPedido(o) }))
+    : []
 
   const concluidosFiltrados = useMemo(() => {
     const busca = filtroBusca.trim().toLowerCase()
@@ -887,13 +894,12 @@ export default function LogisticaPage() {
               </button>
             </div>
             <div className="flex-1 p-4.5">
-              {locationDriver.localizacao && MAPS_KEY ? (
-                <iframe
-                  title="Localização do entregador"
-                  src={`https://www.google.com/maps/embed/v1/place?key=${MAPS_KEY}&q=${locationDriver.localizacao.lat},${locationDriver.localizacao.lng}&zoom=15`}
-                  className="h-full w-full rounded-menuzia border-0"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
+              {locationDriver.localizacao ? (
+                <RouteMap
+                  apiKey={MAPS_KEY}
+                  origin={{ lat: locationDriver.localizacao.lat, lng: locationDriver.localizacao.lng }}
+                  stops={locationDriverStops}
+                  className="h-full w-full"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center rounded-menuzia border border-dashed border-border p-8 text-center text-sm text-text-subtle">

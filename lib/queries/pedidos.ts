@@ -144,6 +144,13 @@ function mapPedido(row: PedidoRow): Pedido {
   }
 }
 
+/** Endereço completo do pedido, no formato usado pela Directions API do Google Maps. */
+export function enderecoCompletoPedido(p: Pedido): string {
+  const linha1 = [p.enderecoRua, p.enderecoNumero].filter(Boolean).join(', ')
+  const linha2 = [p.enderecoComplemento, p.enderecoBairro].filter(Boolean).join(' - ')
+  return [linha1, linha2, p.enderecoCep].filter(Boolean).join(', ')
+}
+
 // --- Painel (Kanban / Logística) — lê com a sessão do usuário (RLS por loja) ---
 
 /** Pedidos ativos do Kanban: recebido, preparando e os prontos de retirada. */

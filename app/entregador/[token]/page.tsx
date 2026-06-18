@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import type { CaixaEntregador, FormaPagamento, Pedido } from '@/lib/queries/pedidos'
+import { enderecoCompletoPedido, type CaixaEntregador, type FormaPagamento, type Pedido } from '@/lib/queries/pedidos'
+import { RouteMap } from '@/components/maps/route-map'
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 const PAY_LABEL: Record<FormaPagamento, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
@@ -15,11 +16,7 @@ interface PortalData {
   caixaHoje: CaixaEntregador
 }
 
-function enderecoCompleto(p: Pedido) {
-  const linha1 = [p.enderecoRua, p.enderecoNumero].filter(Boolean).join(', ')
-  const linha2 = [p.enderecoComplemento, p.enderecoBairro].filter(Boolean).join(' - ')
-  return [linha1, linha2, p.enderecoCep].filter(Boolean).join(', ')
-}
+const enderecoCompleto = enderecoCompletoPedido
 
 function resumoItens(p: Pedido): string[] {
   return p.itens.map((i) => `${i.quantidade}x ${i.nome}`)
@@ -94,17 +91,10 @@ export default function EntregadorPortalPage() {
   }, [token, geo])
 
   const pedidos = data?.pedidos ?? []
-  const addresses = useMemo(() => pedidos.map(enderecoCompleto), [pedidos])
-
-  const mapsSrc = useMemo(() => {
-    if (!MAPS_KEY || addresses.length === 0) return null
-    if (!geo) return `https://www.google.com/maps/embed/v1/place?key=${MAPS_KEY}&q=${encodeURIComponent(addresses[0])}`
-    const destination = addresses[addresses.length - 1]
-    const waypoints = addresses.slice(0, -1)
-    const sp = new URLSearchParams({ key: MAPS_KEY, origin: `${geo.lat},${geo.lng}`, destination, mode: 'driving' })
-    if (waypoints.length) sp.set('waypoints', waypoints.join('|'))
-    return `https://www.google.com/maps/embed/v1/directions?${sp.toString()}`
-  }, [addresses, geo])
+  const routeStops = useMemo(
+    () => pedidos.map((p, i) => ({ id: p.id, numero: i + 1, address: enderecoCompleto(p) })),
+    [pedidos]
+  )
 
   async function confirmarEntrega(pedidoId: string) {
     setBusy(pedidoId)
@@ -198,18 +188,12 @@ export default function EntregadorPortalPage() {
         )}
 
         {/* Mapa da rota */}
-        {mapsSrc && (
+        {routeStops.length > 0 && (
           <div className="mb-4 overflow-hidden rounded-menuzia border border-border bg-white">
             <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
               Sua rota — paradas na ordem da lista abaixo
             </div>
-            <iframe
-              title="Rota das entregas"
-              src={mapsSrc}
-              className="h-[200px] w-full border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
+            <RouteMap apiKey={MAPS_KEY} origin={geo} stops={routeStops} className="h-[220px] w-full" />
             {!geo && (
               <button
                 onClick={atualizarLocalizacao}
