@@ -4,6 +4,7 @@ export interface SidebarItem {
   href: string
   label: string
   badge?: number
+  novidade?: boolean
 }
 
 export interface SidebarProps {
@@ -55,6 +56,11 @@ export function Sidebar({ items, activeHref, storeSlug, onSignOut }: SidebarProp
                 </svg>
               )}
               {item.label}
+              {item.novidade && (
+                <span className="rounded px-1.5 py-[2px] text-[8px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#FCD34D', color: '#78350F' }}>
+                  Novidade
+                </span>
+              )}
             </Link>
           )
         })}
