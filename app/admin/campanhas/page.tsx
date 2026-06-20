@@ -365,13 +365,6 @@ export default function CampanhasPage() {
           <Button onClick={abrirNovo}>+ Nova campanha</Button>
         </div>
 
-        {/* Aviso cron */}
-        <div className="rounded-menuzia border border-alert bg-alert/30 px-4 py-3 text-[12px] text-alert">
-          <strong>Configuração necessária:</strong> configure um cron job no Coolify para chamar{' '}
-          <code className="rounded bg-white/60 px-1">POST /api/cron/campanhas</code> a cada 60 segundos com o header{' '}
-          <code className="rounded bg-white/60 px-1">x-cron-secret: {'<CRON_SECRET>'}</code>.
-        </div>
-
         {/* Lista */}
         {loading ? (
           <p className="text-[13px] text-text-subtle">Carregando…</p>
