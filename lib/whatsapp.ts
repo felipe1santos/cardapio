@@ -127,3 +127,41 @@ export async function notificarPedido(admin: SupabaseClient, pedidoId: string, s
 
   await enviarWhatsapp(numero, texto, evolutionInstance)
 }
+
+/** Envia imagem com legenda (caption) via Evolution API. */
+export async function enviarMidia(numero: string, imagemUrl: string, legenda: string, instance: string): Promise<boolean> {
+  const url = process.env.EVOLUTION_API_URL
+  const apiKey = process.env.EVOLUTION_API_KEY
+  if (!url || !apiKey) return false
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/message/sendMedia/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: apiKey },
+      body: JSON.stringify({ number: numero, mediatype: 'image', media: imagemUrl, caption: legenda }),
+    })
+    if (!res.ok) { console.error('[whatsapp] sendMedia respondeu', res.status, await res.text()); return false }
+    return true
+  } catch (err) {
+    console.error('[whatsapp] falha ao enviar mídia', err)
+    return false
+  }
+}
+
+/** Envia áudio PTT (mensagem de voz) via Evolution API. */
+export async function enviarAudioPtt(numero: string, audioUrl: string, instance: string): Promise<boolean> {
+  const url = process.env.EVOLUTION_API_URL
+  const apiKey = process.env.EVOLUTION_API_KEY
+  if (!url || !apiKey) return false
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/message/sendWhatsAppAudio/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: apiKey },
+      body: JSON.stringify({ number: numero, audio: audioUrl }),
+    })
+    if (!res.ok) { console.error('[whatsapp] sendWhatsAppAudio respondeu', res.status, await res.text()); return false }
+    return true
+  } catch (err) {
+    console.error('[whatsapp] falha ao enviar áudio PTT', err)
+    return false
+  }
+}
