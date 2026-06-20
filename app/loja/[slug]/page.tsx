@@ -172,6 +172,58 @@ function ItemsGrid({ items, layout, onSelect }: { items: ItemCardapio[]; layout:
   )
 }
 
+// ─── Paletas de cor ──────────────────────────────────────────────────────────
+
+interface Paleta { nome: string; primaria: string; dark: string; light: string; from: string }
+
+const PALETAS: Record<string, Paleta> = {
+  azul:     { nome: 'Azul',      primaria: '#008fba', dark: '#006f96', light: '#E0F7FF', from: '#22D3EE' },
+  laranja:  { nome: 'Laranja',   primaria: '#E8660A', dark: '#C25208', light: '#FFF0E0', from: '#FB923C' },
+  vermelho: { nome: 'Vermelho',  primaria: '#DC2626', dark: '#B91C1C', light: '#FEE2E2', from: '#F87171' },
+  preto:    { nome: 'Preto',     primaria: '#111827', dark: '#030712', light: '#F3F4F6', from: '#374151' },
+  petroleo: { nome: 'Petróleo',  primaria: '#0F766E', dark: '#0A5955', light: '#CCFBF1', from: '#2DD4BF' },
+  chumbo:   { nome: 'Chumbo',    primaria: '#374151', dark: '#1F2937', light: '#E5E7EB', from: '#6B7280' },
+  ambar:    { nome: 'Âmbar',     primaria: '#B45309', dark: '#92400E', light: '#FEF3C7', from: '#FBBF24' },
+  roxo:     { nome: 'Roxo',      primaria: '#7C3AED', dark: '#6D28D9', light: '#EDE9FE', from: '#A78BFA' },
+  verde:    { nome: 'Verde',     primaria: '#16A34A', dark: '#15803D', light: '#DCFCE7', from: '#4ADE80' },
+  rosa:     { nome: 'Rosa',      primaria: '#BE185D', dark: '#9D174D', light: '#FCE7F3', from: '#F472B6' },
+}
+
+function temaCores(hex: string): Omit<Paleta, 'nome'> {
+  const r = parseInt(hex.slice(1,3), 16)/255
+  const g = parseInt(hex.slice(3,5), 16)/255
+  const b = parseInt(hex.slice(5,7), 16)/255
+  const max = Math.max(r,g,b), min = Math.min(r,g,b)
+  let h = 0, s = 0
+  const l = (max + min) / 2
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min)
+    if (max === r) h = ((g-b)/d + (g<b ? 6:0)) / 6
+    else if (max === g) h = ((b-r)/d + 2) / 6
+    else h = ((r-g)/d + 4) / 6
+  }
+  const hsl = (hh: number, ss: number, ll: number) => {
+    const c = (p: number, q: number, t: number) => {
+      if (t<0) t+=1; if (t>1) t-=1
+      if (t<1/6) return p+(q-p)*6*t
+      if (t<1/2) return q
+      if (t<2/3) return p+(q-p)*(2/3-t)*6
+      return p
+    }
+    const q = ll<0.5 ? ll*(1+ss) : ll+ss-ll*ss
+    const p2 = 2*ll-q
+    const x = (n: number) => Math.round(n*255).toString(16).padStart(2,'0')
+    return `#${x(c(p2,q,hh+1/3))}${x(c(p2,q,hh))}${x(c(p2,q,hh-1/3))}`
+  }
+  return {
+    primaria: hex,
+    dark:  hsl(h, s, Math.max(0.05, l - 0.15)),
+    from:  hsl(h, Math.min(1, s*0.8), Math.min(0.85, l + 0.15)),
+    light: hsl(h, Math.min(0.5, s*0.35), 0.95),
+  }
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function StorefrontPage() {
@@ -362,6 +414,30 @@ export default function StorefrontPage() {
     }))
     setFreteOpen(false)
     showToast('Endereço preenchido! Confira no checkout.')
+  }
+
+  // ── Tema de cores ─────────────────────────────────────────────────────────
+  const [temaSelecionado, setTemaSelecionado] = useState<string>('azul')
+  const [corCustom, setCorCustom] = useState<string>('#008fba')
+  const [temaOpen, setTemaOpen] = useState(false)
+
+  useEffect(() => {
+    if (!slug) return
+    try {
+      const raw = localStorage.getItem(`menuzia_tema_${slug}`)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed.key) { setTemaSelecionado(parsed.key); if (parsed.key === 'custom' && parsed.cor) setCorCustom(parsed.cor) }
+      }
+    } catch { /* ignore */ }
+  }, [slug])
+
+  const paleta: Omit<Paleta, 'nome'> = temaSelecionado === 'custom'
+    ? temaCores(corCustom)
+    : PALETAS[temaSelecionado] ?? PALETAS.azul
+
+  function salvarTema(key: string, cor?: string) {
+    try { localStorage.setItem(`menuzia_tema_${slug}`, JSON.stringify({ key, cor: cor ?? corCustom })) } catch { /* ignore */ }
   }
 
   // ── Conta do cliente (login por código enviado via WhatsApp) ───────────────
@@ -788,7 +864,10 @@ export default function StorefrontPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="font-loja min-h-dvh bg-[#F3F4F6] text-text-main">
+    <div
+      className="font-loja min-h-dvh bg-[#F3F4F6] text-text-main"
+      style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
+    >
       <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
 
       {/* ── Desktop top nav ──────────────────────────────────────────────── */}
@@ -799,7 +878,7 @@ export default function StorefrontPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={restaurante.logoUrl} alt={storeName} className="h-8 w-8 rounded object-cover" />
             ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded bg-gradient-to-br from-[#008fba] to-[#007599] text-sm font-extrabold text-white">
+              <div className="flex h-8 w-8 items-center justify-center rounded bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-sm font-extrabold text-white">
                 {storeName.charAt(0).toUpperCase()}
               </div>
             )}
@@ -814,7 +893,7 @@ export default function StorefrontPage() {
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={['rounded px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-[#F3F4F6] text-[#008fba]' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                className={['rounded px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-[#F3F4F6] text-[var(--tema-primaria)]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.label}
               </button>
@@ -822,7 +901,7 @@ export default function StorefrontPage() {
           </nav>
           <button
             onClick={() => setTab('cart')}
-            className={['ml-auto flex items-center gap-2.5 rounded border px-4 py-2 text-[13px] font-bold transition-colors', tab === 'cart' ? 'border-[#008fba] bg-[#008fba] text-white' : 'border-border bg-white text-text-main hover:border-[#008fba]'].join(' ')}
+            className={['ml-auto flex items-center gap-2.5 rounded border px-4 py-2 text-[13px] font-bold transition-colors', tab === 'cart' ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white' : 'border-border bg-white text-text-main hover:border-[var(--tema-primaria)]'].join(' ')}
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.9 18 9 18h12v-2H9.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" /></svg>
             Sacola
@@ -845,7 +924,7 @@ export default function StorefrontPage() {
               ) : collageImages[0] ? (
                 <ProductImage item={collageImages[0]} className="h-full w-full" />
               ) : (
-                <div className="h-full w-full bg-gradient-to-br from-[#22D3EE] via-[#008fba] to-[#007599]" />
+                <div className="h-full w-full bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)]" />
               )}
             </div>
 
@@ -857,7 +936,7 @@ export default function StorefrontPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={restaurante.logoUrl} alt={storeName} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#008fba] to-[#007599] text-3xl font-extrabold text-white">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-3xl font-extrabold text-white">
                       {storeName.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -889,6 +968,16 @@ export default function StorefrontPage() {
                     >
                       <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/60">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setTemaOpen(true)}
+                      className="flex h-9 w-9 items-center justify-center rounded-md bg-white shadow-sm"
+                      aria-label="Personalizar cores"
+                      style={{ '--dot': paleta.primaria } as React.CSSProperties}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0" style={{ fill: paleta.primaria }}>
+                        <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
                       </svg>
                     </button>
                   </div>
@@ -936,7 +1025,7 @@ export default function StorefrontPage() {
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#1cce93] bg-[#D1FAE5] text-[#1cce93]' : 'border-border bg-white text-text-subtle hover:border-[#008fba] hover:text-[#008fba]'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#1cce93] bg-[#D1FAE5] text-[#1cce93]' : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
                 >
                   🏷️ Promoções
                 </button>
@@ -945,7 +1034,7 @@ export default function StorefrontPage() {
                 <button
                   key={cat.id}
                   onClick={() => { setActiveCategory(cat.nome); document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-[#008fba] bg-[#008fba] text-white' : 'border-border bg-white text-text-subtle hover:border-[#008fba] hover:text-[#008fba]'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white' : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
                 >
                   {cat.nome}
                 </button>
@@ -975,7 +1064,7 @@ export default function StorefrontPage() {
             </div>
             <button
               onClick={() => setTab('home')}
-              className="flex flex-shrink-0 items-center gap-1.5 rounded border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-[#008fba] hover:text-[#008fba] active:scale-95"
+              className="flex flex-shrink-0 items-center gap-1.5 rounded border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-95"
             >
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
               Continuar comprando
@@ -1033,7 +1122,7 @@ export default function StorefrontPage() {
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🛍️</div>
                 <p className="font-semibold text-text-main">Sua sacola está vazia</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Escolha seus itens favoritos no cardápio.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[#008fba] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#007599]">
+                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[var(--tema-primaria)] px-6 py-2.5 text-sm font-bold text-white hover:bg-[var(--tema-dark)]">
                   Ver cardápio
                 </button>
               </div>
@@ -1063,9 +1152,9 @@ export default function StorefrontPage() {
                           <div className="mt-2 flex items-center justify-between">
                             <span className="text-[14px] font-bold text-[#1cce93]">{brl(line.unit * line.qty)}</span>
                             <div className="flex items-center rounded border border-border">
-                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#008fba] hover:bg-[#F3F4F6] active:bg-border">−</button>
+                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
                               <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
-                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[#008fba] hover:bg-[#F3F4F6] active:bg-border">+</button>
+                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">+</button>
                             </div>
                           </div>
                         </div>
@@ -1082,7 +1171,7 @@ export default function StorefrontPage() {
                           <button
                             key={item.id}
                             onClick={() => quickAddOrderBump(item)}
-                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded border border-border bg-white transition-all duration-150 hover:border-[#008fba] hover:shadow-lg active:scale-[0.97]"
+                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
                           >
                             <div className="h-[100px] w-full overflow-hidden">
                               <ProductThumb item={item} size={142} />
@@ -1090,7 +1179,7 @@ export default function StorefrontPage() {
                             <div className="flex flex-1 flex-col p-2.5">
                               <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
                               <div className="mt-1 text-[12px] font-bold text-[#1cce93]">{brl(item.promocaoPreco ?? item.preco)}</div>
-                              <div className="mt-2 rounded bg-[#008fba] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[#007599]">
+                              <div className="mt-2 rounded bg-[var(--tema-primaria)] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
                                 + Adicionar
                               </div>
                             </div>
@@ -1117,7 +1206,7 @@ export default function StorefrontPage() {
 
                   <button
                     onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
-                    className="flex w-full items-center justify-between rounded bg-[#008fba] px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-[#007599] active:scale-[0.99]"
+                    className="flex w-full items-center justify-between rounded bg-[var(--tema-primaria)] px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)] active:scale-[0.99]"
                   >
                     <span>Continuar para pagamento</span>
                     <span>{brl(total)}</span>
@@ -1154,12 +1243,12 @@ export default function StorefrontPage() {
                     return (
                       <div key={step} className="relative flex gap-3.5 pb-6 last:pb-0">
                         {i < arr.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />}
-                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                           {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                         <div>
                           <div className={`text-sm font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{labels[i]}</div>
-                          {state === 'active' && <div className="mt-0.5 text-[12px] text-[#008fba]">Em andamento…</div>}
+                          {state === 'active' && <div className="mt-0.5 text-[12px] text-[var(--tema-primaria)]">Em andamento…</div>}
                           {state === 'done' && <div className="mt-0.5 text-[12px] text-status-ready">Concluído</div>}
                         </div>
                       </div>
@@ -1172,7 +1261,7 @@ export default function StorefrontPage() {
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">📦</div>
                 <p className="font-semibold text-text-main">Nenhum pedido ativo</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Quando você finalizar um pedido, o acompanhamento aparece aqui.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[#008fba] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#007599]">
+                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[var(--tema-primaria)] px-6 py-2.5 text-sm font-bold text-white hover:bg-[var(--tema-dark)]">
                   Ver cardápio
                 </button>
               </div>
@@ -1220,7 +1309,7 @@ export default function StorefrontPage() {
                 onClick: () => setContaOpen(true),
                 active: contaOpen,
                 icon: perfilCliente ? (
-                  <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#008fba] text-[11px] font-bold text-white">
+                  <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[var(--tema-primaria)] text-[11px] font-bold text-white">
                     {(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}
                   </span>
                 ) : (
@@ -1231,7 +1320,7 @@ export default function StorefrontPage() {
               <button
                 key={item.id}
                 onClick={item.onClick}
-                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', item.active ? 'text-[#008fba]' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', item.active ? 'text-[var(--tema-primaria)]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.icon}
                 {item.label}
@@ -1274,7 +1363,7 @@ export default function StorefrontPage() {
                       return (
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                           <span className="flex-1 text-sm font-medium">{tamanho.nome} <span className="text-text-subtle">({tamanho.fatias} fatias)</span></span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -1298,7 +1387,7 @@ export default function StorefrontPage() {
                             {sabor.descricao && <div className="text-[11px] text-text-subtle">{sabor.descricao}</div>}
                           </div>
                           <span className="text-[13px] font-semibold text-price-text">{brl(preco)}</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -1310,7 +1399,7 @@ export default function StorefrontPage() {
                         <div className="mb-2 mt-5 text-sm font-bold">Borda</div>
                         <button onClick={() => setSelectedBordaId(null)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left">
                           <span className="flex-1 text-sm font-medium">Sem borda</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedBordaId ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedBordaId ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {!selectedBordaId && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -1320,7 +1409,7 @@ export default function StorefrontPage() {
                             <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                               <span className="flex-1 text-sm font-medium">{borda.nome}</span>
                               <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(borda.preco)}</span>
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             </button>
@@ -1334,7 +1423,7 @@ export default function StorefrontPage() {
                         <div className="mb-2 mt-5 text-sm font-bold">Massa</div>
                         <button onClick={() => setSelectedMassaId(null)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left">
                           <span className="flex-1 text-sm font-medium">Massa tradicional</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedMassaId ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedMassaId ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {!selectedMassaId && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -1344,7 +1433,7 @@ export default function StorefrontPage() {
                             <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                               <span className="flex-1 text-sm font-medium">{massa.nome}</span>
                               <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(massa.preco)}</span>
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             </button>
@@ -1370,7 +1459,7 @@ export default function StorefrontPage() {
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                           <span className="flex-1 text-sm font-medium">{tamanho.nome}</span>
                           <span className="text-[13px] font-semibold text-price-text">{brl(tamanho.preco)}</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -1411,11 +1500,11 @@ export default function StorefrontPage() {
                               : <span className="rounded bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#1cce93]">Grátis</span>
                             }
                             {isRadio ? (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             ) : (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', isSelected ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                               </span>
                             )}
@@ -1444,7 +1533,7 @@ export default function StorefrontPage() {
                           ? <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(addon.preco)}</span>
                           : <span className="rounded bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#1cce93]">Grátis</span>
                         }
-                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', selectedAddons.has(addon.nome) ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')}>
+                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', selectedAddons.has(addon.nome) ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                       </button>
@@ -1454,7 +1543,7 @@ export default function StorefrontPage() {
 
                 <div className="mt-5">
                   <h3 className="mb-2.5 text-sm font-bold">Observações</h3>
-                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
             </div>
@@ -1462,14 +1551,14 @@ export default function StorefrontPage() {
               {!gruposValidos && <p className="text-center text-[11px] font-medium text-danger">Preencha todos os campos obrigatórios para continuar.</p>}
               <div className="flex items-center gap-3.5">
                 <div className="flex items-center rounded border border-border">
-                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#008fba] disabled:text-border">−</button>
+                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
                   <span className="w-[34px] text-center text-[15px] font-bold">{qty}</span>
-                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[#008fba]">+</button>
+                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)]">+</button>
                 </div>
                 <button
                   onClick={addToCart}
                   disabled={!gruposValidos}
-                  className={['flex flex-1 items-center justify-between rounded px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-[#008fba] hover:bg-[#007599] active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
+                  className={['flex flex-1 items-center justify-between rounded px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)] active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
                 >
                   <span>Adicionar</span>
                   <span>{brl(unitPrice * qty)}</span>
@@ -1488,7 +1577,7 @@ export default function StorefrontPage() {
             <span className="text-base font-bold">{checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
           </div>
           <div className="flex gap-2 px-4 py-4">
-            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[#008fba]' : 'bg-border'}`} />)}
+            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[var(--tema-primaria)]' : 'bg-border'}`} />)}
           </div>
 
           {checkoutStep === 1 && (
@@ -1508,7 +1597,7 @@ export default function StorefrontPage() {
                   id: 'Cartão na entrega',
                   icon: (
                     <svg viewBox="0 0 24 24" className="h-6 w-6">
-                      <rect x="1.5" y="5" width="21" height="14" rx="2.5" fill="#008fba" />
+                      <rect x="1.5" y="5" width="21" height="14" rx="2.5" style={{ fill: 'var(--tema-primaria)' }} />
                       <rect x="1.5" y="8.5" width="21" height="3" fill="#fff" fillOpacity="0.85" />
                       <rect x="4.5" y="14.5" width="7" height="1.8" rx="0.9" fill="#fff" fillOpacity="0.7" />
                     </svg>
@@ -1527,17 +1616,17 @@ export default function StorefrontPage() {
                 },
               ].map((opt) => (
                 <button key={opt.id} onClick={() => setPayMethod(opt.id)}
-                  className={['mb-2.5 flex w-full items-center gap-3 rounded border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[#008fba] bg-[#E0F2FE]' : 'border-border'].join(' ')}>
+                  className={['mb-2.5 flex w-full items-center gap-3 rounded border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)]' : 'border-border'].join(' ')}>
                   <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded bg-[#F3F4F6]">{opt.icon}</span>
                   <span className="flex-1 text-sm font-semibold">{opt.id}</span>
-                  <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[#008fba] bg-[#008fba]' : 'border-border'].join(' ')} />
+                  <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')} />
                 </button>
               ))}
               {payMethod === 'Dinheiro' && (
                 <div className="mt-2">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Troco para quanto? (deixe em branco se não precisar)</label>
                   <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               )}
             </div>
@@ -1550,12 +1639,12 @@ export default function StorefrontPage() {
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome *</label>
                   <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
                   <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: e.target.value }))} placeholder="(00) 00000-0000"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
               <h3 className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
@@ -1563,30 +1652,30 @@ export default function StorefrontPage() {
                 <div className="flex-[2]">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua *</label>
                   <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número *</label>
                   <input value={endereco.numero} onChange={(e) => setEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
               <div className="mt-3 flex gap-3">
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
                   <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
                   <input value={endereco.cep} onChange={(e) => setEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
               <div className="mt-3">
                 <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
                 <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
-                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
               </div>
             </div>
           )}
@@ -1623,7 +1712,7 @@ export default function StorefrontPage() {
           <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:left-auto lg:max-w-none lg:translate-x-0 lg:pb-4">
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
-              className="flex w-full items-center justify-between rounded bg-[#008fba] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60 active:scale-[0.99]">
+              className="flex w-full items-center justify-between rounded bg-[var(--tema-primaria)] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60 active:scale-[0.99]">
               <span>{submitting ? 'Enviando…' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
               {checkoutStep === 3 && !submitting && <span>{brl(total)}</span>}
             </button>
@@ -1648,9 +1737,9 @@ export default function StorefrontPage() {
                   onChange={(e) => setFreteCep(e.target.value)}
                   placeholder="00000-000"
                   inputMode="numeric"
-                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]"
+                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]"
                 />
-                <button onClick={calcularFrete} disabled={freteLoading} className="flex-shrink-0 rounded bg-[#008fba] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                <button onClick={calcularFrete} disabled={freteLoading} className="flex-shrink-0 rounded bg-[var(--tema-primaria)] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
                   {freteLoading ? '...' : 'Calcular'}
                 </button>
               </div>
@@ -1663,7 +1752,7 @@ export default function StorefrontPage() {
                     <span className="text-[13px] font-semibold text-[#16A34A]">Taxa de entrega</span>
                     <span className="text-sm font-bold text-[#16A34A]">{brl(freteResult.taxa)}</span>
                   </div>
-                  <button onClick={usarEnderecoDoFrete} className="mt-3 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599]">
+                  <button onClick={usarEnderecoDoFrete} className="mt-3 w-full rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)]">
                     Usar este endereço no pedido
                   </button>
                 </div>
@@ -1689,10 +1778,10 @@ export default function StorefrontPage() {
                     <p className="mb-3 text-[13px] text-text-subtle">Informe seu telefone com DDD para receber um código de confirmação pelo WhatsApp.</p>
                     <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
                     <input value={contaTelefone} onChange={(e) => setContaTelefone(e.target.value)} placeholder="(00) 00000-0000" inputMode="tel"
-                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
                     <button onClick={enviarCodigoConta} disabled={contaLoading || !contaTelefone}
-                      className="mt-4 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                      className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
                       {contaLoading ? 'Enviando…' : 'Receber código por WhatsApp'}
                     </button>
                   </>
@@ -1701,13 +1790,13 @@ export default function StorefrontPage() {
                     <p className="mb-3 text-[13px] text-text-subtle">Enviamos um código de 6 dígitos pelo WhatsApp para {contaTelefone}.</p>
                     <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Código</label>
                     <input value={contaCodigo} onChange={(e) => setContaCodigo(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6}
-                      className="w-full rounded border border-border p-2.5 text-center font-sans text-lg font-bold tracking-[0.5em] outline-none focus:border-[#008fba]" />
+                      className="w-full rounded border border-border p-2.5 text-center font-sans text-lg font-bold tracking-[0.5em] outline-none focus:border-[var(--tema-primaria)]" />
                     {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
                     <button onClick={confirmarCodigoConta} disabled={contaLoading || contaCodigo.length < 6}
-                      className="mt-4 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                      className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
                       {contaLoading ? 'Confirmando…' : 'Confirmar código'}
                     </button>
-                    <button onClick={() => { setContaStep('telefone'); setContaCodigo(''); setContaError(null) }} className="mt-3 w-full text-center text-[13px] font-semibold text-[#008fba]">
+                    <button onClick={() => { setContaStep('telefone'); setContaCodigo(''); setContaError(null) }} className="mt-3 w-full text-center text-[13px] font-semibold text-[var(--tema-primaria)]">
                       Trocar número / reenviar código
                     </button>
                   </>
@@ -1724,42 +1813,42 @@ export default function StorefrontPage() {
 
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome</label>
                   <input value={contaNome} onChange={(e) => setContaNome(e.target.value)} placeholder="Seu nome"
-                    className="mb-3 w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                    className="mb-3 w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
 
                   <h3 className="mb-2.5 mt-4 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço salvo</h3>
                   <div className="flex gap-3">
                     <div className="flex-[2]">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua</label>
                       <input value={contaEndereco.rua} onChange={(e) => setContaEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número</label>
                       <input value={contaEndereco.numero} onChange={(e) => setContaEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                   </div>
                   <div className="mt-3 flex gap-3">
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
                       <input value={contaEndereco.bairro} onChange={(e) => setContaEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
                       <input value={contaEndereco.cep} onChange={(e) => setContaEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                   </div>
                   <div className="mt-3">
                     <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
                     <input value={contaEndereco.complemento} onChange={(e) => setContaEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
-                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[#008fba]" />
+                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
 
                   {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
                   <button onClick={salvarPerfilConta} disabled={contaLoading}
-                    className="mt-4 w-full rounded bg-[#008fba] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007599] disabled:opacity-60">
+                    className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
                     {contaLoading ? 'Salvando…' : 'Salvar'}
                   </button>
                   {(perfilCliente.nome || perfilCliente.endereco.rua) && (
@@ -1802,7 +1891,7 @@ export default function StorefrontPage() {
 
                   <button
                     onClick={() => { setContaSaved(false); setContaEditando(true) }}
-                    className="mt-4 w-full rounded border border-[#008fba] px-4 py-3 text-sm font-bold text-[#008fba] transition-colors hover:bg-[#E0F2FE]"
+                    className="mt-4 w-full rounded border border-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-light)]"
                   >
                     Editar dados
                   </button>
@@ -1858,6 +1947,76 @@ export default function StorefrontPage() {
           </div>
         </>
       )}
+
+      {/* ── Seletor de paleta de cores ───────────────────────────────── */}
+      {temaOpen && <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setTemaOpen(false)} />}
+      <div className={['fixed bottom-0 left-1/2 z-[65] flex max-h-[90vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-md bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[480px] lg:-translate-y-1/2 lg:rounded', temaOpen ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+        {temaOpen && (
+          <>
+            <div className="flex items-center justify-between border-b border-border p-4.5">
+              <h2 className="text-base font-bold">Personalizar cores</h2>
+              <button onClick={() => setTemaOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4.5 pb-[max(env(safe-area-inset-bottom),1.125rem)]">
+              <p className="mb-4 text-[13px] text-text-subtle">Escolha uma paleta para personalizar botões, menus e destaques do cardápio.</p>
+
+              <div className="grid grid-cols-5 gap-x-2 gap-y-4 mb-6">
+                {Object.entries(PALETAS).map(([key, p]) => (
+                  <button
+                    key={key}
+                    onClick={() => { setTemaSelecionado(key); salvarTema(key) }}
+                    className="flex flex-col items-center gap-1.5 group"
+                  >
+                    <div
+                      className="h-10 w-10 rounded-full transition-all duration-150 group-hover:scale-110"
+                      style={{
+                        background: `linear-gradient(135deg, ${p.from}, ${p.primaria})`,
+                        boxShadow: temaSelecionado === key ? `0 0 0 3px white, 0 0 0 5px ${p.primaria}` : undefined,
+                        transform: temaSelecionado === key ? 'scale(1.15)' : undefined,
+                      }}
+                    />
+                    <span className="text-[10px] font-semibold text-text-subtle text-center leading-tight">{p.nome}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="rounded-md border border-border p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cor personalizada</p>
+                <div className="flex items-center gap-4">
+                  <label className="relative cursor-pointer">
+                    <div
+                      className="h-12 w-12 rounded-full border-2 border-border transition-all"
+                      style={{
+                        background: `linear-gradient(135deg, ${temaCores(corCustom).from}, ${corCustom})`,
+                        boxShadow: temaSelecionado === 'custom' ? `0 0 0 3px white, 0 0 0 5px ${corCustom}` : undefined,
+                        transform: temaSelecionado === 'custom' ? 'scale(1.1)' : undefined,
+                      }}
+                    />
+                    <input
+                      type="color"
+                      value={corCustom}
+                      onChange={(e) => {
+                        setCorCustom(e.target.value)
+                        setTemaSelecionado('custom')
+                        salvarTema('custom', e.target.value)
+                      }}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                  </label>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">Cor personalizada</p>
+                    <p className="text-[12px] text-text-subtle font-mono mt-0.5">{corCustom.toUpperCase()}</p>
+                    <p className="text-[11px] text-text-subtle mt-1">Clique no círculo para escolher qualquer cor</p>
+                  </div>
+                  {temaSelecionado === 'custom' && (
+                    <span className="flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-bold text-white" style={{ backgroundColor: corCustom }}>Ativa</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* ── Toast container ───────────────────────────────────────────── */}
       <div className="pointer-events-none fixed bottom-24 left-1/2 z-[70] flex w-full max-w-[380px] -translate-x-1/2 flex-col items-center gap-2 px-4">
