@@ -590,12 +590,13 @@ export interface RestauranteVitrine {
   googleTagId: string | null
   orderBumpMax: number
   layoutCardapio: LayoutCardapio
+  corTema: string
 }
 
 export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
-    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio')
+    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema')
     .eq('slug', slug)
     .maybeSingle()
   if (error) throw error
@@ -613,6 +614,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     googleTagId: data.google_tag_id,
     orderBumpMax: Number(data.order_bump_max ?? 4),
     layoutCardapio: (data.layout_cardapio as LayoutCardapio) ?? 'categoria',
+    corTema: (data.cor_tema as string) ?? 'azul',
   }
 }
 

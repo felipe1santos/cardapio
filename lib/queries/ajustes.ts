@@ -13,6 +13,7 @@ export interface ConfigLoja {
   facebookPixelId: string | null
   googleTagId: string | null
   layoutCardapio: LayoutCardapio
+  corTema: string
 }
 
 interface ConfigRow {
@@ -27,9 +28,10 @@ interface ConfigRow {
   facebook_pixel_id: string | null
   google_tag_id: string | null
   layout_cardapio: LayoutCardapio
+  cor_tema: string
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -44,6 +46,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     facebookPixelId: row.facebook_pixel_id,
     googleTagId: row.google_tag_id,
     layoutCardapio: row.layout_cardapio ?? 'categoria',
+    corTema: row.cor_tema ?? 'azul',
   }
 }
 
@@ -63,6 +66,7 @@ export interface ConfigLojaPatch {
   facebookPixelId?: string | null
   googleTagId?: string | null
   layoutCardapio?: LayoutCardapio
+  corTema?: string
 }
 
 export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteId: string, patch: ConfigLojaPatch): Promise<ConfigLoja> {
@@ -76,6 +80,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.facebookPixelId !== undefined) row.facebook_pixel_id = patch.facebookPixelId
   if (patch.googleTagId !== undefined) row.google_tag_id = patch.googleTagId
   if (patch.layoutCardapio !== undefined) row.layout_cardapio = patch.layoutCardapio
+  if (patch.corTema !== undefined) row.cor_tema = patch.corTema
 
   const { data, error } = await supabase.from('restaurantes').update(row).eq('id', restauranteId).select(CONFIG_SELECT).single()
   if (error) throw error

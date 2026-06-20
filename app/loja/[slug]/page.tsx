@@ -15,6 +15,7 @@ import {
   type RestauranteVitrine,
 } from '@/lib/queries/cardapio'
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
+import { resolverPaleta } from '@/lib/paletas'
 import {
   listarTamanhosPadraoPizza,
   listarBordasPizza,
@@ -170,58 +171,6 @@ function ItemsGrid({ items, layout, onSelect }: { items: ItemCardapio[]; layout:
       ))}
     </div>
   )
-}
-
-// ─── Paletas de cor ──────────────────────────────────────────────────────────
-
-interface Paleta { nome: string; primaria: string; dark: string; light: string; from: string }
-
-const PALETAS: Record<string, Paleta> = {
-  azul:     { nome: 'Azul',      primaria: '#008fba', dark: '#006f96', light: '#E0F7FF', from: '#22D3EE' },
-  laranja:  { nome: 'Laranja',   primaria: '#E8660A', dark: '#C25208', light: '#FFF0E0', from: '#FB923C' },
-  vermelho: { nome: 'Vermelho',  primaria: '#DC2626', dark: '#B91C1C', light: '#FEE2E2', from: '#F87171' },
-  preto:    { nome: 'Preto',     primaria: '#111827', dark: '#030712', light: '#F3F4F6', from: '#374151' },
-  petroleo: { nome: 'Petróleo',  primaria: '#0F766E', dark: '#0A5955', light: '#CCFBF1', from: '#2DD4BF' },
-  chumbo:   { nome: 'Chumbo',    primaria: '#374151', dark: '#1F2937', light: '#E5E7EB', from: '#6B7280' },
-  ambar:    { nome: 'Âmbar',     primaria: '#B45309', dark: '#92400E', light: '#FEF3C7', from: '#FBBF24' },
-  roxo:     { nome: 'Roxo',      primaria: '#7C3AED', dark: '#6D28D9', light: '#EDE9FE', from: '#A78BFA' },
-  verde:    { nome: 'Verde',     primaria: '#16A34A', dark: '#15803D', light: '#DCFCE7', from: '#4ADE80' },
-  rosa:     { nome: 'Rosa',      primaria: '#BE185D', dark: '#9D174D', light: '#FCE7F3', from: '#F472B6' },
-}
-
-function temaCores(hex: string): Omit<Paleta, 'nome'> {
-  const r = parseInt(hex.slice(1,3), 16)/255
-  const g = parseInt(hex.slice(3,5), 16)/255
-  const b = parseInt(hex.slice(5,7), 16)/255
-  const max = Math.max(r,g,b), min = Math.min(r,g,b)
-  let h = 0, s = 0
-  const l = (max + min) / 2
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d/(2-max-min) : d/(max+min)
-    if (max === r) h = ((g-b)/d + (g<b ? 6:0)) / 6
-    else if (max === g) h = ((b-r)/d + 2) / 6
-    else h = ((r-g)/d + 4) / 6
-  }
-  const hsl = (hh: number, ss: number, ll: number) => {
-    const c = (p: number, q: number, t: number) => {
-      if (t<0) t+=1; if (t>1) t-=1
-      if (t<1/6) return p+(q-p)*6*t
-      if (t<1/2) return q
-      if (t<2/3) return p+(q-p)*(2/3-t)*6
-      return p
-    }
-    const q = ll<0.5 ? ll*(1+ss) : ll+ss-ll*ss
-    const p2 = 2*ll-q
-    const x = (n: number) => Math.round(n*255).toString(16).padStart(2,'0')
-    return `#${x(c(p2,q,hh+1/3))}${x(c(p2,q,hh))}${x(c(p2,q,hh-1/3))}`
-  }
-  return {
-    primaria: hex,
-    dark:  hsl(h, s, Math.max(0.05, l - 0.15)),
-    from:  hsl(h, Math.min(1, s*0.8), Math.min(0.85, l + 0.15)),
-    light: hsl(h, Math.min(0.5, s*0.35), 0.95),
-  }
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -416,29 +365,8 @@ export default function StorefrontPage() {
     showToast('Endereço preenchido! Confira no checkout.')
   }
 
-  // ── Tema de cores ─────────────────────────────────────────────────────────
-  const [temaSelecionado, setTemaSelecionado] = useState<string>('azul')
-  const [corCustom, setCorCustom] = useState<string>('#008fba')
-  const [temaOpen, setTemaOpen] = useState(false)
-
-  useEffect(() => {
-    if (!slug) return
-    try {
-      const raw = localStorage.getItem(`menuzia_tema_${slug}`)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (parsed.key) { setTemaSelecionado(parsed.key); if (parsed.key === 'custom' && parsed.cor) setCorCustom(parsed.cor) }
-      }
-    } catch { /* ignore */ }
-  }, [slug])
-
-  const paleta: Omit<Paleta, 'nome'> = temaSelecionado === 'custom'
-    ? temaCores(corCustom)
-    : PALETAS[temaSelecionado] ?? PALETAS.azul
-
-  function salvarTema(key: string, cor?: string) {
-    try { localStorage.setItem(`menuzia_tema_${slug}`, JSON.stringify({ key, cor: cor ?? corCustom })) } catch { /* ignore */ }
-  }
+  // ── Tema de cores (definido pelo admin em Ajustes → Aparência) ────────────
+  const paleta = resolverPaleta(restaurante?.corTema ?? 'azul')
 
   // ── Conta do cliente (login por código enviado via WhatsApp) ───────────────
   const [clienteSessao, setClienteSessao] = useState<{ telefone: string; token: string } | null>(null)
@@ -968,16 +896,6 @@ export default function StorefrontPage() {
                     >
                       <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/60">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => setTemaOpen(true)}
-                      className="flex h-9 w-9 items-center justify-center rounded-md bg-white shadow-sm"
-                      aria-label="Personalizar cores"
-                      style={{ '--dot': paleta.primaria } as React.CSSProperties}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0" style={{ fill: paleta.primaria }}>
-                        <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
                       </svg>
                     </button>
                   </div>
@@ -1947,76 +1865,6 @@ export default function StorefrontPage() {
           </div>
         </>
       )}
-
-      {/* ── Seletor de paleta de cores ───────────────────────────────── */}
-      {temaOpen && <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setTemaOpen(false)} />}
-      <div className={['fixed bottom-0 left-1/2 z-[65] flex max-h-[90vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-md bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[480px] lg:-translate-y-1/2 lg:rounded', temaOpen ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
-        {temaOpen && (
-          <>
-            <div className="flex items-center justify-between border-b border-border p-4.5">
-              <h2 className="text-base font-bold">Personalizar cores</h2>
-              <button onClick={() => setTemaOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4.5 pb-[max(env(safe-area-inset-bottom),1.125rem)]">
-              <p className="mb-4 text-[13px] text-text-subtle">Escolha uma paleta para personalizar botões, menus e destaques do cardápio.</p>
-
-              <div className="grid grid-cols-5 gap-x-2 gap-y-4 mb-6">
-                {Object.entries(PALETAS).map(([key, p]) => (
-                  <button
-                    key={key}
-                    onClick={() => { setTemaSelecionado(key); salvarTema(key) }}
-                    className="flex flex-col items-center gap-1.5 group"
-                  >
-                    <div
-                      className="h-10 w-10 rounded-full transition-all duration-150 group-hover:scale-110"
-                      style={{
-                        background: `linear-gradient(135deg, ${p.from}, ${p.primaria})`,
-                        boxShadow: temaSelecionado === key ? `0 0 0 3px white, 0 0 0 5px ${p.primaria}` : undefined,
-                        transform: temaSelecionado === key ? 'scale(1.15)' : undefined,
-                      }}
-                    />
-                    <span className="text-[10px] font-semibold text-text-subtle text-center leading-tight">{p.nome}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="rounded-md border border-border p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cor personalizada</p>
-                <div className="flex items-center gap-4">
-                  <label className="relative cursor-pointer">
-                    <div
-                      className="h-12 w-12 rounded-full border-2 border-border transition-all"
-                      style={{
-                        background: `linear-gradient(135deg, ${temaCores(corCustom).from}, ${corCustom})`,
-                        boxShadow: temaSelecionado === 'custom' ? `0 0 0 3px white, 0 0 0 5px ${corCustom}` : undefined,
-                        transform: temaSelecionado === 'custom' ? 'scale(1.1)' : undefined,
-                      }}
-                    />
-                    <input
-                      type="color"
-                      value={corCustom}
-                      onChange={(e) => {
-                        setCorCustom(e.target.value)
-                        setTemaSelecionado('custom')
-                        salvarTema('custom', e.target.value)
-                      }}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    />
-                  </label>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">Cor personalizada</p>
-                    <p className="text-[12px] text-text-subtle font-mono mt-0.5">{corCustom.toUpperCase()}</p>
-                    <p className="text-[11px] text-text-subtle mt-1">Clique no círculo para escolher qualquer cor</p>
-                  </div>
-                  {temaSelecionado === 'custom' && (
-                    <span className="flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-bold text-white" style={{ backgroundColor: corCustom }}>Ativa</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
 
       {/* ── Toast container ───────────────────────────────────────────── */}
       <div className="pointer-events-none fixed bottom-24 left-1/2 z-[70] flex w-full max-w-[380px] -translate-x-1/2 flex-col items-center gap-2 px-4">

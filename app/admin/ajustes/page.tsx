@@ -19,6 +19,7 @@ import {
   type ConfigLoja,
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
+import { PALETAS, temaCores } from '@/lib/paletas'
 import {
   buscarConfigImpressao,
   atualizarConfigImpressao,
@@ -32,11 +33,12 @@ import {
   type ImpressoraInput,
 } from '@/lib/queries/impressao'
 
-type Tab = 'loja' | 'entrega' | 'impressao' | 'integracoes' | 'conta'
+type Tab = 'loja' | 'entrega' | 'impressao' | 'integracoes' | 'conta' | 'aparencia'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
   { id: 'entrega', label: 'Entrega' },
+  { id: 'aparencia', label: 'Aparência' },
   { id: 'impressao', label: 'Impressão' },
   { id: 'integracoes', label: 'Integrações' },
   { id: 'conta', label: 'Conta' },
@@ -1108,6 +1110,144 @@ function TabConta({ active }: { active: boolean }) {
   )
 }
 
+// ─── Aba Aparência ────────────────────────────────────────────────────────────
+
+function TabAparencia({ restauranteId, active }: { restauranteId: string; active: boolean }) {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [loaded, setLoaded] = useState(false)
+  const [corSelecionada, setCorSelecionada] = useState<string>('azul')
+  const [corCustom, setCorCustom] = useState<string>('#008fba')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (loaded) return
+    buscarConfigLoja(supabase, restauranteId).then((c) => {
+      if (!c) return
+      const cor = c.corTema ?? 'azul'
+      if (cor.startsWith('#')) { setCorSelecionada('custom'); setCorCustom(cor) }
+      else setCorSelecionada(cor)
+      setLoaded(true)
+    })
+  }, [supabase, restauranteId, loaded])
+
+  const paleta = corSelecionada === 'custom' ? temaCores(corCustom) : (PALETAS[corSelecionada] ?? PALETAS.azul)
+
+  async function salvar() {
+    setSaving(true)
+    setError(null)
+    try {
+      await atualizarConfigLoja(supabase, restauranteId, { corTema: corSelecionada === 'custom' ? corCustom : corSelecionada })
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
+      <div className="flex-1 overflow-y-auto px-5 py-6">
+        <Card className="max-w-xl space-y-6">
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Paleta de cores</p>
+            <p className="mb-4 text-[13px] text-text-subtle">Define a cor primária do cardápio digital dos seus clientes — botões, chips de categoria, destaques e ícones.</p>
+            <div className="grid grid-cols-5 gap-x-3 gap-y-4">
+              {Object.entries(PALETAS).map(([key, p]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { setCorSelecionada(key); setSaved(false) }}
+                  className="flex flex-col items-center gap-1.5 group"
+                >
+                  <div
+                    className="h-10 w-10 rounded-full border-2 transition-all duration-150 group-hover:scale-110"
+                    style={{
+                      background: `linear-gradient(135deg, ${p.from}, ${p.primaria})`,
+                      borderColor: corSelecionada === key ? p.primaria : 'transparent',
+                      boxShadow: corSelecionada === key ? `0 0 0 3px white, 0 0 0 5px ${p.primaria}` : undefined,
+                      transform: corSelecionada === key ? 'scale(1.12)' : undefined,
+                    }}
+                  />
+                  <span className="text-[10px] font-semibold text-text-subtle text-center leading-tight">{p.nome}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-menuzia border border-border p-4">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cor personalizada</p>
+            <div className="flex items-center gap-4">
+              <label className="relative cursor-pointer flex-shrink-0">
+                <div
+                  className="h-12 w-12 rounded-full border-2 transition-all"
+                  style={{
+                    background: `linear-gradient(135deg, ${temaCores(corCustom).from}, ${corCustom})`,
+                    borderColor: corSelecionada === 'custom' ? corCustom : 'transparent',
+                    boxShadow: corSelecionada === 'custom' ? `0 0 0 3px white, 0 0 0 5px ${corCustom}` : undefined,
+                    transform: corSelecionada === 'custom' ? 'scale(1.1)' : undefined,
+                  }}
+                />
+                <input
+                  type="color"
+                  value={corCustom}
+                  onChange={(e) => { setCorCustom(e.target.value); setCorSelecionada('custom'); setSaved(false) }}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Hex personalizado</p>
+                <p className="mt-0.5 font-mono text-[12px] text-text-subtle">{corCustom.toUpperCase()}</p>
+                <p className="mt-1 text-[11px] text-text-subtle">Clique no círculo para escolher qualquer cor</p>
+              </div>
+              {corSelecionada === 'custom' && (
+                <span className="flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-bold text-white" style={{ backgroundColor: corCustom }}>Ativa</span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pré-visualização</p>
+            <div className="flex flex-wrap items-center gap-2 rounded-menuzia border border-border bg-page p-4">
+              <button
+                type="button"
+                className="rounded-menuzia px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-white transition-colors"
+                style={{ backgroundColor: paleta.primaria }}
+              >
+                Adicionar
+              </button>
+              <button
+                type="button"
+                className="rounded-menuzia border px-4 py-2 text-[12px] font-bold uppercase tracking-wide transition-colors"
+                style={{ borderColor: paleta.primaria, color: paleta.primaria, backgroundColor: paleta.light }}
+              >
+                Ver cardápio
+              </button>
+              <span
+                className="rounded-full px-3 py-1 text-[12px] font-semibold"
+                style={{ backgroundColor: paleta.light, color: paleta.primaria }}
+              >
+                Lanches
+              </span>
+              <span
+                className="rounded-full px-3 py-1 text-[12px] font-semibold"
+                style={{ backgroundColor: paleta.primaria, color: '#fff' }}
+              >
+                Combos
+              </span>
+            </div>
+          </div>
+
+          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
+        </Card>
+      </div>
+      <SaveBar saved={saved} saving={saving} onSave={salvar} />
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function AjustesPage() {
@@ -1146,6 +1286,7 @@ export default function AjustesPage() {
         <>
           <TabLoja restauranteId={restauranteId} active={tab === 'loja'} />
           <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
+          <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
           <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
           <TabIntegracoes restauranteId={restauranteId} active={tab === 'integracoes'} />
           <TabConta active={tab === 'conta'} />
