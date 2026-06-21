@@ -20,61 +20,63 @@ export default async function LoginPage({
   const noticeMessage = notice ? NOTICE_MESSAGES[notice] ?? null : null
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-page">
-      <form
-        action={signIn}
-        className="w-full max-w-sm rounded-menuzia border border-border bg-main p-6 shadow-sm"
-      >
-        <h1 className="mb-1 text-lg font-semibold text-text-main">menuzia</h1>
-        <p className="mb-5 text-xs text-text-subtle">Entre com sua conta da loja</p>
-
-        {noticeMessage && (
-          <p className="mb-4 rounded-menuzia bg-price-bg px-3 py-2 text-xs text-price-text">
-            {noticeMessage}
-          </p>
-        )}
-
-        {errorMessage && (
-          <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
-            {errorMessage}
-          </p>
-        )}
-
-        <label className="mb-3 block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
-            E-mail
+    <main className="flex min-h-screen flex-col bg-primary">
+      {/* Marca */}
+      <div className="flex flex-1 flex-col items-center justify-center px-6 pb-12 pt-20 text-center">
+        <div className="flex items-center gap-2.5">
+          <span className="text-4xl font-extrabold tracking-tight text-white">Menuzia</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-menuzia bg-white text-2xl font-extrabold leading-none text-primary">
+            +
           </span>
+        </div>
+        <p className="mt-2 text-sm font-medium text-white/80">Peça com facilidade</p>
+      </div>
+
+      {/* Sheet de login */}
+      <div className="rounded-t-[2rem] bg-main px-6 pb-12 pt-9 shadow-[0_-8px_28px_rgba(0,0,0,0.12)]">
+        <form action={signIn} className="mx-auto w-full max-w-sm">
+          <h1 className="mb-6 text-center text-xl font-bold text-text-main">Login</h1>
+
+          {noticeMessage && (
+            <p className="mb-4 rounded-menuzia bg-price-bg px-3 py-2 text-xs text-price-text">
+              {noticeMessage}
+            </p>
+          )}
+
+          {errorMessage && (
+            <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
+              {errorMessage}
+            </p>
+          )}
+
           <input
             name="email"
             type="text"
             required
-            className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
+            placeholder="E-mail"
+            aria-label="E-mail"
+            className="mb-3 w-full rounded-menuzia border border-transparent bg-page px-4 py-3 text-sm text-text-main placeholder:text-text-subtle focus:border-primary focus:bg-white focus:outline-none"
           />
-        </label>
 
-        <label className="mb-5 block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle">
-            Senha
-          </span>
           <input
             name="password"
             type="password"
             required
-            className="w-full rounded-menuzia border border-border px-3 py-2 text-sm"
+            placeholder="Senha"
+            aria-label="Senha"
+            className="mb-5 w-full rounded-menuzia border border-transparent bg-page px-4 py-3 text-sm text-text-main placeholder:text-text-subtle focus:border-primary focus:bg-white focus:outline-none"
           />
-        </label>
 
-        <Button type="submit" className="w-full">
-          Entrar
-        </Button>
+          <Button type="submit" className="w-full py-3 text-sm">
+            Entrar
+          </Button>
 
-        <p className="mt-4 text-center text-xs text-text-subtle">
-          Primeiro acesso?{' '}
-          <Link href="/cadastro" className="font-semibold text-primary">
-            Complete seu cadastro
-          </Link>
-        </p>
-      </form>
+          <div className="mt-5 flex items-center justify-between text-xs font-semibold text-primary">
+            <Link href="/recuperar-senha">Recuperar Senha</Link>
+            <Link href="/cadastro">Inscrever-se</Link>
+          </div>
+        </form>
+      </div>
     </main>
   )
 }
