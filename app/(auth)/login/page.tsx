@@ -21,7 +21,7 @@ export default async function LoginPage({
   const noticeMessage = notice ? NOTICE_MESSAGES[notice] ?? null : null
 
   return (
-    <AuthShell heading="Login">
+    <AuthShell heading="Login" backgroundImage="/login-bg.webp">
       <form action={signIn}>
         {noticeMessage && (
           <p className="mb-4 rounded-menuzia bg-price-bg px-3 py-2 text-xs text-price-text">

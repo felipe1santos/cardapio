@@ -16,15 +16,20 @@ export const authButton =
 export function AuthShell({
   heading,
   children,
+  backgroundImage,
 }: {
   heading: string
   children: ReactNode
+  backgroundImage?: string
 }) {
   return (
-    <main className="flex min-h-screen flex-col bg-[#1D3E73] sm:items-center sm:justify-center sm:py-8">
+    <main
+      className="flex min-h-screen flex-col bg-[#1D3E73] bg-cover bg-center sm:items-center sm:justify-center sm:py-8"
+      style={backgroundImage ? { backgroundImage: `linear-gradient(rgba(29,62,115,0.55), rgba(29,62,115,0.55)), url(${backgroundImage})` } : undefined}
+    >
       <div className="flex min-h-screen w-full flex-col sm:min-h-0 sm:max-w-[440px] sm:overflow-hidden sm:rounded-[28px] sm:shadow-2xl">
         {/* Marca */}
-        <div className="flex flex-col items-center justify-center bg-[#1D3E73] px-6 pb-12 pt-16 text-center sm:py-12">
+        <div className={`flex flex-col items-center justify-center px-6 pb-12 pt-16 text-center sm:py-12 ${backgroundImage ? '' : 'bg-[#1D3E73]'}`}>
           <div className="flex items-center gap-2.5">
             <span className="text-4xl font-extrabold tracking-tight text-white">Menuzia</span>
             <span className="flex h-9 w-9 items-center justify-center rounded-menuzia bg-[#E85D2A] text-2xl font-extrabold leading-none text-white">
