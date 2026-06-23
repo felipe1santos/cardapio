@@ -302,6 +302,8 @@ export default function StorefrontPage() {
   const allItems = useMemo(() => groups.flatMap((g) => g.itens), [groups])
   const promoItems = useMemo(() => allItems.filter((item) => item.promocaoPreco !== null), [allItems])
   const destaques = useMemo(() => {
+    const marcados = allItems.filter((item) => item.maisVendido)
+    if (marcados.length > 0) return marcados.slice(0, 12)
     if (promoItems.length > 0) return promoItems.slice(0, 8)
     const result: ItemCardapio[] = []
     for (const g of groups) {
@@ -309,7 +311,7 @@ export default function StorefrontPage() {
       if (result.length >= 8) break
     }
     return result
-  }, [groups, promoItems])
+  }, [allItems, groups, promoItems])
   const collageImages = useMemo(() => allItems.filter((item) => item.imagemUrl).slice(0, 3), [allItems])
 
   // ── Navigation ────────────────────────────────────────────────────────────
