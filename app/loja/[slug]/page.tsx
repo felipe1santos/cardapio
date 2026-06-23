@@ -94,8 +94,8 @@ function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 
-function PriceTag({ price, originalPrice }: { price: number; originalPrice?: number | null }) {
-  if (originalPrice) {
+function PriceTag({ price, originalPrice, hideDiscount = false }: { price: number; originalPrice?: number | null; hideDiscount?: boolean }) {
+  if (originalPrice && !hideDiscount) {
     const off = Math.round((1 - price / originalPrice) * 100)
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -144,7 +144,7 @@ function ProductImage({ item, className = '' }: { item: Pick<ItemCardapio, 'nome
   )
 }
 
-function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; onClick: () => void; className?: string }) {
+function ProductCard({ item, onClick, className = '', compact = false }: { item: ItemCardapio; onClick: () => void; className?: string; compact?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -158,11 +158,11 @@ function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; on
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
-        {item.descricao && !item.maisVendido && (
+        {item.descricao && !item.maisVendido && !compact && (
           <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
         <div className="pt-1">
-          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
+          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} hideDiscount={compact} />
         </div>
       </div>
     </button>
@@ -1001,7 +1001,7 @@ export default function StorefrontPage() {
                 <h2 className="mb-3 text-[17px] font-bold tracking-tight">Destaques</h2>
                 <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
                   {destaques.map((item) => (
-                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[150px] flex-shrink-0 lg:w-auto" />
+                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[150px] flex-shrink-0 lg:w-auto" compact />
                   ))}
                 </div>
               </div>
