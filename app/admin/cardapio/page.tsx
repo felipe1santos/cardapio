@@ -2121,8 +2121,10 @@ export default function CardapioPage() {
                             <ItemThumb item={item} />
                             <div>
                               <div className="flex items-center gap-1.5">
+                                {item.maisVendido && (
+                                  <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[#F59E0B]" aria-label="Em destaque"><title>Em destaque</title><path d="M12 2l2.9 6.26L21.6 9l-4.8 4.68L17.94 21 12 17.27 6.06 21l1.14-7.32L2.4 9l6.7-.74z" /></svg>
+                                )}
                                 <span className="text-[13px] font-semibold">{item.nome}</span>
-                                {item.maisVendido && <Badge tone="highlight">Mais vendido</Badge>}
                               </div>
                               <div className="mt-0.5 text-[11px] text-text-subtle">{item.descricao}</div>
                             </div>
@@ -2176,10 +2178,14 @@ export default function CardapioPage() {
                           : <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] fill-text-subtle/50"><path d="M12 6c-3.87 0-7 2.46-7 5.5 0 .5.09.98.26 1.43.07.2.27.32.49.27.21-.05.34-.26.3-.47A4 4 0 017 11.5C7 9.57 9.24 8 12 8s5 1.57 5 3.5c0 .42-.07.82-.2 1.2-.05.21.08.42.29.47.22.05.42-.07.49-.27.17-.45.26-.93.26-1.4C19 8.46 15.87 6 12 6zM4 15h16v2H4zm0 3h16v2H4z" /></svg>
                         }
                         {item.status !== 'disponivel' && <div className="absolute left-2 top-2"><StatusBadge status={item.status} /></div>}
-                        {item.maisVendido && <div className="absolute right-2 top-2"><Badge tone="highlight">Mais vendido</Badge></div>}
                       </div>
                       <div className="flex flex-1 flex-col gap-1.5 p-3">
-                        <div className="text-sm font-semibold">{item.nome}</div>
+                        <div className="flex items-center gap-1.5">
+                          {item.maisVendido && (
+                            <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[#F59E0B]" aria-label="Em destaque"><title>Em destaque</title><path d="M12 2l2.9 6.26L21.6 9l-4.8 4.68L17.94 21 12 17.27 6.06 21l1.14-7.32L2.4 9l6.7-.74z" /></svg>
+                          )}
+                          <div className="text-sm font-semibold">{item.nome}</div>
+                        </div>
                         <div className="flex-1 text-xs leading-relaxed text-text-subtle">{item.descricao}</div>
                         <div className="mt-1 flex items-center justify-between">
                           {item.promocaoPreco !== null ? (
@@ -2404,9 +2410,9 @@ export default function CardapioPage() {
               <label className="flex h-[34px] cursor-pointer items-center gap-2 rounded-menuzia border border-border px-2.5 text-[13px] font-medium text-text-main">
                 <input type="checkbox" checked={form.maisVendido} onChange={(e) => setForm((prev) => ({ ...prev, maisVendido: e.target.checked }))}
                   className="h-3.5 w-3.5 accent-primary" />
-                Mais vendido
+                Item em destaque
               </label>
-              <p className="mt-1 text-[11px] text-text-subtle">Mostra a tag &ldquo;Mais Vendido&rdquo; no cardápio do cliente.</p>
+              <p className="mt-1 text-[11px] text-text-subtle">Marca o item com ⭐ aqui no painel e o destaca no cardápio do cliente.</p>
             </div>
           </div>
 
