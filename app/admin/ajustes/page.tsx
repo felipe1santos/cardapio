@@ -771,14 +771,15 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.1/AssistenteImpressaoMenuzia-win-v0.1.1.zip"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.2/AssistenteImpressaoMenuzia-Setup-0.1.2.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)
             </a>
             <p className="mb-3 text-[11px] text-text-subtle">
-              Baixa um .zip (~105MB) — extraia a pasta e abra &ldquo;Assistente de Impressão Menuzia.exe&rdquo; de dentro
-              dela. Ainda não tem instalador com assistente passo a passo, é só extrair e rodar.
+              Baixa o instalador (.exe, ~75MB). É só dar dois cliques: ele instala sozinho (sem pedir senha de
+              administrador), cria um atalho na área de trabalho e abre o programa. Se aparecer
+              &ldquo;O Windows protegeu o computador&rdquo;, clique em &ldquo;Mais informações&rdquo; → &ldquo;Executar assim mesmo&rdquo;.
             </p>
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-menuzia border border-alert-bg bg-alert-bg/60 p-3">
               <span className="text-[12px] font-semibold text-alert-text">Primeira vez configurando? Siga o guia passo a passo:</span>

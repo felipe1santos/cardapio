@@ -1,6 +1,6 @@
 {
   "name": "menuzia-printer-agent",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Assistente de Impressão Menuzia — liga o painel na nuvem à impressora instalada no computador da loja.",
   "main": "src/main.js",
   "private": true,
@@ -17,6 +17,16 @@
     "productName": "Assistente de Impressão Menuzia",
     "win": {
       "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Assistente de Impressão Menuzia",
+      "artifactName": "AssistenteImpressaoMenuzia-Setup-${version}.${ext}"
     },
     "files": [
       "src/**/*",

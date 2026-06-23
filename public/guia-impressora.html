@@ -176,24 +176,18 @@
     <span class="section-tag">Parte 2 — No computador da loja</span>
     <p style="color:var(--subtle);margin-top:6px">Faça esta parte <strong>no computador onde a impressora está conectada</strong>.</p>
 
-    <h2><span class="step-num">5</span>Baixe o Assistente de Impressão</h2>
-    <p>Na mesma tela <strong>Ajustes &gt; Impressão</strong>, clique no botão amarelo <strong>"⬇ Baixar Assistente de Impressão (Windows)"</strong>. Vai baixar um arquivo <strong>.zip</strong> (cerca de 105 MB). Espere terminar.</p>
+    <h2><span class="step-num">5</span>Baixe o instalador</h2>
+    <p>Na mesma tela <strong>Ajustes &gt; Impressão</strong>, clique no botão amarelo <strong>"⬇ Baixar Assistente de Impressão (Windows)"</strong>. Vai baixar um arquivo chamado <code>AssistenteImpressaoMenuzia-Setup-0.1.2.exe</code> (cerca de 75 MB). Espere terminar.</p>
 
-    <h2><span class="step-num">6</span>Extraia o arquivo</h2>
+    <h2><span class="step-num">6</span>Instale (dois cliques)</h2>
     <ol>
-      <li>Abra a pasta <strong>Downloads</strong>.</li>
-      <li>Clique com o <strong>botão direito</strong> no arquivo que baixou (<code>AssistenteImpressaoMenuzia-win...zip</code>) e escolha <strong>"Extrair tudo..."</strong> → <strong>"Extrair"</strong>.</li>
-      <li>Vai aparecer uma <strong>pasta</strong> com o mesmo nome. Abra ela.</li>
+      <li>Abra a pasta <strong>Downloads</strong> e dê <strong>dois cliques</strong> no arquivo que baixou.</li>
+      <li>Se o Windows mostrar um aviso azul <strong>"O Windows protegeu o computador"</strong>, clique em <strong>"Mais informações"</strong> e depois em <strong>"Executar assim mesmo"</strong>. (É só porque o programa ainda não é assinado digitalmente — pode confiar.)</li>
+      <li><strong>Pronto.</strong> Ele instala sozinho (não pede senha de administrador, não tem tela de "Avançar"), cria um <strong>atalho na área de trabalho</strong> e <strong>abre o programa</strong> automaticamente.</li>
     </ol>
-    <div class="callout warn"><p>Importante: não dá pra rodar de dentro do .zip. Tem que <strong>extrair</strong> primeiro.</p></div>
+    <div class="callout info"><p>Da próxima vez é só abrir pelo atalho <strong>"Assistente de Impressão Menuzia"</strong> na área de trabalho.</p></div>
 
-    <h2><span class="step-num">7</span>Abra o programa</h2>
-    <p>Dentro da pasta extraída, dê <strong>dois cliques</strong> no arquivo <strong><code>Assistente de Impressão Menuzia.exe</code></strong>.</p>
-    <div class="callout info">
-      <p>Se o Windows mostrar um aviso azul <strong>"O Windows protegeu o computador"</strong>, clique em <strong>"Mais informações"</strong> e depois em <strong>"Executar assim mesmo"</strong>. (É só porque o programa ainda não é assinado digitalmente — pode confiar.)</p>
-    </div>
-
-    <h2><span class="step-num">8</span>Preencha os dados de conexão</h2>
+    <h2><span class="step-num">7</span>Preencha os dados de conexão</h2>
     <p>Na janela do Assistente vão aparecer alguns campos. Preencha:</p>
     <ul>
       <li><strong>URL do seu Menuzia</strong>: o endereço do seu painel, começando com <code>https://</code> (o mesmo que aparece na barra do navegador quando você usa o Menuzia). Ex.: <code>https://app.suapizzaria.com</code></li>
@@ -201,11 +195,11 @@
     </ul>
     <p>Clique em <strong>"Testar conexão"</strong>. Se aparecer mensagem de sucesso, está ligado na sua loja. ✅ (Se der erro, confira se a URL está certa e se o token é o mais recente — veja "Deu problema?" no fim.)</p>
 
-    <h2><span class="step-num">9</span>Escolha a impressora</h2>
+    <h2><span class="step-num">8</span>Escolha a impressora</h2>
     <p>No campo <strong>"Impressora (instalada no Windows)"</strong>, abra a lista e selecione a impressora da loja (ex.: <strong>Cozinha</strong>). Se ela não aparecer, clique em <strong>"Atualizar lista"</strong>.</p>
     <p>Em <strong>"Configuração de impressão (cadastrada no painel)"</strong>, escolha o nome que você cadastrou no Passo 4 (ex.: <code>Cozinha</code>).</p>
 
-    <h2><span class="step-num">10</span>Salve e teste</h2>
+    <h2><span class="step-num">9</span>Salve e teste</h2>
     <ol>
       <li>Clique em <strong>"Salvar"</strong>.</li>
       <li>Clique em <strong>"Imprimir teste"</strong> — deve sair um papel de teste na impressora.</li>
@@ -252,7 +246,7 @@
         <li>Painel → <strong>Ajustes &gt; Impressão</strong> → <strong>Gerar token</strong> e <strong>copiar</strong>.</li>
         <li>Ligar <strong>"Impressão automática de pedidos"</strong>.</li>
         <li>Cadastrar a impressora (<strong>+ Nova impressora</strong>).</li>
-        <li><strong>Baixar</strong> o Assistente, <strong>extrair</strong> e <strong>abrir</strong> o <code>.exe</code>.</li>
+        <li><strong>Baixar</strong> o instalador e dar <strong>dois cliques</strong> (instala sozinho e abre).</li>
         <li>No Assistente: colar <strong>URL</strong> + <strong>token</strong> → <strong>Testar conexão</strong>.</li>
         <li>Escolher a <strong>impressora</strong> → <strong>Salvar</strong> → <strong>Imprimir teste</strong>.</li>
         <li>Deixar o computador ligado com o programa aberto. ✅</li>

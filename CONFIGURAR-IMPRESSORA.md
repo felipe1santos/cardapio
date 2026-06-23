@@ -75,30 +75,26 @@ Clique em **Salvar**. Pronto, a Parte 1 está feita.
 
 > Faça esta parte **no computador onde a impressora está conectada**.
 
-### Passo 5. Baixe o Assistente de Impressão
+### Passo 5. Baixe o instalador
 Na mesma tela **Ajustes > Impressão**, clique no botão amarelo
 **"⬇ Baixar Assistente de Impressão (Windows)"**.
 
-Vai baixar um arquivo **.zip** (cerca de 105 MB). Espere terminar.
+Vai baixar **um arquivo** chamado `AssistenteImpressaoMenuzia-Setup-0.1.2.exe`
+(cerca de 75 MB). Espere terminar.
 
-### Passo 6. Extraia o arquivo
-1. Abra a pasta **Downloads**.
-2. Clique com o **botão direito** no arquivo que baixou
-   (`AssistenteImpressaoMenuzia-win...zip`) e escolha **"Extrair tudo..."** →
-   **"Extrair"**.
-3. Vai aparecer uma **pasta** com o mesmo nome. Abra ela.
+### Passo 6. Instale (dois cliques)
+1. Abra a pasta **Downloads** e dê **dois cliques** no arquivo que baixou.
+2. Se o Windows mostrar um aviso azul **"O Windows protegeu o computador"**,
+   clique em **"Mais informações"** e depois em **"Executar assim mesmo"**.
+   (É só porque o programa ainda não é assinado digitalmente — pode confiar.)
+3. **Pronto.** Ele instala sozinho (não pede senha de administrador, não tem
+   tela de "Avançar"), cria um **atalho na área de trabalho** e **abre o
+   programa** automaticamente.
 
-> Importante: não dá pra rodar de dentro do .zip. Tem que **extrair** primeiro.
+> Da próxima vez é só abrir pelo atalho **"Assistente de Impressão Menuzia"**
+> na área de trabalho.
 
-### Passo 7. Abra o programa
-Dentro da pasta extraída, dê **dois cliques** no arquivo
-**`Assistente de Impressão Menuzia.exe`**.
-
-- Se o Windows mostrar um aviso azul **"O Windows protegeu o computador"**,
-  clique em **"Mais informações"** e depois em **"Executar assim mesmo"**.
-  (É só porque o programa ainda não é assinado digitalmente — pode confiar.)
-
-### Passo 8. Preencha os dados de conexão
+### Passo 7. Preencha os dados de conexão
 Na janela do Assistente vão aparecer alguns campos. Preencha:
 
 - **URL do seu Menuzia**: o endereço do seu painel, começando com `https://`
@@ -111,7 +107,7 @@ na sua loja. ✅
 (Se der erro, confira se a URL está certa e se o token é o mais recente —
 veja a seção "Deu problema?" no fim.)
 
-### Passo 9. Escolha a impressora
+### Passo 8. Escolha a impressora
 No campo **"Impressora (instalada no Windows)"**, abra a lista e selecione a
 impressora da loja (ex.: **Cozinha**). Se ela não aparecer, clique em
 **"Atualizar lista"**.
@@ -119,7 +115,7 @@ impressora da loja (ex.: **Cozinha**). Se ela não aparecer, clique em
 Em **"Configuração de impressão (cadastrada no painel)"**, escolha o nome que
 você cadastrou no Passo 4 (ex.: `Cozinha`).
 
-### Passo 10. Salve e teste
+### Passo 9. Salve e teste
 1. Clique em **"Salvar"**.
 2. Clique em **"Imprimir teste"** — deve sair um papel de teste na impressora.
 
@@ -168,7 +164,7 @@ Se saiu o teste, **está tudo pronto**. 🎉
 1. Painel → **Ajustes > Impressão** → **Gerar token** e **copiar**.
 2. Ligar **"Impressão automática de pedidos"**.
 3. Cadastrar a impressora (**+ Nova impressora**).
-4. **Baixar** o Assistente, **extrair** e **abrir** o `.exe`.
+4. **Baixar** o instalador e dar **dois cliques** (instala sozinho e abre).
 5. No Assistente: colar **URL** + **token** → **Testar conexão**.
 6. Escolher a **impressora** → **Salvar** → **Imprimir teste**.
 7. Deixar o computador ligado com o programa aberto. ✅
