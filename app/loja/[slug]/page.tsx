@@ -158,7 +158,7 @@ function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; on
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
-        {item.descricao && (
+        {item.descricao && !item.maisVendido && (
           <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
         <div className="pt-1">
@@ -177,7 +177,7 @@ function ProductListRow({ item, onClick }: { item: ItemCardapio; onClick: () => 
     >
       <div className="min-w-0 flex-1">
         <div className="line-clamp-1 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
-        {item.descricao && (
+        {item.descricao && !item.maisVendido && (
           <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
         <div className="mt-1.5">
