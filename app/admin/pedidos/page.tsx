@@ -37,6 +37,12 @@ const COLUNA_BORDER: Record<Coluna, string> = {
   pronto: 'border-t-status-ready',
 }
 
+const COLUNA_HEADER: Record<Coluna, string> = {
+  recebido: 'bg-status-pending/10 text-status-pending',
+  preparando: 'bg-status-preparing/10 text-status-preparing',
+  pronto: 'bg-status-ready/10 text-status-ready',
+}
+
 const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
   { label: 'Recebido', status: 'recebido' },
   { label: 'Preparando', status: 'preparando' },
@@ -151,11 +157,11 @@ function StatCard({
 }) {
   const t = STAT_TINT[tint]
   return (
-    <div className="flex items-center gap-3 rounded-menuzia border border-border bg-white p-4">
-      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-menuzia ${t.box} ${t.icon}`}>{icon}</div>
+    <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-white px-3 py-2">
+      <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-menuzia ${t.box} ${t.icon}`}>{icon}</div>
       <div>
-        <div className={`text-2xl font-bold leading-none ${priceColor ? 'text-price-text' : ''}`}>{value}</div>
-        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
+        <div className={`text-lg font-bold leading-none ${priceColor ? 'text-price-text' : ''}`}>{value}</div>
+        <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
       </div>
     </div>
   )
@@ -389,6 +395,9 @@ export default function PedidosPage() {
       <Button variant="outline" onClick={toggleSom} title={somAtivo ? 'Som ligado' : 'Som desligado'}>
         {somAtivo ? '🔔' : '🔕'} Som
       </Button>
+      <Button variant={showCol4 ? 'primary' : 'outline'} onClick={toggleCol4}>
+        {showCol4 ? '✓ Coluna de entregas' : '+ Coluna de entregas'}
+      </Button>
       <Button variant="outline" onClick={toggleFocus} title={focusMode ? 'Sair da tela cheia' : 'Tela cheia'}>
         {focusMode ? '✕ Sair' : '⛶ Tela cheia'}
       </Button>
@@ -408,34 +417,30 @@ export default function PedidosPage() {
     <>
       <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" right={topActions} />
 
-      <div className="flex flex-1 flex-col gap-4 overflow-hidden p-5">
+      <div className="flex flex-1 flex-col gap-3 overflow-hidden p-5">
         {error && (
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
-        {/* Stats — barra de métricas acima dos kanbans */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard tint="orange" value={abertos} label="Pedidos abertos" icon={IconCheck} />
-          <StatCard tint="blue" value={`${tempoMedioMin} min`} label="Tempo médio" icon={IconClock} />
-          <StatCard tint="indigo" value={emEntrega} label="Em entrega" icon={IconTruck} />
-          <StatCard tint="green" value={brl(faturamentoTurno)} label="Faturamento do turno" icon={IconMoney} priceColor />
-        </div>
-
-        <div className="flex justify-end">
-          <Button variant={showCol4 ? 'primary' : 'outline'} onClick={toggleCol4}>
-            {showCol4 ? '✓ Coluna de entregas' : '+ Coluna de entregas'}
-          </Button>
-        </div>
+        {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia) */}
+        {!focusMode && (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard tint="orange" value={abertos} label="Pedidos abertos" icon={IconCheck} />
+            <StatCard tint="blue" value={`${tempoMedioMin} min`} label="Tempo médio" icon={IconClock} />
+            <StatCard tint="indigo" value={emEntrega} label="Em entrega" icon={IconTruck} />
+            <StatCard tint="green" value={brl(faturamentoTurno)} label="Faturamento do turno" icon={IconMoney} priceColor />
+          </div>
+        )}
 
         {/* Board */}
-        <div className={`grid flex-1 grid-cols-1 gap-4 overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        <div className={`grid flex-1 grid-cols-1 gap-3 overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             return (
               <div key={coluna} className={`flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] bg-white ${COLUNA_BORDER[coluna]}`}>
-                <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                  <h3 className="text-sm font-semibold">{COLUNA_LABELS[coluna]}</h3>
-                  <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{colOrders.length}</span>
+                <div className={`flex items-center justify-between border-b border-border px-4 py-3 ${COLUNA_HEADER[coluna]}`}>
+                  <h3 className="text-sm font-bold">{COLUNA_LABELS[coluna]}</h3>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-text-subtle">{colOrders.length}</span>
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-3">
                   {colOrders.map((order) => {
@@ -450,7 +455,7 @@ export default function PedidosPage() {
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-bold">#{order.numero}</span>
+                            <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
                             {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -458,9 +463,9 @@ export default function PedidosPage() {
                             <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
                           </div>
                         </div>
-                        <div className="mb-3 flex gap-3">
-                          {/* Esquerda: informações do pedido */}
-                          <div className="min-w-0 flex-1">
+                        <div className="mb-3 flex gap-2">
+                          {/* Esquerda: informações do pedido (~75%) */}
+                          <div className="min-w-0 flex-[3]">
                             <div className="mb-1 text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</div>
                             {order.tipo === 'entrega' && order.enderecoBairro && (
                               <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
@@ -472,16 +477,16 @@ export default function PedidosPage() {
                             </ul>
                           </div>
 
-                          {/* Divisória interna */}
-                          <div className="w-px self-stretch bg-border" />
+                          {/* Divisória interna invisível (mantém o espaçamento) */}
+                          <div className="w-px self-stretch bg-transparent" />
 
-                          {/* Direita: boxes de pagamento (espaço acima para tags futuras) */}
-                          <div className="flex w-[104px] flex-shrink-0 flex-col items-stretch gap-1.5">
+                          {/* Direita: boxes de pagamento ~25% (espaço acima para tags futuras) */}
+                          <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1.5">
                             {/* slot para tags futuras (ex.: agendado, atrasado) */}
-                            <div className="rounded-menuzia border border-border px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
+                            <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
                               {PAY_LABEL[order.formaPagamento]}
                             </div>
-                            <div className="rounded-menuzia bg-price-bg px-2 py-1.5 text-center text-sm font-bold text-price-text">
+                            <div className="rounded-menuzia bg-price-bg px-1.5 py-1.5 text-center text-[13px] font-bold text-price-text">
                               {brl(order.total)}
                             </div>
                           </div>
