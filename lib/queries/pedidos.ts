@@ -184,6 +184,26 @@ export async function listarPedidosLogistica(supabase: SupabaseClient, restauran
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
 }
 
+/**
+ * Pedidos de entrega para o Painel de Rotas (visão panorâmica do dia):
+ * todos os status relevantes (aguardando, em rota, entregue, cancelado)
+ * criados a partir de `desdeISO` (normalmente as últimas 12h). Depois dessa
+ * janela os pedidos saem da tela automaticamente — o mapa "se limpa".
+ */
+export async function listarPedidosRotas(supabase: SupabaseClient, restauranteId: string, desdeISO: string): Promise<Pedido[]> {
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select(PEDIDO_SELECT)
+    .eq('restaurante_id', restauranteId)
+    .eq('tipo', 'entrega')
+    .gte('criado_em', desdeISO)
+    .in('status', ['pronto', 'em_rota', 'entregue', 'cancelado'])
+    .order('criado_em', { ascending: true })
+
+  if (error) throw error
+  return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+}
+
 export async function avancarStatusPedido(supabase: SupabaseClient, pedidoId: string, status: StatusPedido) {
   const { error } = await supabase.from('pedidos').update({ status }).eq('id', pedidoId)
   if (error) throw error
