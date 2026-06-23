@@ -157,6 +157,11 @@ function modalClass(isOpen: boolean, width: string): string {
 }
 
 function ruleHint(grupo: { obrigatorio: boolean; minEscolhas: number; maxEscolhas: number }): string {
+  if (grupo.maxEscolhas === 0) {
+    return grupo.obrigatorio && grupo.minEscolhas > 0
+      ? `Escolha no mínimo ${grupo.minEscolhas}, sem máximo`
+      : 'Escolha quantos quiser'
+  }
   if (grupo.obrigatorio) {
     return grupo.minEscolhas === grupo.maxEscolhas
       ? `Escolha ${grupo.minEscolhas}`
@@ -317,9 +322,10 @@ function GrupoItemCard({
 
   async function saveHeader() {
     const trimmed = nome.trim() || grupo.nome
-    const effectiveMin = obrigatorio ? Math.min(minEsc, maxEsc) : 0
+    const semMax = maxEsc === 0
+    const effectiveMin = obrigatorio ? (semMax ? minEsc : Math.min(minEsc, maxEsc)) : 0
     try {
-      await atualizarGrupoItem(supabase, grupo.id, trimmed, obrigatorio, effectiveMin, Math.max(maxEsc, 1))
+      await atualizarGrupoItem(supabase, grupo.id, trimmed, obrigatorio, effectiveMin, semMax ? 0 : Math.max(maxEsc, 1))
       setEditingHeader(false)
       await onRefresh()
     } catch { /* silencioso */ }
@@ -388,22 +394,32 @@ function GrupoItemCard({
                 <input
                   type="number"
                   min="0"
-                  max={maxEsc}
+                  max={maxEsc || undefined}
                   value={minEsc}
                   onChange={(e) => setMinEsc(Math.max(0, Number(e.target.value)))}
                   className="w-14 rounded-menuzia border border-border px-2 py-1 text-center text-[12px] outline-none focus:border-primary"
                 />
               </label>
             )}
-            <label className="flex items-center gap-1.5 text-[12px] text-text-subtle">
+            <label className={`flex items-center gap-1.5 text-[12px] text-text-subtle ${maxEsc === 0 ? 'opacity-40' : ''}`}>
               Máx
               <input
                 type="number"
                 min="1"
-                value={maxEsc}
+                value={maxEsc === 0 ? '' : maxEsc}
+                disabled={maxEsc === 0}
                 onChange={(e) => setMaxEsc(Math.max(1, Number(e.target.value)))}
-                className="w-14 rounded-menuzia border border-border px-2 py-1 text-center text-[12px] outline-none focus:border-primary"
+                className="w-14 rounded-menuzia border border-border px-2 py-1 text-center text-[12px] outline-none focus:border-primary disabled:bg-page"
               />
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-text-main">
+              <input
+                type="checkbox"
+                checked={maxEsc === 0}
+                onChange={(e) => setMaxEsc(e.target.checked ? 0 : Math.max(1, grupo.maxEscolhas))}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              Sem máximo
             </label>
           </div>
           <div className="flex gap-2">
@@ -779,7 +795,7 @@ function PresetGroupCard({
             <input
               type="number"
               min="0"
-              max={maxEsc}
+              max={maxEsc || undefined}
               value={minEsc}
               onChange={(e) => {
                 const v = Math.max(0, Number(e.target.value))
@@ -790,19 +806,33 @@ function PresetGroupCard({
             />
           </label>
         )}
-        <label className="flex items-center gap-1.5 text-[12px] text-text-subtle">
+        <label className={`flex items-center gap-1.5 text-[12px] text-text-subtle ${maxEsc === 0 ? 'opacity-40' : ''}`}>
           Máx
           <input
             type="number"
             min="1"
-            value={maxEsc}
+            value={maxEsc === 0 ? '' : maxEsc}
+            disabled={maxEsc === 0}
             onChange={(e) => {
               const v = Math.max(1, Number(e.target.value))
               setMaxEsc(v)
               saveRules(obrigatorio, minEsc, v)
             }}
-            className="w-14 rounded-menuzia border border-purple-200 px-2 py-1 text-center text-[12px] outline-none focus:border-purple-400"
+            className="w-14 rounded-menuzia border border-purple-200 px-2 py-1 text-center text-[12px] outline-none focus:border-purple-400 disabled:bg-purple-50"
           />
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-text-main">
+          <input
+            type="checkbox"
+            checked={maxEsc === 0}
+            onChange={(e) => {
+              const v = e.target.checked ? 0 : Math.max(1, preset.maxEscolhas)
+              setMaxEsc(v)
+              saveRules(obrigatorio, minEsc, v)
+            }}
+            className="h-3.5 w-3.5 accent-purple-600"
+          />
+          Sem máximo
         </label>
         <span className="ml-auto text-[11px] italic text-text-subtle">{hint}</span>
       </div>

@@ -748,6 +748,63 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   return { id: pedido.id, numero: pedido.numero }
 }
 
+export interface PedidoClienteItem {
+  nome: string
+  quantidade: number
+  tamanhoNome: string
+  saborNome: string
+}
+
+export interface PedidoCliente {
+  id: string
+  numero: number
+  status: StatusPedido
+  tipo: TipoPedido
+  total: number
+  taxaEntrega: number
+  formaPagamento: FormaPagamento
+  criadoEm: string
+  itens: PedidoClienteItem[]
+}
+
+/** Histórico + acompanhamento dos pedidos de um cliente da vitrine (identificado pelo telefone da sessão). */
+export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<PedidoCliente[]> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .select('id, numero, status, tipo, total, taxa_entrega, forma_pagamento, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome )')
+    .eq('restaurante_id', restauranteId)
+    .eq('cliente_telefone', telefone)
+    .order('criado_em', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return ((data ?? []) as unknown as {
+    id: string
+    numero: number
+    status: StatusPedido
+    tipo: TipoPedido
+    total: number
+    taxa_entrega: number
+    forma_pagamento: FormaPagamento
+    criado_em: string
+    pedido_itens: { nome: string; quantidade: number; tamanho_nome: string | null; sabor_nome: string | null }[]
+  }[]).map((p) => ({
+    id: p.id,
+    numero: p.numero,
+    status: p.status,
+    tipo: p.tipo,
+    total: Number(p.total),
+    taxaEntrega: Number(p.taxa_entrega),
+    formaPagamento: p.forma_pagamento,
+    criadoEm: p.criado_em,
+    itens: (p.pedido_itens ?? []).map((i) => ({
+      nome: i.nome,
+      quantidade: i.quantidade,
+      tamanhoNome: i.tamanho_nome ?? '',
+      saborNome: i.sabor_nome ?? '',
+    })),
+  }))
+}
+
 /** Status do pedido para a tela de acompanhamento da vitrine (sem expor dados de outros). */
 export async function buscarStatusPedido(admin: SupabaseClient, pedidoId: string): Promise<{ numero: number; status: StatusPedido } | null> {
   const { data, error } = await admin.from('pedidos').select('numero, status').eq('id', pedidoId).maybeSingle()

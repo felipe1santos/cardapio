@@ -15,6 +15,7 @@ import {
   type RestauranteVitrine,
 } from '@/lib/queries/cardapio'
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
+import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { resolverPaleta } from '@/lib/paletas'
 import {
   listarTamanhosPadraoPizza,
@@ -49,6 +50,45 @@ interface ToastItem {
 
 type Tab = 'home' | 'cart' | 'pedidos' | 'cupons'
 type CheckoutStep = 1 | 2 | 3
+
+const STATUS_PEDIDO_INFO: Record<string, { label: string; cls: string }> = {
+  recebido: { label: 'Recebido', cls: 'bg-[#FFF7ED] text-[#F97316]' },
+  preparando: { label: 'Preparando', cls: 'bg-[#EFF6FF] text-[#3B82F6]' },
+  pronto: { label: 'Pronto', cls: 'bg-[#ECFDF5] text-[#10B981]' },
+  em_rota: { label: 'Saiu para entrega', cls: 'bg-[#EFF6FF] text-[#3B82F6]' },
+  entregue: { label: 'Entregue', cls: 'bg-[#ECFDF5] text-[#10B981]' },
+  cancelado: { label: 'Cancelado', cls: 'bg-danger-bg text-danger' },
+}
+
+const PEDIDO_ATIVO = new Set(['recebido', 'preparando', 'pronto', 'em_rota'])
+
+/** Timeline vertical do acompanhamento do pedido, espelhando o status do Kanban/Logística. */
+function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
+  const steps = tipo === 'retirada'
+    ? [{ k: 'recebido', l: 'Pedido recebido' }, { k: 'preparando', l: 'Preparando seu pedido' }, { k: 'pronto', l: 'Pronto para retirada' }, { k: 'entregue', l: 'Retirado!' }]
+    : [{ k: 'recebido', l: 'Pedido recebido' }, { k: 'preparando', l: 'Preparando seu pedido' }, { k: 'pronto', l: 'Pronto para despacho' }, { k: 'em_rota', l: 'Saiu para entrega' }, { k: 'entregue', l: 'Entregue!' }]
+  const statusIdx = steps.findIndex((s) => s.k === status)
+  return (
+    <div className="mt-3 border-t border-border pt-3.5">
+      {steps.map((step, i) => {
+        const state = i < statusIdx ? 'done' : i === statusIdx ? 'active' : 'pending'
+        return (
+          <div key={step.k} className="relative flex gap-3.5 pb-5 last:pb-0">
+            {i < steps.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />}
+            <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+              {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
+            </span>
+            <div>
+              <div className={`text-[13px] font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{step.l}</div>
+              {state === 'active' && <div className="mt-0.5 text-[12px] text-[var(--tema-primaria)]">Em andamento…</div>}
+              {state === 'done' && <div className="mt-0.5 text-[12px] text-status-ready">Concluído</div>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -543,7 +583,7 @@ export default function StorefrontPage() {
       const next = new Map(prev)
       const cur = new Set(next.get(grupoId) ?? [])
       if (cur.has(compId)) cur.delete(compId)
-      else if (cur.size < maxEscolhas) cur.add(compId)
+      else if (maxEscolhas === 0 || cur.size < maxEscolhas) cur.add(compId)
       next.set(grupoId, cur)
       return next
     })
@@ -684,26 +724,25 @@ export default function StorefrontPage() {
     return () => { document.body.style.overflow = '' }
   }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen])
 
-  // ── Order tracking ────────────────────────────────────────────────────────
-  const [pedidoId, setPedidoId] = useState<string | null>(null)
-  const [pedidoStatus, setPedidoStatus] = useState<string>('recebido')
-  const [trackingNr, setTrackingNr] = useState<string | null>(null)
+  // ── Histórico de pedidos do cliente logado ────────────────────────────────
+  const [meusPedidos, setMeusPedidos] = useState<PedidoCliente[]>([])
+  const [pedidosLoading, setPedidosLoading] = useState(false)
 
   useEffect(() => {
-    if (!pedidoId) return
+    if (tab !== 'pedidos' || !clienteSessao) { setMeusPedidos([]); return }
     let active = true
-    const tick = async () => {
+    const load = async (showSpinner: boolean) => {
+      if (showSpinner && active) setPedidosLoading(true)
       try {
-        const res = await fetch(`/api/loja/${slug}/pedido/${pedidoId}`)
-        if (!res.ok) return
-        const data = await res.json()
-        if (active && data.status) setPedidoStatus(data.status)
-      } catch { /* keep last status */ }
+        const res = await fetch(`/api/loja/${slug}/conta/pedidos?telefone=${encodeURIComponent(clienteSessao.telefone)}&token=${encodeURIComponent(clienteSessao.token)}`)
+        if (res.ok && active) setMeusPedidos(await res.json())
+      } catch { /* mantém lista atual */ }
+      finally { if (active) setPedidosLoading(false) }
     }
-    tick()
-    const interval = setInterval(tick, 5000)
+    load(true)
+    const interval = setInterval(() => load(false), 8000)
     return () => { active = false; clearInterval(interval) }
-  }, [pedidoId, slug])
+  }, [tab, clienteSessao, slug])
 
   const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
     Pix: 'pix',
@@ -722,7 +761,7 @@ export default function StorefrontPage() {
     try {
       const payload = {
         tipo: 'entrega' as const,
-        cliente: { nome: cliente.nome.trim(), telefone: cliente.telefone.trim() },
+        cliente: { nome: cliente.nome.trim(), telefone: clienteSessao?.telefone ?? cliente.telefone.trim() },
         endereco,
         pagamento: PAY_MAP[payMethod] ?? 'pix',
         trocoPara: payMethod === 'Dinheiro' ? parseMoney(changeFor) : null,
@@ -745,9 +784,6 @@ export default function StorefrontPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
-      setTrackingNr(`#${data.numero}`)
-      setPedidoId(data.id)
-      setPedidoStatus('recebido')
       setCheckoutOpen(false)
       setCart([])
       setTab('pedidos')
@@ -1123,7 +1159,10 @@ export default function StorefrontPage() {
                   </div>
 
                   <button
-                    onClick={() => { setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null) }}
+                    onClick={() => {
+                      if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
+                      setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null)
+                    }}
                     className="flex w-full items-center justify-between rounded bg-[var(--tema-primaria)] px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)] active:scale-[0.99]"
                   >
                     <span>Continuar para pagamento</span>
@@ -1144,44 +1183,56 @@ export default function StorefrontPage() {
         {/* ── PEDIDOS tab ───────────────────────────────────────────────── */}
         {tab === 'pedidos' && (
           <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
-            {trackingNr ? (
-              <>
-                <div className="mb-5 rounded border border-border bg-white p-5 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#D1FAE5]">
-                    <svg viewBox="0 0 24 24" className="h-7 w-7 fill-status-ready"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
-                  </div>
-                  <div className="text-[16px] font-bold">Pedido {trackingNr} confirmado!</div>
-                  <div className="mt-0.5 text-[12px] text-text-subtle">{storeName} · Chega em ~35 min</div>
-                </div>
-                <div className="rounded border border-border bg-white p-5">
-                  {(['recebido', 'preparando', 'pronto', 'em_rota', 'entregue'] as const).map((step, i, arr) => {
-                    const labels = ['Pedido recebido', 'Preparando seu pedido', 'Pronto para despacho', 'Saiu para entrega', 'Entregue!']
-                    const statusIdx = arr.indexOf(pedidoStatus as typeof step)
-                    const state = i < statusIdx ? 'done' : i === statusIdx ? 'active' : 'pending'
-                    return (
-                      <div key={step} className="relative flex gap-3.5 pb-6 last:pb-0">
-                        {i < arr.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />}
-                        <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
-                          {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
-                        </span>
-                        <div>
-                          <div className={`text-sm font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{labels[i]}</div>
-                          {state === 'active' && <div className="mt-0.5 text-[12px] text-[var(--tema-primaria)]">Em andamento…</div>}
-                          {state === 'done' && <div className="mt-0.5 text-[12px] text-status-ready">Concluído</div>}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            ) : (
+            {!clienteSessao ? (
+              <div className="py-16 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🔒</div>
+                <p className="font-semibold text-text-main">Entre para ver seus pedidos</p>
+                <p className="mx-auto mt-1 max-w-[260px] text-[13px] text-text-subtle">Confirme seu telefone para acompanhar o status e o histórico dos seus pedidos nesta loja.</p>
+                <button onClick={() => setContaOpen(true)} className="mt-5 rounded bg-[var(--tema-primaria)] px-6 py-2.5 text-sm font-bold text-white hover:bg-[var(--tema-dark)]">
+                  Entrar com WhatsApp
+                </button>
+              </div>
+            ) : pedidosLoading && meusPedidos.length === 0 ? (
+              <div className="py-20 text-center text-[13px] text-text-subtle">Carregando seus pedidos…</div>
+            ) : meusPedidos.length === 0 ? (
               <div className="py-20 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">📦</div>
-                <p className="font-semibold text-text-main">Nenhum pedido ativo</p>
+                <p className="font-semibold text-text-main">Nenhum pedido ainda</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Quando você finalizar um pedido, o acompanhamento aparece aqui.</p>
                 <button onClick={() => setTab('home')} className="mt-5 rounded bg-[var(--tema-primaria)] px-6 py-2.5 text-sm font-bold text-white hover:bg-[var(--tema-dark)]">
                   Ver cardápio
                 </button>
+              </div>
+            ) : (
+              <div className="space-y-4 pb-4">
+                {meusPedidos.map((p) => {
+                  const info = STATUS_PEDIDO_INFO[p.status] ?? { label: p.status, cls: 'bg-[#F3F4F6] text-text-subtle' }
+                  const ativo = PEDIDO_ATIVO.has(p.status)
+                  const data = new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                  const resumo = p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')
+                  return (
+                    <div key={p.id} className="overflow-hidden rounded border border-border bg-white">
+                      <div className="flex items-start justify-between gap-3 p-4">
+                        <div className="min-w-0">
+                          <div className="text-[15px] font-bold">Pedido #{p.numero}</div>
+                          <div className="mt-0.5 text-[12px] text-text-subtle">{data} · {p.tipo === 'retirada' ? 'Retirada' : 'Entrega'}</div>
+                        </div>
+                        <span className={['flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide', info.cls].join(' ')}>{info.label}</span>
+                      </div>
+                      <div className="border-t border-border px-4 py-3">
+                        <p className="line-clamp-2 text-[13px] text-text-subtle">{resumo}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-[12px] text-text-subtle">Total</span>
+                          <span className="text-[15px] font-bold text-[#1cce93]">{brl(p.total)}</span>
+                        </div>
+                      </div>
+                      {ativo && <div className="px-4 pb-4"><PedidoTimeline status={p.status} tipo={p.tipo} /></div>}
+                      {p.status === 'cancelado' && (
+                        <div className="border-t border-danger/30 bg-danger-bg px-4 py-2.5 text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1397,16 +1448,16 @@ export default function StorefrontPage() {
                           <h3 className="text-sm font-bold">{grupo.nome}</h3>
                           <div className="mt-0.5 text-[11px] text-text-subtle">
                             {grupo.obrigatorio
-                              ? grupo.minEscolhas === grupo.maxEscolhas ? `Escolha ${grupo.minEscolhas}` : `Escolha ${grupo.minEscolhas}–${grupo.maxEscolhas}`
-                              : grupo.maxEscolhas === 1 ? 'Opcional' : `Até ${grupo.maxEscolhas}`}
+                              ? grupo.maxEscolhas === 0 ? `No mínimo ${grupo.minEscolhas}` : grupo.minEscolhas === grupo.maxEscolhas ? `Escolha ${grupo.minEscolhas}` : `Escolha ${grupo.minEscolhas}–${grupo.maxEscolhas}`
+                              : grupo.maxEscolhas === 0 ? 'Quantos quiser' : grupo.maxEscolhas === 1 ? 'Opcional' : `Até ${grupo.maxEscolhas}`}
                           </div>
                         </div>
                         <span className={['mt-0.5 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase', grupo.obrigatorio ? 'bg-danger-bg text-danger' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
                           {grupo.obrigatorio ? 'Obrigatório' : 'Opcional'}
                         </span>
                       </div>
-                      {!isRadio && grupo.maxEscolhas > 1 && (
-                        <div className="mb-1.5 text-[11px] text-text-subtle">{sel.size}/{grupo.maxEscolhas} selecionado{sel.size !== 1 ? 's' : ''}</div>
+                      {!isRadio && (grupo.maxEscolhas === 0 || grupo.maxEscolhas > 1) && (
+                        <div className="mb-1.5 text-[11px] text-text-subtle">{grupo.maxEscolhas === 0 ? `${sel.size} selecionado${sel.size !== 1 ? 's' : ''}` : `${sel.size}/${grupo.maxEscolhas} selecionado${sel.size !== 1 ? 's' : ''}`}</div>
                       )}
                       {grupo.complementos.map((comp) => {
                         const isSelected = sel.has(comp.id)
