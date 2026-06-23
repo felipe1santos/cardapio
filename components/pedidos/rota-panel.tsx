@@ -33,9 +33,9 @@ function endereco(p: Pedido) {
   return partes.join(' · ') || 'Entrega'
 }
 
-/** Chave de ordenação por proximidade de endereço (mesma região agrupada). */
+/** Chave de ordenação: só o nome do bairro (agrupa pedidos da mesma região). */
 function chaveEndereco(p: Pedido) {
-  return `${p.enderecoBairro}|${p.enderecoRua}|${p.enderecoNumero}`.toLowerCase()
+  return p.enderecoBairro.trim().toLowerCase()
 }
 
 interface RotaPanelProps {
