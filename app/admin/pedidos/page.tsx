@@ -129,6 +129,62 @@ function FluxoCard({ order, tone, onClick }: { order: Pedido; tone: 'transit' | 
   )
 }
 
+const STAT_TINT: Record<string, { box: string; icon: string }> = {
+  orange: { box: 'bg-status-pending/10', icon: 'text-status-pending' },
+  blue: { box: 'bg-status-preparing/10', icon: 'text-status-preparing' },
+  indigo: { box: 'bg-status-preparing/10', icon: 'text-status-preparing' },
+  green: { box: 'bg-price-bg', icon: 'text-price-text' },
+}
+
+function StatCard({
+  tint,
+  value,
+  label,
+  icon,
+  priceColor,
+}: {
+  tint: keyof typeof STAT_TINT
+  value: React.ReactNode
+  label: string
+  icon: React.ReactNode
+  priceColor?: boolean
+}) {
+  const t = STAT_TINT[tint]
+  return (
+    <div className="flex items-center gap-3 rounded-menuzia border border-border bg-white p-4">
+      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-menuzia ${t.box} ${t.icon}`}>{icon}</div>
+      <div>
+        <div className={`text-2xl font-bold leading-none ${priceColor ? 'text-price-text' : ''}`}>{value}</div>
+        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
+      </div>
+    </div>
+  )
+}
+
+const IconCheck = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 6L9 17l-5-5" />
+  </svg>
+)
+const IconClock = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+)
+const IconTruck = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 3h13v11H1zM14 7h4l3 3v4h-7" />
+    <circle cx="6" cy="18" r="2" />
+    <circle cx="18" cy="18" r="2" />
+  </svg>
+)
+const IconMoney = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+  </svg>
+)
+
 export default function PedidosPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
@@ -142,10 +198,53 @@ export default function PedidosPage() {
   const [showCol4, setShowCol4] = useState(false)
   const [pulsando, setPulsando] = useState<Set<string>>(new Set())
   const recebidosConhecidos = useRef<Set<string> | null>(null)
+  const [somAtivo, setSomAtivo] = useState(true)
+  const somRef = useRef(true)
+  const [focusMode, setFocusMode] = useState(false)
 
-  // restaura preferência do 4º kanban
+  // restaura preferências (4º kanban e som)
   useEffect(() => {
     setShowCol4(localStorage.getItem('menuzia:kanban-col4') === '1')
+    const som = localStorage.getItem('menuzia:kanban-som') !== '0'
+    setSomAtivo(som)
+    somRef.current = som
+  }, [])
+
+  function toggleSom() {
+    setSomAtivo((v) => {
+      const next = !v
+      somRef.current = next
+      localStorage.setItem('menuzia:kanban-som', next ? '1' : '0')
+      return next
+    })
+  }
+
+  // modo tela cheia: esconde a sidebar e entra em fullscreen do navegador
+  async function toggleFocus() {
+    const next = !focusMode
+    setFocusMode(next)
+    window.dispatchEvent(new CustomEvent('menuzia:focus-mode', { detail: next }))
+    try {
+      if (next) await document.documentElement.requestFullscreen?.()
+      else if (document.fullscreenElement) await document.exitFullscreen?.()
+    } catch {
+      /* navegador bloqueou fullscreen — modo foco continua valendo */
+    }
+  }
+
+  // sincroniza quando o usuário sai do fullscreen pelo Esc + restaura sidebar ao sair da página
+  useEffect(() => {
+    const onFs = () => {
+      if (!document.fullscreenElement) {
+        setFocusMode(false)
+        window.dispatchEvent(new CustomEvent('menuzia:focus-mode', { detail: false }))
+      }
+    }
+    document.addEventListener('fullscreenchange', onFs)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs)
+      window.dispatchEvent(new CustomEvent('menuzia:focus-mode', { detail: false }))
+    }
   }, [])
 
   function toggleCol4() {
@@ -174,7 +273,7 @@ export default function PedidosPage() {
         if (anteriores) {
           const novos = [...recebidosAgora].filter((pid) => !anteriores.has(pid))
           if (novos.length > 0) {
-            playNewOrderSound()
+            if (somRef.current) playNewOrderSound()
             setPulsando((prev) => new Set([...prev, ...novos]))
             for (const pid of novos) {
               setTimeout(() => {
@@ -270,13 +369,36 @@ export default function PedidosPage() {
   }
 
   const abertos = orders.length
-  const emPreparo = orders.filter((o) => o.status === 'preparando').length
-  const faturamento = orders.reduce((s, o) => s + o.total, 0)
+  const emEntrega = transit.length
+  const tempoMedioMin = orders.length
+    ? Math.round(orders.reduce((s, o) => s + tempoDecorrido(o.criadoEm, now).mins, 0) / orders.length)
+    : 0
+  const faturamentoTurno =
+    orders.reduce((s, o) => s + o.total, 0) +
+    concluded.filter((o) => o.status === 'entregue').reduce((s, o) => s + o.total, 0)
+
+  const topActions = (
+    <>
+      <div className="flex items-center gap-2 rounded-full bg-price-bg px-3 py-1.5 text-xs font-semibold text-price-text">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-price-text opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-price-text" />
+        </span>
+        Recebendo pedidos
+      </div>
+      <Button variant="outline" onClick={toggleSom} title={somAtivo ? 'Som ligado' : 'Som desligado'}>
+        {somAtivo ? '🔔' : '🔕'} Som
+      </Button>
+      <Button variant="outline" onClick={toggleFocus} title={focusMode ? 'Sair da tela cheia' : 'Tela cheia'}>
+        {focusMode ? '✕ Sair' : '⛶ Tela cheia'}
+      </Button>
+    </>
+  )
 
   if (loading) {
     return (
       <>
-        <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" />
+        <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" right={topActions} />
         <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando pedidos…</div>
       </>
     )
@@ -284,44 +406,25 @@ export default function PedidosPage() {
 
   return (
     <>
-      <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" />
+      <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" right={topActions} />
 
       <div className="flex flex-1 flex-col gap-4 overflow-hidden p-5">
         {error && (
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 rounded-full bg-price-bg px-3 py-1.5 text-xs font-semibold text-price-text">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-price-text opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-price-text" />
-            </span>
-            Recebendo pedidos em tempo real
-          </div>
+        {/* Stats — barra de métricas acima dos kanbans */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard tint="orange" value={abertos} label="Pedidos abertos" icon={IconCheck} />
+          <StatCard tint="blue" value={`${tempoMedioMin} min`} label="Tempo médio" icon={IconClock} />
+          <StatCard tint="indigo" value={emEntrega} label="Em entrega" icon={IconTruck} />
+          <StatCard tint="green" value={brl(faturamentoTurno)} label="Faturamento do turno" icon={IconMoney} priceColor />
+        </div>
+
+        <div className="flex justify-end">
           <Button variant={showCol4 ? 'primary' : 'outline'} onClick={toggleCol4}>
             {showCol4 ? '✓ Coluna de entregas' : '+ Coluna de entregas'}
           </Button>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pedidos abertos</div>
-            <div className="mt-1.5 text-2xl font-bold">{abertos}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Em preparo</div>
-            <div className="mt-1.5 text-2xl font-bold">{emPreparo}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Aguardando despacho</div>
-            <div className="mt-1.5 text-2xl font-bold">{orders.filter((o) => o.status === 'pronto').length}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Valor em aberto</div>
-            <div className="mt-1.5 text-2xl font-bold text-price-text">{brl(faturamento)}</div>
-          </div>
         </div>
 
         {/* Board */}

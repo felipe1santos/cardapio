@@ -24,6 +24,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [badges, setBadges] = useState<BadgesNav>({ novosPedidos: 0, logisticaPendente: 0 })
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
+  const [focusMode, setFocusMode] = useState(false)
+
+  // Modo tela cheia: alguma página (ex. Pedidos) pede para esconder a sidebar
+  useEffect(() => {
+    const handler = (e: Event) => setFocusMode((e as CustomEvent<boolean>).detail)
+    window.addEventListener('menuzia:focus-mode', handler as EventListener)
+    return () => window.removeEventListener('menuzia:focus-mode', handler as EventListener)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -70,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar items={items} activeHref={pathname} storeSlug={storeSlug} onSignOut={handleSignOut} />
+      {!focusMode && <Sidebar items={items} activeHref={pathname} storeSlug={storeSlug} onSignOut={handleSignOut} />}
       <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
     </div>
   )
