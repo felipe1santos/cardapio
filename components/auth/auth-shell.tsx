@@ -29,7 +29,7 @@ export function AuthShell({
     >
       <div className="flex min-h-screen w-full flex-col sm:min-h-0 sm:max-w-[440px] sm:overflow-hidden sm:rounded-[28px] sm:shadow-2xl">
         {/* Marca */}
-        <div className={`flex flex-col items-center justify-center px-6 pb-12 pt-16 text-center sm:py-12 ${backgroundImage ? '' : 'bg-[#1D3E73]'}`}>
+        <div className="flex flex-col items-center justify-center bg-[#21478C] px-6 pb-12 pt-16 text-center sm:py-12">
           <div className="flex items-center gap-2.5">
             <span className="text-4xl font-extrabold tracking-tight text-white">Menuzia</span>
             <span className="flex h-9 w-9 items-center justify-center rounded-menuzia bg-[#E85D2A] text-2xl font-extrabold leading-none text-white">
