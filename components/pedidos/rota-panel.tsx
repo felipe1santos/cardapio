@@ -223,9 +223,9 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
         <div className="relative flex-1 overflow-hidden bg-page">
           <RotaMap apiKey={apiKey} stops={stops} onStopClick={toggleMarcado} className="absolute inset-0 h-full w-full" />
 
-          {/* Coluna esquerda: pedidos prontos (glass escuro) */}
-          <aside className="absolute bottom-3 left-3 top-3 flex w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/10 bg-[#111827]/85 shadow-2xl backdrop-blur-md">
-            <div className="border-b border-white/10 px-3 py-2.5">
+          {/* Coluna esquerda: pedidos prontos (corpo translúcido, título preto) */}
+          <aside className="absolute bottom-3 left-3 top-3 flex w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/30 bg-white/10 shadow-2xl backdrop-blur-md">
+            <div className="bg-black px-3 py-2.5">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white">Pedidos prontos</h3>
                 <div className="flex items-center gap-2">
@@ -274,7 +274,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
               {filtrados.length === 0 && (
-                <div className="px-2 py-8 text-center text-xs text-white/60">
+                <div className="m-1 rounded-menuzia bg-black/50 px-2 py-6 text-center text-xs text-white">
                   {ordenados.length === 0 ? 'Nenhum pedido pronto aguardando entrega.' : 'Nenhum pedido com esses filtros.'}
                 </div>
               )}
@@ -293,20 +293,25 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                       'cursor-pointer select-none rounded-menuzia border-l-4 p-2.5 shadow-sm transition-colors',
                       ativo
                         ? 'border-l-yellow-500 bg-yellow-300 text-black'
-                        : p.formaPagamento === 'dinheiro'
-                          ? 'border-l-status-pending bg-white hover:bg-page'
-                          : 'border-l-primary bg-white hover:bg-page',
+                        : 'border-l-green-600 bg-green-100 hover:bg-green-200',
                     ].join(' ')}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className={ativo ? 'text-black/40' : 'text-text-subtle/60'}>⠿</span>
+                        <span className={ativo ? 'text-black/40' : 'text-green-700/50'}>⠿</span>
                         <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
                         <span className="truncate text-[13px] font-semibold">{p.clienteNome || 'Cliente'}</span>
                       </div>
                       <span className={`flex-shrink-0 text-[11px] font-semibold ${ativo ? 'text-black/70' : 'text-text-subtle'}`}>{tempoDesde(p.criadoEm)}</span>
                     </div>
-                    <div className={`mt-1 truncate text-xs ${ativo ? 'text-black/80' : 'text-text-subtle'}`}>{endereco(p)}</div>
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {p.enderecoBairro && (
+                        <span className="flex-shrink-0 rounded bg-[#DC0101] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{p.enderecoBairro}</span>
+                      )}
+                      {p.enderecoRua && (
+                        <span className={`truncate text-xs ${ativo ? 'text-black/80' : 'text-text-subtle'}`}>{p.enderecoRua}, {p.enderecoNumero}</span>
+                      )}
+                    </div>
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <Badge tone={p.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[p.formaPagamento]}</Badge>
                       {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
@@ -318,14 +323,14 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
             </div>
           </aside>
 
-          {/* Coluna direita: entregadores (glass escuro) */}
-          <aside className="absolute bottom-3 right-3 top-3 flex w-[280px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/10 bg-[#111827]/85 shadow-2xl backdrop-blur-md">
-            <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
+          {/* Coluna direita: entregadores (corpo translúcido, título preto) */}
+          <aside className="absolute bottom-3 right-3 top-3 flex w-[280px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/30 bg-white/10 shadow-2xl backdrop-blur-md">
+            <div className="flex items-center justify-between bg-black px-3 py-2.5">
               <h3 className="text-sm font-bold text-white">Entregadores</h3>
               <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white">{disponiveis.length} online</span>
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
-              {disponiveis.length === 0 && <div className="px-2 py-8 text-center text-xs text-white/60">Nenhum entregador online no momento.</div>}
+              {disponiveis.length === 0 && <div className="m-1 rounded-menuzia bg-black/50 px-2 py-6 text-center text-xs text-white">Nenhum entregador online no momento.</div>}
               {disponiveis.map((d) => {
                 const sel = d.id === motoboyId
                 return (
@@ -360,14 +365,14 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                         <a
                           href={`tel:${d.telefone}`}
                           title={`Ligar para ${d.telefone}`}
-                          className="flex flex-1 items-center justify-center rounded-menuzia border border-border py-1 text-text-subtle hover:border-primary hover:text-primary"
+                          className="flex flex-1 items-center justify-center rounded-menuzia bg-green-600 py-1.5 text-white transition-colors hover:bg-green-700"
                         >
                           <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                             <path d={ICON.phone} />
                           </svg>
                         </a>
                       ) : (
-                        <span className="flex flex-1 items-center justify-center rounded-menuzia border border-border py-1 text-border" title="Sem telefone">
+                        <span className="flex flex-1 items-center justify-center rounded-menuzia bg-green-600/40 py-1.5 text-white/70" title="Sem telefone">
                           <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                             <path d={ICON.phone} />
                           </svg>
@@ -376,9 +381,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                       <button
                         onClick={() => setLocDriverId(d.id)}
                         title="Ver localização e rota em tempo real"
-                        className={`flex flex-1 items-center justify-center rounded-menuzia border border-border py-1 ${
-                          d.online ? 'text-danger hover:border-danger' : d.localizacao ? 'text-warn hover:border-warn' : 'text-text-subtle hover:border-primary'
-                        }`}
+                        className="flex flex-1 items-center justify-center rounded-menuzia bg-primary py-1.5 text-white transition-colors hover:bg-primary-dark"
                       >
                         <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                           <path d={ICON.pin} />
@@ -387,7 +390,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                       <button
                         onClick={() => setPerfilDriver(d)}
                         title="Perfil do entregador"
-                        className="flex flex-1 items-center justify-center rounded-menuzia border border-border py-1 text-text-subtle hover:border-primary hover:text-primary"
+                        className="flex flex-1 items-center justify-center rounded-menuzia bg-purple py-1.5 text-white transition-colors hover:bg-purple-600"
                       >
                         <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                           <path d={ICON.user} />
@@ -405,7 +408,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
             <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center">
               <button
                 onClick={() => setConfirming(true)}
-                className="pointer-events-auto inline-flex items-center gap-2 rounded-menuzia bg-red-800 px-6 py-3 text-[13px] font-bold uppercase tracking-wide text-white shadow-2xl transition-colors hover:bg-red-900"
+                className="pointer-events-auto inline-flex items-center gap-2 rounded-menuzia bg-[#DC0101] px-6 py-3 text-[13px] font-bold uppercase tracking-wide text-white shadow-2xl transition-colors hover:bg-[#b00101]"
               >
                 Despachar {marcadosNaOrdem.length} pedido{marcadosNaOrdem.length > 1 ? 's' : ''} → {motoboy.nome}
               </button>
@@ -458,7 +461,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
               <button
                 onClick={despachar}
                 disabled={despachando}
-                className="flex flex-1 items-center justify-center rounded-menuzia bg-red-800 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-red-900 disabled:opacity-60"
+                className="flex flex-1 items-center justify-center rounded-menuzia bg-[#DC0101] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#b00101] disabled:opacity-60"
               >
                 {despachando ? 'Despachando…' : 'Despachar pedidos'}
               </button>

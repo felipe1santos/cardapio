@@ -34,12 +34,12 @@ const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
 function pinIcon(label: string, active: boolean): google.maps.Icon {
   const fill = active ? '#FACC15' : '#0688D4'
   const text = active ? '#1F2937' : '#ffffff'
-  const w = 58
-  const h = 66
+  const w = 40
+  const h = 46
   const svg = `
-    <svg width="${w}" height="${h}" viewBox="0 0 58 66" xmlns="http://www.w3.org/2000/svg">
-      <path d="M29 0C14.6 0 3 11.2 3 25c0 18.5 26 41 26 41s26-22.5 26-41C55 11.2 43.4 0 29 0z" fill="${fill}" stroke="#ffffff" stroke-width="3"/>
-      <text x="29" y="33" font-size="16" font-weight="800" text-anchor="middle" fill="${text}" font-family="Inter, sans-serif">${label}</text>
+    <svg width="${w}" height="${h}" viewBox="0 0 40 46" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 0C9.5 0 1 7.8 1 17.4 1 30.3 20 46 20 46s19-15.7 19-28.6C39 7.8 30.5 0 20 0z" fill="${fill}" stroke="#ffffff" stroke-width="2"/>
+      <text x="20" y="23" font-size="11" font-weight="800" text-anchor="middle" fill="${text}" font-family="Inter, sans-serif">${label}</text>
     </svg>`
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
@@ -54,6 +54,7 @@ export function RotaMap({ apiKey, stops, onStopClick, className }: RotaMapProps)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map())
   const geocodeCache = useRef<Map<string, google.maps.LatLng>>(new Map())
+  const fittedRef = useRef(false)
   const clickRef = useRef(onStopClick)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -119,14 +120,16 @@ export function RotaMap({ apiKey, stops, onStopClick, className }: RotaMapProps)
       markersRef.current.set(stop.id, marker)
     }
 
+    // Só ajusta a câmera na primeira carga. Depois disso o usuário controla
+    // zoom/pan livremente — marcar pedido não reposiciona o mapa.
     const maybeFit = () => {
-      if (resolved === pending && !bounds.isEmpty()) {
-        if (stops.length === 1) {
-          map.setCenter(bounds.getCenter())
-          map.setZoom(15)
-        } else {
-          map.fitBounds(bounds, 64)
-        }
+      if (fittedRef.current || resolved !== pending || bounds.isEmpty()) return
+      fittedRef.current = true
+      if (stops.length === 1) {
+        map.setCenter(bounds.getCenter())
+        map.setZoom(15)
+      } else {
+        map.fitBounds(bounds, 64)
       }
     }
 
@@ -149,15 +152,8 @@ export function RotaMap({ apiKey, stops, onStopClick, className }: RotaMapProps)
       })
     })
 
-    // se tudo veio do cache, ajusta na hora
-    if (pending === 0 && !bounds.isEmpty()) {
-      if (stops.length === 1) {
-        map.setCenter(bounds.getCenter())
-        map.setZoom(15)
-      } else {
-        map.fitBounds(bounds, 64)
-      }
-    }
+    // se tudo veio do cache, ajusta na hora (só na primeira vez)
+    if (pending === 0) maybeFit()
 
     return () => {
       cancelled = true
