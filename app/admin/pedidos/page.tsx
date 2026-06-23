@@ -4,6 +4,7 @@ import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
@@ -207,6 +208,8 @@ export default function PedidosPage() {
   const [somAtivo, setSomAtivo] = useState(true)
   const somRef = useRef(true)
   const [focusMode, setFocusMode] = useState(false)
+  const [rotaOpen, setRotaOpen] = useState(false)
+  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
   // restaura preferências (4º kanban e som)
   useEffect(() => {
@@ -395,6 +398,9 @@ export default function PedidosPage() {
       <Button variant="outline" onClick={toggleSom} title={somAtivo ? 'Som ligado' : 'Som desligado'}>
         {somAtivo ? '🔔' : '🔕'} Som
       </Button>
+      <Button variant="outline" onClick={() => setRotaOpen(true)} title="Despacho de rotas">
+        🛵 Rotas
+      </Button>
       <Button variant={showCol4 ? 'primary' : 'outline'} onClick={toggleCol4}>
         {showCol4 ? '✓ Coluna de entregas' : '+ Coluna de entregas'}
       </Button>
@@ -565,6 +571,11 @@ export default function PedidosPage() {
           )}
         </div>
       </div>
+
+      {/* Painel de despacho de rotas */}
+      {rotaOpen && restauranteId && (
+        <RotaPanel supabase={supabase} restauranteId={restauranteId} apiKey={mapsKey} onClose={() => setRotaOpen(false)} />
+      )}
 
       {/* Drawer de detalhes */}
       {detail && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setDetail(null)} />}
