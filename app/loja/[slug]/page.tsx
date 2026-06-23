@@ -960,7 +960,7 @@ export default function StorefrontPage() {
               {/* Delivery banner */}
               <button
                 onClick={() => setFreteOpen(true)}
-                className="flex w-full items-center gap-2.5 rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-4 py-3 text-left shadow-sm"
+                className="flex w-full items-center gap-2.5 rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-3.5 py-2 text-left shadow-sm"
               >
                 <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#0369A1]">
                   <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z" />
