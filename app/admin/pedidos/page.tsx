@@ -458,18 +458,33 @@ export default function PedidosPage() {
                             <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
                           </div>
                         </div>
-                        <div className="mb-2 text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</div>
-                        {order.tipo === 'entrega' && order.enderecoBairro && (
-                          <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
-                        )}
-                        <ul className="mb-3 space-y-0.5 text-xs text-text-subtle">
-                          {resumoItens(order).map((line) => (
-                            <li key={line}>{line}</li>
-                          ))}
-                        </ul>
-                        <div className="mb-3 flex flex-col items-end leading-tight">
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">{PAY_LABEL[order.formaPagamento]}</span>
-                          <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                        <div className="mb-3 flex gap-3">
+                          {/* Esquerda: informações do pedido */}
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</div>
+                            {order.tipo === 'entrega' && order.enderecoBairro && (
+                              <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
+                            )}
+                            <ul className="space-y-0.5 text-xs text-text-subtle">
+                              {resumoItens(order).map((line) => (
+                                <li key={line}>{line}</li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Divisória interna */}
+                          <div className="w-px self-stretch bg-border" />
+
+                          {/* Direita: boxes de pagamento (espaço acima para tags futuras) */}
+                          <div className="flex w-[104px] flex-shrink-0 flex-col items-stretch gap-1.5">
+                            {/* slot para tags futuras (ex.: agendado, atrasado) */}
+                            <div className="rounded-menuzia border border-border px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
+                              {PAY_LABEL[order.formaPagamento]}
+                            </div>
+                            <div className="rounded-menuzia bg-price-bg px-2 py-1.5 text-center text-sm font-bold text-price-text">
+                              {brl(order.total)}
+                            </div>
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           <Button variant="secondary" className="flex-1" onClick={() => setDetail(order)}>
