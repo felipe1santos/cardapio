@@ -223,9 +223,9 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
         <div className="relative flex-1 overflow-hidden bg-page">
           <RotaMap apiKey={apiKey} stops={stops} onStopClick={toggleMarcado} className="absolute inset-0 h-full w-full" />
 
-          {/* Coluna esquerda: pedidos prontos (corpo translúcido, título preto) */}
-          <aside className="absolute bottom-3 left-3 top-3 flex w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/30 bg-white/10 shadow-2xl backdrop-blur-md">
-            <div className="bg-black px-3 py-2.5">
+          {/* Coluna esquerda: pedidos prontos (corpo quase transparente, título preto, cresce com o conteúdo) */}
+          <aside className="absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/15 bg-white/5 shadow-2xl backdrop-blur-sm">
+            <div className="flex-shrink-0 bg-black px-3 py-2.5">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white">Pedidos prontos</h3>
                 <div className="flex items-center gap-2">
@@ -272,7 +272,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                 </div>
               )}
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
+            <div className="min-h-0 space-y-2 overflow-y-auto p-2.5">
               {filtrados.length === 0 && (
                 <div className="m-1 rounded-menuzia bg-black/50 px-2 py-6 text-center text-xs text-white">
                   {ordenados.length === 0 ? 'Nenhum pedido pronto aguardando entrega.' : 'Nenhum pedido com esses filtros.'}
@@ -290,32 +290,32 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                     onDragEnd={onDragEnd}
                     onClick={() => toggleMarcado(p.id)}
                     className={[
-                      'cursor-pointer select-none rounded-menuzia border-l-4 p-2.5 shadow-sm transition-colors',
-                      ativo
-                        ? 'border-l-yellow-500 bg-yellow-300 text-black'
-                        : 'border-l-green-600 bg-green-100 hover:bg-green-200',
+                      'cursor-pointer select-none overflow-hidden rounded-menuzia border-l-4 shadow-md transition-all',
+                      ativo ? 'border-l-yellow-500 ring-2 ring-yellow-400' : 'border-l-green-600',
                     ].join(' ')}
                   >
-                    <div className="flex items-center justify-between gap-2">
+                    {/* Faixa preta do topo */}
+                    <div className="flex items-center justify-between gap-2 bg-black px-2.5 py-1.5">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className={ativo ? 'text-black/40' : 'text-green-700/50'}>⠿</span>
-                        <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
-                        <span className="truncate text-[13px] font-semibold">{p.clienteNome || 'Cliente'}</span>
+                        <span className="text-white/40">⠿</span>
+                        <span className="rounded-menuzia bg-status-pending px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
+                        <span className="truncate text-[13px] font-semibold text-white">{p.clienteNome || 'Cliente'}</span>
                       </div>
-                      <span className={`flex-shrink-0 text-[11px] font-semibold ${ativo ? 'text-black/70' : 'text-text-subtle'}`}>{tempoDesde(p.criadoEm)}</span>
+                      <span className="flex-shrink-0 text-[11px] font-semibold text-white/70">{tempoDesde(p.criadoEm)}</span>
                     </div>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      {p.enderecoBairro && (
-                        <span className="flex-shrink-0 rounded bg-[#DC0101] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{p.enderecoBairro}</span>
-                      )}
-                      {p.enderecoRua && (
-                        <span className={`truncate text-xs ${ativo ? 'text-black/80' : 'text-text-subtle'}`}>{p.enderecoRua}, {p.enderecoNumero}</span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <Badge tone={p.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[p.formaPagamento]}</Badge>
-                      {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
-                      <span className={`ml-auto text-[13px] font-bold ${ativo ? 'text-black' : 'text-price-text'}`}>{brl(p.total)}</span>
+                    {/* Corpo */}
+                    <div className={ativo ? 'bg-yellow-200 px-2.5 py-2' : 'bg-green-200 px-2.5 py-2'}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {p.enderecoRua && <span className="text-xs font-medium text-text-main">{p.enderecoRua}, {p.enderecoNumero}</span>}
+                        {p.enderecoBairro && (
+                          <span className="flex-shrink-0 rounded bg-green-700 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{p.enderecoBairro}</span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <Badge tone={p.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[p.formaPagamento]}</Badge>
+                        {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
+                        <span className="ml-auto text-[13px] font-extrabold text-green-700">{brl(p.total)}</span>
+                      </div>
                     </div>
                   </div>
                 )
@@ -323,13 +323,13 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
             </div>
           </aside>
 
-          {/* Coluna direita: entregadores (corpo translúcido, título preto) */}
-          <aside className="absolute bottom-3 right-3 top-3 flex w-[280px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/30 bg-white/10 shadow-2xl backdrop-blur-md">
-            <div className="flex items-center justify-between bg-black px-3 py-2.5">
+          {/* Coluna direita: entregadores (corpo quase transparente, título preto, cresce com o conteúdo) */}
+          <aside className="absolute right-3 top-3 flex max-h-[calc(100%-1.5rem)] w-[280px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/15 bg-white/5 shadow-2xl backdrop-blur-sm">
+            <div className="flex flex-shrink-0 items-center justify-between bg-black px-3 py-2.5">
               <h3 className="text-sm font-bold text-white">Entregadores</h3>
               <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white">{disponiveis.length} online</span>
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
+            <div className="min-h-0 space-y-2 overflow-y-auto p-2.5">
               {disponiveis.length === 0 && <div className="m-1 rounded-menuzia bg-black/50 px-2 py-6 text-center text-xs text-white">Nenhum entregador online no momento.</div>}
               {disponiveis.map((d) => {
                 const sel = d.id === motoboyId
