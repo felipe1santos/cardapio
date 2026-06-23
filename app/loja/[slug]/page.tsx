@@ -150,7 +150,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
       onClick={onClick}
       className={`group flex flex-col overflow-hidden rounded-md border border-border bg-white text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.98] ${className}`}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md">
+      <div className={`relative ${compact ? 'aspect-square' : 'aspect-[4/3]'} w-full overflow-hidden rounded-t-md`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
         {item.maisVendido && (
           <span className="absolute left-2.5 top-2.5 rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
@@ -158,7 +158,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
-        {item.descricao && !item.maisVendido && !compact && (
+        {item.descricao && !compact && (
           <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
         <div className="pt-1">
@@ -177,7 +177,7 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
     >
       <div className="min-w-0 flex-1">
         <div className="line-clamp-1 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
-        {item.descricao && !item.maisVendido && (
+        {item.descricao && (
           <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
         <div className="mt-1.5">
