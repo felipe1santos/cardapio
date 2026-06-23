@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Como configurar a impressora — Menuzia</title>
+<style>
+  :root {
+    --primary: #0688D4;
+    --ink: #1F2937;
+    --subtle: #6B7280;
+    --line: #E5E7EB;
+    --bg: #FFFFFF;
+    --green: #16A34A;
+    --green-bg: #DCFCE7;
+    --warn-bg: #FEF3C7;
+    --warn-line: #F59E0B;
+    --alert-bg: #E0F2FE;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: 'Inter', -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    color: var(--ink);
+    background: #EDEEF1;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .page {
+    max-width: 760px;
+    margin: 24px auto;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 40px 48px 56px;
+  }
+  .toolbar {
+    max-width: 760px;
+    margin: 16px auto 0;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 9px 16px;
+    border-radius: 3px;
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn:hover { background: #0570AE; }
+  header.guide {
+    border-bottom: 3px solid var(--primary);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  header.guide .brand {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--primary);
+  }
+  header.guide h1 { font-size: 26px; margin: 6px 0 4px; }
+  header.guide p { margin: 0; color: var(--subtle); }
+  h2 {
+    font-size: 18px; margin: 30px 0 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  h2 .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; margin-right: 8px;
+    background: var(--primary); color: #fff; border-radius: 50%;
+    font-size: 14px; font-weight: 700; vertical-align: middle;
+  }
+  h3 { font-size: 15px; margin: 20px 0 6px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 5px 0; }
+  code, kbd {
+    background: #F3F4F6; border: 1px solid var(--line); border-radius: 3px;
+    padding: 1px 5px; font-family: 'Courier New', monospace; font-size: 12.5px;
+  }
+  strong { font-weight: 700; }
+  .callout {
+    border-radius: 3px; padding: 12px 14px; margin: 14px 0;
+    font-size: 13.5px;
+  }
+  .callout.info { background: var(--alert-bg); border-left: 4px solid var(--primary); }
+  .callout.warn { background: var(--warn-bg); border-left: 4px solid var(--warn-line); }
+  .callout.ok   { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .callout p { margin: 4px 0; }
+  .section-tag {
+    display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: #fff; background: var(--ink);
+    padding: 4px 10px; border-radius: 3px; margin: 28px 0 4px;
+  }
+  hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+  .resumo { background: #F9FAFB; border: 1px solid var(--line); border-radius: 3px; padding: 16px 20px; }
+  .resumo ol { padding-left: 20px; }
+  footer.guide { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--subtle); font-size: 12px; text-align: center; }
+
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .page { border: none; border-radius: 0; margin: 0; max-width: none; padding: 0 12px; }
+    h2 { page-break-after: avoid; }
+    h3 { page-break-after: avoid; }
+    .callout, li { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">📄 Salvar como PDF / Imprimir</button>
+  </div>
+
+  <div class="page">
+    <header class="guide">
+      <div class="brand">Menuzia · Delivery</div>
+      <h1>Como configurar a impressora</h1>
+      <p>Guia simples para deixar os pedidos saindo direto na impressora da loja. Não precisa entender de informática — é só seguir na ordem.</p>
+    </header>
+
+    <h2>Antes de começar: entenda a ideia</h2>
+    <p>O painel do Menuzia funciona <strong>no navegador</strong>, e o navegador <strong>não consegue falar direto com a impressora</strong>. Por isso existem <strong>duas partes</strong> que você vai ligar uma na outra:</p>
+    <ol>
+      <li><strong>O painel</strong> (o site do Menuzia, em <code>Ajustes &gt; Impressão</code>) → onde você cadastra a impressora e gera uma <strong>senha de conexão</strong> (chamada de "token").</li>
+      <li><strong>O Assistente de Impressão</strong> → um <strong>programinha que fica no computador da loja</strong>, ligado na impressora. É ele que recebe o pedido do painel e manda imprimir.</li>
+    </ol>
+    <div class="callout info">
+      <p>Pense assim: o <strong>token</strong> é a "senha" que faz o programinha do computador reconhecer a sua loja. Sem o programa instalado e pareado, configurar só no painel <strong>não imprime nada</strong>.</p>
+    </div>
+    <p>Você só precisa fazer essa configuração <strong>uma vez</strong>. Depois disso, é só deixar o computador ligado com o programa aberto que os pedidos imprimem sozinhos.</p>
+
+    <h2>O que você precisa ter</h2>
+    <ul>
+      <li>O <strong>computador da loja</strong> com <strong>Windows</strong>.</li>
+      <li>A <strong>impressora já instalada nesse computador</strong> (aquela que aparece em <em>Configurações do Windows &gt; Bluetooth e dispositivos &gt; Impressoras e scanners</em>). Se ela imprime uma página de teste pelo Windows, está pronta.</li>
+      <li>Acesso ao <strong>painel do Menuzia</strong> (seu login de dono/gerente).</li>
+    </ul>
+
+    <span class="section-tag">Parte 1 — No painel do Menuzia</span>
+    <p style="color:var(--subtle);margin-top:6px">Pode ser feito em qualquer aparelho (celular, computador…).</p>
+
+    <h2><span class="step-num">1</span>Abra a tela de impressão</h2>
+    <p>No menu lateral, vá em <strong>Ajustes</strong> e clique na aba <strong>Impressão</strong>.</p>
+
+    <h2><span class="step-num">2</span>Gere a senha de conexão (token)</h2>
+    <p>Na primeira caixa ("Assistente de Impressão Menuzia"), procure a área de <strong>token de pareamento</strong> e clique em <strong>"Gerar token de pareamento"</strong>. Vai aparecer um código. Clique em <strong>"Copiar"</strong> (ou deixe essa tela aberta — você vai usar esse código daqui a pouco no computador).</p>
+    <div class="callout warn">
+      <p>⚠️ Se um dia você clicar em "Gerar novo token", o token antigo para de funcionar e você precisa colar o novo no Assistente de novo.</p>
+    </div>
+
+    <h2><span class="step-num">3</span>Ligue as opções de impressão</h2>
+    <p>Ainda nessa caixa, ligue (deixe azul) os botões:</p>
+    <ul>
+      <li><strong>Ativar uso do Assistente de Impressão</strong></li>
+      <li><strong>Impressão automática de pedidos</strong> — <em>este é o mais importante</em>: é o que faz o pedido imprimir sozinho assim que chega. Se ele estiver desligado, nada imprime automaticamente.</li>
+    </ul>
+
+    <h2><span class="step-num">4</span>Cadastre a impressora</h2>
+    <p>Mais abaixo, na caixa <strong>"Impressoras"</strong>, clique em <strong>"+ Nova impressora"</strong> e preencha:</p>
+    <ul>
+      <li><strong>Nome</strong>: um apelido qualquer pra você se achar (ex.: <code>Cozinha</code> ou <code>Balcão</code>).</li>
+      <li><strong>Largura</strong>: a largura do papel da sua impressora térmica. O padrão é <strong>80mm</strong> (algumas menores são 58mm). Na dúvida, deixe 80mm.</li>
+      <li><strong>Cópias</strong>: quantas vias imprimir de cada pedido (normalmente <strong>1</strong>).</li>
+    </ul>
+    <p>Clique em <strong>Salvar</strong>. Pronto, a Parte 1 está feita.</p>
+
+    <span class="section-tag">Parte 2 — No computador da loja</span>
+    <p style="color:var(--subtle);margin-top:6px">Faça esta parte <strong>no computador onde a impressora está conectada</strong>.</p>
+
+    <h2><span class="step-num">5</span>Baixe o Assistente de Impressão</h2>
+    <p>Na mesma tela <strong>Ajustes &gt; Impressão</strong>, clique no botão amarelo <strong>"⬇ Baixar Assistente de Impressão (Windows)"</strong>. Vai baixar um arquivo <strong>.zip</strong> (cerca de 105 MB). Espere terminar.</p>
+
+    <h2><span class="step-num">6</span>Extraia o arquivo</h2>
+    <ol>
+      <li>Abra a pasta <strong>Downloads</strong>.</li>
+      <li>Clique com o <strong>botão direito</strong> no arquivo que baixou (<code>AssistenteImpressaoMenuzia-win...zip</code>) e escolha <strong>"Extrair tudo..."</strong> → <strong>"Extrair"</strong>.</li>
+      <li>Vai aparecer uma <strong>pasta</strong> com o mesmo nome. Abra ela.</li>
+    </ol>
+    <div class="callout warn"><p>Importante: não dá pra rodar de dentro do .zip. Tem que <strong>extrair</strong> primeiro.</p></div>
+
+    <h2><span class="step-num">7</span>Abra o programa</h2>
+    <p>Dentro da pasta extraída, dê <strong>dois cliques</strong> no arquivo <strong><code>Assistente de Impressão Menuzia.exe</code></strong>.</p>
+    <div class="callout info">
+      <p>Se o Windows mostrar um aviso azul <strong>"O Windows protegeu o computador"</strong>, clique em <strong>"Mais informações"</strong> e depois em <strong>"Executar assim mesmo"</strong>. (É só porque o programa ainda não é assinado digitalmente — pode confiar.)</p>
+    </div>
+
+    <h2><span class="step-num">8</span>Preencha os dados de conexão</h2>
+    <p>Na janela do Assistente vão aparecer alguns campos. Preencha:</p>
+    <ul>
+      <li><strong>URL do seu Menuzia</strong>: o endereço do seu painel, começando com <code>https://</code> (o mesmo que aparece na barra do navegador quando você usa o Menuzia). Ex.: <code>https://app.suapizzaria.com</code></li>
+      <li><strong>Token de pareamento</strong>: <strong>cole aqui</strong> o código que você copiou no Passo 2.</li>
+    </ul>
+    <p>Clique em <strong>"Testar conexão"</strong>. Se aparecer mensagem de sucesso, está ligado na sua loja. ✅ (Se der erro, confira se a URL está certa e se o token é o mais recente — veja "Deu problema?" no fim.)</p>
+
+    <h2><span class="step-num">9</span>Escolha a impressora</h2>
+    <p>No campo <strong>"Impressora (instalada no Windows)"</strong>, abra a lista e selecione a impressora da loja (ex.: <strong>Cozinha</strong>). Se ela não aparecer, clique em <strong>"Atualizar lista"</strong>.</p>
+    <p>Em <strong>"Configuração de impressão (cadastrada no painel)"</strong>, escolha o nome que você cadastrou no Passo 4 (ex.: <code>Cozinha</code>).</p>
+
+    <h2><span class="step-num">10</span>Salve e teste</h2>
+    <ol>
+      <li>Clique em <strong>"Salvar"</strong>.</li>
+      <li>Clique em <strong>"Imprimir teste"</strong> — deve sair um papel de teste na impressora.</li>
+    </ol>
+    <div class="callout ok"><p>Se saiu o teste, <strong>está tudo pronto</strong>. 🎉</p></div>
+
+    <hr />
+
+    <h2>Deixando funcionando no dia a dia</h2>
+    <ul>
+      <li>Deixe o <strong>computador ligado</strong> e o <strong>Assistente de Impressão aberto</strong> durante o expediente. Pode minimizar a janela — ele continua trabalhando.</li>
+      <li>A partir de agora, <strong>todo pedido novo imprime sozinho</strong>.</li>
+      <li>Se desligar o computador, é só abrir o programa de novo quando ligar (os dados já ficam salvos — não precisa colar o token toda vez).</li>
+    </ul>
+
+    <h2>Deu problema? (soluções rápidas)</h2>
+    <p><strong>Não imprime nada quando chega pedido</strong></p>
+    <ul>
+      <li>O Assistente está <strong>aberto</strong> no computador? (Tem que estar.)</li>
+      <li>No painel, o botão <strong>"Impressão automática de pedidos"</strong> está <strong>ligado</strong>?</li>
+      <li>No Assistente, a impressora certa está selecionada e o <strong>"Imprimir teste"</strong> funciona?</li>
+    </ul>
+    <p><strong>"Testar conexão" dá erro</strong></p>
+    <ul>
+      <li>Confira a <strong>URL</strong> (tem que começar com <code>https://</code> e ser a mesma do navegador).</li>
+      <li>O <strong>token</strong> pode ter sido trocado. Volte no painel, gere um token novo, copie e cole de novo no Assistente.</li>
+    </ul>
+    <p><strong>A impressora não aparece na lista do Assistente</strong></p>
+    <ul>
+      <li>Confirme que ela está instalada no Windows (imprime página de teste pelo próprio Windows). Depois clique em <strong>"Atualizar lista"</strong> no Assistente.</li>
+    </ul>
+    <p><strong>Saiu o teste mas o papel vem cortado / fonte estranha</strong></p>
+    <ul>
+      <li>Ajuste a <strong>Largura</strong> (80mm ou 58mm) no cadastro da impressora no painel (Passo 4) e salve.</li>
+    </ul>
+    <p><strong>Aviso "O Windows protegeu o computador" ao abrir o .exe</strong></p>
+    <ul>
+      <li>Normal. Clique em <strong>"Mais informações" &gt; "Executar assim mesmo"</strong>.</li>
+    </ul>
+
+    <h2>Resumo de bolso</h2>
+    <div class="resumo">
+      <ol>
+        <li>Painel → <strong>Ajustes &gt; Impressão</strong> → <strong>Gerar token</strong> e <strong>copiar</strong>.</li>
+        <li>Ligar <strong>"Impressão automática de pedidos"</strong>.</li>
+        <li>Cadastrar a impressora (<strong>+ Nova impressora</strong>).</li>
+        <li><strong>Baixar</strong> o Assistente, <strong>extrair</strong> e <strong>abrir</strong> o <code>.exe</code>.</li>
+        <li>No Assistente: colar <strong>URL</strong> + <strong>token</strong> → <strong>Testar conexão</strong>.</li>
+        <li>Escolher a <strong>impressora</strong> → <strong>Salvar</strong> → <strong>Imprimir teste</strong>.</li>
+        <li>Deixar o computador ligado com o programa aberto. ✅</li>
+      </ol>
+    </div>
+
+    <footer class="guide">Menuzia — Plataforma de Cardápio Digital &amp; Gestão de Delivery</footer>
+  </div>
+</body>
+</html>

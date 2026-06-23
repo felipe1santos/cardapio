@@ -780,6 +780,24 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               Baixa um .zip (~105MB) — extraia a pasta e abra &ldquo;Assistente de Impressão Menuzia.exe&rdquo; de dentro
               dela. Ainda não tem instalador com assistente passo a passo, é só extrair e rodar.
             </p>
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-menuzia border border-alert-bg bg-alert-bg/60 p-3">
+              <span className="text-[12px] font-semibold text-alert-text">Primeira vez configurando? Siga o guia passo a passo:</span>
+              <a
+                href="/guia-impressora.pdf"
+                download
+                className="inline-flex items-center gap-1.5 rounded-menuzia bg-primary px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
+              >
+                📄 Baixar guia em PDF
+              </a>
+              <a
+                href="/guia-impressora.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:border-primary hover:text-primary"
+              >
+                Abrir guia online
+              </a>
+            </div>
             <div className="rounded-menuzia border border-border p-4">
               <ToggleRow label="Ativar uso do Assistente de Impressão" checked={config.ativarAssistente} onChange={(v) => patch({ ativarAssistente: v })} />
               <ToggleRow label="Impressão automática de pedidos" hint="Imprime sozinho assim que o pedido chega, sem precisar clicar em nada." checked={config.impressaoAutomatica} onChange={(v) => patch({ impressaoAutomatica: v })} />
