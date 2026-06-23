@@ -169,7 +169,7 @@ function ProductCard({ item, onClick, className = '' }: { item: ItemCardapio; on
   )
 }
 
-function ProductListRow({ item, onClick }: { item: ItemCardapio; onClick: () => void }) {
+function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCardapio; onClick: () => void; imagemGrande?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -185,7 +185,7 @@ function ProductListRow({ item, onClick }: { item: ItemCardapio; onClick: () => 
         </div>
       </div>
       <div className="relative flex-shrink-0">
-        <ProductThumb item={item} size={76} />
+        <ProductThumb item={item} size={imagemGrande ? 100 : 76} />
         {item.maisVendido && (
           <span className="absolute left-1 top-1 rounded bg-pink-100 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
         )}
@@ -194,12 +194,12 @@ function ProductListRow({ item, onClick }: { item: ItemCardapio; onClick: () => 
   )
 }
 
-function ItemsGrid({ items, layout, onSelect }: { items: ItemCardapio[]; layout: LayoutCardapio; onSelect: (item: ItemCardapio) => void }) {
+function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: ItemCardapio[]; layout: LayoutCardapio; onSelect: (item: ItemCardapio) => void; imagemGrande?: boolean }) {
   if (layout === 'lista') {
     return (
       <div className="overflow-hidden rounded border border-border bg-white">
         {items.map((item) => (
-          <ProductListRow key={item.id} item={item} onClick={() => onSelect(item)} />
+          <ProductListRow key={item.id} item={item} onClick={() => onSelect(item)} imagemGrande={imagemGrande} />
         ))}
       </div>
     )
@@ -1047,7 +1047,7 @@ export default function StorefrontPage() {
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
                   <span className="rounded bg-[#D1FAE5] px-2 py-0.5 text-[11px] font-bold text-[#1cce93]">{promoItems.length} itens</span>
                 </div>
-                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} />
+                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
               </div>
             )}
 
@@ -1059,7 +1059,7 @@ export default function StorefrontPage() {
               ).map((cat) => (
                 <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4 lg:px-8">
                   <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
-                  <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} />
+                  <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
                 </div>
               ))}
             {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (

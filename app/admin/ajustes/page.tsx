@@ -121,7 +121,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', logoUrl: '', bannerUrl: '', layoutCardapio: 'categoria' as LayoutCardapio })
+  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', logoUrl: '', bannerUrl: '', layoutCardapio: 'categoria' as LayoutCardapio, imagemGrande: false })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +135,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     buscarConfigLoja(supabase, restauranteId).then((c) => {
       if (!c) return
       setConfig(c)
-      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, logoUrl: c.logoUrl ?? '', bannerUrl: c.bannerUrl ?? '', layoutCardapio: c.layoutCardapio })
+      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, logoUrl: c.logoUrl ?? '', bannerUrl: c.bannerUrl ?? '', layoutCardapio: c.layoutCardapio, imagemGrande: c.imagemGrande })
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -194,6 +194,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         logoUrl: form.logoUrl.trim() || null,
         bannerUrl: form.bannerUrl.trim() || null,
         layoutCardapio: form.layoutCardapio,
+        imagemGrande: form.imagemGrande,
       })
       setConfig(updated)
       setSaved(true)
@@ -279,6 +280,17 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 <div className="mt-0.5 text-[11px] text-text-subtle">Itens em lista compacta</div>
               </button>
             </div>
+          </Field>
+          <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={form.imagemGrande}
+                onChange={(e) => setForm((f) => ({ ...f, imagemGrande: e.target.checked }))}
+                className="h-4 w-4 accent-primary"
+              />
+              <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
+            </label>
           </Field>
           {config && (
             <Field label="Slug (endereço público da loja)" hint="O slug é gerado automaticamente e não pode ser alterado por aqui.">
