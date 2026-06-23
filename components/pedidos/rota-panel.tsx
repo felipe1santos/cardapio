@@ -338,50 +338,28 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                     key={d.id}
                     onClick={() => setMotoboyId(sel ? null : d.id)}
                     className={[
-                      'cursor-pointer rounded-menuzia border-2 bg-white p-2.5 shadow-sm transition-colors',
+                      'flex cursor-pointer items-center gap-2 rounded-menuzia border-2 bg-white p-1.5 shadow-sm transition-colors',
                       sel ? 'border-primary ring-2 ring-primary/30' : 'border-primary/40 hover:border-primary',
                     ].join(' ')}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        {d.fotoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={d.fotoUrl} alt={d.nome} className="h-8 w-8 flex-shrink-0 rounded-menuzia border border-border object-cover" />
-                        ) : (
-                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-sm font-bold text-text-subtle">
-                            {d.nome.trim().charAt(0).toUpperCase() || '?'}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold text-text-main">{d.nome}</div>
-                          <div className="text-[11px] text-text-subtle">{d.emRota} em rota</div>
-                        </div>
-                      </div>
-                      <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${sel ? 'bg-primary' : 'bg-status-ready'}`} />
-                    </div>
-                    {/* Ações rápidas */}
-                    <div className="mt-2 flex items-center gap-1.5 border-t border-border pt-2" onClick={(e) => e.stopPropagation()}>
-                      {d.telefone ? (
-                        <a
-                          href={`tel:${d.telefone}`}
-                          title={`Ligar para ${d.telefone}`}
-                          className="flex flex-1 items-center justify-center rounded-menuzia bg-green-600 py-1.5 text-white transition-colors hover:bg-green-700"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                            <path d={ICON.phone} />
-                          </svg>
-                        </a>
-                      ) : (
-                        <span className="flex flex-1 items-center justify-center rounded-menuzia bg-green-600/40 py-1.5 text-white/70" title="Sem telefone">
-                          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                            <path d={ICON.phone} />
-                          </svg>
-                        </span>
-                      )}
+                    {/* moto + nome + nº de pedidos */}
+                    <span className="flex-shrink-0 text-lg leading-none">🛵</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text-main">{d.nome}</span>
+                    <span
+                      title={`${d.emRota} pedido(s) em rota`}
+                      className={[
+                        'flex h-7 min-w-[28px] flex-shrink-0 items-center justify-center rounded-menuzia px-1.5 text-base font-extrabold',
+                        d.emRota > 0 ? 'bg-yellow-300 text-black' : 'bg-green-500 text-white',
+                      ].join(' ')}
+                    >
+                      {d.emRota}
+                    </span>
+                    {/* localização + perfil */}
+                    <div className="flex flex-shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => setLocDriverId(d.id)}
                         title="Ver localização e rota em tempo real"
-                        className="flex flex-1 items-center justify-center rounded-menuzia bg-primary py-1.5 text-white transition-colors hover:bg-primary-dark"
+                        className="flex h-7 w-7 items-center justify-center rounded-menuzia bg-primary text-white transition-colors hover:bg-primary-dark"
                       >
                         <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                           <path d={ICON.pin} />
@@ -390,7 +368,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                       <button
                         onClick={() => setPerfilDriver(d)}
                         title="Perfil do entregador"
-                        className="flex flex-1 items-center justify-center rounded-menuzia bg-purple py-1.5 text-white transition-colors hover:bg-purple-600"
+                        className="flex h-7 w-7 items-center justify-center rounded-menuzia bg-purple text-white transition-colors hover:bg-purple-600"
                       >
                         <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                           <path d={ICON.user} />
