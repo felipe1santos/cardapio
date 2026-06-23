@@ -153,13 +153,17 @@ export function enderecoCompletoPedido(p: Pedido): string {
 
 // --- Painel (Kanban / Logística) — lê com a sessão do usuário (RLS por loja) ---
 
-/** Pedidos ativos do Kanban: recebido, preparando e os prontos de retirada. */
+/**
+ * Pedidos ativos do Kanban: recebido, preparando e todos os prontos.
+ * Pedidos de entrega prontos continuam visíveis aqui (etapa "Pronto p/ Despacho")
+ * mesmo já aparecendo na Logística — só saem do Kanban quando entram em rota.
+ */
 export async function listarPedidosKanban(supabase: SupabaseClient, restauranteId: string): Promise<Pedido[]> {
   const { data, error } = await supabase
     .from('pedidos')
     .select(PEDIDO_SELECT)
     .eq('restaurante_id', restauranteId)
-    .or('status.eq.recebido,status.eq.preparando,and(status.eq.pronto,tipo.eq.retirada)')
+    .or('status.eq.recebido,status.eq.preparando,status.eq.pronto')
     .order('criado_em', { ascending: true })
 
   if (error) throw error
