@@ -14,7 +14,6 @@ import {
   listarPedidosRotas,
   type Entregador,
   type Pedido,
-  type StatusPedido,
 } from '@/lib/queries/pedidos'
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
@@ -59,22 +58,17 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 const JANELA_HORAS = 12
 
-type FiltroStatus = 'todos' | 'pronto' | 'em_rota' | 'entregue' | 'cancelado'
+type StatusKey = 'pronto' | 'em_rota' | 'entregue' | 'cancelado'
 
-const FILTRO_TABS: { id: FiltroStatus; label: string }[] = [
-  { id: 'todos', label: 'Todos' },
-  { id: 'pronto', label: 'Aguardando' },
-  { id: 'em_rota', label: 'Em rota' },
-  { id: 'entregue', label: 'Entregues' },
-  { id: 'cancelado', label: 'Cancelados' },
+const STATUS_KEYS: StatusKey[] = ['pronto', 'em_rota', 'entregue', 'cancelado']
+
+/** Chavinhas (olho liga/desliga) que controlam quais pontos aparecem no mapa. */
+const MAPA_TABS: { id: StatusKey; label: string; dot: string }[] = [
+  { id: 'pronto', label: 'Aguardando', dot: '#0688D4' },
+  { id: 'em_rota', label: 'Em rota', dot: '#111827' },
+  { id: 'entregue', label: 'Entregues', dot: '#16A34A' },
+  { id: 'cancelado', label: 'Cancelados', dot: '#DC2626' },
 ]
-
-const STATUS_META: Record<Exclude<StatusPedido, 'recebido' | 'preparando'>, { label: string; badge: 'preparing' | 'ok' | 'danger' | 'pending'; borda: string }> = {
-  pronto: { label: 'Aguardando', badge: 'pending', borda: 'border-l-status-pending' },
-  em_rota: { label: 'Em rota', badge: 'preparing', borda: 'border-l-black' },
-  entregue: { label: 'Entregue', badge: 'ok', borda: 'border-l-green-600' },
-  cancelado: { label: 'Cancelado', badge: 'danger', borda: 'border-l-[#DC2626]' },
-}
 
 /** Cor do pino no mapa conforme o ciclo do pedido. */
 function corPino(p: Pedido, marcado: boolean): string {
@@ -105,7 +99,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
 
   const [filtroOpen, setFiltroOpen] = useState(false)
   const [filtros, setFiltros] = useState<{ busca: string; pgto: 'todos' | 'pix' | 'cartao' | 'dinheiro' }>({ busca: '', pgto: 'todos' })
-  const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('pronto')
+  const [mapaFiltros, setMapaFiltros] = useState<Set<StatusKey>>(new Set(STATUS_KEYS))
   const [motoboysVisiveis, setMotoboysVisiveis] = useState<Set<string>>(new Set())
 
   const [locDriverId, setLocDriverId] = useState<string | null>(null)
@@ -171,27 +165,34 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
     [filtros]
   )
 
-  // Pedidos visíveis no MAPA (todos os status do dia, conforme o filtro)
+  // Pedidos visíveis no MAPA: cada status entra só se a chavinha (olho) dele estiver ligada
   const visiveis = useMemo(
-    () => todos.filter((p) => (filtroStatus === 'todos' || p.status === filtroStatus) && passaFunnel(p)),
-    [todos, filtroStatus, passaFunnel]
+    () => todos.filter((p) => mapaFiltros.has(p.status as StatusKey) && passaFunnel(p)),
+    [todos, mapaFiltros, passaFunnel]
   )
-  const visiveisIds = useMemo(() => new Set(visiveis.map((p) => p.id)), [visiveis])
 
-  // Lista da esquerda: prontos na ordem do arraste, depois os demais por recência
-  const listaEsquerda = useMemo(() => {
-    const prontosVis = ordenados.filter((p) => visiveisIds.has(p.id))
-    const outros = visiveis
-      .filter((p) => p.status !== 'pronto')
-      .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
-    return [...prontosVis, ...outros]
-  }, [ordenados, visiveis, visiveisIds])
+  // Lista da esquerda: SOMENTE pedidos aguardando despacho (prontos sem entregador), na ordem do arraste
+  const listaEsquerda = useMemo(() => ordenados.filter((p) => passaFunnel(p)), [ordenados, passaFunnel])
 
   const contagem = useMemo(() => {
-    const c: Record<FiltroStatus, number> = { todos: todos.length, pronto: 0, em_rota: 0, entregue: 0, cancelado: 0 }
-    for (const p of todos) if (p.status in c) c[p.status as FiltroStatus]++
+    const c: Record<StatusKey, number> = { pronto: 0, em_rota: 0, entregue: 0, cancelado: 0 }
+    for (const p of todos) if (p.status in c) c[p.status as StatusKey]++
     return c
   }, [todos])
+
+  const todosLigados = mapaFiltros.size === STATUS_KEYS.length
+
+  function toggleMapaStatus(k: StatusKey) {
+    setMapaFiltros((prev) => {
+      const next = new Set(prev)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
+      return next
+    })
+  }
+  function toggleTodosMapa() {
+    setMapaFiltros(todosLigados ? new Set() : new Set(STATUS_KEYS))
+  }
 
   const filtrosAtivos = filtros.busca.trim() !== '' || filtros.pgto !== 'todos'
 
@@ -287,21 +288,40 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
               ×
             </button>
           </div>
-          {/* Barra de filtro por status */}
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {FILTRO_TABS.map((t) => {
-              const ativo = filtroStatus === t.id
+          {/* Chavinhas (olho liga/desliga) — controlam o que aparece no MAPA */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Mostrar no mapa</span>
+            <button
+              onClick={toggleTodosMapa}
+              title={todosLigados ? 'Esconder todos do mapa' : 'Mostrar todos no mapa'}
+              className={[
+                'inline-flex items-center gap-1.5 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                todosLigados ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
+              ].join(' ')}
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                <path d={todosLigados ? ICON.eye : ICON.eyeOff} />
+              </svg>
+              Todos
+            </button>
+            {MAPA_TABS.map((t) => {
+              const on = mapaFiltros.has(t.id)
               return (
                 <button
                   key={t.id}
-                  onClick={() => setFiltroStatus(t.id)}
+                  onClick={() => toggleMapaStatus(t.id)}
+                  title={on ? `Esconder "${t.label}" do mapa` : `Mostrar "${t.label}" no mapa`}
                   className={[
                     'inline-flex items-center gap-1.5 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                    ativo ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
+                    on ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
                   ].join(' ')}
                 >
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                    <path d={on ? ICON.eye : ICON.eyeOff} />
+                  </svg>
+                  <span className="inline-flex h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: on ? '#FFFFFF' : t.dot }} />
                   {t.label}
-                  <span className={`rounded-full px-1.5 text-[10px] ${ativo ? 'bg-white/25 text-white' : 'bg-page text-text-subtle'}`}>{contagem[t.id]}</span>
+                  <span className={`rounded-full px-1.5 text-[10px] ${on ? 'bg-white/25 text-white' : 'bg-page text-text-subtle'}`}>{contagem[t.id]}</span>
                 </button>
               )
             })}
@@ -318,7 +338,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
           <aside className="absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/15 bg-white/5 shadow-2xl backdrop-blur-sm">
             <div className="flex-shrink-0 bg-black px-3 py-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">Pedidos</h3>
+                <h3 className="text-sm font-bold text-white">Aguardando despacho</h3>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white">{listaEsquerda.length}</span>
                   <button
@@ -366,73 +386,45 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
             <div className="min-h-0 space-y-2 overflow-y-auto p-2.5">
               {listaEsquerda.length === 0 && (
                 <div className="m-1 rounded-menuzia bg-black/50 px-2 py-6 text-center text-xs text-white">
-                  {todos.length === 0 ? 'Nenhum pedido nas últimas ' + JANELA_HORAS + 'h.' : 'Nenhum pedido com esses filtros.'}
+                  {filtrosAtivos ? 'Nenhum pedido com esses filtros.' : 'Nenhum pedido aguardando despacho.'}
                 </div>
               )}
               {listaEsquerda.map((p) => {
-                // Pedido pronto = card interativo (marcável e arrastável)
-                if (p.status === 'pronto') {
-                  const ativo = marcados.has(p.id)
-                  const idx = ordenados.findIndex((o) => o.id === p.id)
-                  return (
-                    <div
-                      key={p.id}
-                      draggable
-                      onDragStart={() => onDragStart(idx)}
-                      onDragOver={(e) => onDragOver(e, idx)}
-                      onDragEnd={onDragEnd}
-                      onClick={() => toggleMarcado(p.id)}
-                      className={[
-                        'cursor-pointer select-none overflow-hidden rounded-menuzia border-l-4 shadow-md transition-all',
-                        ativo ? 'border-l-yellow-500 ring-2 ring-yellow-400' : 'border-l-green-600',
-                      ].join(' ')}
-                    >
-                      <div className="flex items-center justify-between gap-2 bg-black px-2.5 py-1.5">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <span className="text-white/40">⠿</span>
-                          <span className="rounded-menuzia bg-status-pending px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
-                          <span className="truncate text-[13px] font-semibold text-white">{p.clienteNome || 'Cliente'}</span>
-                        </div>
-                        <span className="flex-shrink-0 text-[11px] font-semibold text-white/70">{tempoDesde(p.criadoEm)}</span>
-                      </div>
-                      <div className={ativo ? 'bg-yellow-200 px-2.5 py-2' : 'bg-green-200 px-2.5 py-2'}>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {p.enderecoRua && <span className="text-xs font-medium text-text-main">{p.enderecoRua}, {p.enderecoNumero}</span>}
-                          {p.enderecoBairro && (
-                            <span className="flex-shrink-0 rounded bg-green-700 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{p.enderecoBairro}</span>
-                          )}
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <Badge tone={p.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[p.formaPagamento]}</Badge>
-                          {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
-                          <span className="ml-auto text-[13px] font-extrabold text-green-700">{brl(p.total)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                }
-                // Em rota / entregue / cancelado = card só de leitura
-                const meta = STATUS_META[p.status as 'em_rota' | 'entregue' | 'cancelado']
+                // Todos aqui são pedidos prontos aguardando despacho = card interativo (marcável e arrastável)
+                const ativo = marcados.has(p.id)
+                const idx = ordenados.findIndex((o) => o.id === p.id)
                 return (
-                  <div key={p.id} className={`overflow-hidden rounded-menuzia border-l-4 bg-white shadow-md ${meta.borda}`}>
+                  <div
+                    key={p.id}
+                    draggable
+                    onDragStart={() => onDragStart(idx)}
+                    onDragOver={(e) => onDragOver(e, idx)}
+                    onDragEnd={onDragEnd}
+                    onClick={() => toggleMarcado(p.id)}
+                    className={[
+                      'cursor-pointer select-none overflow-hidden rounded-menuzia border-l-4 shadow-md transition-all',
+                      ativo ? 'border-l-yellow-500 ring-2 ring-yellow-400' : 'border-l-green-600',
+                    ].join(' ')}
+                  >
                     <div className="flex items-center justify-between gap-2 bg-black px-2.5 py-1.5">
                       <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="text-white/40">⠿</span>
                         <span className="rounded-menuzia bg-status-pending px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
                         <span className="truncate text-[13px] font-semibold text-white">{p.clienteNome || 'Cliente'}</span>
                       </div>
                       <span className="flex-shrink-0 text-[11px] font-semibold text-white/70">{tempoDesde(p.criadoEm)}</span>
                     </div>
-                    <div className="px-2.5 py-2">
-                      <div className="mb-1.5 flex items-center gap-1.5">
-                        <Badge tone={meta.badge}>{meta.label}</Badge>
+                    <div className={ativo ? 'bg-yellow-200 px-2.5 py-2' : 'bg-green-200 px-2.5 py-2'}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {p.enderecoRua && <span className="text-xs font-medium text-text-main">{p.enderecoRua}, {p.enderecoNumero}</span>}
                         {p.enderecoBairro && (
                           <span className="flex-shrink-0 rounded bg-green-700 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{p.enderecoBairro}</span>
                         )}
                       </div>
-                      {p.enderecoRua && <div className="text-xs text-text-subtle">{p.enderecoRua}, {p.enderecoNumero}</div>}
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <Badge tone={p.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[p.formaPagamento]}</Badge>
-                        <span className="ml-auto text-[13px] font-bold text-text-main">{brl(p.total)}</span>
+                        {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
+                        <span className="ml-auto text-[13px] font-extrabold text-green-700">{brl(p.total)}</span>
                       </div>
                     </div>
                   </div>
