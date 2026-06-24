@@ -104,8 +104,11 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
     .eq('email', email)
     .maybeSingle()
   if (usuarioError) throw usuarioError
-  if (!usuario || usuario.restaurante_id) {
+  if (!usuario) {
     return { ok: false, error: 'E-mail não encontrado. Confirme o e-mail com o administrador da plataforma.' }
+  }
+  if (usuario.restaurante_id) {
+    return { ok: false, error: 'Este e-mail já tem cadastro concluído. Faça login.' }
   }
 
   const slug = await gerarSlugUnico(admin, input.nomeLoja)
