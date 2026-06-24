@@ -276,55 +276,58 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
       <div className="flex flex-1 flex-col overflow-hidden rounded-menuzia bg-white shadow-2xl">
         {/* Cabeçalho */}
         <div className="border-b border-border px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-shrink-0">
               <h2 className="text-[15px] font-bold">Despacho de rotas</h2>
               <p className="mt-0.5 text-xs text-text-subtle">Visão do dia (últimas {JANELA_HORAS}h) — marque os pedidos e atribua a um entregador.</p>
             </div>
-            <button
-              onClick={onClose}
-              className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border"
-            >
-              ×
-            </button>
-          </div>
-          {/* Chavinhas (olho liga/desliga) — controlam o que aparece no MAPA */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-            <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Mostrar no mapa</span>
-            <button
-              onClick={toggleTodosMapa}
-              title={todosLigados ? 'Esconder todos do mapa' : 'Mostrar todos no mapa'}
-              className={[
-                'inline-flex items-center gap-1.5 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                todosLigados ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
-              ].join(' ')}
-            >
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                <path d={todosLigados ? ICON.eye : ICON.eyeOff} />
-              </svg>
-              Todos
-            </button>
-            {MAPA_TABS.map((t) => {
-              const on = mapaFiltros.has(t.id)
-              return (
+            {/* Lado direito: chavinhas (olho) que mostram/escondem pontos no MAPA — não são colunas */}
+            <div className="flex items-start gap-2">
+              <div className="flex max-w-[680px] flex-wrap items-center justify-end gap-1.5">
+                <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Ver no mapa</span>
                 <button
-                  key={t.id}
-                  onClick={() => toggleMapaStatus(t.id)}
-                  title={on ? `Esconder "${t.label}" do mapa` : `Mostrar "${t.label}" no mapa`}
+                  onClick={toggleTodosMapa}
+                  title={todosLigados ? 'Esconder todos os pontos' : 'Mostrar todos os pontos'}
                   className={[
                     'inline-flex items-center gap-1.5 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                    on ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
+                    todosLigados ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
                   ].join(' ')}
                 >
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                    <path d={on ? ICON.eye : ICON.eyeOff} />
+                    <path d={todosLigados ? ICON.eye : ICON.eyeOff} />
                   </svg>
-                  <span className="inline-flex h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: on ? '#FFFFFF' : t.dot }} />
-                  {t.label}
-                  <span className={`rounded-full px-1.5 text-[10px] ${on ? 'bg-white/25 text-white' : 'bg-page text-text-subtle'}`}>{contagem[t.id]}</span>
+                  Todos
                 </button>
-              )
-            })}
+                {MAPA_TABS.map((t) => {
+                  const on = mapaFiltros.has(t.id)
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => toggleMapaStatus(t.id)}
+                      title={on ? `Esconder pontos "${t.label}" do mapa` : `Mostrar pontos "${t.label}" no mapa`}
+                      className={[
+                        'inline-flex items-center gap-1.5 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                        on ? 'border-text-main bg-white text-text-main' : 'border-border bg-page text-text-subtle/70 hover:border-text-main',
+                      ].join(' ')}
+                    >
+                      <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 fill-current ${on ? '' : 'opacity-50'}`}>
+                        <path d={on ? ICON.eye : ICON.eyeOff} />
+                      </svg>
+                      {/* bolinha sempre na cor do ponto no mapa (legenda) */}
+                      <span className={`inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full ${on ? '' : 'opacity-40'}`} style={{ backgroundColor: t.dot }} />
+                      {t.label}
+                      <span className="rounded-full bg-page px-1.5 text-[10px] text-text-subtle">{contagem[t.id]}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={onClose}
+                className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border"
+              >
+                ×
+              </button>
+            </div>
           </div>
         </div>
 
@@ -338,7 +341,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
           <aside className="absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/15 bg-white/5 shadow-2xl backdrop-blur-sm">
             <div className="flex-shrink-0 bg-black px-3 py-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">Aguardando despacho</h3>
+                <h3 className="text-sm font-bold text-white">Pedidos</h3>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white">{listaEsquerda.length}</span>
                   <button
