@@ -244,8 +244,10 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
       </button>
 
       {!resolvendo && points.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-page/70 text-center text-xs text-text-subtle">
-          Sem pedidos com endereço neste período.
+        <div className="absolute inset-0 flex items-center justify-center bg-page/70 px-6 text-center text-xs text-text-subtle">
+          {center?.trim()
+            ? 'Sem pedidos com endereço neste período.'
+            : 'Conclua o cadastro e informe o CEP da loja em Ajustes para visualizar os dados de pedidos por região.'}
         </div>
       )}
       {error && (
