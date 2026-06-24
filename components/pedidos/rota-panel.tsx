@@ -283,14 +283,14 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
             </div>
             {/* Lado direito: chavinhas (olho) que mostram/escondem pontos no MAPA — não são colunas */}
             <div className="flex items-start gap-2">
-              <div className="flex max-w-[680px] flex-wrap items-center justify-end gap-1.5">
-                <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Ver no mapa</span>
+              <div className="flex flex-nowrap items-center justify-end gap-1.5 overflow-x-auto">
+                <span className="mr-0.5 flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Ver no mapa</span>
                 <button
                   onClick={toggleTodosMapa}
                   title={todosLigados ? 'Esconder todos os pontos' : 'Mostrar todos os pontos'}
                   className={[
-                    'inline-flex items-center gap-1.5 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                    todosLigados ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
+                    'inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                    todosLigados ? 'border-text-main bg-text-main text-white' : 'border-border bg-white text-text-subtle hover:border-text-main',
                   ].join(' ')}
                 >
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
@@ -305,18 +305,19 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                       key={t.id}
                       onClick={() => toggleMapaStatus(t.id)}
                       title={on ? `Esconder pontos "${t.label}" do mapa` : `Mostrar pontos "${t.label}" no mapa`}
+                      style={on ? { backgroundColor: t.dot, borderColor: t.dot } : undefined}
                       className={[
-                        'inline-flex items-center gap-1.5 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                        on ? 'border-text-main bg-white text-text-main' : 'border-border bg-page text-text-subtle/70 hover:border-text-main',
+                        'inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                        on ? 'text-white' : 'border-border bg-white text-text-subtle hover:border-text-main',
                       ].join(' ')}
                     >
-                      <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 fill-current ${on ? '' : 'opacity-50'}`}>
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
                         <path d={on ? ICON.eye : ICON.eyeOff} />
                       </svg>
-                      {/* bolinha sempre na cor do ponto no mapa (legenda) */}
-                      <span className={`inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full ${on ? '' : 'opacity-40'}`} style={{ backgroundColor: t.dot }} />
+                      {/* desligado: bolinha na cor do ponto (legenda) */}
+                      {!on && <span className="inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: t.dot }} />}
                       {t.label}
-                      <span className="rounded-full bg-page px-1.5 text-[10px] text-text-subtle">{contagem[t.id]}</span>
+                      <span className={`rounded-full px-1.5 text-[10px] ${on ? 'bg-white/25 text-white' : 'bg-page text-text-subtle'}`}>{contagem[t.id]}</span>
                     </button>
                   )
                 })}
@@ -451,8 +452,8 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                     key={d.id}
                     onClick={() => setMotoboyId(sel ? null : d.id)}
                     className={[
-                      'flex cursor-pointer items-center gap-2 rounded-menuzia border-2 bg-white p-1.5 shadow-sm transition-colors',
-                      sel ? 'border-primary ring-2 ring-primary/30' : 'border-primary/40 hover:border-primary',
+                      'flex cursor-pointer items-center gap-2 rounded-menuzia border-2 p-1.5 shadow-sm transition-colors',
+                      sel ? 'border-yellow-500 bg-yellow-200 ring-2 ring-yellow-400' : 'border-primary/40 bg-white hover:border-primary',
                     ].join(' ')}
                   >
                     {/* moto + nome + nº de pedidos */}
