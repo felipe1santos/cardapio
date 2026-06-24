@@ -410,7 +410,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
                       ativo ? 'border-l-yellow-500 ring-2 ring-yellow-400' : 'border-l-green-600',
                     ].join(' ')}
                   >
-                    <div className="flex items-center justify-between gap-2 bg-black px-2.5 py-1.5">
+                    <div className="flex items-center justify-between gap-2 bg-[#003755] px-2.5 py-1.5">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <span className="text-white/40">⠿</span>
                         <span className="rounded-menuzia bg-status-pending px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
