@@ -487,6 +487,10 @@ export interface PedidoDashboard {
   status: StatusPedido
   formaPagamento: FormaPagamento
   criadoEm: string
+  enderecoRua: string
+  enderecoNumero: string
+  enderecoBairro: string
+  enderecoCep: string
   itens: { itemId: string | null; nome: string; quantidade: number; receita: number }[]
 }
 
@@ -498,7 +502,7 @@ export interface DadosDashboard {
 export async function carregarDashboard(supabase: SupabaseClient, restauranteId: string): Promise<DadosDashboard> {
   const { data: pedidos, error } = await supabase
     .from('pedidos')
-    .select('total, tipo, status, forma_pagamento, criado_em, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+    .select('total, tipo, status, forma_pagamento, criado_em, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
   if (error) throw error
@@ -519,6 +523,10 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     status: StatusPedido
     forma_pagamento: FormaPagamento
     criado_em: string
+    endereco_rua: string | null
+    endereco_numero: string | null
+    endereco_bairro: string | null
+    endereco_cep: string | null
     pedido_itens: { item_id: string | null; nome: string; quantidade: number; preco_unitario: number }[]
   }[]).map((p) => ({
     total: Number(p.total),
@@ -526,6 +534,10 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     status: p.status,
     formaPagamento: p.forma_pagamento,
     criadoEm: p.criado_em,
+    enderecoRua: p.endereco_rua ?? '',
+    enderecoNumero: p.endereco_numero ?? '',
+    enderecoBairro: p.endereco_bairro ?? '',
+    enderecoCep: p.endereco_cep ?? '',
     itens: (p.pedido_itens ?? []).map((i) => ({
       itemId: i.item_id,
       nome: i.nome,

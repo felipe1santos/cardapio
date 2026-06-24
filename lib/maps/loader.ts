@@ -11,7 +11,7 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
     ;(window as unknown as Record<string, () => void>)[callbackName] = () => resolve(window.google)
 
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=geometry&callback=${callbackName}`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=geometry,visualization&callback=${callbackName}`
     script.async = true
     script.onerror = () => reject(new Error('Não foi possível carregar o Google Maps.'))
     document.head.appendChild(script)

@@ -5,28 +5,41 @@ import { TopBar } from '@/components/layout/topbar'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { carregarDashboard, type DadosDashboard } from '@/lib/queries/pedidos'
+import { HeatmapCard } from '@/components/dashboard/heatmap-card'
 
-type Period = 'hoje' | 'semana' | 'mes' | 'ano' | 'tudo'
+type Period = 'hoje' | 'semana' | 'quinzena' | 'mes' | 'tri' | 'sem' | 'ano' | 'tudo'
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'hoje', label: 'Hoje' },
-  { id: 'semana', label: 'Semana' },
-  { id: 'mes', label: 'Mês' },
-  { id: 'ano', label: 'Ano' },
+  { id: 'semana', label: '7 dias' },
+  { id: 'quinzena', label: '15 dias' },
+  { id: 'mes', label: '30 dias' },
+  { id: 'tri', label: '3 meses' },
+  { id: 'sem', label: '6 meses' },
+  { id: 'ano', label: '1 ano' },
   { id: 'tudo', label: 'Tudo' },
 ]
+
+const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 const PAY_COLOR: Record<string, string> = { pix: '#0688D4', cartao: '#3B82F6', dinheiro: '#F97316' }
 
 const brl = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const brlCurto = (value: number) =>
+  value >= 1000 ? `R$ ${(value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k` : `R$ ${Math.round(value)}`
+const dataCurta = (ms: number) => new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 
+const DAY = 86400000
 function periodStart(period: Period, now: number): number {
   const d = new Date(now)
   if (period === 'hoje') return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  if (period === 'semana') return now - 7 * 86400000
-  if (period === 'mes') return now - 30 * 86400000
-  if (period === 'ano') return now - 365 * 86400000
+  if (period === 'semana') return now - 7 * DAY
+  if (period === 'quinzena') return now - 15 * DAY
+  if (period === 'mes') return now - 30 * DAY
+  if (period === 'tri') return now - 90 * DAY
+  if (period === 'sem') return now - 180 * DAY
+  if (period === 'ano') return now - 365 * DAY
   return 0
 }
 
@@ -127,11 +140,11 @@ export default function DashboardPage() {
     const count = pedidos.length
     const ticket = count ? total / count : 0
 
-    // série temporal (8 baldes entre o início efetivo e agora)
-    const inicioEfetivo = period === 'tudo' && pedidos.length
+    // série temporal (baldes entre o início efetivo e agora)
+    const inicioEfetivo = (period === 'tudo' || period === 'hoje') && pedidos.length
       ? Math.min(...pedidos.map((p) => new Date(p.criadoEm).getTime()))
       : start
-    const buckets = 8
+    const buckets = period === 'hoje' ? 8 : 12
     const span = Math.max(1, now - inicioEfetivo)
     const series = new Array(buckets).fill(0)
     for (const p of pedidos) {
@@ -139,6 +152,9 @@ export default function DashboardPage() {
       series[Math.max(0, idx)] += p.total
     }
     if (series.every((v) => v === 0)) series[buckets - 1] = 0
+    const seriesMax = Math.max(...series)
+    const seriesInicio = pedidos.length ? inicioEfetivo : now
+    const chartLabels = { inicio: dataCurta(seriesInicio), meio: dataCurta((seriesInicio + now) / 2), fim: dataCurta(now) }
 
     // pagamentos (share por receita)
     const payAgg: Record<string, number> = {}
@@ -179,7 +195,23 @@ export default function DashboardPage() {
     const entregues = pedidos.filter((p) => p.status === 'entregue').length
     const completionRate = count ? `${Math.round((entregues / count) * 100)}%` : '—'
 
-    return { total, count, ticket, series, payments, channels, topItems, categories, peakHour, completionRate }
+    // hotspots de entrega: ranking por bairro + pontos (endereço) para o mapa de calor
+    const bairroAgg: Record<string, number> = {}
+    const addrAgg: Record<string, number> = {}
+    for (const p of pedidos) {
+      const bairro = p.enderecoBairro.trim()
+      if (bairro) bairroAgg[bairro] = (bairroAgg[bairro] ?? 0) + 1
+      const addr = [p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`.trim(), p.enderecoBairro, p.enderecoCep].filter(Boolean).join(', ')
+      if (addr) addrAgg[addr] = (addrAgg[addr] ?? 0) + 1
+    }
+    const bairros = Object.entries(bairroAgg).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd).slice(0, 7)
+    const bairroMax = bairros[0]?.qtd ?? 1
+    const heatPoints = Object.entries(addrAgg)
+      .map(([address, weight]) => ({ address, weight }))
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 80)
+
+    return { total, count, ticket, series, seriesMax, chartLabels, payments, channels, topItems, categories, peakHour, completionRate, bairros, bairroMax, heatPoints }
   }, [dados, period])
 
   const { line, area } = useMemo(() => smoothLine(m.series, 600, 160, 16), [m.series])
@@ -203,12 +235,16 @@ export default function DashboardPage() {
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
-        <div className="inline-flex w-fit overflow-hidden rounded-menuzia border border-border bg-white">
+        {/* Filtro de período */}
+        <div className="flex w-full gap-1 overflow-x-auto rounded-menuzia border border-border bg-white p-1">
           {PERIODS.map((p) => (
             <button
               key={p.id}
               onClick={() => setPeriod(p.id)}
-              className={['px-4 py-2 text-[13px] font-semibold transition-colors', period === p.id ? 'bg-primary text-white' : 'text-text-subtle hover:bg-page'].join(' ')}
+              className={[
+                'flex-shrink-0 whitespace-nowrap rounded-menuzia px-3.5 py-1.5 text-[12px] font-semibold transition-colors',
+                period === p.id ? 'bg-primary text-white' : 'text-text-subtle hover:bg-page',
+              ].join(' ')}
             >
               {p.label}
             </button>
@@ -221,26 +257,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Hero faturamento */}
-        <div className="rounded-menuzia bg-gradient-to-br from-primary to-primary-dark p-6 text-white">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-white/80">Faturamento · {PERIODS.find((p) => p.id === period)?.label}</div>
-          <div className="mb-4 text-3xl font-bold">{brl(m.total)}</div>
-          <svg viewBox="0 0 600 160" className="h-32 w-full">
-            <defs>
-              <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="white" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="white" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d={area} fill="url(#areaFill)" />
-            <path d={line} fill="none" stroke="white" strokeWidth="2.5" />
-          </svg>
-        </div>
-
-        {/* Mini grid */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* KPIs */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Faturamento total</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Faturamento</div>
             <div className="mt-1.5 text-xl font-bold text-price-text">{brl(m.total)}</div>
           </div>
           <div className="rounded-menuzia border border-border bg-white p-4">
@@ -250,6 +270,76 @@ export default function DashboardPage() {
           <div className="rounded-menuzia border border-border bg-white p-4">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Ticket médio</div>
             <div className="mt-1.5 text-xl font-bold">{brl(m.ticket)}</div>
+          </div>
+          <div className="rounded-menuzia border border-border bg-white p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Taxa de conclusão</div>
+            <div className="mt-1.5 text-xl font-bold text-price-text">{m.completionRate}</div>
+          </div>
+        </div>
+
+        {/* Hero faturamento com eixos */}
+        <div className="rounded-menuzia bg-gradient-to-br from-primary to-primary-dark p-5 text-white sm:p-6">
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-white/80">Faturamento · {PERIODS.find((p) => p.id === period)?.label}</div>
+              <div className="mt-1 text-3xl font-bold">{brl(m.total)}</div>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Pico no período</div>
+              <div className="mt-0.5 text-base font-bold">{brlCurto(m.seriesMax)}</div>
+            </div>
+          </div>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-0 top-0 text-[10px] font-semibold text-white/60">{brlCurto(m.seriesMax)}</span>
+            <svg viewBox="0 0 600 160" className="h-36 w-full" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="white" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="white" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {[16, 64, 112].map((y) => (
+                <line key={y} x1="0" y1={y} x2="600" y2={y} stroke="white" strokeOpacity="0.12" strokeWidth="1" />
+              ))}
+              <path d={area} fill="url(#areaFill)" />
+              <path d={line} fill="none" stroke="white" strokeWidth="2.5" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="mt-2 flex justify-between text-[11px] font-medium text-white/70">
+            <span>{m.chartLabels.inicio}</span>
+            <span>{m.chartLabels.meio}</span>
+            <span>{m.chartLabels.fim}</span>
+          </div>
+        </div>
+
+        {/* Mapa de calor + bairros */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="rounded-menuzia border border-border bg-white p-4 lg:col-span-2">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Mapa de calor dos pedidos</h3>
+              <span className="text-[11px] text-text-subtle">Regiões com mais entregas</span>
+            </div>
+            <HeatmapCard apiKey={MAPS_KEY} points={m.heatPoints} className="h-[300px] w-full border border-border" />
+          </div>
+          <div className="rounded-menuzia border border-border bg-white p-4">
+            <h3 className="mb-4 text-sm font-semibold">Bairros que mais pedem</h3>
+            <div className="space-y-3">
+              {m.bairros.length === 0 && <div className="py-6 text-center text-xs text-text-subtle">Sem endereços ainda.</div>}
+              {m.bairros.map((b, index) => (
+                <div key={b.nome}>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="min-w-0 truncate font-medium text-text-main">
+                      <span className="mr-1.5 inline-block w-4 text-text-subtle">{index + 1}º</span>
+                      {b.nome}
+                    </span>
+                    <span className="flex-shrink-0 text-text-subtle">{b.qtd} pedido{b.qtd > 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-page">
+                    <div className="h-full rounded-full bg-status-pending" style={{ width: `${(b.qtd / m.bairroMax) * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -325,15 +415,9 @@ export default function DashboardPage() {
                 <span className="font-medium text-text-main">🏪 Retirada · {m.channels.pickup}%</span>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-menuzia border border-border bg-white p-4">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Horário de pico</div>
-                <div className="mt-1.5 text-base font-bold">{m.peakHour}</div>
-              </div>
-              <div className="rounded-menuzia border border-border bg-white p-4">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Taxa de conclusão</div>
-                <div className="mt-1.5 text-base font-bold text-price-text">{m.completionRate}</div>
-              </div>
+            <div className="rounded-menuzia border border-border bg-white p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Horário de pico</div>
+              <div className="mt-1.5 text-base font-bold">{m.peakHour}</div>
             </div>
           </div>
         </div>
