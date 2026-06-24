@@ -121,7 +121,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', logoUrl: '', bannerUrl: '', layoutCardapio: 'categoria' as LayoutCardapio, imagemGrande: false })
+  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', cep: '', logoUrl: '', bannerUrl: '', layoutCardapio: 'categoria' as LayoutCardapio, imagemGrande: false })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -135,12 +135,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     buscarConfigLoja(supabase, restauranteId).then((c) => {
       if (!c) return
       setConfig(c)
-      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, logoUrl: c.logoUrl ?? '', bannerUrl: c.bannerUrl ?? '', layoutCardapio: c.layoutCardapio, imagemGrande: c.imagemGrande })
+      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, cep: c.cep ?? '', logoUrl: c.logoUrl ?? '', bannerUrl: c.bannerUrl ?? '', layoutCardapio: c.layoutCardapio, imagemGrande: c.imagemGrande })
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
 
-  function set(key: 'nome' | 'telefone' | 'endereco' | 'logoUrl' | 'bannerUrl', value: string) {
+  function set(key: 'nome' | 'telefone' | 'endereco' | 'cep' | 'logoUrl' | 'bannerUrl', value: string) {
     setForm((f) => ({ ...f, [key]: value }))
     setSaved(false)
   }
@@ -191,6 +191,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         nome: form.nome.trim(),
         telefone: form.telefone.trim(),
         endereco: form.endereco.trim(),
+        cep: form.cep.trim(),
         logoUrl: form.logoUrl.trim() || null,
         bannerUrl: form.bannerUrl.trim() || null,
         layoutCardapio: form.layoutCardapio,
@@ -217,6 +218,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           </Field>
           <Field label="Endereço">
             <Input value={form.endereco} onChange={(e) => set('endereco', e.target.value)} placeholder="Rua, número, bairro, cidade" />
+          </Field>
+          <Field label="CEP" hint="Usado para centralizar o mapa de calor do Dashboard na região da sua loja e posicionar corretamente os bairros das entregas.">
+            <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" />
           </Field>
           <Field label="Logotipo" hint="Exibido como avatar da loja no painel e no cardápio do cliente. Deixe em branco para usar a inicial do nome.">
             <div className="flex items-center gap-3">

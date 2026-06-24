@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/topbar'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { carregarDashboard, type DadosDashboard } from '@/lib/queries/pedidos'
+import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { HeatmapCard } from '@/components/dashboard/heatmap-card'
 
 type Period = 'hoje' | 'semana' | 'quinzena' | 'mes' | 'tri' | 'sem' | 'ano' | 'tudo'
@@ -107,6 +108,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {} })
+  const [lojaLocal, setLojaLocal] = useState('')
 
   useEffect(() => {
     let active = true
@@ -119,7 +121,10 @@ export default function DashboardPage() {
         return
       }
       try {
-        setDados(await carregarDashboard(supabase, id))
+        const [dash, loja] = await Promise.all([carregarDashboard(supabase, id), buscarConfigLoja(supabase, id).catch(() => null)])
+        if (!active) return
+        setDados(dash)
+        if (loja) setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', '))
       } catch {
         setError('Não foi possível carregar o dashboard.')
       } finally {
@@ -195,21 +200,17 @@ export default function DashboardPage() {
     const entregues = pedidos.filter((p) => p.status === 'entregue').length
     const completionRate = count ? `${Math.round((entregues / count) * 100)}%` : '—'
 
-    // hotspots de entrega: ranking por bairro + pontos (endereço) para o mapa de calor
+    // hotspots de entrega: agregação por bairro (ranking + pontos de calor ponderados por nº de pedidos)
     const bairroAgg: Record<string, number> = {}
-    const addrAgg: Record<string, number> = {}
     for (const p of pedidos) {
       const bairro = p.enderecoBairro.trim()
       if (bairro) bairroAgg[bairro] = (bairroAgg[bairro] ?? 0) + 1
-      const addr = [p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`.trim(), p.enderecoBairro, p.enderecoCep].filter(Boolean).join(', ')
-      if (addr) addrAgg[addr] = (addrAgg[addr] ?? 0) + 1
     }
-    const bairros = Object.entries(bairroAgg).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd).slice(0, 7)
-    const bairroMax = bairros[0]?.qtd ?? 1
-    const heatPoints = Object.entries(addrAgg)
-      .map(([address, weight]) => ({ address, weight }))
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, 80)
+    const bairrosTodos = Object.entries(bairroAgg).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd)
+    const bairros = bairrosTodos.slice(0, 7)
+    const bairroMax = bairrosTodos[0]?.qtd ?? 1
+    // quanto mais pedidos no bairro, mais quente o ponto — endereço = só o bairro (o mapa centra/bias pela loja)
+    const heatPoints = bairrosTodos.map((b) => ({ bairro: b.nome, weight: b.qtd }))
 
     return { total, count, ticket, series, seriesMax, chartLabels, payments, channels, topItems, categories, peakHour, completionRate, bairros, bairroMax, heatPoints }
   }, [dados, period])
@@ -236,7 +237,7 @@ export default function DashboardPage() {
         )}
 
         {/* Filtro de período */}
-        <div className="flex w-full gap-1 overflow-x-auto rounded-menuzia border border-border bg-white p-1">
+        <div className="flex w-full flex-wrap gap-1 rounded-menuzia border border-border bg-white p-1">
           {PERIODS.map((p) => (
             <button
               key={p.id}
@@ -319,7 +320,7 @@ export default function DashboardPage() {
               <h3 className="text-sm font-semibold">Mapa de calor dos pedidos</h3>
               <span className="text-[11px] text-text-subtle">Regiões com mais entregas</span>
             </div>
-            <HeatmapCard apiKey={MAPS_KEY} points={m.heatPoints} className="h-[300px] w-full border border-border" />
+            <HeatmapCard apiKey={MAPS_KEY} center={lojaLocal} points={m.heatPoints} className="h-[300px] w-full border border-border" />
           </div>
           <div className="rounded-menuzia border border-border bg-white p-4">
             <h3 className="mb-4 text-sm font-semibold">Bairros que mais pedem</h3>

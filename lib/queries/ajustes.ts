@@ -9,6 +9,7 @@ export interface ConfigLoja {
   bannerUrl: string | null
   telefone: string
   endereco: string
+  cep: string
   taxaEntregaPadrao: number
   facebookPixelId: string | null
   googleTagId: string | null
@@ -25,6 +26,7 @@ interface ConfigRow {
   banner_url: string | null
   telefone: string
   endereco: string
+  cep: string | null
   taxa_entrega_padrao: number
   facebook_pixel_id: string | null
   google_tag_id: string | null
@@ -33,7 +35,7 @@ interface ConfigRow {
   imagem_grande: boolean
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -44,6 +46,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     bannerUrl: row.banner_url,
     telefone: row.telefone,
     endereco: row.endereco,
+    cep: row.cep ?? '',
     taxaEntregaPadrao: Number(row.taxa_entrega_padrao),
     facebookPixelId: row.facebook_pixel_id,
     googleTagId: row.google_tag_id,
@@ -65,6 +68,7 @@ export interface ConfigLojaPatch {
   bannerUrl?: string | null
   telefone?: string
   endereco?: string
+  cep?: string
   taxaEntregaPadrao?: number
   facebookPixelId?: string | null
   googleTagId?: string | null
@@ -80,6 +84,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.bannerUrl !== undefined) row.banner_url = patch.bannerUrl
   if (patch.telefone !== undefined) row.telefone = patch.telefone
   if (patch.endereco !== undefined) row.endereco = patch.endereco
+  if (patch.cep !== undefined) row.cep = patch.cep
   if (patch.taxaEntregaPadrao !== undefined) row.taxa_entrega_padrao = patch.taxaEntregaPadrao
   if (patch.facebookPixelId !== undefined) row.facebook_pixel_id = patch.facebookPixelId
   if (patch.googleTagId !== undefined) row.google_tag_id = patch.googleTagId

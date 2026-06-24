@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/maps/loader'
 
 export interface HeatPoint {
-  /** Endereço a geocodificar (rua, nº, bairro, cep). */
-  address: string
-  /** Peso do ponto = nº de pedidos naquele endereço. */
+  /** Bairro a geocodificar. */
+  bairro: string
+  /** Peso do ponto = nº de pedidos no bairro (quanto maior, mais quente). */
   weight: number
 }
 
 interface HeatmapCardProps {
   apiKey?: string
+  /** Endereço/CEP da loja — centraliza e enviesa a geocodificação dos bairros na região certa. */
+  center?: string
   points: HeatPoint[]
   className?: string
 }
@@ -30,28 +32,33 @@ const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dbeafe' }] },
 ]
 
-// Gradiente do mapa de calor na paleta Menuzia (azul → ciano → laranja → vermelho)
+// Mapa de calor em escala de vermelho: mais pedidos = mais quente/vermelho
 const HEAT_GRADIENT = [
-  'rgba(6, 136, 212, 0)',
-  'rgba(6, 136, 212, 0.5)',
-  'rgba(59, 130, 246, 0.7)',
-  'rgba(16, 185, 129, 0.8)',
-  'rgba(249, 115, 22, 0.9)',
-  'rgba(239, 68, 68, 1)',
+  'rgba(255, 235, 59, 0)',
+  'rgba(255, 193, 7, 0.55)',
+  'rgba(255, 152, 0, 0.7)',
+  'rgba(249, 115, 22, 0.82)',
+  'rgba(239, 68, 68, 0.92)',
+  'rgba(185, 28, 28, 1)',
 ]
 
-/** Mapa de calor (hotspots) dos endereços que mais pedem, geocodificados e ponderados por nº de pedidos. */
-export function HeatmapCard({ apiKey, points, className }: HeatmapCardProps) {
+const DEFAULT_CENTER = { lat: -14.235, lng: -51.925 } // Brasil (fallback)
+
+/** Mapa de calor (hotspots) dos bairros que mais pedem, centrado/enviesado na região da loja. */
+export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   // tipos de @types/google.maps p/ visualization variam por versão — usamos any no layer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heatRef = useRef<any>(null)
   const geocodeCache = useRef<Map<string, google.maps.LatLng>>(new Map())
+  const biasRef = useRef<google.maps.LatLngBounds | null>(null)
   const [ready, setReady] = useState(false)
+  const [centerResolved, setCenterResolved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resolvendo, setResolvendo] = useState(false)
 
+  // 1) Carrega o mapa
   useEffect(() => {
     if (!apiKey || !containerRef.current) return
     let cancelled = false
@@ -59,8 +66,8 @@ export function HeatmapCard({ apiKey, points, className }: HeatmapCardProps) {
       .then(() => {
         if (cancelled || !containerRef.current) return
         mapRef.current = new google.maps.Map(containerRef.current, {
-          center: { lat: -3.73, lng: -38.53 },
-          zoom: 12,
+          center: DEFAULT_CENTER,
+          zoom: 4,
           styles: LIGHT_MAP_STYLE,
           disableDefaultUI: true,
           zoomControl: true,
@@ -74,9 +81,41 @@ export function HeatmapCard({ apiKey, points, className }: HeatmapCardProps) {
     }
   }, [apiKey])
 
+  // 2) Centra na loja (geocode do CEP/endereço) e calcula a caixa de bias para os bairros
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map) return
+    let cancelled = false
+    const aplicarBias = (pos: google.maps.LatLng) => {
+      map.setCenter(pos)
+      map.setZoom(13)
+      const d = 0.12 // ~13km de raio para enviesar a busca dos bairros
+      biasRef.current = new google.maps.LatLngBounds(
+        new google.maps.LatLng(pos.lat() - d, pos.lng() - d),
+        new google.maps.LatLng(pos.lat() + d, pos.lng() + d)
+      )
+      if (!cancelled) setCenterResolved(true)
+    }
+    if (!center?.trim()) {
+      biasRef.current = null
+      setCenterResolved(true)
+      return
+    }
+    const geocoder = new google.maps.Geocoder()
+    geocoder.geocode({ address: center, region: 'BR' }, (results, status) => {
+      if (cancelled) return
+      if (status === google.maps.GeocoderStatus.OK && results?.[0]) aplicarBias(results[0].geometry.location)
+      else setCenterResolved(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [ready, center])
+
+  // 3) Geocodifica os bairros (enviesados pela loja) e desenha o mapa de calor
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !centerResolved || !map) return
     let cancelled = false
     const geocoder = new google.maps.Geocoder()
     const bounds = new google.maps.LatLngBounds()
@@ -97,12 +136,12 @@ export function HeatmapCard({ apiKey, points, className }: HeatmapCardProps) {
       heatRef.current = new HeatmapLayer({
         map,
         data,
-        radius: 38,
-        opacity: 0.8,
+        radius: 44,
+        opacity: 0.85,
         gradient: HEAT_GRADIENT,
         dissipating: true,
       })
-      if (!bounds.isEmpty()) map.fitBounds(bounds, 48)
+      if (!bounds.isEmpty()) map.fitBounds(bounds, 56)
     }
 
     const finalizar = () => {
@@ -113,19 +152,22 @@ export function HeatmapCard({ apiKey, points, className }: HeatmapCardProps) {
     }
 
     points.forEach((pt) => {
-      const cached = geocodeCache.current.get(pt.address)
+      const chave = `bairro:${pt.bairro.toLowerCase()}`
+      const cached = geocodeCache.current.get(chave)
       if (cached) {
         bounds.extend(cached)
         data.push({ location: cached, weight: pt.weight })
         return
       }
       pending++
-      geocoder.geocode({ address: pt.address, region: 'BR' }, (results, status) => {
+      const req: google.maps.GeocoderRequest = { address: pt.bairro, region: 'BR' }
+      if (biasRef.current) req.bounds = biasRef.current
+      geocoder.geocode(req, (results, status) => {
         if (cancelled) return
         resolved++
         if (status === google.maps.GeocoderStatus.OK && results?.[0]) {
           const pos = results[0].geometry.location
-          geocodeCache.current.set(pt.address, pos)
+          geocodeCache.current.set(chave, pos)
           bounds.extend(pos)
           data.push({ location: pos, weight: pt.weight })
         }
@@ -141,7 +183,7 @@ export function HeatmapCard({ apiKey, points, className }: HeatmapCardProps) {
     return () => {
       cancelled = true
     }
-  }, [ready, points])
+  }, [ready, centerResolved, points])
 
   if (!apiKey) {
     return (
