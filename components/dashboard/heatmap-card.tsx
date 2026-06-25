@@ -54,11 +54,29 @@ function heatColor(t: number): { r: number; g: number; b: number } {
   return { r: lerp(249, 220, k), g: lerp(115, 38, k), b: lerp(22, 38, k) }
 }
 
-/** Estilo de um hotspot: diâmetro, cor e opacidade crescem com o volume relativo (t = 0..1). */
-function hotspotStyle(t: number) {
-  const { r, g, b } = heatColor(t)
-  const diameter = Math.round(24 + Math.sqrt(t) * 74) // 24..98 px — poucos pedidos = bolinha menor
-  const coreA = 0.28 + t * 0.42 // 0.28..0.70 — translúcido p/ não tampar o mapa atrás
+// Nº de pedidos no endereço mais quente a partir do qual a escala alcança o vermelho pleno.
+// Abaixo disso a paleta fica travada em amarelo/laranja — vermelho só com concentração real.
+const PEDIDOS_PARA_VERMELHO = 14
+
+/**
+ * Estilo de um hotspot a partir do nº de pedidos no endereço (`weight`) e do máximo do
+ * período (`maxW`). Auto-ajusta com o filtro (dia/semana/mês…), pois `maxW` muda junto.
+ *
+ * Duas escalas independentes:
+ *  - TAMANHO + OPACIDADE: posição relativa no período (`rel`) — endereço mais pedido = maior
+ *    e mais sólido; pedido isolado = bolinha pequena e fraca.
+ *  - COR (amarelo→laranja→vermelho): `rel` limitado por uma trava absoluta (`reach`), de modo
+ *    que poucos pedidos no total permaneçam amarelos e o vermelho só surja quando algum
+ *    endereço acumula muitos pedidos.
+ */
+function hotspotStyle(weight: number, maxW: number) {
+  const rel = maxW <= 1 ? 0 : (weight - 1) / (maxW - 1) // 0 = menos pedido do período, 1 = o mais pedido
+  const reach = Math.min(1, Math.max(0, (maxW - 1) / (PEDIDOS_PARA_VERMELHO - 1))) // teto da paleta no período
+  const colorT = Math.pow(rel, 1.2) * reach // gamma 1.2 alarga a faixa amarela
+
+  const { r, g, b } = heatColor(colorT)
+  const diameter = Math.round(22 + Math.sqrt(rel) * 76) // 22..98 px
+  const coreA = 0.26 + rel * 0.44 // 0.26..0.70 — translúcido p/ não tampar o mapa atrás
   const midA = coreA * 0.45
   const background =
     `radial-gradient(circle, rgba(${r},${g},${b},${coreA.toFixed(3)}) 0%, ` +
@@ -106,9 +124,7 @@ function getHotspotOverlay() {
       container.style.pointerEvents = 'none'
 
       this.data.forEach((d, i) => {
-        // Volume relativo: 1 pedido = amarelo/pequeno; o endereço mais pedido = vermelho/grande.
-        const t = this.maxW <= 1 ? 0.12 : (d.weight - 1) / (this.maxW - 1)
-        const { diameter, background } = hotspotStyle(t)
+        const { diameter, background } = hotspotStyle(d.weight, this.maxW)
         const el = document.createElement('div')
         el.style.position = 'absolute'
         el.style.width = `${diameter}px`
