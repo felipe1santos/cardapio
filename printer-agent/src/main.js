@@ -11,6 +11,7 @@ const API_BASE_URL = 'https://app.menuzia.com.br'
 let mainWindow = null
 let pollTimer = null
 let polling = false
+let cicloRodando = false // trava de reentrância: impede dois ciclos imprimirem o mesmo pedido
 
 function log(mensagem) {
   if (mainWindow) mainWindow.webContents.send('log', { ts: new Date().toISOString(), mensagem })
@@ -40,15 +41,22 @@ function criarJanela() {
 async function cicloDePolling() {
   const config = carregarConfig()
   if (!config.token) return
+  // Se um ciclo anterior ainda está imprimindo (impressora lenta), não começa outro —
+  // senão dois ciclos veriam impresso=false e imprimiriam o mesmo pedido em duplicidade.
+  if (cicloRodando) return
+  cicloRodando = true
+
+  const auth = { Authorization: `Bearer ${config.token}` }
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos?token=${encodeURIComponent(config.token)}`)
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: auth })
     if (!res.ok) {
-      log(`Erro ao consultar pedidos (HTTP ${res.status}). Verifique o token e a URL do Menuzia.`)
+      log(`Erro ao consultar pedidos (HTTP ${res.status}). Verifique o token em Ajustes > Impressão.`)
       return
     }
     const data = await res.json()
     const { config: configImpressao, pedidos } = data
+    const lojaNome = data.loja?.nome ?? ''
 
     if (!configImpressao?.impressaoAutomatica) return
     if (!config.impressoraWindows) return
@@ -60,17 +68,18 @@ async function cicloDePolling() {
     const copias = impressoraCfg?.copias ?? 1
 
     for (const pedido of pedidos) {
-      const recibo = montarRecibo(pedido, configImpressao, largura)
+      const recibo = montarRecibo(pedido, configImpressao, largura, lojaNome)
       await imprimirTexto(config.impressoraWindows, recibo, copias)
       await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: config.token }),
+        headers: auth,
       })
       log(`Pedido #${pedido.numero} impresso.`)
     }
   } catch (err) {
     log(`Falha na consulta/impressão: ${descreverErro(err)}`)
+  } finally {
+    cicloRodando = false
   }
 }
 
@@ -122,7 +131,7 @@ function descreverErro(err) {
 ipcMain.handle('testar-pareamento', async (_e, { token }) => {
   if (!token) return { ok: false, erro: 'Cole o token de pareamento antes de testar.' }
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${token}` } })
     if (res.status === 401) return { ok: false, erro: 'Token inválido — copie de novo em Ajustes > Impressão no painel.' }
     if (!res.ok) return { ok: false, erro: `O servidor respondeu HTTP ${res.status}.` }
     return { ok: true }
@@ -133,7 +142,7 @@ ipcMain.handle('testar-pareamento', async (_e, { token }) => {
 
 ipcMain.handle('buscar-impressoras-cloud', async (_e, { token }) => {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) return { erro: `HTTP ${res.status}` }
     const data = await res.json()
     return data.impressoras ?? []

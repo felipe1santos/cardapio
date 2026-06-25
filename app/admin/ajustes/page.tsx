@@ -592,8 +592,8 @@ function ImpressoraModal({
               </Field>
             </div>
             <div className="w-28">
-              <Field label="Largura" hint="colunas">
-                <Input type="number" min={32} value={form.largura} onChange={(e) => setForm((p) => ({ ...p, largura: Number(e.target.value) || 0 }))} />
+              <Field label="Largura" hint="colunas — 48 p/ 80mm, 32 p/ 58mm">
+                <Input type="number" min={32} max={64} value={form.largura} onChange={(e) => setForm((p) => ({ ...p, largura: Number(e.target.value) || 0 }))} />
               </Field>
             </div>
           </div>
@@ -655,7 +655,7 @@ function gerarPreviewRecibo(config: ConfigImpressao, nomeLoja: string, logoUrl: 
   linhas.push(`TOTAL                 R$ ${(subtotal + PEDIDO_PREVIEW.taxaEntrega).toFixed(2).replace('.', ',')}`)
   linhas.push('--------------------------------')
   linhas.push(`Pagamento: ${PEDIDO_PREVIEW.pagamento.toUpperCase()}`)
-  if (config.imprimirQrcodeAvaliacao) linhas.push('', '[ QR CODE — avalie seu pedido ]')
+  if (config.imprimirQrcodeAvaliacao) linhas.push('', '[ QR CODE — avalie seu pedido ] (em breve)')
   return linhas
 }
 
@@ -665,7 +665,7 @@ function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao;
     <div className="sticky top-0">
       <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-        Prévia ilustrativa — atualiza ao vivo conforme você muda as configurações. O agente desktop usa essas mesmas regras de verdade.
+        Prévia ilustrativa — atualiza ao vivo conforme você muda as configurações. O agente desktop usa essas mesmas regras de verdade (QR code e comprovante de cancelamento ainda não saem na impressão em texto).
       </p>
       <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
         {config.imprimirLogo && logoUrl && (
@@ -677,7 +677,7 @@ function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao;
         </pre>
       </div>
       {config.imprimirComprovanteCancelamento && (
-        <p className="mt-2 text-[11px] text-text-subtle">+ pedidos cancelados também geram um comprovante extra (não mostrado aqui).</p>
+        <p className="mt-2 text-[11px] text-text-subtle">+ pedidos cancelados também geram um comprovante extra (em breve).</p>
       )}
     </div>
   )
@@ -775,7 +775,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.4/AssistenteImpressaoMenuzia-Setup-0.1.4.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.5/AssistenteImpressaoMenuzia-Setup-0.1.5.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)

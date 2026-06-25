@@ -11,9 +11,21 @@ function colunas(largura, esquerda, direita) {
   return esquerda + ' '.repeat(espaco) + direita
 }
 
+function centro(largura, texto) {
+  const t = texto.slice(0, largura)
+  const pad = Math.max(0, Math.floor((largura - t.length) / 2))
+  return ' '.repeat(pad) + t
+}
+
 /** Monta o recibo em texto simples, respeitando as configurações de impressão da loja. */
-function montarRecibo(pedido, config, largura) {
+function montarRecibo(pedido, config, largura, lojaNome = '') {
   const out = []
+  // Logo: a impressão é em texto puro (não imprime imagem), então usamos o nome da loja
+  // como cabeçalho — equivalente ao "[ LOGO ]" mostrado na prévia do painel.
+  if (config.imprimirLogo && lojaNome) {
+    out.push(centro(largura, lojaNome.toUpperCase()))
+    out.push('')
+  }
   out.push(colunas(largura, `PEDIDO #${pedido.numero}`, pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA'))
   out.push(linha(largura))
   if (pedido.clienteNome) out.push(`Cliente: ${pedido.clienteNome}`)
@@ -23,15 +35,19 @@ function montarRecibo(pedido, config, largura) {
   out.push(linha(largura))
 
   for (const item of pedido.itens) {
-    const nomeItem = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
+    const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
     const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
-    const nomeComVariacao = variacao ? `${nomeItem} (${variacao})` : nomeItem
+    let nomeComVariacao = variacao ? `${baseNome} (${variacao})` : baseNome
+    // Fonte maior na produção: realça o item em MAIÚSCULAS (equivalente textual do preview).
+    if (config.fonteMaiorProducao) nomeComVariacao = nomeComVariacao.toUpperCase()
     out.push(colunas(largura, nomeComVariacao, brl(item.precoUnitario * item.quantidade)))
     if (item.bordaNome) out.push(`   + Borda: ${item.bordaNome}`)
     if (item.massaNome) out.push(`   + Massa: ${item.massaNome}`)
     if (config.mostrarNomeComplementos) {
       for (const comp of item.complementos) {
-        const precoTxt = config.mostrarPrecoComplementos && comp.preco > 0 ? ` (+${brl(comp.preco)})` : ''
+        // Multiplicar opções pela quantidade do item, igual ao preview do painel.
+        const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
+        const precoTxt = config.mostrarPrecoComplementos && precoComp > 0 ? ` (+${brl(precoComp)})` : ''
         out.push(`   + ${comp.nome}${precoTxt}`)
       }
     }

@@ -278,7 +278,19 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
   }))
 }
 
-export async function marcarPedidoImpresso(admin: SupabaseClient, pedidoId: string) {
-  const { error } = await admin.from('pedidos').update({ impresso: true }).eq('id', pedidoId)
+/** Marca como impresso, escopado ao restaurante do token — impede um token marcar pedido de outra loja. */
+export async function marcarPedidoImpresso(admin: SupabaseClient, pedidoId: string, restauranteId: string) {
+  const { error } = await admin
+    .from('pedidos')
+    .update({ impresso: true })
+    .eq('id', pedidoId)
+    .eq('restaurante_id', restauranteId)
   if (error) throw error
+}
+
+/** Nome da loja, usado no cabeçalho do recibo quando o logo está ligado. */
+export async function buscarNomeRestaurante(admin: SupabaseClient, restauranteId: string): Promise<string> {
+  const { data, error } = await admin.from('restaurantes').select('nome').eq('id', restauranteId).maybeSingle()
+  if (error) throw error
+  return (data?.nome as string) ?? ''
 }
