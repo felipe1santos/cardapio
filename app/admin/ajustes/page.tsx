@@ -38,14 +38,17 @@ import {
   type Impressora,
   type ImpressoraInput,
 } from '@/lib/queries/impressao'
+import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao, removerEstacao, type Estacao } from '@/lib/queries/estacoes'
+import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 
-type Tab = 'loja' | 'entrega' | 'impressao' | 'integracoes' | 'conta' | 'aparencia'
+type Tab = 'loja' | 'entrega' | 'impressao' | 'integracoes' | 'conta' | 'aparencia' | 'cozinha'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
   { id: 'entrega', label: 'Entrega' },
   { id: 'aparencia', label: 'Aparência' },
   { id: 'impressao', label: 'Impressão' },
+  { id: 'cozinha', label: 'Cozinha' },
   { id: 'integracoes', label: 'Integrações' },
   { id: 'conta', label: 'Conta' },
 ]
@@ -1460,6 +1463,163 @@ function TabAparencia({ restauranteId, active }: { restauranteId: string; active
   )
 }
 
+// ─── Aba Cozinha (Estações) ───────────────────────────────────────────────────
+
+function TabEstacoes({ restauranteId, active }: { restauranteId: string; active: boolean }) {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [loaded, setLoaded] = useState(false)
+  const [estacoes, setEstacoes] = useState<Estacao[]>([])
+  const [novaEstacaoNome, setNovaEstacaoNome] = useState('')
+  const [novaEstacaoModo, setNovaEstacaoModo] = useState<ModoEstacao>('producao')
+  const [error, setError] = useState<string | null>(null)
+
+  const carregarEstacoes = useCallback(async (rid: string) => {
+    try {
+      setEstacoes(await listarEstacoes(supabase, rid))
+    } catch {
+      // silently ignore — polling may fail if offline
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    if (!active) return
+    if (!loaded) {
+      carregarEstacoes(restauranteId).then(() => setLoaded(true))
+    }
+    const t = setInterval(() => carregarEstacoes(restauranteId), 10000)
+    return () => clearInterval(t)
+  }, [active, loaded, restauranteId, carregarEstacoes])
+
+  async function handleCriarEstacao() {
+    if (!novaEstacaoNome.trim()) return
+    setError(null)
+    try {
+      await criarEstacao(supabase, restauranteId, novaEstacaoNome.trim(), novaEstacaoModo)
+      setNovaEstacaoNome('')
+      await carregarEstacoes(restauranteId)
+    } catch {
+      setError('Não foi possível criar a estação.')
+    }
+  }
+
+  async function handleToggleEstacao(e: Estacao) {
+    setError(null)
+    try {
+      await atualizarEstacao(supabase, e.id, { ativo: !e.ativo })
+      await carregarEstacoes(restauranteId)
+    } catch {
+      setError('Não foi possível atualizar a estação.')
+    }
+  }
+
+  async function handleRotacionar(e: Estacao) {
+    setError(null)
+    try {
+      await rotacionarTokenEstacao(supabase, e.id)
+      await carregarEstacoes(restauranteId)
+    } catch {
+      setError('Não foi possível rotacionar o token.')
+    }
+  }
+
+  async function handleRemoverEstacao(e: Estacao) {
+    if (!confirm(`Remover a estação "${e.nome}"? O link atual deixa de funcionar.`)) return
+    setError(null)
+    try {
+      await removerEstacao(supabase, e.id)
+      await carregarEstacoes(restauranteId)
+    } catch {
+      setError('Não foi possível remover a estação.')
+    }
+  }
+
+  return (
+    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
+      <div className="flex-1 overflow-y-auto px-5 py-6">
+        <div className="max-w-xl space-y-6">
+          <section className="rounded-menuzia border border-border bg-main p-4">
+            <h3 className="mb-1 text-sm font-semibold">Estações de cozinha</h3>
+            <p className="mb-4 text-[13px] text-text-subtle">
+              Crie um acesso por link para a cozinha usar no celular ou tablet. Cada estação vê só a sua etapa.
+            </p>
+
+            <div className="mb-4 flex flex-wrap items-end gap-2">
+              <input
+                value={novaEstacaoNome}
+                onChange={(e) => setNovaEstacaoNome(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCriarEstacao()}
+                placeholder="Nome (ex.: Chapa, Expedição)"
+                className="h-9 flex-1 rounded-menuzia border border-border bg-white px-3 text-sm outline-none focus:border-primary placeholder:text-text-subtle/60"
+              />
+              <select
+                value={novaEstacaoModo}
+                onChange={(e) => setNovaEstacaoModo(e.target.value as ModoEstacao)}
+                className="h-9 rounded-menuzia border border-border bg-white px-2 text-sm outline-none focus:border-primary"
+              >
+                {MODOS.map((m) => <option key={m} value={m}>{LABEL_MODO[m]}</option>)}
+              </select>
+              <button
+                onClick={handleCriarEstacao}
+                disabled={!novaEstacaoNome.trim()}
+                className="h-9 rounded-menuzia bg-primary px-4 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+              >
+                Criar estação
+              </button>
+            </div>
+
+            <ul className="space-y-2">
+              {estacoes.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-menuzia border border-border p-3">
+                  <span className={`h-2 w-2 flex-shrink-0 rounded-full ${e.online ? 'bg-status-ready' : 'bg-text-subtle'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {e.nome} <span className="text-text-subtle">· {LABEL_MODO[e.modo]}</span>
+                      {!e.ativo && <span className="ml-2 rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">Inativa</span>}
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (typeof window !== 'undefined') {
+                          navigator.clipboard.writeText(`${window.location.origin}/cozinha/${e.token}`)
+                        }
+                      }}
+                      className="truncate text-[12px] text-primary hover:underline"
+                    >
+                      {typeof window !== 'undefined' ? `${window.location.origin}/cozinha/${e.token}` : `/cozinha/${e.token}`} — copiar
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleToggleEstacao(e)}
+                    className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:text-text-main"
+                  >
+                    {e.ativo ? 'Desativar' : 'Ativar'}
+                  </button>
+                  <button
+                    onClick={() => handleRotacionar(e)}
+                    className="text-[11px] font-semibold uppercase tracking-wide text-warn hover:underline"
+                  >
+                    Novo link
+                  </button>
+                  <button
+                    onClick={() => handleRemoverEstacao(e)}
+                    className="text-[11px] font-semibold uppercase tracking-wide text-danger hover:underline"
+                  >
+                    Excluir
+                  </button>
+                </li>
+              ))}
+              {estacoes.length === 0 && (
+                <li className="py-4 text-center text-[13px] text-text-subtle">Nenhuma estação criada ainda.</li>
+              )}
+            </ul>
+
+            {error && <p className="mt-3 rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
+          </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function AjustesPage() {
@@ -1500,6 +1660,7 @@ export default function AjustesPage() {
           <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
           <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
           <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
+          <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
           <TabIntegracoes restauranteId={restauranteId} active={tab === 'integracoes'} />
           <TabConta active={tab === 'conta'} />
         </>
