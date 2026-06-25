@@ -2,17 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Check, ChefHat, PackageCheck } from 'lucide-react'
+import { ChefHat, Clock, PackageCheck } from 'lucide-react'
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
-import type { Pedido, FormaPagamento } from '@/lib/queries/pedidos'
+import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
 
-const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-
-const PAY_LABEL: Record<FormaPagamento, string> = {
-  pix: 'Pix',
-  cartao: 'Cartão',
-  dinheiro: 'Dinheiro',
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Audio beep (keep from original)
+// ─────────────────────────────────────────────────────────────────────────────
 
 function playBeep() {
   try {
@@ -33,38 +29,545 @@ function playBeep() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Timer helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function elapsedMs(criadoEm: string, now: number): number {
+  return now - new Date(criadoEm).getTime()
+}
+
+function formatElapsed(ms: number): string {
+  const totalSec = Math.floor(ms / 1000)
+  const totalMin = Math.floor(totalSec / 60)
+  if (totalMin >= 60) {
+    const h = Math.floor(totalMin / 60)
+    const m = totalMin % 60
+    return `${h}:${String(m).padStart(2, '0')}`
+  }
+  const m = totalMin
+  const s = totalSec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function timerColor(ms: number): string {
+  const min = ms / 60000
+  if (min <= 10) return 'text-status-ready'
+  if (min <= 20) return 'text-status-pending'
+  return 'text-danger'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface PortalCozinha {
   estacao: { nome: string; modo: ModoEstacao; restauranteNome: string }
   pedidos: Pedido[]
 }
 
-function acaoDoPedido(p: Pedido): { acao: 'aceitar' | 'pronto' | 'entregue'; label: string } | null {
-  if (p.status === 'recebido') return { acao: 'aceitar', label: 'Aceitar' }
-  if (p.status === 'preparando') return { acao: 'pronto', label: 'Pronto' }
-  if (p.status === 'pronto' && p.tipo === 'retirada') return { acao: 'entregue', label: 'Entregue' }
-  return null
+// ─────────────────────────────────────────────────────────────────────────────
+// ElapsedTimer — inline blinking clock + mm:ss counter
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ElapsedTimer({ criadoEm, now }: { criadoEm: string; now: number }) {
+  const ms = elapsedMs(criadoEm, now)
+  const color = timerColor(ms)
+  return (
+    <span className={`inline-flex items-center gap-1 font-mono text-[12px] font-bold ${color}`}>
+      <Clock className="h-3.5 w-3.5 animate-pulse" />
+      {formatElapsed(ms)}
+    </span>
+  )
 }
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  recebido: { label: 'Recebido', className: 'bg-status-pending/10 text-status-pending' },
-  preparando: { label: 'Preparando', className: 'bg-status-preparing/10 text-status-preparing' },
-  pronto: { label: 'Pronto', className: 'bg-status-ready/10 text-status-ready' },
+// ─────────────────────────────────────────────────────────────────────────────
+// NameOverlay — blocks interaction until cook enters their name
+// ─────────────────────────────────────────────────────────────────────────────
+
+function NameOverlay({ onSave }: { onSave: (name: string) => void }) {
+  const [input, setInput] = useState('')
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const trimmed = input.trim()
+    if (!trimmed) return
+    onSave(trimmed)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+      <div className="w-full max-w-sm rounded-menuzia border border-border bg-main p-6 shadow-xl">
+        <div className="mb-4 flex items-center gap-2.5">
+          <ChefHat className="h-5 w-5 text-primary" />
+          <h2 className="text-base font-extrabold text-text-main">Quem está na cozinha?</h2>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <input
+            autoFocus
+            type="text"
+            placeholder="Seu nome"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="mb-3 w-full rounded-menuzia border border-border bg-page px-3 py-2.5 text-[14px] text-text-main placeholder:text-text-subtle focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-40"
+          >
+            Entrar
+          </button>
+        </form>
+      </div>
+    </div>
+  )
 }
 
-const ACTION_BG: Record<string, string> = {
-  aceitar: 'bg-status-pending',
-  pronto: 'bg-status-preparing',
-  entregue: 'bg-status-ready',
+// ─────────────────────────────────────────────────────────────────────────────
+// PrepModal — full-screen on mobile, large centered modal on desktop
+// Only closes via Devolver or Concluir — no X / backdrop click
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PrepModalProps {
+  pedido: Pedido
+  cozinheiro: string
+  token: string
+  now: number
+  onClose: () => void
+  onRefetch: () => Promise<void>
 }
+
+function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepModalProps) {
+  const [busy, setBusy] = useState<'devolver' | 'concluir' | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  async function devolver() {
+    if (!confirm('Tem certeza que quer devolver este pedido?')) return
+    setBusy('devolver')
+    try {
+      const res = await fetch(`/api/cozinha/${token}/pedidos/${pedido.id}/acao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: 'devolver', cozinheiro }),
+      })
+      if (res.status === 409) {
+        setNotice('Este pedido já foi alterado — atualizando…')
+        await onRefetch()
+        onClose()
+        return
+      }
+      if (!res.ok) {
+        const j = await res.json()
+        setNotice(j.error ?? 'Falhou ao devolver')
+        return
+      }
+      await onRefetch()
+      onClose()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function concluir() {
+    setBusy('concluir')
+    try {
+      const res = await fetch(`/api/cozinha/${token}/pedidos/${pedido.id}/acao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: 'concluir', cozinheiro }),
+      })
+      if (res.status === 409) {
+        setNotice('Este pedido já foi alterado — atualizando…')
+        await onRefetch()
+        onClose()
+        return
+      }
+      if (!res.ok) {
+        const j = await res.json()
+        setNotice(j.error ?? 'Falhou ao concluir')
+        return
+      }
+      await onRefetch()
+      onClose()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    /* Full-screen overlay on mobile; dark backdrop on sm+ */
+    <div className="fixed inset-0 z-50 flex flex-col bg-main sm:items-center sm:justify-center sm:bg-black/60">
+      {/* Modal card — fills screen on mobile, max-w-2xl centered on desktop */}
+      <div className="flex h-full w-full flex-col overflow-hidden bg-main sm:h-auto sm:max-h-[90dvh] sm:w-full sm:max-w-2xl sm:rounded-menuzia sm:border sm:border-border sm:shadow-xl">
+
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-border bg-sidebar-bg px-4 py-3 text-white sm:rounded-t-menuzia">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-extrabold">#{pedido.numero}</span>
+              <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[13px] font-medium text-sidebar-text">{pedido.clienteNome}</p>
+          </div>
+          <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
+        </div>
+
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto bg-main p-4">
+          {/* API error / 409 notice */}
+          {notice && (
+            <div className="mb-3 rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">
+              {notice}
+            </div>
+          )}
+
+          {/* Order-level restriction — RED UPPERCASE BOLD in highlighted block */}
+          {pedido.observacao && (
+            <div className="mb-4 rounded-menuzia bg-danger-bg px-3.5 py-3">
+              <p className="text-[14px] font-bold uppercase text-danger">{pedido.observacao}</p>
+            </div>
+          )}
+
+          {/* Item list */}
+          <div className="space-y-3">
+            {pedido.itens.map((item: PedidoItem, idx: number) => (
+              <div key={idx} className="rounded-menuzia border border-border bg-page p-3">
+                {/* Quantity + name */}
+                <p className="text-[15px] font-extrabold text-text-main">
+                  {item.quantidade}× {item.nome}
+                </p>
+
+                {/* Variants (tamanho / sabor / borda / massa) */}
+                {(item.tamanhoNome || item.saborNome || item.bordaNome || item.massaNome) && (
+                  <p className="mt-1 text-[12px] text-text-subtle">
+                    {[item.tamanhoNome, item.saborNome, item.bordaNome, item.massaNome]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
+
+                {/* Complementos (adicionais) — ALWAYS GREEN */}
+                {item.complementos.length > 0 && (
+                  <div className="mt-2 space-y-0.5">
+                    {item.complementos.map((c, ci) => (
+                      <p key={ci} className="text-[13px] font-semibold text-status-ready">
+                        + {c.nome}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Item-level restriction — RED UPPERCASE BOLD */}
+                {item.observacao && (
+                  <p className="mt-2 text-[13px] font-bold uppercase text-danger">{item.observacao}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer — fixed at bottom, only these two buttons close the modal */}
+        <div className="flex gap-3 border-t border-border bg-main px-4 py-3 sm:rounded-b-menuzia">
+          <button
+            disabled={busy !== null}
+            onClick={devolver}
+            className="flex-1 rounded-menuzia border border-border bg-page py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-text-main transition-colors hover:bg-border disabled:opacity-50"
+          >
+            {busy === 'devolver' ? 'Devolvendo…' : 'Devolver'}
+          </button>
+          <button
+            disabled={busy !== null}
+            onClick={concluir}
+            className="flex-1 rounded-menuzia bg-status-ready py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
+          >
+            {busy === 'concluir' ? 'Concluindo…' : 'Concluir pedido'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DisponiveisCard — card for 'recebido' orders in the left column
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DisponiveisCardProps {
+  pedido: Pedido
+  now: number
+  onPegar: (p: Pedido) => void
+  busy: string | null
+}
+
+function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
+  const isBusy = busy === pedido.id
+  return (
+    <article className="flex flex-col rounded-menuzia border border-border bg-main shadow-sm">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+        <span className="text-base font-extrabold text-text-main">#{pedido.numero}</span>
+        <div className="flex items-center gap-2">
+          <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
+          <span className="rounded-menuzia bg-status-pending/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-pending">
+            Aguardando
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <p className="text-sm font-semibold text-text-main">{pedido.clienteNome}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+          {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
+        </p>
+
+        {/* Items summary */}
+        <ul className="space-y-0.5 text-[12px] text-text-subtle">
+          {pedido.itens.map((item, idx) => (
+            <li key={idx}>
+              {item.quantidade}× {item.nome}
+            </li>
+          ))}
+        </ul>
+
+        {/* Order-level restriction preview — RED UPPERCASE */}
+        {pedido.observacao && (
+          <p className="text-[11px] font-bold uppercase text-danger">{pedido.observacao}</p>
+        )}
+      </div>
+
+      <div className="border-t border-border p-3">
+        <button
+          disabled={isBusy}
+          onClick={() => onPegar(pedido)}
+          className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-preparing py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
+        >
+          <ChefHat className="h-4 w-4" />
+          {isBusy ? 'Pegando…' : 'Pegar para fazer'}
+        </button>
+      </div>
+    </article>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EmPreparoCard — card for 'preparando' orders; clicking reopens prep modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface EmPreparoCardProps {
+  pedido: Pedido
+  now: number
+  onOpen: (p: Pedido) => void
+}
+
+function EmPreparoCard({ pedido, now, onOpen }: EmPreparoCardProps) {
+  return (
+    <article
+      className="flex cursor-pointer flex-col rounded-menuzia border border-status-preparing/40 bg-main shadow-sm transition-shadow hover:shadow-md"
+      onClick={() => onOpen(pedido)}
+    >
+      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+        <span className="text-base font-extrabold text-text-main">#{pedido.numero}</span>
+        <div className="flex items-center gap-2">
+          <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
+          <span className="rounded-menuzia bg-status-preparing/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-preparing">
+            Preparando
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <p className="text-sm font-semibold text-text-main">{pedido.clienteNome}</p>
+        {pedido.preparandoPor && (
+          <p className="text-[11px] font-semibold text-text-subtle">
+            Em preparo por{' '}
+            <span className="text-primary">{pedido.preparandoPor}</span>
+          </p>
+        )}
+
+        {/* Items summary */}
+        <ul className="space-y-0.5 text-[12px] text-text-subtle">
+          {pedido.itens.map((item, idx) => (
+            <li key={idx}>
+              {item.quantidade}× {item.nome}
+            </li>
+          ))}
+        </ul>
+
+        {/* Order-level restriction preview — RED UPPERCASE */}
+        {pedido.observacao && (
+          <p className="text-[11px] font-bold uppercase text-danger">{pedido.observacao}</p>
+        )}
+      </div>
+
+      <div className="border-t border-border px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-primary">
+        Toque para abrir
+      </div>
+    </article>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ExpedicaoView — simple list of 'pronto' orders; Entregue for retirada,
+// "Na logística" label for entrega. Used by expedicao mode and completa mode.
+// Does NOT use cozinheiro / pegar / concluir.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ExpedicaoViewProps {
+  pedidos: Pedido[]
+  token: string
+  onRefetch: () => Promise<void>
+}
+
+function ExpedicaoView({ pedidos, token, onRefetch }: ExpedicaoViewProps) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const prontos = pedidos.filter((p) => p.status === 'pronto')
+
+  async function marcarEntregue(p: Pedido) {
+    setBusy(p.id)
+    setNotice(null)
+    try {
+      const res = await fetch(`/api/cozinha/${token}/pedidos/${p.id}/acao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao: 'entregue' }),
+      })
+      if (res.status === 409) {
+        setNotice('Pedido já foi alterado — atualizando…')
+        await onRefetch()
+        return
+      }
+      if (!res.ok) {
+        const j = await res.json()
+        setNotice(j.error ?? 'Falhou')
+        return
+      }
+      await onRefetch()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (prontos.length === 0) {
+    return (
+      <div className="py-10 text-center">
+        <PackageCheck className="mx-auto mb-3 h-8 w-8 text-text-subtle opacity-30" />
+        <p className="text-[13px] text-text-subtle">Nenhum pedido pronto para expedição.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {notice && (
+        <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">
+          {notice}
+        </div>
+      )}
+      {prontos.map((p) => (
+        <article key={p.id} className="flex flex-col rounded-menuzia border border-border bg-main shadow-sm">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+            <span className="text-base font-extrabold text-text-main">#{p.numero}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="rounded-menuzia bg-status-ready/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-ready">
+                Pronto
+              </span>
+              <span className="rounded-menuzia bg-page px-2 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
+                {p.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-1 flex-col gap-2 p-3">
+            <p className="text-sm font-semibold text-text-main">{p.clienteNome}</p>
+            <ul className="space-y-0.5 text-[12px] text-text-subtle">
+              {p.itens.map((item, idx) => (
+                <li key={idx}>
+                  {item.quantidade}× {item.nome}
+                </li>
+              ))}
+            </ul>
+            {p.observacao && (
+              <p className="text-[11px] font-bold uppercase text-danger">{p.observacao}</p>
+            )}
+          </div>
+
+          <div className="border-t border-border p-3">
+            {p.tipo === 'retirada' ? (
+              <button
+                disabled={busy === p.id}
+                onClick={() => marcarEntregue(p)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
+              >
+                <PackageCheck className="h-4 w-4" />
+                {busy === p.id ? 'Aguarde…' : 'Entregue'}
+              </button>
+            ) : (
+              <p className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                Na logística
+              </p>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main page
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function CozinhaPortalPage() {
   const { token } = useParams() as { token: string }
+
+  // Cook name (per-token key in localStorage)
+  const storageKey = `cozinha:nome:${token}`
+  const [cozinheiro, setCozinheiro] = useState<string | null>(null)
+  const [showNameOverlay, setShowNameOverlay] = useState(false)
+
+  // Portal data
   const [data, setData] = useState<PortalCozinha | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+
+  // Prep modal
+  const [modalPedido, setModalPedido] = useState<Pedido | null>(null)
+
+  // Single shared clock state — drives all ElapsedTimer instances at 1 Hz
+  const [now, setNow] = useState(() => Date.now())
+
+  // Tracks ids seen so far — used for new-order beep detection
   const idsAnteriores = useRef<Set<string>>(new Set())
 
+  // ── Initialize cook name from localStorage ──────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey)
+    if (saved) {
+      setCozinheiro(saved)
+    } else {
+      setShowNameOverlay(true)
+    }
+  }, [storageKey])
+
+  function saveName(name: string) {
+    localStorage.setItem(storageKey, name)
+    setCozinheiro(name)
+    setShowNameOverlay(false)
+  }
+
+  function trocarNome() {
+    localStorage.removeItem(storageKey)
+    setCozinheiro(null)
+    setShowNameOverlay(true)
+  }
+
+  // ── Data fetching ────────────────────────────────────────────────────────
   const refetch = useCallback(async () => {
     try {
       const res = await fetch(`/api/cozinha/${token}`)
@@ -74,7 +577,7 @@ export default function CozinhaPortalPage() {
         return
       }
 
-      // Detecta pedidos novos e toca alerta sonoro
+      // Beep when a new order appears in the feed
       const idsAgora = new Set<string>((json.pedidos as Pedido[]).map((p) => p.id))
       const temNovo = [...idsAgora].some((id) => !idsAnteriores.current.has(id))
       if (temNovo && idsAnteriores.current.size > 0) playBeep()
@@ -89,31 +592,62 @@ export default function CozinhaPortalPage() {
     }
   }, [token])
 
+  // 6-second polling
   useEffect(() => {
     refetch()
     const interval = setInterval(refetch, 6000)
     return () => clearInterval(interval)
   }, [refetch])
 
-  async function executar(p: Pedido, acao: string) {
+  // 1-second clock for all timers
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Sync modal pedido with latest data (keeps timer fresh; auto-closes if pedido vanishes)
+  useEffect(() => {
+    if (!data) return
+    setModalPedido((prev) => {
+      if (!prev) return null
+      const updated = data.pedidos.find((p) => p.id === prev.id)
+      return updated ?? null
+    })
+  }, [data])
+
+  // ── Pegar action (producao / completa) ───────────────────────────────────
+  async function pegarPedido(p: Pedido) {
+    if (!cozinheiro) {
+      setShowNameOverlay(true)
+      return
+    }
     setBusy(p.id)
+    setNotice(null)
     try {
       const res = await fetch(`/api/cozinha/${token}/pedidos/${p.id}/acao`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ acao }),
+        body: JSON.stringify({ acao: 'pegar', cozinheiro }),
       })
-      if (!res.ok) {
-        const j = await res.json()
-        setError(j.error ?? 'Falhou')
+      if (res.status === 409) {
+        setNotice('Este pedido já foi pego por outro cozinheiro.')
+        await refetch()
         return
       }
+      if (!res.ok) {
+        const j = await res.json()
+        setNotice(j.error ?? 'Falhou ao pegar o pedido')
+        return
+      }
+      // Open modal immediately; sync effect will update it once refetch settles
+      setModalPedido(p)
       await refetch()
     } finally {
       setBusy(null)
     }
   }
 
+  // ── Loading / error / empty guards ───────────────────────────────────────
   if (loading) {
     return (
       <div className="grid min-h-dvh place-items-center bg-page text-sm text-text-subtle">
@@ -136,9 +670,31 @@ export default function CozinhaPortalPage() {
 
   const isExpedicao = data.estacao.modo === 'expedicao'
 
+  // Split into columns for producao / completa
+  const disponiveis = data.pedidos
+    .filter((p) => p.status === 'recebido')
+    .sort((a, b) => new Date(a.criadoEm).getTime() - new Date(b.criadoEm).getTime())
+
+  const emPreparo = data.pedidos.filter((p) => p.status === 'preparando')
+
   return (
     <div className="min-h-dvh bg-page">
-      {/* Header */}
+      {/* Cook name overlay — blocks until name is set (producao/completa only) */}
+      {showNameOverlay && !isExpedicao && <NameOverlay onSave={saveName} />}
+
+      {/* Prep modal */}
+      {modalPedido && cozinheiro && (
+        <PrepModal
+          pedido={modalPedido}
+          cozinheiro={cozinheiro}
+          token={token}
+          now={now}
+          onClose={() => setModalPedido(null)}
+          onRefetch={refetch}
+        />
+      )}
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-10 flex items-center justify-between bg-sidebar-bg px-4 py-3 text-white shadow-sm">
         <div className="flex items-center gap-2.5">
           <ChefHat className="h-5 w-5 text-primary" />
@@ -149,125 +705,127 @@ export default function CozinhaPortalPage() {
             </p>
           </div>
         </div>
-        <span className="rounded-menuzia bg-white/10 px-2.5 py-1 text-[11px] font-semibold">
-          {data.pedidos.length} pedido{data.pedidos.length !== 1 ? 's' : ''}
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Cook name badge + swap button (producao/completa only) */}
+          {!isExpedicao && cozinheiro && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12px] font-semibold text-sidebar-text">{cozinheiro}</span>
+              <button
+                onClick={trocarNome}
+                className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sidebar-text hover:bg-white/20"
+              >
+                trocar
+              </button>
+            </div>
+          )}
+          <span className="rounded-menuzia bg-white/10 px-2.5 py-1 text-[11px] font-semibold">
+            {data.pedidos.length} pedido{data.pedidos.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </header>
 
-      {/* Order grid */}
-      <main className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">
-        {data.pedidos.map((p) => {
-          const acao = acaoDoPedido(p)
-          const statusBadge = STATUS_BADGE[p.status]
+      {/* Global 409 / pegar error notice */}
+      {notice && (
+        <div className="border-b border-danger bg-danger-bg px-4 py-2.5 text-[13px] font-medium text-danger">
+          {notice}
+        </div>
+      )}
 
-          return (
-            <article key={p.id} className="flex flex-col rounded-menuzia border border-border bg-main shadow-sm">
-              {/* Card header: order number + status + type */}
-              <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-                <span className="text-base font-extrabold text-text-main">#{p.numero}</span>
-                <div className="flex items-center gap-1.5">
-                  {statusBadge && (
-                    <span
-                      className={`rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusBadge.className}`}
-                    >
-                      {statusBadge.label}
-                    </span>
-                  )}
-                  <span className="rounded-menuzia bg-page px-2 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
-                    {p.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-1 flex-col gap-2 p-3">
-                {/* Client name */}
-                <p className="text-sm font-semibold text-text-main">{p.clienteNome}</p>
-
-                {/* Items list — complementos + observação per item */}
-                <ul className="space-y-2 text-[13px]">
-                  {p.itens.map((item, idx) => (
-                    <li key={idx}>
-                      <span className="font-medium text-text-main">
-                        {item.quantidade}× {item.nome}
-                        {item.tamanhoNome ? ` (${item.tamanhoNome})` : ''}
-                        {item.saborNome ? ` — ${item.saborNome}` : ''}
-                        {item.bordaNome ? ` · ${item.bordaNome}` : ''}
-                      </span>
-                      {item.complementos.length > 0 && (
-                        <div className="mt-0.5 text-[12px] text-primary">
-                          + {item.complementos.map((c) => c.nome).join(', ')}
-                        </div>
-                      )}
-                      {item.observacao && (
-                        <div className="mt-0.5 text-[12px] italic text-text-subtle">{item.observacao}</div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Order-level observation */}
-                {p.observacao && (
-                  <p className="rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[12px] text-warn">
-                    Obs: {p.observacao}
-                  </p>
-                )}
-
-                {/* Address + payment info — expedicao mode only */}
-                {isExpedicao && (
-                  <div className="mt-auto rounded-menuzia border border-border bg-page px-2.5 py-2 text-[12px]">
-                    {p.tipo === 'entrega' && (
-                      <p className="font-medium text-text-main">
-                        {[p.enderecoRua, p.enderecoNumero].filter(Boolean).join(', ')}
-                        {p.enderecoBairro ? ` — ${p.enderecoBairro}` : ''}
-                      </p>
-                    )}
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-alert-text">
-                        {PAY_LABEL[p.formaPagamento]}
-                      </span>
-                      {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && (
-                        <span className="rounded-menuzia bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-warn">
-                          Troco p/ {brl(p.trocoPara)}
-                        </span>
-                      )}
-                      <span className="ml-auto text-sm font-bold text-price-text">{brl(p.total)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Action button */}
-              <div className="border-t border-border p-3 pt-2">
-                {acao ? (
-                  <button
-                    disabled={busy === p.id}
-                    onClick={() => executar(p, acao.acao)}
-                    className={`flex w-full items-center justify-center gap-1.5 rounded-menuzia py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50 ${ACTION_BG[acao.acao]}`}
-                  >
-                    {acao.acao === 'entregue' ? (
-                      <PackageCheck className="h-4 w-4" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}
-                    {busy === p.id ? 'Aguarde…' : acao.label}
-                  </button>
-                ) : p.tipo === 'entrega' && p.status === 'pronto' ? (
-                  <p className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                    Na logística
-                  </p>
-                ) : null}
-              </div>
-            </article>
-          )
-        })}
-
-        {data.pedidos.length === 0 && (
-          <div className="col-span-full py-16 text-center">
-            <ChefHat className="mx-auto mb-3 h-10 w-10 text-text-subtle opacity-40" />
-            <p className="text-sm text-text-subtle">Nenhum pedido nesta etapa agora.</p>
+      {/* ── Expedicao mode: simple pronto list ─────────────────────────── */}
+      {isExpedicao && (
+        <main className="p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+              Prontos para expedição
+            </h2>
+            <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-bold text-white">
+              {data.pedidos.filter((p) => p.status === 'pronto').length}
+            </span>
           </div>
-        )}
-      </main>
+          <ExpedicaoView pedidos={data.pedidos} token={token} onRefetch={refetch} />
+        </main>
+      )}
+
+      {/* ── Producao / Completa mode: two-column layout ────────────────── */}
+      {!isExpedicao && (
+        <main className="p-3">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Left column: Disponíveis (status === 'recebido', oldest first) */}
+            <section>
+              <div className="mb-2 flex items-center gap-2">
+                <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                  Disponíveis
+                </h2>
+                <span className="rounded-full bg-status-pending px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {disponiveis.length}
+                </span>
+              </div>
+              {disponiveis.length === 0 ? (
+                <div className="rounded-menuzia border border-dashed border-border bg-main py-10 text-center">
+                  <ChefHat className="mx-auto mb-2 h-8 w-8 text-text-subtle opacity-30" />
+                  <p className="text-[13px] text-text-subtle">Nenhum pedido aguardando.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {disponiveis.map((p) => (
+                    <DisponiveisCard
+                      key={p.id}
+                      pedido={p}
+                      now={now}
+                      onPegar={pegarPedido}
+                      busy={busy}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Right column: Em preparo (status === 'preparando') */}
+            <section>
+              <div className="mb-2 flex items-center gap-2">
+                <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                  Em preparo
+                </h2>
+                <span className="rounded-full bg-status-preparing px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {emPreparo.length}
+                </span>
+              </div>
+              {emPreparo.length === 0 ? (
+                <div className="rounded-menuzia border border-dashed border-border bg-main py-10 text-center">
+                  <ChefHat className="mx-auto mb-2 h-8 w-8 text-text-subtle opacity-30" />
+                  <p className="text-[13px] text-text-subtle">Nenhum pedido em preparo.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {emPreparo.map((p) => (
+                    <EmPreparoCard
+                      key={p.id}
+                      pedido={p}
+                      now={now}
+                      onOpen={setModalPedido}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Pronto section — completa mode only (shows 'pronto' pedidos below the two columns) */}
+          {data.estacao.modo === 'completa' && (
+            <div className="mt-5">
+              <div className="mb-2 flex items-center gap-2">
+                <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                  Pronto p/ Despacho
+                </h2>
+                <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {data.pedidos.filter((p) => p.status === 'pronto').length}
+                </span>
+              </div>
+              <ExpedicaoView pedidos={data.pedidos} token={token} onRefetch={refetch} />
+            </div>
+          )}
+        </main>
+      )}
     </div>
   )
 }
