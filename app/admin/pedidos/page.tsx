@@ -548,6 +548,12 @@ export default function PedidosPage() {
                                 <li key={line}>{line}</li>
                               ))}
                             </ul>
+                            {order.status === 'preparando' && order.preparandoPor && (
+                              <div className="mt-1.5 text-[11px] text-text-subtle">Em preparo por: {order.preparandoPor}</div>
+                            )}
+                            {order.preparadoPor && (
+                              <div className="mt-1.5 text-[11px] text-text-subtle">Preparado por: {order.preparadoPor}</div>
+                            )}
                           </div>
 
                           {/* Divisória interna invisível (mantém o espaçamento) */}
@@ -731,6 +737,12 @@ export default function PedidosPage() {
                   <span className="text-text-subtle">Status</span>
                   <Badge tone={detail.pago ? 'ok' : 'pending'}>{detail.pago ? 'Pago' : 'A receber'}</Badge>
                 </div>
+                {detail.status === 'preparando' && detail.preparandoPor && (
+                  <div className="flex justify-between"><span className="text-text-subtle">Em preparo por</span><span className="font-medium">{detail.preparandoPor}</span></div>
+                )}
+                {detail.preparadoPor && (
+                  <div className="flex justify-between"><span className="text-text-subtle">Preparado por</span><span className="font-medium">{detail.preparadoPor}</span></div>
+                )}
               </div>
 
               {detail.tipo === 'entrega' && (
