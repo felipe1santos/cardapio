@@ -775,7 +775,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.6/AssistenteImpressaoMenuzia-Setup-0.1.6.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.7/AssistenteImpressaoMenuzia-Setup-0.1.7.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)

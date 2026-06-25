@@ -3,8 +3,17 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
-const LIST_SCRIPT = path.join(__dirname, 'list-printers.ps1')
-const PRINT_SCRIPT = path.join(__dirname, 'print.ps1')
+// Os .ps1 ficam empacotados, mas o PowerShell -File precisa de um arquivo real no
+// disco — e nada dentro do app.asar existe como arquivo de verdade. Por isso eles são
+// marcados em "asarUnpack" (package.json), o que os extrai pra app.asar.unpacked. O
+// __dirname ainda aponta pra dentro do .asar, então trocamos o segmento pelo caminho
+// desempacotado. Em dev (sem asar) o replace é no-op e usa o caminho normal.
+function scriptReal(nome) {
+  return path.join(__dirname, nome).replace(/app\.asar([\\/])/, 'app.asar.unpacked$1')
+}
+
+const LIST_SCRIPT = scriptReal('list-printers.ps1')
+const PRINT_SCRIPT = scriptReal('print.ps1')
 
 function runPowershell(args) {
   return new Promise((resolve, reject) => {
