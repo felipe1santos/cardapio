@@ -16,6 +16,7 @@ import {
   Clock,
   Truck,
   Banknote,
+  PrinterCheck,
 } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,7 @@ import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
+import { solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
   listarPedidosConcluidos,
@@ -236,6 +238,7 @@ export default function PedidosPage() {
   const [transit, setTransit] = useState<Pedido[]>([])
   const [concluded, setConcluded] = useState<Pedido[]>([])
   const [detail, setDetail] = useState<Pedido | null>(null)
+  const [reimpEstado, setReimpEstado] = useState<'idle' | 'enviando' | 'ok' | 'erro'>('idle')
   const [now, setNow] = useState(() => Date.now())
   const [showCol4, setShowCol4] = useState(false)
   const [pulsando, setPulsando] = useState<Set<string>>(new Set())
@@ -397,6 +400,19 @@ export default function PedidosPage() {
     } catch {
       setError('Não foi possível atualizar o pedido.')
       refetch(restauranteId)
+    }
+  }
+
+  // Zera o feedback de reimpressão ao abrir/trocar de pedido no drawer.
+  useEffect(() => setReimpEstado('idle'), [detail?.id])
+
+  async function reimprimir(p: Pedido) {
+    setReimpEstado('enviando')
+    try {
+      await solicitarReimpressao(supabase, p.id)
+      setReimpEstado('ok')
+    } catch {
+      setReimpEstado('erro')
     }
   }
 
@@ -726,6 +742,23 @@ export default function PedidosPage() {
                     <div className="text-text-subtle">{detail.enderecoBairro}{detail.enderecoCep && ` · ${detail.enderecoCep}`}</div>
                   </div>
                 </>
+              )}
+            </div>
+
+            <div className="border-t border-border p-4.5">
+              <button
+                onClick={() => reimprimir(detail)}
+                disabled={reimpEstado === 'enviando' || reimpEstado === 'ok'}
+                className="flex w-full items-center justify-center gap-2 rounded-menuzia bg-text-main px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-black disabled:opacity-60"
+              >
+                <PrinterCheck className="h-4 w-4" />
+                {reimpEstado === 'enviando' ? 'Enviando…' : reimpEstado === 'ok' ? 'Enviado p/ impressora' : 'Reimprimir pedido'}
+              </button>
+              {reimpEstado === 'ok' && (
+                <p className="mt-2 text-center text-[11px] text-text-subtle">Sai na próxima varredura do Assistente (impressão automática precisa estar ligada).</p>
+              )}
+              {reimpEstado === 'erro' && (
+                <p className="mt-2 text-center text-[11px] text-danger">Não foi possível solicitar a reimpressão. Tente de novo.</p>
               )}
             </div>
           </>

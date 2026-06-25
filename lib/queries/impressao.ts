@@ -244,8 +244,8 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
     .eq('restaurante_id', restauranteId)
-    .eq('status', 'recebido')
-    .eq('impresso', false)
+    // Pedidos novos não impressos, OU qualquer pedido com reimpressão pedida manualmente.
+    .or('and(status.eq.recebido,impresso.eq.false),reimprimir.eq.true')
     .order('criado_em', { ascending: true })
   if (error) throw error
 
@@ -282,9 +282,15 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
 export async function marcarPedidoImpresso(admin: SupabaseClient, pedidoId: string, restauranteId: string) {
   const { error } = await admin
     .from('pedidos')
-    .update({ impresso: true })
+    .update({ impresso: true, reimprimir: false })
     .eq('id', pedidoId)
     .eq('restaurante_id', restauranteId)
+  if (error) throw error
+}
+
+/** Marca um pedido para ser reimpresso pelo Assistente na próxima varredura (RLS escopa por loja). */
+export async function solicitarReimpressao(supabase: SupabaseClient, pedidoId: string) {
+  const { error } = await supabase.from('pedidos').update({ reimprimir: true }).eq('id', pedidoId)
   if (error) throw error
 }
 
