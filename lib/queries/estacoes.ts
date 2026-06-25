@@ -7,6 +7,8 @@ import type { ModoEstacao } from '@/lib/cozinha/modo'
 /** Estação online se enviou heartbeat nos últimos 30s. */
 const ESTACAO_ONLINE_MS = 30 * 1000
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export interface Estacao {
   id: string
   nome: string
@@ -75,6 +77,7 @@ export async function removerEstacao(supabase: SupabaseClient, id: string): Prom
 
 /** Localiza a estação ATIVA pelo token público. Null se não existe ou está desativada. */
 export async function buscarEstacaoPorToken(admin: SupabaseClient, token: string): Promise<EstacaoPortal | null> {
+  if (!UUID_RE.test(token)) return null
   const { data, error } = await admin
     .from('estacoes')
     .select('id, nome, modo, ativo, restaurante_id, restaurantes ( nome )')

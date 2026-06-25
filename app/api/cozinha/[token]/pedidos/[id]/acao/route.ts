@@ -3,9 +3,16 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarEstacaoPorToken } from '@/lib/queries/estacoes'
 import { podeExecutar, transicaoDe, type AcaoCozinha } from '@/lib/cozinha/modo'
-import { avancarStatusPedido, marcarPedidoEntregue } from '@/lib/queries/pedidos'
+import { avancarStatusPedido, marcarPedidoEntregue, type StatusPedido } from '@/lib/queries/pedidos'
+import { notificarPedido } from '@/lib/whatsapp'
 
 const ACOES_VALIDAS: AcaoCozinha[] = ['aceitar', 'pronto', 'entregue']
+
+const ORIGEM_ESPERADA: Record<AcaoCozinha, StatusPedido> = {
+  aceitar: 'recebido',
+  pronto: 'preparando',
+  entregue: 'pronto',
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string; id: string }> }) {
   const { token, id } = await params
@@ -35,9 +42,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: 'Pedido de entrega é despachado pela Logística' }, { status: 409 })
     }
 
+    // Guarda de status: evita regressão por cliques obsoletos/concorrentes.
+    if (pedido.status !== ORIGEM_ESPERADA[acao]) {
+      return NextResponse.json({ error: 'O pedido já mudou de etapa' }, { status: 409 })
+    }
+
     const { status, viaEntregue } = transicaoDe(acao)
     if (viaEntregue) await marcarPedidoEntregue(admin, id)
-    else await avancarStatusPedido(admin, id, status)
+    else {
+      await avancarStatusPedido(admin, id, status)
+      if (status === 'preparando' || status === 'pronto') notificarPedido(admin, id, status).catch(() => {})
+    }
 
     return NextResponse.json({ ok: true })
   } catch {
