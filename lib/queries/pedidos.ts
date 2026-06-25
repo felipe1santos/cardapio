@@ -170,6 +170,22 @@ export async function listarPedidosKanban(supabase: SupabaseClient, restauranteI
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
 }
 
+/** Pedidos de uma loja num conjunto de status — usado pelo portal da cozinha (admin client). */
+export async function listarPedidosPorStatus(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  status: StatusPedido[]
+): Promise<Pedido[]> {
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select(PEDIDO_SELECT)
+    .eq('restaurante_id', restauranteId)
+    .in('status', status)
+    .order('criado_em', { ascending: true })
+  if (error) throw error
+  return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+}
+
 /** Pedidos de entrega para a Logística: prontos aguardando despacho + em rota. */
 export async function listarPedidosLogistica(supabase: SupabaseClient, restauranteId: string): Promise<Pedido[]> {
   const { data, error } = await supabase
