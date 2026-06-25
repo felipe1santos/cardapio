@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import QRCode from 'qrcode'
+import { Copy, Check, QrCode } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -1465,6 +1467,12 @@ function TabAparencia({ restauranteId, active }: { restauranteId: string; active
 
 // ─── Aba Cozinha (Estações) ───────────────────────────────────────────────────
 
+const MODO_BADGE: Record<ModoEstacao, string> = {
+  producao:  'bg-status-pending/10 text-status-pending',
+  expedicao: 'bg-status-preparing/10 text-status-preparing',
+  completa:  'bg-status-ready/10 text-status-ready',
+}
+
 function TabEstacoes({ restauranteId, active }: { restauranteId: string; active: boolean }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
@@ -1472,6 +1480,10 @@ function TabEstacoes({ restauranteId, active }: { restauranteId: string; active:
   const [novaEstacaoNome, setNovaEstacaoNome] = useState('')
   const [novaEstacaoModo, setNovaEstacaoModo] = useState<ModoEstacao>('producao')
   const [error, setError] = useState<string | null>(null)
+  // Per-station UI state
+  const [copiadoId, setCopiadoId] = useState<string | null>(null)
+  const [qrData, setQrData] = useState<Record<string, string>>({})
+  const [qrOpen, setQrOpen] = useState<Record<string, boolean>>({})
 
   const carregarEstacoes = useCallback(async (rid: string) => {
     try {
@@ -1516,6 +1528,9 @@ function TabEstacoes({ restauranteId, active }: { restauranteId: string; active:
     setError(null)
     try {
       await rotacionarTokenEstacao(supabase, e.id)
+      // Clear cached QR for this station so it regenerates with the new token
+      setQrData((prev) => { const next = { ...prev }; delete next[e.id]; return next })
+      setQrOpen((prev) => ({ ...prev, [e.id]: false }))
       await carregarEstacoes(restauranteId)
     } catch {
       setError('Não foi possível rotacionar o token.')
@@ -1533,23 +1548,48 @@ function TabEstacoes({ restauranteId, active }: { restauranteId: string; active:
     }
   }
 
+  function handleCopiar(e: Estacao) {
+    if (typeof window === 'undefined') return
+    const url = `${window.location.origin}/cozinha/${e.token}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiadoId(e.id)
+      setTimeout(() => setCopiadoId((prev) => (prev === e.id ? null : prev)), 1500)
+    })
+  }
+
+  async function handleToggleQr(e: Estacao) {
+    const nowOpen = !qrOpen[e.id]
+    setQrOpen((prev) => ({ ...prev, [e.id]: nowOpen }))
+    if (nowOpen && !qrData[e.id]) {
+      try {
+        const url = typeof window !== 'undefined'
+          ? `${window.location.origin}/cozinha/${e.token}`
+          : `/cozinha/${e.token}`
+        const dataUrl = await QRCode.toDataURL(url, { width: 240, margin: 1 })
+        setQrData((prev) => ({ ...prev, [e.id]: dataUrl }))
+      } catch {
+        // silently ignore
+      }
+    }
+  }
+
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="max-w-xl space-y-6">
-          <section className="rounded-menuzia border border-border bg-main p-4">
-            <h3 className="mb-1 text-sm font-semibold">Estações de cozinha</h3>
-            <p className="mb-4 text-[13px] text-text-subtle">
+          {/* Create form */}
+          <Card>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Estações de cozinha</h3>
+            <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
               Crie um acesso por link para a cozinha usar no celular ou tablet. Cada estação vê só a sua etapa.
             </p>
-
-            <div className="mb-4 flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap items-end gap-2">
               <input
                 value={novaEstacaoNome}
                 onChange={(e) => setNovaEstacaoNome(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCriarEstacao()}
                 placeholder="Nome (ex.: Chapa, Expedição)"
-                className="h-9 flex-1 rounded-menuzia border border-border bg-white px-3 text-sm outline-none focus:border-primary placeholder:text-text-subtle/60"
+                className="h-9 min-w-0 flex-1 rounded-menuzia border border-border bg-white px-3 text-sm outline-none focus:border-primary placeholder:text-text-subtle/60"
               />
               <select
                 value={novaEstacaoModo}
@@ -1566,54 +1606,125 @@ function TabEstacoes({ restauranteId, active }: { restauranteId: string; active:
                 Criar estação
               </button>
             </div>
+          </Card>
 
-            <ul className="space-y-2">
-              {estacoes.map((e) => (
-                <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-menuzia border border-border p-3">
-                  <span className={`h-2 w-2 flex-shrink-0 rounded-full ${e.online ? 'bg-status-ready' : 'bg-text-subtle'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">
-                      {e.nome} <span className="text-text-subtle">· {LABEL_MODO[e.modo]}</span>
-                      {!e.ativo && <span className="ml-2 rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">Inativa</span>}
-                    </p>
+          {/* Station cards */}
+          <div className="space-y-3">
+            {estacoes.length === 0 && (
+              <div className="rounded-menuzia border border-dashed border-border bg-white px-4 py-6 text-center text-[13px] text-text-subtle">
+                Nenhuma estação criada ainda. Use o formulário acima para criar a primeira.
+              </div>
+            )}
+            {estacoes.map((e) => {
+              const url = typeof window !== 'undefined'
+                ? `${window.location.origin}/cozinha/${e.token}`
+                : `/cozinha/${e.token}`
+              const isCopied = copiadoId === e.id
+              const isQrOpen = !!qrOpen[e.id]
+              return (
+                <div
+                  key={e.id}
+                  className={['overflow-hidden rounded-menuzia border border-border bg-white', !e.ativo ? 'opacity-60' : ''].join(' ')}
+                >
+                  {/* Card header */}
+                  <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+                    <span
+                      title={e.online ? 'Online' : 'Offline'}
+                      className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${e.online ? 'bg-status-ready' : 'bg-text-subtle'}`}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-main">{e.nome}</span>
+                    <span className={`flex-shrink-0 rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${MODO_BADGE[e.modo]}`}>
+                      {LABEL_MODO[e.modo]}
+                    </span>
+                    {!e.ativo && (
+                      <span className="flex-shrink-0 rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
+                        Inativa
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Card body */}
+                  <div className="space-y-2.5 px-4 py-3">
+                    {/* Link row — min-w-0 + overflow-hidden prevent URL from expanding the card */}
+                    <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-menuzia border border-border bg-page px-3 py-1.5">
+                      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-subtle">{url}</span>
+                      <button
+                        onClick={() => handleCopiar(e)}
+                        title={isCopied ? 'Copiado!' : 'Copiar link'}
+                        className={[
+                          'flex flex-shrink-0 items-center gap-1 rounded-menuzia px-2 py-1 text-[11px] font-semibold transition-colors',
+                          isCopied ? 'text-status-ready' : 'text-primary hover:bg-primary/10',
+                        ].join(' ')}
+                      >
+                        {isCopied ? <Check size={13} /> : <Copy size={13} />}
+                        {isCopied ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+
+                    {/* QR code toggle */}
+                    <div>
+                      <button
+                        onClick={() => handleToggleQr(e)}
+                        className="flex items-center gap-1.5 text-[12px] font-semibold text-text-subtle transition-colors hover:text-text-main"
+                      >
+                        <QrCode size={14} />
+                        {isQrOpen ? 'Ocultar QR Code' : 'Ver QR Code'}
+                      </button>
+                      {isQrOpen && (
+                        <div className="mt-2.5">
+                          {qrData[e.id] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={qrData[e.id]}
+                              alt={`QR Code — ${e.nome}`}
+                              className="h-[120px] w-[120px] rounded-menuzia border border-border"
+                            />
+                          ) : (
+                            <div className="flex h-[120px] w-[120px] items-center justify-center rounded-menuzia border border-border bg-page text-[11px] text-text-subtle">
+                              Gerando…
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card footer */}
+                  <div className="flex items-center gap-3 border-t border-border px-4 py-2.5">
                     <button
-                      onClick={() => {
-                        if (typeof window !== 'undefined') {
-                          navigator.clipboard.writeText(`${window.location.origin}/cozinha/${e.token}`)
-                        }
-                      }}
-                      className="truncate text-[12px] text-primary hover:underline"
+                      onClick={() => handleToggleEstacao(e)}
+                      className={[
+                        'text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                        e.ativo ? 'text-text-subtle hover:text-text-main' : 'text-primary hover:underline',
+                      ].join(' ')}
                     >
-                      {typeof window !== 'undefined' ? `${window.location.origin}/cozinha/${e.token}` : `/cozinha/${e.token}`} — copiar
+                      {e.ativo ? 'Desativar' : 'Ativar'}
+                    </button>
+                    <span className="select-none text-border">·</span>
+                    <button
+                      onClick={() => handleRotacionar(e)}
+                      className="text-[11px] font-semibold uppercase tracking-wide text-warn transition-colors hover:underline"
+                    >
+                      Novo link
+                    </button>
+                    <span className="flex-1" />
+                    <button
+                      onClick={() => handleRemoverEstacao(e)}
+                      className="text-[11px] font-semibold uppercase tracking-wide text-danger transition-colors hover:underline"
+                    >
+                      Excluir
                     </button>
                   </div>
-                  <button
-                    onClick={() => handleToggleEstacao(e)}
-                    className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:text-text-main"
-                  >
-                    {e.ativo ? 'Desativar' : 'Ativar'}
-                  </button>
-                  <button
-                    onClick={() => handleRotacionar(e)}
-                    className="text-[11px] font-semibold uppercase tracking-wide text-warn hover:underline"
-                  >
-                    Novo link
-                  </button>
-                  <button
-                    onClick={() => handleRemoverEstacao(e)}
-                    className="text-[11px] font-semibold uppercase tracking-wide text-danger hover:underline"
-                  >
-                    Excluir
-                  </button>
-                </li>
-              ))}
-              {estacoes.length === 0 && (
-                <li className="py-4 text-center text-[13px] text-text-subtle">Nenhuma estação criada ainda.</li>
-              )}
-            </ul>
+                </div>
+              )
+            })}
+          </div>
 
-            {error && <p className="mt-3 rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-          </section>
+          {error && (
+            <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>
