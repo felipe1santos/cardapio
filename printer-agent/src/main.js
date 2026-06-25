@@ -6,7 +6,7 @@ const { montarRecibo } = require('./recibo')
 
 // URL fixa do Menuzia — a mesma para todas as lojas. A loja é identificada pelo token
 // de pareamento, não pela URL. Só mude isto se o domínio do sistema mudar.
-const API_BASE_URL = 'https://menuzia.com.br'
+const API_BASE_URL = 'https://app.menuzia.com.br'
 
 let mainWindow = null
 let pollTimer = null
