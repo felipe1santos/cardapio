@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
+import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -55,6 +56,27 @@ function tempoRelativo(iso: string) {
 function endereco(p: Pedido) {
   const partes = [p.enderecoBairro, p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`].filter(Boolean)
   return partes.join(' · ') || 'Entrega'
+}
+
+const STAT_TINT: Record<'slate' | 'orange' | 'blue' | 'primary', { box: string; value: string }> = {
+  slate: { box: 'bg-page text-text-subtle', value: '' },
+  orange: { box: 'bg-status-pending/10 text-status-pending', value: 'text-status-pending' },
+  blue: { box: 'bg-status-preparing/10 text-status-preparing', value: 'text-status-preparing' },
+  primary: { box: 'bg-primary/10 text-primary', value: '' },
+}
+
+/** Card de métrica da Logística — caixa de ícone colorida + valor, no mesmo padrão do Kanban. */
+function StatCard({ tint, value, label, icon }: { tint: keyof typeof STAT_TINT; value: React.ReactNode; label: string; icon: React.ReactNode }) {
+  const t = STAT_TINT[tint]
+  return (
+    <div className="flex items-center gap-3 rounded-menuzia border border-border bg-white p-4">
+      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-menuzia ${t.box}`}>{icon}</div>
+      <div>
+        <div className={`text-2xl font-bold leading-none ${t.value}`}>{value}</div>
+        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
+      </div>
+    </div>
+  )
 }
 
 export default function LogisticaPage() {
@@ -388,22 +410,10 @@ export default function LogisticaPage() {
         )}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Entregadores online</div>
-            <div className="mt-1.5 text-2xl font-bold">{available.length}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Aguardando despacho</div>
-            <div className="mt-1.5 text-2xl font-bold text-status-pending">{unassigned.length}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Em rota</div>
-            <div className="mt-1.5 text-2xl font-bold text-status-preparing">{inRoute.length}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Entregadores cadastrados</div>
-            <div className="mt-1.5 text-2xl font-bold">{drivers.length}</div>
-          </div>
+          <StatCard tint="primary" value={available.length} label="Entregadores online" icon={<Bike className="h-5 w-5" strokeWidth={2} />} />
+          <StatCard tint="orange" value={unassigned.length} label="Aguardando despacho" icon={<Package className="h-5 w-5" strokeWidth={2} />} />
+          <StatCard tint="blue" value={inRoute.length} label="Em rota" icon={<Truck className="h-5 w-5" strokeWidth={2} />} />
+          <StatCard tint="slate" value={drivers.length} label="Entregadores cadastrados" icon={<Users className="h-5 w-5" strokeWidth={2} />} />
         </div>
 
         <div className="flex flex-shrink-0 gap-0.5 border-b border-border">
@@ -430,8 +440,12 @@ export default function LogisticaPage() {
         <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[280px_1fr]">
           {/* Entregadores */}
           <aside className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
-            <div className="border-b border-border px-4 py-3">
-              <h3 className="text-sm font-semibold">Entregadores</h3>
+            <div className="flex items-center justify-between bg-text-main px-4 py-3 text-white">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" strokeWidth={2.5} />
+                <h3 className="text-sm font-bold">Entregadores</h3>
+              </div>
+              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{drivers.length}</span>
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-3">
               {drivers.length === 0 && (
@@ -448,15 +462,11 @@ export default function LogisticaPage() {
                           title={`Ligar para ${driver.telefone}`}
                           className="flex h-4 w-4 items-center justify-center text-text-subtle hover:text-primary"
                         >
-                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                            <path d="M6.62,10.79c1.44,2.83,3.76,5.14,6.59,6.59l2.2-2.2c0.27-0.27,0.67-0.36,1.02-0.24c1.12,0.37,2.33,0.57,3.57,0.57 c0.55,0,1,0.45,1,1V20c0,0.55-0.45,1-1,1C10.61,21,3,13.39,3,4c0-0.55,0.45-1,1-1h3.5c0.55,0,1,0.45,1,1 c0,1.25,0.2,2.45,0.57,3.57c0.11,0.35,0.03,0.74-0.25,1.02L6.62,10.79z" />
-                          </svg>
+                          <Phone className="h-3.5 w-3.5" strokeWidth={2.25} />
                         </a>
                       ) : (
                         <span title="Sem telefone cadastrado" className="flex h-4 w-4 items-center justify-center text-border">
-                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                            <path d="M6.62,10.79c1.44,2.83,3.76,5.14,6.59,6.59l2.2-2.2c0.27-0.27,0.67-0.36,1.02-0.24c1.12,0.37,2.33,0.57,3.57,0.57 c0.55,0,1,0.45,1,1V20c0,0.55-0.45,1-1,1C10.61,21,3,13.39,3,4c0-0.55,0.45-1,1-1h3.5c0.55,0,1,0.45,1,1 c0,1.25,0.2,2.45,0.57,3.57c0.11,0.35,0.03,0.74-0.25,1.02L6.62,10.79z" />
-                          </svg>
+                          <Phone className="h-3.5 w-3.5" strokeWidth={2.25} />
                         </span>
                       )}
                       <button
@@ -464,9 +474,7 @@ export default function LogisticaPage() {
                         title="Perfil do entregador"
                         className="flex h-4 w-4 items-center justify-center text-text-subtle hover:text-primary"
                       >
-                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                          <path d="M12,12c2.21,0,4-1.79,4-4c0-2.21-1.79-4-4-4S8,5.79,8,8C8,10.21,9.79,12,12,12z M12,14c-2.67,0-8,1.34-8,4v2h16v-2 C20,15.34,14.67,14,12,14z" />
-                        </svg>
+                        <User className="h-3.5 w-3.5" strokeWidth={2.25} />
                       </button>
                       <button
                         onClick={() => setLocationDriverId(driver.id)}
@@ -481,9 +489,7 @@ export default function LogisticaPage() {
                           driver.online ? 'text-danger' : driver.localizacao ? 'text-warn' : 'text-border'
                         }`}
                       >
-                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                        </svg>
+                        <MapPin className="h-3.5 w-3.5" strokeWidth={2.25} />
                       </button>
                       <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[driver.status]}`} title={STATUS_LABEL[driver.status]} />
                     </div>
@@ -542,15 +548,15 @@ export default function LogisticaPage() {
               )}
               {!addDriverOpen && (
                 <Button variant="primary" className="w-full" onClick={() => setAddDriverOpen(true)}>
-                  + Entregador
+                  <Plus className="h-4 w-4" /> Entregador
                 </Button>
               )}
               <Button
                 variant="outline"
-                className="w-full !border-yellow-300 !bg-yellow-300 !text-black hover:!bg-yellow-400"
+                className="w-full !border-yellow-400 !bg-yellow-300 !text-black hover:!bg-yellow-400"
                 onClick={openClosing}
               >
-                Fechamento de caixa
+                <Wallet className="h-4 w-4" /> Fechamento de caixa
               </Button>
             </div>
           </aside>
@@ -559,19 +565,20 @@ export default function LogisticaPage() {
           <section className="flex flex-col gap-4 overflow-y-auto">
             {tab === 'despacho' && (
             <>
-            <div className="rounded-menuzia border border-border bg-white">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="overflow-hidden rounded-menuzia border border-border bg-white">
+              <div className="flex items-center justify-between bg-status-pending px-4 py-3 text-white">
                 <div className="flex items-center gap-2">
                   {unassigned.length > 0 && (
                     <input
                       type="checkbox"
                       checked={unassigned.every((o) => selected.has(o.id))}
                       onChange={(e) => setSelected(e.target.checked ? new Set(unassigned.map((o) => o.id)) : new Set())}
-                      className="h-4 w-4 rounded border-border accent-primary"
+                      className="h-4 w-4 rounded border-white/60 accent-white"
                     />
                   )}
-                  <h3 className="text-sm font-semibold">Prontos para despachar</h3>
-                  <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{unassigned.length}</span>
+                  <Package className="h-4 w-4" strokeWidth={2.5} />
+                  <h3 className="text-sm font-bold">Prontos para despachar</h3>
+                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{unassigned.length}</span>
                 </div>
                 {selected.size > 0 && (
                   <div className="relative">
@@ -599,7 +606,7 @@ export default function LogisticaPage() {
               <div className="divide-y divide-border">
                 {unassigned.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido aguardando despacho</div>}
                 {unassigned.map((order) => (
-                  <div key={order.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div key={order.id} className="flex flex-col gap-3 border-l-[3px] border-l-status-pending bg-status-pending/5 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
@@ -648,20 +655,20 @@ export default function LogisticaPage() {
               </div>
             </div>
 
-            <div className="rounded-menuzia border border-border bg-white">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold">Em rota</h3>
-                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{inRoute.length}</span>
+            <div className="overflow-hidden rounded-menuzia border border-border bg-white">
+              <div className="flex items-center justify-between bg-status-preparing px-4 py-3 text-white">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" strokeWidth={2.5} />
+                  <h3 className="text-sm font-bold">Em rota</h3>
+                </div>
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{inRoute.length}</span>
               </div>
               <div className="divide-y divide-border">
                 {inRoute.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhuma entrega em rota</div>}
-                {inRoute.map((order, i) => (
+                {inRoute.map((order) => (
                   <div
                     key={order.id}
-                    className={[
-                      'flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between',
-                      i % 2 === 1 ? 'bg-page' : 'bg-white',
-                    ].join(' ')}
+                    className="flex flex-col gap-2 border-l-[3px] border-l-status-preparing bg-status-preparing/5 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
                       <div className="mb-1 flex items-center gap-2">
@@ -696,10 +703,13 @@ export default function LogisticaPage() {
             )}
 
             {tab === 'concluidos' && (
-            <div className="rounded-menuzia border border-border bg-white">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold">Pedidos do dia</h3>
-                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">
+            <div className="overflow-hidden rounded-menuzia border border-border bg-white">
+              <div className="flex items-center justify-between bg-text-main px-4 py-3 text-white">
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="h-4 w-4" strokeWidth={2.5} />
+                  <h3 className="text-sm font-bold">Pedidos do dia</h3>
+                </div>
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">
                   {filtrosAtivos ? `${concluidosFiltrados.length} de ${concluidos.length}` : concluidos.length}
                 </span>
               </div>
@@ -749,7 +759,9 @@ export default function LogisticaPage() {
                   return (
                     <div
                       key={order.id}
-                      className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between ${entregue ? 'bg-price-bg' : 'bg-danger-bg'}`}
+                      className={`flex flex-col gap-2 border-l-[3px] p-4 sm:flex-row sm:items-center sm:justify-between ${
+                        entregue ? 'border-l-status-ready bg-status-ready/5' : 'border-l-danger bg-danger/5'
+                      }`}
                     >
                       <div>
                         <div className="mb-1 flex items-center gap-2">
