@@ -91,7 +91,13 @@ async function init() {
   }
 }
 
-document.getElementById('atualizarImpressoras').addEventListener('click', () => carregarImpressoras($impressoraWindows.value))
+// "Atualizar lista" recarrega tanto as impressoras do Windows quanto as cadastradas no
+// painel — assim, depois de cadastrar uma impressora nova no painel, ela aparece aqui
+// sem precisar refazer o teste de conexão.
+document.getElementById('atualizarImpressoras').addEventListener('click', async () => {
+  await carregarImpressoras($impressoraWindows.value)
+  if (conectado) await carregarImpressorasCloud($impressoraCloud.value)
+})
 
 document.getElementById('testarPareamento').addEventListener('click', async () => {
   const token = $token.value.trim()

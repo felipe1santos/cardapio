@@ -27,11 +27,18 @@ function log(mensagem) {
   if (mainWindow) mainWindow.webContents.send('log', { ts: new Date().toISOString(), mensagem })
 }
 
+// Quando o Windows inicia o agente sozinho (auto-start), ele sobe oculto pra não
+// abrir uma janela na cara do operador — fica imprimindo em segundo plano. O atalho
+// da área de trabalho abre normal (sem --hidden), e clicar nele de novo traz a
+// janela oculta pra frente (ver second-instance).
+const abrirOculto = process.argv.includes('--hidden')
+
 function criarJanela() {
   mainWindow = new BrowserWindow({
     width: 480,
     height: 640,
     resizable: false,
+    show: !abrirOculto,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -119,6 +126,12 @@ app.on('second-instance', () => {
 })
 
 app.whenReady().then(() => {
+  // Auto-start: registra o agente pra abrir junto com o Windows (oculto), assim a loja
+  // não precisa lembrar de abrir o programa toda vez que liga o PC. Só no app empacotado
+  // — em dev não queremos sujar a inicialização do sistema.
+  if (app.isPackaged) {
+    app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
+  }
   criarJanela()
   iniciarPolling()
 })
