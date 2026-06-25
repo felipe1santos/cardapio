@@ -163,15 +163,23 @@ function ColunaVazia({ Icon, titulo }: { Icon: LucideIcon; titulo: string }) {
   )
 }
 
+/** Cores por status do 4º kanban: barra lateral acentuada + tint leve (sem poluir). */
+const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: string; badge: 'preparing' | 'ok' | 'danger'; label: string }> = {
+  transit: { accent: 'border-l-status-preparing', bg: 'bg-status-preparing/5', badge: 'preparing', label: 'Em rota' },
+  done: { accent: 'border-l-status-ready', bg: 'bg-status-ready/5', badge: 'ok', label: 'Entregue' },
+  failed: { accent: 'border-l-danger', bg: 'bg-danger/5', badge: 'danger', label: 'Não entregue' },
+}
+
 function FluxoCard({ order, tone, onClick }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void }) {
-  const bg = tone === 'done' ? 'bg-price-bg' : tone === 'failed' ? 'bg-danger-bg' : 'bg-white'
-  const badge = tone === 'done' ? 'ok' : tone === 'failed' ? 'danger' : 'preparing'
-  const label = tone === 'done' ? 'Entregue' : tone === 'failed' ? 'Não entregue' : 'Em rota'
+  const t = FLUXO_TONE[tone]
   return (
-    <button onClick={onClick} className={`w-full rounded-menuzia border border-border p-3 text-left transition-shadow hover:shadow-sm ${bg}`}>
+    <button
+      onClick={onClick}
+      className={`w-full rounded-menuzia border border-border border-l-[3px] p-3 text-left transition-shadow hover:shadow-sm ${t.accent} ${t.bg}`}
+    >
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold">#{order.numero}</span>
-        <Badge tone={badge}>{label}</Badge>
+        <Badge tone={t.badge}>{t.label}</Badge>
       </div>
       <div className="mt-1 text-xs text-text-subtle">
         {order.clienteNome || 'Cliente'}
