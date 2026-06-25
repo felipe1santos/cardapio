@@ -64,9 +64,12 @@ async function cicloDePolling() {
   cicloRodando = true
 
   const auth = { Authorization: `Bearer ${config.token}` }
+  // Heartbeat: informa ao servidor qual impressora (config do painel) está em uso,
+  // pra o painel acender ela como "conectada". Vai junto da consulta de pedidos (5s).
+  const headers = { ...auth, 'X-Impressora-Id': config.impressoraCloudId || '' }
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: auth })
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers })
     if (!res.ok) {
       log(`Erro ao consultar pedidos (HTTP ${res.status}). Verifique o token em Ajustes > Impressão.`)
       return

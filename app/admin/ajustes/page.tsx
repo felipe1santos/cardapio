@@ -28,6 +28,7 @@ import {
   criarImpressora,
   atualizarImpressora,
   removerImpressora,
+  buscarStatusAgente,
   type ConfigImpressao,
   type Impressora,
   type ImpressoraInput,
@@ -694,6 +695,8 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
   const [modal, setModal] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
   const [gerandoToken, setGerandoToken] = useState(false)
   const [tokenCopiado, setTokenCopiado] = useState(false)
+  // Impressora "conectada": qual o agente reportou estar usando, e há quanto tempo.
+  const [impressoraConectadaId, setImpressoraConectadaId] = useState<string | null>(null)
 
   useEffect(() => {
     if (loaded) return
@@ -705,6 +708,25 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
+
+  // Enquanto a aba está visível, consulta o status do agente a cada 8s. Considera
+  // "conectada" só se o agente foi visto nos últimos 30s (o agente faz heartbeat a 5s).
+  useEffect(() => {
+    if (!active) return
+    let vivo = true
+    async function checar() {
+      try {
+        const s = await buscarStatusAgente(supabase, restauranteId)
+        const recente = !!s.vistoEm && Date.now() - new Date(s.vistoEm).getTime() < 30_000
+        if (vivo) setImpressoraConectadaId(recente ? s.impressoraId : null)
+      } catch {
+        if (vivo) setImpressoraConectadaId(null)
+      }
+    }
+    checar()
+    const id = setInterval(checar, 8_000)
+    return () => { vivo = false; clearInterval(id) }
+  }, [active, supabase, restauranteId])
 
   async function patch(p: Partial<ConfigImpressao>) {
     if (!config) return
@@ -775,7 +797,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.8/AssistenteImpressaoMenuzia-Setup-0.1.8.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.9/AssistenteImpressaoMenuzia-Setup-0.1.9.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)
@@ -830,26 +852,43 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               <h3 className="text-[13px] font-bold text-text-main">Impressoras</h3>
               <Button variant="outline" onClick={() => setModal({ id: null, input: IMPRESSORA_VAZIA })}>+ Nova impressora</Button>
             </div>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">Cadastre uma ou mais impressoras (ex.: cozinha e balcão).</p>
-            <div className="overflow-hidden rounded-menuzia border border-border">
-              {impressoras.length === 0 && (
-                <div className="px-3.5 py-5 text-center text-[13px] text-text-subtle">Nenhuma impressora cadastrada ainda.</div>
-              )}
-              {impressoras.map((imp) => (
-                <div key={imp.id} className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-3 last:border-none">
-                  <div>
-                    <div className="text-[13px] font-semibold text-text-main">{imp.nome}</div>
-                    <div className="text-[11px] text-text-subtle">{imp.fabricante} · {imp.impressoraSistema || 'sem impressora do sistema vinculada'}</div>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">Cadastre uma ou mais impressoras (ex.: cozinha e balcão). A que estiver conectada ao Assistente fica destacada em amarelo.</p>
+            {impressoras.length === 0 && (
+              <div className="rounded-menuzia border border-dashed border-border bg-page px-3.5 py-5 text-center text-[13px] text-text-subtle">Nenhuma impressora cadastrada ainda.</div>
+            )}
+            <div className="space-y-2">
+              {impressoras.map((imp) => {
+                const conectada = imp.id === impressoraConectadaId
+                return (
+                  <div
+                    key={imp.id}
+                    className={`flex items-center justify-between gap-3 rounded-menuzia border-l-[3px] px-3.5 py-3 transition-colors ${
+                      conectada
+                        ? 'border border-l-yellow-400 border-yellow-400 bg-yellow-200'
+                        : 'border border-l-primary border-border bg-alert-bg/60'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="truncate text-[13px] font-semibold text-text-main">{imp.nome}</div>
+                        {conectada && (
+                          <span className="inline-flex items-center gap-1 rounded-menuzia bg-yellow-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+                            <span className="h-1.5 w-1.5 rounded-full bg-black" /> Conectada
+                          </span>
+                        )}
+                      </div>
+                      <div className="truncate text-[11px] text-text-subtle">{imp.fabricante} · {imp.impressoraSistema || 'sem impressora do sistema vinculada'} · largura {imp.largura}, {imp.copias}x</div>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        onClick={() => setModal({ id: imp.id, input: { nome: imp.nome, fabricante: imp.fabricante, impressoraSistema: imp.impressoraSistema, tamanhoFonte: imp.tamanhoFonte, largura: imp.largura, copias: imp.copias } })}
+                        className="text-[12px] font-semibold text-primary hover:underline"
+                      >Editar</button>
+                      <button onClick={() => excluirImpressora(imp.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setModal({ id: imp.id, input: { nome: imp.nome, fabricante: imp.fabricante, impressoraSistema: imp.impressoraSistema, tamanhoFonte: imp.tamanhoFonte, largura: imp.largura, copias: imp.copias } })}
-                      className="text-[12px] font-semibold text-primary hover:underline"
-                    >Editar</button>
-                    <button onClick={() => excluirImpressora(imp.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </Card>
 

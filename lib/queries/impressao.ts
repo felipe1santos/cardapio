@@ -294,6 +294,38 @@ export async function solicitarReimpressao(supabase: SupabaseClient, pedidoId: s
   if (error) throw error
 }
 
+/** Registra que o agente está vivo e qual impressora (config do painel) está usando. */
+export async function registrarHeartbeatAgente(admin: SupabaseClient, restauranteId: string, impressoraId: string | null) {
+  const ehUuid = !!impressoraId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(impressoraId)
+  const { error } = await admin
+    .from('restaurantes')
+    .update({
+      impressao_agente_visto_em: new Date().toISOString(),
+      impressao_agente_impressora_id: ehUuid ? impressoraId : null,
+    })
+    .eq('id', restauranteId)
+  if (error) throw error
+}
+
+export interface StatusAgente {
+  impressoraId: string | null
+  vistoEm: string | null
+}
+
+/** Status do agente pra UI do painel: qual impressora está conectada e quando foi visto. */
+export async function buscarStatusAgente(supabase: SupabaseClient, restauranteId: string): Promise<StatusAgente> {
+  const { data, error } = await supabase
+    .from('restaurantes')
+    .select('impressao_agente_impressora_id, impressao_agente_visto_em')
+    .eq('id', restauranteId)
+    .maybeSingle()
+  if (error) throw error
+  return {
+    impressoraId: (data?.impressao_agente_impressora_id as string) ?? null,
+    vistoEm: (data?.impressao_agente_visto_em as string) ?? null,
+  }
+}
+
 /** Nome da loja, usado no cabeçalho do recibo quando o logo está ligado. */
 export async function buscarNomeRestaurante(admin: SupabaseClient, restauranteId: string): Promise<string> {
   const { data, error } = await admin.from('restaurantes').select('nome').eq('id', restauranteId).maybeSingle()

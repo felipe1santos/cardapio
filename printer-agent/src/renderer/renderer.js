@@ -1,6 +1,4 @@
 const $token = document.getElementById('token')
-const $impressoraWindows = document.getElementById('impressoraWindows')
-const $impressoraCloud = document.getElementById('impressoraCloud')
 const $status = document.getElementById('status')
 const $statusWindows = document.getElementById('statusWindows')
 const $statusPareamento = document.getElementById('statusPareamento')
@@ -8,6 +6,106 @@ const $cardImpressora = document.getElementById('cardImpressora')
 const $log = document.getElementById('log')
 
 let conectado = false
+
+/**
+ * Dropdown custom (substitui o <select> nativo). Dá padding generoso, hover amarelo
+ * com texto preto e destaca a opção selecionada — o que o <option> nativo do Chromium
+ * não permite estilizar de forma confiável.
+ */
+function criarDropdown(container, { placeholder }) {
+  let opcoes = []
+  let valor = ''
+  let aberto = false
+
+  const field = document.createElement('div')
+  field.className = 'dd-field'
+  const valueEl = document.createElement('span')
+  valueEl.className = 'dd-value placeholder'
+  valueEl.textContent = placeholder
+  const caret = document.createElement('span')
+  caret.className = 'dd-caret'
+  caret.textContent = '▼'
+  field.append(valueEl, caret)
+
+  const menu = document.createElement('div')
+  menu.className = 'dd-menu'
+
+  container.append(field, menu)
+
+  function rotuloDe(v) {
+    const o = opcoes.find((x) => x.value === v)
+    return o ? o.label : ''
+  }
+
+  function pintarValor() {
+    const rotulo = rotuloDe(valor)
+    if (rotulo) {
+      valueEl.textContent = rotulo
+      valueEl.classList.remove('placeholder')
+    } else {
+      valueEl.textContent = placeholder
+      valueEl.classList.add('placeholder')
+    }
+  }
+
+  function fechar() {
+    aberto = false
+    container.classList.remove('open')
+  }
+
+  function abrir() {
+    if (opcoes.length === 0) return
+    aberto = true
+    container.classList.add('open')
+  }
+
+  function montarMenu() {
+    menu.innerHTML = ''
+    if (opcoes.length === 0) {
+      const vazio = document.createElement('div')
+      vazio.className = 'dd-empty'
+      vazio.textContent = placeholder
+      menu.appendChild(vazio)
+      return
+    }
+    for (const o of opcoes) {
+      const opt = document.createElement('div')
+      opt.className = 'dd-opt' + (o.value === valor ? ' selected' : '')
+      opt.textContent = o.label
+      opt.addEventListener('click', () => {
+        valor = o.value
+        pintarValor()
+        montarMenu()
+        fechar()
+      })
+      menu.appendChild(opt)
+    }
+  }
+
+  field.addEventListener('click', () => (aberto ? fechar() : abrir()))
+  document.addEventListener('click', (e) => {
+    if (!container.contains(e.target)) fechar()
+  })
+
+  return {
+    setOpcoes(lista, selecionado) {
+      opcoes = lista || []
+      // Mantém a seleção se ainda existir; senão pega a passada; senão a primeira.
+      if (selecionado !== undefined && opcoes.some((o) => o.value === selecionado)) valor = selecionado
+      else if (!opcoes.some((o) => o.value === valor)) valor = opcoes[0] ? opcoes[0].value : ''
+      pintarValor()
+      montarMenu()
+    },
+    valor: () => valor,
+  }
+}
+
+const ddWindows = criarDropdown(document.getElementById('ddImpressoraWindows'), {
+  placeholder: 'Nenhuma impressora encontrada',
+})
+const ddCloud = criarDropdown(document.getElementById('ddImpressoraCloud'), {
+  placeholder: 'Nenhuma cadastrada — vá em Ajustes > Impressão no painel',
+})
 
 function mostrarStatus(el, ok, mensagem) {
   el.textContent = mensagem
@@ -22,55 +120,39 @@ function definirConectado(ok) {
 
 async function carregarImpressoras(selecionada) {
   const r = await window.agente.listarImpressorasWindows()
-  $impressoraWindows.innerHTML = ''
   if (!r || r.ok === false) {
+    ddWindows.setOpcoes([])
     mostrarStatus($statusWindows, false, `Não foi possível ler as impressoras do Windows: ${r?.erro || 'erro desconhecido'}`)
     return
   }
   const lista = r.lista || []
   if (lista.length === 0) {
-    const opt = document.createElement('option')
-    opt.value = ''
-    opt.textContent = 'Nenhuma impressora instalada no Windows'
-    $impressoraWindows.appendChild(opt)
+    ddWindows.setOpcoes([])
     mostrarStatus($statusWindows, false, 'Nenhuma impressora encontrada. Instale a impressora no Windows e clique em "Atualizar lista".')
     return
   }
-  for (const nome of lista) {
-    const opt = document.createElement('option')
-    opt.value = nome
-    opt.textContent = nome
-    if (nome === selecionada) opt.selected = true
-    $impressoraWindows.appendChild(opt)
-  }
+  ddWindows.setOpcoes(lista.map((nome) => ({ value: nome, label: nome })), selecionada)
   mostrarStatus($statusWindows, true, '')
 }
 
 async function carregarImpressorasCloud(selecionadaId) {
-  $impressoraCloud.innerHTML = ''
   const token = $token.value.trim()
   const lista = await window.agente.buscarImpressorasCloud(token)
   if (lista && lista.erro) {
-    const opt = document.createElement('option')
-    opt.value = ''
-    opt.textContent = `Erro ao buscar: ${lista.erro}`
-    $impressoraCloud.appendChild(opt)
+    ddCloud.setOpcoes([])
     return
   }
   if (!Array.isArray(lista) || lista.length === 0) {
-    const opt = document.createElement('option')
-    opt.value = ''
-    opt.textContent = 'Nenhuma cadastrada — vá em Ajustes > Impressão no painel'
-    $impressoraCloud.appendChild(opt)
+    ddCloud.setOpcoes([])
     return
   }
-  for (const imp of lista) {
-    const opt = document.createElement('option')
-    opt.value = imp.id
-    opt.textContent = `${imp.nome} (largura ${imp.largura}, ${imp.copias}x cópia${imp.copias > 1 ? 's' : ''})`
-    if (imp.id === selecionadaId) opt.selected = true
-    $impressoraCloud.appendChild(opt)
-  }
+  ddCloud.setOpcoes(
+    lista.map((imp) => ({
+      value: imp.id,
+      label: `${imp.nome} (largura ${imp.largura}, ${imp.copias}x cópia${imp.copias > 1 ? 's' : ''})`,
+    })),
+    selecionadaId,
+  )
 }
 
 /** Após conexão ok, carrega as duas listas e libera o Passo 2. */
@@ -95,8 +177,8 @@ async function init() {
 // painel — assim, depois de cadastrar uma impressora nova no painel, ela aparece aqui
 // sem precisar refazer o teste de conexão.
 document.getElementById('atualizarImpressoras').addEventListener('click', async () => {
-  await carregarImpressoras($impressoraWindows.value)
-  if (conectado) await carregarImpressorasCloud($impressoraCloud.value)
+  await carregarImpressoras(ddWindows.valor())
+  if (conectado) await carregarImpressorasCloud(ddCloud.valor())
 })
 
 document.getElementById('testarPareamento').addEventListener('click', async () => {
@@ -116,15 +198,15 @@ document.getElementById('salvar').addEventListener('click', async () => {
   if (!conectado) return
   await window.agente.salvarConfig({
     token: $token.value.trim(),
-    impressoraWindows: $impressoraWindows.value,
-    impressoraCloudId: $impressoraCloud.value,
+    impressoraWindows: ddWindows.valor(),
+    impressoraCloudId: ddCloud.valor(),
   })
   mostrarStatus($status, true, 'Configuração salva.')
 })
 
 document.getElementById('testarImpressora').addEventListener('click', async () => {
   if (!conectado) return
-  const r = await window.agente.testarImpressora({ impressoraWindows: $impressoraWindows.value })
+  const r = await window.agente.testarImpressora({ impressoraWindows: ddWindows.valor() })
   mostrarStatus($status, r.ok, r.ok ? 'Teste enviado pra impressora.' : `Falhou: ${r.erro}`)
 })
 

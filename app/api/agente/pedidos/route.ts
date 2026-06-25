@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarConfigImpressao, buscarNomeRestaurante, listarImpressoras, listarPedidosParaImprimir, resolverRestauranteIdPorToken } from '@/lib/queries/impressao'
+import { buscarConfigImpressao, buscarNomeRestaurante, listarImpressoras, listarPedidosParaImprimir, registrarHeartbeatAgente, resolverRestauranteIdPorToken } from '@/lib/queries/impressao'
 import { lerAgenteToken } from '@/lib/agente-token'
 
 /**
@@ -15,6 +15,10 @@ export async function GET(request: Request) {
   const admin = getAdminSupabase()
   const restauranteId = await resolverRestauranteIdPorToken(admin, token)
   if (!restauranteId) return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+
+  // Heartbeat: o agente manda a impressora que está usando; o painel acende ela como
+  // "conectada". Best-effort — não derruba a resposta dos pedidos se falhar.
+  registrarHeartbeatAgente(admin, restauranteId, request.headers.get('x-impressora-id')).catch(() => {})
 
   const [config, impressoras, pedidos, lojaNome] = await Promise.all([
     buscarConfigImpressao(admin, restauranteId),
