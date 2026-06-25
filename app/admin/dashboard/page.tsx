@@ -211,14 +211,17 @@ export default function DashboardPage() {
     const bairroMax = bairrosTodos[0]?.qtd ?? 1
 
     // hotspots do mapa: um ponto por endereço (rua + número + bairro), peso = nº de pedidos no local
-    const enderecoAgg: Record<string, number> = {}
+    const enderecoAgg: Record<string, { weight: number; rua: string; bairro: string }> = {}
     for (const p of pedidos) {
-      const partes = [p.enderecoRua, p.enderecoNumero, p.enderecoBairro].map((s) => s.trim()).filter(Boolean)
+      const rua = p.enderecoRua.trim()
+      const bairro = p.enderecoBairro.trim()
+      const partes = [rua, p.enderecoNumero.trim(), bairro].filter(Boolean)
       if (partes.length === 0) continue
       const chave = partes.join(', ')
-      enderecoAgg[chave] = (enderecoAgg[chave] ?? 0) + 1
+      const atual = enderecoAgg[chave]
+      enderecoAgg[chave] = { weight: (atual?.weight ?? 0) + 1, rua, bairro }
     }
-    const heatPoints = Object.entries(enderecoAgg).map(([address, weight]) => ({ address, weight }))
+    const heatPoints = Object.entries(enderecoAgg).map(([address, v]) => ({ address, weight: v.weight, rua: v.rua, bairro: v.bairro }))
 
     return { total, count, ticket, series, seriesMax, chartLabels, payments, channels, topItems, categories, peakHour, completionRate, bairros, bairroMax, heatPoints }
   }, [dados, period])
