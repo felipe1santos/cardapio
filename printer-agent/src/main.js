@@ -4,6 +4,10 @@ const { carregarConfig, salvarConfig } = require('./store')
 const { listarImpressorasWindows, imprimirTexto } = require('./printer')
 const { montarRecibo } = require('./recibo')
 
+// URL fixa do Menuzia — a mesma para todas as lojas. A loja é identificada pelo token
+// de pareamento, não pela URL. Só mude isto se o domínio do sistema mudar.
+const API_BASE_URL = 'https://menuzia.com.br'
+
 let mainWindow = null
 let pollTimer = null
 let polling = false
@@ -35,10 +39,10 @@ function criarJanela() {
 
 async function cicloDePolling() {
   const config = carregarConfig()
-  if (!config.token || !config.apiBaseUrl) return
+  if (!config.token) return
 
   try {
-    const res = await fetch(`${config.apiBaseUrl}/api/agente/pedidos?token=${encodeURIComponent(config.token)}`)
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos?token=${encodeURIComponent(config.token)}`)
     if (!res.ok) {
       log(`Erro ao consultar pedidos (HTTP ${res.status}). Verifique o token e a URL do Menuzia.`)
       return
@@ -58,7 +62,7 @@ async function cicloDePolling() {
     for (const pedido of pedidos) {
       const recibo = montarRecibo(pedido, configImpressao, largura)
       await imprimirTexto(config.impressoraWindows, recibo, copias)
-      await fetch(`${config.apiBaseUrl}/api/agente/pedidos/${pedido.id}/imprimir`, {
+      await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: config.token }),
@@ -105,9 +109,9 @@ ipcMain.handle('salvar-config', (_e, patch) => {
 
 ipcMain.handle('listar-impressoras-windows', async () => {
   try {
-    return await listarImpressorasWindows()
+    return { ok: true, lista: await listarImpressorasWindows() }
   } catch (err) {
-    return { erro: err.message }
+    return { ok: false, erro: err.message }
   }
 })
 
@@ -115,19 +119,21 @@ function descreverErro(err) {
   return err.cause ? `${err.message} (causa: ${err.cause.code || err.cause.message || err.cause})` : err.message
 }
 
-ipcMain.handle('testar-pareamento', async (_e, { apiBaseUrl, token }) => {
+ipcMain.handle('testar-pareamento', async (_e, { token }) => {
+  if (!token) return { ok: false, erro: 'Cole o token de pareamento antes de testar.' }
   try {
-    const res = await fetch(`${apiBaseUrl}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
-    if (!res.ok) return { ok: false, erro: `HTTP ${res.status}` }
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
+    if (res.status === 401) return { ok: false, erro: 'Token inválido — copie de novo em Ajustes > Impressão no painel.' }
+    if (!res.ok) return { ok: false, erro: `O servidor respondeu HTTP ${res.status}.` }
     return { ok: true }
   } catch (err) {
-    return { ok: false, erro: descreverErro(err) }
+    return { ok: false, erro: `Sem conexão com ${API_BASE_URL} (${descreverErro(err)}).` }
   }
 })
 
-ipcMain.handle('buscar-impressoras-cloud', async (_e, { apiBaseUrl, token }) => {
+ipcMain.handle('buscar-impressoras-cloud', async (_e, { token }) => {
   try {
-    const res = await fetch(`${apiBaseUrl}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos?token=${encodeURIComponent(token)}`)
     if (!res.ok) return { erro: `HTTP ${res.status}` }
     const data = await res.json()
     return data.impressoras ?? []

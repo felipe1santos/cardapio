@@ -14,43 +14,60 @@
     button:disabled { opacity: .5; cursor: default; }
     .row { display: flex; gap: 8px; }
     .row > div { flex: 1; }
-    #status { margin-top: 14px; padding: 8px 10px; border-radius: 3px; font-size: 12px; }
-    #status.ok { background: #DCFCE7; color: #16A34A; }
-    #status.erro { background: #FEE2E2; color: #EF4444; }
-    #log { margin-top: 18px; background: #111827; color: #9CA3AF; border-radius: 3px; padding: 10px; height: 140px; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; }
+    .card { background: #fff; border: 1px solid #E5E7EB; border-radius: 3px; padding: 14px 16px; margin-bottom: 14px; }
+    .card.locked { opacity: .55; pointer-events: none; }
+    .step-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #0E7490; background: #CFFAFE; padding: 2px 7px; border-radius: 3px; margin-bottom: 8px; }
+    .fixed-url { display: flex; align-items: center; gap: 6px; background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 3px; padding: 7px 10px; font-size: 12px; color: #374151; }
+    .fixed-url b { color: #111827; }
+    .lock-icon { color: #9CA3AF; }
+    .feedback { margin-top: 12px; padding: 8px 10px; border-radius: 3px; font-size: 12px; }
+    .feedback.ok { background: #DCFCE7; color: #16A34A; }
+    .feedback.erro { background: #FEE2E2; color: #EF4444; }
+    .hint { color: #6B7280; font-size: 11px; margin: 4px 0 0; }
+    #log { margin-top: 4px; background: #111827; color: #9CA3AF; border-radius: 3px; padding: 10px; height: 120px; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; }
   </style>
 </head>
 <body>
   <h1>Assistente de Impressão Menuzia</h1>
   <p class="sub">Mantenha esta janela aberta (ou minimizada) para imprimir pedidos automaticamente.</p>
 
-  <label>URL do seu Menuzia</label>
-  <input id="apiBaseUrl" placeholder="https://app.suapizzaria.com" />
+  <!-- Passo 1: conectar -->
+  <div class="card">
+    <span class="step-tag">Passo 1 · Conectar</span>
 
-  <label>Token de pareamento</label>
-  <input id="token" placeholder="Cole aqui o token de Ajustes &gt; Impressão" />
-
-  <button id="testarPareamento">Testar conexão</button>
-  <div id="statusPareamento"></div>
-
-  <label>Impressora (instalada no Windows)</label>
-  <select id="impressoraWindows"></select>
-  <button id="atualizarImpressoras" class="secondary">Atualizar lista</button>
-
-  <label>Configuração de impressão (cadastrada no painel)</label>
-  <select id="impressoraCloud"></select>
-  <p class="sub" style="margin:4px 0 0">Define largura, cópias e fonte usados ao imprimir. Cadastre em Ajustes &gt; Impressão no painel.</p>
-
-  <div class="row">
-    <div>
-      <button id="salvar">Salvar</button>
+    <label>Servidor Menuzia</label>
+    <div class="fixed-url">
+      <span class="lock-icon">🔒</span> <b>https://menuzia.com.br</b>
     </div>
-    <div>
-      <button id="testarImpressora" class="secondary">Imprimir teste</button>
-    </div>
+    <p class="hint">Endereço fixo do sistema — não precisa preencher nada aqui.</p>
+
+    <label>Token de pareamento</label>
+    <input id="token" placeholder="Cole aqui o token de Ajustes &gt; Impressão" autocomplete="off" />
+
+    <button id="testarPareamento">Testar conexão</button>
+    <div id="statusPareamento"></div>
   </div>
 
-  <div id="status"></div>
+  <!-- Passo 2: impressora (liberado só após conectar) -->
+  <div class="card locked" id="cardImpressora">
+    <span class="step-tag">Passo 2 · Impressora</span>
+
+    <label>Impressora (instalada no Windows)</label>
+    <select id="impressoraWindows"></select>
+    <button id="atualizarImpressoras" class="secondary">Atualizar lista</button>
+    <div id="statusWindows"></div>
+
+    <label>Configuração de impressão (cadastrada no painel)</label>
+    <select id="impressoraCloud"></select>
+    <p class="hint">Define largura, cópias e fonte usados ao imprimir. Cadastre em Ajustes &gt; Impressão no painel.</p>
+
+    <div class="row">
+      <div><button id="salvar">Salvar</button></div>
+      <div><button id="testarImpressora" class="secondary">Imprimir teste</button></div>
+    </div>
+    <div id="status"></div>
+  </div>
+
   <div id="log"></div>
 
   <script src="./renderer.js"></script>

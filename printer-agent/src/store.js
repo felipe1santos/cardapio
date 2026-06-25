@@ -4,8 +4,8 @@ const { app } = require('electron')
 
 const CONFIG_PATH = () => path.join(app.getPath('userData'), 'config.json')
 
+// A URL do Menuzia é fixa para todas as lojas (multi-tenant por token) — não fica em config.
 const DEFAULTS = {
-  apiBaseUrl: '',
   token: '',
   impressoraWindows: '',
   impressoraCloudId: '',
