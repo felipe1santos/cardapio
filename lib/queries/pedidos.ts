@@ -43,6 +43,8 @@ export interface Pedido {
   total: number
   observacao: string
   entregadorId: string | null
+  preparandoPor: string | null
+  preparadoPor: string | null
   criadoEm: string
   atualizadoEm: string
   itens: PedidoItem[]
@@ -82,6 +84,8 @@ interface PedidoRow {
   total: number
   observacao: string
   entregador_id: string | null
+  preparando_por: string | null
+  preparado_por: string | null
   criado_em: string
   atualizado_em: string
   pedido_itens: {
@@ -102,7 +106,7 @@ const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
-  entregador_id, criado_em, atualizado_em,
+  entregador_id, preparando_por, preparado_por, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome )
 `
 
@@ -127,6 +131,8 @@ function mapPedido(row: PedidoRow): Pedido {
     total: Number(row.total),
     observacao: row.observacao,
     entregadorId: row.entregador_id,
+    preparandoPor: row.preparando_por ?? null,
+    preparadoPor: row.preparado_por ?? null,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
     itens: (row.pedido_itens ?? []).map((i) => ({
@@ -225,6 +231,38 @@ export async function listarPedidosRotas(supabase: SupabaseClient, restauranteId
 
 export async function avancarStatusPedido(supabase: SupabaseClient, pedidoId: string, status: StatusPedido) {
   const { error } = await supabase.from('pedidos').update({ status }).eq('id', pedidoId)
+  if (error) throw error
+}
+
+/** Claim atômico de um pedido pela cozinha: só pega se ainda estiver 'recebido'. Retorna se conseguiu. */
+export async function pegarPedidoCozinha(admin: SupabaseClient, pedidoId: string, cozinheiro: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .update({ status: 'preparando', preparando_por: cozinheiro })
+    .eq('id', pedidoId)
+    .eq('status', 'recebido')
+    .select('id')
+  if (error) throw error
+  return (data?.length ?? 0) > 0
+}
+
+/** Devolve o pedido pego para o pool (volta a 'recebido', limpa quem estava preparando). */
+export async function devolverPedidoCozinha(admin: SupabaseClient, pedidoId: string): Promise<void> {
+  const { error } = await admin
+    .from('pedidos')
+    .update({ status: 'recebido', preparando_por: null })
+    .eq('id', pedidoId)
+    .eq('status', 'preparando')
+  if (error) throw error
+}
+
+/** Conclui o preparo: 'preparando' → 'pronto', registra quem preparou. */
+export async function concluirPedidoCozinha(admin: SupabaseClient, pedidoId: string, cozinheiro: string): Promise<void> {
+  const { error } = await admin
+    .from('pedidos')
+    .update({ status: 'pronto', preparado_por: cozinheiro })
+    .eq('id', pedidoId)
+    .eq('status', 'preparando')
   if (error) throw error
 }
 
