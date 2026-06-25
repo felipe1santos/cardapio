@@ -1,6 +1,22 @@
 'use client'
 
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type LucideIcon,
+  BellRing,
+  BellOff,
+  Bike,
+  Columns3,
+  Maximize2,
+  Minimize2,
+  Inbox,
+  ChefHat,
+  HandPlatter,
+  ClipboardList,
+  Clock,
+  Truck,
+  Banknote,
+} from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,23 +42,41 @@ function inicioDoDiaISO() {
 
 type Coluna = 'recebido' | 'preparando' | 'pronto'
 
-const COLUNA_LABELS: Record<Coluna, string> = {
-  recebido: 'Pedido Recebido',
-  preparando: 'Preparando',
-  pronto: 'Pronto p/ Despacho',
+interface ColunaConfig {
+  label: string
+  headerBg: string
+  Icon: LucideIcon
+  emptyTitle: string
+  EmptyIcon: LucideIcon
 }
 
-const COLUNA_BORDER: Record<Coluna, string> = {
-  recebido: 'border-t-status-pending',
-  preparando: 'border-t-status-preparing',
-  pronto: 'border-t-status-ready',
+const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
+  recebido: {
+    label: 'Pedido Recebido',
+    headerBg: 'bg-status-pending',
+    Icon: Inbox,
+    emptyTitle: 'Nenhum pedido novo',
+    EmptyIcon: Inbox,
+  },
+  preparando: {
+    label: 'Preparando',
+    headerBg: 'bg-status-preparing',
+    Icon: ChefHat,
+    emptyTitle: 'Nada em preparo',
+    EmptyIcon: ChefHat,
+  },
+  pronto: {
+    label: 'Pronto p/ Despacho',
+    headerBg: 'bg-status-ready',
+    Icon: HandPlatter,
+    emptyTitle: 'Nada pronto ainda',
+    EmptyIcon: HandPlatter,
+  },
 }
 
-const COLUNA_HEADER: Record<Coluna, string> = {
-  recebido: 'bg-status-pending/10 text-status-pending',
-  preparando: 'bg-status-preparing/10 text-status-preparing',
-  pronto: 'bg-status-ready/10 text-status-ready',
-}
+/** Base dos botões sólidos da barra de ações do Kanban (cor forte + ícone). */
+const TOOL_BTN =
+  'inline-flex items-center gap-1.5 rounded-menuzia px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors'
 
 const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
   { label: 'Recebido', status: 'recebido' },
@@ -117,6 +151,18 @@ function SubSecao({ titulo, cor, vazio, children }: { titulo: string; cor: strin
   )
 }
 
+/** Estado vazio de uma coluna do Kanban: ilustração cinza-clara em vez de texto solto. */
+function ColunaVazia({ Icon, titulo }: { Icon: LucideIcon; titulo: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 py-12 text-center">
+      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-page">
+        <Icon className="h-9 w-9 text-gray-300" strokeWidth={1.5} />
+      </div>
+      <span className="text-xs font-medium text-gray-400">{titulo}</span>
+    </div>
+  )
+}
+
 function FluxoCard({ order, tone, onClick }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void }) {
   const bg = tone === 'done' ? 'bg-price-bg' : tone === 'failed' ? 'bg-danger-bg' : 'bg-white'
   const badge = tone === 'done' ? 'ok' : tone === 'failed' ? 'danger' : 'preparing'
@@ -131,7 +177,7 @@ function FluxoCard({ order, tone, onClick }: { order: Pedido; tone: 'transit' | 
         {order.clienteNome || 'Cliente'}
         {order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}
       </div>
-      <div className="mt-1 text-sm font-bold text-price-text">{brl(order.total)}</div>
+      <div className="mt-1 text-[11px] font-medium text-price-text">{brl(order.total)}</div>
     </button>
   )
 }
@@ -168,29 +214,10 @@ function StatCard({
   )
 }
 
-const IconCheck = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
-)
-const IconClock = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" />
-    <path d="M12 7v5l3 2" />
-  </svg>
-)
-const IconTruck = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 3h13v11H1zM14 7h4l3 3v4h-7" />
-    <circle cx="6" cy="18" r="2" />
-    <circle cx="18" cy="18" r="2" />
-  </svg>
-)
-const IconMoney = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-  </svg>
-)
+const IconCheck = <ClipboardList className="h-5 w-5" strokeWidth={2} />
+const IconClock = <Clock className="h-5 w-5" strokeWidth={2} />
+const IconTruck = <Truck className="h-5 w-5" strokeWidth={2} />
+const IconMoney = <Banknote className="h-5 w-5" strokeWidth={2} />
 
 export default function PedidosPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
@@ -395,18 +422,30 @@ export default function PedidosPage() {
         </span>
         Recebendo pedidos
       </div>
-      <Button variant="outline" onClick={toggleSom} title={somAtivo ? 'Som ligado' : 'Som desligado'}>
-        {somAtivo ? '🔔' : '🔕'} Som
-      </Button>
-      <Button variant="outline" onClick={() => setRotaOpen(true)} title="Despacho de rotas">
-        🛵 Rotas
-      </Button>
-      <Button variant={showCol4 ? 'primary' : 'outline'} onClick={toggleCol4}>
-        {showCol4 ? '✓ Coluna de entregas' : '+ Coluna de entregas'}
-      </Button>
-      <Button variant="outline" onClick={toggleFocus} title={focusMode ? 'Sair da tela cheia' : 'Tela cheia'}>
-        {focusMode ? '✕ Sair' : '⛶ Tela cheia'}
-      </Button>
+      <button
+        onClick={toggleSom}
+        title={somAtivo ? 'Som ligado' : 'Som desligado'}
+        className={`${TOOL_BTN} ${somAtivo ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-page text-text-subtle hover:bg-border'}`}
+      >
+        {somAtivo ? <BellRing className="h-4 w-4" /> : <BellOff className="h-4 w-4" />} Som
+      </button>
+      <button onClick={() => setRotaOpen(true)} title="Despacho de rotas" className={`${TOOL_BTN} bg-status-pending text-white hover:brightness-95`}>
+        <Bike className="h-4 w-4" /> Rotas
+      </button>
+      <button
+        onClick={toggleCol4}
+        title="Coluna de entregas e concluídos"
+        className={`${TOOL_BTN} ${showCol4 ? 'bg-purple text-white hover:bg-purple-600' : 'bg-page text-text-subtle hover:bg-border'}`}
+      >
+        <Columns3 className="h-4 w-4" /> Entregas
+      </button>
+      <button
+        onClick={toggleFocus}
+        title={focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
+        className={`${TOOL_BTN} ${focusMode ? 'bg-text-main text-white hover:opacity-90' : 'bg-page text-text-subtle hover:bg-border'}`}
+      >
+        {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} {focusMode ? 'Sair' : 'Tela cheia'}
+      </button>
     </>
   )
 
@@ -442,11 +481,15 @@ export default function PedidosPage() {
         <div className={`grid flex-1 grid-cols-1 gap-3 overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
+            const cfg = COLUNA_CONFIG[coluna]
             return (
-              <div key={coluna} className={`flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] bg-white ${COLUNA_BORDER[coluna]}`}>
-                <div className={`flex items-center justify-between border-b border-border px-4 py-3 ${COLUNA_HEADER[coluna]}`}>
-                  <h3 className="text-sm font-bold">{COLUNA_LABELS[coluna]}</h3>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-text-subtle">{colOrders.length}</span>
+              <div key={coluna} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+                <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`}>
+                  <div className="flex items-center gap-2">
+                    <cfg.Icon className="h-4 w-4" strokeWidth={2.5} />
+                    <h3 className="text-sm font-bold">{cfg.label}</h3>
+                  </div>
+                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold text-white">{colOrders.length}</span>
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-3">
                   {colOrders.map((order) => {
@@ -492,7 +535,7 @@ export default function PedidosPage() {
                             <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
                               {PAY_LABEL[order.formaPagamento]}
                             </div>
-                            <div className="rounded-menuzia bg-price-bg px-1.5 py-1.5 text-center text-[13px] font-bold text-price-text">
+                            <div className="rounded-menuzia bg-price-bg px-1.5 py-1.5 text-center text-[11px] font-medium text-price-text">
                               {brl(order.total)}
                             </div>
                           </div>
@@ -535,9 +578,7 @@ export default function PedidosPage() {
                       </div>
                     )
                   })}
-                  {colOrders.length === 0 && (
-                    <div className="flex h-full items-center justify-center py-10 text-xs text-text-subtle">Nenhum pedido nesta etapa</div>
-                  )}
+                  {colOrders.length === 0 && <ColunaVazia Icon={cfg.EmptyIcon} titulo={cfg.emptyTitle} />}
                 </div>
               </div>
             )
