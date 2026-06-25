@@ -32,26 +32,40 @@ const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dbeafe' }] },
 ]
 
-// Mapa de calor em escala de vermelho: mais pedidos = mais quente/vermelho
-const HEAT_GRADIENT = [
-  'rgba(255, 235, 59, 0)',
-  'rgba(255, 193, 7, 0.6)',
-  'rgba(255, 152, 0, 0.75)',
-  'rgba(249, 115, 22, 0.85)',
-  'rgba(239, 68, 68, 0.95)',
-  'rgba(185, 28, 28, 1)',
-]
-
 const DEFAULT_CENTER = { lat: -14.235, lng: -51.925 } // Brasil (fallback)
+
+/**
+ * Ícone "hotspot": glow radial vermelho cujo diâmetro cresce com a quantidade de
+ * pedidos (escala em sqrt p/ não estourar). Borda branca translúcida realça sobre o
+ * mapa; centro mais sólido, bordas transparentes p/ sobreposições somarem sem poluir.
+ */
+function glowIcon(weight: number, maxW: number): google.maps.Icon {
+  const t = Math.sqrt(weight / maxW) // 0..1
+  const size = Math.round(36 + t * 88) // diâmetro 36..124 px
+  const r = size / 2
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
+    `<defs><radialGradient id="g" cx="50%" cy="50%" r="50%">` +
+    `<stop offset="0%" stop-color="rgba(185,28,28,0.95)"/>` +
+    `<stop offset="32%" stop-color="rgba(239,68,68,0.7)"/>` +
+    `<stop offset="66%" stop-color="rgba(249,115,22,0.32)"/>` +
+    `<stop offset="100%" stop-color="rgba(249,115,22,0)"/>` +
+    `</radialGradient></defs>` +
+    `<circle cx="${r}" cy="${r}" r="${r}" fill="url(#g)"/>` +
+    `<circle cx="${r}" cy="${r}" r="${Math.max(1, r - 1)}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>` +
+    `</svg>`
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(size, size),
+    anchor: new google.maps.Point(r, r),
+  }
+}
 
 /** Mapa de calor (hotspots) dos bairros que mais pedem, centrado/enviesado na região da loja. */
 export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
-  // tipos de @types/google.maps p/ visualization variam por versão — usamos any no layer
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const heatRef = useRef<any>(null)
-  const circlesRef = useRef<google.maps.Circle[]>([])
+  const markersRef = useRef<google.maps.Marker[]>([])
   const geocodeCache = useRef<Map<string, google.maps.LatLng>>(new Map())
   const biasRef = useRef<google.maps.LatLngBounds | null>(null)
   const [ready, setReady] = useState(false)
@@ -114,50 +128,31 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
     }
   }, [ready, center])
 
-  // Limpa overlays anteriores (heat + círculos fallback)
+  // Limpa hotspots anteriores
   const limparOverlays = useCallback(() => {
-    heatRef.current?.setMap(null)
-    heatRef.current = null
-    circlesRef.current.forEach((c) => c.setMap(null))
-    circlesRef.current = []
+    markersRef.current.forEach((m) => m.setMap(null))
+    markersRef.current = []
   }, [])
 
-  // Desenha hotspots. Usa HeatmapLayer; se a lib visualization faltar, cai p/ círculos vermelhos.
+  // Desenha um hotspot glow por bairro: diâmetro ∝ √(pedidos), label com a contagem.
   const desenhar = useCallback(
     (map: google.maps.Map, data: { location: google.maps.LatLng; weight: number }[], bounds: google.maps.LatLngBounds) => {
       limparOverlays()
       if (data.length === 0) return
       const maxW = Math.max(...data.map((d) => d.weight)) || 1
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const HeatmapLayer = (google.maps.visualization as any)?.HeatmapLayer
-      if (HeatmapLayer) {
-        heatRef.current = new HeatmapLayer({
-          map,
-          data,
-          radius: 48,
-          opacity: 0.9,
-          gradient: HEAT_GRADIENT,
-          dissipating: true,
-          maxIntensity: maxW,
-        })
-      } else {
-        // Fallback: círculos vermelhos, mais quentes/opacos quanto mais pedidos
-        data.forEach((d) => {
-          const t = d.weight / maxW
-          circlesRef.current.push(
-            new google.maps.Circle({
-              map,
-              center: d.location,
-              radius: 500 + t * 1300, // metros
-              strokeColor: '#B91C1C',
-              strokeOpacity: 0.5,
-              strokeWeight: 1,
-              fillColor: '#EF4444',
-              fillOpacity: 0.2 + t * 0.45,
-            })
-          )
-        })
-      }
+      data.forEach((d) => {
+        markersRef.current.push(
+          new google.maps.Marker({
+            map,
+            position: d.location,
+            icon: glowIcon(d.weight, maxW),
+            label: { text: String(d.weight), color: '#ffffff', fontSize: '11px', fontWeight: '700' },
+            zIndex: Math.round(d.weight),
+            clickable: false,
+            optimized: false,
+          })
+        )
+      })
       if (!bounds.isEmpty()) map.fitBounds(bounds, 56)
     },
     [limparOverlays]
