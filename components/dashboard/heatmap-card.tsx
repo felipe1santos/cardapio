@@ -4,15 +4,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/maps/loader'
 
 export interface HeatPoint {
-  /** Bairro a geocodificar. */
-  bairro: string
-  /** Peso do ponto = nº de pedidos no bairro (quanto maior, mais quente). */
+  /** Endereço (rua, número, bairro) a geocodificar — um ponto por local de entrega. */
+  address: string
+  /** Peso do ponto = nº de pedidos naquele endereço (quanto maior, mais quente). */
   weight: number
 }
 
 interface HeatmapCardProps {
   apiKey?: string
-  /** Endereço/CEP da loja — centraliza e enviesa a geocodificação dos bairros na região certa. */
+  /** Endereço/CEP da loja — centraliza e enviesa a geocodificação dos endereços na região certa. */
   center?: string
   points: HeatPoint[]
   className?: string
@@ -34,38 +34,125 @@ const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
 
 const DEFAULT_CENTER = { lat: -14.235, lng: -51.925 } // Brasil (fallback)
 
-/**
- * Ícone "hotspot": glow radial vermelho cujo diâmetro cresce com a quantidade de
- * pedidos (escala em sqrt p/ não estourar). Borda branca translúcida realça sobre o
- * mapa; centro mais sólido, bordas transparentes p/ sobreposições somarem sem poluir.
- */
-function glowIcon(weight: number, maxW: number): google.maps.Icon {
-  const t = Math.sqrt(weight / maxW) // 0..1
-  const size = Math.round(36 + t * 88) // diâmetro 36..124 px
-  const r = size / 2
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
-    `<defs><radialGradient id="g" cx="50%" cy="50%" r="50%">` +
-    `<stop offset="0%" stop-color="rgba(185,28,28,0.95)"/>` +
-    `<stop offset="32%" stop-color="rgba(239,68,68,0.7)"/>` +
-    `<stop offset="66%" stop-color="rgba(249,115,22,0.32)"/>` +
-    `<stop offset="100%" stop-color="rgba(249,115,22,0)"/>` +
-    `</radialGradient></defs>` +
-    `<circle cx="${r}" cy="${r}" r="${r}" fill="url(#g)"/>` +
-    `<circle cx="${r}" cy="${r}" r="${Math.max(1, r - 1)}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>` +
-    `</svg>`
-  return {
-    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-    scaledSize: new google.maps.Size(size, size),
-    anchor: new google.maps.Point(r, r),
-  }
+interface HotPoint {
+  location: google.maps.LatLng
+  weight: number
 }
 
-/** Mapa de calor (hotspots) dos bairros que mais pedem, centrado/enviesado na região da loja. */
+const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t)
+
+/**
+ * Cor do hotspot ao longo do espectro amarelo → laranja → vermelho conforme o volume.
+ * t=0 (poucos pedidos) = amarelo; t=1 (muitos) = vermelho.
+ */
+function heatColor(t: number): { r: number; g: number; b: number } {
+  if (t < 0.5) {
+    const k = t / 0.5 // amarelo → laranja
+    return { r: lerp(250, 249, k), g: lerp(204, 115, k), b: lerp(21, 22, k) }
+  }
+  const k = (t - 0.5) / 0.5 // laranja → vermelho
+  return { r: lerp(249, 220, k), g: lerp(115, 38, k), b: lerp(22, 38, k) }
+}
+
+/** Estilo de um hotspot: diâmetro, cor e opacidade crescem com o volume relativo (t = 0..1). */
+function hotspotStyle(t: number) {
+  const { r, g, b } = heatColor(t)
+  const diameter = Math.round(24 + Math.sqrt(t) * 74) // 24..98 px — poucos pedidos = bolinha menor
+  const coreA = 0.28 + t * 0.42 // 0.28..0.70 — translúcido p/ não tampar o mapa atrás
+  const midA = coreA * 0.45
+  const background =
+    `radial-gradient(circle, rgba(${r},${g},${b},${coreA.toFixed(3)}) 0%, ` +
+    `rgba(${r},${g},${b},${midA.toFixed(3)}) 42%, rgba(${r},${g},${b},0) 72%)`
+  return { diameter, background }
+}
+
+const PULSE_STYLE_ID = 'menuzia-hotspot-pulse'
+
+/** Injeta uma única vez a animação de pulsação lenta dos hotspots. */
+function ensurePulseKeyframes() {
+  if (typeof document === 'undefined' || document.getElementById(PULSE_STYLE_ID)) return
+  const style = document.createElement('style')
+  style.id = PULSE_STYLE_ID
+  style.textContent =
+    '@keyframes menuziaHotspotPulse{0%,100%{transform:scale(0.82);opacity:.55}50%{transform:scale(1.06);opacity:1}}'
+  document.head.appendChild(style)
+}
+
+// Mantém a classe do OverlayView entre renders (só pode ser criada depois do Maps carregar).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let HotspotOverlayCtor: any = null
+
+function getHotspotOverlay() {
+  if (HotspotOverlayCtor) return HotspotOverlayCtor
+
+  class HotspotOverlay extends google.maps.OverlayView {
+    private data: HotPoint[]
+    private maxW: number
+    private container: HTMLDivElement | null = null
+    private dots: { el: HTMLDivElement; location: google.maps.LatLng; diameter: number }[] = []
+
+    constructor(data: HotPoint[], maxW: number) {
+      super()
+      this.data = data
+      this.maxW = maxW
+    }
+
+    onAdd() {
+      ensurePulseKeyframes()
+      const container = document.createElement('div')
+      container.style.position = 'absolute'
+      container.style.top = '0'
+      container.style.left = '0'
+      container.style.pointerEvents = 'none'
+
+      this.data.forEach((d, i) => {
+        // Volume relativo: 1 pedido = amarelo/pequeno; o endereço mais pedido = vermelho/grande.
+        const t = this.maxW <= 1 ? 0.12 : (d.weight - 1) / (this.maxW - 1)
+        const { diameter, background } = hotspotStyle(t)
+        const el = document.createElement('div')
+        el.style.position = 'absolute'
+        el.style.width = `${diameter}px`
+        el.style.height = `${diameter}px`
+        el.style.borderRadius = '50%'
+        el.style.background = background
+        el.style.willChange = 'transform, opacity'
+        el.style.animation = `menuziaHotspotPulse ${(3.4 + (i % 5) * 0.35).toFixed(2)}s ease-in-out infinite`
+        el.style.animationDelay = `${((i % 7) * 0.3).toFixed(2)}s`
+        container.appendChild(el)
+        this.dots.push({ el, location: d.location, diameter })
+      })
+
+      this.container = container
+      this.getPanes()!.overlayLayer.appendChild(container)
+    }
+
+    draw() {
+      const projection = this.getProjection()
+      if (!projection) return
+      for (const dot of this.dots) {
+        const px = projection.fromLatLngToDivPixel(dot.location)
+        if (!px) continue
+        dot.el.style.left = `${px.x - dot.diameter / 2}px`
+        dot.el.style.top = `${px.y - dot.diameter / 2}px`
+      }
+    }
+
+    onRemove() {
+      this.container?.remove()
+      this.container = null
+      this.dots = []
+    }
+  }
+
+  HotspotOverlayCtor = HotspotOverlay
+  return HotspotOverlayCtor
+}
+
+/** Hotspots de pedidos por endereço, com glow translúcido e pulsação lenta, na região da loja. */
 export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<google.maps.Marker[]>([])
+  const overlayRef = useRef<google.maps.OverlayView | null>(null)
   const geocodeCache = useRef<Map<string, google.maps.LatLng>>(new Map())
   const biasRef = useRef<google.maps.LatLngBounds | null>(null)
   const [ready, setReady] = useState(false)
@@ -97,7 +184,7 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
     }
   }, [apiKey])
 
-  // 2) Centra na loja (geocode do CEP/endereço) e calcula a caixa de bias para os bairros
+  // 2) Centra na loja (geocode do CEP/endereço) e calcula a caixa de bias para os endereços
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map) return
@@ -105,7 +192,7 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
     const aplicarBias = (pos: google.maps.LatLng) => {
       map.setCenter(pos)
       map.setZoom(13)
-      const d = 0.12 // ~13km de raio para enviesar a busca dos bairros
+      const d = 0.12 // ~13km de raio para enviesar a busca dos endereços
       biasRef.current = new google.maps.LatLngBounds(
         new google.maps.LatLng(pos.lat() - d, pos.lng() - d),
         new google.maps.LatLng(pos.lat() + d, pos.lng() + d)
@@ -128,43 +215,34 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
     }
   }, [ready, center])
 
-  // Limpa hotspots anteriores
+  // Remove o overlay de hotspots anterior
   const limparOverlays = useCallback(() => {
-    markersRef.current.forEach((m) => m.setMap(null))
-    markersRef.current = []
+    overlayRef.current?.setMap(null)
+    overlayRef.current = null
   }, [])
 
-  // Desenha um hotspot glow por bairro: diâmetro ∝ √(pedidos), label com a contagem.
+  // Desenha os hotspots (um glow pulsante por endereço, raio/cor por volume)
   const desenhar = useCallback(
-    (map: google.maps.Map, data: { location: google.maps.LatLng; weight: number }[], bounds: google.maps.LatLngBounds) => {
+    (map: google.maps.Map, data: HotPoint[], bounds: google.maps.LatLngBounds) => {
       limparOverlays()
       if (data.length === 0) return
       const maxW = Math.max(...data.map((d) => d.weight)) || 1
-      data.forEach((d) => {
-        markersRef.current.push(
-          new google.maps.Marker({
-            map,
-            position: d.location,
-            icon: glowIcon(d.weight, maxW),
-            label: { text: String(d.weight), color: '#ffffff', fontSize: '11px', fontWeight: '700' },
-            zIndex: Math.round(d.weight),
-            clickable: false,
-            optimized: false,
-          })
-        )
-      })
+      const Overlay = getHotspotOverlay()
+      const overlay = new Overlay(data, maxW)
+      overlay.setMap(map)
+      overlayRef.current = overlay
       if (!bounds.isEmpty()) map.fitBounds(bounds, 56)
     },
     [limparOverlays]
   )
 
-  // 3) Geocodifica os bairros (enviesados pela loja) e desenha o mapa de calor
+  // 3) Geocodifica os endereços (enviesados pela loja) e desenha os hotspots
   const renderizar = useCallback(() => {
     const map = mapRef.current
     if (!ready || !centerResolved || !map) return
     const geocoder = new google.maps.Geocoder()
     const bounds = new google.maps.LatLngBounds()
-    const data: { location: google.maps.LatLng; weight: number }[] = []
+    const data: HotPoint[] = []
     let pending = 0
     let resolved = 0
     setResolvendo(true)
@@ -178,7 +256,7 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
     }
 
     points.forEach((pt) => {
-      const chave = `bairro:${pt.bairro.toLowerCase()}`
+      const chave = `addr:${pt.address.toLowerCase()}`
       const cached = geocodeCache.current.get(chave)
       if (cached) {
         bounds.extend(cached)
@@ -186,7 +264,7 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
         return
       }
       pending++
-      const req: google.maps.GeocoderRequest = { address: pt.bairro, region: 'BR' }
+      const req: google.maps.GeocoderRequest = { address: pt.address, region: 'BR' }
       if (biasRef.current) req.bounds = biasRef.current
       geocoder.geocode(req, (results, status) => {
         resolved++

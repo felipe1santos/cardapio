@@ -200,7 +200,7 @@ export default function DashboardPage() {
     const entregues = pedidos.filter((p) => p.status === 'entregue').length
     const completionRate = count ? `${Math.round((entregues / count) * 100)}%` : '—'
 
-    // hotspots de entrega: agregação por bairro (ranking + pontos de calor ponderados por nº de pedidos)
+    // ranking "bairros que mais pedem" (lista lateral) — agregação por bairro
     const bairroAgg: Record<string, number> = {}
     for (const p of pedidos) {
       const bairro = p.enderecoBairro.trim()
@@ -209,8 +209,16 @@ export default function DashboardPage() {
     const bairrosTodos = Object.entries(bairroAgg).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd)
     const bairros = bairrosTodos.slice(0, 7)
     const bairroMax = bairrosTodos[0]?.qtd ?? 1
-    // quanto mais pedidos no bairro, mais quente o ponto — endereço = só o bairro (o mapa centra/bias pela loja)
-    const heatPoints = bairrosTodos.map((b) => ({ bairro: b.nome, weight: b.qtd }))
+
+    // hotspots do mapa: um ponto por endereço (rua + número + bairro), peso = nº de pedidos no local
+    const enderecoAgg: Record<string, number> = {}
+    for (const p of pedidos) {
+      const partes = [p.enderecoRua, p.enderecoNumero, p.enderecoBairro].map((s) => s.trim()).filter(Boolean)
+      if (partes.length === 0) continue
+      const chave = partes.join(', ')
+      enderecoAgg[chave] = (enderecoAgg[chave] ?? 0) + 1
+    }
+    const heatPoints = Object.entries(enderecoAgg).map(([address, weight]) => ({ address, weight }))
 
     return { total, count, ticket, series, seriesMax, chartLabels, payments, channels, topItems, categories, peakHour, completionRate, bairros, bairroMax, heatPoints }
   }, [dados, period])
