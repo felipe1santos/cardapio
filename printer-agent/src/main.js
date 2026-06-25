@@ -8,6 +8,16 @@ const { montarRecibo } = require('./recibo')
 // de pareamento, não pela URL. Só mude isto se o domínio do sistema mudar.
 const API_BASE_URL = 'https://app.menuzia.com.br'
 
+// Trava de instância única: sem isto, abrir o atalho várias vezes acumula vários
+// processos rodando ao mesmo tempo — e durante uma atualização eles travam os
+// arquivos do app, fazendo o instalador NSIS "instalar" sem conseguir sobrescrever
+// o app.asar (a versão antiga continua no ar). Também é o sinal que o instalador
+// usa pra fechar o app rodando antes de atualizar.
+const obtevePrimazia = app.requestSingleInstanceLock()
+if (!obtevePrimazia) {
+  app.quit()
+}
+
 let mainWindow = null
 let pollTimer = null
 let polling = false
@@ -98,6 +108,15 @@ function pararPolling() {
   if (pollTimer) clearInterval(pollTimer)
   pollTimer = null
 }
+
+// Se já há uma instância rodando, traz a janela dela pra frente em vez de abrir outra.
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (!mainWindow.isVisible()) mainWindow.show()
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+})
 
 app.whenReady().then(() => {
   criarJanela()
