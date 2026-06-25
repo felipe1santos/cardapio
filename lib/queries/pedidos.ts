@@ -196,8 +196,11 @@ export async function listarPedidosRotas(supabase: SupabaseClient, restauranteId
     .select(PEDIDO_SELECT)
     .eq('restaurante_id', restauranteId)
     .eq('tipo', 'entrega')
-    .gte('criado_em', desdeISO)
-    .in('status', ['pronto', 'em_rota', 'entregue', 'cancelado'])
+    // Pedidos AGUARDANDO DESPACHO (status 'pronto') aparecem SEMPRE, sem limite de
+    // tempo — senão um pedido pronto há mais de 12h sumiria da coluna de despacho.
+    // A janela de 12h serve só pra limitar o HISTÓRICO no mapa (em rota/entregue/
+    // cancelado), não pra esconder pedidos que ainda precisam ser despachados.
+    .or(`status.eq.pronto,and(status.in.(em_rota,entregue,cancelado),criado_em.gte.${desdeISO})`)
     .order('criado_em', { ascending: true })
 
   if (error) throw error
