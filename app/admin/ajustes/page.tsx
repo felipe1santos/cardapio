@@ -788,17 +788,10 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-menuzia border border-alert-bg bg-alert-bg/60 p-3">
               <span className="text-[12px] font-semibold text-alert-text">Primeira vez configurando? Siga o guia passo a passo:</span>
               <a
-                href="/guia-impressora.pdf"
-                download
-                className="inline-flex items-center gap-1.5 rounded-menuzia bg-primary px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
-              >
-                📄 Baixar guia em PDF
-              </a>
-              <a
                 href="/guia-impressora.html"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:border-primary hover:text-primary"
+                className="inline-flex items-center gap-1.5 rounded-menuzia bg-primary px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
               >
                 Abrir guia online
               </a>

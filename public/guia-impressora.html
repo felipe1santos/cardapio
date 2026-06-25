@@ -177,7 +177,7 @@
     <p style="color:var(--subtle);margin-top:6px">Faça esta parte <strong>no computador onde a impressora está conectada</strong>.</p>
 
     <h2><span class="step-num">5</span>Baixe o instalador</h2>
-    <p>Na mesma tela <strong>Ajustes &gt; Impressão</strong>, clique no botão amarelo <strong>"⬇ Baixar Assistente de Impressão (Windows)"</strong>. Vai baixar um arquivo chamado <code>AssistenteImpressaoMenuzia-Setup-0.1.2.exe</code> (cerca de 75 MB). Espere terminar.</p>
+    <p>Na mesma tela <strong>Ajustes &gt; Impressão</strong>, clique no botão amarelo <strong>"⬇ Baixar Assistente de Impressão (Windows)"</strong>. Vai baixar um arquivo chamado <code>AssistenteImpressaoMenuzia-Setup-0.1.3.exe</code> (cerca de 75 MB). Espere terminar.</p>
 
     <h2><span class="step-num">6</span>Instale (dois cliques)</h2>
     <ol>
@@ -187,16 +187,15 @@
     </ol>
     <div class="callout info"><p>Da próxima vez é só abrir pelo atalho <strong>"Assistente de Impressão Menuzia"</strong> na área de trabalho.</p></div>
 
-    <h2><span class="step-num">7</span>Preencha os dados de conexão</h2>
-    <p>Na janela do Assistente vão aparecer alguns campos. Preencha:</p>
+    <h2><span class="step-num">7</span>Conecte com o token (Passo 1 do Assistente)</h2>
+    <p>A janela do Assistente abre no <strong>Passo 1 · Conectar</strong>. O endereço do sistema já vem <strong>fixo</strong> (<code>https://menuzia.com.br</code>, com um cadeado 🔒) — você <strong>não precisa preencher nada de endereço</strong>.</p>
     <ul>
-      <li><strong>URL do seu Menuzia</strong>: o endereço do seu painel, começando com <code>https://</code> (o mesmo que aparece na barra do navegador quando você usa o Menuzia). Ex.: <code>https://app.suapizzaria.com</code></li>
       <li><strong>Token de pareamento</strong>: <strong>cole aqui</strong> o código que você copiou no Passo 2.</li>
     </ul>
-    <p>Clique em <strong>"Testar conexão"</strong>. Se aparecer mensagem de sucesso, está ligado na sua loja. ✅ (Se der erro, confira se a URL está certa e se o token é o mais recente — veja "Deu problema?" no fim.)</p>
+    <p>Clique em <strong>"Testar conexão"</strong>. Se aparecer <strong>"Conexão ok!"</strong>, está ligado na sua loja. ✅ Só então o <strong>Passo 2 · Impressora</strong> libera (antes disso ele fica esmaecido). Se der erro, a própria janela mostra o motivo — veja "Deu problema?" no fim.</p>
 
-    <h2><span class="step-num">8</span>Escolha a impressora</h2>
-    <p>No campo <strong>"Impressora (instalada no Windows)"</strong>, abra a lista e selecione a impressora da loja (ex.: <strong>Cozinha</strong>). Se ela não aparecer, clique em <strong>"Atualizar lista"</strong>.</p>
+    <h2><span class="step-num">8</span>Escolha a impressora (Passo 2 do Assistente)</h2>
+    <p>No campo <strong>"Impressora (instalada no Windows)"</strong>, abra a lista e selecione a impressora da loja (ex.: <strong>Cozinha</strong>). Se ela não aparecer, clique em <strong>"Atualizar lista"</strong> (se ainda não aparecer, a janela mostra o erro na tela).</p>
     <p>Em <strong>"Configuração de impressão (cadastrada no painel)"</strong>, escolha o nome que você cadastrou no Passo 4 (ex.: <code>Cozinha</code>).</p>
 
     <h2><span class="step-num">9</span>Salve e teste</h2>
@@ -224,8 +223,9 @@
     </ul>
     <p><strong>"Testar conexão" dá erro</strong></p>
     <ul>
-      <li>Confira a <strong>URL</strong> (tem que começar com <code>https://</code> e ser a mesma do navegador).</li>
-      <li>O <strong>token</strong> pode ter sido trocado. Volte no painel, gere um token novo, copie e cole de novo no Assistente.</li>
+      <li>A janela mostra o motivo do erro na tela — leia a mensagem.</li>
+      <li>Se disser <strong>token inválido</strong>: volte no painel, gere um token novo, copie e cole de novo no Assistente.</li>
+      <li>Se disser <strong>sem conexão</strong>: confira se o computador está com internet.</li>
     </ul>
     <p><strong>A impressora não aparece na lista do Assistente</strong></p>
     <ul>
@@ -247,8 +247,8 @@
         <li>Ligar <strong>"Impressão automática de pedidos"</strong>.</li>
         <li>Cadastrar a impressora (<strong>+ Nova impressora</strong>).</li>
         <li><strong>Baixar</strong> o instalador e dar <strong>dois cliques</strong> (instala sozinho e abre).</li>
-        <li>No Assistente: colar <strong>URL</strong> + <strong>token</strong> → <strong>Testar conexão</strong>.</li>
-        <li>Escolher a <strong>impressora</strong> → <strong>Salvar</strong> → <strong>Imprimir teste</strong>.</li>
+        <li>No Assistente (Passo 1): colar o <strong>token</strong> → <strong>Testar conexão</strong> (o endereço já vem fixo).</li>
+        <li>(Passo 2) Escolher a <strong>impressora</strong> → <strong>Salvar</strong> → <strong>Imprimir teste</strong>.</li>
         <li>Deixar o computador ligado com o programa aberto. ✅</li>
       </ol>
     </div>
