@@ -16,6 +16,8 @@ export interface ConfigLoja {
   layoutCardapio: LayoutCardapio
   corTema: string
   imagemGrande: boolean
+  latitude: number | null
+  longitude: number | null
 }
 
 interface ConfigRow {
@@ -33,9 +35,11 @@ interface ConfigRow {
   layout_cardapio: LayoutCardapio
   cor_tema: string
   imagem_grande: boolean
+  latitude: number | null
+  longitude: number | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -53,6 +57,8 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     layoutCardapio: row.layout_cardapio ?? 'categoria',
     corTema: row.cor_tema ?? 'azul',
     imagemGrande: row.imagem_grande ?? false,
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
   }
 }
 
@@ -130,6 +136,44 @@ export async function atualizarTaxaBairro(supabase: SupabaseClient, id: string, 
 
 export async function removerTaxaBairro(supabase: SupabaseClient, id: string) {
   const { error } = await supabase.from('taxas_entrega_bairro').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ─── Entrega por raio (faixas de km) ─────────────────────────────────────────
+
+export interface TaxaRaio {
+  id: string
+  ateKm: number
+  taxa: number
+}
+
+export async function listarTaxasRaio(supabase: SupabaseClient, restauranteId: string): Promise<TaxaRaio[]> {
+  const { data, error } = await supabase
+    .from('taxas_entrega_raio')
+    .select('id, ate_km, taxa')
+    .eq('restaurante_id', restauranteId)
+    .order('ate_km', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((d) => ({ id: d.id, ateKm: Number(d.ate_km), taxa: Number(d.taxa) }))
+}
+
+export async function criarTaxaRaio(supabase: SupabaseClient, restauranteId: string, ateKm: number, taxa: number): Promise<TaxaRaio> {
+  const { data, error } = await supabase
+    .from('taxas_entrega_raio')
+    .insert({ restaurante_id: restauranteId, ate_km: ateKm, taxa })
+    .select('id, ate_km, taxa')
+    .single()
+  if (error) throw error
+  return { id: data.id, ateKm: Number(data.ate_km), taxa: Number(data.taxa) }
+}
+
+export async function atualizarTaxaRaio(supabase: SupabaseClient, id: string, ateKm: number, taxa: number) {
+  const { error } = await supabase.from('taxas_entrega_raio').update({ ate_km: ateKm, taxa }).eq('id', id)
+  if (error) throw error
+}
+
+export async function removerTaxaRaio(supabase: SupabaseClient, id: string) {
+  const { error } = await supabase.from('taxas_entrega_raio').delete().eq('id', id)
   if (error) throw error
 }
 

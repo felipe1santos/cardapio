@@ -16,6 +16,11 @@ import {
   criarTaxaBairro,
   atualizarTaxaBairro,
   removerTaxaBairro,
+  listarTaxasRaio,
+  criarTaxaRaio,
+  atualizarTaxaRaio,
+  removerTaxaRaio,
+  type TaxaRaio,
   type ConfigLoja,
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
@@ -333,22 +338,77 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   const [newTaxa, setNewTaxa] = useState('')
   const [addingRow, setAddingRow] = useState(false)
 
+  // Entrega por raio (faixas de km)
+  const [raios, setRaios] = useState<TaxaRaio[]>([])
+  const [editRaioId, setEditRaioId] = useState<string | null>(null)
+  const [editRaioKm, setEditRaioKm] = useState('')
+  const [editRaioTaxa, setEditRaioTaxa] = useState('')
+  const [newRaioKm, setNewRaioKm] = useState('')
+  const [newRaioTaxa, setNewRaioTaxa] = useState('')
+  const [addingRaio, setAddingRaio] = useState(false)
+
   useEffect(() => {
     if (loaded) return
     async function load() {
-      const [cfg, rows] = await Promise.all([
+      const [cfg, rows, raioRows] = await Promise.all([
         buscarConfigLoja(supabase, restauranteId),
         listarTaxasBairro(supabase, restauranteId),
+        listarTaxasRaio(supabase, restauranteId),
       ])
       if (cfg) {
         setTaxaPadrao(String(cfg.taxaEntregaPadrao))
         setTaxaPadraoSalva(cfg.taxaEntregaPadrao)
       }
       setBairros(rows)
+      setRaios(raioRows)
       setLoaded(true)
     }
     load()
   }, [supabase, restauranteId, loaded])
+
+  async function addRaioRow() {
+    const km = parseFloat(newRaioKm.replace(',', '.'))
+    if (!Number.isFinite(km) || km <= 0) { setError('Informe a distância em km da faixa (ex: 3).'); return }
+    const val = parseFloat(newRaioTaxa.replace(',', '.'))
+    const taxa = Number.isFinite(val) && val >= 0 ? val : 0
+    setAddingRaio(true)
+    setError(null)
+    try {
+      const row = await criarTaxaRaio(supabase, restauranteId, km, taxa)
+      setRaios((prev) => [...prev, row].sort((a, b) => a.ateKm - b.ateKm))
+      setNewRaioKm('')
+      setNewRaioTaxa('')
+    } catch {
+      setError('Não foi possível adicionar a faixa de raio.')
+    } finally {
+      setAddingRaio(false)
+    }
+  }
+
+  async function saveRaioRow(id: string) {
+    const km = parseFloat(editRaioKm.replace(',', '.'))
+    if (!Number.isFinite(km) || km <= 0) { setError('Informe a distância em km da faixa.'); return }
+    const val = parseFloat(editRaioTaxa.replace(',', '.'))
+    const taxa = Number.isFinite(val) && val >= 0 ? val : 0
+    setError(null)
+    try {
+      await atualizarTaxaRaio(supabase, id, km, taxa)
+      setRaios((prev) => prev.map((r) => (r.id === id ? { ...r, ateKm: km, taxa } : r)).sort((a, b) => a.ateKm - b.ateKm))
+      setEditRaioId(null)
+    } catch {
+      setError('Não foi possível atualizar a faixa de raio.')
+    }
+  }
+
+  async function deleteRaioRow(id: string) {
+    setError(null)
+    try {
+      await removerTaxaRaio(supabase, id)
+      setRaios((prev) => prev.filter((r) => r.id !== id))
+    } catch {
+      setError('Não foi possível remover a faixa de raio.')
+    }
+  }
 
   async function saveTaxaPadrao() {
     const val = parseFloat(taxaPadrao.replace(',', '.'))
@@ -507,6 +567,91 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
                     </td>
                     <td className="px-2.5 py-2">
                       <Button variant="outline" onClick={addBairroRow} disabled={addingRow || !newBairro.trim()} className="w-full justify-center">
+                        + Adicionar
+                      </Button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Entrega por raio (faixas de km) */}
+          <Card>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Entrega por raio (km)</h3>
+            <p className="mb-2 text-[12px] leading-relaxed text-text-subtle">
+              Cobra o frete pela distância em linha reta entre a loja e o cliente. Defina faixas: até X km custa R$ Y.
+              Endereços além da última faixa ficam fora da área de entrega.
+            </p>
+            <p className="mb-3 rounded-menuzia border-l-[3px] border-l-primary bg-alert-bg/60 px-3 py-2 text-[12px] text-text-main">
+              <b>O bairro tem prioridade.</b> Se o bairro do cliente bater com uma taxa por bairro acima, ela é usada.
+              O raio entra como segunda opção, quando o bairro não está cadastrado.
+            </p>
+            <div className="overflow-hidden rounded-menuzia border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-page">
+                    <th className="px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Até (km)</th>
+                    <th className="px-3.5 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Taxa (R$)</th>
+                    <th className="w-24 px-3.5 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {raios.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-3.5 py-4 text-center text-[13px] text-text-subtle">
+                        Nenhuma faixa cadastrada. Use a linha abaixo para adicionar.
+                      </td>
+                    </tr>
+                  )}
+                  {raios.map((r) =>
+                    editRaioId === r.id ? (
+                      <tr key={r.id} className="border-b border-border bg-primary/10">
+                        <td className="px-2.5 py-2">
+                          <Input value={editRaioKm} onChange={(e) => setEditRaioKm(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && saveRaioRow(r.id)} className="py-1.5" />
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <Input value={editRaioTaxa} onChange={(e) => setEditRaioTaxa(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && saveRaioRow(r.id)} className="py-1.5 text-right" />
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <div className="flex justify-end gap-1.5">
+                            <button onClick={() => saveRaioRow(r.id)} className="text-[12px] font-semibold text-primary hover:underline">Salvar</button>
+                            <button onClick={() => setEditRaioId(null)} className="text-[12px] text-text-subtle hover:text-text-main">Cancelar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={r.id} className="border-b border-border last:border-none hover:bg-page">
+                        <td className="px-3.5 py-2.5 font-medium tabular-nums">até {r.ateKm.toString().replace('.', ',')} km</td>
+                        <td className="px-3.5 py-2.5 text-right tabular-nums">{r.taxa.toFixed(2).replace('.', ',')}</td>
+                        <td className="px-3.5 py-2.5">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => { setEditRaioId(r.id); setEditRaioKm(String(r.ateKm)); setEditRaioTaxa(String(r.taxa)) }}
+                              className="text-[12px] text-text-subtle hover:text-primary"
+                            >Editar</button>
+                            <button onClick={() => deleteRaioRow(r.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )}
+                  {/* Nova faixa */}
+                  <tr className="bg-page">
+                    <td className="px-2.5 py-2">
+                      <Input value={newRaioKm} onChange={(e) => setNewRaioKm(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && addRaioRow()}
+                        placeholder="Ex: 3" className="py-1.5" />
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <Input value={newRaioTaxa} onChange={(e) => setNewRaioTaxa(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && addRaioRow()}
+                        placeholder="0,00" className="py-1.5 text-right" />
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <Button variant="outline" onClick={addRaioRow} disabled={addingRaio || !newRaioKm.trim()} className="w-full justify-center">
                         + Adicionar
                       </Button>
                     </td>

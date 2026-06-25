@@ -333,8 +333,14 @@ export default function StorefrontPage() {
 
   // ── Checkout form state (hoisted so fee can access endereco) ───────────────
   const [endereco, setEndereco] = useState({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+  const [cidadeCliente, setCidadeCliente] = useState('')
+  const [cepBuscando, setCepBuscando] = useState(false)
 
-  const fee = useMemo(() => {
+  // Frete resolvido pelo servidor: bairro tem prioridade; senão faixa de raio; senão taxa padrão.
+  const [freteCalc, setFreteCalc] = useState<{ taxa: number; entregavel: boolean; fonte: 'bairro' | 'raio' | 'padrao'; distanciaKm: number | null; motivo?: string } | null>(null)
+
+  // Fallback instantâneo por bairro enquanto o servidor responde (ou se ele falhar).
+  const feeFallback = useMemo(() => {
     const padrao = restaurante?.taxaEntregaPadrao ?? 0
     const alvo = endereco.bairro.trim().toLowerCase()
     if (!alvo) return padrao
@@ -342,7 +348,53 @@ export default function StorefrontPage() {
     return match ? match.taxa : padrao
   }, [restaurante, bairros, endereco.bairro])
 
+  const entregavel = freteCalc ? freteCalc.entregavel : true
+  const fee = freteCalc ? (freteCalc.entregavel ? freteCalc.taxa : 0) : feeFallback
+
   const total = subtotal + (cart.length ? fee : 0)
+
+  // Autopreenche rua/bairro/cidade ao digitar o CEP (ViaCEP).
+  async function autofillCep(cepRaw: string) {
+    const cep = cepRaw.replace(/\D/g, '')
+    if (cep.length !== 8) return
+    setCepBuscando(true)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const data = await res.json()
+      if (!data.erro) {
+        setEndereco((a) => ({ ...a, rua: data.logradouro || a.rua, bairro: data.bairro || a.bairro }))
+        setCidadeCliente(data.localidade || '')
+      }
+    } catch {
+      /* mantém o que o cliente já digitou */
+    } finally {
+      setCepBuscando(false)
+    }
+  }
+
+  // Recalcula o frete (servidor) quando o endereço muda — com debounce.
+  useEffect(() => {
+    if (!slug) return
+    const cep = endereco.cep.replace(/\D/g, '')
+    const temBase = cep.length === 8 || endereco.bairro.trim() !== ''
+    if (!temBase) { setFreteCalc(null); return }
+    let cancel = false
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/loja/${slug}/frete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cep, rua: endereco.rua, numero: endereco.numero, bairro: endereco.bairro, cidade: cidadeCliente }),
+        })
+        if (!res.ok) { if (!cancel) setFreteCalc(null); return }
+        const data = await res.json()
+        if (!cancel) setFreteCalc(data)
+      } catch {
+        if (!cancel) setFreteCalc(null)
+      }
+    }, 600)
+    return () => { cancel = true; clearTimeout(t) }
+  }, [slug, endereco.cep, endereco.bairro, endereco.rua, endereco.numero, cidadeCliente])
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<ToastItem[]>([])
@@ -799,6 +851,10 @@ export default function StorefrontPage() {
   function checkoutNext() {
     if (checkoutStep === 2 && (!cliente.nome.trim() || !endereco.rua.trim() || !endereco.numero.trim())) {
       setCheckoutError('Preencha nome, rua e número para continuar.')
+      return
+    }
+    if (checkoutStep === 2 && !entregavel) {
+      setCheckoutError(freteCalc?.motivo || 'Não entregamos nesse endereço.')
       return
     }
     setCheckoutError(null)
@@ -1619,7 +1675,18 @@ export default function StorefrontPage() {
                 </div>
               </div>
               <h3 className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
-              <div className="flex gap-3">
+              {/* CEP primeiro: ao preencher, busca rua/bairro/cidade sozinho */}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
+                <input
+                  value={endereco.cep}
+                  onChange={(e) => { const v = e.target.value; setEndereco((a) => ({ ...a, cep: v })); autofillCep(v) }}
+                  placeholder="00000-000"
+                  inputMode="numeric"
+                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                <p className="mt-1 text-[11px] text-text-subtle">{cepBuscando ? 'Buscando endereço…' : 'Informe o CEP que preenchemos rua e bairro pra você.'}</p>
+              </div>
+              <div className="mt-3 flex gap-3">
                 <div className="flex-[2]">
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua *</label>
                   <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
@@ -1638,16 +1705,26 @@ export default function StorefrontPage() {
                     className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
-                  <input value={endereco.cep} onChange={(e) => setEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
+                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
+                  <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
                     className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
-              <div className="mt-3">
-                <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
-                <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
-                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
-              </div>
+              {/* Status do frete calculado */}
+              {(endereco.bairro.trim() || endereco.cep.replace(/\D/g, '').length === 8) && (
+                entregavel ? (
+                  <div className="mt-3 flex items-center justify-between gap-2 rounded border border-price-bg bg-price-bg/40 px-3 py-2.5 text-[13px]">
+                    <span className="font-medium text-text-main">
+                      Frete{freteCalc?.fonte === 'raio' && freteCalc.distanciaKm != null ? ` · ~${freteCalc.distanciaKm} km` : ''}
+                    </span>
+                    <span className="font-bold text-price-text">{fee === 0 ? 'Grátis' : brl(fee)}</span>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded border border-danger bg-danger/10 px-3 py-2.5 text-[13px] font-medium text-danger">
+                    {freteCalc?.motivo || 'Esse endereço está fora da nossa área de entrega.'}
+                  </div>
+                )
+              )}
             </div>
           )}
 
