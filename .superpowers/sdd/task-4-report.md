@@ -59,4 +59,4 @@ Additional gates implemented:
 | `npm run build` | ✓ Compiled successfully; ✓ Generating static pages (28/28) — only pre-existing warnings |
 
 ### Commit Hash
-_See below after commit._
+`c773ffc` — `fix(cozinha): guarda de status na ação + notificação WhatsApp + token não-UUID retorna 404`
