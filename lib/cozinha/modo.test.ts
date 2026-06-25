@@ -1,45 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { statusVisiveis, podeExecutar, transicaoDe, MODOS, LABEL_MODO } from './modo'
+import { statusVisiveis, podeExecutar, ORIGEM_ESPERADA, MODOS, LABEL_MODO } from './modo'
 
 describe('statusVisiveis', () => {
-  it('produção vê recebido e preparando', () => {
-    expect(statusVisiveis('producao')).toEqual(['recebido', 'preparando'])
-  })
-  it('expedição vê só pronto', () => {
-    expect(statusVisiveis('expedicao')).toEqual(['pronto'])
-  })
-  it('completa vê recebido, preparando e pronto', () => {
-    expect(statusVisiveis('completa')).toEqual(['recebido', 'preparando', 'pronto'])
-  })
+  it('producao vê recebido e preparando', () => { expect(statusVisiveis('producao')).toEqual(['recebido', 'preparando']) })
+  it('expedicao vê só pronto', () => { expect(statusVisiveis('expedicao')).toEqual(['pronto']) })
+  it('completa vê recebido, preparando e pronto', () => { expect(statusVisiveis('completa')).toEqual(['recebido', 'preparando', 'pronto']) })
 })
 
 describe('podeExecutar', () => {
-  it('produção aceita e marca pronto, mas não entrega', () => {
-    expect(podeExecutar('producao', 'aceitar')).toBe(true)
-    expect(podeExecutar('producao', 'pronto')).toBe(true)
+  it('producao pega/devolve/conclui, não entrega', () => {
+    expect(podeExecutar('producao', 'pegar')).toBe(true)
+    expect(podeExecutar('producao', 'devolver')).toBe(true)
+    expect(podeExecutar('producao', 'concluir')).toBe(true)
     expect(podeExecutar('producao', 'entregue')).toBe(false)
   })
-  it('expedição só entrega', () => {
+  it('expedicao só entrega', () => {
     expect(podeExecutar('expedicao', 'entregue')).toBe(true)
-    expect(podeExecutar('expedicao', 'aceitar')).toBe(false)
-    expect(podeExecutar('expedicao', 'pronto')).toBe(false)
+    expect(podeExecutar('expedicao', 'pegar')).toBe(false)
+    expect(podeExecutar('expedicao', 'concluir')).toBe(false)
   })
   it('completa faz tudo', () => {
-    for (const a of ['aceitar', 'pronto', 'entregue'] as const) {
-      expect(podeExecutar('completa', a)).toBe(true)
-    }
+    for (const a of ['pegar', 'devolver', 'concluir', 'entregue'] as const) expect(podeExecutar('completa', a)).toBe(true)
   })
 })
 
-describe('transicaoDe', () => {
-  it('aceitar → preparando via avançar', () => {
-    expect(transicaoDe('aceitar')).toEqual({ status: 'preparando', viaEntregue: false })
-  })
-  it('pronto → pronto via avançar', () => {
-    expect(transicaoDe('pronto')).toEqual({ status: 'pronto', viaEntregue: false })
-  })
-  it('entregue → entregue via marcarPedidoEntregue', () => {
-    expect(transicaoDe('entregue')).toEqual({ status: 'entregue', viaEntregue: true })
+describe('ORIGEM_ESPERADA', () => {
+  it('mapeia cada ação ao status de origem', () => {
+    expect(ORIGEM_ESPERADA).toEqual({ pegar: 'recebido', devolver: 'preparando', concluir: 'preparando', entregue: 'pronto' })
   })
 })
 
