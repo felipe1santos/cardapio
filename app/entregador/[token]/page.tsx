@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { Lock, Bike, MapPin, Check, PackageCheck } from 'lucide-react'
 import { enderecoCompletoPedido, type CaixaEntregador, type FormaPagamento, type Pedido } from '@/lib/queries/pedidos'
 import { RouteMap } from '@/components/maps/route-map'
 
@@ -12,6 +13,8 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 interface PortalData {
   entregador: { nome: string; restauranteNome: string }
   pedidos: Pedido[]
+  disponiveis: Pedido[]
+  despachoAberto: boolean
   concluidosHoje: number
   caixaHoje: CaixaEntregador
 }
@@ -91,6 +94,8 @@ export default function EntregadorPortalPage() {
   }, [token, geo])
 
   const pedidos = data?.pedidos ?? []
+  const disponiveis = data?.disponiveis ?? []
+  const despachoAberto = data?.despachoAberto ?? false
   const routeStops = useMemo(
     () => pedidos.map((p, i) => ({ id: p.id, numero: i + 1, address: enderecoCompleto(p) })),
     [pedidos]
@@ -122,6 +127,21 @@ export default function EntregadorPortalPage() {
       await refetch()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Não foi possível atualizar o pedido')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function pegarPedido(pedidoId: string) {
+    setBusy(pedidoId)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/entregador/${token}/pedidos/${pedidoId}/pegar`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Não foi possível pegar o pedido')
+      await refetch()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Não foi possível pegar o pedido')
     } finally {
       setBusy(null)
     }
@@ -205,17 +225,16 @@ export default function EntregadorPortalPage() {
           </div>
         )}
 
-        {/* Lista de entregas */}
-        {pedidos.length === 0 ? (
-          <div className="rounded-menuzia border border-dashed border-border bg-white p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-page text-2xl">🛵</div>
-            <p className="font-semibold text-text-main">Nenhuma entrega na sua rota agora</p>
-            <p className="mt-1 text-[13px] text-text-subtle">Quando um pedido for atribuído a você, ele aparece aqui.</p>
-          </div>
-        ) : (
+        {/* Minhas entregas (em rota) — trava sequencial: só a 1ª da fila é liberada */}
+        {pedidos.length > 0 && (
           <div className="flex flex-col gap-3">
-            {pedidos.map((order, index) => (
-              <div key={order.id} className="overflow-hidden rounded-menuzia border border-border bg-white">
+            {pedidos.map((order, index) => {
+              const liberado = index === 0
+              return (
+              <div
+                key={order.id}
+                className={`overflow-hidden rounded-menuzia border bg-white ${liberado ? 'border-status-ready' : 'border-border'}`}
+              >
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
@@ -226,7 +245,7 @@ export default function EntregadorPortalPage() {
                   <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
                 </div>
 
-                <div className="px-4 py-3">
+                <div className={`px-4 py-3 ${liberado ? '' : 'opacity-60'}`}>
                   <div className="text-sm font-semibold">{order.clienteNome || 'Cliente'}</div>
                   {order.clienteTelefone && (
                     <a href={`tel:${order.clienteTelefone}`} className="mt-0.5 inline-block text-[13px] font-medium text-primary">
@@ -234,7 +253,10 @@ export default function EntregadorPortalPage() {
                     </a>
                   )}
 
-                  <div className="mt-2 text-[13px] leading-relaxed text-text-main">{enderecoCompleto(order)}</div>
+                  <div className="mt-2 flex items-start gap-1 text-[13px] leading-relaxed text-text-main">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-text-subtle" />
+                    {enderecoCompleto(order)}
+                  </div>
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(enderecoCompleto(order))}`}
                     target="_blank"
@@ -265,24 +287,101 @@ export default function EntregadorPortalPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 border-t border-border p-3">
-                  <button
-                    onClick={() => reportarProblema(order.id)}
-                    disabled={busy === order.id}
-                    className="rounded-menuzia border border-danger px-3 py-3 text-xs font-bold uppercase tracking-wide text-danger hover:bg-danger-bg disabled:opacity-50"
-                  >
-                    Não entreguei
-                  </button>
-                  <button
-                    onClick={() => confirmarEntrega(order.id)}
-                    disabled={busy === order.id}
-                    className="flex-1 rounded-menuzia bg-status-ready py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
-                  >
-                    {busy === order.id ? 'Confirmando…' : '✓ Entregue'}
-                  </button>
-                </div>
+                {liberado ? (
+                  <div className="flex gap-2 border-t border-border p-3">
+                    <button
+                      onClick={() => reportarProblema(order.id)}
+                      disabled={busy === order.id}
+                      className="rounded-menuzia border border-danger px-3 py-3 text-xs font-bold uppercase tracking-wide text-danger hover:bg-danger-bg disabled:opacity-50"
+                    >
+                      Não entreguei
+                    </button>
+                    <button
+                      onClick={() => confirmarEntrega(order.id)}
+                      disabled={busy === order.id}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
+                    >
+                      <Check className="h-4 w-4" /> {busy === order.id ? 'Confirmando…' : 'Entregue'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-1.5 border-t border-border bg-page p-3 text-[12px] font-semibold text-text-subtle">
+                    <Lock className="h-3.5 w-3.5" /> Finalize o pedido #{pedidos[index - 1].numero} para liberar
+                  </div>
+                )}
               </div>
-            ))}
+              )
+            })}
+          </div>
+        )}
+
+        {/* Balcão: pedidos prontos liberados pela loja para o motoboy pegar */}
+        {despachoAberto && disponiveis.length > 0 && (
+          <div className={pedidos.length > 0 ? 'mt-5' : ''}>
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+              <PackageCheck className="h-4 w-4 text-status-pending" />
+              Disponíveis para pegar
+              <span className="rounded-full bg-page px-1.5 text-text-subtle">{disponiveis.length}</span>
+            </div>
+            {pedidos.length > 0 && (
+              <div className="mb-2 flex items-center gap-1.5 rounded-menuzia border border-warn/40 bg-warn-bg px-3 py-2 text-[12px] font-medium text-warn">
+                <Lock className="h-3.5 w-3.5 flex-shrink-0" /> Conclua sua entrega atual para pegar um novo pedido.
+              </div>
+            )}
+            <div className="flex flex-col gap-3">
+              {disponiveis.map((order) => (
+                <div key={order.id} className="overflow-hidden rounded-menuzia border border-border bg-white">
+                  <div className="flex items-center justify-between border-b border-border bg-status-pending/5 px-4 py-3">
+                    <span className="text-sm font-bold">Pedido #{order.numero}</span>
+                    <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="text-sm font-semibold">{order.clienteNome || 'Cliente'}</div>
+                    <div className="mt-1 flex items-start gap-1 text-[13px] leading-relaxed text-text-main">
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-text-subtle" />
+                      {enderecoCompleto(order)}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-alert-text">
+                        {PAY_LABEL[order.formaPagamento]}
+                      </span>
+                      {order.formaPagamento === 'dinheiro' && (
+                        <span className="rounded-menuzia bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-warn">
+                          {order.trocoPara !== null ? `Troco p/ ${brl(order.trocoPara)}` : 'Sem troco'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 rounded-menuzia border border-border bg-page px-3 py-2 text-[12px] text-text-subtle">
+                      {resumoItens(order).join(' · ')}
+                    </div>
+                  </div>
+                  <div className="border-t border-border p-3">
+                    <button
+                      onClick={() => pegarPedido(order.id)}
+                      disabled={busy === order.id || pedidos.length > 0}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-pending py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-40"
+                    >
+                      <Bike className="h-4 w-4" /> {busy === order.id ? 'Pegando…' : 'Pegar entrega'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Vazio total: sem entrega em rota e sem balcão disponível */}
+        {pedidos.length === 0 && disponiveis.length === 0 && (
+          <div className="rounded-menuzia border border-dashed border-border bg-white p-8 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-page">
+              <Bike className="h-6 w-6 text-text-subtle" />
+            </div>
+            <p className="font-semibold text-text-main">Nenhuma entrega na sua rota agora</p>
+            <p className="mt-1 text-[13px] text-text-subtle">
+              {despachoAberto
+                ? 'Assim que a loja liberar um pedido pronto, ele aparece aqui para você pegar.'
+                : 'Quando um pedido for atribuído a você, ele aparece aqui.'}
+            </p>
           </div>
         )}
       </div>

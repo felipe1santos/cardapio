@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import {
+  buscarDespachoAberto,
   buscarEntregadorPorToken,
   calcularCaixaEntregadorHoje,
   contarEntregasConcluidasHoje,
+  listarPedidosDisponiveisDespacho,
   listarPedidosEmRotaDoEntregador,
 } from '@/lib/queries/pedidos'
 
@@ -21,15 +23,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     const entregador = await buscarEntregadorPorToken(admin, token)
     if (!entregador) return NextResponse.json({ error: 'Link inválido' }, { status: 404 })
 
-    const [pedidos, concluidosHoje, caixaHoje] = await Promise.all([
+    const [pedidos, concluidosHoje, caixaHoje, despachoAberto] = await Promise.all([
       listarPedidosEmRotaDoEntregador(admin, entregador.id),
       contarEntregasConcluidasHoje(admin, entregador.id, inicioDoDiaISO()),
       calcularCaixaEntregadorHoje(admin, entregador.id, inicioDoDiaISO()),
+      buscarDespachoAberto(admin, entregador.restauranteId),
     ])
+
+    const disponiveis = despachoAberto ? await listarPedidosDisponiveisDespacho(admin, entregador.restauranteId) : []
 
     return NextResponse.json({
       entregador: { nome: entregador.nome, restauranteNome: entregador.restauranteNome },
       pedidos,
+      disponiveis,
+      despachoAberto,
       concluidosHoje,
       caixaHoje,
     })

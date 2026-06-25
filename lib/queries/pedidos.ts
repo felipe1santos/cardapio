@@ -465,6 +465,54 @@ export async function calcularCaixaEntregadorHoje(admin: SupabaseClient, entrega
   return { recebido, trocoDado: recebido - aDevolver, aDevolver }
 }
 
+// --- Despacho aberto (self-service do entregador) -------------------------
+
+/** Lê a flag de despacho aberto da loja (operador libera os pedidos prontos pro app do motoboy). */
+export async function buscarDespachoAberto(supabase: SupabaseClient, restauranteId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('restaurantes').select('despacho_aberto').eq('id', restauranteId).maybeSingle()
+  if (error) throw error
+  return !!data?.despacho_aberto
+}
+
+/** Liga/desliga o despacho aberto da loja. */
+export async function definirDespachoAberto(supabase: SupabaseClient, restauranteId: string, aberto: boolean) {
+  const { error } = await supabase.from('restaurantes').update({ despacho_aberto: aberto }).eq('id', restauranteId)
+  if (error) throw error
+}
+
+/** Pedidos prontos pra entrega e ainda sem entregador — o "balcão" que o motoboy pode pegar. */
+export async function listarPedidosDisponiveisDespacho(admin: SupabaseClient, restauranteId: string): Promise<Pedido[]> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .select(PEDIDO_SELECT)
+    .eq('restaurante_id', restauranteId)
+    .eq('tipo', 'entrega')
+    .eq('status', 'pronto')
+    .is('entregador_id', null)
+    .order('criado_em', { ascending: true })
+  if (error) throw error
+  return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+}
+
+/**
+ * Motoboy pega um pedido do balcão (self-service). Guarda atômica: só funciona se
+ * o pedido ainda estiver pronto e sem dono — evita dois entregadores pegando o mesmo.
+ */
+export async function pegarPedidoDisponivel(admin: SupabaseClient, pedidoId: string, entregadorId: string, restauranteId: string) {
+  const { data, error } = await admin
+    .from('pedidos')
+    .update({ entregador_id: entregadorId, status: 'em_rota' })
+    .eq('id', pedidoId)
+    .eq('restaurante_id', restauranteId)
+    .eq('tipo', 'entrega')
+    .eq('status', 'pronto')
+    .is('entregador_id', null)
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Esse pedido já foi pego por outro entregador.')
+}
+
 export interface BadgesNav {
   novosPedidos: number // pedidos recebidos aguardando aceite
   logisticaPendente: number // prontos para entrega ainda não despachados

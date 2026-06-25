@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet } from 'lucide-react'
+import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,9 @@ import {
   atribuirEntregador,
   atribuirEntregadorEmLote,
   atualizarPerfilEntregador,
+  buscarDespachoAberto,
   criarEntregador,
+  definirDespachoAberto,
   enderecoCompletoPedido,
   enviarFotoEntregador,
   listarEntregadores,
@@ -88,6 +90,7 @@ export default function LogisticaPage() {
   const [orders, setOrders] = useState<Pedido[]>([])
   const [concluidos, setConcluidos] = useState<Pedido[]>([])
   const [drivers, setDrivers] = useState<Entregador[]>([])
+  const [despachoAberto, setDespachoAberto] = useState(false)
   const [assigning, setAssigning] = useState<string | null>(null)
   const [closingOpen, setClosingOpen] = useState(false)
 
@@ -122,14 +125,16 @@ export default function LogisticaPage() {
   const refetch = useCallback(
     async (id: string) => {
       try {
-        const [pedidos, entregadores, finalizados] = await Promise.all([
+        const [pedidos, entregadores, finalizados, aberto] = await Promise.all([
           listarPedidosLogistica(supabase, id),
           listarEntregadores(supabase, id),
           listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
+          buscarDespachoAberto(supabase, id),
         ])
         setOrders(pedidos)
         setDrivers(entregadores)
         setConcluidos(finalizados)
+        setDespachoAberto(aberto)
       } catch {
         setError('Não foi possível carregar a logística.')
       }
@@ -350,6 +355,18 @@ export default function LogisticaPage() {
     } catch {
       setError('Não foi possível marcar como não entregue.')
       if (restauranteId) refetch(restauranteId)
+    }
+  }
+
+  async function toggleDespacho() {
+    if (!restauranteId) return
+    const next = !despachoAberto
+    setDespachoAberto(next)
+    try {
+      await definirDespachoAberto(supabase, restauranteId, next)
+    } catch {
+      setDespachoAberto(!next)
+      setError('Não foi possível alterar o despacho aberto.')
     }
   }
 
@@ -580,6 +597,20 @@ export default function LogisticaPage() {
                   <h3 className="text-sm font-bold">Prontos para despachar</h3>
                   <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{unassigned.length}</span>
                 </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleDespacho}
+                    title={
+                      despachoAberto
+                        ? 'Fechar o despacho — os entregadores deixam de ver estes pedidos'
+                        : 'Liberar os pedidos prontos para os entregadores pegarem no app'
+                    }
+                    className={`inline-flex items-center gap-1.5 rounded-menuzia px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors ${
+                      despachoAberto ? 'bg-white text-status-pending hover:bg-white/90' : 'bg-black/20 text-white hover:bg-black/30'
+                    }`}
+                  >
+                    <Bike className="h-4 w-4" /> {despachoAberto ? 'Despacho aberto' : 'Liberar p/ entregadores'}
+                  </button>
                 {selected.size > 0 && (
                   <div className="relative">
                     <Button variant="dispatch" onClick={() => setBulkAssigning((v) => !v)}>
@@ -602,7 +633,13 @@ export default function LogisticaPage() {
                     )}
                   </div>
                 )}
+                </div>
               </div>
+              {despachoAberto && (
+                <div className="flex items-center gap-1.5 border-b border-border bg-status-pending/5 px-4 py-2 text-[12px] font-medium text-status-pending">
+                  <Bike className="h-3.5 w-3.5 flex-shrink-0" /> Despacho aberto — os entregadores podem pegar estes pedidos pelo app.
+                </div>
+              )}
               <div className="divide-y divide-border">
                 {unassigned.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido aguardando despacho</div>}
                 {unassigned.map((order) => (
@@ -671,14 +708,16 @@ export default function LogisticaPage() {
                     className="flex flex-col gap-2 border-l-[3px] border-l-status-preparing bg-status-preparing/5 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <div className="mb-1 flex items-center gap-2">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold">#{order.numero}</span>
                         <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
                         <Badge tone="preparing">Saiu para entrega</Badge>
+                        <ArrowRight className="h-4 w-4 text-status-preparing" strokeWidth={2.5} />
+                        <span className="inline-flex items-center gap-1 rounded-full bg-status-preparing/10 px-2 py-0.5 text-[12px] font-semibold text-status-preparing">
+                          <Bike className="h-3.5 w-3.5" /> {driverName(order.entregadorId)}
+                        </span>
                       </div>
-                      <div className="mb-1.5 text-xs text-text-subtle">
-                        {endereco(order)} · entregador: <b className="text-text-main">{driverName(order.entregadorId)}</b>
-                      </div>
+                      <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
                         {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
