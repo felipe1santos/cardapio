@@ -45,6 +45,7 @@ export interface Pedido {
   entregadorId: string | null
   preparandoPor: string | null
   preparadoPor: string | null
+  telefoneVerificado: boolean
   criadoEm: string
   atualizadoEm: string
   itens: PedidoItem[]
@@ -86,6 +87,7 @@ interface PedidoRow {
   entregador_id: string | null
   preparando_por: string | null
   preparado_por: string | null
+  telefone_verificado: boolean
   criado_em: string
   atualizado_em: string
   pedido_itens: {
@@ -106,7 +108,7 @@ const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
-  entregador_id, preparando_por, preparado_por, criado_em, atualizado_em,
+  entregador_id, preparando_por, preparado_por, telefone_verificado, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome )
 `
 
@@ -133,6 +135,7 @@ function mapPedido(row: PedidoRow): Pedido {
     entregadorId: row.entregador_id,
     preparandoPor: row.preparando_por ?? null,
     preparadoPor: row.preparado_por ?? null,
+    telefoneVerificado: row.telefone_verificado ?? true,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
     itens: (row.pedido_itens ?? []).map((i) => ({
@@ -762,6 +765,26 @@ export interface NovoPedidoInput {
  * partir do banco (nunca confia no total enviado pelo cliente). Roda no
  * servidor com um client service_role. Retorna o número sequencial do pedido.
  */
+/** Normaliza o telefone para o mesmo formato gravado em `clientes.telefone` (DDI 55 + dígitos). */
+function normalizarTelefoneCliente(telefone: string): string | null {
+  const digitos = telefone.replace(/\D/g, '')
+  if (digitos.length < 10) return null
+  return digitos.startsWith('55') ? digitos : `55${digitos}`
+}
+
+/** True se o telefone do cliente foi confirmado por OTP (clientes.verificado_em preenchido). */
+async function telefoneClienteVerificado(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<boolean> {
+  const tel = normalizarTelefoneCliente(telefone)
+  if (!tel) return false
+  const { data } = await admin
+    .from('clientes')
+    .select('verificado_em')
+    .eq('restaurante_id', restauranteId)
+    .eq('telefone', tel)
+    .maybeSingle()
+  return !!data?.verificado_em
+}
+
 export async function criarPedido(admin: SupabaseClient, restauranteId: string, input: NovoPedidoInput): Promise<{ id: string; numero: number }> {
   if (input.itens.length === 0) throw new Error('Pedido sem itens')
 
@@ -856,6 +879,10 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   const taxaEntrega = input.tipo === 'entrega' ? await calcularTaxaEntrega(admin, restauranteId, input.endereco.bairro) : 0
   const total = subtotal + taxaEntrega
 
+  // Telefone verificado? (server-authoritative). Pedidos feitos com o WhatsApp da
+  // loja offline entram pelo fallback do checkout com o cliente não verificado.
+  const telefoneVerificado = await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone)
+
   const { data: pedido, error: pedidoError } = await admin
     .from('pedidos')
     .insert({
@@ -864,6 +891,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       status: 'recebido',
       cliente_nome: input.cliente.nome,
       cliente_telefone: input.cliente.telefone,
+      telefone_verificado: telefoneVerificado,
       endereco_rua: input.endereco.rua,
       endereco_numero: input.endereco.numero,
       endereco_complemento: input.endereco.complemento,

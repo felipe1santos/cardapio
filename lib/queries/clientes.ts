@@ -51,7 +51,10 @@ export async function buscarRestauranteIdPorSlug(admin: SupabaseClient, slug: st
   return data?.id ?? null
 }
 
-type ResultadoOtp = { ok: true } | { ok: false; error: string }
+// `podeFallback` indica que o telefone é válido mas o WhatsApp da loja não pôde
+// enviar o código (instância offline ou loja sem WhatsApp) — o checkout então
+// deixa o cliente seguir sem confirmar (ver `criarSessaoNaoVerificada`).
+type ResultadoOtp = { ok: true } | { ok: false; error: string; podeFallback: boolean }
 type ResultadoVerificacao = { ok: true; cliente: ClientePerfil } | { ok: false; error: string }
 
 const OTP_VALIDADE_MS = 5 * 60 * 1000
@@ -60,7 +63,7 @@ const OTP_MAX_TENTATIVAS = 5
 /** Gera um código de 6 dígitos e envia pelo WhatsApp conectado da loja. */
 export async function enviarCodigoVerificacao(admin: SupabaseClient, restauranteId: string, telefoneInformado: string): Promise<ResultadoOtp> {
   const telefone = formatarTelefoneWhatsapp(telefoneInformado)
-  if (!telefone) return { ok: false, error: 'Informe um telefone válido com DDD.' }
+  if (!telefone) return { ok: false, error: 'Informe um telefone válido com DDD.', podeFallback: false }
 
   const { data: loja, error: lojaError } = await admin
     .from('restaurantes')
@@ -68,7 +71,7 @@ export async function enviarCodigoVerificacao(admin: SupabaseClient, restaurante
     .eq('id', restauranteId)
     .maybeSingle()
   if (lojaError) throw lojaError
-  if (!loja?.evolution_instance) return { ok: false, error: 'Esta loja ainda não habilitou o cadastro por WhatsApp.' }
+  if (!loja?.evolution_instance) return { ok: false, error: 'Esta loja ainda não habilitou o cadastro por WhatsApp.', podeFallback: true }
 
   const codigo = String(Math.floor(100000 + Math.random() * 900000))
   const expiraEm = new Date(Date.now() + OTP_VALIDADE_MS).toISOString()
@@ -81,9 +84,37 @@ export async function enviarCodigoVerificacao(admin: SupabaseClient, restaurante
 
   const texto = `🔐 Seu código de verificação${loja.nome ? ` para *${loja.nome}*` : ''} é *${codigo}*.\nEle expira em 5 minutos.`
   const enviado = await enviarWhatsapp(telefone, texto, loja.evolution_instance)
-  if (!enviado) return { ok: false, error: 'Não foi possível enviar o código pelo WhatsApp agora. Tente novamente em instantes.' }
+  if (!enviado) return { ok: false, error: 'Não foi possível enviar o código pelo WhatsApp agora. Tente novamente em instantes.', podeFallback: true }
 
   return { ok: true }
+}
+
+/**
+ * Cria (ou recupera) a sessão do cliente SEM verificação por OTP. Usado como
+ * fallback quando o WhatsApp da loja está offline e o código não pôde ser
+ * enviado — assim o cliente nunca fica travado no checkout. Um cliente já
+ * verificado antes mantém `verificado_em`; um cliente novo entra sem verificação.
+ */
+export async function criarSessaoNaoVerificada(admin: SupabaseClient, restauranteId: string, telefoneInformado: string): Promise<ResultadoVerificacao> {
+  const telefone = formatarTelefoneWhatsapp(telefoneInformado)
+  if (!telefone) return { ok: false, error: 'Informe um telefone válido com DDD.' }
+
+  const { data: existente, error: existenteError } = await admin
+    .from('clientes')
+    .select(CLIENTE_SELECT)
+    .eq('restaurante_id', restauranteId)
+    .eq('telefone', telefone)
+    .maybeSingle()
+  if (existenteError) throw existenteError
+  if (existente) return { ok: true, cliente: mapCliente(existente as ClienteRow) }
+
+  const { data, error } = await admin
+    .from('clientes')
+    .insert({ restaurante_id: restauranteId, telefone })
+    .select(CLIENTE_SELECT)
+    .single()
+  if (error) throw error
+  return { ok: true, cliente: mapCliente(data as ClienteRow) }
 }
 
 /** Confirma o código enviado e cria/recupera o cadastro do cliente, retornando seu perfil + token de sessão. */

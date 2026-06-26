@@ -523,6 +523,20 @@ export default function StorefrontPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o código.')
+
+      // Fallback: WhatsApp da loja offline — o servidor já logou o cliente sem
+      // confirmar o código. Entra direto, sem o passo de digitar o código.
+      if (data.fallback) {
+        localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token }))
+        setClienteSessao({ telefone: data.telefone, token: data.token })
+        setPerfilCliente(data)
+        setContaNome(data.nome)
+        setContaEndereco(data.endereco)
+        setContaEditando(!data.nome && !data.endereco.rua)
+        showToast('Não deu pra confirmar pelo WhatsApp agora — você já pode finalizar o pedido.')
+        return
+      }
+
       setContaStep('codigo')
     } catch (err) {
       setContaError(err instanceof Error ? err.message : 'Não foi possível enviar o código.')

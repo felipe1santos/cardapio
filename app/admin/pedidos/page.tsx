@@ -539,7 +539,10 @@ export default function PedidosPage() {
                         <div className="mb-3 flex gap-2">
                           {/* Esquerda: informações do pedido (~75%) */}
                           <div className="min-w-0 flex-[3]">
-                            <div className="mb-1 text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</div>
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <span className="text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</span>
+                              {!order.telefoneVerificado && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">☎ não verif.</Badge>}
+                            </div>
                             {order.tipo === 'entrega' && order.enderecoBairro && (
                               <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
                             )}
@@ -728,7 +731,15 @@ export default function PedidosPage() {
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cliente & pagamento</div>
               <div className="mb-5 space-y-1.5 rounded-menuzia border border-border p-3 text-sm">
                 <div className="flex justify-between"><span className="text-text-subtle">Cliente</span><span className="font-medium">{detail.clienteNome || '—'}</span></div>
-                {detail.clienteTelefone && <div className="flex justify-between"><span className="text-text-subtle">Telefone</span><span className="font-medium">{detail.clienteTelefone}</span></div>}
+                {detail.clienteTelefone && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-text-subtle">Telefone</span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {detail.clienteTelefone}
+                      {!detail.telefoneVerificado && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">não verif.</Badge>}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between"><span className="text-text-subtle">Pagamento</span><span className="font-medium">{PAY_LABEL[detail.formaPagamento]}</span></div>
                 {detail.formaPagamento === 'dinheiro' && detail.trocoPara !== null && (
                   <div className="flex justify-between"><span className="text-text-subtle">Troco para</span><span className="font-medium">{brl(detail.trocoPara)}</span></div>
