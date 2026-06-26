@@ -46,6 +46,7 @@ export interface Pedido {
   entregadorId: string | null
   preparandoPor: string | null
   preparadoPor: string | null
+  preparandoNotificado: boolean
   telefoneVerificado: boolean
   criadoEm: string
   atualizadoEm: string
@@ -88,6 +89,7 @@ interface PedidoRow {
   entregador_id: string | null
   preparando_por: string | null
   preparado_por: string | null
+  preparando_notificado: boolean
   telefone_verificado: boolean
   criado_em: string
   atualizado_em: string
@@ -110,7 +112,7 @@ const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
-  entregador_id, preparando_por, preparado_por, telefone_verificado, criado_em, atualizado_em,
+  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
@@ -137,6 +139,7 @@ function mapPedido(row: PedidoRow): Pedido {
     entregadorId: row.entregador_id,
     preparandoPor: row.preparando_por ?? null,
     preparadoPor: row.preparado_por ?? null,
+    preparandoNotificado: row.preparando_notificado ?? false,
     telefoneVerificado: row.telefone_verificado ?? true,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,

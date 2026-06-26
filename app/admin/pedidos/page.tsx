@@ -314,8 +314,10 @@ export default function PedidosPage() {
         setTransit(logistica.filter((p) => p.status === 'em_rota'))
         setConcluded(finalizados)
 
-        // detecta pedidos novos (status "recebido") para tocar som e pulsar o card
-        const recebidosAgora = new Set(kanban.filter((p) => p.status === 'recebido').map((p) => p.id))
+        // detecta pedidos novos (status "recebido") para tocar som e pulsar o card.
+        // Ignora pedidos devolvidos pela cozinha (preparandoNotificado=true): voltam
+        // pra fila mas não são "novos", então não disparam som/pulso de novo pedido.
+        const recebidosAgora = new Set(kanban.filter((p) => p.status === 'recebido' && !p.preparandoNotificado).map((p) => p.id))
         const anteriores = recebidosConhecidos.current
         if (anteriores) {
           const novos = [...recebidosAgora].filter((pid) => !anteriores.has(pid))

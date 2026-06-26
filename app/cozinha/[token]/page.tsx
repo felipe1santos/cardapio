@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ChefHat, Clock, PackageCheck } from 'lucide-react'
+import { ChefHat, Clock, GripVertical, PackageCheck } from 'lucide-react'
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
 
@@ -198,7 +198,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
 
   return (
     /* Full-screen overlay on mobile; dark backdrop on sm+ */
-    <div className="fixed inset-0 z-50 flex flex-col bg-main sm:items-center sm:justify-center sm:bg-black/60">
+    <div className="fixed inset-0 z-50 flex flex-col bg-main lg:items-center lg:justify-center lg:bg-black/60">
 
       {/* Popup centralizado de confirmação de devolução — vermelho, alerta */}
       {confirmandoDevolver && (
@@ -231,18 +231,23 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
       )}
 
       {/* Modal card — fills screen on mobile, max-w-2xl centered on desktop */}
-      <div className="flex h-full w-full flex-col overflow-hidden bg-main sm:h-auto sm:max-h-[90dvh] sm:w-full sm:max-w-2xl sm:rounded-menuzia sm:border sm:border-border sm:shadow-xl">
+      <div className="flex h-full w-full flex-col overflow-hidden bg-main lg:h-auto lg:max-h-[94dvh] lg:w-full lg:max-w-4xl lg:rounded-menuzia lg:border lg:border-border lg:shadow-xl">
 
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-border bg-sidebar-bg px-4 py-3 text-white sm:rounded-t-menuzia">
+        <div className="flex items-start justify-between border-b border-border bg-sidebar-bg px-5 py-4 text-white lg:rounded-t-menuzia">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-extrabold">#{pedido.numero}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-2xl font-extrabold">#{pedido.numero}</span>
               <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                 {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
               </span>
+              {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
+                <span className="rounded-menuzia bg-status-pending px-2 py-0.5 text-[12px] font-extrabold uppercase tracking-wide text-white">
+                  📍 {pedido.enderecoBairro}
+                </span>
+              )}
             </div>
-            <p className="mt-0.5 text-[13px] font-medium text-sidebar-text">{pedido.clienteNome}</p>
+            <p className="mt-1 text-[15px] font-semibold text-white">{pedido.clienteNome}</p>
           </div>
           <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
         </div>
@@ -266,31 +271,31 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
           {/* Item list */}
           <div className="space-y-3">
             {pedido.itens.map((item: PedidoItem, idx: number) => (
-              <div key={idx} className="rounded-menuzia border border-border bg-page p-3">
-                {/* Quantity + name */}
-                <p className="text-[15px] font-extrabold text-text-main">
+              <div key={idx} className="rounded-menuzia border border-border border-l-4 border-l-status-preparing bg-main p-4 shadow-sm">
+                {/* Quantity + name — bigger and black */}
+                <p className="text-[20px] font-extrabold leading-tight text-black">
                   {item.quantidade}× {item.nome}
                 </p>
 
                 {/* Variants (tamanho / sabor / borda / massa) */}
                 {(item.tamanhoNome || item.saborNome || item.bordaNome || item.massaNome) && (
-                  <p className="mt-1 text-[12px] text-text-subtle">
+                  <p className="mt-1 text-[14px] font-semibold text-text-main">
                     {[item.tamanhoNome, item.saborNome, item.bordaNome, item.massaNome]
                       .filter(Boolean)
                       .join(' · ')}
                   </p>
                 )}
 
-                {/* Descrição do item — lembrete de como montar (fonte menor) */}
+                {/* Descrição do item — como montar (fonte maior pra leitura na bancada) */}
                 {item.descricao && (
-                  <p className="mt-1 text-[11px] italic leading-snug text-text-subtle">{item.descricao}</p>
+                  <p className="mt-1.5 text-[14px] leading-relaxed text-text-subtle">{item.descricao}</p>
                 )}
 
-                {/* Complementos (adicionais) — ALWAYS GREEN */}
+                {/* Complementos (adicionais) — verde escuro, fonte maior */}
                 {item.complementos.length > 0 && (
-                  <div className="mt-2 space-y-0.5">
+                  <div className="mt-2.5 space-y-1 rounded-menuzia bg-green-50 px-3 py-2">
                     {item.complementos.map((c, ci) => (
-                      <p key={ci} className="text-[13px] font-semibold text-status-ready">
+                      <p key={ci} className="text-[16px] font-extrabold text-green-800">
                         + {c.nome}
                       </p>
                     ))}
@@ -299,7 +304,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
 
                 {/* Item-level restriction — RED UPPERCASE BOLD */}
                 {item.observacao && (
-                  <p className="mt-2 text-[13px] font-bold uppercase text-danger">{item.observacao}</p>
+                  <p className="mt-2.5 rounded-menuzia bg-danger-bg px-3 py-2 text-[15px] font-extrabold uppercase text-danger">{item.observacao}</p>
                 )}
               </div>
             ))}
@@ -341,26 +346,46 @@ interface DisponiveisCardProps {
 
 function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
   const isBusy = busy === pedido.id
+  // Pedido que já foi pego e devolvido (não é novo) — sinalizado por preparando_notificado.
+  const devolvido = pedido.preparandoNotificado
   return (
-    <article className="flex flex-col rounded-menuzia border border-border bg-main shadow-sm">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <span className="text-base font-extrabold text-text-main">#{pedido.numero}</span>
+    <article
+      className={[
+        'flex flex-col overflow-hidden rounded-menuzia border bg-main shadow-sm border-l-[5px]',
+        devolvido ? 'border-purple/40 border-l-purple' : 'border-status-pending/40 border-l-status-pending',
+      ].join(' ')}
+    >
+      <div className={['flex items-center justify-between border-b border-border px-3 py-2.5', devolvido ? 'bg-purple/5' : 'bg-status-pending/5'].join(' ')}>
+        <span className="text-lg font-extrabold text-black">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
           <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
-          <span className="rounded-menuzia bg-status-pending/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-pending">
-            Aguardando
-          </span>
+          {devolvido ? (
+            <span className="rounded-menuzia bg-purple/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-purple">
+              Devolvido
+            </span>
+          ) : (
+            <span className="rounded-menuzia bg-status-pending/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-pending">
+              Aguardando
+            </span>
+          )}
         </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <p className="text-sm font-semibold text-text-main">{pedido.clienteNome}</p>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-          {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
-        </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[15px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
+            {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
+          </span>
+          {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
+            <span className="rounded-menuzia bg-status-pending px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+              📍 {pedido.enderecoBairro}
+            </span>
+          )}
+        </div>
 
         {/* Items summary */}
-        <ul className="space-y-0.5 text-[12px] text-text-subtle">
+        <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
           {pedido.itens.map((item, idx) => (
             <li key={idx}>
               {item.quantidade}× {item.nome}
@@ -370,7 +395,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
 
         {/* Order-level restriction preview — RED UPPERCASE */}
         {pedido.observacao && (
-          <p className="text-[11px] font-bold uppercase text-danger">{pedido.observacao}</p>
+          <p className="text-[12px] font-bold uppercase text-danger">{pedido.observacao}</p>
         )}
       </div>
 
@@ -381,7 +406,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
           className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-preparing py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
         >
           <ChefHat className="h-4 w-4" />
-          {isBusy ? 'Pegando…' : 'Pegar para fazer'}
+          {isBusy ? 'Pegando…' : devolvido ? 'Pegar de novo' : 'Pegar para fazer'}
         </button>
       </div>
     </article>
@@ -406,13 +431,13 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
   return (
     <article
       className={[
-        'flex flex-col rounded-menuzia border bg-main shadow-sm transition-shadow',
+        'flex flex-col overflow-hidden rounded-menuzia border bg-main shadow-sm transition-shadow border-l-[5px] border-l-status-preparing',
         isOwner ? 'cursor-pointer border-status-preparing/40 hover:shadow-md' : 'cursor-not-allowed border-border opacity-80',
       ].join(' ')}
       onClick={isOwner ? () => onOpen(pedido) : undefined}
     >
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <span className="text-base font-extrabold text-text-main">#{pedido.numero}</span>
+      <div className="flex items-center justify-between border-b border-border bg-status-preparing/5 px-3 py-2.5">
+        <span className="text-lg font-extrabold text-black">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
           <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
           <span className="rounded-menuzia bg-status-preparing/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-preparing">
@@ -422,7 +447,14 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <p className="text-sm font-semibold text-text-main">{pedido.clienteNome}</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[15px] font-bold text-black">{pedido.clienteNome}</span>
+          {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
+            <span className="rounded-menuzia bg-status-preparing px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+              📍 {pedido.enderecoBairro}
+            </span>
+          )}
+        </div>
         {pedido.preparandoPor && (
           <span className="inline-flex w-fit items-center gap-1 rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold text-alert-text">
             <ChefHat className="h-3 w-3" />
@@ -431,7 +463,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
         )}
 
         {/* Items summary */}
-        <ul className="space-y-0.5 text-[12px] text-text-subtle">
+        <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
           {pedido.itens.map((item, idx) => (
             <li key={idx}>
               {item.quantidade}× {item.nome}
@@ -466,14 +498,78 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
 interface ExpedicaoViewProps {
   pedidos: Pedido[]
   token: string
+  now: number
   onRefetch: () => Promise<void>
 }
 
-function ExpedicaoView({ pedidos, token, onRefetch }: ExpedicaoViewProps) {
+/**
+ * Ordena os prontos para despacho: agrupa por bairro e prioriza por tempo de espera
+ * (o bairro com o pedido mais antigo vem primeiro; dentro do bairro, do mais antigo
+ * pro mais novo). Facilita o despacho de quem está mais tempo esperando + junta
+ * mesmo bairro pra otimizar a rota.
+ */
+function ordenarDespacho(prontos: Pedido[]): Pedido[] {
+  const grupos = new Map<string, Pedido[]>()
+  for (const p of prontos) {
+    const chave = p.tipo === 'retirada' ? 'Retirada' : p.enderecoBairro?.trim() || 'Sem bairro'
+    if (!grupos.has(chave)) grupos.set(chave, [])
+    grupos.get(chave)!.push(p)
+  }
+  const t = (p: Pedido) => new Date(p.criadoEm).getTime()
+  for (const arr of grupos.values()) arr.sort((a, b) => t(a) - t(b))
+  return [...grupos.values()]
+    .sort((a, b) => Math.min(...a.map(t)) - Math.min(...b.map(t)))
+    .flat()
+}
+
+function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Ordem manual (arrastar/▲▼). Vazia = usa a ordenação automática.
+  const [ordem, setOrdem] = useState<string[]>([])
+  const dragId = useRef<string | null>(null)
 
-  const prontos = pedidos.filter((p) => p.status === 'pronto')
+  const prontos = useMemo(() => pedidos.filter((p) => p.status === 'pronto'), [pedidos])
+  const autoOrdenados = useMemo(() => ordenarDespacho(prontos), [prontos])
+
+  // Mantém a ordem manual entre os refetches: preserva o que o operador arrastou,
+  // anexa pedidos novos (na ordem automática) e descarta os que saíram.
+  useEffect(() => {
+    setOrdem((prev) => {
+      const validos = prev.filter((id) => prontos.some((p) => p.id === id))
+      const novos = autoOrdenados.map((p) => p.id).filter((id) => !validos.includes(id))
+      const next = [...validos, ...novos]
+      return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next
+    })
+  }, [autoOrdenados, prontos])
+
+  const lista = ordem.map((id) => prontos.find((p) => p.id === id)).filter((p): p is Pedido => !!p)
+
+  function mover(id: string, dir: -1 | 1) {
+    setOrdem((prev) => {
+      const i = prev.indexOf(id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= prev.length) return prev
+      const arr = [...prev]
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      return arr
+    })
+  }
+
+  function soltarEm(targetId: string) {
+    const from = dragId.current
+    dragId.current = null
+    if (!from || from === targetId) return
+    setOrdem((prev) => {
+      const arr = [...prev]
+      const fi = arr.indexOf(from)
+      const ti = arr.indexOf(targetId)
+      if (fi < 0 || ti < 0) return prev
+      arr.splice(fi, 1)
+      arr.splice(ti, 0, from)
+      return arr
+    })
+  }
 
   async function marcarEntregue(p: Pedido) {
     setBusy(p.id)
@@ -516,52 +612,88 @@ function ExpedicaoView({ pedidos, token, onRefetch }: ExpedicaoViewProps) {
           {notice}
         </div>
       )}
-      {prontos.map((p) => (
-        <article key={p.id} className="flex flex-col rounded-menuzia border border-border bg-main shadow-sm">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-            <span className="text-base font-extrabold text-text-main">#{p.numero}</span>
-            <div className="flex items-center gap-1.5">
-              <span className="rounded-menuzia bg-status-ready/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-ready">
-                Pronto
-              </span>
-              <span className="rounded-menuzia bg-page px-2 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
-                {p.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
-              </span>
+      <p className="text-[11px] text-text-subtle">
+        Ordenado por tempo de espera e agrupado por bairro. Arraste (ou use ▲▼) para reordenar.
+      </p>
+      {lista.map((p, idx) => {
+        const bairro = p.tipo === 'retirada' ? 'Retirada' : p.enderecoBairro?.trim() || 'Sem bairro'
+        const bairroAnterior = idx > 0 ? (lista[idx - 1].tipo === 'retirada' ? 'Retirada' : lista[idx - 1].enderecoBairro?.trim() || 'Sem bairro') : null
+        const novoGrupo = bairro !== bairroAnterior
+        return (
+          <article
+            key={p.id}
+            draggable
+            onDragStart={() => (dragId.current = p.id)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => soltarEm(p.id)}
+            className={[
+              'flex flex-col overflow-hidden rounded-menuzia border border-border bg-main shadow-sm border-l-[5px] border-l-status-ready',
+              novoGrupo ? 'mt-1.5' : '',
+            ].join(' ')}
+          >
+            <div className="flex items-center justify-between border-b border-border bg-status-ready/5 px-3 py-2.5">
+              <div className="flex items-center gap-1.5">
+                <GripVertical className="h-4 w-4 cursor-grab text-text-subtle" />
+                <span className="text-lg font-extrabold text-black">#{p.numero}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ElapsedTimer criadoEm={p.criadoEm} now={now} />
+                <span className="rounded-menuzia bg-status-ready/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-ready">
+                  Pronto
+                </span>
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-1 flex-col gap-2 p-3">
-            <p className="text-sm font-semibold text-text-main">{p.clienteNome}</p>
-            <ul className="space-y-0.5 text-[12px] text-text-subtle">
-              {p.itens.map((item, idx) => (
-                <li key={idx}>
-                  {item.quantidade}× {item.nome}
-                </li>
-              ))}
-            </ul>
-            {p.observacao && (
-              <p className="text-[11px] font-bold uppercase text-danger">{p.observacao}</p>
-            )}
-          </div>
+            <div className="flex flex-1 flex-col gap-2 p-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[15px] font-bold text-black">{p.clienteNome}</span>
+                {p.tipo === 'entrega' ? (
+                  <span className="rounded-menuzia bg-status-ready px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+                    📍 {bairro}
+                  </span>
+                ) : (
+                  <span className="rounded-menuzia bg-page px-2 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
+                    Retirada
+                  </span>
+                )}
+              </div>
+              <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
+                {p.itens.map((item, i) => (
+                  <li key={i}>
+                    {item.quantidade}× {item.nome}
+                  </li>
+                ))}
+              </ul>
+              {p.observacao && (
+                <p className="text-[12px] font-bold uppercase text-danger">{p.observacao}</p>
+              )}
+            </div>
 
-          <div className="border-t border-border p-3">
-            {p.tipo === 'retirada' ? (
-              <button
-                disabled={busy === p.id}
-                onClick={() => marcarEntregue(p)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
-              >
-                <PackageCheck className="h-4 w-4" />
-                {busy === p.id ? 'Aguarde…' : 'Entregue'}
-              </button>
-            ) : (
-              <p className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                Na logística
-              </p>
-            )}
-          </div>
-        </article>
-      ))}
+            <div className="flex items-center gap-2 border-t border-border p-3">
+              <div className="flex flex-col gap-1">
+                <button onClick={() => mover(p.id, -1)} disabled={idx === 0} className="rounded-menuzia border border-border px-2 py-0.5 text-[12px] font-bold text-text-subtle disabled:opacity-30">▲</button>
+                <button onClick={() => mover(p.id, 1)} disabled={idx === lista.length - 1} className="rounded-menuzia border border-border px-2 py-0.5 text-[12px] font-bold text-text-subtle disabled:opacity-30">▼</button>
+              </div>
+              <div className="flex-1">
+                {p.tipo === 'retirada' ? (
+                  <button
+                    disabled={busy === p.id}
+                    onClick={() => marcarEntregue(p)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
+                  >
+                    <PackageCheck className="h-4 w-4" />
+                    {busy === p.id ? 'Aguarde…' : 'Entregue'}
+                  </button>
+                ) : (
+                  <p className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                    Na logística
+                  </p>
+                )}
+              </div>
+            </div>
+          </article>
+        )
+      })}
     </div>
   )
 }
@@ -791,7 +923,7 @@ export default function CozinhaPortalPage() {
               {data.pedidos.filter((p) => p.status === 'pronto').length}
             </span>
           </div>
-          <ExpedicaoView pedidos={data.pedidos} token={token} onRefetch={refetch} />
+          <ExpedicaoView pedidos={data.pedidos} token={token} now={now} onRefetch={refetch} />
         </main>
       )}
 
@@ -871,7 +1003,7 @@ export default function CozinhaPortalPage() {
                   {data.pedidos.filter((p) => p.status === 'pronto').length}
                 </span>
               </div>
-              <ExpedicaoView pedidos={data.pedidos} token={token} onRefetch={refetch} />
+              <ExpedicaoView pedidos={data.pedidos} token={token} now={now} onRefetch={refetch} />
             </div>
           )}
         </main>
