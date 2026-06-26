@@ -175,7 +175,7 @@ export default function LogisticaPage() {
   // recalcular mesmo sem eventos de realtime (ex.: motoboy fechou o app).
   useEffect(() => {
     if (!restauranteId) return
-    const interval = setInterval(() => refetch(restauranteId), 30000)
+    const interval = setInterval(() => refetch(restauranteId), 10000)
     return () => clearInterval(interval)
   }, [restauranteId, refetch])
 

@@ -369,6 +369,15 @@ export default function PedidosPage() {
     }
   }, [supabase, refetch])
 
+  // Atualização periódica — fallback caso o realtime do Supabase não chegue
+  // (ex.: instância self-hosted com realtime indisponível). Garante que o painel
+  // reflita mudanças de estágio (aceitar, pronto, devolver da cozinha) sem F5.
+  useEffect(() => {
+    if (!restauranteId) return
+    const interval = setInterval(() => refetch(restauranteId), 8000)
+    return () => clearInterval(interval)
+  }, [restauranteId, refetch])
+
   // relógio para os tempos decorridos (ticando a cada segundo)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -718,7 +727,7 @@ export default function PedidosPage() {
                     {linha.complementos.length > 0 && (
                       <div className="mt-0.5 text-xs text-text-subtle">{linha.complementos.map((c) => c.nome).join(', ')}</div>
                     )}
-                    {linha.observacao && <div className="mt-0.5 text-xs italic text-text-subtle">obs: {linha.observacao}</div>}
+                    {linha.observacao && <div className="mt-1 text-[13px] font-bold uppercase text-danger">obs: {linha.observacao}</div>}
                   </li>
                 ))}
                 <li className="flex justify-between border-t border-border pt-2 text-text-subtle"><span>Subtotal</span><span>{brl(detail.subtotal)}</span></li>
