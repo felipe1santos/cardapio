@@ -177,7 +177,7 @@ function FluxoCard({ order, tone, onClick }: { order: Pedido; tone: 'transit' | 
   return (
     <button
       onClick={onClick}
-      className={`w-full rounded-menuzia border border-border border-l-[3px] p-3 text-left transition-shadow hover:shadow-sm ${t.accent} ${t.bg}`}
+      className={`w-full rounded-menuzia border border-border border-l-[3px] p-3 text-left shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold">#{order.numero}</span>
@@ -533,7 +533,7 @@ export default function PedidosPage() {
                       <div
                         key={order.id}
                         className={[
-                          'rounded-menuzia border border-border bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md',
+                          'rounded-menuzia border border-border bg-white p-3.5 shadow-md transition-shadow hover:shadow-lg',
                           pulsando.has(order.id) ? 'animate-new-order' : '',
                         ].join(' ')}
                       >

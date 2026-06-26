@@ -242,7 +242,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
                 {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
               </span>
               {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
-                <span className="rounded-menuzia bg-status-pending px-2 py-0.5 text-[12px] font-extrabold uppercase tracking-wide text-white">
+                <span className="rounded-menuzia bg-[#0a6cff] px-2 py-0.5 text-[12px] font-extrabold uppercase tracking-wide text-white">
                   📍 {pedido.enderecoBairro}
                 </span>
               )}
@@ -271,7 +271,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
           {/* Item list */}
           <div className="space-y-3">
             {pedido.itens.map((item: PedidoItem, idx: number) => (
-              <div key={idx} className="rounded-menuzia border border-border border-l-4 border-l-status-preparing bg-main p-4 shadow-sm">
+              <div key={idx} className="rounded-menuzia border border-border border-l-4 border-l-[#024A7D] bg-main p-4 shadow-sm">
                 {/* Quantity + name — bigger and black */}
                 <p className="text-[20px] font-extrabold leading-tight text-black">
                   {item.quantidade}× {item.nome}
@@ -351,23 +351,19 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
   return (
     <article
       className={[
-        'flex flex-col overflow-hidden rounded-menuzia border bg-main shadow-sm border-l-[5px]',
-        devolvido ? 'border-purple/40 border-l-purple' : 'border-status-pending/40 border-l-status-pending',
+        'flex flex-col overflow-hidden rounded-menuzia border bg-main shadow-md border-l-[6px]',
+        devolvido ? 'border-[#B45309]/40 border-l-[#B45309]' : 'border-[#EA580C]/40 border-l-[#EA580C]',
       ].join(' ')}
     >
-      <div className={['flex items-center justify-between border-b border-border px-3 py-2.5', devolvido ? 'bg-purple/5' : 'bg-status-pending/5'].join(' ')}>
-        <span className="text-lg font-extrabold text-black">#{pedido.numero}</span>
+      <div className={['flex items-center justify-between border-b border-border px-3 py-2.5 text-white', devolvido ? 'bg-[#B45309]' : 'bg-[#EA580C]'].join(' ')}>
+        <span className="text-lg font-extrabold">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
-          <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
-          {devolvido ? (
-            <span className="rounded-menuzia bg-purple/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-purple">
-              Devolvido
-            </span>
-          ) : (
-            <span className="rounded-menuzia bg-status-pending/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-pending">
-              Aguardando
-            </span>
-          )}
+          <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
+            <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
+          </span>
+          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            {devolvido ? 'Devolvido' : 'Aguardando'}
+          </span>
         </div>
       </div>
 
@@ -378,7 +374,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
-            <span className="rounded-menuzia bg-status-pending px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
               📍 {pedido.enderecoBairro}
             </span>
           )}
@@ -431,16 +427,18 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
   return (
     <article
       className={[
-        'flex flex-col overflow-hidden rounded-menuzia border bg-main shadow-sm transition-shadow border-l-[5px] border-l-status-preparing',
-        isOwner ? 'cursor-pointer border-status-preparing/40 hover:shadow-md' : 'cursor-not-allowed border-border opacity-80',
+        'flex flex-col overflow-hidden rounded-menuzia border bg-main shadow-md transition-shadow border-l-[6px] border-l-[#024A7D]',
+        isOwner ? 'cursor-pointer border-[#024A7D]/40 hover:shadow-lg' : 'cursor-not-allowed border-border opacity-80',
       ].join(' ')}
       onClick={isOwner ? () => onOpen(pedido) : undefined}
     >
-      <div className="flex items-center justify-between border-b border-border bg-status-preparing/5 px-3 py-2.5">
-        <span className="text-lg font-extrabold text-black">#{pedido.numero}</span>
+      <div className="flex items-center justify-between border-b border-border bg-[#024A7D] px-3 py-2.5 text-white">
+        <span className="text-lg font-extrabold">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
-          <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
-          <span className="rounded-menuzia bg-status-preparing/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-preparing">
+          <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
+            <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
+          </span>
+          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
             Preparando
           </span>
         </div>
@@ -450,7 +448,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[15px] font-bold text-black">{pedido.clienteNome}</span>
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
-            <span className="rounded-menuzia bg-status-preparing px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
               📍 {pedido.enderecoBairro}
             </span>
           )}
@@ -627,18 +625,20 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => soltarEm(p.id)}
             className={[
-              'flex flex-col overflow-hidden rounded-menuzia border border-border bg-main shadow-sm border-l-[5px] border-l-status-ready',
+              'flex flex-col overflow-hidden rounded-menuzia border border-border bg-main shadow-md border-l-[6px] border-l-[#15803D]',
               novoGrupo ? 'mt-1.5' : '',
             ].join(' ')}
           >
-            <div className="flex items-center justify-between border-b border-border bg-status-ready/5 px-3 py-2.5">
+            <div className="flex items-center justify-between border-b border-border bg-[#15803D] px-3 py-2.5 text-white">
               <div className="flex items-center gap-1.5">
-                <GripVertical className="h-4 w-4 cursor-grab text-text-subtle" />
-                <span className="text-lg font-extrabold text-black">#{p.numero}</span>
+                <GripVertical className="h-4 w-4 cursor-grab text-white/80" />
+                <span className="text-lg font-extrabold">#{p.numero}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <ElapsedTimer criadoEm={p.criadoEm} now={now} />
-                <span className="rounded-menuzia bg-status-ready/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-status-ready">
+                <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
+                  <ElapsedTimer criadoEm={p.criadoEm} now={now} />
+                </span>
+                <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                   Pronto
                 </span>
               </div>
@@ -648,7 +648,7 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[15px] font-bold text-black">{p.clienteNome}</span>
                 {p.tipo === 'entrega' ? (
-                  <span className="rounded-menuzia bg-status-ready px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+                  <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
                     📍 {bairro}
                   </span>
                 ) : (

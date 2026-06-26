@@ -202,68 +202,42 @@ function getHotspotOverlay() {
       this.getPanes()!.overlayLayer.appendChild(container)
     }
 
-    /** Constrói o DOM de um cluster: anéis concêntricos + núcleo sólido + legenda. */
+    /** Constrói o pino do cluster (mesma forma de gota do Despacho de rotas): cor por
+     *  volume (verde→vermelho), nº de pedidos no centro, legenda da rua/bairro acima. */
     private criarNo(c: Cluster, refMax: number): HTMLDivElement {
-      // tamanho pelo volume relativo; cor pela escala absoluta (verde→vermelho)
-      const rel = refMax <= 1 ? 0 : Math.min(1, (c.weight - 1) / (refMax - 1))
       const colorT = Math.min(1, (c.weight - 1) / (PEDIDOS_PARA_VERMELHO - 1))
       const { r, g, b } = heatColor(colorT)
-      const rgb = `${r},${g},${b}`
-      const core = Math.round(13 + Math.sqrt(rel) * 18) // 13..31 px núcleo
+      const fill = `rgb(${r},${g},${b})`
+      const rel = refMax <= 1 ? 0 : Math.min(1, (c.weight - 1) / (refMax - 1))
+      const w = Math.round(36 + Math.sqrt(rel) * 16) // 36..52 px de largura
+      const h = Math.round((w * 46) / 40)
 
       const wrap = document.createElement('div')
       wrap.style.position = 'absolute'
       wrap.style.willChange = 'transform'
+      // ponta (base) do pino ancorada no ponto geográfico
+      wrap.style.transform = 'translate(-50%, -100%)'
 
-      // anéis (do maior/mais fraco ao menor/mais forte) — efeito de calor irradiando
-      const aneis = [
-        { mult: 3.0, alpha: 0.12 },
-        { mult: 2.1, alpha: 0.2 },
-        { mult: 1.45, alpha: 0.32 },
-      ]
-      aneis.forEach((a, i) => {
-        const ring = document.createElement('div')
-        const size = Math.round(core * a.mult)
-        ring.style.position = 'absolute'
-        ring.style.left = '0'
-        ring.style.top = '0'
-        ring.style.width = `${size}px`
-        ring.style.height = `${size}px`
-        ring.style.borderRadius = '50%'
-        ring.style.background = `radial-gradient(circle, rgba(${rgb},${a.alpha}) 0%, rgba(${rgb},${a.alpha * 0.5}) 55%, rgba(${rgb},0) 72%)`
-        ring.style.animation = `menuziaHotRing ${(3.6 + i * 0.5).toFixed(2)}s ease-in-out infinite`
-        ring.style.animationDelay = `${(i * 0.25).toFixed(2)}s`
-        wrap.appendChild(ring)
-      })
+      wrap.innerHTML = `
+        <svg width="${w}" height="${h}" viewBox="0 0 40 46" xmlns="http://www.w3.org/2000/svg" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">
+          <path d="M20 0C9.5 0 1 7.8 1 17.4 1 30.3 20 46 20 46s19-15.7 19-28.6C39 7.8 30.5 0 20 0z" fill="${fill}" stroke="#ffffff" stroke-width="2"/>
+          <text x="20" y="23" font-size="13" font-weight="800" text-anchor="middle" fill="#ffffff" font-family="Inter, sans-serif">${c.weight}</text>
+        </svg>`
 
-      // núcleo sólido com brilho central + borda clara
-      const dot = document.createElement('div')
-      dot.style.position = 'absolute'
-      dot.style.left = '0'
-      dot.style.top = '0'
-      dot.style.width = `${core}px`
-      dot.style.height = `${core}px`
-      dot.style.transform = 'translate(-50%,-50%)'
-      dot.style.borderRadius = '50%'
-      dot.style.background = `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.9) 0%, rgba(${rgb},1) 45%, rgba(${rgb},1) 100%)`
-      dot.style.border = '1.5px solid rgba(255,255,255,0.92)'
-      dot.style.boxShadow = `0 0 ${Math.round(core * 0.6)}px rgba(${rgb},0.9), 0 1px 3px rgba(0,0,0,0.35)`
-      wrap.appendChild(dot)
-
-      // legenda (rua/bairro) em fonte mono, acima do núcleo
+      // legenda (rua/bairro) acima do pino
       const rotulo = rotuloCluster(c)
       if (rotulo) {
         const label = document.createElement('div')
         label.textContent = c.members.length > 1 ? `${rotulo} ·${c.members.length}` : rotulo
         label.style.position = 'absolute'
-        label.style.left = '0'
-        label.style.top = `${-core / 2 - 13}px`
+        label.style.left = '50%'
+        label.style.top = '-14px'
         label.style.transform = 'translateX(-50%)'
         label.style.whiteSpace = 'nowrap'
         label.style.font = `700 10px/1 ${LABEL_FONT}`
         label.style.letterSpacing = '0.06em'
-        label.style.color = '#ffffff'
-        label.style.textShadow = '0 1px 3px rgba(0,0,0,0.95), 0 0 2px rgba(0,0,0,0.9)'
+        label.style.color = '#111827'
+        label.style.textShadow = '0 1px 3px rgba(255,255,255,0.95), 0 0 2px rgba(255,255,255,0.9)'
         wrap.appendChild(label)
       }
 
