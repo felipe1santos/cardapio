@@ -141,9 +141,10 @@ interface PrepModalProps {
 function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepModalProps) {
   const [busy, setBusy] = useState<'devolver' | 'concluir' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [confirmandoDevolver, setConfirmandoDevolver] = useState(false)
 
-  async function devolver() {
-    if (!confirm('Tem certeza que quer devolver este pedido?')) return
+  async function executarDevolver() {
+    setConfirmandoDevolver(false)
     setBusy('devolver')
     try {
       const res = await fetch(`/api/cozinha/${token}/pedidos/${pedido.id}/acao`, {
@@ -198,6 +199,37 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
   return (
     /* Full-screen overlay on mobile; dark backdrop on sm+ */
     <div className="fixed inset-0 z-50 flex flex-col bg-main sm:items-center sm:justify-center sm:bg-black/60">
+
+      {/* Popup centralizado de confirmação de devolução — vermelho, alerta */}
+      {confirmandoDevolver && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-6" onClick={() => setConfirmandoDevolver(false)}>
+          <div className="w-full max-w-sm rounded-menuzia border-2 border-danger bg-main p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-danger-bg">
+              <span className="text-2xl font-black text-danger">!</span>
+            </div>
+            <h3 className="mb-2 text-base font-extrabold uppercase tracking-wide text-danger">Devolver pedido #{pedido.numero}?</h3>
+            <p className="mb-5 text-[13px] leading-relaxed text-text-main">
+              O pedido volta para a fila e fica liberado para <b>qualquer cozinheiro</b> pegar.
+              Você perde o preparo dele. O cliente <b>não</b> recebe nova mensagem.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmandoDevolver(false)}
+                className="flex-1 rounded-menuzia border border-border bg-page py-3 text-[13px] font-extrabold uppercase tracking-wide text-text-main hover:bg-border"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={executarDevolver}
+                className="flex-1 rounded-menuzia bg-danger py-3 text-[13px] font-extrabold uppercase tracking-wide text-white hover:brightness-95"
+              >
+                Devolver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal card — fills screen on mobile, max-w-2xl centered on desktop */}
       <div className="flex h-full w-full flex-col overflow-hidden bg-main sm:h-auto sm:max-h-[90dvh] sm:w-full sm:max-w-2xl sm:rounded-menuzia sm:border sm:border-border sm:shadow-xl">
 
@@ -249,6 +281,11 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
                   </p>
                 )}
 
+                {/* Descrição do item — lembrete de como montar (fonte menor) */}
+                {item.descricao && (
+                  <p className="mt-1 text-[11px] italic leading-snug text-text-subtle">{item.descricao}</p>
+                )}
+
                 {/* Complementos (adicionais) — ALWAYS GREEN */}
                 {item.complementos.length > 0 && (
                   <div className="mt-2 space-y-0.5">
@@ -273,7 +310,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
         <div className="flex gap-3 border-t border-border bg-main px-4 py-3 sm:rounded-b-menuzia">
           <button
             disabled={busy !== null}
-            onClick={devolver}
+            onClick={() => setConfirmandoDevolver(true)}
             className="flex-1 rounded-menuzia border border-border bg-page py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-text-main transition-colors hover:bg-border disabled:opacity-50"
           >
             {busy === 'devolver' ? 'Devolvendo…' : 'Devolver'}
@@ -358,14 +395,21 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
 interface EmPreparoCardProps {
   pedido: Pedido
   now: number
+  cozinheiro: string
   onOpen: (p: Pedido) => void
 }
 
-function EmPreparoCard({ pedido, now, onOpen }: EmPreparoCardProps) {
+function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) {
+  // Só quem pegou pode abrir/mexer — ninguém interfere no preparo do outro.
+  // Pedido sem dono (ex.: aceito pelo Kanban) fica livre para qualquer um.
+  const isOwner = !pedido.preparandoPor || pedido.preparandoPor === cozinheiro
   return (
     <article
-      className="flex cursor-pointer flex-col rounded-menuzia border border-status-preparing/40 bg-main shadow-sm transition-shadow hover:shadow-md"
-      onClick={() => onOpen(pedido)}
+      className={[
+        'flex flex-col rounded-menuzia border bg-main shadow-sm transition-shadow',
+        isOwner ? 'cursor-pointer border-status-preparing/40 hover:shadow-md' : 'cursor-not-allowed border-border opacity-80',
+      ].join(' ')}
+      onClick={isOwner ? () => onOpen(pedido) : undefined}
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <span className="text-base font-extrabold text-text-main">#{pedido.numero}</span>
@@ -380,10 +424,10 @@ function EmPreparoCard({ pedido, now, onOpen }: EmPreparoCardProps) {
       <div className="flex flex-1 flex-col gap-2 p-3">
         <p className="text-sm font-semibold text-text-main">{pedido.clienteNome}</p>
         {pedido.preparandoPor && (
-          <p className="text-[11px] font-semibold text-text-subtle">
-            Em preparo por{' '}
-            <span className="text-primary">{pedido.preparandoPor}</span>
-          </p>
+          <span className="inline-flex w-fit items-center gap-1 rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold text-alert-text">
+            <ChefHat className="h-3 w-3" />
+            {pedido.preparandoPor}
+          </span>
         )}
 
         {/* Items summary */}
@@ -401,8 +445,13 @@ function EmPreparoCard({ pedido, now, onOpen }: EmPreparoCardProps) {
         )}
       </div>
 
-      <div className="border-t border-border px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-primary">
-        Toque para abrir
+      <div
+        className={[
+          'border-t border-border px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide',
+          isOwner ? 'text-primary' : 'text-text-subtle',
+        ].join(' ')}
+      >
+        {isOwner ? 'Toque para abrir' : 'Em preparo por outro cozinheiro'}
       </div>
     </article>
   )
@@ -802,6 +851,7 @@ export default function CozinhaPortalPage() {
                       key={p.id}
                       pedido={p}
                       now={now}
+                      cozinheiro={cozinheiro ?? ''}
                       onOpen={setModalPedido}
                     />
                   ))}

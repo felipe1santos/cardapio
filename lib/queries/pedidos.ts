@@ -13,6 +13,7 @@ export interface PedidoComplementoSnapshot {
 export interface PedidoItem {
   id: string
   nome: string
+  descricao: string
   precoUnitario: number
   quantidade: number
   observacao: string
@@ -101,6 +102,7 @@ interface PedidoRow {
     sabor_nome: string
     borda_nome: string
     massa_nome: string
+    item: { descricao: string } | null
   }[]
 }
 
@@ -109,7 +111,7 @@ const PEDIDO_SELECT = `
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
   entregador_id, preparando_por, preparado_por, telefone_verificado, criado_em, atualizado_em,
-  pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome )
+  pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
 function mapPedido(row: PedidoRow): Pedido {
@@ -141,6 +143,7 @@ function mapPedido(row: PedidoRow): Pedido {
     itens: (row.pedido_itens ?? []).map((i) => ({
       id: i.id,
       nome: i.nome,
+      descricao: i.item?.descricao ?? '',
       precoUnitario: Number(i.preco_unitario),
       quantidade: i.quantidade,
       observacao: i.observacao,
@@ -249,24 +252,48 @@ export async function pegarPedidoCozinha(admin: SupabaseClient, pedidoId: string
   return (data?.length ?? 0) > 0
 }
 
-/** Devolve o pedido pego para o pool (volta a 'recebido', limpa quem estava preparando). */
-export async function devolverPedidoCozinha(admin: SupabaseClient, pedidoId: string): Promise<void> {
-  const { error } = await admin
+/**
+ * Devolve o pedido pego para o pool (volta a 'recebido', limpa quem preparava).
+ * A trava de dono (só quem pegou devolve) é feita na rota; aqui o guard de status
+ * resolve a corrida. Retorna false se o pedido já mudou de etapa.
+ */
+export async function devolverPedidoCozinha(admin: SupabaseClient, pedidoId: string): Promise<boolean> {
+  const { data, error } = await admin
     .from('pedidos')
     .update({ status: 'recebido', preparando_por: null })
     .eq('id', pedidoId)
     .eq('status', 'preparando')
+    .select('id')
   if (error) throw error
+  return (data?.length ?? 0) > 0
 }
 
-/** Conclui o preparo: 'preparando' → 'pronto', registra quem preparou. */
-export async function concluirPedidoCozinha(admin: SupabaseClient, pedidoId: string, cozinheiro: string): Promise<void> {
-  const { error } = await admin
+/** Conclui o preparo: 'preparando' → 'pronto', registra quem preparou. Retorna false se já mudou de etapa. */
+export async function concluirPedidoCozinha(admin: SupabaseClient, pedidoId: string, cozinheiro: string): Promise<boolean> {
+  const { data, error } = await admin
     .from('pedidos')
     .update({ status: 'pronto', preparado_por: cozinheiro })
     .eq('id', pedidoId)
     .eq('status', 'preparando')
+    .select('id')
   if (error) throw error
+  return (data?.length ?? 0) > 0
+}
+
+/**
+ * Marca que a notificação "pedido em preparo" já saiu no WhatsApp.
+ * Update atômico (só flipa false→true). Retorna true apenas na primeira vez —
+ * use o retorno para decidir se envia a mensagem (idempotente em pegar/devolver/pegar).
+ */
+export async function marcarPreparandoNotificado(admin: SupabaseClient, pedidoId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .update({ preparando_notificado: true })
+    .eq('id', pedidoId)
+    .eq('preparando_notificado', false)
+    .select('id')
+  if (error) throw error
+  return (data?.length ?? 0) > 0
 }
 
 /** App do motoboy considerado "online" se enviou um heartbeat nos últimos 2 minutos. */

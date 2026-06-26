@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { notificarPedido } from '@/lib/whatsapp'
+import { marcarPreparandoNotificado } from '@/lib/queries/pedidos'
 import type { StatusPedido } from '@/lib/queries/pedidos'
 
 const STATUS_NOTIFICAVEIS: StatusPedido[] = ['recebido', 'preparando', 'pronto', 'em_rota', 'entregue']
@@ -22,6 +23,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const admin = getAdminSupabase()
   try {
+    // "Em preparo" só sai uma vez por pedido (idempotente entre Kanban e cozinha).
+    if (body.status === 'preparando' && !(await marcarPreparandoNotificado(admin, id))) {
+      return NextResponse.json({ ok: true, jaNotificado: true })
+    }
     await notificarPedido(admin, id, body.status)
     return NextResponse.json({ ok: true })
   } catch (err) {

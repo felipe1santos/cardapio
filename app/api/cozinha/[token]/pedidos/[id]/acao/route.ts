@@ -8,6 +8,7 @@ import {
   devolverPedidoCozinha,
   concluirPedidoCozinha,
   marcarPedidoEntregue,
+  marcarPreparandoNotificado,
 } from '@/lib/queries/pedidos'
 import { notificarPedido } from '@/lib/whatsapp'
 
@@ -21,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const acao = body.acao as AcaoCozinha
   const cozinheiro = typeof body.cozinheiro === 'string' ? body.cozinheiro.trim() : ''
   if (!ACOES_VALIDAS.includes(acao)) return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
-  if ((acao === 'pegar' || acao === 'concluir') && !cozinheiro) {
+  if ((acao === 'pegar' || acao === 'concluir' || acao === 'devolver') && !cozinheiro) {
     return NextResponse.json({ error: 'Informe o nome do cozinheiro' }, { status: 400 })
   }
 
@@ -30,12 +31,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     if (!estacao) return NextResponse.json({ error: 'Link inválido ou estação desativada' }, { status: 404 })
     if (!podeExecutar(estacao.modo, acao)) return NextResponse.json({ error: 'Esta estação não pode executar essa ação' }, { status: 403 })
 
-    const { data: pedido } = await admin.from('pedidos').select('id, restaurante_id, tipo, status').eq('id', id).maybeSingle()
+    const { data: pedido } = await admin.from('pedidos').select('id, restaurante_id, tipo, status, preparando_por').eq('id', id).maybeSingle()
     if (!pedido || pedido.restaurante_id !== estacao.restauranteId) {
       return NextResponse.json({ error: 'Pedido não encontrado nesta loja' }, { status: 409 })
     }
     if (pedido.status !== ORIGEM_ESPERADA[acao]) {
       return NextResponse.json({ error: 'O pedido já mudou de etapa' }, { status: 409 })
+    }
+    // Trava de dono: só quem pegou pode devolver/concluir. Pedidos sem dono
+    // (ex.: aceitos pelo Kanban, preparando_por null) ficam livres para qualquer um.
+    if ((acao === 'devolver' || acao === 'concluir') && pedido.preparando_por && pedido.preparando_por !== cozinheiro) {
+      return NextResponse.json({ error: 'Outro cozinheiro está preparando este pedido' }, { status: 409 })
     }
     if (acao === 'entregue' && pedido.tipo !== 'retirada') {
       return NextResponse.json({ error: 'Pedido de entrega é despachado pela Logística' }, { status: 409 })
@@ -44,11 +50,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     if (acao === 'pegar') {
       const pego = await pegarPedidoCozinha(admin, id, cozinheiro)
       if (!pego) return NextResponse.json({ error: 'Outro cozinheiro já pegou esse pedido' }, { status: 409 })
-      notificarPedido(admin, id, 'preparando').catch(() => {})
+      // Notifica "em preparo" só na primeira vez — devolver + pegar de novo não reenvia.
+      if (await marcarPreparandoNotificado(admin, id)) notificarPedido(admin, id, 'preparando').catch(() => {})
     } else if (acao === 'devolver') {
-      await devolverPedidoCozinha(admin, id)
+      const ok = await devolverPedidoCozinha(admin, id)
+      if (!ok) return NextResponse.json({ error: 'O pedido já mudou de etapa' }, { status: 409 })
     } else if (acao === 'concluir') {
-      await concluirPedidoCozinha(admin, id, cozinheiro)
+      const ok = await concluirPedidoCozinha(admin, id, cozinheiro)
+      if (!ok) return NextResponse.json({ error: 'O pedido já mudou de etapa' }, { status: 409 })
       notificarPedido(admin, id, 'pronto').catch(() => {})
     } else {
       await marcarPedidoEntregue(admin, id)
