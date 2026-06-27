@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { UtensilsCrossed } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestaurantePorSlug,
@@ -51,13 +52,15 @@ interface ToastItem {
 type Tab = 'home' | 'cart' | 'pedidos' | 'cupons'
 type CheckoutStep = 1 | 2 | 3
 
+// Cores vivas e sólidas, alinhadas ao Kanban (laranja recebido, azul preparando,
+// verde pronto/entregue, azul claro em rota, vermelho cancelado).
 const STATUS_PEDIDO_INFO: Record<string, { label: string; cls: string }> = {
-  recebido: { label: 'Recebido', cls: 'bg-[#FFF7ED] text-[#F97316]' },
-  preparando: { label: 'Preparando', cls: 'bg-[#EFF6FF] text-[#3B82F6]' },
-  pronto: { label: 'Pronto', cls: 'bg-[#ECFDF5] text-[#10B981]' },
-  em_rota: { label: 'Saiu para entrega', cls: 'bg-[#EFF6FF] text-[#3B82F6]' },
-  entregue: { label: 'Entregue', cls: 'bg-[#ECFDF5] text-[#10B981]' },
-  cancelado: { label: 'Cancelado', cls: 'bg-danger-bg text-danger' },
+  recebido: { label: 'Recebido', cls: 'bg-[#F97316] text-white' },
+  preparando: { label: 'Preparando', cls: 'bg-[#024A7D] text-white' },
+  pronto: { label: 'Pronto', cls: 'bg-[#16A34A] text-white' },
+  em_rota: { label: 'Saiu para entrega', cls: 'bg-[#3B82F6] text-white' },
+  entregue: { label: 'Entregue', cls: 'bg-[#15803D] text-white' },
+  cancelado: { label: 'Cancelado', cls: 'bg-[#ef4444] text-white' },
 }
 
 const PEDIDO_ATIVO = new Set(['recebido', 'preparando', 'pronto', 'em_rota'])
@@ -122,10 +125,10 @@ function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | '
   }
   return (
     <div
-      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded bg-gradient-to-br from-amber-200 to-orange-300"
-      style={{ width: size, height: size, fontSize: size * 0.38 }}
+      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]"
+      style={{ width: size, height: size }}
     >
-      <span className="font-extrabold text-white/80">{item.nome.charAt(0).toUpperCase()}</span>
+      <UtensilsCrossed style={{ width: size * 0.4, height: size * 0.4 }} className="text-[#9CA3AF]" strokeWidth={1.75} />
     </div>
   )
 }
@@ -138,8 +141,8 @@ function ProductImage({ item, className = '' }: { item: Pick<ItemCardapio, 'nome
     )
   }
   return (
-    <div className={`flex items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 ${className}`}>
-      <span className="text-3xl font-extrabold text-white/80">{item.nome.charAt(0).toUpperCase()}</span>
+    <div className={`flex items-center justify-center bg-[#F3F4F6] ${className}`}>
+      <UtensilsCrossed className="h-1/3 w-1/3 text-[#9CA3AF]" strokeWidth={1.75} />
     </div>
   )
 }
@@ -1012,8 +1015,8 @@ export default function StorefrontPage() {
                   <div className="min-w-0">
                     <h1 className="-mx-2 line-clamp-2 break-words rounded bg-white px-2 py-0.5 text-[17px] font-extrabold leading-[1.2] tracking-tight text-text-main sm:text-[22px] sm:leading-snug lg:text-[26px]">{storeName}</h1>
                     <div className="-mx-2 mt-1.5 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded bg-white px-2 py-1 text-xs font-medium text-text-subtle sm:text-[13px]">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#1cce93]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#1cce93]" /> Aberto agora
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#16A34A]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" /> Aberto agora
                       </span>
                       <span>⏱ 30–45 min</span>
                     </div>
@@ -1082,7 +1085,7 @@ export default function StorefrontPage() {
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#1cce93] bg-[#D1FAE5] text-[#1cce93]' : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#16A34A] bg-[#DCFCE7] text-[#16A34A]' : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
                 >
                   🏷️ Promoções
                 </button>
@@ -1148,7 +1151,7 @@ export default function StorefrontPage() {
               <div className="px-4 pb-1 pt-4 lg:px-8">
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
-                  <span className="rounded bg-[#D1FAE5] px-2 py-0.5 text-[11px] font-bold text-[#1cce93]">{promoItems.length} itens</span>
+                  <span className="rounded bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-bold text-[#16A34A]">{promoItems.length} itens</span>
                 </div>
                 <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
               </div>
@@ -1207,7 +1210,7 @@ export default function StorefrontPage() {
                           )}
                           {line.obs && <div className="mt-0.5 text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
                           <div className="mt-2 flex items-center justify-between">
-                            <span className="text-[14px] font-bold text-[#1cce93]">{brl(line.unit * line.qty)}</span>
+                            <span className="text-[14px] font-bold text-[#16A34A]">{brl(line.unit * line.qty)}</span>
                             <div className="flex items-center rounded border border-border">
                               <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
                               <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
@@ -1235,7 +1238,7 @@ export default function StorefrontPage() {
                             </div>
                             <div className="flex flex-1 flex-col p-2.5">
                               <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
-                              <div className="mt-1 text-[12px] font-bold text-[#1cce93]">{brl(item.promocaoPreco ?? item.preco)}</div>
+                              <div className="mt-1 text-[12px] font-bold text-[#16A34A]">{brl(item.promocaoPreco ?? item.preco)}</div>
                               <div className="mt-2 rounded bg-[var(--tema-primaria)] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
                                 + Adicionar
                               </div>
@@ -1257,7 +1260,7 @@ export default function StorefrontPage() {
                       <span>Taxa de entrega</span><span>{brl(fee)}</span>
                     </div>
                     <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
-                      <span>Total</span><span className="text-[#1cce93]">{brl(total)}</span>
+                      <span>Total</span><span className="text-[#16A34A]">{brl(total)}</span>
                     </div>
                   </div>
 
@@ -1326,7 +1329,7 @@ export default function StorefrontPage() {
                         <p className="line-clamp-2 text-[13px] text-text-subtle">{resumo}</p>
                         <div className="mt-2 flex items-center justify-between">
                           <span className="text-[12px] text-text-subtle">Total</span>
-                          <span className="text-[15px] font-bold text-[#1cce93]">{brl(p.total)}</span>
+                          <span className="text-[15px] font-bold text-[#16A34A]">{brl(p.total)}</span>
                         </div>
                       </div>
                       {ativo && <div className="px-4 pb-4"><PedidoTimeline status={p.status} tipo={p.tipo} /></div>}
@@ -1447,7 +1450,7 @@ export default function StorefrontPage() {
               {productSheet.imagemUrl
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-[42vh] w-full object-cover lg:h-[260px]" />
-                : <div className="flex h-[42vh] items-center justify-center bg-gradient-to-br from-amber-200 to-orange-300 text-6xl font-extrabold text-white/70 lg:h-[260px]">{productSheet.nome.charAt(0)}</div>
+                : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><UtensilsCrossed className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
@@ -1463,7 +1466,7 @@ export default function StorefrontPage() {
                         <h3 className="text-sm font-bold">Tamanho</h3>
                         <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
                       </div>
-                      <span className="mt-0.5 flex-shrink-0 rounded bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger">Obrigatório</span>
+                      <span className="mt-0.5 flex-shrink-0 rounded bg-[#ef4444] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Obrigatório</span>
                     </div>
                     {tamanhosPizza.map((tamanho) => {
                       const isSelected = selectedTamanhoPizzaId === tamanho.id
@@ -1482,7 +1485,7 @@ export default function StorefrontPage() {
                         <h3 className="text-sm font-bold">Sabor</h3>
                         <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
                       </div>
-                      <span className="mt-0.5 flex-shrink-0 rounded bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger">Obrigatório</span>
+                      <span className="mt-0.5 flex-shrink-0 rounded bg-[#ef4444] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Obrigatório</span>
                     </div>
                     {productSheet.sabores.filter((s) => s.status === 'disponivel').map((sabor) => {
                       const isSelected = selectedSaborId === sabor.id
@@ -1515,7 +1518,7 @@ export default function StorefrontPage() {
                           return (
                             <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                               <span className="flex-1 text-sm font-medium">{borda.nome}</span>
-                              <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(borda.preco)}</span>
+                              <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(borda.preco)}</span>
                               <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -1539,7 +1542,7 @@ export default function StorefrontPage() {
                           return (
                             <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                               <span className="flex-1 text-sm font-medium">{massa.nome}</span>
-                              <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(massa.preco)}</span>
+                              <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(massa.preco)}</span>
                               <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -1558,7 +1561,7 @@ export default function StorefrontPage() {
                         <h3 className="text-sm font-bold">Tamanho</h3>
                         <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
                       </div>
-                      <span className="mt-0.5 flex-shrink-0 rounded bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger">Obrigatório</span>
+                      <span className="mt-0.5 flex-shrink-0 rounded bg-[#ef4444] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Obrigatório</span>
                     </div>
                     {productSheet.tamanhos.map((tamanho) => {
                       const isSelected = selectedTamanhoId === tamanho.id
@@ -1590,7 +1593,7 @@ export default function StorefrontPage() {
                               : grupo.maxEscolhas === 0 ? 'Quantos quiser' : grupo.maxEscolhas === 1 ? 'Opcional' : `Até ${grupo.maxEscolhas}`}
                           </div>
                         </div>
-                        <span className={['mt-0.5 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase', grupo.obrigatorio ? 'bg-danger-bg text-danger' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
+                        <span className={['mt-0.5 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase', grupo.obrigatorio ? 'bg-[#ef4444] text-white' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
                           {grupo.obrigatorio ? 'Obrigatório' : 'Opcional'}
                         </span>
                       </div>
@@ -1603,8 +1606,8 @@ export default function StorefrontPage() {
                           <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                             <span className="flex-1 text-sm font-medium">{comp.nome}</span>
                             {comp.preco > 0
-                              ? <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(comp.preco)}</span>
-                              : <span className="rounded bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#1cce93]">Grátis</span>
+                              ? <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(comp.preco)}</span>
+                              : <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[11px] font-bold text-[#16A34A]">Grátis</span>
                             }
                             {isRadio ? (
                               <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
@@ -1637,8 +1640,8 @@ export default function StorefrontPage() {
                       <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                         <span className="flex-1 text-sm font-medium">{addon.nome}</span>
                         {addon.preco > 0
-                          ? <span className="text-[13px] font-semibold text-[#1cce93]">+ {brl(addon.preco)}</span>
-                          : <span className="rounded bg-[#D1FAE5] px-1.5 py-0.5 text-[11px] font-bold text-[#1cce93]">Grátis</span>
+                          ? <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(addon.preco)}</span>
+                          : <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[11px] font-bold text-[#16A34A]">Grátis</span>
                         }
                         <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', selectedAddons.has(addon.nome) ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
@@ -1820,7 +1823,7 @@ export default function StorefrontPage() {
                 ))}
                 <div className="flex justify-between px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
                 <div className="flex justify-between border-t border-border px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Taxa de entrega</span><span>{brl(fee)}</span></div>
-                <div className="flex justify-between border-t border-border px-3.5 py-3 text-[15px] font-bold"><span>Total</span><span className="text-[#1cce93]">{brl(total)}</span></div>
+                <div className="flex justify-between border-t border-border px-3.5 py-3 text-[15px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
               </div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega & pagamento</h3>
               <div className="mb-2.5 flex items-center gap-3 rounded border border-border p-3.5">
@@ -2058,7 +2061,7 @@ export default function StorefrontPage() {
                       {bairros.map((b) => (
                         <div key={b.bairro} className="flex items-center justify-between border-b border-border px-3.5 py-2.5 text-sm last:border-none">
                           <span>{b.bairro}</span>
-                          <span className="font-semibold text-[#1cce93]">{b.taxa === 0 ? 'Grátis' : brl(b.taxa)}</span>
+                          <span className="font-semibold text-[#16A34A]">{b.taxa === 0 ? 'Grátis' : brl(b.taxa)}</span>
                         </div>
                       ))}
                       <div className="flex items-center justify-between border-t border-border bg-[#F3F4F6] px-3.5 py-2.5 text-sm">
