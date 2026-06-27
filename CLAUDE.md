@@ -59,6 +59,12 @@ Os três painéis administrativos (`dashboard.html`, `kanban.html`,
 oficial a ser preservado e expandido** (inclusive no cardápio do cliente, adaptando para
 um contexto mobile-first de vitrine).
 
+> **⚠️ Paleta e fonte oficiais — sempre seguir em qualquer alteração visual.**
+> A paleta de cores abaixo e a fonte **Inter** (a mesma usada no painel de despacho
+> de rotas e em todo o app) são o padrão oficial da Menuzia. Toda mudança de UI em
+> qualquer módulo — incluindo o **PDV** — deve usar exatamente estas cores, a fonte
+> Inter e o radius `3px`. Não introduzir cores ou fontes fora desta paleta.
+
 ### Paleta de cores
 ```
 --bg-main:      #FFFFFF   (superfícies/cards)
