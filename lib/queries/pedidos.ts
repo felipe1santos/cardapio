@@ -403,6 +403,23 @@ export async function atribuirEntregadorEmLote(supabase: SupabaseClient, pedidoI
   if (error) throw error
 }
 
+/**
+ * Versão tenant-safe pra ser chamada por rotas autenticadas por TOKEN (service_role,
+ * sem RLS): garante que o entregador e os pedidos são da loja da estação, e só
+ * despacha pedidos que ainda estão 'pronto'. Usada pelo despacho da cozinha completa.
+ */
+export async function atribuirEntregadorEmLoteSeguro(admin: SupabaseClient, restauranteId: string, pedidoIds: string[], entregadorId: string) {
+  const { data: drv } = await admin.from('entregadores').select('id').eq('id', entregadorId).eq('restaurante_id', restauranteId).maybeSingle()
+  if (!drv) throw new Error('Entregador inválido para esta loja')
+  const { error } = await admin
+    .from('pedidos')
+    .update({ entregador_id: entregadorId, status: 'em_rota' })
+    .in('id', pedidoIds)
+    .eq('restaurante_id', restauranteId)
+    .eq('status', 'pronto')
+  if (error) throw error
+}
+
 export async function marcarPedidoEntregue(supabase: SupabaseClient, pedidoId: string) {
   const { error } = await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId)
   if (error) throw error

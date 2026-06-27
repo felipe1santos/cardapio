@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ChefHat, Clock, GripVertical, Map as MapIcon, PackageCheck, X } from 'lucide-react'
+import { ChefHat, Clock, GripVertical, Map as MapIcon, PackageCheck } from 'lucide-react'
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
-import { enderecoCompletoPedido, type Pedido, type PedidoItem } from '@/lib/queries/pedidos'
-import { RotaMap } from '@/components/pedidos/rota-map'
+import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
+import { RotaPanel } from '@/components/pedidos/rota-panel'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Audio beep (keep from original)
@@ -909,30 +909,27 @@ export default function CozinhaPortalPage() {
         </div>
       </header>
 
-      {/* Overlay do mapa de despacho — pedidos prontos de entrega geocodificados */}
+      {/* Despacho de rotas completo na cozinha (colunas + mapa + atribuir entregador) */}
       {mapaAberto && (
-        <div className="fixed inset-0 z-[70] flex flex-col bg-[#111827]/70 p-2 sm:p-3">
-          <div className="mb-2 flex items-center justify-between text-white">
-            <h2 className="text-sm font-bold uppercase tracking-wide">Mapa — Pronto p/ Despacho</h2>
-            <button
-              onClick={() => setMapaAberto(false)}
-              className="inline-flex items-center gap-1.5 rounded-menuzia bg-white/15 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide hover:bg-white/25"
-            >
-              <X className="h-4 w-4" /> Fechar
-            </button>
-          </div>
-          <div className="relative flex-1 overflow-hidden rounded-menuzia bg-white">
-            <RotaMap
-              apiKey={mapsKey}
-              stops={data.pedidos
-                .filter((p) => p.status === 'pronto' && p.tipo === 'entrega')
-                .map((p) => ({ id: p.id, label: `#${p.numero}`, address: enderecoCompletoPedido(p), color: '#0688D4', clickable: false }))}
-              drivers={[]}
-              onStopClick={() => {}}
-              className="absolute inset-0 h-full w-full"
-            />
-          </div>
-        </div>
+        <RotaPanel
+          apiKey={mapsKey}
+          onClose={() => setMapaAberto(false)}
+          dataSource={{
+            fetch: async () => {
+              const res = await fetch(`/api/cozinha/${token}/rotas`)
+              if (!res.ok) throw new Error('Falha ao carregar o despacho')
+              return res.json()
+            },
+            despachar: async (ids, entregadorId) => {
+              const res = await fetch(`/api/cozinha/${token}/rotas/despachar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids, entregadorId }),
+              })
+              if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Falha ao despachar')
+            },
+          }}
+        />
       )}
 
       {/* Global 409 / pegar error notice */}

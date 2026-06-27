@@ -78,14 +78,23 @@ function corPino(p: Pedido, marcado: boolean): string {
   return '#DC2626' // vermelho = cancelado/não entregue
 }
 
-interface RotaPanelProps {
-  supabase: SupabaseClient
-  restauranteId: string
-  apiKey?: string
-  onClose: () => void
+/** Fonte de dados/ações injetável — usada pelo despacho da cozinha (token), sem RLS de admin. */
+export interface RotaDataSource {
+  fetch: () => Promise<{ rotas: Pedido[]; entregadores: Entregador[] }>
+  despachar: (ids: string[], entregadorId: string) => Promise<void>
 }
 
-export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPanelProps) {
+interface RotaPanelProps {
+  apiKey?: string
+  onClose: () => void
+  /** Admin: lê/escreve direto pelo supabase (RLS por tenant) + realtime. */
+  supabase?: SupabaseClient
+  restauranteId?: string
+  /** Cozinha (token): injeta dados/ações via API autenticada por token + polling. */
+  dataSource?: RotaDataSource
+}
+
+export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource }: RotaPanelProps) {
   const [todos, setTodos] = useState<Pedido[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [drivers, setDrivers] = useState<Entregador[]>([])
@@ -107,11 +116,19 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
 
   const refetch = useCallback(async () => {
     try {
-      const desde = new Date(Date.now() - JANELA_HORAS * 3600 * 1000).toISOString()
-      const [rotas, entregadores] = await Promise.all([
-        listarPedidosRotas(supabase, restauranteId, desde),
-        listarEntregadores(supabase, restauranteId),
-      ])
+      let rotas: Pedido[]
+      let entregadores: Entregador[]
+      if (dataSource) {
+        const r = await dataSource.fetch()
+        rotas = r.rotas
+        entregadores = r.entregadores
+      } else {
+        const desde = new Date(Date.now() - JANELA_HORAS * 3600 * 1000).toISOString()
+        ;[rotas, entregadores] = await Promise.all([
+          listarPedidosRotas(supabase!, restauranteId!, desde),
+          listarEntregadores(supabase!, restauranteId!),
+        ])
+      }
       const prontos = rotas.filter((o) => o.status === 'pronto' && !o.entregadorId)
       setTodos(rotas)
       setPedidos(prontos)
@@ -132,18 +149,23 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
     } catch {
       setError('Não foi possível carregar os pedidos prontos.')
     }
-  }, [supabase, restauranteId])
+  }, [supabase, restauranteId, dataSource])
 
   useEffect(() => {
     refetch()
-    const channel = supabase
-      .channel(`rota-panel-${restauranteId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
+    if (supabase && restauranteId) {
+      const channel = supabase
+        .channel(`rota-panel-${restauranteId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
+        .subscribe()
+      return () => {
+        supabase.removeChannel(channel)
+      }
     }
+    // Cozinha (token): sem realtime — poll.
+    const i = setInterval(refetch, 7000)
+    return () => clearInterval(i)
   }, [supabase, restauranteId, refetch])
 
   const porId = useMemo(() => new Map(pedidos.map((p) => [p.id, p])), [pedidos])
@@ -258,7 +280,8 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose }: RotaPane
     setDespachando(true)
     const ids = marcadosNaOrdem.map((p) => p.id)
     try {
-      await atribuirEntregadorEmLote(supabase, ids, motoboy.id)
+      if (dataSource) await dataSource.despachar(ids, motoboy.id)
+      else await atribuirEntregadorEmLote(supabase!, ids, motoboy.id)
       for (const id of ids) notificarPedido(id, 'em_rota')
       setConfirming(false)
       setMarcados(new Set())
