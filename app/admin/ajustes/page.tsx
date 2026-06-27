@@ -42,12 +42,14 @@ import {
 } from '@/lib/queries/impressao'
 import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao, removerEstacao, type Estacao } from '@/lib/queries/estacoes'
 import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
+import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
 
-type Tab = 'loja' | 'entrega' | 'impressao' | 'integracoes' | 'conta' | 'aparencia' | 'cozinha'
+type Tab = 'loja' | 'entrega' | 'mesas' | 'impressao' | 'integracoes' | 'conta' | 'aparencia' | 'cozinha'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
   { id: 'entrega', label: 'Entrega' },
+  { id: 'mesas', label: 'Mesas' },
   { id: 'aparencia', label: 'Aparência' },
   { id: 'impressao', label: 'Impressão' },
   { id: 'cozinha', label: 'Cozinha' },
@@ -1731,6 +1733,151 @@ function TabEstacoes({ restauranteId, active }: { restauranteId: string; active:
   )
 }
 
+// ─── Aba Mesas ────────────────────────────────────────────────────────────────
+
+function TabMesas({ restauranteId, active }: { restauranteId: string; active: boolean }) {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [loaded, setLoaded] = useState(false)
+  const [mesas, setMesas] = useState<Mesa[]>([])
+  const [nomes, setNomes] = useState<Record<string, string>>({})
+  const [novaMesa, setNovaMesa] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (loaded) return
+    listarMesas(supabase, restauranteId).then((rows) => {
+      setMesas(rows)
+      setNomes(Object.fromEntries(rows.map((m) => [m.id, m.nome])))
+      setLoaded(true)
+    })
+  }, [supabase, restauranteId, loaded])
+
+  async function handleAdicionar() {
+    if (!novaMesa.trim()) return
+    setAdding(true)
+    setError(null)
+    try {
+      await criarMesa(supabase, restauranteId, { nome: novaMesa.trim(), ordem: mesas.length })
+      const all = await listarMesas(supabase, restauranteId)
+      setMesas(all)
+      setNomes(Object.fromEntries(all.map((m) => [m.id, m.nome])))
+      setNovaMesa('')
+    } catch {
+      setError('Não foi possível adicionar a mesa.')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  async function handleRenomear(id: string) {
+    const nome = (nomes[id] ?? '').trim()
+    if (!nome) return
+    const mesa = mesas.find((m) => m.id === id)
+    if (!mesa || mesa.nome === nome) return
+    setError(null)
+    try {
+      await atualizarMesa(supabase, id, { nome })
+      setMesas((prev) => prev.map((m) => (m.id === id ? { ...m, nome } : m)))
+    } catch {
+      setError('Não foi possível renomear a mesa.')
+    }
+  }
+
+  async function handleToggleAtiva(m: Mesa) {
+    setError(null)
+    try {
+      await atualizarMesa(supabase, m.id, { ativa: !m.ativa })
+      setMesas((prev) => prev.map((x) => (x.id === m.id ? { ...x, ativa: !m.ativa } : x)))
+    } catch {
+      setError('Não foi possível atualizar a mesa.')
+    }
+  }
+
+  async function handleRemover(m: Mesa) {
+    if (!confirm(`Remover a mesa "${m.nome}"?`)) return
+    setError(null)
+    try {
+      await removerMesa(supabase, m.id)
+      setMesas((prev) => prev.filter((x) => x.id !== m.id))
+    } catch {
+      setError('Não foi possível remover a mesa.')
+    }
+  }
+
+  return (
+    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
+      <div className="flex-1 overflow-y-auto px-5 py-6">
+        <div className="max-w-xl space-y-6">
+          <Card>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Mesas</h3>
+            <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
+              Cadastre as mesas do estabelecimento para uso no PDV de balcão.
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Input
+                  value={novaMesa}
+                  onChange={(e) => setNovaMesa(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAdicionar()}
+                  placeholder="Nome da mesa (ex.: Mesa 1)"
+                />
+              </div>
+              <Button variant="outline" onClick={handleAdicionar} disabled={adding || !novaMesa.trim()}>
+                {adding ? 'Adicionando…' : 'Adicionar'}
+              </Button>
+            </div>
+          </Card>
+
+          {loaded && (
+            <Card>
+              {mesas.length === 0 ? (
+                <p className="py-2 text-[13px] text-text-subtle">Nenhuma mesa cadastrada ainda.</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {mesas.map((m) => (
+                    <div key={m.id} className="flex items-center gap-3 py-2.5">
+                      <input
+                        value={nomes[m.id] ?? m.nome}
+                        onChange={(e) => setNomes((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                        onBlur={() => handleRenomear(m.id)}
+                        className="min-w-0 flex-1 rounded-menuzia border border-transparent bg-transparent px-2 py-1 text-[13px] font-medium text-text-main outline-none transition-colors hover:border-border focus:border-primary focus:bg-white"
+                      />
+                      <button
+                        onClick={() => handleToggleAtiva(m)}
+                        className={[
+                          'flex-shrink-0 rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors',
+                          m.ativa
+                            ? 'bg-status-ready/10 text-status-ready hover:bg-status-ready/20'
+                            : 'bg-page text-text-subtle hover:bg-border',
+                        ].join(' ')}
+                      >
+                        {m.ativa ? 'Ativa' : 'Pausada'}
+                      </button>
+                      <button
+                        onClick={() => handleRemover(m)}
+                        className="flex-shrink-0 text-[12px] text-text-subtle transition-colors hover:text-danger"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {error && (
+            <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">
+              {error}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function AjustesPage() {
@@ -1769,6 +1916,7 @@ export default function AjustesPage() {
         <>
           <TabLoja restauranteId={restauranteId} active={tab === 'loja'} />
           <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
+          <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
           <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
           <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
           <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
