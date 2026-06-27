@@ -514,6 +514,15 @@ function GrupoItemCard({
 const SABOR_STATUS_CYCLE: StatusItem[] = ['disponivel', 'pausado', 'esgotado']
 const SABOR_STATUS_LABEL: Record<StatusItem, string> = { disponivel: 'Ativo', pausado: 'Inativo', esgotado: 'Em falta' }
 
+/** Cabeçalho de seção do formulário de item — azul-escuro do design pedido (#1e3a8a). */
+function SectionHeader({ children }: { children: string; tone?: string }) {
+  return (
+    <div className="-mx-4.5 mb-3 mt-5 border-y border-[#1e3a8a]/15 bg-[#1e3a8a]/5 px-4.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#1e3a8a]">
+      {children}
+    </div>
+  )
+}
+
 function SaborCard({
   sabor,
   tamanhos,
@@ -533,6 +542,7 @@ function SaborCard({
     Object.fromEntries(tamanhos.map((t) => [t.id, String(sabor.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0)]))
   )
   const [uploading, setUploading] = useState(false)
+  const [editingPrecos, setEditingPrecos] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function saveHeader() {
@@ -621,25 +631,47 @@ function SaborCard({
             className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-[12px] outline-none focus:border-primary" />
         </div>
       )}
-      <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
-        {tamanhos.length === 0 && (
-          <p className="col-span-full text-[11px] text-text-subtle">Cadastre tamanhos de pizza na aba &ldquo;Tamanhos&rdquo; pra definir preços aqui.</p>
-        )}
-        {tamanhos.map((t) => (
-          <div key={t.id}>
-            <div className="mb-1 text-[11px] font-medium text-text-subtle">{t.nome} ({t.fatias} fatias)</div>
-            <div className="flex items-center gap-1">
-              <span className="text-[12px] text-text-subtle">R$</span>
-              <input
-                value={precoInputs[t.id] ?? '0'}
-                onChange={(e) => setPrecoInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                onBlur={() => savePreco(t.id)}
-                onKeyDown={(e) => e.key === 'Enter' && savePreco(t.id)}
-                className="w-full rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary"
-              />
-            </div>
+      <div className="p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preços por tamanho</span>
+          {tamanhos.length > 0 && (
+            <button onClick={() => setEditingPrecos((v) => !v)} className="text-[11px] font-semibold text-[#1e3a8a] hover:underline">
+              {editingPrecos ? 'Concluir' : 'Editar preços'}
+            </button>
+          )}
+        </div>
+        {tamanhos.length === 0 ? (
+          <p className="text-[11px] text-text-subtle">Cadastre tamanhos de pizza na aba &ldquo;Tamanhos&rdquo; pra definir preços aqui.</p>
+        ) : editingPrecos ? (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {tamanhos.map((t) => (
+              <div key={t.id}>
+                <div className="mb-1 text-[11px] font-medium text-text-subtle">{t.nome} ({t.fatias} fatias)</div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[12px] text-text-subtle">R$</span>
+                  <input
+                    value={precoInputs[t.id] ?? '0'}
+                    onChange={(e) => setPrecoInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                    onBlur={() => savePreco(t.id)}
+                    onKeyDown={(e) => e.key === 'Enter' && savePreco(t.id)}
+                    className="w-full rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {tamanhos.map((t) => {
+              const preco = sabor.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0
+              return (
+                <span key={t.id} className={['rounded-menuzia px-2 py-1 text-[12px] font-semibold', preco > 0 ? 'bg-price-bg text-price-text' : 'bg-[#fee2e2] text-[#ef4444]'].join(' ')}>
+                  {t.nome}: R$ {preco.toFixed(2).replace('.', ',')}
+                </span>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1059,7 +1091,7 @@ function ListaCatalogo({
 
   return (
     <Card>
-      <h3 className="mb-1 text-[13px] font-bold text-text-main">{titulo}</h3>
+      <h3 className="mb-1 text-[13px] font-bold text-[#1e3a8a]">{titulo}</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">{hint}</p>
       <div className="overflow-hidden rounded-menuzia border border-border">
         <table className="w-full text-sm">
@@ -1078,7 +1110,7 @@ function ListaCatalogo({
             )}
             {itens.map((linha) =>
               editingId === linha.id ? (
-                <tr key={linha.id} className="border-b border-border bg-primary/10">
+                <tr key={linha.id} className="border-b border-border bg-[#1e3a8a]/5">
                   <td className="px-2.5 py-2">
                     <input value={editNome} onChange={(e) => setEditNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
                       className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
@@ -1089,7 +1121,7 @@ function ListaCatalogo({
                   </td>
                   <td className="px-2.5 py-2">
                     <div className="flex justify-end gap-1.5">
-                      <button onClick={saveEdit} disabled={busy} className="text-[12px] font-semibold text-primary hover:underline">Salvar</button>
+                      <button onClick={saveEdit} disabled={busy} className="text-[12px] font-semibold text-[#1e3a8a] hover:underline">Salvar</button>
                       <button onClick={() => setEditingId(null)} className="text-[12px] text-text-subtle hover:text-text-main">Cancelar</button>
                     </div>
                   </td>
@@ -1100,8 +1132,8 @@ function ListaCatalogo({
                   <td className="px-3.5 py-2.5 text-right tabular-nums">{formatExtra(linha.extra)}</td>
                   <td className="px-3.5 py-2.5">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => startEdit(linha)} className="text-[12px] text-text-subtle hover:text-primary">Editar</button>
-                      <button onClick={() => onRemove(linha.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                      <button onClick={() => startEdit(linha)} className="text-[12px] font-semibold text-[#1e3a8a] hover:underline">Editar</button>
+                      <button onClick={() => onRemove(linha.id)} className="rounded-menuzia bg-[#fee2e2] px-2 py-0.5 text-[12px] font-semibold text-[#ef4444] hover:bg-[#ef4444] hover:text-white">Remover</button>
                     </div>
                   </td>
                 </tr>
@@ -1558,6 +1590,8 @@ export default function CardapioPage() {
   const [editingTamanhoForm, setEditingTamanhoForm] = useState({ nome: '', preco: '' })
   const [creatingSabor, setCreatingSabor] = useState(false)
   const [newSaborNome, setNewSaborNome] = useState('')
+  // Açaí = item simples COM tamanhos/volumes (sem novo tipo no banco).
+  const [temTamanhos, setTemTamanhos] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -1643,6 +1677,7 @@ export default function CardapioPage() {
     setForm(blankForm(activeGroupId))
     setCreatingGrupo(false)
     setNewGrupoForm({ nome: '', obrigatorio: false, min: 0, max: 1 })
+    setTemTamanhos(false)
     setDrawer('edit')
   }
 
@@ -1650,6 +1685,8 @@ export default function CardapioPage() {
     setForm(formFromItem(item))
     setCreatingGrupo(false)
     setNewGrupoForm({ nome: '', obrigatorio: false, min: 0, max: 1 })
+    // açaí/sized: item simples que já tem tamanhos cadastrados
+    setTemTamanhos(item.tipoItem === 'simples' && item.tamanhos.length > 0)
     setDrawer('edit')
   }
 
@@ -2325,7 +2362,7 @@ export default function CardapioPage() {
       </aside>
 
       {/* Drawer: editar/criar item */}
-      <aside className={modalClass(drawer === 'edit', 'w-[420px] max-w-[92vw]')}>
+      <aside className={modalClass(drawer === 'edit', 'w-[560px] max-w-[94vw]')}>
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
             <h2 className="text-[15px] font-bold">{form.id ? 'Editar item' : 'Novo item'}</h2>
@@ -2359,24 +2396,134 @@ export default function CardapioPage() {
             placeholder="Ex.: Pão brioche, 2 hambúrgueres 120g, cheddar e molho da casa"
             className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
 
-          <div className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tipo de item</div>
-          <select value={form.tipoItem} onChange={(e) => setForm((prev) => ({ ...prev, tipoItem: e.target.value as TipoItem }))}
-            className="w-full rounded-menuzia border border-border bg-white px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary">
-            {TIPO_ITEM_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          <SectionHeader>Tipo do item</SectionHeader>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { key: 'simples', icon: '🍔', label: 'Lanche / Simples', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'simples' })); setTemTamanhos(false) }, active: form.tipoItem === 'simples' && !temTamanhos },
+              { key: 'acai', icon: '🍧', label: 'Açaí / Volumes', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'simples' })); setTemTamanhos(true) }, active: form.tipoItem === 'simples' && temTamanhos },
+              { key: 'pizza', icon: '🍕', label: 'Pizza', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'pizza' })); setTemTamanhos(false) }, active: form.tipoItem === 'pizza' },
+              { key: 'marmita', icon: '🍱', label: 'Marmita', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'marmita' })); setTemTamanhos(false) }, active: form.tipoItem === 'marmita' },
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={t.onClick}
+                className={[
+                  'flex flex-col items-center gap-1 rounded-menuzia border-2 px-2 py-3 text-[11px] font-semibold transition-colors',
+                  t.active ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white' : 'border-border bg-white text-text-subtle hover:border-[#1e3a8a]/50',
+                ].join(' ')}
+              >
+                <span className="text-xl leading-none">{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* PIZZA — sabores × preço por tamanho, logo abaixo do tipo */}
           {form.tipoItem === 'pizza' && (
-            <p className="mt-1 text-[11px] text-text-subtle">
-              Pizza não usa preço base — o preço vem do sabor escolhido em cada tamanho.{' '}
-              {!form.id && <b>Salve o item (botão no rodapé) pra liberar o cadastro de sabores.</b>}
-            </p>
-          )}
-          {form.tipoItem === 'marmita' && !form.id && (
-            <p className="mt-1 text-[11px] text-text-subtle">
-              <b>Salve o item (botão no rodapé)</b> pra liberar a importação dos tamanhos cadastrados na aba &ldquo;Tamanhos&rdquo;.
-            </p>
+            <div className="mt-4">
+              <SectionHeader tone="blue">Sabores e preço por tamanho</SectionHeader>
+              {!form.id ? (
+                <div className="rounded-menuzia border border-dashed border-[#1e3a8a]/40 bg-[#1e3a8a]/5 p-3.5 text-center">
+                  <p className="mb-2.5 text-[12px] text-text-main">A pizza não usa preço base: o preço vem do <b>sabor em cada tamanho</b>. Salve o item pra cadastrar os sabores e seus preços.</p>
+                  <button onClick={saveItem} disabled={saving || !form.nome.trim()}
+                    className="rounded-menuzia bg-[#1e3a8a] px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-50">
+                    {saving ? 'Salvando…' : 'Salvar e adicionar sabores'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="mb-3 text-[11px] text-text-subtle">
+                    Cada sabor tem seu preço por tamanho. Cadastre os tamanhos da pizza na aba &ldquo;Tamanhos&rdquo; antes de definir os preços.
+                  </p>
+                  {(currentItem?.sabores ?? []).map((sabor) => (
+                    <SaborCard key={sabor.id} sabor={sabor} tamanhos={tamanhosPizzaCatalogo} restauranteId={restauranteId!} onRefresh={refreshItems} />
+                  ))}
+                  {(currentItem?.sabores ?? []).length === 0 && !creatingSabor && (
+                    <div className="mb-3 rounded-menuzia border border-dashed border-border p-3 text-center text-[11px] text-text-subtle">Nenhum sabor cadastrado ainda.</div>
+                  )}
+                  {creatingSabor ? (
+                    <div className="mb-2 mt-2 flex items-center gap-2 rounded-menuzia border border-border bg-page p-2.5">
+                      <input autoFocus value={newSaborNome} onChange={(e) => setNewSaborNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createSaborNoItem()}
+                        placeholder="Nome do sabor (ex: Mussarela)" className="flex-1 rounded-menuzia border border-border px-2.5 py-1.5 text-[13px] outline-none focus:border-primary" />
+                      <button onClick={createSaborNoItem} disabled={!newSaborNome.trim()}
+                        className="rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-50">Adicionar</button>
+                      <button onClick={() => { setCreatingSabor(false); setNewSaborNome('') }}
+                        className="rounded-menuzia border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:bg-page">Cancelar</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setCreatingSabor(true)}
+                      className="mt-2 w-full rounded-menuzia border border-dashed border-border bg-white py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:border-[#1e3a8a] hover:text-[#1e3a8a]">+ Novo sabor</button>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
-          <div className="mt-4 flex gap-3">
+          {/* MARMITA / AÇAÍ — tamanhos com preço próprio, logo abaixo do tipo */}
+          {(form.tipoItem === 'marmita' || (form.tipoItem === 'simples' && temTamanhos)) && (
+            <div className="mt-4">
+              <div className="-mx-4.5 mb-3 flex items-center justify-between border-y border-[#1e3a8a]/15 bg-[#1e3a8a]/5 px-4.5 py-2">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-[#1e3a8a]">{temTamanhos ? 'Tamanhos / Volumes' : 'Tamanhos'}</span>
+                {form.id && tamanhosMarmitaCatalogo.length > 0 && form.tipoItem === 'marmita' && (
+                  <button onClick={importarTamanhosMarmita} className="rounded-menuzia bg-[#1e3a8a] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white transition hover:brightness-110">Importar da loja</button>
+                )}
+              </div>
+              {!form.id ? (
+                <div className="rounded-menuzia border border-dashed border-[#1e3a8a]/40 bg-[#1e3a8a]/5 p-3.5 text-center">
+                  <p className="mb-2.5 text-[12px] text-text-main">O cliente escolhe um {temTamanhos ? 'volume' : 'tamanho'} e o preço dele substitui o preço base. Salve o item pra cadastrar os {temTamanhos ? 'volumes' : 'tamanhos'}.</p>
+                  <button onClick={saveItem} disabled={saving || !form.nome.trim()}
+                    className="rounded-menuzia bg-[#1e3a8a] px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-50">
+                    {saving ? 'Salvando…' : `Salvar e adicionar ${temTamanhos ? 'volumes' : 'tamanhos'}`}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {(currentItem?.tamanhos ?? []).map((tamanho) =>
+                    editingTamanhoId === tamanho.id ? (
+                      <div key={tamanho.id} className="mb-1.5 flex items-center gap-2 rounded-menuzia border border-[#1e3a8a] bg-[#1e3a8a]/5 px-2.5 py-2">
+                        <input autoFocus value={editingTamanhoForm.nome} onChange={(e) => setEditingTamanhoForm((prev) => ({ ...prev, nome: e.target.value }))}
+                          placeholder="Nome" className="w-24 rounded-menuzia border border-border px-2 py-1 text-[13px] outline-none focus:border-primary" />
+                        <input value={editingTamanhoForm.preco} onChange={(e) => setEditingTamanhoForm((prev) => ({ ...prev, preco: e.target.value }))}
+                          placeholder="Preço" className="w-24 rounded-menuzia border border-border px-2 py-1 text-[13px] outline-none focus:border-primary" />
+                        <button onClick={saveEditTamanho} className="rounded-menuzia px-1.5 py-1 text-[#1e3a8a] hover:bg-white">✓</button>
+                        <button onClick={() => setEditingTamanhoId(null)} className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white">✕</button>
+                      </div>
+                    ) : (
+                      <div key={tamanho.id} className="mb-1.5 flex items-center gap-2.5 rounded-menuzia border border-border px-2.5 py-2">
+                        <span className="flex-1 text-[13px] font-medium">{tamanho.nome}</span>
+                        <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">R$ {tamanho.preco.toFixed(2).replace('.', ',')}</span>
+                        <button onClick={() => startEditTamanho(tamanho)} title="Editar" className="flex h-[26px] w-[26px] items-center justify-center rounded-menuzia bg-page text-[13px] text-text-subtle hover:bg-border">✎</button>
+                        <button onClick={() => deleteTamanho(tamanho)} title="Excluir"
+                          className="flex h-[26px] w-[26px] items-center justify-center rounded-menuzia bg-[#fee2e2] text-[15px] text-[#ef4444] hover:bg-[#ef4444] hover:text-white">×</button>
+                      </div>
+                    )
+                  )}
+                  {(currentItem?.tamanhos ?? []).length === 0 && !creatingTamanho && (
+                    <div className="mb-3 rounded-menuzia border border-dashed border-border p-3 text-center text-[11px] text-text-subtle">Nenhum {temTamanhos ? 'volume' : 'tamanho'} cadastrado. Sem isso, o item usa só o preço base.</div>
+                  )}
+                  {creatingTamanho ? (
+                    <div className="mb-2 mt-2 flex items-center gap-2 rounded-menuzia border border-border bg-page p-2.5">
+                      <input autoFocus value={newTamanhoForm.nome} onChange={(e) => setNewTamanhoForm((prev) => ({ ...prev, nome: e.target.value }))}
+                        placeholder={temTamanhos ? 'Ex: 500ml' : 'Ex: G'} className="w-28 rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary" />
+                      <input value={newTamanhoForm.preco} onChange={(e) => setNewTamanhoForm((prev) => ({ ...prev, preco: e.target.value }))}
+                        placeholder="Preço (ex: 24,90)" className="w-28 rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary" />
+                      <button onClick={createTamanho} disabled={!newTamanhoForm.nome.trim()}
+                        className="rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-50">Adicionar</button>
+                      <button onClick={() => { setCreatingTamanho(false); setNewTamanhoForm({ nome: '', preco: '' }) }}
+                        className="rounded-menuzia border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:bg-page">Cancelar</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setCreatingTamanho(true)}
+                      className="mt-2 w-full rounded-menuzia border border-dashed border-border bg-white py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:border-[#1e3a8a] hover:text-[#1e3a8a]">+ Novo {temTamanhos ? 'volume' : 'tamanho'}</button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          <SectionHeader>Preço, categoria e disponibilidade</SectionHeader>
+          <div className="flex gap-3">
             {form.tipoItem !== 'pizza' && (
               <div className="flex-1">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preço (R$)</div>
@@ -2430,58 +2577,8 @@ export default function CardapioPage() {
             </div>
           </div>
 
-          {/* Sabores de pizza (só pra itens tipo pizza) */}
-          {form.id && form.tipoItem === 'pizza' && (
-            <>
-              <div className="mt-6 flex items-center justify-between">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Sabores</div>
-              </div>
-              <p className="mb-3 mt-1 text-[11px] text-text-subtle">
-                Cada sabor tem seu próprio preço por tamanho. Cadastre os tamanhos da pizza na aba &ldquo;Tamanhos&rdquo; antes de definir os preços aqui.
-              </p>
-
-              {(currentItem?.sabores ?? []).map((sabor) => (
-                <SaborCard key={sabor.id} sabor={sabor} tamanhos={tamanhosPizzaCatalogo} restauranteId={restauranteId!} onRefresh={refreshItems} />
-              ))}
-
-              {(currentItem?.sabores ?? []).length === 0 && !creatingSabor && (
-                <div className="mb-3 rounded-menuzia border border-dashed border-border p-3 text-center text-[11px] text-text-subtle">
-                  Nenhum sabor cadastrado ainda.
-                </div>
-              )}
-
-              {creatingSabor ? (
-                <div className="mb-2 mt-2 flex items-center gap-2 rounded-menuzia border border-border bg-page p-2.5">
-                  <input
-                    autoFocus
-                    value={newSaborNome}
-                    onChange={(e) => setNewSaborNome(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && createSaborNoItem()}
-                    placeholder="Nome do sabor (ex: Mussarela)"
-                    className="flex-1 rounded-menuzia border border-border px-2.5 py-1.5 text-[13px] outline-none focus:border-primary"
-                  />
-                  <button onClick={createSaborNoItem} disabled={!newSaborNome.trim()}
-                    className="rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-50">
-                    Adicionar
-                  </button>
-                  <button onClick={() => { setCreatingSabor(false); setNewSaborNome('') }}
-                    className="rounded-menuzia border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:bg-page">
-                    Cancelar
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setCreatingSabor(true)}
-                  className="mt-2 w-full rounded-menuzia border border-dashed border-border bg-white py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:border-primary hover:text-primary"
-                >
-                  + Novo sabor
-                </button>
-              )}
-            </>
-          )}
-
-          {/* Tamanhos section (only after item is saved, tipo marmita) — preço próprio por tamanho */}
-          {form.id && form.tipoItem === 'marmita' && (
+          {/* Tamanhos section relocado pra cima (logo abaixo do tipo) — bloco antigo desativado */}
+          {false && (
             <>
               <div className="mt-6 flex items-center justify-between">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tamanhos</div>
