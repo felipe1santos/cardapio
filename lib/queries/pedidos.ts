@@ -48,6 +48,8 @@ export interface Pedido {
   preparadoPor: string | null
   preparandoNotificado: boolean
   telefoneVerificado: boolean
+  origem: 'cardapio' | 'pdv'
+  mesa: string | null
   criadoEm: string
   atualizadoEm: string
   itens: PedidoItem[]
@@ -91,6 +93,8 @@ interface PedidoRow {
   preparado_por: string | null
   preparando_notificado: boolean
   telefone_verificado: boolean
+  origem: 'cardapio' | 'pdv'
+  mesa: string | null
   criado_em: string
   atualizado_em: string
   pedido_itens: {
@@ -112,7 +116,7 @@ const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
-  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, criado_em, atualizado_em,
+  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, mesa, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
@@ -141,6 +145,8 @@ function mapPedido(row: PedidoRow): Pedido {
     preparadoPor: row.preparado_por ?? null,
     preparandoNotificado: row.preparando_notificado ?? false,
     telefoneVerificado: row.telefone_verificado ?? true,
+    origem: (row.origem as 'cardapio' | 'pdv') ?? 'cardapio',
+    mesa: row.mesa ?? null,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
     itens: (row.pedido_itens ?? []).map((i) => ({
@@ -804,6 +810,10 @@ export interface NovoPedidoInput {
   trocoPara: number | null
   /** Apenas informativo — a taxa real é recalculada no servidor pelo bairro. */
   taxaEntrega?: number
+  /** Origem do pedido. Default 'cardapio' (vitrine/manual). PDV manda 'pdv'. */
+  origem?: 'cardapio' | 'pdv'
+  /** Nome da mesa — só usado quando origem === 'pdv'. */
+  mesa?: string
   itens: NovoPedidoItemInput[]
 }
 
@@ -951,6 +961,8 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       taxa_entrega: taxaEntrega,
       total,
       observacao: '',
+      origem: input.origem ?? 'cardapio',
+      mesa: input.origem === 'pdv' ? (input.mesa ?? null) : null,
     })
     .select('id, numero')
     .single()
