@@ -242,6 +242,11 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
               <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                 {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
               </span>
+              {pedido.origem === 'pdv' && (
+                <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-alert-text">
+                  PDV · Mesa {pedido.mesa ?? 'Balcão'}
+                </span>
+              )}
               {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
                 <span className="rounded-menuzia bg-[#0a6cff] px-2 py-0.5 text-[12px] font-extrabold uppercase tracking-wide text-white">
                   📍 {pedido.enderecoBairro}
@@ -374,6 +379,11 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
+          {pedido.origem === 'pdv' && (
+            <span className="rounded-menuzia bg-alert-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-alert-text">
+              PDV · Mesa {pedido.mesa ?? 'Balcão'}
+            </span>
+          )}
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
             <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
               📍 {pedido.enderecoBairro}

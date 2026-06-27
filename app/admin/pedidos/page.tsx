@@ -543,6 +543,7 @@ export default function PedidosPage() {
                           <div className="flex items-center gap-1.5">
                             <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
                             {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
+                            {order.origem === 'pdv' && <Badge tone="alert">PDV</Badge>}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold tabular-nums ${timerTone(tempo.mins)}`}>{tempo.label}</span>
@@ -579,7 +580,13 @@ export default function PedidosPage() {
                           <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1.5">
                             {/* slot para tags futuras (ex.: agendado, atrasado) */}
                             <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
-                              {PAY_LABEL[order.formaPagamento]}
+                              {order.origem === 'pdv' ? (
+                                <span className="text-[11px] font-semibold normal-case tracking-normal text-text-subtle">
+                                  Mesa {order.mesa ?? 'Balcão'} · conta aberta
+                                </span>
+                              ) : (
+                                PAY_LABEL[order.formaPagamento]
+                              )}
                             </div>
                             <div className="rounded-menuzia bg-price-bg px-1.5 py-1.5 text-center text-[11px] font-medium text-price-text">
                               {brl(order.total)}
