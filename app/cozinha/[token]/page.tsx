@@ -244,7 +244,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
               </span>
               {pedido.origem === 'pdv' && (
                 <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-alert-text">
-                  PDV · Mesa {pedido.mesa ?? 'Balcão'}
+                  PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
                 </span>
               )}
               {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
@@ -381,7 +381,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
           </span>
           {pedido.origem === 'pdv' && (
             <span className="rounded-menuzia bg-alert-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-alert-text">
-              PDV · Mesa {pedido.mesa ?? 'Balcão'}
+              PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
             </span>
           )}
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (

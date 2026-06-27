@@ -57,7 +57,7 @@ function makeUid() {
 function needsSelector(item: ItemCardapio): boolean {
   if (item.tipoItem === 'pizza') return true
   if (item.tamanhos.length > 0) return true
-  if (item.grupos.some((g) => g.obrigatorio)) return true
+  if (item.grupos.length > 0) return true
   return false
 }
 

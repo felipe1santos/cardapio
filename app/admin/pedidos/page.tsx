@@ -582,7 +582,7 @@ export default function PedidosPage() {
                             <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
                               {order.origem === 'pdv' ? (
                                 <span className="text-[11px] font-semibold normal-case tracking-normal text-text-subtle">
-                                  Mesa {order.mesa ?? 'Balcão'} · conta aberta
+                                  {order.mesa ? `Mesa ${order.mesa}` : 'Balcão'} · conta aberta
                                 </span>
                               ) : (
                                 PAY_LABEL[order.formaPagamento]
