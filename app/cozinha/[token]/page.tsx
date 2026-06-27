@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ChefHat, Clock, GripVertical, PackageCheck } from 'lucide-react'
+import { ChefHat, Clock, GripVertical, Map as MapIcon, PackageCheck, X } from 'lucide-react'
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
-import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
+import { enderecoCompletoPedido, type Pedido, type PedidoItem } from '@/lib/queries/pedidos'
+import { RotaMap } from '@/components/pedidos/rota-map'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Audio beep (keep from original)
@@ -427,7 +428,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
   return (
     <article
       className={[
-        'flex flex-col overflow-hidden rounded-menuzia border bg-main shadow-md transition-shadow border-l-[6px] border-l-[#024A7D]',
+        'flex flex-col overflow-hidden rounded-menuzia border bg-[#024A7D]/5 shadow-md transition-shadow border-l-[6px] border-l-[#024A7D]',
         isOwner ? 'cursor-pointer border-[#024A7D]/40 hover:shadow-lg' : 'cursor-not-allowed border-border opacity-80',
       ].join(' ')}
       onClick={isOwner ? () => onOpen(pedido) : undefined}
@@ -629,24 +630,24 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
               novoGrupo ? 'mt-1.5' : '',
             ].join(' ')}
           >
-            <div className="flex items-center justify-between border-b border-border bg-[#15803D] px-3 py-2.5 text-white">
+            <div className="flex items-center justify-between border-b border-border bg-[#15803D] px-2.5 py-1.5 text-white">
               <div className="flex items-center gap-1.5">
                 <GripVertical className="h-4 w-4 cursor-grab text-white/80" />
-                <span className="text-lg font-extrabold">#{p.numero}</span>
+                <span className="text-base font-extrabold">#{p.numero}</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
+                {/* Reordenar: setinhas ao lado do temporizador */}
+                <button onClick={() => mover(p.id, -1)} disabled={idx === 0} className="flex h-5 w-5 items-center justify-center rounded-menuzia bg-white/20 text-[11px] font-bold leading-none text-white disabled:opacity-30">▲</button>
+                <button onClick={() => mover(p.id, 1)} disabled={idx === lista.length - 1} className="flex h-5 w-5 items-center justify-center rounded-menuzia bg-white/20 text-[11px] font-bold leading-none text-white disabled:opacity-30">▼</button>
                 <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
                   <ElapsedTimer criadoEm={p.criadoEm} now={now} />
-                </span>
-                <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                  Pronto
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col gap-2 p-3">
+            <div className="flex flex-1 flex-col gap-1 p-2.5">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[15px] font-bold text-black">{p.clienteNome}</span>
+                <span className="text-[14px] font-bold text-black">{p.clienteNome}</span>
                 {p.tipo === 'entrega' ? (
                   <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
                     📍 {bairro}
@@ -657,7 +658,7 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
                   </span>
                 )}
               </div>
-              <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
+              <ul className="text-[12px] font-medium leading-tight text-text-main">
                 {p.itens.map((item, i) => (
                   <li key={i}>
                     {item.quantidade}× {item.nome}
@@ -667,29 +668,18 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
               {p.observacao && (
                 <p className="text-[12px] font-bold uppercase text-danger">{p.observacao}</p>
               )}
-            </div>
-
-            <div className="flex items-center gap-2 border-t border-border p-3">
-              <div className="flex flex-col gap-1">
-                <button onClick={() => mover(p.id, -1)} disabled={idx === 0} className="rounded-menuzia border border-border px-2 py-0.5 text-[12px] font-bold text-text-subtle disabled:opacity-30">▲</button>
-                <button onClick={() => mover(p.id, 1)} disabled={idx === lista.length - 1} className="rounded-menuzia border border-border px-2 py-0.5 text-[12px] font-bold text-text-subtle disabled:opacity-30">▼</button>
-              </div>
-              <div className="flex-1">
-                {p.tipo === 'retirada' ? (
-                  <button
-                    disabled={busy === p.id}
-                    onClick={() => marcarEntregue(p)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
-                  >
-                    <PackageCheck className="h-4 w-4" />
-                    {busy === p.id ? 'Aguarde…' : 'Entregue'}
-                  </button>
-                ) : (
-                  <p className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                    Na logística
-                  </p>
-                )}
-              </div>
+              {p.tipo === 'retirada' ? (
+                <button
+                  disabled={busy === p.id}
+                  onClick={() => marcarEntregue(p)}
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-2 text-[12px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
+                >
+                  <PackageCheck className="h-4 w-4" />
+                  {busy === p.id ? 'Aguarde…' : 'Entregue'}
+                </button>
+              ) : (
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">→ Na logística</p>
+              )}
             </div>
           </article>
         )
@@ -719,6 +709,9 @@ export default function CozinhaPortalPage() {
 
   // Prep modal
   const [modalPedido, setModalPedido] = useState<Pedido | null>(null)
+  // Mapa de despacho (modo completa)
+  const [mapaAberto, setMapaAberto] = useState(false)
+  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
   // Single shared clock state — drives all ElapsedTimer instances at 1 Hz
   const [now, setNow] = useState(() => Date.now())
@@ -850,6 +843,7 @@ export default function CozinhaPortalPage() {
   if (!data) return null
 
   const isExpedicao = data.estacao.modo === 'expedicao'
+  const isCompleta = data.estacao.modo === 'completa'
 
   // Split into columns for producao / completa
   const disponiveis = data.pedidos
@@ -887,6 +881,16 @@ export default function CozinhaPortalPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Mapa de despacho (modo completa) */}
+          {isCompleta && (
+            <button
+              onClick={() => setMapaAberto(true)}
+              className="inline-flex items-center gap-1.5 rounded-menuzia bg-[#0688D4] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white hover:brightness-95"
+            >
+              <MapIcon className="h-3.5 w-3.5" />
+              Mapa
+            </button>
+          )}
           {/* Cook name badge + swap button (producao/completa only) */}
           {!isExpedicao && cozinheiro && (
             <div className="flex items-center gap-1.5">
@@ -904,6 +908,32 @@ export default function CozinhaPortalPage() {
           </span>
         </div>
       </header>
+
+      {/* Overlay do mapa de despacho — pedidos prontos de entrega geocodificados */}
+      {mapaAberto && (
+        <div className="fixed inset-0 z-[70] flex flex-col bg-[#111827]/70 p-2 sm:p-3">
+          <div className="mb-2 flex items-center justify-between text-white">
+            <h2 className="text-sm font-bold uppercase tracking-wide">Mapa — Pronto p/ Despacho</h2>
+            <button
+              onClick={() => setMapaAberto(false)}
+              className="inline-flex items-center gap-1.5 rounded-menuzia bg-white/15 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide hover:bg-white/25"
+            >
+              <X className="h-4 w-4" /> Fechar
+            </button>
+          </div>
+          <div className="relative flex-1 overflow-hidden rounded-menuzia bg-white">
+            <RotaMap
+              apiKey={mapsKey}
+              stops={data.pedidos
+                .filter((p) => p.status === 'pronto' && p.tipo === 'entrega')
+                .map((p) => ({ id: p.id, label: `#${p.numero}`, address: enderecoCompletoPedido(p), color: '#0688D4', clickable: false }))}
+              drivers={[]}
+              onStopClick={() => {}}
+              className="absolute inset-0 h-full w-full"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Global 409 / pegar error notice */}
       {notice && (
@@ -927,10 +957,10 @@ export default function CozinhaPortalPage() {
         </main>
       )}
 
-      {/* ── Producao / Completa mode: two-column layout ────────────────── */}
+      {/* ── Producao (2 col) / Completa (3 col no desktop) ─────────────── */}
       {!isExpedicao && (
         <main className="p-3">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={`grid gap-4 md:grid-cols-2 ${isCompleta ? 'xl:grid-cols-3' : ''}`}>
             {/* Left column: Disponíveis (status === 'recebido', oldest first) */}
             <section>
               <div className="mb-2 flex items-center gap-2">
@@ -990,22 +1020,22 @@ export default function CozinhaPortalPage() {
                 </div>
               )}
             </section>
-          </div>
 
-          {/* Pronto section — completa mode only (shows 'pronto' pedidos below the two columns) */}
-          {data.estacao.modo === 'completa' && (
-            <div className="mt-5">
-              <div className="mb-2 flex items-center gap-2">
-                <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                  Pronto p/ Despacho
-                </h2>
-                <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-bold text-white">
-                  {data.pedidos.filter((p) => p.status === 'pronto').length}
-                </span>
-              </div>
-              <ExpedicaoView pedidos={data.pedidos} token={token} now={now} onRefetch={refetch} />
-            </div>
-          )}
+            {/* 3ª coluna (modo completa): Pronto p/ Despacho */}
+            {isCompleta && (
+              <section>
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                    Pronto p/ Despacho
+                  </h2>
+                  <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {data.pedidos.filter((p) => p.status === 'pronto').length}
+                  </span>
+                </div>
+                <ExpedicaoView pedidos={data.pedidos} token={token} now={now} onRefetch={refetch} />
+              </section>
+            )}
+          </div>
         </main>
       )}
     </div>

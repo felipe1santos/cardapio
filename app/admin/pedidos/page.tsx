@@ -62,7 +62,7 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
   },
   preparando: {
     label: 'Preparando',
-    headerBg: 'bg-status-preparing',
+    headerBg: 'bg-[#024A7D]',
     Icon: ChefHat,
     emptyTitle: 'Nada em preparo',
     EmptyIcon: ChefHat,
@@ -517,6 +517,7 @@ export default function PedidosPage() {
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             const cfg = COLUNA_CONFIG[coluna]
+            const accent: Record<Coluna, string> = { recebido: 'border-l-status-pending', preparando: 'border-l-[#024A7D]', pronto: 'border-l-status-ready' }
             return (
               <div key={coluna} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
                 <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`}>
@@ -533,7 +534,8 @@ export default function PedidosPage() {
                       <div
                         key={order.id}
                         className={[
-                          'rounded-menuzia border border-border bg-white p-3.5 shadow-md transition-shadow hover:shadow-lg',
+                          'rounded-menuzia border border-border border-l-[4px] bg-white p-3.5 shadow-md transition-shadow hover:shadow-lg',
+                          accent[coluna],
                           pulsando.has(order.id) ? 'animate-new-order' : '',
                         ].join(' ')}
                       >
