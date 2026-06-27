@@ -783,6 +783,10 @@ export default function StorefrontPage() {
   const [changeFor, setChangeFor] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  // Confirmação pós-pedido + link wa.me para o cliente avisar a loja (conversa
+  // bidirecional reduz risco de bloqueio dos disparos da loja).
+  const [confirmacaoAberta, setConfirmacaoAberta] = useState(false)
+  const [pedidoWa, setPedidoWa] = useState<string | null>(null)
   const [cliente, setCliente] = useState({ nome: '', telefone: '' })
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
@@ -823,6 +827,29 @@ export default function StorefrontPage() {
     return Number.isFinite(n) && n > 0 ? n : null
   }
 
+  /** Telefone da loja em formato wa.me (só dígitos, com DDI 55). '' se inválido. */
+  function numeroWaLoja(): string {
+    const d = (restaurante?.telefone ?? '').replace(/\D/g, '')
+    if (d.length < 10) return ''
+    return d.startsWith('55') ? d : `55${d}`
+  }
+
+  /** Mensagem que o cliente envia pro WhatsApp da loja com o resumo do pedido. */
+  function montarAvisoLoja(): string {
+    const linhas: string[] = ['Acabei de fazer um pedido agora mesmo! 🛎️', '']
+    for (const l of cart) {
+      const variacao = [l.tamanhoNome, l.saborNome].filter(Boolean).join(' - ')
+      linhas.push(`• ${l.qty}x ${l.name}${variacao ? ` (${variacao})` : ''}`)
+      for (const a of l.addons) linhas.push(`   + ${a.nome}`)
+      if (l.obs?.trim()) linhas.push(`   obs: ${l.obs.trim()}`)
+    }
+    linhas.push('')
+    linhas.push(`Total: ${brl(total)}`)
+    linhas.push(`Pagamento: ${payMethod}`)
+    if (cliente.nome.trim()) linhas.push(`Cliente: ${cliente.nome.trim()}`)
+    return linhas.join('\n')
+  }
+
   async function submitOrder() {
     setSubmitting(true)
     setCheckoutError(null)
@@ -852,6 +879,10 @@ export default function StorefrontPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
+      // Monta o link de aviso pro WhatsApp da loja ANTES de limpar o carrinho.
+      const numero = numeroWaLoja()
+      setPedidoWa(numero ? `https://wa.me/${numero}?text=${encodeURIComponent(montarAvisoLoja())}` : null)
+      setConfirmacaoAberta(true)
       setCheckoutOpen(false)
       setCart([])
       setTab('pedidos')
@@ -1370,6 +1401,41 @@ export default function StorefrontPage() {
           </div>
         </nav>
       </div>
+
+      {/* ── Confirmação pós-pedido + aviso pra loja no WhatsApp ───────── */}
+      {confirmacaoAberta && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-[#111827]/60" onClick={() => setConfirmacaoAberta(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-[600px] rounded-t-2xl bg-white p-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-2xl">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#DCFCE7]">
+              <svg viewBox="0 0 24 24" className="h-7 w-7 fill-[#16A34A]"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
+            </div>
+            <h2 className="text-center text-lg font-bold text-text-main">Pedido enviado!</h2>
+            <p className="mx-auto mt-1 max-w-[300px] text-center text-[13px] text-text-subtle">
+              A loja já recebeu seu pedido. Acompanhe o status na aba Pedidos.
+            </p>
+            <div className="mt-5 flex flex-col gap-2.5">
+              {pedidoWa && (
+                <a
+                  href={pedidoWa}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3.5 text-[14px] font-bold text-white transition-transform active:scale-[0.99]"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 18.15h-.01c-1.52 0-3.01-.41-4.3-1.18l-.31-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.12-.16.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.42-.14 0-.31-.02-.48-.02-.16 0-.43.06-.66.31-.23.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.22-.16-.47-.28z" /></svg>
+                  Avisar a loja no WhatsApp
+                </a>
+              )}
+              <button
+                onClick={() => setConfirmacaoAberta(false)}
+                className="rounded-xl bg-[var(--tema-primaria)] py-3.5 text-[14px] font-bold text-white transition-transform active:scale-[0.99]"
+              >
+                Acompanhar pedido
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Product sheet overlay ─────────────────────────────────────── */}
       {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={() => setProductSheet(null)} />}
