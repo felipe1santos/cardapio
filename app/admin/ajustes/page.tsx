@@ -1745,13 +1745,18 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!active) return
     if (loaded) return
-    listarMesas(supabase, restauranteId).then((rows) => {
-      setMesas(rows)
-      setNomes(Object.fromEntries(rows.map((m) => [m.id, m.nome])))
-      setLoaded(true)
-    })
-  }, [supabase, restauranteId, loaded])
+    listarMesas(supabase, restauranteId)
+      .then((rows) => {
+        setMesas(rows)
+        setNomes(Object.fromEntries(rows.map((m) => [m.id, m.nome])))
+        setLoaded(true)
+      })
+      .catch(() => {
+        setError('Não foi possível carregar as mesas.')
+      })
+  }, [active, supabase, restauranteId, loaded])
 
   async function handleAdicionar() {
     if (!novaMesa.trim()) return
@@ -1800,6 +1805,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
     try {
       await removerMesa(supabase, m.id)
       setMesas((prev) => prev.filter((x) => x.id !== m.id))
+      setNomes((prev) => { const n = { ...prev }; delete n[m.id]; return n })
     } catch {
       setError('Não foi possível remover a mesa.')
     }
