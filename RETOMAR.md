@@ -24,24 +24,9 @@ Nada disso está em produção ainda — **falta deploy**. Já feito no código:
 Dispara o deploy. Sobe TUDO do `main` pra produção (`app.menuzia.com.br`).
 Sem isso, nada acima aparece pro usuário.
 
-### 2. Publicar o release do agente de impressão 0.1.12
-Falhou por rede (api.github.com fora). O `.exe` JÁ está buildado:
-`C:\projetos\cardapio\printer-agent\dist\AssistenteImpressaoMenuzia-Setup-0.1.12.exe`
-
-**Publicar pelo navegador** (mais garantido):
-1. Abrir `https://github.com/felipe1santos/cardapio/releases`
-2. Apagar qualquer **draft** `printer-agent-v0.1.12` que aparecer.
-3. **Draft a new release** → Tag: `printer-agent-v0.1.12` · Title: `Assistente de Impressão v0.1.12`
-4. Arrastar o `.exe` acima · **Publish release**.
-
-(O botão de download no painel já aponta pra v0.1.12 — fica 404 até publicar.)
-
-Alternativa via terminal (se a rede voltar):
-```
-cd C:\projetos\cardapio
-gh release delete printer-agent-v0.1.12 --yes
-gh release create printer-agent-v0.1.12 "printer-agent/dist/AssistenteImpressaoMenuzia-Setup-0.1.12.exe" --title "Assistente de Impressão v0.1.12" --notes "Impressao mais rapida"
-```
+### 2. ✅ Release do agente 0.1.12 — JÁ PUBLICADO
+Publicado no GitHub com o `.exe` anexado. O botão de download no painel
+(Ajustes > Impressão) já aponta pra v0.1.12 e funciona. Nada a fazer aqui.
 
 ### 3. Instalar o agente 0.1.12 no PC da impressora
 Pra impressão ficar **rápida** (corrigido: medição em bitmap, sem inicializar driver 2x).
