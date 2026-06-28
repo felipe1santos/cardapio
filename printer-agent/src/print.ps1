@@ -57,24 +57,29 @@ function Invoke-ImpressaoGrafica {
   $mg = $doc.PrinterSettings.CreateMeasurementGraphics()
 
   $paper = $doc.DefaultPageSettings.PaperSize
-  # Largura útil: área imprimível quando disponível; senão, a largura do papel.
+  # Largura útil: a MENOR entre área imprimível e largura do papel. Drivers térmicos
+  # às vezes reportam uma área imprimível maior que o papel físico — pegar a menor
+  # evita dimensionar a fonte larga demais e cortar o texto na borda direita.
   $larguraUtil = $doc.DefaultPageSettings.PrintableArea.Width
-  if ($larguraUtil -le 0) { $larguraUtil = $paper.Width }
-  $margemLat = 6   # 0,06" de respiro lateral
-  $larguraTexto = $larguraUtil - (2 * $margemLat)
+  if ($larguraUtil -le 0 -or $larguraUtil -gt $paper.Width) { $larguraUtil = $paper.Width }
+  $margemLat = 10  # 0,10" de respiro lateral
+  # Fator de segurança: deixa ~6% de folga pra absorver diferença entre o texto medido
+  # e o realmente rasterizado na impressora (medição nunca bate 100% com o desenho).
+  $larguraTexto = ($larguraUtil - (2 * $margemLat)) * 0.94
   if ($larguraTexto -le 0) { $larguraTexto = $larguraUtil }
 
-  # Maior fonte negrito cuja linha mais larga ainda cabe no papel.
+  # Maior fonte negrito cuja linha mais larga ainda cabe no papel. Mede do MESMO jeito
+  # que desenha (MeasureString padrão, sem GenericTypographic), senão a medição sai mais
+  # estreita que o texto impresso e ele estoura a borda.
   $amostra = ('M' * $maxLen)
-  $fmt = [System.Drawing.StringFormat]::GenericTypographic
   $font = $null
-  for ($sz = 13.0; $sz -ge 6.0; $sz -= 0.5) {
+  for ($sz = 13.0; $sz -ge 5.0; $sz -= 0.5) {
     $f = New-Object System.Drawing.Font('Consolas', $sz, [System.Drawing.FontStyle]::Bold)
-    $w = $mg.MeasureString($amostra, $f, [int]$larguraUtil, $fmt).Width
+    $w = $mg.MeasureString($amostra, $f).Width
     if ($w -le $larguraTexto) { $font = $f; break }
     $f.Dispose()
   }
-  if ($null -eq $font) { $font = New-Object System.Drawing.Font('Consolas', 6.0, [System.Drawing.FontStyle]::Bold) }
+  if ($null -eq $font) { $font = New-Object System.Drawing.Font('Consolas', 5.0, [System.Drawing.FontStyle]::Bold) }
 
   $alturaLinha = [double]$font.GetHeight($mg)
   $margemTopo = 4.0
