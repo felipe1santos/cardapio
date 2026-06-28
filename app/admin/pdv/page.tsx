@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestauranteIdDoUsuario,
@@ -386,6 +386,10 @@ export default function PdvPage() {
 
   // ── Mesa / cliente ─────────────────────────────────────────────────────────
   const [mesaSelecionada, setMesaSelecionada] = useState<MesaComEstado | null>(null)
+  // Ref kept in sync so the realtime callback can read the current mesa
+  // without being listed in the channel effect's deps (avoids re-subscribing on every mesa click).
+  const mesaSelecionadaRef = useRef<MesaComEstado | null>(null)
+  useEffect(() => { mesaSelecionadaRef.current = mesaSelecionada }, [mesaSelecionada])
   const [mesaEscolhida, setMesaEscolhida] = useState(false)
   const [nomeCliente, setNomeCliente] = useState('')
 
@@ -497,7 +501,7 @@ export default function PdvPage() {
         { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` },
         () => {
           void recarregarMesas()
-          const comandaId = mesaSelecionada?.comandaAberta?.id
+          const comandaId = mesaSelecionadaRef.current?.comandaAberta?.id
           if (comandaId) void recarregarComanda(comandaId)
         }
       )
@@ -505,7 +509,7 @@ export default function PdvPage() {
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [supabase, recarregarMesas, recarregarComanda, mesaSelecionada, restauranteId])
+  }, [supabase, recarregarMesas, recarregarComanda, restauranteId])
 
   // ── Filtered items ─────────────────────────────────────────────────────────
   const itensFiltrados = useMemo(() => {
