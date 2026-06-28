@@ -987,6 +987,10 @@ export interface PedidoClienteItem {
   quantidade: number
   tamanhoNome: string
   saborNome: string
+  precoUnitario: number
+  descricao: string
+  complementos: string[]
+  observacao: string
 }
 
 export interface PedidoCliente {
@@ -994,9 +998,11 @@ export interface PedidoCliente {
   numero: number
   status: StatusPedido
   tipo: TipoPedido
+  subtotal: number
   total: number
   taxaEntrega: number
   formaPagamento: FormaPagamento
+  observacao: string
   criadoEm: string
   itens: PedidoClienteItem[]
 }
@@ -1005,7 +1011,7 @@ export interface PedidoCliente {
 export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<PedidoCliente[]> {
   const { data, error } = await admin
     .from('pedidos')
-    .select('id, numero, status, tipo, total, taxa_entrega, forma_pagamento, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome )')
+    .select('id, numero, status, tipo, subtotal, total, taxa_entrega, forma_pagamento, observacao, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
     .eq('restaurante_id', restauranteId)
     .eq('cliente_telefone', telefone)
     .order('criado_em', { ascending: false })
@@ -1016,25 +1022,42 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
     numero: number
     status: StatusPedido
     tipo: TipoPedido
+    subtotal: number
     total: number
     taxa_entrega: number
     forma_pagamento: FormaPagamento
+    observacao: string | null
     criado_em: string
-    pedido_itens: { nome: string; quantidade: number; tamanho_nome: string | null; sabor_nome: string | null }[]
+    pedido_itens: {
+      nome: string
+      quantidade: number
+      tamanho_nome: string | null
+      sabor_nome: string | null
+      preco_unitario: number
+      observacao: string | null
+      complementos: PedidoComplementoSnapshot[] | null
+      item: { descricao: string } | null
+    }[]
   }[]).map((p) => ({
     id: p.id,
     numero: p.numero,
     status: p.status,
     tipo: p.tipo,
+    subtotal: Number(p.subtotal),
     total: Number(p.total),
     taxaEntrega: Number(p.taxa_entrega),
     formaPagamento: p.forma_pagamento,
+    observacao: p.observacao ?? '',
     criadoEm: p.criado_em,
     itens: (p.pedido_itens ?? []).map((i) => ({
       nome: i.nome,
       quantidade: i.quantidade,
       tamanhoNome: i.tamanho_nome ?? '',
       saborNome: i.sabor_nome ?? '',
+      precoUnitario: Number(i.preco_unitario),
+      descricao: i.item?.descricao ?? '',
+      complementos: (i.complementos ?? []).map((c) => c.nome),
+      observacao: i.observacao ?? '',
     })),
   }))
 }
