@@ -502,7 +502,7 @@ function PagamentoModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
@@ -520,14 +520,15 @@ function PagamentoModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        {/* Body — 2 colunas em telas largas (Resumo | Pagamento) */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {emPreparo && (
-            <p className="rounded-menuzia bg-warn-bg px-3 py-2 text-[12px] font-semibold text-warn">
+            <p className="mb-4 rounded-menuzia bg-warn-bg px-3 py-2 text-[12px] font-semibold text-warn">
               ⚠ Há pedido ainda em preparo nesta mesa.
             </p>
           )}
 
+          <div className="grid gap-5 sm:grid-cols-2">
           {/* Resumo dos itens */}
           <div>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Resumo</p>
@@ -560,6 +561,8 @@ function PagamentoModal({
             </ul>
           </div>
 
+          {/* Total + pagamento (coluna direita) */}
+          <div className="space-y-4">
           {/* Total */}
           <div className="flex items-center justify-between rounded-menuzia bg-page px-3 py-2.5">
             <span className="text-[14px] font-bold text-text-main">Total</span>
@@ -619,6 +622,8 @@ function PagamentoModal({
               )}
             </div>
           )}
+          </div>
+          </div>
         </div>
 
         {/* Footer */}
