@@ -76,6 +76,24 @@ function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
+/** Tempo desde que a comanda foi aberta (curto, p/ o card da mesa). */
+function tempoDecorrido(iso: string): string {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 1) return 'agora'
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  return `${h}h${String(min % 60).padStart(2, '0')}`
+}
+
+type MesaEstadoVisual = 'livre' | 'aguardando' | 'ocupada'
+/** Estado visual da mesa: livre (sem comanda), aguardando (comanda aberta sem pedido),
+ * ocupada (comanda aberta com pedidos). */
+function mesaEstadoVisual(mesa: MesaComEstado): MesaEstadoVisual {
+  if (!mesa.comandaAberta) return 'livre'
+  if (mesa.qtdPedidos === 0) return 'aguardando'
+  return 'ocupada'
+}
+
 // ─── Product Selector Modal ───────────────────────────────────────────────────
 
 function SeletorModal({
@@ -117,10 +135,11 @@ function SeletorModal({
       next = current.filter((n) => n !== compNome)
     } else if (grupo.maxEscolhas === 1) {
       next = [compNome]
-    } else if (current.length < grupo.maxEscolhas) {
+    } else if (grupo.maxEscolhas === 0 || current.length < grupo.maxEscolhas) {
+      // maxEscolhas 0 = sem limite ("quantos quiser"), igual à vitrine do cliente.
       next = [...current, compNome]
     } else {
-      next = current // at capacity — ignore
+      next = current // atingiu o máximo — ignora
     }
     onChange({ complementosSelecionados: { ...state.complementosSelecionados, [grupo.id]: next } })
   }
@@ -309,7 +328,11 @@ function SeletorModal({
                   {grupo.nome}
                   {grupo.obrigatorio && <span className="ml-1 text-danger">*</span>}
                   <span className="ml-1 font-normal text-text-subtle/60">
-                    {grupo.maxEscolhas === 1 ? '(escolha 1)' : `(até ${grupo.maxEscolhas})`}
+                    {grupo.maxEscolhas === 1
+                      ? '(escolha 1)'
+                      : grupo.maxEscolhas === 0
+                        ? '(quantos quiser)'
+                        : `(até ${grupo.maxEscolhas})`}
                   </span>
                 </p>
                 <div className="flex flex-col gap-1.5">
@@ -771,9 +794,25 @@ export default function PdvPage() {
               mobileTab === 'mesas' ? 'flex flex-1' : 'hidden lg:flex',
             ].join(' ')}
           >
-            <div className="border-b border-border px-3 py-2.5">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
               <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Mesa / Local</p>
             </div>
+
+            {/* Legenda de status */}
+            {mesasEstado.length > 0 && (
+              <div className="flex items-center gap-3 border-b border-border bg-page/50 px-3 py-1.5">
+                {([
+                  ['bg-status-ready', 'Livre'],
+                  ['bg-primary', 'Ocupada'],
+                  ['bg-warn', 'Aguard.'],
+                ] as const).map(([dot, lbl]) => (
+                  <span key={lbl} className="flex items-center gap-1">
+                    <span className={['h-2 w-2 rounded-full', dot].join(' ')} />
+                    <span className="text-[9px] font-semibold uppercase tracking-wide text-text-subtle">{lbl}</span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-3">
               {/* Balcão */}
@@ -781,7 +820,7 @@ export default function PdvPage() {
                 type="button"
                 onClick={() => selecionarMesa(null)}
                 className={[
-                  'mb-3 w-full rounded-menuzia border py-2.5 text-[13px] font-semibold transition-colors',
+                  'mb-3 w-full rounded-menuzia border-2 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.98]',
                   mesaEscolhida && mesaSelecionada === null
                     ? 'border-primary bg-primary text-white'
                     : 'border-border bg-page text-text-main hover:border-primary hover:text-primary',
@@ -791,42 +830,55 @@ export default function PdvPage() {
               </button>
 
               {mesasEstado.length > 0 && (
-                <>
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-text-subtle/60">Mesas</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {mesasEstado.map((mesa) => {
-                      const ocupada = mesa.comandaAberta !== null
-                      const ativa = mesaEscolhida && mesaSelecionada?.id === mesa.id
-                      return (
-                        <button
-                          key={mesa.id}
-                          type="button"
-                          onClick={() => selecionarMesa(mesa)}
-                          className={[
-                            'rounded-menuzia border px-2 py-2 text-center transition-colors',
-                            ativa
-                              ? 'border-primary bg-primary text-white'
-                              : ocupada
-                                ? 'border-status-pending bg-status-pending/10 text-text-main hover:border-status-pending'
-                                : 'border-border bg-page text-text-main hover:border-primary hover:text-primary',
-                          ].join(' ')}
-                        >
-                          <span className="block text-[12px] font-semibold">{mesa.nome}</span>
-                          {ocupada && (
-                            <span
-                              className={[
-                                'block text-[10px] font-bold',
-                                ativa ? 'text-white/90' : 'text-status-pending',
-                              ].join(' ')}
-                            >
-                              {formatBRL(mesa.total)}
-                            </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {mesasEstado.map((mesa) => {
+                    const estado = mesaEstadoVisual(mesa)
+                    const ativa = mesaEscolhida && mesaSelecionada?.id === mesa.id
+                    const estiloEstado = {
+                      livre: 'border-status-ready/45 bg-status-ready/5',
+                      aguardando: 'border-warn/55 bg-warn/10',
+                      ocupada: 'border-primary/45 bg-primary/5',
+                    }[estado]
+                    const dotEstado = {
+                      livre: 'bg-status-ready',
+                      aguardando: 'bg-warn',
+                      ocupada: 'bg-primary',
+                    }[estado]
+                    const labelEstado = { livre: 'Livre', aguardando: 'Aguardando', ocupada: 'Ocupada' }[estado]
+                    return (
+                      <button
+                        key={mesa.id}
+                        type="button"
+                        onClick={() => selecionarMesa(mesa)}
+                        className={[
+                          'flex aspect-square flex-col rounded-menuzia border-2 p-2 text-left transition-all active:scale-[0.97]',
+                          ativa ? 'ring-2 ring-primary ring-offset-1' : '',
+                          estiloEstado,
+                        ].join(' ')}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className={['h-2 w-2 flex-shrink-0 rounded-full', dotEstado].join(' ')} />
+                          <span className="truncate text-[9px] font-bold uppercase tracking-wide text-text-subtle">
+                            {labelEstado}
+                          </span>
+                        </div>
+                        <span className="mt-1 text-[16px] font-bold leading-none text-text-main">{mesa.nome}</span>
+                        <div className="mt-auto">
+                          {mesa.comandaAberta ? (
+                            <>
+                              <span className="block text-[13px] font-bold text-text-main">{formatBRL(mesa.total)}</span>
+                              <span className="block truncate text-[10px] text-text-subtle">
+                                {mesa.qtdPedidos} ped · {tempoDecorrido(mesa.comandaAberta.abertaEm)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-text-subtle/60">Toque p/ abrir</span>
                           )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
 
               {mesasEstado.length === 0 && (

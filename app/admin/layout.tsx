@@ -25,14 +25,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [badges, setBadges] = useState<BadgesNav>({ novosPedidos: 0, logisticaPendente: 0 })
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
-  const [focusMode, setFocusMode] = useState(false)
+  // null = nenhum sinal explícito ainda; cai no default por rota.
+  const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
 
-  // Modo tela cheia: alguma página (ex. Pedidos) pede para esconder a sidebar
+  // Modo tela cheia: páginas como Pedidos/PDV escondem a sidebar.
+  // O evento pode chegar tarde no load direto (o efeito do filho dispara antes do
+  // listener do pai montar), então o PDV é tela cheia por ROTA — não depende do evento.
   useEffect(() => {
-    const handler = (e: Event) => setFocusMode((e as CustomEvent<boolean>).detail)
+    const handler = (e: Event) => setFocusEvent((e as CustomEvent<boolean>).detail)
     window.addEventListener('menuzia:focus-mode', handler as EventListener)
     return () => window.removeEventListener('menuzia:focus-mode', handler as EventListener)
   }, [])
+
+  // Ao trocar de rota, descarta o sinal da página anterior.
+  useEffect(() => { setFocusEvent(null) }, [pathname])
+
+  const focusMode = focusEvent !== null ? focusEvent : pathname === '/admin/pdv'
 
   useEffect(() => {
     let active = true
