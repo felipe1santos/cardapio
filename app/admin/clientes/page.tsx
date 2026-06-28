@@ -6,10 +6,8 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import {
   listarClientesComMetricas,
-  atualizarSexoCliente,
   gerarCsvMetaAds,
   type ClienteMetrica,
-  type SexoCliente,
 } from '@/lib/queries/clientes'
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -31,7 +29,6 @@ function formatarEndereco(cliente: ClienteMetrica): string {
 
 export default function ClientesPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [clientes, setClientes] = useState<ClienteMetrica[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +44,6 @@ export default function ClientesPage() {
         setLoading(false)
         return
       }
-      setRestauranteId(id)
       try {
         setClientes(await listarClientesComMetricas(supabase, id))
       } catch {
@@ -73,16 +69,6 @@ export default function ClientesPage() {
     const ticketMedio = total ? clientes.reduce((s, c) => s + c.ticketMedio, 0) / total : 0
     return { total, unicos: total - recorrentes, recorrentes, ticketMedio }
   }, [clientes])
-
-  const handleSexoChange = async (telefone: string, sexo: SexoCliente) => {
-    if (!restauranteId) return
-    setClientes((prev) => prev.map((c) => (c.telefone === telefone ? { ...c, sexo } : c)))
-    try {
-      await atualizarSexoCliente(supabase, restauranteId, telefone, sexo)
-    } catch {
-      setError('Não foi possível salvar o sexo do cliente.')
-    }
-  }
 
   const exportarCsv = () => {
     const csv = gerarCsvMetaAds(filtrados)
@@ -166,7 +152,6 @@ export default function ClientesPage() {
                 <tr>
                   <th className="sticky top-0 border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cliente</th>
                   <th className="sticky top-0 border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Endereço</th>
-                  <th className="sticky top-0 w-[100px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Sexo</th>
                   <th className="sticky top-0 w-[80px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pedidos</th>
                   <th className="sticky top-0 w-[130px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Última compra</th>
                   <th className="sticky top-0 w-[110px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Total gasto</th>
@@ -185,17 +170,6 @@ export default function ClientesPage() {
                     </td>
                     <td className="border-b border-border px-3.5 py-3 text-[12px] leading-relaxed text-text-subtle">
                       {formatarEndereco(cliente) || '—'}
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3">
-                      <select
-                        value={cliente.sexo}
-                        onChange={(e) => handleSexoChange(cliente.telefone, e.target.value as SexoCliente)}
-                        className="rounded-menuzia border border-border bg-white px-2 py-1 text-[12px] outline-none focus:border-primary"
-                      >
-                        <option value="">—</option>
-                        <option value="F">Feminino</option>
-                        <option value="M">Masculino</option>
-                      </select>
                     </td>
                     <td className="border-b border-border px-3.5 py-3 text-[13px] font-semibold">{cliente.totalPedidos}</td>
                     <td className="border-b border-border px-3.5 py-3 text-[12px] text-text-subtle">{formatarData(cliente.ultimaCompraEm)}</td>

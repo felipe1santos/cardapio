@@ -462,6 +462,22 @@ export default function PdvPage() {
   // true = mostra o painel com todas as mesas; false = mesa aberta (cardápio + comanda).
   const [painelMesas, setPainelMesas] = useState(true)
 
+  // ── Tela cheia do navegador (Fullscreen API) ────────────────────────────────
+  const [telaCheia, setTelaCheia] = useState(false)
+  useEffect(() => {
+    const onChange = () => setTelaCheia(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+  async function alternarTelaCheia() {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen()
+      else await document.exitFullscreen()
+    } catch {
+      /* o navegador pode bloquear o fullscreen — ignora silenciosamente */
+    }
+  }
+
   // ── Fetch mesas com estado de ocupação ────────────────────────────────────
   const recarregarMesas = useCallback(async () => {
     const res = await fetch('/api/admin/pdv/comanda')
@@ -781,6 +797,24 @@ export default function PdvPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const botaoTelaCheia = (
+    <button
+      type="button"
+      onClick={() => void alternarTelaCheia()}
+      title="Tela cheia (também: tecla F11)"
+      className="flex flex-shrink-0 items-center gap-1.5 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[12px] font-semibold text-text-main transition-colors hover:border-primary hover:text-primary"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+        {telaCheia ? (
+          <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+        ) : (
+          <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+        )}
+      </svg>
+      {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
+    </button>
+  )
+
   return (
     <>
       {/* Product selector modal */}
@@ -802,7 +836,7 @@ export default function PdvPage() {
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-[18px] font-bold text-text-main">Mesas</h1>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 {([
                   ['bg-status-ready', 'Livre'],
                   ['bg-primary', 'Ocupada'],
@@ -813,6 +847,7 @@ export default function PdvPage() {
                     <span className="text-[11px] font-semibold text-text-subtle">{lbl}</span>
                   </span>
                 ))}
+                {botaoTelaCheia}
               </div>
             </div>
 
@@ -920,6 +955,7 @@ export default function PdvPage() {
                     Mesas
                   </button>
                   <span className="text-[14px] font-bold text-text-main">{mesaSelecionada?.nome ?? 'Balcão'}</span>
+                  <div className="ml-auto">{botaoTelaCheia}</div>
                 </div>
             {/* Search + category chips */}
             <div className="border-b border-border bg-white px-3 py-2.5 space-y-2">
