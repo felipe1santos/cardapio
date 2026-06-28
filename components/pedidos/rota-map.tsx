@@ -78,6 +78,7 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className }: Rota
   const driverMarkersRef = useRef<Map<string, google.maps.Marker>>(new Map())
   const geocodeCache = useRef<Map<string, google.maps.LatLng>>(new Map())
   const fittedRef = useRef(false)
+  const stopsKeyRef = useRef('')
   const clickRef = useRef(onStopClick)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -96,6 +97,10 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className }: Rota
           styles: LIGHT_MAP_STYLE,
           disableDefaultUI: true,
           zoomControl: true,
+          // 'greedy' = o scroll do mouse dá zoom direto, sem exigir Ctrl
+          // (remove a mensagem "use ctrl + scroll para dar zoom").
+          gestureHandling: 'greedy',
+          scrollwheel: true,
         })
         setReady(true)
       })
@@ -112,6 +117,14 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className }: Rota
     let cancelled = false
     const geocoder = new google.maps.Geocoder()
     const wanted = new Set(stops.map((s) => s.id))
+
+    // Quando o conjunto de pedidos muda (ex.: chegou um pedido pronto novo),
+    // re-centraliza o mapa pra enquadrar todos os pontos atuais.
+    const stopsKey = stops.map((s) => s.id).sort().join(',')
+    if (stopsKey !== stopsKeyRef.current) {
+      stopsKeyRef.current = stopsKey
+      fittedRef.current = false
+    }
 
     stopMarkersRef.current.forEach((marker, id) => {
       if (!wanted.has(id)) {

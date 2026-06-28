@@ -362,7 +362,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
           <RotaMap apiKey={apiKey} stops={stops} drivers={driverMarkers} onStopClick={toggleMarcado} className="absolute inset-0 h-full w-full" />
 
           {/* Coluna esquerda: pedidos prontos (corpo quase transparente, título preto, cresce com o conteúdo) */}
-          <aside className="absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-[330px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/15 bg-white/5 shadow-2xl backdrop-blur-sm">
+          <aside className="absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-[288px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/15 bg-white/5 shadow-2xl backdrop-blur-sm">
             <div className="flex-shrink-0 bg-black px-3 py-2.5">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white">Pedidos</h3>
