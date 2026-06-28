@@ -699,6 +699,182 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ProducaoTile — square card (grid) for 'recebido' orders. Whole card is clickable
+// and opens the "quer preparar?" confirm modal.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; onClick: (p: Pedido) => void }) {
+  const devolvido = pedido.preparandoNotificado
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(pedido)}
+      className={[
+        'flex flex-col overflow-hidden rounded-menuzia border bg-main text-left shadow-md transition-all hover:shadow-lg active:scale-[0.98] border-l-[6px]',
+        devolvido ? 'border-[#B45309]/40 border-l-[#B45309]' : 'border-[#EA580C]/40 border-l-[#EA580C]',
+      ].join(' ')}
+    >
+      <div className={['flex items-center justify-between border-b border-border px-3 py-2.5 text-white', devolvido ? 'bg-[#B45309]' : 'bg-[#EA580C]'].join(' ')}>
+        <span className="text-lg font-extrabold">#{pedido.numero}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
+            <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
+          </span>
+          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            {devolvido ? 'Devolvido' : 'Aguardando'}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[15px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
+            {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
+          </span>
+          {pedido.origem === 'pdv' && (
+            <span className="rounded-menuzia bg-alert-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-alert-text">
+              PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
+            </span>
+          )}
+          {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
+            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+              📍 {pedido.enderecoBairro}
+            </span>
+          )}
+        </div>
+
+        <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
+          {pedido.itens.map((item, idx) => (
+            <li key={idx}>
+              {item.quantidade}× {item.nome}
+            </li>
+          ))}
+        </ul>
+
+        {pedido.observacao && (
+          <p className="text-[12px] font-bold uppercase text-danger">{pedido.observacao}</p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-center gap-1.5 border-t border-border bg-status-preparing/10 px-3 py-2.5 text-[12px] font-extrabold uppercase tracking-wide text-status-preparing">
+        <ChefHat className="h-4 w-4" /> Toque para preparar
+      </div>
+    </button>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ConfirmarPreparoModal — asks "quer preparar este pedido?" before taking it.
+// X / "Agora não" closes without taking. "Sim, preparar" pega o pedido.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ConfirmarPreparoModal({
+  pedido,
+  now,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  pedido: Pedido
+  now: number
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
+      <div
+        className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-border bg-sidebar-bg px-5 py-4 text-white">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-2xl font-extrabold">#{pedido.numero}</span>
+              <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
+              </span>
+              {pedido.origem === 'pdv' && (
+                <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-alert-text">
+                  PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[15px] font-semibold">{pedido.clienteNome}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
+            <button
+              onClick={onCancel}
+              aria-label="Fechar sem pegar"
+              className="rounded p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <p className="mb-3 text-center text-[16px] font-extrabold text-text-main">Quer preparar este pedido?</p>
+          {pedido.observacao && (
+            <div className="mb-3 rounded-menuzia bg-danger-bg px-3.5 py-2.5">
+              <p className="text-[14px] font-bold uppercase text-danger">{pedido.observacao}</p>
+            </div>
+          )}
+          <ul className="space-y-2">
+            {pedido.itens.map((item, idx) => (
+              <li key={idx} className="rounded-menuzia border border-border border-l-4 border-l-[#024A7D] bg-main p-3">
+                <p className="text-[17px] font-extrabold leading-tight text-black">
+                  {item.quantidade}× {item.nome}
+                </p>
+                {(item.tamanhoNome || item.saborNome || item.bordaNome || item.massaNome) && (
+                  <p className="mt-0.5 text-[13px] font-semibold text-text-main">
+                    {[item.tamanhoNome, item.saborNome, item.bordaNome, item.massaNome].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+                {item.complementos.length > 0 && (
+                  <div className="mt-1.5 space-y-0.5">
+                    {item.complementos.map((c, ci) => (
+                      <p key={ci} className="text-[14px] font-bold text-green-800">+ {c.nome}</p>
+                    ))}
+                  </div>
+                )}
+                {item.observacao && (
+                  <p className="mt-1.5 text-[13px] font-extrabold uppercase text-danger">{item.observacao}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 border-t border-border bg-main px-4 py-3">
+          <button
+            disabled={busy}
+            onClick={onCancel}
+            className="flex-1 rounded-menuzia border border-border bg-page py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-text-main transition-colors hover:bg-border disabled:opacity-50"
+          >
+            Agora não
+          </button>
+          <button
+            disabled={busy}
+            onClick={onConfirm}
+            className="flex-1 rounded-menuzia bg-status-preparing py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
+          >
+            {busy ? 'Abrindo…' : 'Sim, preparar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -719,6 +895,8 @@ export default function CozinhaPortalPage() {
 
   // Prep modal
   const [modalPedido, setModalPedido] = useState<Pedido | null>(null)
+  // "Quer preparar?" confirm (modo produção)
+  const [confirmarPedido, setConfirmarPedido] = useState<Pedido | null>(null)
   // Mapa de despacho (modo completa)
   const [mapaAberto, setMapaAberto] = useState(false)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -797,6 +975,12 @@ export default function CozinhaPortalPage() {
       const updated = data.pedidos.find((p) => p.id === prev.id)
       return updated ?? null
     })
+    // Fecha o "quer preparar?" se o pedido sumiu ou já saiu da fila (pego por outro).
+    setConfirmarPedido((prev) => {
+      if (!prev) return null
+      const updated = data.pedidos.find((p) => p.id === prev.id)
+      return updated && updated.status === 'recebido' ? updated : null
+    })
   }, [data])
 
   // ── Pegar action (producao / completa) ───────────────────────────────────
@@ -866,6 +1050,21 @@ export default function CozinhaPortalPage() {
     <div className="min-h-dvh bg-page">
       {/* Cook name overlay — blocks until name is set (producao/completa only) */}
       {showNameOverlay && !isExpedicao && <NameOverlay onSave={saveName} />}
+
+      {/* "Quer preparar?" confirm (modo produção) */}
+      {confirmarPedido && (
+        <ConfirmarPreparoModal
+          pedido={confirmarPedido}
+          now={now}
+          busy={busy === confirmarPedido.id}
+          onCancel={() => setConfirmarPedido(null)}
+          onConfirm={() => {
+            const p = confirmarPedido
+            setConfirmarPedido(null)
+            void pegarPedido(p)
+          }}
+        />
+      )}
 
       {/* Prep modal */}
       {modalPedido && cozinheiro && (
@@ -964,10 +1163,35 @@ export default function CozinhaPortalPage() {
         </main>
       )}
 
-      {/* ── Producao (2 col) / Completa (3 col no desktop) ─────────────── */}
-      {!isExpedicao && (
+      {/* ── Produção: grade de quadrados, só Disponíveis (sem coluna Em preparo) ── */}
+      {!isExpedicao && !isCompleta && (
         <main className="p-3">
-          <div className={`grid gap-4 md:grid-cols-2 ${isCompleta ? 'xl:grid-cols-3' : ''}`}>
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Disponíveis</h2>
+            <span className="rounded-full bg-status-pending px-1.5 py-0.5 text-[10px] font-bold text-white">
+              {disponiveis.length}
+            </span>
+            <span className="text-[11px] text-text-subtle">· ordenados pelo maior tempo de espera</span>
+          </div>
+          {disponiveis.length === 0 ? (
+            <div className="rounded-menuzia border border-dashed border-border bg-main py-16 text-center">
+              <ChefHat className="mx-auto mb-2 h-8 w-8 text-text-subtle opacity-30" />
+              <p className="text-[13px] text-text-subtle">Nenhum pedido aguardando.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {disponiveis.map((p) => (
+                <ProducaoTile key={p.id} pedido={p} now={now} onClick={setConfirmarPedido} />
+              ))}
+            </div>
+          )}
+        </main>
+      )}
+
+      {/* ── Completa: 3 colunas (Disponíveis · Em preparo · Despacho) ───── */}
+      {isCompleta && (
+        <main className="p-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {/* Left column: Disponíveis (status === 'recebido', oldest first) */}
             <section>
               <div className="mb-2 flex items-center gap-2">
