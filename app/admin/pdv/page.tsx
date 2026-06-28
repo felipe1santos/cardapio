@@ -868,12 +868,12 @@ export default function PdvPage() {
                 placeholder="Buscar item…"
                 className="w-full rounded-menuzia border border-border bg-white px-3 py-1.5 text-[13px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 <button
                   type="button"
                   onClick={() => { setGrupoFiltro(null); setBusca('') }}
                   className={[
-                    'flex-shrink-0 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                    'flex-shrink-0 rounded-menuzia border px-4 py-2.5 text-[13px] font-semibold transition-colors',
                     grupoFiltro === null && !busca
                       ? 'border-primary bg-primary text-white'
                       : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
@@ -887,7 +887,7 @@ export default function PdvPage() {
                     type="button"
                     onClick={() => { setGrupoFiltro(g.id); setBusca('') }}
                     className={[
-                      'flex-shrink-0 rounded-menuzia border px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                      'flex-shrink-0 rounded-menuzia border px-4 py-2.5 text-[13px] font-semibold transition-colors',
                       grupoFiltro === g.id
                         ? 'border-primary bg-primary text-white'
                         : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
@@ -906,46 +906,54 @@ export default function PdvPage() {
                   {busca || grupoFiltro ? 'Nenhum item encontrado.' : 'Cardápio vazio.'}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                   {itensFiltrados.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => addItem(item)}
-                      className="group flex flex-col rounded-menuzia border border-border bg-white p-2.5 text-left transition-all hover:border-primary hover:shadow-sm"
+                      className="group flex flex-col overflow-hidden rounded-menuzia border border-border bg-white text-left transition-all hover:border-primary hover:shadow-md active:scale-[0.98]"
                     >
-                      {item.imagemUrl && (
+                      {item.imagemUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.imagemUrl}
                           alt={item.nome}
-                          className="mb-2 h-16 w-full rounded-[2px] object-cover"
+                          className="h-32 w-full bg-page object-contain"
                         />
+                      ) : (
+                        <div className="flex h-32 w-full items-center justify-center bg-page text-text-subtle/25">
+                          <svg viewBox="0 0 24 24" className="h-10 w-10 fill-current">
+                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                          </svg>
+                        </div>
                       )}
-                      <p className="line-clamp-2 text-[13px] font-semibold leading-tight text-text-main group-hover:text-primary">
-                        {item.nome}
-                      </p>
-                      {item.descricao && (
-                        <p className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-text-subtle">
-                          {item.descricao}
+                      <div className="flex flex-1 flex-col p-3">
+                        <p className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-main group-hover:text-primary">
+                          {item.nome}
                         </p>
-                      )}
-                      <div className="mt-auto flex items-center justify-between pt-1.5">
-                        <span
-                          className={
-                            item.promocaoPreco !== null
-                              ? 'text-[13px] font-bold text-price-text'
-                              : 'text-[13px] font-bold text-text-main'
-                          }
-                        >
-                          {item.tamanhos.length > 0 && !item.promocaoPreco ? 'a partir de ' : ''}
-                          {formatBRL(item.promocaoPreco ?? item.preco)}
-                        </span>
-                        {(item.tipoItem === 'pizza' || item.tamanhos.length > 0 || item.grupos.some((g) => g.obrigatorio)) && (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-primary/60">
-                            config
-                          </span>
+                        {item.descricao && (
+                          <p className="mt-1 line-clamp-1 text-[12px] leading-tight text-text-subtle">
+                            {item.descricao}
+                          </p>
                         )}
+                        <div className="mt-auto flex items-center justify-between pt-2">
+                          <span
+                            className={
+                              item.promocaoPreco !== null
+                                ? 'text-[15px] font-bold text-price-text'
+                                : 'text-[15px] font-bold text-text-main'
+                            }
+                          >
+                            {item.tamanhos.length > 0 && !item.promocaoPreco ? 'a partir de ' : ''}
+                            {formatBRL(item.promocaoPreco ?? item.preco)}
+                          </span>
+                          {(item.tipoItem === 'pizza' || item.tamanhos.length > 0 || item.grupos.some((g) => g.obrigatorio)) && (
+                            <span className="rounded-menuzia bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                              config
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   ))}
@@ -1065,52 +1073,72 @@ export default function PdvPage() {
                 <ul className="divide-y divide-border">
                   {comanda.map((linha) => {
                     const descricao = linhaDescricao(linha)
+                    const precoRef = (linha.item.promocaoPreco ?? linha.item.preco) * linha.quantidade
                     return (
-                      <li key={linha.uid} className="flex items-start gap-2 px-3 py-2.5">
+                      <li key={linha.uid} className="flex gap-2.5 px-3 py-3">
+                        {linha.item.imagemUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={linha.item.imagemUrl}
+                            alt={linha.item.nome}
+                            className="h-14 w-14 flex-shrink-0 rounded-menuzia bg-page object-contain"
+                          />
+                        ) : (
+                          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-text-subtle/25">
+                            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
+                              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                            </svg>
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-semibold leading-tight text-text-main">
-                            {linha.item.nome}
-                          </p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-[13px] font-semibold leading-tight text-text-main">
+                              {linha.item.nome}
+                            </p>
+                            <span className="flex-shrink-0 text-[13px] font-bold text-text-main">
+                              {formatBRL(precoRef)}
+                            </span>
+                          </div>
                           {descricao && (
                             <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-text-subtle">
                               {descricao}
                             </p>
                           )}
-                        </div>
-                        <div className="flex flex-shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label="Diminuir quantidade"
-                            onClick={() => alterarQtd(linha.uid, -1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-menuzia border border-border text-text-subtle transition-colors hover:border-danger hover:text-danger"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-current">
-                              <path d="M19 13H5v-2h14v2z" />
-                            </svg>
-                          </button>
-                          <span className="w-6 text-center text-[13px] font-bold text-text-main">
-                            {linha.quantidade}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label="Aumentar quantidade"
-                            onClick={() => alterarQtd(linha.uid, 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-menuzia border border-border text-text-subtle transition-colors hover:border-primary hover:text-primary"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-current">
-                              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Remover item"
-                            onClick={() => removerLinha(linha.uid)}
-                            className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-menuzia border border-transparent text-text-subtle/40 transition-colors hover:border-danger hover:text-danger"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                            </svg>
-                          </button>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              aria-label="Diminuir quantidade"
+                              onClick={() => alterarQtd(linha.uid, -1)}
+                              className="flex h-8 w-8 items-center justify-center rounded-menuzia border border-border text-text-subtle transition-colors hover:border-danger hover:text-danger"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                                <path d="M19 13H5v-2h14v2z" />
+                              </svg>
+                            </button>
+                            <span className="w-7 text-center text-[14px] font-bold text-text-main">
+                              {linha.quantidade}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="Aumentar quantidade"
+                              onClick={() => alterarQtd(linha.uid, 1)}
+                              className="flex h-8 w-8 items-center justify-center rounded-menuzia border border-border text-text-subtle transition-colors hover:border-primary hover:text-primary"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Remover item"
+                              onClick={() => removerLinha(linha.uid)}
+                              className="ml-auto flex h-8 w-8 items-center justify-center rounded-menuzia border border-transparent text-text-subtle/40 transition-colors hover:border-danger hover:text-danger"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </li>
                     )
