@@ -48,6 +48,9 @@ interface SeletorState {
   observacao: string
 }
 
+/** Formas de pagamento oferecidas no fechamento (UI). */
+type FormaPgtoUI = 'dinheiro' | 'pix' | 'debito' | 'credito'
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function makeUid() {
@@ -357,15 +360,22 @@ function SeletorModal({
                         type="button"
                         onClick={() => handleGroupToggle(grupo, comp.nome)}
                         className={[
-                          'flex items-center justify-between rounded-menuzia border px-3 py-2 text-[13px] transition-colors',
+                          'flex items-center justify-between rounded-menuzia border-2 px-3 py-2.5 text-[13px] transition-colors',
                           isSelected
-                            ? 'border-primary bg-primary/5 font-semibold text-primary'
+                            ? 'border-primary-dark bg-primary font-semibold text-white'
                             : 'border-border bg-white text-text-main hover:border-primary/40',
                         ].join(' ')}
                       >
                         <span>{comp.nome}</span>
                         {comp.preco > 0 && (
-                          <span className="text-[12px] font-semibold text-price-text">+{formatBRL(comp.preco)}</span>
+                          <span
+                            className={[
+                              'text-[12px] font-semibold',
+                              isSelected ? 'text-white' : 'text-price-text',
+                            ].join(' ')}
+                          >
+                            +{formatBRL(comp.preco)}
+                          </span>
                         )}
                       </button>
                     )
@@ -411,6 +421,188 @@ function SeletorModal({
   )
 }
 
+// ─── Modal de pagamento / fechamento de conta ──────────────────────────────────
+
+function PagamentoModal({
+  pedidos,
+  total,
+  imagemPorNome,
+  localNome,
+  emPreparo,
+  processando,
+  onCancel,
+  onReceberEFechar,
+  onFecharSemReceber,
+}: {
+  pedidos: Pedido[]
+  total: number
+  imagemPorNome: Map<string, string>
+  localNome: string
+  emPreparo: boolean
+  processando: boolean
+  onCancel: () => void
+  onReceberEFechar: (forma: FormaPgtoUI) => void
+  onFecharSemReceber: () => void
+}) {
+  const [forma, setForma] = useState<FormaPgtoUI | null>(null)
+  const [recebido, setRecebido] = useState('')
+
+  const recebidoNum = Number(recebido.replace(/\./g, '').replace(',', '.')) || 0
+  const troco = recebidoNum - total
+
+  const linhas = pedidos.flatMap((p) => p.itens.map((i) => ({ ...i, uid: i.id })))
+
+  const formas: { id: FormaPgtoUI; label: string }[] = [
+    { id: 'dinheiro', label: 'Dinheiro' },
+    { id: 'pix', label: 'Pix' },
+    { id: 'debito', label: 'Débito' },
+    { id: 'credito', label: 'Crédito' },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Fechar conta</p>
+            <h2 className="text-[15px] font-bold text-text-main">{localNome}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded p-1 text-text-subtle transition-colors hover:bg-page hover:text-text-main"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          {emPreparo && (
+            <p className="rounded-menuzia bg-warn-bg px-3 py-2 text-[12px] font-semibold text-warn">
+              ⚠ Há pedido ainda em preparo nesta mesa.
+            </p>
+          )}
+
+          {/* Resumo dos itens */}
+          <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Resumo</p>
+            <ul className="space-y-2">
+              {linhas.map((i) => {
+                const img = imagemPorNome.get(i.nome)
+                return (
+                  <li key={i.uid} className="flex items-center gap-3">
+                    {img ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={img} alt={i.nome} className="h-12 w-12 flex-shrink-0 rounded-menuzia bg-page object-cover" />
+                    ) : (
+                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-text-subtle/25">
+                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                          <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold text-text-main">
+                        {i.quantidade}× {i.nome}
+                      </p>
+                    </div>
+                    <span className="flex-shrink-0 text-[13px] font-bold text-text-main">
+                      {formatBRL(i.precoUnitario * i.quantidade)}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+
+          {/* Total */}
+          <div className="flex items-center justify-between rounded-menuzia bg-page px-3 py-2.5">
+            <span className="text-[14px] font-bold text-text-main">Total</span>
+            <span className="text-[18px] font-extrabold text-text-main">{formatBRL(total)}</span>
+          </div>
+
+          {/* Forma de pagamento */}
+          <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Forma de pagamento</p>
+            <div className="grid grid-cols-2 gap-2">
+              {formas.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setForma(f.id)}
+                  className={[
+                    'rounded-menuzia border-2 px-3 py-3 text-[14px] font-bold transition-colors',
+                    forma === f.id
+                      ? 'border-primary-dark bg-primary text-white'
+                      : 'border-border bg-white text-text-main hover:border-primary',
+                  ].join(' ')}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dinheiro: valor recebido + troco */}
+          {forma === 'dinheiro' && (
+            <div className="rounded-menuzia border border-border p-3">
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Valor recebido</p>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={recebido}
+                onChange={(e) => setRecebido(e.target.value)}
+                placeholder="Ex: 50,00"
+                className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-[16px] font-bold text-text-main placeholder:font-normal placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-text-subtle">Troco</span>
+                <span
+                  className={[
+                    'text-[18px] font-extrabold',
+                    recebidoNum === 0 ? 'text-text-subtle/40' : troco < 0 ? 'text-danger' : 'text-price-text',
+                  ].join(' ')}
+                >
+                  {recebidoNum === 0 ? '—' : formatBRL(Math.max(0, troco))}
+                </span>
+              </div>
+              {troco < 0 && recebidoNum > 0 && (
+                <p className="mt-1 text-[11px] font-semibold text-danger">
+                  Faltam {formatBRL(Math.abs(troco))} para o total.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="space-y-2 border-t border-border px-4 py-3">
+          <Button
+            className="w-full py-2.5"
+            variant="success"
+            disabled={!forma || processando}
+            onClick={() => forma && onReceberEFechar(forma)}
+          >
+            {processando ? 'Fechando…' : 'Receber e fechar conta'}
+          </Button>
+          <button
+            type="button"
+            disabled={processando}
+            onClick={onFecharSemReceber}
+            className="w-full rounded-menuzia border border-border py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-text-subtle hover:text-text-main disabled:opacity-50"
+          >
+            Fechar sem receber (pagar depois)
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── PDV Page ─────────────────────────────────────────────────────────────────
 
 export default function PdvPage() {
@@ -444,6 +636,7 @@ export default function PdvPage() {
   const [pedidosComanda, setPedidosComanda] = useState<Pedido[]>([])
   const [carregandoComanda, setCarregandoComanda] = useState(false)
   const [fechando, setFechando] = useState(false)
+  const [pagamentoAberto, setPagamentoAberto] = useState(false)
 
   // ── Comanda em montagem ────────────────────────────────────────────────────
   const [comanda, setComanda] = useState<ComandaLinha[]>([])
@@ -585,6 +778,14 @@ export default function PdvPage() {
     return list
   }, [itens, grupoFiltro, busca])
 
+  // Mapa nome do item → imagem, p/ exibir miniatura no resumo de pagamento
+  // (o snapshot do pedido não guarda a imagem; buscamos pelo nome no cardápio atual).
+  const imagemPorNome = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const i of itens) if (i.imagemUrl) m.set(i.nome, i.imagemUrl)
+    return m
+  }, [itens])
+
   // ── Mesa selection ─────────────────────────────────────────────────────────
   function selecionarMesa(mesa: MesaComEstado | null) {
     setMesaSelecionada(mesa)
@@ -670,18 +871,19 @@ export default function PdvPage() {
   }
 
   // ── Fechar conta da mesa ───────────────────────────────────────────────────
-  async function fecharConta() {
+  // Finaliza a conta. pagarAgora=true marca os pedidos como pagos antes de fechar;
+  // pagarAgora=false só fecha (pagamento fica "a receber" — pagar depois).
+  async function finalizarConta(pagarAgora: boolean) {
     const comandaId = mesaSelecionada?.comandaAberta?.id
     if (!comandaId || fechando) return
-    const emPreparo = pedidosComanda.some((p) => p.status === 'preparando' || p.status === 'recebido')
-    const aviso = emPreparo
-      ? 'Há pedido ainda em preparo. Fechar a conta mesmo assim?'
-      : `Fechar a conta de ${mesaSelecionada?.nome ?? 'mesa'}?`
-    if (!confirm(aviso)) return
     setFechando(true)
     try {
+      if (pagarAgora) {
+        await fetch(`/api/admin/pdv/comanda/${comandaId}/pagar`, { method: 'POST' })
+      }
       const res = await fetch(`/api/admin/pdv/comanda/${comandaId}/fechar`, { method: 'POST' })
       if (res.ok) {
+        setPagamentoAberto(false)
         setPedidosComanda([])
         setMesaSelecionada(null)
         setMesaEscolhida(false)
@@ -830,6 +1032,21 @@ export default function PdvPage() {
         />
       )}
 
+      {/* Payment / close-table modal */}
+      {pagamentoAberto && mesaSelecionada?.comandaAberta && (
+        <PagamentoModal
+          pedidos={pedidosComanda.filter((p) => p.status !== 'cancelado')}
+          total={totalConta}
+          imagemPorNome={imagemPorNome}
+          localNome={mesaSelecionada?.nome ?? 'Mesa'}
+          emPreparo={pedidosComanda.some((p) => p.status === 'preparando' || p.status === 'recebido')}
+          processando={fechando}
+          onCancel={() => setPagamentoAberto(false)}
+          onReceberEFechar={() => void finalizarConta(true)}
+          onFecharSemReceber={() => void finalizarConta(false)}
+        />
+      )}
+
       <div className="flex h-full flex-col overflow-hidden bg-page">
         {painelMesas ? (
           /* ═══ Painel de mesas ═══ */
@@ -947,9 +1164,9 @@ export default function PdvPage() {
                   <button
                     type="button"
                     onClick={voltarParaMesas}
-                    className="flex items-center gap-1 rounded-menuzia border border-border px-2.5 py-1.5 text-[12px] font-semibold text-text-main transition-colors hover:border-primary hover:text-primary"
+                    className="flex items-center gap-1.5 rounded-menuzia border-2 border-primary bg-primary px-4 py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.97]"
                   >
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                       <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
                     </svg>
                     Mesas
@@ -1020,11 +1237,11 @@ export default function PdvPage() {
                         <img
                           src={item.imagemUrl}
                           alt={item.nome}
-                          className="h-32 w-full bg-page object-contain"
+                          className="aspect-[4/3] w-full object-cover object-center"
                         />
                       ) : (
-                        <div className="flex h-32 w-full items-center justify-center bg-page text-text-subtle/25">
-                          <svg viewBox="0 0 24 24" className="h-10 w-10 fill-current">
+                        <div className="flex aspect-[4/3] w-full items-center justify-center bg-page text-text-subtle/25">
+                          <svg viewBox="0 0 24 24" className="h-12 w-12 fill-current">
                             <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
                           </svg>
                         </div>
@@ -1147,9 +1364,18 @@ export default function PdvPage() {
                               {p.pago ? 'Pago' : 'A receber'}
                             </span>
                           )}
-                          <p className="mt-0.5 line-clamp-2 text-[11px] text-text-subtle">
-                            {p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}
-                          </p>
+                          <ul className="mt-1 space-y-0.5">
+                            {p.itens.map((i) => (
+                              <li key={i.id} className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="truncate text-text-subtle">
+                                  {i.quantidade}× {i.nome}
+                                </span>
+                                <span className="flex-shrink-0 font-semibold text-text-main/80">
+                                  {formatBRL(i.precoUnitario * i.quantidade)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
                           {!cancelado && (
                             <button
                               type="button"
@@ -1166,12 +1392,12 @@ export default function PdvPage() {
                 )}
                 <div className="p-3">
                   <Button
-                    variant="outline"
-                    className="w-full"
+                    variant="primary"
+                    className="w-full py-2.5"
                     disabled={!mesaSelecionada?.comandaAberta || fechando}
-                    onClick={() => void fecharConta()}
+                    onClick={() => setPagamentoAberto(true)}
                   >
-                    {fechando ? 'Fechando…' : 'Fechar conta'}
+                    Ir para pagamento
                   </Button>
                 </div>
               </div>

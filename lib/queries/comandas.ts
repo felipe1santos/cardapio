@@ -130,6 +130,21 @@ export async function cancelarPedidoComanda(
   if (error) throw error
 }
 
+/** Marca todos os pedidos não-cancelados da comanda como pagos (pago=true). */
+export async function marcarComandaPaga(
+  admin: SupabaseClient,
+  restauranteId: string,
+  comandaId: string,
+): Promise<void> {
+  const { error } = await admin
+    .from('pedidos')
+    .update({ pago: true })
+    .eq('restaurante_id', restauranteId)
+    .eq('comanda_id', comandaId)
+    .neq('status', 'cancelado')
+  if (error) throw error
+}
+
 /** Fecha a conta: marca a comanda como fechada. Só fecha se estiver aberta. */
 export async function fecharComanda(
   admin: SupabaseClient,
