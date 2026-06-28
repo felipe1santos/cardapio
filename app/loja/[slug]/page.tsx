@@ -2029,10 +2029,9 @@ export default function StorefrontPage() {
       </div>
 
       {/* ── Conta do cliente overlay ──────────────────────────────────── */}
-      {contaOpen && <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setContaOpen(false)} />}
-      <div className={['fixed bottom-0 left-1/2 z-[65] flex max-h-[85vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-md bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[480px] lg:-translate-y-1/2 lg:rounded', contaOpen ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
-        {contaOpen && (
-          <>
+      {contaOpen && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#111827]/60 p-4" onClick={() => setContaOpen(false)}>
+          <div className="flex max-h-[88dvh] w-full max-w-[480px] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-border p-4.5">
               <h2 className="text-base font-bold">Minha conta</h2>
               <button onClick={() => setContaOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
@@ -2155,18 +2154,26 @@ export default function StorefrontPage() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => { setContaSaved(false); setContaEditando(true) }}
-                    className="mt-4 w-full rounded border border-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-light)]"
-                  >
-                    Editar dados
-                  </button>
+                  <div className="mt-4 flex gap-2.5">
+                    <button
+                      onClick={() => setContaOpen(false)}
+                      className="flex-1 rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)]"
+                    >
+                      Usar estes dados
+                    </button>
+                    <button
+                      onClick={() => { setContaSaved(false); setContaEditando(true) }}
+                      className="flex-1 rounded bg-[#F3F4F6] px-4 py-3 text-sm font-bold text-text-main transition-colors hover:bg-border"
+                    >
+                      Editar dados
+                    </button>
+                  </div>
                 </>
               )}
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Informações da empresa (modal centralizado) ─────────────────── */}
       {infoOpen && (

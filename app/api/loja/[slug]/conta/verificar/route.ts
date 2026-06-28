@@ -20,6 +20,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
 
     const result = await verificarCodigo(admin, restauranteId, body.telefone, body.codigo)
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+
+    // Telefone confirmado → marca os pedidos pendentes desse telefone como verificados,
+    // removendo o aviso "telefone não verificado" nos cards do Kanban.
+    await admin
+      .from('pedidos')
+      .update({ telefone_verificado: true })
+      .eq('restaurante_id', restauranteId)
+      .eq('cliente_telefone', result.cliente.telefone)
+      .eq('telefone_verificado', false)
+
     return NextResponse.json(result.cliente)
   } catch (err) {
     console.error('[conta/verificar] erro inesperado:', err)
