@@ -112,7 +112,7 @@ interface PedidoRow {
   }[]
 }
 
-const PEDIDO_SELECT = `
+export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
@@ -120,7 +120,7 @@ const PEDIDO_SELECT = `
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
-function mapPedido(row: PedidoRow): Pedido {
+export function mapPedido(row: PedidoRow): Pedido {
   return {
     id: row.id,
     numero: row.numero,
