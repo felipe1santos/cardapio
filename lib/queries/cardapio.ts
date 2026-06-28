@@ -3,6 +3,17 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
 
+/** Etiquetas de destaque que a loja pode marcar num item (exibidas na vitrine). */
+export type TagItem = 'mais_pedido' | 'edicao_limitada' | 'novo' | 'promocao' | 'favorito'
+
+export const TAGS_ITEM: { id: TagItem; label: string }[] = [
+  { id: 'mais_pedido', label: 'Mais pedido' },
+  { id: 'edicao_limitada', label: 'Edição limitada' },
+  { id: 'novo', label: 'Novo' },
+  { id: 'favorito', label: 'Favorito da casa' },
+  { id: 'promocao', label: 'Promoção' },
+]
+
 export interface GrupoCardapio {
   id: string
   nome: string
@@ -59,6 +70,8 @@ export interface ItemCardapio {
   diasDisponiveis: number[]
   promocaoPreco: number | null
   maisVendido: boolean
+  /** Etiqueta de destaque exibida na vitrine (ex.: 'mais_pedido'). Null = sem tag. */
+  tag: TagItem | null
   tipoItem: TipoItem
   grupos: GrupoItemComplementos[]
   complementos: ComplementoItem[]
@@ -86,6 +99,7 @@ interface ItemRow {
   dias_disponiveis: number[]
   promocao_preco: number | null
   mais_vendido: boolean
+  tag: TagItem | null
   tipo_item: TipoItem
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number }[]
@@ -127,6 +141,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     diasDisponiveis: row.dias_disponiveis ?? [],
     promocaoPreco: row.promocao_preco === null ? null : Number(row.promocao_preco),
     maisVendido: row.mais_vendido,
+    tag: row.tag ?? null,
     tipoItem: row.tipo_item ?? 'simples',
     grupos,
     complementos: (row.item_complementos ?? [])
@@ -205,7 +220,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 }
 
 const ITEM_SELECT = `
-  id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido, tipo_item,
+  id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao ),
   tamanhos_item ( id, nome, preco, posicao ),
@@ -232,6 +247,7 @@ export interface NovoItemInput {
   diasDisponiveis: number[]
   promocaoPreco: number | null
   maisVendido: boolean
+  tag: TagItem | null
   tipoItem: TipoItem
 }
 
@@ -248,6 +264,7 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       dias_disponiveis: input.diasDisponiveis,
       promocao_preco: input.promocaoPreco,
       mais_vendido: input.maisVendido,
+      tag: input.tag,
       tipo_item: input.tipoItem,
     })
     .select(ITEM_SELECT)
@@ -267,6 +284,7 @@ export interface AtualizarItemInput {
   imagemUrl: string | null
   promocaoPreco: number | null
   maisVendido: boolean
+  tag: TagItem | null
   tipoItem: TipoItem
 }
 
@@ -283,6 +301,7 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
       imagem_url: input.imagemUrl,
       promocao_preco: input.promocaoPreco,
       mais_vendido: input.maisVendido,
+      tag: input.tag,
       tipo_item: input.tipoItem,
     })
     .eq('id', itemId)

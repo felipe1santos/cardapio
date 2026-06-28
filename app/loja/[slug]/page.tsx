@@ -100,15 +100,37 @@ const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 function PriceTag({ price, originalPrice, hideDiscount = false }: { price: number; originalPrice?: number | null; hideDiscount?: boolean }) {
   if (originalPrice && !hideDiscount) {
     const off = Math.round((1 - price / originalPrice) * 100)
+    // Em promoção: preço verde (fonte fina), valor antigo riscado e pill de % verde.
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="rounded bg-price-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-price-text">-{off}% desconto</span>
-        <span className="text-[13px] font-bold text-price-text">{brl(price)}</span>
-        <span className="text-[11px] text-text-subtle line-through">{brl(originalPrice)}</span>
+        <span className="text-[15px] font-medium text-price-text">{brl(price)}</span>
+        <span className="text-[12px] font-normal text-text-subtle line-through">{brl(originalPrice)}</span>
+        <span className="rounded bg-price-bg px-1.5 py-0.5 text-[11px] font-semibold text-price-text">-{off}%</span>
       </span>
     )
   }
-  return <span className="text-[13px] font-bold text-text-main">{brl(price)}</span>
+  // Sem desconto: preço neutro (não verde), fonte fina.
+  return <span className="text-[15px] font-medium text-text-main">{brl(price)}</span>
+}
+
+const TAG_STYLES: Record<string, { label: string; cls: string }> = {
+  mais_pedido: { label: 'Mais pedido', cls: 'bg-amber-100 text-amber-700' },
+  edicao_limitada: { label: 'Edição limitada', cls: 'bg-pink-100 text-pink-600' },
+  novo: { label: 'Novo', cls: 'bg-sky-100 text-sky-700' },
+  favorito: { label: 'Favorito da casa', cls: 'bg-purple-100 text-purple-700' },
+  promocao: { label: 'Promoção', cls: 'bg-price-bg text-price-text' },
+}
+
+/** Pílula de etiqueta do item na vitrine (configurada no cadastro). */
+function TagBadge({ tag }: { tag: string | null }) {
+  if (!tag) return null
+  const s = TAG_STYLES[tag]
+  if (!s) return null
+  return (
+    <span className={`inline-block w-fit rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.cls}`}>
+      {s.label}
+    </span>
+  )
 }
 
 function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number }) {
@@ -159,13 +181,14 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           <span className="absolute left-2.5 top-2.5 rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
-        <div className="line-clamp-2 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
+      <div className={compact ? 'flex flex-col gap-0.5 p-2.5' : 'flex flex-1 flex-col gap-1 p-3'}>
+        <TagBadge tag={item.tag} />
+        <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2'} text-[14px] font-bold leading-snug text-text-main`}>{item.nome}</div>
         {item.descricao && !compact && (
           <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
         )}
-        <div className="pt-1">
-          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} hideDiscount={compact} />
+        <div className={compact ? 'pt-0.5' : 'pt-1'}>
+          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
         </div>
       </div>
     </button>
@@ -179,6 +202,7 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       className="flex w-full items-center gap-3 border-b border-border bg-white px-3 py-3 text-left transition-colors last:border-none hover:bg-[#F9FAFB] active:bg-[#F3F4F6]"
     >
       <div className="min-w-0 flex-1">
+        <TagBadge tag={item.tag} />
         <div className="line-clamp-1 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
         {item.descricao && (
           <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
@@ -1105,7 +1129,7 @@ export default function StorefrontPage() {
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
               <div className="px-4 pb-1 pt-4 lg:px-8">
                 <h2 className="mb-3 text-[17px] font-bold tracking-tight">Destaques</h2>
-                <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
+                <div className="flex items-start gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
                   {destaques.map((item) => (
                     <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[150px] flex-shrink-0 lg:w-auto" compact />
                   ))}

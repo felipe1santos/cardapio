@@ -50,6 +50,8 @@ import {
   type StatusItem,
   type TamanhoItem,
   type TipoItem,
+  type TagItem,
+  TAGS_ITEM,
   type PizzaSabor,
   criarSabor,
   atualizarSabor,
@@ -107,6 +109,7 @@ interface ItemFormState {
   imagemUrl: string | null
   promocaoPreco: string
   maisVendido: boolean
+  tag: TagItem | null
   tipoItem: TipoItem
 }
 
@@ -121,7 +124,7 @@ const TIPO_ITEM_OPTIONS: { value: TipoItem; label: string }[] = [
 function blankForm(grupoId: string | null): ItemFormState {
   return {
     id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null,
-    promocaoPreco: '', maisVendido: false, tipoItem: 'simples',
+    promocaoPreco: '', maisVendido: false, tag: null, tipoItem: 'simples',
   }
 }
 
@@ -137,6 +140,7 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     imagemUrl: item.imagemUrl,
     promocaoPreco: item.promocaoPreco !== null ? item.promocaoPreco.toFixed(2).replace('.', ',') : '',
     maisVendido: item.maisVendido,
+    tag: item.tag,
     tipoItem: item.tipoItem,
   }
 }
@@ -1725,6 +1729,7 @@ export default function CardapioPage() {
         diasDisponiveis: form.diasDisponiveis,
         promocaoPreco: form.promocaoPreco.trim() ? parsePreco(form.promocaoPreco) : null,
         maisVendido: form.maisVendido,
+        tag: form.tag,
         tipoItem: form.tipoItem,
       }
       if (form.id) {
@@ -2185,7 +2190,7 @@ export default function CardapioPage() {
                               atualizarItem(supabase, item.id, {
                                 grupoId: item.grupoId, nome: item.nome, descricao: item.descricao,
                                 preco: item.preco, status: item.status, diasDisponiveis: days, imagemUrl: item.imagemUrl,
-                                promocaoPreco: item.promocaoPreco, maisVendido: item.maisVendido, tipoItem: item.tipoItem,
+                                promocaoPreco: item.promocaoPreco, maisVendido: item.maisVendido, tag: item.tag, tipoItem: item.tipoItem,
                               }).catch(() => setError('Não foi possível salvar a disponibilidade.'))
                             }}
                           />
@@ -2561,6 +2566,21 @@ export default function CardapioPage() {
               </label>
               <p className="mt-1 text-[11px] text-text-subtle">Marca o item com ⭐ aqui no painel e o destaca no cardápio do cliente.</p>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Etiqueta na vitrine</div>
+            <select
+              value={form.tag ?? ''}
+              onChange={(e) => setForm((prev) => ({ ...prev, tag: (e.target.value || null) as TagItem | null }))}
+              className="w-full rounded-menuzia border border-border bg-white px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary"
+            >
+              <option value="">Sem etiqueta</option>
+              {TAGS_ITEM.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-text-subtle">Pílula colorida exibida no card do produto na vitrine (ex.: &ldquo;Mais pedido&rdquo;, &ldquo;Edição limitada&rdquo;).</p>
           </div>
 
           <div className="mt-4 flex gap-3">
