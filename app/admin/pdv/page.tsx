@@ -1040,7 +1040,7 @@ export default function PdvPage() {
                   <Button
                     variant="outline"
                     className="w-full"
-                    disabled={totalConta <= 0 || fechando}
+                    disabled={!mesaSelecionada?.comandaAberta || fechando}
                     onClick={() => void fecharConta()}
                   >
                     {fechando ? 'Fechando…' : 'Fechar conta'}

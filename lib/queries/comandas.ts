@@ -70,6 +70,15 @@ export async function abrirOuObterComanda(
   restauranteId: string,
   mesaId: string,
 ): Promise<Comanda> {
+  const { data: mesaRow, error: mesaErr } = await admin
+    .from('mesas')
+    .select('id')
+    .eq('id', mesaId)
+    .eq('restaurante_id', restauranteId)
+    .maybeSingle()
+  if (mesaErr) throw mesaErr
+  if (!mesaRow) throw new Error('Mesa não encontrada nesta loja')
+
   const existente = await buscarComandaAberta(admin, restauranteId, mesaId)
   if (existente) return existente
 
@@ -117,6 +126,7 @@ export async function cancelarPedidoComanda(
     .update({ status: 'cancelado' })
     .eq('id', pedidoId)
     .eq('restaurante_id', restauranteId)
+    .not('comanda_id', 'is', null)
   if (error) throw error
 }
 
