@@ -431,20 +431,12 @@ export default function StorefrontPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2600)
   }
 
-  // ── Delivery banner (cidade via IP) + calculadora de frete (CEP) ───────────
-  const [ipCidade, setIpCidade] = useState<string | null>(null)
+  // ── Calculadora de frete (CEP) — usada no checkout ─────────────────────────
   const [freteOpen, setFreteOpen] = useState(false)
   const [freteCep, setFreteCep] = useState('')
   const [freteLoading, setFreteLoading] = useState(false)
   const [freteError, setFreteError] = useState<string | null>(null)
   const [freteResult, setFreteResult] = useState<{ rua: string; bairro: string; cidade: string; taxa: number } | null>(null)
-
-  useEffect(() => {
-    fetch('/api/geo')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => { if (data?.cidade) setIpCidade(data.cidade) })
-      .catch(() => {})
-  }, [])
 
   async function calcularFrete() {
     const cepLimpo = freteCep.replace(/\D/g, '')
@@ -1038,49 +1030,47 @@ export default function StorefrontPage() {
               )}
             </div>
 
-            {/* Profile photo overlapping the banner + store info */}
+            {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta) */}
             <div className="px-4 lg:px-8">
-              <div className="-mt-6 flex items-end gap-3.5 sm:-mt-8 lg:-mt-10">
-                <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border-4 border-white bg-white shadow-md sm:h-24 sm:w-24 lg:h-28 lg:w-28">
+              <div className="-mt-8 flex items-center gap-3 rounded-md border border-border bg-white px-3 py-3 shadow-md sm:-mt-10 sm:gap-4 sm:px-4 sm:py-3.5">
+                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-20 sm:w-20 lg:h-[88px] lg:w-[88px]">
                   {restaurante.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={restaurante.logoUrl} alt={storeName} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-3xl font-extrabold text-white">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-2xl font-extrabold text-white sm:text-3xl">
                       {storeName.charAt(0).toUpperCase()}
                     </div>
                   )}
                 </div>
-                <div className="flex min-w-0 flex-1 items-start justify-between gap-2 pb-1.5">
-                  <div className="min-w-0">
-                    <h1 className="-mx-2 line-clamp-2 break-words rounded bg-white px-2 py-0.5 text-[17px] font-extrabold leading-[1.2] tracking-tight text-text-main sm:text-[22px] sm:leading-snug lg:text-[26px]">{storeName}</h1>
-                    <div className="-mx-2 mt-1.5 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded bg-white px-2 py-1 text-xs font-medium text-text-subtle sm:text-[13px]">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#16A34A]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" /> Aberto agora
-                      </span>
-                      <span>⏱ 30–45 min</span>
-                    </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="line-clamp-1 break-words text-[18px] font-extrabold leading-tight tracking-tight text-text-main sm:text-[22px] lg:text-[25px]">{storeName}</h1>
+                  <div className="mt-1 inline-flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-medium text-text-subtle sm:text-[13px]">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-[#16A34A]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" /> Aberto agora
+                    </span>
+                    <span>⏱ 30–45 min</span>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <button
-                      onClick={() => setSearchOpen((v) => !v)}
-                      className="flex h-9 w-9 items-center justify-center rounded-md bg-white shadow-sm"
-                      aria-label="Buscar no cardápio"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/60">
-                        <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => setInfoOpen(true)}
-                      className="flex h-9 w-9 items-center justify-center rounded-md bg-white shadow-sm"
-                      aria-label="Informações da loja"
-                    >
-                      <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/60">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-                      </svg>
-                    </button>
-                  </div>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => setSearchOpen((v) => !v)}
+                    className="flex h-9 w-9 items-center justify-center rounded-md bg-[#F3F4F6] transition-colors hover:bg-border sm:h-10 sm:w-10"
+                    aria-label="Buscar no cardápio"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/70">
+                      <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setInfoOpen(true)}
+                    className="flex h-9 w-9 items-center justify-center rounded-md bg-[#F3F4F6] transition-colors hover:bg-border sm:h-10 sm:w-10"
+                    aria-label="Informações da loja"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/70">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1102,22 +1092,6 @@ export default function StorefrontPage() {
                   <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
                 </div>
               )}
-
-              {/* Delivery banner */}
-              <button
-                onClick={() => setFreteOpen(true)}
-                className="flex w-full items-center gap-2.5 rounded-md border border-[#BAE6FD] bg-[#E0F2FE] px-3.5 py-2 text-left shadow-sm"
-              >
-                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#0369A1]">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z" />
-                </svg>
-                <span className="flex-1 text-[13px] font-medium text-[#0369A1]">
-                  {ipCidade ? `Entregamos em ${ipCidade}` : 'Calcular frete e prazo de entrega'}
-                </span>
-                <span className="flex-shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-[#0369A1] underline">
-                  Calcular frete
-                </span>
-              </button>
             </div>
 
             {/* Category nav */}
