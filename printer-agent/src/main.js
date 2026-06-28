@@ -107,7 +107,7 @@ function iniciarPolling() {
   if (polling) return
   polling = true
   const config = carregarConfig()
-  const intervaloMs = Math.max(3, config.intervaloSegundos || 5) * 1000
+  const intervaloMs = Math.max(2, config.intervaloSegundos || 3) * 1000
   pollTimer = setInterval(cicloDePolling, intervaloMs)
   cicloDePolling()
   log('Assistente de Impressão ativo — verificando pedidos novos periodicamente.')

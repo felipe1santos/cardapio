@@ -52,9 +52,14 @@ function Invoke-ImpressaoGrafica {
   $doc.PrinterSettings.Copies = [int]$Copies
   $doc.DocumentName = 'Menuzia Recibo'
 
-  # Graphics na resolução real da impressora (unidade 1/100 de polegada, igual a PaperSize),
-  # pra medir o texto e dimensionar fonte/papel com precisão.
-  $mg = $doc.PrinterSettings.CreateMeasurementGraphics()
+  # Graphics offscreen (bitmap) só pra MEDIR o texto. Antes usávamos
+  # CreateMeasurementGraphics(), que inicializa o driver da impressora — lento em
+  # térmicas e somado ao Print() dobrava a inicialização (impressão demorava).
+  # A medição de fonte em pontos é física (independe do DPI), então o bitmap em
+  # unidade Display (1/100") dá a mesma largura/altura em polegadas que a impressora.
+  $tmpBmp = New-Object System.Drawing.Bitmap(1, 1)
+  $mg = [System.Drawing.Graphics]::FromImage($tmpBmp)
+  $mg.PageUnit = [System.Drawing.GraphicsUnit]::Display
 
   $paper = $doc.DefaultPageSettings.PaperSize
   # Largura útil: a MENOR entre área imprimível e largura do papel. Drivers térmicos
@@ -116,6 +121,7 @@ function Invoke-ImpressaoGrafica {
     $doc.Print()
   } finally {
     $mg.Dispose()
+    $tmpBmp.Dispose()
     $font.Dispose()
     $doc.Dispose()
   }
