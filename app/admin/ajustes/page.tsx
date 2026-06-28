@@ -7,6 +7,7 @@ import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FacebookIcon, GoogleIcon, WhatsAppIcon } from '@/components/ui/brand-icons'
+import { InstalarAppButton } from '@/components/instalar-app-button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, type LayoutCardapio } from '@/lib/queries/cardapio'
 import {
@@ -940,6 +941,17 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="grid grid-cols-1 gap-5 xl:max-w-[1040px] xl:grid-cols-[1fr_340px]">
         <div className="space-y-6">
+          {/* App / atalho na área de trabalho */}
+          <Card>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Aplicativo Menuzia (atalho)</h3>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+              Instale o painel como aplicativo na área de trabalho / tela inicial — abre em janela
+              própria, sem a barra do navegador, com o ícone da Menuzia. Normalmente o navegador
+              oferece a instalação sozinho; se não aparecer, use o botão abaixo.
+            </p>
+            <InstalarAppButton />
+          </Card>
+
           {/* Assistente de Impressão */}
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Assistente de Impressão Menuzia</h3>
