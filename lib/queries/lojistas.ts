@@ -218,6 +218,51 @@ export async function listarLojistas(admin: SupabaseClient): Promise<LojistaRow[
   }))
 }
 
+export interface MetricasLoja {
+  faturamento: number
+  qtdPedidos: number
+  ticketMedio: number
+  pedidosPorDia: number
+  ultimoPedidoEm: string | null
+}
+
+/**
+ * Métricas por loja a partir dos pedidos ENTREGUES (faturamento realizado), para o
+ * painel /superadmin. Agrega em memória (poucas lojas no nível da plataforma).
+ */
+export async function metricasPorRestaurante(admin: SupabaseClient): Promise<Map<string, MetricasLoja>> {
+  const { data, error } = await admin
+    .from('pedidos')
+    .select('restaurante_id, total, criado_em')
+    .eq('status', 'entregue')
+  if (error) throw error
+
+  const acc = new Map<string, { tot: number; qtd: number; min: number; max: number }>()
+  for (const p of (data ?? []) as { restaurante_id: string | null; total: number; criado_em: string }[]) {
+    if (!p.restaurante_id) continue
+    const t = new Date(p.criado_em).getTime()
+    const cur = acc.get(p.restaurante_id) ?? { tot: 0, qtd: 0, min: t, max: t }
+    cur.tot += Number(p.total)
+    cur.qtd += 1
+    cur.min = Math.min(cur.min, t)
+    cur.max = Math.max(cur.max, t)
+    acc.set(p.restaurante_id, cur)
+  }
+
+  const out = new Map<string, MetricasLoja>()
+  for (const [id, a] of acc) {
+    const dias = Math.max(1, Math.ceil((a.max - a.min) / 86_400_000) + 1)
+    out.set(id, {
+      faturamento: a.tot,
+      qtdPedidos: a.qtd,
+      ticketMedio: a.qtd > 0 ? a.tot / a.qtd : 0,
+      pedidosPorDia: a.qtd / dias,
+      ultimoPedidoEm: new Date(a.max).toISOString(),
+    })
+  }
+  return out
+}
+
 /** Revoga o acesso (mantém o vínculo com a loja e o papel, para facilitar reativar depois). */
 export async function revogarAcessoLojista(admin: SupabaseClient, usuarioId: string): Promise<Resultado> {
   const { data: usuario, error: usuarioError } = await admin.from('usuarios').select('email').eq('id', usuarioId).maybeSingle()
