@@ -102,6 +102,7 @@ export async function listarPedidosDaComanda(
     .eq('comanda_id', comandaId)
     .order('criado_em', { ascending: true })
   if (error) throw error
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((row) => mapPedido(row as any))
 }
 

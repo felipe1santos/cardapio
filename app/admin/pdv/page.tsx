@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestauranteIdDoUsuario,
@@ -10,7 +10,7 @@ import {
   type GrupoItemComplementos,
   type ItemCardapio,
 } from '@/lib/queries/cardapio'
-import { listarMesasAtivas, type Mesa } from '@/lib/queries/mesas'
+import type { MesaComEstado } from '@/lib/queries/comandas'
 import {
   listarBordasPizza,
   listarMassasPizza,
@@ -19,7 +19,7 @@ import {
   type MassaPizza,
   type TamanhoPadraoPizza,
 } from '@/lib/queries/pizza'
-import { type NovoPedidoItemInput } from '@/lib/queries/pedidos'
+import { type NovoPedidoItemInput, type Pedido } from '@/lib/queries/pedidos'
 import { Button } from '@/components/ui/button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -378,13 +378,14 @@ export default function PdvPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [itens, setItens] = useState<ItemCardapio[]>([])
   const [grupos, setGrupos] = useState<GrupoCardapio[]>([])
-  const [mesas, setMesas] = useState<Mesa[]>([])
+  const [mesasEstado, setMesasEstado] = useState<MesaComEstado[]>([])
   const [tamanhosPizza, setTamanhosPizza] = useState<TamanhoPadraoPizza[]>([])
   const [bordasPizza, setBordasPizza] = useState<BordaPizza[]>([])
   const [massasPizza, setMassasPizza] = useState<MassaPizza[]>([])
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
 
   // ── Mesa / cliente ─────────────────────────────────────────────────────────
-  const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null)
+  const [mesaSelecionada, setMesaSelecionada] = useState<MesaComEstado | null>(null)
   const [mesaEscolhida, setMesaEscolhida] = useState(false)
   const [nomeCliente, setNomeCliente] = useState('')
 
@@ -392,7 +393,12 @@ export default function PdvPage() {
   const [busca, setBusca] = useState('')
   const [grupoFiltro, setGrupoFiltro] = useState<string | null>(null)
 
-  // ── Comanda ────────────────────────────────────────────────────────────────
+  // ── Comanda da mesa (pedidos já lançados) ─────────────────────────────────
+  const [pedidosComanda, setPedidosComanda] = useState<Pedido[]>([])
+  const [carregandoComanda, setCarregandoComanda] = useState(false)
+  const [fechando, setFechando] = useState(false)
+
+  // ── Comanda em montagem ────────────────────────────────────────────────────
   const [comanda, setComanda] = useState<ComandaLinha[]>([])
 
   // ── Selector modal ────────────────────────────────────────────────────────
@@ -404,6 +410,14 @@ export default function PdvPage() {
 
   // ── Mobile tab ────────────────────────────────────────────────────────────
   const [mobileTab, setMobileTab] = useState<'mesas' | 'cardapio' | 'comanda'>('cardapio')
+
+  // ── Fetch mesas com estado de ocupação ────────────────────────────────────
+  const recarregarMesas = useCallback(async () => {
+    const res = await fetch('/api/admin/pdv/comanda')
+    if (!res.ok) return
+    const data = (await res.json()) as { mesas: MesaComEstado[] }
+    setMesasEstado(data.mesas)
+  }, [])
 
   // ── Focus mode: hide sidebar while PDV is open ────────────────────────────
   useEffect(() => {
@@ -420,25 +434,25 @@ export default function PdvPage() {
       setLoading(true)
       setLoadError(null)
       try {
-        const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
-        if (!restauranteId || cancelled) return
+        const rid = await buscarRestauranteIdDoUsuario(supabase)
+        if (!rid || cancelled) return
 
-        const [itensData, gruposData, mesasData, tamanhosData, bordasData, massasData] = await Promise.all([
-          listarItens(supabase, restauranteId),
-          listarGrupos(supabase, restauranteId),
-          listarMesasAtivas(supabase, restauranteId),
-          listarTamanhosPadraoPizza(supabase, restauranteId),
-          listarBordasPizza(supabase, restauranteId),
-          listarMassasPizza(supabase, restauranteId),
+        const [itensData, gruposData, tamanhosData, bordasData, massasData] = await Promise.all([
+          listarItens(supabase, rid),
+          listarGrupos(supabase, rid),
+          listarTamanhosPadraoPizza(supabase, rid),
+          listarBordasPizza(supabase, rid),
+          listarMassasPizza(supabase, rid),
         ])
         if (cancelled) return
 
         setItens(itensData.filter((i) => i.status === 'disponivel'))
         setGrupos(gruposData)
-        setMesas(mesasData)
         setTamanhosPizza(tamanhosData)
         setBordasPizza(bordasData)
         setMassasPizza(massasData)
+        setRestauranteId(rid)
+        await recarregarMesas()
       } catch {
         if (!cancelled) setLoadError('Não foi possível carregar os dados. Recarregue a página.')
       } finally {
@@ -448,7 +462,50 @@ export default function PdvPage() {
     return () => {
       cancelled = true
     }
-  }, [supabase])
+  }, [supabase, recarregarMesas])
+
+  // ── Fetch pedidos da comanda aberta ───────────────────────────────────────
+  const recarregarComanda = useCallback(async (comandaId: string) => {
+    setCarregandoComanda(true)
+    try {
+      const res = await fetch(`/api/admin/pdv/comanda?comandaId=${comandaId}`)
+      if (!res.ok) return
+      const data = (await res.json()) as { pedidos: Pedido[] }
+      setPedidosComanda(data.pedidos)
+    } finally {
+      setCarregandoComanda(false)
+    }
+  }, [])
+
+  // Carrega pedidos ao selecionar mesa ocupada
+  useEffect(() => {
+    const comandaId = mesaSelecionada?.comandaAberta?.id
+    if (comandaId) {
+      void recarregarComanda(comandaId)
+    } else {
+      setPedidosComanda([])
+    }
+  }, [mesaSelecionada, recarregarComanda])
+
+  // ── Realtime: atualizar estado ao mudar pedidos ────────────────────────────
+  useEffect(() => {
+    if (!restauranteId) return
+    const channel = supabase
+      .channel(`pdv-comandas-${restauranteId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` },
+        () => {
+          void recarregarMesas()
+          const comandaId = mesaSelecionada?.comandaAberta?.id
+          if (comandaId) void recarregarComanda(comandaId)
+        }
+      )
+      .subscribe()
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [supabase, recarregarMesas, recarregarComanda, mesaSelecionada, restauranteId])
 
   // ── Filtered items ─────────────────────────────────────────────────────────
   const itensFiltrados = useMemo(() => {
@@ -462,7 +519,7 @@ export default function PdvPage() {
   }, [itens, grupoFiltro, busca])
 
   // ── Mesa selection ─────────────────────────────────────────────────────────
-  function selecionarMesa(mesa: Mesa | null) {
+  function selecionarMesa(mesa: MesaComEstado | null) {
     setMesaSelecionada(mesa)
     setMesaEscolhida(true)
     if (window.innerWidth < 1024) setMobileTab('cardapio')
@@ -525,6 +582,40 @@ export default function PdvPage() {
     setComanda((prev) => prev.filter((l) => l.uid !== uidTarget))
   }
 
+  // ── Cancelar pedido da comanda ─────────────────────────────────────────────
+  async function cancelarPedido(pedidoId: string) {
+    if (!confirm('Cancelar este pedido? Ele some da cozinha e sai da conta.')) return
+    const res = await fetch(`/api/admin/pdv/pedido/${pedidoId}/cancelar`, { method: 'POST' })
+    if (res.ok) {
+      const comandaId = mesaSelecionada?.comandaAberta?.id
+      if (comandaId) await recarregarComanda(comandaId)
+      await recarregarMesas()
+    }
+  }
+
+  // ── Fechar conta da mesa ───────────────────────────────────────────────────
+  async function fecharConta() {
+    const comandaId = mesaSelecionada?.comandaAberta?.id
+    if (!comandaId || fechando) return
+    const emPreparo = pedidosComanda.some((p) => p.status === 'preparando' || p.status === 'recebido')
+    const aviso = emPreparo
+      ? 'Há pedido ainda em preparo. Fechar a conta mesmo assim?'
+      : `Fechar a conta de ${mesaSelecionada?.nome ?? 'mesa'}?`
+    if (!confirm(aviso)) return
+    setFechando(true)
+    try {
+      const res = await fetch(`/api/admin/pdv/comanda/${comandaId}/fechar`, { method: 'POST' })
+      if (res.ok) {
+        setPedidosComanda([])
+        setMesaSelecionada(null)
+        setMesaEscolhida(false)
+        await recarregarMesas()
+      }
+    } finally {
+      setFechando(false)
+    }
+  }
+
   // ── Launch ─────────────────────────────────────────────────────────────────
   async function lancarNaCozinha() {
     if (!mesaEscolhida || comanda.length === 0 || launching) return
@@ -546,6 +637,7 @@ export default function PdvPage() {
       tipo: 'retirada' as const,
       origem: 'pdv' as const,
       mesa: mesaSelecionada?.nome,
+      mesaId: mesaSelecionada?.id,
       cliente: { nome: nomeCliente.trim() || 'Cliente Balcão', telefone: '' },
       endereco: { rua: '', numero: '', complemento: '', bairro: '', cep: '' },
       pagamento: 'dinheiro' as const,
@@ -562,9 +654,22 @@ export default function PdvPage() {
       const data = (await res.json()) as { id?: string; numero?: number; error?: string }
       if (res.status === 201 && data.numero) {
         const local = mesaSelecionada?.nome ?? 'Balcão'
+        const mesaIdAntes = mesaSelecionada?.id
         setComanda([])
         setNomeCliente('')
         setLaunchMsg({ type: 'ok', text: `Pedido #${data.numero} lançado em ${local}!` })
+        // Recarregar mesas + re-selecionar a mesa atualizada (agora ocupada)
+        const atualizadas = await fetch('/api/admin/pdv/comanda')
+          .then((r) => r.json() as Promise<{ mesas: MesaComEstado[] }>)
+          .catch(() => null)
+        setMesasEstado(atualizadas?.mesas ?? [])
+        if (mesaIdAntes && atualizadas?.mesas) {
+          const nova = atualizadas.mesas.find((m) => m.id === mesaIdAntes)
+          if (nova) {
+            setMesaSelecionada(nova)
+            if (nova.comandaAberta) await recarregarComanda(nova.comandaAberta.id)
+          }
+        }
       } else {
         setLaunchMsg({ type: 'err', text: data.error ?? 'Erro ao lançar pedido.' })
       }
@@ -576,6 +681,10 @@ export default function PdvPage() {
   }
 
   // ── Computed ───────────────────────────────────────────────────────────────
+
+  const totalConta = pedidosComanda
+    .filter((p) => p.status !== 'cancelado')
+    .reduce((s, p) => s + p.total, 0)
 
   const subtotal = comanda.reduce((s, l) => {
     // Use base price as reference; server recalculates the real total
@@ -677,30 +786,46 @@ export default function PdvPage() {
                 Balcão
               </button>
 
-              {mesas.length > 0 && (
+              {mesasEstado.length > 0 && (
                 <>
                   <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-text-subtle/60">Mesas</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {mesas.map((mesa) => (
-                      <button
-                        key={mesa.id}
-                        type="button"
-                        onClick={() => selecionarMesa(mesa)}
-                        className={[
-                          'rounded-menuzia border py-2 text-center text-[12px] font-semibold transition-colors',
-                          mesaEscolhida && mesaSelecionada?.id === mesa.id
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-border bg-page text-text-main hover:border-primary hover:text-primary',
-                        ].join(' ')}
-                      >
-                        {mesa.nome}
-                      </button>
-                    ))}
+                    {mesasEstado.map((mesa) => {
+                      const ocupada = mesa.comandaAberta !== null
+                      const ativa = mesaEscolhida && mesaSelecionada?.id === mesa.id
+                      return (
+                        <button
+                          key={mesa.id}
+                          type="button"
+                          onClick={() => selecionarMesa(mesa)}
+                          className={[
+                            'rounded-menuzia border px-2 py-2 text-center transition-colors',
+                            ativa
+                              ? 'border-primary bg-primary text-white'
+                              : ocupada
+                                ? 'border-status-pending bg-status-pending/10 text-text-main hover:border-status-pending'
+                                : 'border-border bg-page text-text-main hover:border-primary hover:text-primary',
+                          ].join(' ')}
+                        >
+                          <span className="block text-[12px] font-semibold">{mesa.nome}</span>
+                          {ocupada && (
+                            <span
+                              className={[
+                                'block text-[10px] font-bold',
+                                ativa ? 'text-white/90' : 'text-status-pending',
+                              ].join(' ')}
+                            >
+                              {formatBRL(mesa.total)}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                 </>
               )}
 
-              {mesas.length === 0 && (
+              {mesasEstado.length === 0 && (
                 <p className="mt-2 text-center text-[12px] text-text-subtle/70">Sem mesas cadastradas.</p>
               )}
             </div>
@@ -851,6 +976,72 @@ export default function PdvPage() {
                 ].join(' ')}
               >
                 {launchMsg.text}
+              </div>
+            )}
+
+            {/* Conta da mesa — pedidos já lançados */}
+            {mesaSelecionada?.comandaAberta && (
+              <div className="border-b border-border">
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Conta da mesa</p>
+                  <span className="text-[12px] font-bold text-text-main">{formatBRL(totalConta)}</span>
+                </div>
+                {carregandoComanda ? (
+                  <p className="px-3 pb-2.5 text-[11px] text-text-subtle/60">Carregando…</p>
+                ) : (
+                  <ul className="max-h-52 divide-y divide-border overflow-y-auto">
+                    {pedidosComanda.map((p) => {
+                      const cancelado = p.status === 'cancelado'
+                      return (
+                        <li
+                          key={p.id}
+                          className={['px-3 py-2', cancelado ? 'opacity-50' : ''].join(' ')}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={[
+                                'text-[12px] font-semibold text-text-main',
+                                cancelado ? 'line-through' : '',
+                              ].join(' ')}
+                            >
+                              Pedido #{p.numero}
+                            </span>
+                            <span
+                              className={[
+                                'text-[12px] font-semibold text-text-main',
+                                cancelado ? 'line-through' : '',
+                              ].join(' ')}
+                            >
+                              {formatBRL(p.total)}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] text-text-subtle">
+                            {p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}
+                          </p>
+                          {!cancelado && (
+                            <button
+                              type="button"
+                              onClick={() => void cancelarPedido(p.id)}
+                              className="mt-1 text-[11px] font-semibold text-danger hover:underline"
+                            >
+                              Cancelar pedido
+                            </button>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                <div className="p-3">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={totalConta <= 0 || fechando}
+                    onClick={() => void fecharConta()}
+                  >
+                    {fechando ? 'Fechando…' : 'Fechar conta'}
+                  </Button>
+                </div>
               </div>
             )}
 
