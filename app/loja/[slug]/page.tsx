@@ -78,8 +78,8 @@ function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
         return (
           <div key={step.k} className="relative flex gap-3.5 pb-5 last:pb-0">
             {i < steps.length - 1 && <span className={`absolute left-[11px] top-6 h-full w-0.5 ${state === 'done' ? 'bg-status-ready' : 'bg-border'}`} />}
-            <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 bg-white', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
-              {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
+            <span className={['z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2', state === 'done' ? 'border-status-ready bg-status-ready' : state === 'active' ? 'border-status-ready bg-status-ready' : 'border-border bg-white'].join(' ')}>
+              {state !== 'pending' && <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
             </span>
             <div>
               <div className={`text-[13px] font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{step.l}</div>
@@ -815,18 +815,18 @@ export default function StorefrontPage() {
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false)
   const [pedidoWa, setPedidoWa] = useState<string | null>(null)
   const [cliente, setCliente] = useState({ nome: '', telefone: '' })
+  const [pedidoDetalhe, setPedidoDetalhe] = useState<PedidoCliente | null>(null)
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
   useEffect(() => {
-    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen
+    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen])
+  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe])
 
   // ── Histórico de pedidos do cliente logado ────────────────────────────────
   const [meusPedidos, setMeusPedidos] = useState<PedidoCliente[]>([])
   const [pedidosLoading, setPedidosLoading] = useState(false)
-  const [pedidoDetalhe, setPedidoDetalhe] = useState<PedidoCliente | null>(null)
 
   useEffect(() => {
     if (tab !== 'pedidos' || !clienteSessao) { setMeusPedidos([]); return }
@@ -1460,7 +1460,7 @@ export default function StorefrontPage() {
                 </div>
 
                 {waLink && (
-                  <div className="border-t border-border p-4">
+                  <div className="border-t border-border p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
                     <a
                       href={waLink}
                       target="_blank"
