@@ -1,6 +1,6 @@
 # PDV — Status & Handoff (continuar depois)
 
-> Documento de retomada. Atualizado: 2026-06-27. Tudo na branch `main` (deploy Coolify lê main).
+> Documento de retomada. Atualizado: 2026-06-27 (Fase 2 entregue). Tudo na branch `main` (deploy Coolify lê main).
 
 ## Visão geral do sub-projeto PDV
 
@@ -8,26 +8,30 @@ PDV = **serviço de mesa** (não caixa puro). Atendente lança pedido numa mesa 
 Kanban + cozinhas em tempo real com tag `PDV` + nº da mesa → cliente come → paga no fim ao
 **fechar a mesa**. Dividido em 3 fases:
 
-- **Fase 1 — PDV + mesa + tag.** ✅ FEITO (falta só aplicar 1 migration no remoto).
-- **Fase 2 — Comanda de mesa (controle de mesas + fechar conta).** 🟡 DESIGN APROVADO PARCIAL — falta 1 confirmação, spec, plano, implementação.
+- **Fase 1 — PDV + mesa + tag.** ✅ FEITO.
+- **Fase 2 — Comanda de mesa (controle de mesas + fechar conta).** ✅ FEITO (commits `7f9cea8`..`78d0ecd`, final review SHIP). Falta só aplicar a migration `0034` no remoto.
 - **Fase 3 — Controle de caixa (pagamento no fechamento + conferência por turno).** ⬜ NÃO INICIADA (só ideia de alto nível).
 
 Specs/planos:
 - Spec Fase 1: `docs/superpowers/specs/2026-06-27-pdv-mesa-design.md`
 - Plano Fase 1: `docs/superpowers/plans/2026-06-27-pdv-mesa-fase1.md`
+- Spec Fase 2: `docs/superpowers/specs/2026-06-27-pdv-comanda-fase2-design.md`
+- Plano Fase 2: `docs/superpowers/plans/2026-06-27-pdv-comanda-fase2.md`
 - Ledger SDD: `.superpowers/sdd/progress.md` (git-ignored)
 
 ---
 
-## ⚠️ AÇÃO PENDENTE CRÍTICA (fazer antes de usar o PDV)
+## ⚠️ AÇÃO PENDENTE CRÍTICA (fazer antes de usar a Fase 2)
 
-**Aplicar a migration `supabase/migrations/0033_pdv_mesas.sql` no banco remoto.**
+**Aplicar a migration `supabase/migrations/0034_comandas.sql` no banco remoto.**
 - `npm run db:setup` está QUEBRADO neste projeto (morre em 0020 por coluna já existente).
-- Aplicar SQL direto via pg, usando `DATABASE_URL` do `.env.local`. SQL é idempotente.
-- Sem isso: `/admin/pdv` e os selects de pedido quebram (colunas `pedidos.origem`/`mesa` e
-  tabela `mesas` não existem no remoto).
-- Conteúdo: `pedidos.origem text default 'cardapio'`, `pedidos.mesa text`, tabela `mesas`
-  (RLS via `auth_restaurante_id()`).
+- Aplicar SQL direto no **SQL editor do Supabase** (mesmo fluxo da 0033). SQL é idempotente.
+- Sem isso: `/admin/pdv` (estado das mesas) e as rotas de comanda quebram (tabela `comandas`
+  e coluna `pedidos.comanda_id` não existem no remoto).
+- Conteúdo: tabela `comandas` (status aberta/fechada, RLS via `auth_restaurante_id()`),
+  índice único parcial `comandas_mesa_aberta_unq` (1 comanda aberta/mesa), `pedidos.comanda_id`.
+
+> A migration `0033_pdv_mesas.sql` (Fase 1) já foi aplicada no remoto (confirmado pelo usuário).
 
 ---
 
@@ -65,7 +69,37 @@ Tudo aditivo, vitrine intacta. tsc/build limpos, final review = SHIP.
 
 ---
 
-## 🟡 FASE 2 — Comanda de mesa (DESIGN APROVADO, FALTA 1 CONFIRMAÇÃO)
+## ✅ FASE 2 — Comanda de mesa (FEITO — commits `7f9cea8`..`78d0ecd`, final review SHIP)
+
+`/admin/pdv` virou mesa-aware. Pedidos de uma mesa agrupam numa **comanda** (1 aberta/mesa).
+Operador vê total acumulado, cancela pedido (cancelamento real → some do Kanban/cozinha) e
+fecha a conta (libera a mesa). Pagamento/caixa = Fase 3.
+
+### Entregas (7 commits)
+| Arquivo | O quê |
+|---------|-------|
+| `supabase/migrations/0034_comandas.sql` | tabela `comandas` + `pedidos.comanda_id` + índice único parcial + RLS |
+| `lib/queries/comandas.ts` (+`.test.ts`) | `abrirOuObterComanda` (find-or-create, trata corrida 23505 + valida mesa do tenant), `buscarComandaAberta`, `listarPedidosDaComanda`, `cancelarPedidoComanda` (restrito a pedido de comanda), `fecharComanda`, `listarMesasComEstado`, `calcularTotalComanda` |
+| `lib/queries/pedidos.ts` | `comanda_id` propagado em `NovoPedidoInput`/`criarPedido`/`Pedido`/`PedidoRow`/`PEDIDO_SELECT`/`mapPedido`; `PEDIDO_SELECT`/`mapPedido` agora exportados |
+| `app/api/admin/pdv/pedido/route.ts` | resolve `mesaId` → `abrirOuObterComanda` → liga `comandaId` no pedido (balcão fica avulso) |
+| `app/api/admin/pdv/comanda/route.ts` + `comanda/[id]/fechar` + `pedido/[id]/cancelar` | rotas (estado das mesas / pedidos da comanda; fechar; cancelar). Next 15 params `Promise<{id}>` + await |
+| `app/admin/pdv/page.tsx` | grade com estado ocupado + total, painel "Conta da mesa" (lista, cancelar, fechar), realtime via canal `pedidos` (mesaSelecionada via ref, assina 1x) |
+
+### Decisões tomadas com o usuário (todas confirmadas)
+- **Onde fica:** dentro do PDV (`/admin/pdv` mesa-aware) — sem tela nova.
+- **Fechar mesa:** só fecha a conta (total, comanda fechada, mesa liberada). Pagamento/caixa = Fase 3.
+- **Cancelar pedido na comanda = cancelamento real** (`pedidos.status='cancelado'`): some do
+  Kanban/cozinha e sai do total. Confirmado nesta sessão.
+
+### Minors conhecidos (não bloqueiam, fast-follow possível)
+- N+1 em `listarMesasComEstado` (1 query/mesa ocupada — ok p/ <20 mesas).
+- `row as any` + eslint-disable em `comandas.ts` (vs idiom `as unknown as PedidoRow[]`).
+- UI: items-summary do pedido cancelado só com `opacity-50` (sem line-through); header
+  `totalConta` pisca R$ 0,00 enquanto carrega; lançar faz fetch cru em vez de `recarregarMesas`.
+- `fecharComanda`/`cancelarPedidoComanda` retornam ok em no-op (0 linhas) — não diferencia
+  comanda já fechada/inexistente.
+
+<details><summary>Design original (histórico)</summary>
 
 ### Decisões já tomadas com o usuário
 - **Onde fica:** dentro do PDV (`/admin/pdv` vira mesa-aware) — sem tela nova.
@@ -127,6 +161,8 @@ de vez (status `cancelado`), some do Kanban/cozinha e sai do total. Confirmar.
    - Tag/realtime: total da mesa atualiza quando chega/cancela pedido.
 4. Aplicar migration nova no remoto (manual, igual 0033).
 
+</details>
+
 ---
 
 ## ⬜ FASE 3 — Controle de caixa (NÃO INICIADA — só ideia)
@@ -155,9 +191,8 @@ com `valor_esperado`, `troco_levado`, `valor_declarado`, `diferenca`, `fechado_e
 ## Como retomar (resumo pro próximo "claude")
 
 1. Ler este arquivo + `CLAUDE.md` + memória (`MEMORY.md` → [[project-pdv-origem-tag]]).
-2. Confirmar se a migration `0033` já foi aplicada no remoto (se não, aplicar).
-3. Responder a **pergunta aberta da Fase 2** (cancelar pedido = cancelar no sistema?).
-4. Fase 2: invocar `superpowers:brainstorming` (já quase pronto — só formalizar spec) →
-   `writing-plans` → `subagent-driven-development`.
-5. Depois Fase 3: brainstorming do zero (decisões acima) → spec → plano → implementação.
-6. Trabalhar direto na `main`, commit+push após cada feature validada (preferência do usuário).
+2. Confirmar se a migration `0034_comandas.sql` já foi aplicada no remoto (se não, aplicar — Fases 1/0033 já estão).
+3. **Fase 3** (controle de caixa): brainstorming do zero (decisões na seção da Fase 3 acima) →
+   spec → plano → subagent-driven-development → aplicar migration.
+4. Opcional fast-follow: os minors da Fase 2 (ver lista na seção da Fase 2).
+5. Trabalhar direto na `main`, commit+push após cada feature validada (preferência do usuário).
