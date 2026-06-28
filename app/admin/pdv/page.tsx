@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestauranteIdDoUsuario,
@@ -431,8 +432,8 @@ function PagamentoModal({
   emPreparo,
   processando,
   onCancel,
+  onReceber,
   onReceberEFechar,
-  onFecharSemReceber,
 }: {
   pedidos: Pedido[]
   total: number
@@ -441,8 +442,8 @@ function PagamentoModal({
   emPreparo: boolean
   processando: boolean
   onCancel: () => void
+  onReceber: (forma: FormaPgtoUI) => void
   onReceberEFechar: (forma: FormaPgtoUI) => void
-  onFecharSemReceber: () => void
 }) {
   const [forma, setForma] = useState<FormaPgtoUI | null>(null)
   const [recebido, setRecebido] = useState('')
@@ -452,11 +453,51 @@ function PagamentoModal({
 
   const linhas = pedidos.flatMap((p) => p.itens.map((i) => ({ ...i, uid: i.id })))
 
-  const formas: { id: FormaPgtoUI; label: string }[] = [
-    { id: 'dinheiro', label: 'Dinheiro' },
-    { id: 'pix', label: 'Pix' },
-    { id: 'debito', label: 'Débito' },
-    { id: 'credito', label: 'Crédito' },
+  const formas: { id: FormaPgtoUI; label: string; selBg: string; idle: string; icon: React.ReactNode }[] = [
+    {
+      id: 'dinheiro',
+      label: 'Dinheiro',
+      selBg: 'bg-[#16A34A]',
+      idle: 'border-[#16A34A]/40 text-[#16A34A]',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current">
+          <path d="M2 6h20v12H2V6zm2 2v8h16V8H4zm8 1.5A2.5 2.5 0 0 1 14.5 12 2.5 2.5 0 0 1 12 14.5 2.5 2.5 0 0 1 9.5 12 2.5 2.5 0 0 1 12 9.5zM6 9a2 2 0 0 1-2 2v2a2 2 0 0 1 2 2h12a2 2 0 0 1 2-2v-2a2 2 0 0 1-2-2H6z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'pix',
+      label: 'Pix',
+      selBg: 'bg-[#0FB8AD]',
+      idle: 'border-[#0FB8AD]/40 text-[#0FB8AD]',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current">
+          <path d="M12 2.5 3.5 11l8.5 8.5L20.5 11 12 2.5zm0 2.83L17.67 11 12 16.67 6.33 11 12 5.33z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'debito',
+      label: 'Débito',
+      selBg: 'bg-[#0688D4]',
+      idle: 'border-[#0688D4]/40 text-[#0688D4]',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current">
+          <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'credito',
+      label: 'Crédito',
+      selBg: 'bg-[#7C3AED]',
+      idle: 'border-[#7C3AED]/40 text-[#7C3AED]',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current">
+          <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2zM6 15h6v2H6z" />
+        </svg>
+      ),
+    },
   ]
 
   return (
@@ -528,20 +569,21 @@ function PagamentoModal({
           {/* Forma de pagamento */}
           <div>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Forma de pagamento</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               {formas.map((f) => (
                 <button
                   key={f.id}
                   type="button"
                   onClick={() => setForma(f.id)}
                   className={[
-                    'rounded-menuzia border-2 px-3 py-3 text-[14px] font-bold transition-colors',
+                    'flex flex-col items-center justify-center gap-1.5 rounded-menuzia border-2 px-3 py-4 font-bold transition-all active:scale-[0.97]',
                     forma === f.id
-                      ? 'border-primary-dark bg-primary text-white'
-                      : 'border-border bg-white text-text-main hover:border-primary',
+                      ? `${f.selBg} border-transparent text-white shadow-md`
+                      : `bg-white ${f.idle} hover:shadow-sm`,
                   ].join(' ')}
                 >
-                  {f.label}
+                  {f.icon}
+                  <span className="text-[14px]">{f.label}</span>
                 </button>
               ))}
             </div>
@@ -587,15 +629,15 @@ function PagamentoModal({
             disabled={!forma || processando}
             onClick={() => forma && onReceberEFechar(forma)}
           >
-            {processando ? 'Fechando…' : 'Receber e fechar conta'}
+            {processando ? 'Processando…' : 'Receber e fechar conta'}
           </Button>
           <button
             type="button"
-            disabled={processando}
-            onClick={onFecharSemReceber}
-            className="w-full rounded-menuzia border border-border py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-text-subtle hover:text-text-main disabled:opacity-50"
+            disabled={!forma || processando}
+            onClick={() => forma && onReceber(forma)}
+            className="w-full rounded-menuzia border-2 border-primary py-2 text-[12px] font-bold uppercase tracking-wide text-primary transition-colors hover:bg-primary hover:text-white disabled:opacity-40"
           >
-            Fechar sem receber (pagar depois)
+            Receber (manter mesa aberta)
           </button>
         </div>
       </div>
@@ -607,6 +649,7 @@ function PagamentoModal({
 
 export default function PdvPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
+  const router = useRouter()
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true)
@@ -637,6 +680,9 @@ export default function PdvPage() {
   const [carregandoComanda, setCarregandoComanda] = useState(false)
   const [fechando, setFechando] = useState(false)
   const [pagamentoAberto, setPagamentoAberto] = useState(false)
+  const [mesaAcao, setMesaAcao] = useState<MesaComEstado | null>(null) // chooser ao clicar na mesa
+  const [pedidosModalAberto, setPedidosModalAberto] = useState(false)
+  const [sairConfirm, setSairConfirm] = useState(false)
 
   // ── Comanda em montagem ────────────────────────────────────────────────────
   const [comanda, setComanda] = useState<ComandaLinha[]>([])
@@ -802,6 +848,35 @@ export default function PdvPage() {
     void recarregarMesas()
   }
 
+  // Clique no quadrado da mesa: se ocupada, abre o chooser (ver pedidos / novo pedido);
+  // se livre, vai direto cadastrar um novo pedido.
+  function clicarMesa(mesa: MesaComEstado) {
+    if (mesa.comandaAberta) setMesaAcao(mesa)
+    else selecionarMesa(mesa)
+  }
+
+  function acaoVerPedidos() {
+    if (!mesaAcao) return
+    const m = mesaAcao
+    setMesaSelecionada(m)
+    setMesaEscolhida(true)
+    setMesaAcao(null)
+    setPedidosModalAberto(true)
+    if (m.comandaAberta) void recarregarComanda(m.comandaAberta.id)
+  }
+
+  function acaoNovoPedido() {
+    if (!mesaAcao) return
+    const m = mesaAcao
+    setMesaAcao(null)
+    selecionarMesa(m)
+  }
+
+  function sairDoPdv() {
+    setSairConfirm(false)
+    router.push('/admin/dashboard')
+  }
+
   // ── Add item to comanda ────────────────────────────────────────────────────
   function addItem(item: ItemCardapio) {
     if (needsSelector(item)) {
@@ -871,24 +946,51 @@ export default function PdvPage() {
   }
 
   // ── Fechar conta da mesa ───────────────────────────────────────────────────
-  // Finaliza a conta. pagarAgora=true marca os pedidos como pagos antes de fechar;
-  // pagarAgora=false só fecha (pagamento fica "a receber" — pagar depois).
-  async function finalizarConta(pagarAgora: boolean) {
+  // Limpa o estado e volta ao painel após fechar a conta.
+  function resetPosFechar() {
+    setPagamentoAberto(false)
+    setPedidosModalAberto(false)
+    setPedidosComanda([])
+    setMesaSelecionada(null)
+    setMesaEscolhida(false)
+    setComanda([])
+    setPainelMesas(true)
+  }
+
+  // Recebe o pagamento (marca todos os pedidos da comanda como pagos). Se fechar=true,
+  // também fecha a conta e libera a mesa; senão mantém a mesa aberta (cliente pagou
+  // antecipado e continua na mesa). Pagamento é obrigatório antes de fechar.
+  async function processarPagamento(fechar: boolean) {
     const comandaId = mesaSelecionada?.comandaAberta?.id
     if (!comandaId || fechando) return
     setFechando(true)
     try {
-      if (pagarAgora) {
-        await fetch(`/api/admin/pdv/comanda/${comandaId}/pagar`, { method: 'POST' })
+      await fetch(`/api/admin/pdv/comanda/${comandaId}/pagar`, { method: 'POST' })
+      if (fechar) {
+        const res = await fetch(`/api/admin/pdv/comanda/${comandaId}/fechar`, { method: 'POST' })
+        if (res.ok) {
+          resetPosFechar()
+          await recarregarMesas()
+        }
+      } else {
+        setPagamentoAberto(false)
+        await recarregarMesas()
+        await recarregarComanda(comandaId)
       }
+    } finally {
+      setFechando(false)
+    }
+  }
+
+  // Fecha a conta quando tudo já está pago (sem passar pelo modal de pagamento).
+  async function fecharContaPaga() {
+    const comandaId = mesaSelecionada?.comandaAberta?.id
+    if (!comandaId || fechando) return
+    setFechando(true)
+    try {
       const res = await fetch(`/api/admin/pdv/comanda/${comandaId}/fechar`, { method: 'POST' })
       if (res.ok) {
-        setPagamentoAberto(false)
-        setPedidosComanda([])
-        setMesaSelecionada(null)
-        setMesaEscolhida(false)
-        setComanda([])
-        setPainelMesas(true) // volta ao painel de mesas após fechar a conta
+        resetPosFechar()
         await recarregarMesas()
       }
     } finally {
@@ -1017,6 +1119,20 @@ export default function PdvPage() {
     </button>
   )
 
+  const botaoSair = (
+    <button
+      type="button"
+      onClick={() => setSairConfirm(true)}
+      title="Sair do PDV e voltar ao menu principal"
+      className="flex flex-shrink-0 items-center gap-1.5 rounded-menuzia border border-danger/40 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-danger transition-colors hover:bg-danger hover:text-white"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+        <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zM20 3h-9a2 2 0 0 0-2 2v4h2V5h9v14h-9v-4H9v4a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z" />
+      </svg>
+      Sair
+    </button>
+  )
+
   return (
     <>
       {/* Product selector modal */}
@@ -1042,10 +1158,210 @@ export default function PdvPage() {
           emPreparo={pedidosComanda.some((p) => p.status === 'preparando' || p.status === 'recebido')}
           processando={fechando}
           onCancel={() => setPagamentoAberto(false)}
-          onReceberEFechar={() => void finalizarConta(true)}
-          onFecharSemReceber={() => void finalizarConta(false)}
+          onReceber={() => void processarPagamento(false)}
+          onReceberEFechar={() => void processarPagamento(true)}
         />
       )}
+
+      {/* Chooser ao clicar numa mesa ocupada: ver pedidos ou novo pedido */}
+      {mesaAcao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-menuzia bg-white p-5 shadow-xl">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-[16px] font-bold text-text-main">{mesaAcao.nome}</h2>
+              <button
+                type="button"
+                onClick={() => setMesaAcao(null)}
+                className="rounded p-1 text-text-subtle transition-colors hover:bg-page hover:text-text-main"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                </svg>
+              </button>
+            </div>
+            <p className="mb-4 text-[12px] text-text-subtle">
+              {formatBRL(mesaAcao.total)} · {mesaAcao.qtdPedidos} pedido(s) em aberto
+            </p>
+            <div className="grid grid-cols-1 gap-2.5">
+              <button
+                type="button"
+                onClick={acaoVerPedidos}
+                className="flex items-center gap-3 rounded-menuzia border-2 border-primary bg-primary/5 px-4 py-3 text-left transition-colors hover:bg-primary/10"
+              >
+                <svg viewBox="0 0 24 24" className="h-7 w-7 flex-shrink-0 fill-primary">
+                  <path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h18v2H3v-2z" />
+                </svg>
+                <div>
+                  <p className="text-[14px] font-bold text-primary">Ver pedidos</p>
+                  <p className="text-[11px] text-text-subtle">Itens lançados · pagar e fechar a conta</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={acaoNovoPedido}
+                className="flex items-center gap-3 rounded-menuzia border-2 border-status-ready bg-status-ready/5 px-4 py-3 text-left transition-colors hover:bg-status-ready/10"
+              >
+                <svg viewBox="0 0 24 24" className="h-7 w-7 flex-shrink-0 fill-status-ready">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </svg>
+                <div>
+                  <p className="text-[14px] font-bold text-status-ready">Cadastrar novo pedido</p>
+                  <p className="text-[11px] text-text-subtle">Adicionar mais itens à mesa</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: pedidos lançados da mesa (ver pedidos) */}
+      {pedidosModalAberto && mesaSelecionada && (() => {
+        const naoCancelados = pedidosComanda.filter((p) => p.status !== 'cancelado')
+        const tudoPago = naoCancelados.length > 0 && naoCancelados.every((p) => p.pago)
+        const statusInfo: Record<string, { label: string; cls: string }> = {
+          recebido: { label: 'Recebido', cls: 'bg-status-pending/15 text-status-pending' },
+          preparando: { label: 'Preparando', cls: 'bg-status-preparing/15 text-status-preparing' },
+          pronto: { label: 'Pronto', cls: 'bg-status-ready/15 text-status-ready' },
+          em_rota: { label: 'Saiu', cls: 'bg-primary/15 text-primary' },
+          entregue: { label: 'Entregue', cls: 'bg-status-ready/15 text-status-ready' },
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pedidos da mesa</p>
+                  <h2 className="text-[15px] font-bold text-text-main">{mesaSelecionada.nome}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPedidosModalAberto(false)}
+                  className="rounded p-1 text-text-subtle transition-colors hover:bg-page hover:text-text-main"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+                {carregandoComanda ? (
+                  <p className="text-[12px] text-text-subtle/60">Carregando…</p>
+                ) : naoCancelados.length === 0 ? (
+                  <p className="py-8 text-center text-[13px] text-text-subtle">Nenhum pedido lançado ainda.</p>
+                ) : (
+                  naoCancelados.map((p) => {
+                    const st = statusInfo[p.status] ?? { label: p.status, cls: 'bg-page text-text-subtle' }
+                    return (
+                      <div key={p.id} className="rounded-menuzia border border-border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] font-bold text-text-main">Pedido #{p.numero}</span>
+                            <span className={['rounded-menuzia px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide', st.cls].join(' ')}>
+                              {st.label}
+                            </span>
+                            <span
+                              className={[
+                                'rounded-menuzia px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+                                p.pago ? 'bg-price-bg text-price-text' : 'bg-warn-bg text-warn',
+                              ].join(' ')}
+                            >
+                              {p.pago ? 'Pago' : 'A receber'}
+                            </span>
+                          </div>
+                          <span className="text-[13px] font-bold text-text-main">{formatBRL(p.total)}</span>
+                        </div>
+                        <ul className="mt-1.5 space-y-0.5">
+                          {p.itens.map((i) => (
+                            <li key={i.id} className="flex items-center justify-between gap-2 text-[12px]">
+                              <span className="truncate text-text-subtle">{i.quantidade}× {i.nome}</span>
+                              <span className="flex-shrink-0 text-text-main/80">{formatBRL(i.precoUnitario * i.quantidade)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <button
+                          type="button"
+                          onClick={() => void cancelarPedido(p.id)}
+                          className="mt-1.5 text-[11px] font-semibold text-danger hover:underline"
+                        >
+                          Cancelar pedido
+                        </button>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+                <span className="text-[13px] font-bold text-text-main">Total da conta</span>
+                <span className="text-[18px] font-extrabold text-text-main">{formatBRL(totalConta)}</span>
+              </div>
+
+              <div className="space-y-2 border-t border-border px-4 py-3">
+                <Button
+                  variant="secondary"
+                  className="w-full py-2.5"
+                  onClick={() => {
+                    setPedidosModalAberto(false)
+                    selecionarMesa(mesaSelecionada)
+                  }}
+                >
+                  + Adicionar itens
+                </Button>
+                {tudoPago ? (
+                  <Button
+                    variant="success"
+                    className="w-full py-2.5"
+                    disabled={fechando}
+                    onClick={() => void fecharContaPaga()}
+                  >
+                    {fechando ? 'Fechando…' : 'Fechar conta'}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    className="w-full py-2.5"
+                    disabled={naoCancelados.length === 0}
+                    onClick={() => {
+                      setPedidosModalAberto(false)
+                      setPagamentoAberto(true)
+                    }}
+                  >
+                    Receber pagamento
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Confirmação de saída do PDV */}
+      {sairConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xs rounded-menuzia bg-[#111827] p-5 text-center text-white shadow-xl">
+            <p className="text-[15px] font-bold">Tem certeza que quer sair do sistema?</p>
+            <p className="mt-1 text-[12px] text-white/60">Você voltará ao menu principal.</p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSairConfirm(false)}
+                className="flex-1 rounded-menuzia border border-white/20 py-2 text-[13px] font-semibold text-white/80 transition-colors hover:bg-white/10"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={sairDoPdv}
+                className="flex-1 rounded-menuzia bg-danger py-2 text-[13px] font-bold text-white transition-colors hover:brightness-110"
+              >
+                Sair
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <div className="flex h-full flex-col overflow-hidden bg-page">
         {painelMesas ? (
@@ -1065,6 +1381,7 @@ export default function PdvPage() {
                   </span>
                 ))}
                 {botaoTelaCheia}
+                {botaoSair}
               </div>
             </div>
 
@@ -1090,7 +1407,7 @@ export default function PdvPage() {
                   <button
                     key={mesa.id}
                     type="button"
-                    onClick={() => selecionarMesa(mesa)}
+                    onClick={() => clicarMesa(mesa)}
                     className={[
                       'flex aspect-square flex-col justify-between rounded-menuzia p-3 text-left text-white shadow-sm transition-all hover:brightness-105 active:scale-[0.97]',
                       cor,
@@ -1172,7 +1489,7 @@ export default function PdvPage() {
                     Mesas
                   </button>
                   <span className="text-[14px] font-bold text-text-main">{mesaSelecionada?.nome ?? 'Balcão'}</span>
-                  <div className="ml-auto">{botaoTelaCheia}</div>
+                  <div className="ml-auto flex items-center gap-2">{botaoTelaCheia}{botaoSair}</div>
                 </div>
             {/* Search + category chips */}
             <div className="border-b border-border bg-white px-3 py-2.5 space-y-2">
