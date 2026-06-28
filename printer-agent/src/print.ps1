@@ -20,6 +20,105 @@ if (-not $existe) {
 }
 if (-not $existe) { throw "Impressora '$PrinterName' nao encontrada no Windows." }
 
-for ($i = 0; $i -lt $Copies; $i++) {
-  Get-Content -Path $FilePath -Raw -Encoding UTF8 | Out-Printer -Name $PrinterName
+# Método legado (à prova de falhas): manda o texto puro pelo spooler. É o que sempre
+# funcionou; fica como fallback caso o render gráfico abaixo dê problema em alguma
+# impressora. Assim a impressão NUNCA para — no pior caso volta ao visual antigo.
+function Invoke-ImpressaoTexto {
+  for ($i = 0; $i -lt $Copies; $i++) {
+    Get-Content -Path $FilePath -Raw -Encoding UTF8 | Out-Printer -Name $PrinterName
+  }
+}
+
+# Render gráfico: imprime o cupom com fonte MONOESPAÇADA NEGRITO e pixels sólidos
+# (sem anti-aliasing), deixando as letras grossas e escuras — em vez da fonte fina
+# padrão do Out-Printer. A largura da fonte é auto-ajustada pra linha mais larga
+# caber no papel, e a altura do papel é igual ao conteúdo (não desperdiça bobina).
+function Invoke-ImpressaoGrafica {
+  Add-Type -AssemblyName System.Drawing
+
+  $texto = Get-Content -Path $FilePath -Raw -Encoding UTF8
+  $linhas = $texto -replace "`r", '' -split "`n"
+  # Tira linhas em branco no fim pra não sobrar bobina.
+  while ($linhas.Length -gt 0 -and $linhas[-1].Trim().Length -eq 0) {
+    $linhas = $linhas[0..($linhas.Length - 2)]
+  }
+  if ($linhas.Length -eq 0) { return }
+
+  $maxLen = 1
+  foreach ($l in $linhas) { if ($l.Length -gt $maxLen) { $maxLen = $l.Length } }
+
+  $doc = New-Object System.Drawing.Printing.PrintDocument
+  $doc.PrinterSettings.PrinterName = $PrinterName
+  $doc.PrinterSettings.Copies = [int]$Copies
+  $doc.DocumentName = 'Menuzia Recibo'
+
+  # Graphics na resolução real da impressora (unidade 1/100 de polegada, igual a PaperSize),
+  # pra medir o texto e dimensionar fonte/papel com precisão.
+  $mg = $doc.PrinterSettings.CreateMeasurementGraphics()
+
+  $paper = $doc.DefaultPageSettings.PaperSize
+  # Largura útil: área imprimível quando disponível; senão, a largura do papel.
+  $larguraUtil = $doc.DefaultPageSettings.PrintableArea.Width
+  if ($larguraUtil -le 0) { $larguraUtil = $paper.Width }
+  $margemLat = 6   # 0,06" de respiro lateral
+  $larguraTexto = $larguraUtil - (2 * $margemLat)
+  if ($larguraTexto -le 0) { $larguraTexto = $larguraUtil }
+
+  # Maior fonte negrito cuja linha mais larga ainda cabe no papel.
+  $amostra = ('M' * $maxLen)
+  $fmt = [System.Drawing.StringFormat]::GenericTypographic
+  $font = $null
+  for ($sz = 13.0; $sz -ge 6.0; $sz -= 0.5) {
+    $f = New-Object System.Drawing.Font('Consolas', $sz, [System.Drawing.FontStyle]::Bold)
+    $w = $mg.MeasureString($amostra, $f, [int]$larguraUtil, $fmt).Width
+    if ($w -le $larguraTexto) { $font = $f; break }
+    $f.Dispose()
+  }
+  if ($null -eq $font) { $font = New-Object System.Drawing.Font('Consolas', 6.0, [System.Drawing.FontStyle]::Bold) }
+
+  $alturaLinha = [double]$font.GetHeight($mg)
+  $margemTopo = 4.0
+  $alturaTotal = [int]([math]::Ceiling($margemTopo + ($linhas.Length * $alturaLinha) + 8))
+
+  # Papel sob medida: mesma largura, altura = conteúdo. Evita avançar a bobina até o
+  # fim de uma página "Carta". Margens zeradas (controlamos o respiro na mão).
+  $doc.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize('ReciboMenuzia', [int]$paper.Width, $alturaTotal)
+  $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
+  $doc.OriginAtMargins = $false
+
+  $script:linhasImpr = $linhas
+  $script:fontImpr = $font
+  $script:alturaLinhaImpr = $alturaLinha
+  $script:margemLatImpr = $margemLat
+  $script:margemTopoImpr = $margemTopo
+
+  $handler = {
+    param($s, $e)
+    $g = $e.Graphics
+    # Pixels sólidos, sem suavização: letras escuras e grossas no térmico.
+    $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::SingleBitPerPixelGridFit
+    $brush = [System.Drawing.Brushes]::Black
+    $y = [double]$script:margemTopoImpr
+    foreach ($linha in $script:linhasImpr) {
+      $g.DrawString($linha, $script:fontImpr, $brush, [single]$script:margemLatImpr, [single]$y)
+      $y += $script:alturaLinhaImpr
+    }
+    $e.HasMorePages = $false
+  }
+
+  $doc.add_PrintPage($handler)
+  try {
+    $doc.Print()
+  } finally {
+    $mg.Dispose()
+    $font.Dispose()
+    $doc.Dispose()
+  }
+}
+
+try {
+  Invoke-ImpressaoGrafica
+} catch {
+  # Qualquer problema no render gráfico: cai pro método de texto puro que sempre funcionou.
+  Invoke-ImpressaoTexto
 }
