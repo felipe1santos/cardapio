@@ -6,7 +6,8 @@ import { convidarLojistaAction, removerConviteAction, revogarAcessoAction, sairA
 
 function formatarData(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  // Servidor roda em UTC (Coolify); fixa o fuso de São Paulo pra não mostrar +3h.
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })
 }
 
 const inputClass =
