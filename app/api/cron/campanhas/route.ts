@@ -29,10 +29,12 @@ function randomDelay() {
 
 export async function POST(request: Request) {
   try {
+    // Fail-closed: sem CRON_SECRET configurado OU header errado → recusa. Evita que o
+    // endpoint fique aberto (disparo de WhatsApp em massa) se a variável não estiver setada.
     const secret = process.env.CRON_SECRET
-    if (secret) {
-      const header = request.headers.get('x-cron-secret')
-      if (header !== secret) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    const header = request.headers.get('x-cron-secret')
+    if (!secret || header !== secret) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const admin = getAdminSupabase()

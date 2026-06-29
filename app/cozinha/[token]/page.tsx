@@ -983,6 +983,21 @@ export default function CozinhaPortalPage() {
     })
   }, [data])
 
+  // Retoma o preparo em andamento (modo produção): se este cozinheiro tem um pedido
+  // 'preparando' e não há modal aberto (ex.: recarregou a página/tablet), reabre o
+  // PrepModal — senão o pedido ficaria invisível, sem como concluir/devolver.
+  // (O PrepModal só fecha via Concluir/Devolver, então isto não cria loop.)
+  useEffect(() => {
+    if (!data || data.estacao.modo !== 'producao' || !cozinheiro || confirmarPedido) return
+    setModalPedido((prev) => {
+      if (prev) return prev
+      const meu = data.pedidos.find(
+        (p) => p.status === 'preparando' && (!p.preparandoPor || p.preparandoPor === cozinheiro),
+      )
+      return meu ?? null
+    })
+  }, [data, cozinheiro, confirmarPedido])
+
   // ── Pegar action (producao / completa) ───────────────────────────────────
   async function pegarPedido(p: Pedido) {
     if (!cozinheiro) {
