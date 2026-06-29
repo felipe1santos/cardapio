@@ -1019,7 +1019,7 @@ export default function StorefrontPage() {
         {tab === 'home' && (
           <>
             {/* Cover banner */}
-            <div className="h-40 w-full overflow-hidden sm:h-56 lg:mx-8 lg:mt-6 lg:h-72 lg:rounded-md">
+            <div className="relative z-0 h-28 w-full overflow-hidden sm:h-40 lg:mx-8 lg:mt-6 lg:h-52 lg:rounded-md">
               {restaurante.bannerUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={restaurante.bannerUrl} alt={storeName} className="h-full w-full object-cover" />
@@ -1031,7 +1031,7 @@ export default function StorefrontPage() {
             </div>
 
             {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta) */}
-            <div className="px-4 lg:px-8">
+            <div className="relative z-10 px-4 lg:px-8">
               <div className="-mt-8 flex items-center gap-3 rounded-md border border-border bg-white px-3 py-3 shadow-md sm:-mt-10 sm:gap-4 sm:px-4 sm:py-3.5">
                 <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-20 sm:w-20 lg:h-[88px] lg:w-[88px]">
                   {restaurante.logoUrl ? (
@@ -1075,9 +1075,9 @@ export default function StorefrontPage() {
               </div>
             </div>
 
-            {/* Search (collapsible) + delivery banner */}
-            <div className="mx-4 mt-4 space-y-3 lg:mx-8">
-              {searchOpen && (
+            {/* Search (colapsável) — só ocupa espaço quando aberta */}
+            {searchOpen && (
+              <div className="mx-4 mt-3 lg:mx-8">
                 <div className="flex items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm">
                   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
                     <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
@@ -1091,11 +1091,11 @@ export default function StorefrontPage() {
                   />
                   <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Category nav */}
-            <div className="sticky top-0 z-10 mt-4 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-3 [scrollbar-width:none] lg:top-16 lg:mx-8">
+            <div className="sticky top-0 z-10 mt-2 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-2 [scrollbar-width:none] lg:top-16 lg:mx-8">
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
@@ -1117,11 +1117,11 @@ export default function StorefrontPage() {
 
             {/* Destaques */}
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
-              <div className="px-4 pb-1 pt-4 lg:px-8">
-                <h2 className="mb-3 text-[17px] font-bold tracking-tight">Destaques</h2>
-                <div className="flex items-start gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
+              <div className="px-4 pb-1 pt-3 lg:px-8">
+                <h2 className="mb-2.5 text-[17px] font-bold tracking-tight">Destaques</h2>
+                <div className="flex items-start gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible xl:grid-cols-5">
                   {destaques.map((item) => (
-                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[150px] flex-shrink-0 lg:w-auto" compact />
+                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[120px] flex-shrink-0 lg:w-auto" compact />
                   ))}
                 </div>
               </div>
@@ -1481,7 +1481,7 @@ export default function StorefrontPage() {
         )}
 
         {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
-        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
+        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 transform-gpu border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] [backface-visibility:hidden] [will-change:transform] lg:hidden">
           <div className="flex">
             {([
               { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0l8.954 8.955M4.5 9.75v10.125a.75.75 0 00.75.75H9a.75.75 0 00.75-.75v-4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v4.5c0 .414.336.75.75.75h3.75a.75.75 0 00.75-.75V9.75" /></svg> },
