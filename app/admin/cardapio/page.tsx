@@ -478,28 +478,44 @@ function GrupoItemCard({
         )}
         {grupo.complementos.map((comp) => (
           <div key={comp.id} className="flex items-center gap-2 border-b border-border py-1.5 last:border-none">
-            <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-border bg-page">
-              {comp.imagemUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={comp.imagemUrl} alt={comp.nome} className="h-full w-full object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
+            <div className="relative h-9 w-9 flex-shrink-0">
+              <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-border bg-page block">
+                {comp.imagemUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={comp.imagemUrl} alt={comp.nome} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    try {
+                      const url = await enviarImagemItem(supabase, restauranteId, file)
+                      await atualizarComplemento(supabase, comp.id, { nome: comp.nome, preco: comp.preco, imagemUrl: url })
+                      await onRefresh()
+                    } catch { /* silencioso */ }
+                  }}
+                />
+              </label>
+              {comp.imagemUrl && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await atualizarComplemento(supabase, comp.id, { nome: comp.nome, preco: comp.preco, imagemUrl: null })
+                      await onRefresh()
+                    } catch { /* silencioso */ }
+                  }}
+                  className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold leading-none text-white shadow-sm hover:bg-[#DC2626]"
+                  title="Remover foto"
+                >
+                  ×
+                </button>
               )}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  try {
-                    const url = await enviarImagemItem(supabase, restauranteId, file)
-                    await atualizarComplemento(supabase, comp.id, { nome: comp.nome, preco: comp.preco, imagemUrl: url })
-                    await onRefresh()
-                  } catch { /* silencioso */ }
-                }}
-              />
-            </label>
+            </div>
             <span className="flex-1 text-[13px] font-medium">{comp.nome}</span>
             {comp.preco > 0 ? (
               <span className="text-[12px] font-semibold text-price-text">
@@ -800,7 +816,7 @@ function PresetGroupCard({
     const val = parseFloat(item.preco.replace(',', '.'))
     const preco = Number.isFinite(val) && val >= 0 ? val : 0
     try {
-      await atualizarItemPreset(supabase, id, item.nome.trim(), preco)
+      await atualizarItemPreset(supabase, id, item.nome.trim(), preco, item.imagemUrl)
       setItems((prev) => prev.map((i) => (i.id === id ? { ...i, nome: item.nome.trim(), preco: String(preco), editing: false } : i)))
     } catch { /* silencioso */ }
   }
@@ -950,30 +966,48 @@ function PresetGroupCard({
             </div>
           ) : (
             <div key={item.id} className="mb-1.5 flex items-center gap-2 rounded-menuzia border border-purple-100 bg-purple-50/60 px-3 py-2">
-              <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-purple-200 bg-white">
-                {item.imagemUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-cover" />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
+              <div className="relative h-9 w-9 flex-shrink-0">
+                <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-purple-200 bg-white block">
+                  {item.imagemUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      const val = parseFloat(item.preco.replace(',', '.'))
+                      const preco = Number.isFinite(val) && val >= 0 ? val : 0
+                      try {
+                        const url = await enviarImagemItem(supabase, restauranteId, file)
+                        await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, url)
+                        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, imagemUrl: url } : i)))
+                      } catch { /* silencioso */ }
+                    }}
+                  />
+                </label>
+                {item.imagemUrl && (
+                  <button
+                    onClick={async () => {
+                      const val = parseFloat(item.preco.replace(',', '.'))
+                      const preco = Number.isFinite(val) && val >= 0 ? val : 0
+                      try {
+                        await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, null)
+                        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, imagemUrl: null } : i)))
+                      } catch { /* silencioso */ }
+                    }}
+                    className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold leading-none text-white shadow-sm hover:bg-[#DC2626]"
+                    title="Remover foto"
+                  >
+                    ×
+                  </button>
                 )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    const val = parseFloat(item.preco.replace(',', '.'))
-                    const preco = Number.isFinite(val) && val >= 0 ? val : 0
-                    try {
-                      const url = await enviarImagemItem(supabase, restauranteId, file)
-                      await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, url)
-                      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, imagemUrl: url } : i)))
-                    } catch { /* silencioso */ }
-                  }}
-                />
-              </label>
+              </div>
               <span className="flex-1 text-[13px] font-medium text-text-main">{item.nome}</span>
               {Number(item.preco) > 0 ? (
                 <span className="tabular-nums text-[12px] font-semibold text-purple-700">+ R$ {Number(item.preco).toFixed(2).replace('.', ',')}</span>
