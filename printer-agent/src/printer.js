@@ -35,12 +35,13 @@ async function listarImpressorasWindows() {
 
 /** Envia um texto pra impressora do Windows. `cols` (nº de colunas do recibo) dimensiona
  * a fonte pra preencher o papel — menos colunas = fonte maior. */
-async function imprimirTexto(nomeImpressora, texto, copias = 1, cols) {
+async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath) {
   const tmpFile = path.join(os.tmpdir(), `menuzia-recibo-${Date.now()}.txt`)
   fs.writeFileSync(tmpFile, texto, 'utf-8')
   try {
     const args = ['-File', PRINT_SCRIPT, '-FilePath', tmpFile, '-PrinterName', nomeImpressora, '-Copies', String(copias)]
     if (cols && cols > 0) args.push('-Cols', String(cols))
+    if (logoPath) args.push('-LogoPath', logoPath)
     await runPowershell(args)
   } finally {
     fs.unlink(tmpFile, () => {})

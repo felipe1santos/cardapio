@@ -766,70 +766,139 @@ function ImpressoraModal({
   )
 }
 
-// Pedido fictício só pra ilustrar o preview — não vem do banco.
-const PEDIDO_PREVIEW = {
-  numero: 1234,
-  tipo: 'Entrega',
-  cliente: 'João Silva',
-  endereco: 'Rua das Flores, 123 - Centro',
-  pagamento: 'Pix',
-  itens: [
-    { qtd: 2, nome: 'Pizza Grande - Calabresa', precoUnit: 45, complementos: [{ nome: 'Borda: Catupiry', preco: 8 }] },
-    { qtd: 1, nome: 'Coca-Cola 2L', precoUnit: 12, complementos: [] },
-  ],
-  taxaEntrega: 6,
+// ─── Preview do recibo: PORT FIEL do printer-agent/src/recibo.js ─────────────
+// Estes helpers e a função montarReciboTexto reproduzem EXATAMENTE o que o agente
+// imprime (mesmas seções, mesma largura, mesma quebra de linha), pra a prévia bater
+// 1:1 com a impressão real. Se mudar o recibo.js do agente, mude aqui também.
+
+function brlR(v: number): string { return `R$ ${v.toFixed(2).replace('.', ',')}` }
+function colunasR(largura: number, esquerda: string, direita: string): string {
+  const espaco = Math.max(1, largura - esquerda.length - direita.length)
+  return esquerda + ' '.repeat(espaco) + direita
+}
+function centroR(largura: number, texto: string): string {
+  const t = texto.slice(0, largura)
+  const pad = Math.max(0, Math.floor((largura - t.length) / 2))
+  return ' '.repeat(pad) + t
+}
+function secaoR(largura: number, titulo: string): string {
+  const t = ` ${titulo} `
+  if (t.length >= largura) return centroR(largura, titulo)
+  const total = largura - t.length
+  const left = Math.floor(total / 2)
+  const right = total - left
+  return '='.repeat(left) + t + '='.repeat(right)
+}
+function quebrarR(largura: number, texto: string): string[] {
+  const palavras = String(texto).split(/\s+/).filter(Boolean)
+  const linhas: string[] = []
+  let atual = ''
+  for (const p of palavras) {
+    if (!atual) atual = p
+    else if ((atual + ' ' + p).length <= largura) atual += ' ' + p
+    else { linhas.push(atual); atual = p }
+  }
+  if (atual) linhas.push(atual)
+  return linhas.length ? linhas : ['']
+}
+function itemLinhaR(largura: number, nome: string, valor: string): string[] {
+  const maxNome = Math.max(1, largura - valor.length - 1)
+  const nomeLinhas = quebrarR(maxNome, nome)
+  return nomeLinhas.map((ln, i) => (i === nomeLinhas.length - 1 ? colunasR(largura, ln, valor) : ln))
 }
 
-function gerarPreviewRecibo(config: ConfigImpressao, nomeLoja: string, logoUrl: string | null): string[] {
-  const linhas: string[] = []
-  if (config.imprimirLogo && !logoUrl) linhas.push(`[ LOGO — ${nomeLoja || 'SUA LOJA'} ]`)
-  linhas.push(`PEDIDO #${PEDIDO_PREVIEW.numero}  ·  ${PEDIDO_PREVIEW.tipo.toUpperCase()}`)
-  linhas.push('--------------------------------')
-  linhas.push(`Cliente: ${PEDIDO_PREVIEW.cliente}`)
-  linhas.push(`End.: ${PEDIDO_PREVIEW.endereco}`)
-  linhas.push('--------------------------------')
+/** Tamanho da fonte (config da impressora) -> nº de colunas — espelha o agente (main.js). */
+function colsParaFontePreview(tamanho: string | undefined, largura: number): number {
+  const t = String(tamanho || '').toLowerCase()
+  if (t.includes('grand')) return Math.min(largura, 30)
+  if (t.includes('med') || t.includes('norm')) return Math.min(largura, 38)
+  return largura
+}
 
-  let subtotal = 0
-  for (const item of PEDIDO_PREVIEW.itens) {
-    const nomeItem = config.mostrarNumeroItem ? `${item.qtd}x ${item.nome}` : item.nome
-    const totalItem = item.precoUnit * item.qtd
-    subtotal += totalItem
-    linhas.push(`${config.fonteMaiorProducao ? nomeItem.toUpperCase() : nomeItem}  R$ ${totalItem.toFixed(2).replace('.', ',')}`)
+interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
+interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; enderecoRua: string; enderecoNumero: string; enderecoBairro: string; formaPagamento: string; trocoPara: number | null; observacao: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
+
+// Pedido fictício só pra ilustrar — não vem do banco.
+const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
+  numero: 1234,
+  tipo: 'entrega',
+  clienteNome: 'João Silva',
+  enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoBairro: 'Centro',
+  formaPagamento: 'pix', trocoPara: null, observacao: '',
+  subtotal: 102, taxaEntrega: 6, total: 108,
+  itens: [
+    { quantidade: 2, nome: 'Pizza Grande', precoUnitario: 45, tamanhoNome: 'Grande', saborNome: 'Calabresa', bordaNome: 'Catupiry', massaNome: '', complementos: [], observacao: '' },
+    { quantidade: 1, nome: 'Coca-Cola 2L', precoUnitario: 12, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Bem gelada', preco: 0 }], observacao: '' },
+  ],
+}
+
+/** PORT FIEL de montarRecibo do agente. `temLogoImagem` = a logo sai como imagem (não repete o nome em texto). */
+function montarReciboTexto(pedido: PreviewPedido, config: ConfigImpressao, largura: number, lojaNome: string, temLogoImagem: boolean): string {
+  const out: string[] = []
+  if (config.imprimirLogo && lojaNome && !temLogoImagem) out.push(centroR(largura, lojaNome.toUpperCase()))
+
+  out.push(secaoR(largura, `PEDIDO #${pedido.numero}`))
+  out.push(pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA')
+
+  out.push(secaoR(largura, 'ITENS'))
+  for (const item of pedido.itens) {
+    const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
+    const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
+    let nomeComVariacao = variacao ? `${baseNome} (${variacao})` : baseNome
+    if (config.fonteMaiorProducao) nomeComVariacao = nomeComVariacao.toUpperCase()
+    for (const ln of itemLinhaR(largura, nomeComVariacao, brlR(item.precoUnitario * item.quantidade))) out.push(ln)
+    if (item.bordaNome) out.push(`  + Borda: ${item.bordaNome}`)
+    if (item.massaNome) out.push(`  + Massa: ${item.massaNome}`)
     if (config.mostrarNomeComplementos) {
       for (const comp of item.complementos) {
-        const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.qtd : 1)
-        const precoTxt = config.mostrarPrecoComplementos ? ` (+R$ ${precoComp.toFixed(2).replace('.', ',')})` : ''
-        linhas.push(`   + ${comp.nome}${precoTxt}`)
+        const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
+        const precoTxt = config.mostrarPrecoComplementos && precoComp > 0 ? ` (+${brlR(precoComp)})` : ''
+        out.push(`  + ${comp.nome}${precoTxt}`)
       }
     }
+    if (item.observacao) out.push(`  Obs: ${item.observacao}`)
   }
 
-  linhas.push('--------------------------------')
-  linhas.push(`Subtotal              R$ ${subtotal.toFixed(2).replace('.', ',')}`)
-  linhas.push(`Taxa de entrega       R$ ${PEDIDO_PREVIEW.taxaEntrega.toFixed(2).replace('.', ',')}`)
-  linhas.push(`TOTAL                 R$ ${(subtotal + PEDIDO_PREVIEW.taxaEntrega).toFixed(2).replace('.', ',')}`)
-  linhas.push('--------------------------------')
-  linhas.push(`Pagamento: ${PEDIDO_PREVIEW.pagamento.toUpperCase()}`)
-  if (config.imprimirQrcodeAvaliacao) linhas.push('', '[ QR CODE — avalie seu pedido ] (em breve)')
-  return linhas
+  out.push(secaoR(largura, 'PAGAMENTO'))
+  out.push(colunasR(largura, 'Subtotal', brlR(pedido.subtotal)))
+  if (pedido.tipo === 'entrega') out.push(colunasR(largura, 'Taxa de entrega', brlR(pedido.taxaEntrega)))
+  out.push(colunasR(largura, 'TOTAL', brlR(pedido.total)))
+  out.push(`Pagamento: ${pedido.formaPagamento.toUpperCase()}`)
+  if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) out.push(`Troco para: ${brlR(pedido.trocoPara)}`)
+  if (pedido.observacao) out.push(`Obs. do pedido: ${pedido.observacao}`)
+
+  if (pedido.clienteNome || pedido.tipo === 'entrega') {
+    out.push(secaoR(largura, 'CLIENTE'))
+    if (pedido.clienteNome) out.push(`Cliente: ${pedido.clienteNome}`)
+    if (pedido.tipo === 'entrega') {
+      for (const ln of quebrarR(largura, `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero} - ${pedido.enderecoBairro}`)) out.push(ln)
+    }
+  }
+  return out.join('\n')
 }
 
-function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao; nomeLoja: string; logoUrl: string | null }) {
-  const linhas = useMemo(() => gerarPreviewRecibo(config, nomeLoja, logoUrl), [config, nomeLoja, logoUrl])
+function ReciboPreview({ config, nomeLoja, logoUrl, cols }: { config: ConfigImpressao; nomeLoja: string; logoUrl: string | null; cols: number }) {
+  const temLogoImagem = Boolean(config.imprimirLogo && logoUrl)
+  const texto = useMemo(
+    () => montarReciboTexto(PEDIDO_PREVIEW_RECIBO, config, cols, nomeLoja, temLogoImagem),
+    [config, nomeLoja, cols, temLogoImagem],
+  )
   return (
     <div className="sticky top-0">
       <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-        Prévia ilustrativa — atualiza ao vivo conforme você muda as configurações. O agente desktop usa essas mesmas regras de verdade (QR code e comprovante de cancelamento ainda não saem na impressão em texto).
+        Prévia <b>exata</b> do que o agente imprime — mesma largura ({cols} colunas) e mesmas seções. Atualiza ao vivo. (QR code e comprovante de cancelamento ainda não saem na impressão.)
       </p>
       <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
-        {config.imprimirLogo && logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="Logo da loja" className="mx-auto mb-2 h-12 w-12 rounded-menuzia border border-border bg-white object-contain" />
-        )}
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-white p-3 font-mono text-[11px] leading-relaxed text-text-main shadow-sm">
-          {linhas.join('\n')}
-        </pre>
+        <div className="mx-auto w-fit rounded bg-white px-3 py-3 shadow-sm">
+          {temLogoImagem && (
+            // Logo no preview = espelho do print.ps1: imagem real, ~50% da largura do
+            // papel, centralizada, mantendo o aspecto original (altura automática).
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl!} alt="Logo da loja" className="mx-auto mb-2 block h-auto w-1/2 object-contain" />
+          )}
+          <pre className="whitespace-pre font-mono text-[11px] font-bold leading-snug text-text-main">{texto}</pre>
+        </div>
       </div>
       {config.imprimirComprovanteCancelamento && (
         <p className="mt-2 text-[11px] text-text-subtle">+ pedidos cancelados também geram um comprovante extra (em breve).</p>
@@ -962,7 +1031,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.13/AssistenteImpressaoMenuzia-Setup-0.1.13.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.14/AssistenteImpressaoMenuzia-Setup-0.1.14.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)
@@ -1067,8 +1136,8 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               <ToggleRow label="Usar fonte maior na via de produção" checked={config.fonteMaiorProducao} onChange={(v) => patch({ fonteMaiorProducao: v })} />
               <ToggleRow label="Multiplicar opções pela quantidade do produto" checked={config.multiplicarOpcoesQtd} onChange={(v) => patch({ multiplicarOpcoesQtd: v })} />
               <ToggleRow label="Imprimir logo da loja na nota" checked={config.imprimirLogo} onChange={(v) => patch({ imprimirLogo: v })} />
-              <ToggleRow label="Imprimir comprovante de cancelamento" checked={config.imprimirComprovanteCancelamento} onChange={(v) => patch({ imprimirComprovanteCancelamento: v })} />
-              <ToggleRow label="Imprimir QR Code de avaliação do pedido" hint="Entrega, retirada e no local. Nem toda impressora suporta essa função." checked={config.imprimirQrcodeAvaliacao} onChange={(v) => patch({ imprimirQrcodeAvaliacao: v })} />
+              <ToggleRow label="Imprimir comprovante de cancelamento (em breve)" hint="Ainda não sai na impressão — em desenvolvimento." checked={false} disabled onChange={() => {}} />
+              <ToggleRow label="Imprimir QR Code de avaliação do pedido (em breve)" hint="Ainda não sai na impressão — em desenvolvimento. Nem toda impressora suporta essa função." checked={false} disabled onChange={() => {}} />
             </div>
           </Card>
 
@@ -1076,7 +1145,20 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
         </div>
 
         <Card className="sticky top-0">
-          <ReciboPreview config={config} nomeLoja={nomeLoja} logoUrl={logoUrl} />
+          <ReciboPreview
+            config={config}
+            nomeLoja={nomeLoja}
+            logoUrl={logoUrl}
+            cols={(() => {
+              // Espelha a escolha do agente: ele imprime com a impressora PAREADA (a que
+              // reportou estar conectada). Se nenhuma conectada, cai pra ativa / primeira.
+              const imp =
+                impressoras.find((i) => i.id === impressoraConectadaId) ??
+                impressoras.find((i) => i.ativa) ??
+                impressoras[0]
+              return colsParaFontePreview(imp?.tamanhoFonte, imp?.largura ?? 48)
+            })()}
+          />
         </Card>
         </div>
       </div>

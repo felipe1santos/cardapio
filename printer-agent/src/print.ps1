@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)][string]$FilePath,
   [Parameter(Mandatory = $true)][string]$PrinterName,
   [int]$Copies = 1,
-  [int]$Cols = 0
+  [int]$Cols = 0,
+  [string]$LogoPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -90,9 +91,22 @@ function Invoke-ImpressaoGrafica {
   }
   if ($null -eq $font) { $font = New-Object System.Drawing.Font('Consolas', 5.0, [System.Drawing.FontStyle]::Bold) }
 
+  # Logo (imagem) opcional no topo, centralizada e pequena (~50% da largura útil).
+  $logoImg = $null; $logoW = 0.0; $logoH = 0.0
+  if ($LogoPath -and (Test-Path $LogoPath)) {
+    try {
+      $logoImg = [System.Drawing.Image]::FromFile($LogoPath)
+      $logoW = [Math]::Min($larguraUtil * 0.5, [double]$logoImg.Width)
+      $logoH = $logoW * ([double]$logoImg.Height / [double]$logoImg.Width)
+      $maxH = 130.0  # ~1,3" de altura máxima
+      if ($logoH -gt $maxH) { $logoW = $logoW * ($maxH / $logoH); $logoH = $maxH }
+    } catch { $logoImg = $null; $logoW = 0.0; $logoH = 0.0 }
+  }
+  $logoGap = if ($logoImg) { 8.0 } else { 0.0 }
+
   $alturaLinha = [double]$font.GetHeight($mg)
   $margemTopo = 4.0
-  $alturaTotal = [int]([math]::Ceiling($margemTopo + ($linhas.Length * $alturaLinha) + 8))
+  $alturaTotal = [int]([math]::Ceiling($margemTopo + $logoH + $logoGap + ($linhas.Length * $alturaLinha) + 8))
 
   # Papel sob medida: mesma largura, altura = conteúdo. Evita avançar a bobina até o
   # fim de uma página "Carta". Margens zeradas (controlamos o respiro na mão).
@@ -105,6 +119,11 @@ function Invoke-ImpressaoGrafica {
   $script:alturaLinhaImpr = $alturaLinha
   $script:margemLatImpr = $margemLat
   $script:margemTopoImpr = $margemTopo
+  $script:logoImg = $logoImg
+  $script:logoW = $logoW
+  $script:logoH = $logoH
+  $script:logoGap = $logoGap
+  $script:paperW = [int]$paper.Width
 
   $handler = {
     param($s, $e)
@@ -113,6 +132,12 @@ function Invoke-ImpressaoGrafica {
     $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::SingleBitPerPixelGridFit
     $brush = [System.Drawing.Brushes]::Black
     $y = [double]$script:margemTopoImpr
+    if ($script:logoImg) {
+      $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+      $lx = ($script:paperW - $script:logoW) / 2.0
+      $g.DrawImage($script:logoImg, [single]$lx, [single]$y, [single]$script:logoW, [single]$script:logoH)
+      $y += $script:logoH + $script:logoGap
+    }
     foreach ($linha in $script:linhasImpr) {
       $g.DrawString($linha, $script:fontImpr, $brush, [single]$script:margemLatImpr, [single]$y)
       $y += $script:alturaLinhaImpr
@@ -124,6 +149,7 @@ function Invoke-ImpressaoGrafica {
   try {
     $doc.Print()
   } finally {
+    if ($logoImg) { $logoImg.Dispose() }
     $mg.Dispose()
     $tmpBmp.Dispose()
     $font.Dispose()

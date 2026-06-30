@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarConfigImpressao, buscarNomeRestaurante, listarImpressoras, listarPedidosParaImprimir, registrarHeartbeatAgente, resolverRestauranteIdPorToken } from '@/lib/queries/impressao'
+import { buscarConfigImpressao, buscarLojaImpressao, listarImpressoras, listarPedidosParaImprimir, registrarHeartbeatAgente, resolverRestauranteIdPorToken } from '@/lib/queries/impressao'
 import { lerAgenteToken } from '@/lib/agente-token'
 
 /**
@@ -20,12 +20,12 @@ export async function GET(request: Request) {
   // "conectada". Best-effort — não derruba a resposta dos pedidos se falhar.
   registrarHeartbeatAgente(admin, restauranteId, request.headers.get('x-impressora-id')).catch(() => {})
 
-  const [config, impressoras, pedidos, lojaNome] = await Promise.all([
+  const [config, impressoras, pedidos, loja] = await Promise.all([
     buscarConfigImpressao(admin, restauranteId),
     listarImpressoras(admin, restauranteId),
     listarPedidosParaImprimir(admin, restauranteId),
-    buscarNomeRestaurante(admin, restauranteId),
+    buscarLojaImpressao(admin, restauranteId),
   ])
 
-  return NextResponse.json({ config, impressoras, pedidos, loja: { nome: lojaNome } })
+  return NextResponse.json({ config, impressoras, pedidos, loja })
 }

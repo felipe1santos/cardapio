@@ -50,13 +50,14 @@ function itemLinha(largura, nome, valor) {
   )
 }
 
-/** Monta o recibo em texto simples, respeitando as configurações de impressão da loja. */
-function montarRecibo(pedido, config, largura, lojaNome = '') {
+/** Monta o recibo em texto simples, respeitando as configurações de impressão da loja.
+ * `temLogoImagem` = a logo será desenhada como IMAGEM (pelo print.ps1); nesse caso não
+ * repetimos o nome da loja como cabeçalho em texto. */
+function montarRecibo(pedido, config, largura, lojaNome = '', temLogoImagem = false) {
   const out = []
 
-  // Logo: a impressão é em texto puro (não imprime imagem), então usamos o nome da loja
-  // como cabeçalho — equivalente ao "[ LOGO ]" mostrado na prévia do painel.
-  if (config.imprimirLogo && lojaNome) {
+  // Sem logo-imagem disponível, usamos o nome da loja como cabeçalho (fallback texto).
+  if (config.imprimirLogo && lojaNome && !temLogoImagem) {
     out.push(centro(largura, lojaNome.toUpperCase()))
   }
 

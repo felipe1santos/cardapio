@@ -332,3 +332,10 @@ export async function buscarNomeRestaurante(admin: SupabaseClient, restauranteId
   if (error) throw error
   return (data?.nome as string) ?? ''
 }
+
+/** Nome + logo da loja, para o cabeçalho do recibo impresso pelo agente. */
+export async function buscarLojaImpressao(admin: SupabaseClient, restauranteId: string): Promise<{ nome: string; logoUrl: string | null }> {
+  const { data, error } = await admin.from('restaurantes').select('nome, logo_url').eq('id', restauranteId).maybeSingle()
+  if (error) throw error
+  return { nome: (data?.nome as string) ?? '', logoUrl: (data?.logo_url as string | null) ?? null }
+}

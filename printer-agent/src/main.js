@@ -1,8 +1,26 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
+const fs = require('fs')
+const os = require('os')
 const { carregarConfig, salvarConfig } = require('./store')
 const { listarImpressorasWindows, imprimirTexto } = require('./printer')
 const { montarRecibo } = require('./recibo')
+
+/** Baixa a logo da loja pra um arquivo temporário (pra desenhar como imagem no recibo).
+ * Retorna o caminho, ou null se falhar (o recibo segue sem imagem). */
+async function baixarLogo(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const buf = Buffer.from(await res.arrayBuffer())
+    const ext = (String(url).split('?')[0].split('.').pop() || 'png').slice(0, 4).replace(/[^a-z0-9]/gi, '') || 'png'
+    const file = path.join(os.tmpdir(), `menuzia-logo-${Date.now()}.${ext}`)
+    fs.writeFileSync(file, buf)
+    return file
+  } catch {
+    return null
+  }
+}
 
 // URL fixa do Menuzia — a mesma para todas as lojas. A loja é identificada pelo token
 // de pareamento, não pela URL. Só mude isto se o domínio do sistema mudar.
@@ -98,14 +116,23 @@ async function cicloDePolling() {
     const cols = colsParaFonte(impressoraCfg?.tamanhoFonte, impressoraCfg?.largura ?? 48)
     const copias = impressoraCfg?.copias ?? 1
 
-    for (const pedido of pedidos) {
-      const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome)
-      await imprimirTexto(config.impressoraWindows, recibo, copias, cols)
-      await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
-        method: 'POST',
-        headers: auth,
-      })
-      log(`Pedido #${pedido.numero} impresso.`)
+    // Logo: baixa uma vez por ciclo (vale pra todos os pedidos da rodada).
+    const logoUrl = data.loja?.logoUrl
+    let logoPath = null
+    if (configImpressao.imprimirLogo && logoUrl) logoPath = await baixarLogo(logoUrl)
+
+    try {
+      for (const pedido of pedidos) {
+        const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
+        await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath)
+        await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
+          method: 'POST',
+          headers: auth,
+        })
+        log(`Pedido #${pedido.numero} impresso.`)
+      }
+    } finally {
+      if (logoPath) fs.unlink(logoPath, () => {})
     }
   } catch (err) {
     log(`Falha na consulta/impressão: ${descreverErro(err)}`)
