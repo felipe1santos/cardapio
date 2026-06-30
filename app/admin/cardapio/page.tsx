@@ -323,6 +323,7 @@ function GrupoItemCard({
   const [obrigatorio, setObrigatorio] = useState(grupo.obrigatorio)
   const [minEsc, setMinEsc] = useState(grupo.minEscolhas)
   const [maxEsc, setMaxEsc] = useState(grupo.maxEscolhas)
+  const [permiteQuantidade, setPermiteQuantidade] = useState(grupo.permiteQuantidade)
   const [newNome, setNewNome] = useState('')
   const [newPreco, setNewPreco] = useState('')
   const [saving, setSaving] = useState(false)
@@ -332,7 +333,7 @@ function GrupoItemCard({
     const semMax = maxEsc === 0
     const effectiveMin = obrigatorio ? (semMax ? minEsc : Math.min(minEsc, maxEsc)) : 0
     try {
-      await atualizarGrupoItem(supabase, grupo.id, trimmed, obrigatorio, effectiveMin, semMax ? 0 : Math.max(maxEsc, 1))
+      await atualizarGrupoItem(supabase, grupo.id, trimmed, obrigatorio, effectiveMin, semMax ? 0 : Math.max(maxEsc, 1), permiteQuantidade)
       setEditingHeader(false)
       await onRefresh()
     } catch { /* silencioso */ }
@@ -343,6 +344,7 @@ function GrupoItemCard({
     setObrigatorio(grupo.obrigatorio)
     setMinEsc(grupo.minEscolhas)
     setMaxEsc(grupo.maxEscolhas)
+    setPermiteQuantidade(grupo.permiteQuantidade)
     setEditingHeader(false)
   }
 
@@ -429,6 +431,11 @@ function GrupoItemCard({
               Sem máximo
             </label>
           </div>
+          <label className="mt-2 flex cursor-pointer items-center gap-2 text-[12px] font-medium text-text-main">
+            <input type="checkbox" checked={permiteQuantidade} onChange={(e) => setPermiteQuantidade(e.target.checked)} className="h-3.5 w-3.5 accent-primary" />
+            Permitir quantidade por opção
+          </label>
+          <p className="text-[11px] text-text-subtle">Na vitrine o cliente escolhe a quantidade de cada opção (− 1 +) em vez de só marcar.</p>
           <div className="flex gap-2">
             <button
               onClick={saveHeader}
@@ -733,6 +740,7 @@ function PresetGroupCard({
   const [obrigatorio, setObrigatorio] = useState(preset.obrigatorio)
   const [minEsc, setMinEsc] = useState(preset.minEscolhas)
   const [maxEsc, setMaxEsc] = useState(preset.maxEscolhas)
+  const [permiteQuantidade, setPermiteQuantidade] = useState(preset.permiteQuantidade)
   const [items, setItems] = useState<PresetItemEdit[]>(
     preset.itens.map((i) => ({ id: i.id, nome: i.nome, preco: String(i.preco), editing: false, imagemUrl: i.imagemUrl }))
   )
@@ -758,9 +766,9 @@ function PresetGroupCard({
     setEditingNome(false)
   }
 
-  async function saveRules(newObrigatorio: boolean, newMin: number, newMax: number) {
+  async function saveRules(newObrigatorio: boolean, newMin: number, newMax: number, newPermiteQuantidade?: boolean) {
     try {
-      await atualizarRegrasPreset(supabase, preset.id, newObrigatorio, newMin, newMax)
+      await atualizarRegrasPreset(supabase, preset.id, newObrigatorio, newMin, newMax, newPermiteQuantidade ?? permiteQuantidade)
     } catch { /* silencioso */ }
   }
 
@@ -899,6 +907,20 @@ function PresetGroupCard({
           Sem máximo
         </label>
         <span className="ml-auto text-[11px] italic text-text-subtle">{hint}</span>
+        <label className="mt-1 flex w-full cursor-pointer items-center gap-2 text-[12px] font-medium text-text-main">
+          <input
+            type="checkbox"
+            checked={permiteQuantidade}
+            onChange={(e) => {
+              const v = e.target.checked
+              setPermiteQuantidade(v)
+              saveRules(obrigatorio, minEsc, maxEsc, v)
+            }}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          Permitir quantidade por opção
+        </label>
+        <p className="-mt-2 w-full text-[11px] text-text-subtle">Na vitrine o cliente escolhe a quantidade de cada opção (− 1 +) em vez de só marcar.</p>
       </div>
 
       {/* Item list */}
