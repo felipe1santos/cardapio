@@ -10,6 +10,7 @@ import {
   adicionarComplemento,
   adicionarItemPreset,
   adicionarOrderBump,
+  atualizarComplemento,
   atualizarGrupo,
   atualizarGrupoItem,
   atualizarItem,
@@ -308,10 +309,12 @@ function FoodIcon({ name, size = 40 }: { name: string; size?: number }) {
 function GrupoItemCard({
   grupo,
   itemId,
+  restauranteId,
   onRefresh,
 }: {
   grupo: GrupoItemComplementos
   itemId: string
+  restauranteId: string
   onRefresh: () => Promise<void>
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
@@ -468,6 +471,28 @@ function GrupoItemCard({
         )}
         {grupo.complementos.map((comp) => (
           <div key={comp.id} className="flex items-center gap-2 border-b border-border py-1.5 last:border-none">
+            <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-border bg-page">
+              {comp.imagemUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={comp.imagemUrl} alt={comp.nome} className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  try {
+                    const url = await enviarImagemItem(supabase, restauranteId, file)
+                    await atualizarComplemento(supabase, comp.id, { nome: comp.nome, preco: comp.preco, imagemUrl: url })
+                    await onRefresh()
+                  } catch { /* silencioso */ }
+                }}
+              />
+            </label>
             <span className="flex-1 text-[13px] font-medium">{comp.nome}</span>
             {comp.preco > 0 ? (
               <span className="text-[12px] font-semibold text-price-text">
@@ -688,14 +713,17 @@ interface PresetItemEdit {
   nome: string
   preco: string
   editing: boolean
+  imagemUrl: string | null
 }
 
 function PresetGroupCard({
   preset,
+  restauranteId,
   onDeleted,
   onRenamed,
 }: {
   preset: PresetComplementos
+  restauranteId: string
   onDeleted: (id: string) => void
   onRenamed: (id: string, nome: string) => void
 }) {
@@ -706,7 +734,7 @@ function PresetGroupCard({
   const [minEsc, setMinEsc] = useState(preset.minEscolhas)
   const [maxEsc, setMaxEsc] = useState(preset.maxEscolhas)
   const [items, setItems] = useState<PresetItemEdit[]>(
-    preset.itens.map((i) => ({ id: i.id, nome: i.nome, preco: String(i.preco), editing: false }))
+    preset.itens.map((i) => ({ id: i.id, nome: i.nome, preco: String(i.preco), editing: false, imagemUrl: i.imagemUrl }))
   )
   const [newNome, setNewNome] = useState('')
   const [newPreco, setNewPreco] = useState('')
@@ -751,7 +779,7 @@ function PresetGroupCard({
     setSaving(true)
     try {
       const created = await adicionarItemPreset(supabase, preset.id, newNome.trim(), preco, items.length)
-      setItems((prev) => [...prev, { id: created.id, nome: created.nome, preco: String(created.preco), editing: false }])
+      setItems((prev) => [...prev, { id: created.id, nome: created.nome, preco: String(created.preco), editing: false, imagemUrl: created.imagemUrl }])
       setNewNome('')
       setNewPreco('')
     } catch { /* silencioso */ }
@@ -900,6 +928,30 @@ function PresetGroupCard({
             </div>
           ) : (
             <div key={item.id} className="mb-1.5 flex items-center gap-2 rounded-menuzia border border-purple-100 bg-purple-50/60 px-3 py-2">
+              <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-purple-200 bg-white">
+                {item.imagemUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const val = parseFloat(item.preco.replace(',', '.'))
+                    const preco = Number.isFinite(val) && val >= 0 ? val : 0
+                    try {
+                      const url = await enviarImagemItem(supabase, restauranteId, file)
+                      await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, url)
+                      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, imagemUrl: url } : i)))
+                    } catch { /* silencioso */ }
+                  }}
+                />
+              </label>
               <span className="flex-1 text-[13px] font-medium text-text-main">{item.nome}</span>
               {Number(item.preco) > 0 ? (
                 <span className="tabular-nums text-[12px] font-semibold text-purple-700">+ R$ {Number(item.preco).toFixed(2).replace('.', ',')}</span>
@@ -1017,6 +1069,7 @@ function GruposComplementos({
           <PresetGroupCard
             key={preset.id}
             preset={preset}
+            restauranteId={restauranteId}
             onDeleted={(id) => setPresets((prev) => prev.filter((p) => p.id !== id))}
             onRenamed={(id, nome) => setPresets((prev) => prev.map((p) => (p.id === id ? { ...p, nome } : p)))}
           />
@@ -2704,6 +2757,7 @@ export default function CardapioPage() {
                   key={grupo.id}
                   grupo={grupo}
                   itemId={form.id!}
+                  restauranteId={restauranteId!}
                   onRefresh={refreshItems}
                 />
               ))}
