@@ -27,6 +27,17 @@ function log(mensagem) {
   if (mainWindow) mainWindow.webContents.send('log', { ts: new Date().toISOString(), mensagem })
 }
 
+// Tamanho da fonte (config da impressora) -> nº de colunas do recibo. A fonte é
+// dimensionada pra PREENCHER o papel nesse nº de colunas: menos colunas = fonte maior.
+// 'grande' encolhe a largura (fonte bem maior), 'média' intermediária, 'pequena' usa a
+// largura cheia configurada.
+function colsParaFonte(tamanho, largura) {
+  const t = String(tamanho || '').toLowerCase()
+  if (t.includes('grand')) return Math.min(largura, 30)
+  if (t.includes('med') || t.includes('norm')) return Math.min(largura, 38)
+  return largura
+}
+
 // Quando o Windows inicia o agente sozinho (auto-start), ele sobe oculto pra não
 // abrir uma janela na cara do operador — fica imprimindo em segundo plano. O atalho
 // da área de trabalho abre normal (sem --hidden), e clicar nele de novo traz a
@@ -84,12 +95,12 @@ async function cicloDePolling() {
 
     const impressoras = data.impressoras ?? []
     const impressoraCfg = impressoras.find((i) => i.id === config.impressoraCloudId)
-    const largura = impressoraCfg?.largura ?? 48
+    const cols = colsParaFonte(impressoraCfg?.tamanhoFonte, impressoraCfg?.largura ?? 48)
     const copias = impressoraCfg?.copias ?? 1
 
     for (const pedido of pedidos) {
-      const recibo = montarRecibo(pedido, configImpressao, largura, lojaNome)
-      await imprimirTexto(config.impressoraWindows, recibo, copias)
+      const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome)
+      await imprimirTexto(config.impressoraWindows, recibo, copias, cols)
       await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
         method: 'POST',
         headers: auth,
@@ -188,7 +199,7 @@ ipcMain.handle('buscar-impressoras-cloud', async (_e, { token }) => {
 
 ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
   try {
-    await imprimirTexto(impressoraWindows, 'TESTE DE IMPRESSAO\nAssistente de Impressao Menuzia\n\n\n', 1)
+    await imprimirTexto(impressoraWindows, 'TESTE DE IMPRESSAO\nAssistente de Impressao Menuzia\n\n\n', 1, 32)
     return { ok: true }
   } catch (err) {
     return { ok: false, erro: err.message }

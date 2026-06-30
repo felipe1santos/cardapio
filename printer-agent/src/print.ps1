@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$FilePath,
   [Parameter(Mandatory = $true)][string]$PrinterName,
-  [int]$Copies = 1
+  [int]$Copies = 1,
+  [int]$Cols = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,12 +74,15 @@ function Invoke-ImpressaoGrafica {
   $larguraTexto = ($larguraUtil - (2 * $margemLat)) * 0.94
   if ($larguraTexto -le 0) { $larguraTexto = $larguraUtil }
 
-  # Maior fonte negrito cuja linha mais larga ainda cabe no papel. Mede do MESMO jeito
-  # que desenha (MeasureString padrão, sem GenericTypographic), senão a medição sai mais
-  # estreita que o texto impresso e ele estoura a borda.
-  $amostra = ('M' * $maxLen)
+  # Dimensiona a fonte pra PREENCHER o papel no nº de colunas alvo (Cols) — assim
+  # menos colunas = fonte maior, e o tamanho fica consistente (teste = pedido real),
+  # em vez de encolher conforme o conteúdo. Se o conteúdo passar de Cols (não deveria,
+  # o recibo é montado nessa largura), usa o maior pra não cortar. Mede do MESMO jeito
+  # que desenha (MeasureString padrão), senão a medição sai mais estreita e estoura a borda.
+  $alvo = if ($Cols -gt 0) { [Math]::Max($Cols, $maxLen) } else { $maxLen }
+  $amostra = ('M' * $alvo)
   $font = $null
-  for ($sz = 13.0; $sz -ge 5.0; $sz -= 0.5) {
+  for ($sz = 18.0; $sz -ge 5.0; $sz -= 0.5) {
     $f = New-Object System.Drawing.Font('Consolas', $sz, [System.Drawing.FontStyle]::Bold)
     $w = $mg.MeasureString($amostra, $f).Width
     if ($w -le $larguraTexto) { $font = $f; break }

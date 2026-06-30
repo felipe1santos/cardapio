@@ -680,9 +680,9 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
 const FABRICANTES = ['Epson', 'Bematech', 'Elgin', 'Daruma', 'Outra']
 const TAMANHOS_FONTE = [
-  { value: 'pequena', label: 'Pequena (recomendado)' },
+  { value: 'grande', label: 'Grande (recomendado)' },
   { value: 'media', label: 'Média' },
-  { value: 'grande', label: 'Grande' },
+  { value: 'pequena', label: 'Pequena (mais conteúdo por linha)' },
 ]
 
 const IMPRESSORA_VAZIA: ImpressoraInput = { nome: '', fabricante: 'Epson', impressoraSistema: '', tamanhoFonte: 'pequena', largura: 48, copias: 1 }
@@ -738,7 +738,8 @@ function ImpressoraModal({
           </Field>
           <div className="flex gap-3">
             <div className="flex-1">
-              <Field label="Tamanho da fonte">
+              <Field label="Tamanho da fonte" hint="Controla a fonte impressa de verdade. 'Grande' = letras maiores (menos colunas por linha). Use 'Grande' pra recibo bem legível.">
+
                 <select value={form.tamanhoFonte} onChange={(e) => setForm((p) => ({ ...p, tamanhoFonte: e.target.value }))}
                   className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
                   {TAMANHOS_FONTE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -961,7 +962,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.12/AssistenteImpressaoMenuzia-Setup-0.1.12.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.13/AssistenteImpressaoMenuzia-Setup-0.1.13.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)
