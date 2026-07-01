@@ -8,6 +8,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# --- Diagnóstico: grava um log em %TEMP%\menuzia-print.log pra descobrir por que o
+# render gráfico (fonte grande + logo) cai no fallback de texto puro (fonte pequena). ---
+$LogFile = Join-Path $env:TEMP 'menuzia-print.log'
+function Write-Log($msg) {
+  try { Add-Content -Path $LogFile -Value ("[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $msg) -Encoding UTF8 } catch {}
+}
+Write-Log "==== IMPRIMIR: printer='$PrinterName' cols=$Cols logo='$LogoPath' ===="
+
 # Garante que a impressora ainda existe no Windows antes de mandar imprimir.
 # Sem isso, um nome errado/removido faria o spooler "aceitar" sem imprimir nada
 # e o pedido seria marcado como impresso (perdido). Falhar aqui faz o agente
@@ -26,6 +34,7 @@ if (-not $existe) { throw "Impressora '$PrinterName' nao encontrada no Windows."
 # funcionou; fica como fallback caso o render gráfico abaixo dê problema em alguma
 # impressora. Assim a impressão NUNCA para — no pior caso volta ao visual antigo.
 function Invoke-ImpressaoTexto {
+  Write-Log "FALLBACK: usando Out-Printer (texto puro, fonte pequena)."
   for ($i = 0; $i -lt $Copies; $i++) {
     Get-Content -Path $FilePath -Raw -Encoding UTF8 | Out-Printer -Name $PrinterName
   }
@@ -104,6 +113,9 @@ function Invoke-ImpressaoGrafica {
   }
   $logoGap = if ($logoImg) { 8.0 } else { 0.0 }
 
+  Write-Log ("METRICAS: paperW={0} printableW={1} larguraUtil={2} larguraTexto={3} maxLen={4} alvo={5} fontSize={6} logo={7}({8}x{9})" -f `
+    $paper.Width, $doc.DefaultPageSettings.PrintableArea.Width, $larguraUtil, [int]$larguraTexto, $maxLen, $alvo, $font.Size, ($null -ne $logoImg), [int]$logoW, [int]$logoH)
+
   $alturaLinha = [double]$font.GetHeight($mg)
   $margemTopo = 4.0
   $alturaTotal = [int]([math]::Ceiling($margemTopo + $logoH + $logoGap + ($linhas.Length * $alturaLinha) + 8))
@@ -148,6 +160,7 @@ function Invoke-ImpressaoGrafica {
   $doc.add_PrintPage($handler)
   try {
     $doc.Print()
+    Write-Log "GRAFICA OK (fonte escalada + logo desenhada)."
   } finally {
     if ($logoImg) { $logoImg.Dispose() }
     $mg.Dispose()
@@ -161,5 +174,7 @@ try {
   Invoke-ImpressaoGrafica
 } catch {
   # Qualquer problema no render gráfico: cai pro método de texto puro que sempre funcionou.
+  Write-Log ("ERRO GRAFICA -> FALLBACK. Excecao: {0}" -f $_.Exception.Message)
+  Write-Log ("STACK: {0}" -f ($_.ScriptStackTrace))
   Invoke-ImpressaoTexto
 }

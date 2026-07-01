@@ -6,18 +6,27 @@ const { carregarConfig, salvarConfig } = require('./store')
 const { listarImpressorasWindows, imprimirTexto } = require('./printer')
 const { montarRecibo } = require('./recibo')
 
+// Diagnóstico: grava no MESMO arquivo que o print.ps1 (%TEMP%\menuzia-print.log).
+function logArquivo(msg) {
+  try {
+    fs.appendFileSync(path.join(os.tmpdir(), 'menuzia-print.log'), `[${new Date().toLocaleTimeString()}] [agente] ${msg}\n`)
+  } catch {}
+}
+
 /** Baixa a logo da loja pra um arquivo temporário (pra desenhar como imagem no recibo).
  * Retorna o caminho, ou null se falhar (o recibo segue sem imagem). */
 async function baixarLogo(url) {
   try {
     const res = await fetch(url)
-    if (!res.ok) return null
+    if (!res.ok) { logArquivo(`LOGO: download falhou HTTP ${res.status} (${url})`); return null }
     const buf = Buffer.from(await res.arrayBuffer())
     const ext = (String(url).split('?')[0].split('.').pop() || 'png').slice(0, 4).replace(/[^a-z0-9]/gi, '') || 'png'
     const file = path.join(os.tmpdir(), `menuzia-logo-${Date.now()}.${ext}`)
     fs.writeFileSync(file, buf)
+    logArquivo(`LOGO: baixada ok -> ${file} (${buf.length} bytes)`)
     return file
-  } catch {
+  } catch (err) {
+    logArquivo(`LOGO: excecao no download: ${err && err.message}`)
     return null
   }
 }
@@ -126,11 +135,13 @@ async function cicloDePolling() {
       impressoras[0]
     const cols = colsParaFonte(impressoraCfg?.tamanhoFonte, impressoraCfg?.largura ?? 48)
     const copias = impressoraCfg?.copias ?? 1
+    logArquivo(`CICLO: impressora='${impressoraCfg?.nome ?? '(nenhuma cadastrada)'}' tamanhoFonte='${impressoraCfg?.tamanhoFonte}' largura=${impressoraCfg?.largura} -> cols=${cols}; imprimirLogo=${configImpressao.imprimirLogo}`)
 
     // Logo: baixa uma vez por ciclo (vale pra todos os pedidos da rodada).
     const logoUrl = data.loja?.logoUrl
     let logoPath = null
     if (configImpressao.imprimirLogo && logoUrl) logoPath = await baixarLogo(logoUrl)
+    else logArquivo(`LOGO: nao baixada (imprimirLogo=${configImpressao.imprimirLogo}, logoUrl=${logoUrl ? 'presente' : 'AUSENTE'})`)
 
     try {
       for (const pedido of pedidos) {
