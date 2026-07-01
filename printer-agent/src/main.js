@@ -112,7 +112,14 @@ async function cicloDePolling() {
     if (!pedidos || pedidos.length === 0) return
 
     const impressoras = data.impressoras ?? []
-    const impressoraCfg = impressoras.find((i) => i.id === config.impressoraCloudId)
+    // Impressora do painel (largura/fonte/cópias). Se o usuário não escolheu uma explícita
+    // no agente, cai pra ativa / primeira cadastrada — MESMO fallback do preview do painel,
+    // pra a impressão bater com a prévia. Antes caía num 48 fixo, ignorando a largura
+    // configurada no painel (era o "configurava a largura e nada acontecia").
+    const impressoraCfg =
+      impressoras.find((i) => i.id === config.impressoraCloudId) ||
+      impressoras.find((i) => i.ativa) ||
+      impressoras[0]
     const cols = colsParaFonte(impressoraCfg?.tamanhoFonte, impressoraCfg?.largura ?? 48)
     const copias = impressoraCfg?.copias ?? 1
 

@@ -818,16 +818,19 @@ function colsParaFontePreview(tamanho: string | undefined, largura: number): num
 interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
 interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; enderecoRua: string; enderecoNumero: string; enderecoBairro: string; formaPagamento: string; trocoPara: number | null; observacao: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
 
-// Pedido fictício só pra ilustrar — não vem do banco.
+// Pedido fictício só pra ilustrar — não vem do banco. Traz de propósito um complemento
+// COM preço, uma observação de item, observação do pedido e pagamento em dinheiro com
+// troco, pra que TODOS os toggles (preço/nome dos complementos, multiplicar opções etc.)
+// produzam mudança visível na prévia ao serem ligados/desligados.
 const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
   numero: 1234,
   tipo: 'entrega',
   clienteNome: 'João Silva',
   enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoBairro: 'Centro',
-  formaPagamento: 'pix', trocoPara: null, observacao: '',
-  subtotal: 102, taxaEntrega: 6, total: 108,
+  formaPagamento: 'dinheiro', trocoPara: 150, observacao: 'Tocar a campainha',
+  subtotal: 110, taxaEntrega: 6, total: 116,
   itens: [
-    { quantidade: 2, nome: 'Pizza Grande', precoUnitario: 45, tamanhoNome: 'Grande', saborNome: 'Calabresa', bordaNome: 'Catupiry', massaNome: '', complementos: [], observacao: '' },
+    { quantidade: 2, nome: 'Pizza Grande', precoUnitario: 45, tamanhoNome: 'Grande', saborNome: 'Calabresa', bordaNome: 'Catupiry', massaNome: '', complementos: [{ nome: 'Bacon extra', preco: 4 }], observacao: 'Bem assada' },
     { quantidade: 1, nome: 'Coca-Cola 2L', precoUnitario: 12, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Bem gelada', preco: 0 }], observacao: '' },
   ],
 }
