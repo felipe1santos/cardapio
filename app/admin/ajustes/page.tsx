@@ -769,59 +769,6 @@ function ImpressoraModal({
 // 1:1 com a impressão real. Se mudar o recibo.js do agente, mude aqui também.
 
 function brlR(v: number): string { return `R$ ${v.toFixed(2).replace('.', ',')}` }
-function colunasR(largura: number, esquerda: string, direita: string): string {
-  const espaco = Math.max(1, largura - esquerda.length - direita.length)
-  return esquerda + ' '.repeat(espaco) + direita
-}
-function centroR(largura: number, texto: string): string {
-  const t = texto.slice(0, largura)
-  const pad = Math.max(0, Math.floor((largura - t.length) / 2))
-  return ' '.repeat(pad) + t
-}
-function secaoR(largura: number, titulo: string): string {
-  const t = ` ${titulo} `
-  if (t.length >= largura) return centroR(largura, titulo)
-  const total = largura - t.length
-  const left = Math.floor(total / 2)
-  const right = total - left
-  return '='.repeat(left) + t + '='.repeat(right)
-}
-function quebrarR(largura: number, texto: string): string[] {
-  const palavras = String(texto).split(/\s+/).filter(Boolean)
-  const linhas: string[] = []
-  let atual = ''
-  for (const p of palavras) {
-    if (!atual) atual = p
-    else if ((atual + ' ' + p).length <= largura) atual += ' ' + p
-    else { linhas.push(atual); atual = p }
-  }
-  if (atual) linhas.push(atual)
-  return linhas.length ? linhas : ['']
-}
-function itemLinhaR(largura: number, nome: string, valor: string): string[] {
-  const maxNome = Math.max(1, largura - valor.length - 1)
-  const nomeLinhas = quebrarR(maxNome, nome)
-  return nomeLinhas.map((ln, i) => (i === nomeLinhas.length - 1 ? colunasR(largura, ln, valor) : ln))
-}
-// PORT de envolver() do recibo.js: quebra qualquer linha que estoure a largura,
-// preservando indentação — garante que a prévia case com a impressão real.
-function envolverR(largura: number, texto: string, indent = ''): string[] {
-  const max = Math.max(1, largura - indent.length)
-  const linhas: string[] = []
-  let atual = ''
-  for (let palavra of String(texto).split(/\s+/).filter(Boolean)) {
-    while (palavra.length > max) {
-      if (atual) { linhas.push(atual); atual = '' }
-      linhas.push(palavra.slice(0, max))
-      palavra = palavra.slice(max)
-    }
-    if (!atual) atual = palavra
-    else if ((atual + ' ' + palavra).length <= max) atual += ' ' + palavra
-    else { linhas.push(atual); atual = palavra }
-  }
-  if (atual) linhas.push(atual)
-  return (linhas.length ? linhas : ['']).map((l) => indent + l)
-}
 
 /** Tamanho da fonte (config da impressora) -> nº de colunas — espelha o agente (main.js).
  * Relativo à largura base do papel: em 48 dá grande=30/média=38/pequena=48; em 32
@@ -855,119 +802,97 @@ const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
   ],
 }
 
-/** PORT FIEL de montarRecibo do agente. `temLogoImagem` = a logo sai como imagem (não repete o nome em texto). */
-function montarReciboTexto(pedido: PreviewPedido, config: ConfigImpressao, largura: number, lojaNome: string, temLogoImagem: boolean): string {
-  const out: string[] = []
-  if (config.imprimirLogo && lojaNome && !temLogoImagem) out.push(centroR(largura, lojaNome.toUpperCase()))
+// Linha tipada do recibo — espelha os marcadores de montarReciboLinhas() do agente
+// (recibo.js). O preview desenha cada tipo com CSS (barra preta, item negrito, etc.).
+type ReciboLinha =
+  | { t: 'N'; s: string } | { t: 'H'; s: string } | { t: 'C'; s: string }
+  | { t: 'I'; nome: string; preco: string } | { t: 'S'; s: string }
+  | { t: 'P'; k: string; v: string } | { t: 'T'; k: string; v: string }
+  | { t: 'L'; s: string } | { t: 'R' } | { t: 'F'; s: string }
 
-  out.push(secaoR(largura, `PEDIDO #${pedido.numero}`))
-  out.push(pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA')
+/** Mesma lógica de montarReciboLinhas() do agente, retornando linhas tipadas. */
+function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressao, lojaNome: string, temLogoImagem: boolean): ReciboLinha[] {
+  const L: ReciboLinha[] = []
+  if (config.imprimirLogo && lojaNome && !temLogoImagem) L.push({ t: 'N', s: lojaNome.toUpperCase() })
 
-  out.push(secaoR(largura, 'ITENS'))
-  for (const item of pedido.itens) {
+  L.push({ t: 'H', s: `PEDIDO #${pedido.numero}` })
+  L.push({ t: 'C', s: pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA' })
+
+  L.push({ t: 'H', s: 'ITENS' })
+  pedido.itens.forEach((item, idx) => {
     const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
     const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
-    let nomeComVariacao = variacao ? `${baseNome} (${variacao})` : baseNome
-    if (config.fonteMaiorProducao) nomeComVariacao = nomeComVariacao.toUpperCase()
-    for (const ln of itemLinhaR(largura, nomeComVariacao, brlR(item.precoUnitario * item.quantidade))) out.push(ln)
-    if (item.bordaNome) out.push(`  + Borda: ${item.bordaNome}`)
-    if (item.massaNome) out.push(`  + Massa: ${item.massaNome}`)
+    let nome = variacao ? `${baseNome} (${variacao})` : baseNome
+    if (config.fonteMaiorProducao) nome = nome.toUpperCase()
+    L.push({ t: 'I', nome, preco: brlR(item.precoUnitario * item.quantidade) })
+    if (item.bordaNome) L.push({ t: 'S', s: `+ Borda: ${item.bordaNome}` })
+    if (item.massaNome) L.push({ t: 'S', s: `+ Massa: ${item.massaNome}` })
     if (config.mostrarNomeComplementos) {
       for (const comp of item.complementos) {
         const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
         const precoTxt = config.mostrarPrecoComplementos && precoComp > 0 ? ` (+${brlR(precoComp)})` : ''
-        out.push(`  + ${comp.nome}${precoTxt}`)
+        L.push({ t: 'S', s: `+ ${comp.nome}${precoTxt}` })
       }
     }
-    if (item.observacao) out.push(`  Obs: ${item.observacao}`)
-  }
+    if (item.observacao) L.push({ t: 'S', s: `Obs: ${item.observacao}` })
+    if (idx < pedido.itens.length - 1) L.push({ t: 'R' })
+  })
 
-  out.push(secaoR(largura, 'PAGAMENTO'))
-  out.push(colunasR(largura, 'Subtotal', brlR(pedido.subtotal)))
-  if (pedido.tipo === 'entrega') out.push(colunasR(largura, 'Taxa de entrega', brlR(pedido.taxaEntrega)))
-  out.push(colunasR(largura, 'TOTAL', brlR(pedido.total)))
-  out.push(`Pagamento: ${pedido.formaPagamento.toUpperCase()}`)
-  if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) out.push(`Troco para: ${brlR(pedido.trocoPara)}`)
-  if (pedido.observacao) out.push(`Obs. do pedido: ${pedido.observacao}`)
+  L.push({ t: 'H', s: 'PAGAMENTO' })
+  L.push({ t: 'P', k: 'Subtotal', v: brlR(pedido.subtotal) })
+  if (pedido.tipo === 'entrega') L.push({ t: 'P', k: 'Taxa de entrega', v: brlR(pedido.taxaEntrega) })
+  L.push({ t: 'T', k: 'TOTAL', v: brlR(pedido.total) })
+  L.push({ t: 'L', s: `Pagamento: ${pedido.formaPagamento.toUpperCase()}` })
+  if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) L.push({ t: 'L', s: `Troco para: ${brlR(pedido.trocoPara)}` })
+  if (pedido.observacao) L.push({ t: 'L', s: `Obs. do pedido: ${pedido.observacao}` })
 
   if (pedido.clienteNome || pedido.clienteTelefone || pedido.tipo === 'entrega') {
-    out.push(secaoR(largura, 'CLIENTE'))
-    if (pedido.clienteNome) out.push(`Cliente: ${pedido.clienteNome}`)
-    if (pedido.clienteTelefone) out.push(`Tel.: ${pedido.clienteTelefone}`)
+    L.push({ t: 'H', s: 'CLIENTE' })
+    if (pedido.clienteNome) L.push({ t: 'L', s: `Cliente: ${pedido.clienteNome}` })
+    if (pedido.clienteTelefone) L.push({ t: 'L', s: `Tel.: ${pedido.clienteTelefone}` })
     if (pedido.tipo === 'entrega') {
-      for (const ln of quebrarR(largura, `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero} - ${pedido.enderecoBairro}`)) out.push(ln)
+      L.push({ t: 'L', s: `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero}` })
+      if (pedido.enderecoBairro) L.push({ t: 'L', s: `- ${pedido.enderecoBairro}` })
     }
   }
 
-  // Mesma normalização do agente (recibo.js): nenhuma linha pode passar da largura,
-  // senão a impressão real encolheria a fonte e divergiria da prévia.
-  const normalizado: string[] = []
-  for (const linha of out) {
-    if (linha.length <= largura) { normalizado.push(linha); continue }
-    const indent = linha.slice(0, linha.length - linha.trimStart().length)
-    for (const parte of envolverR(largura, linha.trimStart(), indent)) normalizado.push(parte)
-  }
-  return normalizado.join('\n')
+  L.push({ t: 'F', s: 'feito por Menuzia.com.br' })
+  return L
 }
 
-function ReciboPreview({ config, nomeLoja, logoUrl, cols }: { config: ConfigImpressao; nomeLoja: string; logoUrl: string | null; cols: number }) {
+function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao; nomeLoja: string; logoUrl: string | null; cols: number }) {
   const temLogoImagem = Boolean(config.imprimirLogo && logoUrl)
-  const texto = useMemo(
-    () => montarReciboTexto(PEDIDO_PREVIEW_RECIBO, config, cols, nomeLoja, temLogoImagem),
-    [config, nomeLoja, cols, temLogoImagem],
+  const linhas = useMemo(
+    () => montarReciboLinhasPreview(PEDIDO_PREVIEW_RECIBO, config, nomeLoja, temLogoImagem),
+    [config, nomeLoja, temLogoImagem],
   )
-
-  // Mede a largura real do bloco de texto (= largura do recibo impresso, as `cols`
-  // colunas) pra dimensionar a logo na MESMA proporção que o print.ps1 usa no papel.
-  const paperRef = useRef<HTMLPreElement>(null)
-  const [paperW, setPaperW] = useState(0)
-  const [logoNatural, setLogoNatural] = useState<{ w: number; h: number } | null>(null)
-  useEffect(() => {
-    const el = paperRef.current
-    if (!el) return
-    const medir = () => setPaperW(el.clientWidth)
-    medir()
-    const ro = new ResizeObserver(medir)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [texto])
-
-  // Espelha print.ps1: logo = min(50% da largura útil, tamanho natural), altura máx
-  // 1,3". Como o painel não conhece a largura física do papel, assume 80mm (o mais
-  // comum): as `cols` colunas ocupam ~2,66" de texto e a área útil ~2,83". Assim a
-  // proporção logo/recibo no preview bate com a impressão na maioria das lojas.
-  const logoStyle = useMemo(() => {
-    if (!logoNatural || paperW === 0) return undefined
-    const pxPorPol = paperW / 2.66
-    let w = Math.min(2.83 * pxPorPol * 0.5, logoNatural.w)
-    let h = w * (logoNatural.h / logoNatural.w)
-    const maxH = 1.3 * pxPorPol
-    if (h > maxH) { w = w * (maxH / h); h = maxH }
-    return { width: `${w}px`, height: `${h}px` }
-  }, [logoNatural, paperW])
 
   return (
     <div className="sticky top-0">
       <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-        Prévia <b>exata</b> do que o agente imprime — mesma largura ({cols} colunas) e mesmas seções. Atualiza ao vivo.
+        Prévia <b>fiel</b> do que o agente imprime — mesmas seções, barras, negrito e rodapé. Atualiza ao vivo.
       </p>
       <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
-        <div className="mx-auto w-fit rounded bg-white px-3 py-3 shadow-sm">
+        <div className="mx-auto w-[300px] max-w-full rounded bg-white px-3 py-3 shadow-sm font-sans text-text-main">
           {temLogoImagem && (
-            // Logo no preview = espelho do print.ps1: imagem real, centralizada, ~50%
-            // da largura útil e altura limitada a 1,3" (via logoStyle), mantendo o
-            // aspecto original — igual ao que sai no papel.
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl!}
-              alt="Logo da loja"
-              onLoad={(e) => setLogoNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-              style={logoStyle}
-              className="mx-auto mb-2 block object-contain"
-            />
+            <img src={logoUrl!} alt="Logo da loja" className="mx-auto mb-1 block w-[55%] object-contain" />
           )}
-          <pre ref={paperRef} className="whitespace-pre text-[11px] font-bold leading-snug text-text-main" style={{ fontFamily: 'Consolas, ui-monospace, monospace' }}>{texto}</pre>
+          {linhas.map((l, i) => {
+            switch (l.t) {
+              case 'N': return <div key={i} className="mb-1 text-center text-[18px] font-extrabold leading-tight">{l.s}</div>
+              case 'H': return <div key={i} className="my-1 bg-black py-[3px] text-center text-[13px] font-bold uppercase tracking-wide text-white">{l.s}</div>
+              case 'C': return <div key={i} className="text-center text-[14px] font-bold">{l.s}</div>
+              case 'I': return <div key={i} className="mt-1 flex justify-between gap-2 text-[15px] font-bold leading-tight"><span>{l.nome}</span><span className="whitespace-nowrap">{l.preco}</span></div>
+              case 'S': return <div key={i} className="pl-3 text-[12px] leading-tight text-text-subtle">{l.s}</div>
+              case 'P': return <div key={i} className="flex justify-between text-[13px]"><span>{l.k}</span><span>{l.v}</span></div>
+              case 'T': return <div key={i} className="mt-1 flex items-end justify-between border-t border-black pt-1 text-[22px] font-extrabold leading-none"><span>{l.k}</span><span>{l.v}</span></div>
+              case 'L': return <div key={i} className="text-[13px] leading-snug">{l.s}</div>
+              case 'R': return <div key={i} className="my-1 border-t border-dotted border-black/60" />
+              case 'F': return <div key={i} className="mt-3 text-center text-[10px] text-text-subtle">{l.s}</div>
+            }
+          })}
         </div>
       </div>
     </div>
@@ -1098,7 +1023,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.19/AssistenteImpressaoMenuzia-Setup-0.1.19.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.20/AssistenteImpressaoMenuzia-Setup-0.1.20.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)

@@ -1,148 +1,96 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Recibo estruturado por MARCADORES de linha. Cada linha começa com \x01<tipo> e os
+// campos são separados por \x02. O print.ps1 lê esses marcadores pra DESENHAR cada
+// tipo diferente (barra preta na divisória, item em negrito com preço à direita,
+// TOTAL grande, rodapé etc.) — igual à referência profissional. Se o render gráfico
+// falhar, o print.ps1 limpa os marcadores e imprime texto puro legível (fallback).
+//
+// Tipos:
+//   \x01N\x02<texto>            nome da loja (grande, centralizado) — só sem logo imagem
+//   \x01H\x02<titulo>           divisória (retângulo preto, texto branco centralizado)
+//   \x01C\x02<texto>            linha centralizada (ENTREGA/RETIRADA)
+//   \x01I\x02<nome>\x02<preco>  item (negrito grande, nome esq. + preço dir.)
+//   \x01S\x02<texto>            sub-linha do item (+ borda/complemento/obs, recuada)
+//   \x01P\x02<label>\x02<valor> linha de pagamento (subtotal/taxa) com preço à direita
+//   \x01T\x02<label>\x02<valor> TOTAL (extra grande)
+//   \x01L\x02<texto>            linha normal à esquerda (Pagamento/Troco/Cliente/Tel/End)
+//   \x01R                       separador pontilhado
+//   \x01F\x02<texto>            rodapé (pequeno, centralizado)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SOH = '\x01' // início de linha marcada
+const STX = '\x02' // separador de campo
+
 function brl(v) {
   return `R$ ${v.toFixed(2).replace('.', ',')}`
 }
 
-function colunas(largura, esquerda, direita) {
-  const espaco = Math.max(1, largura - esquerda.length - direita.length)
-  return esquerda + ' '.repeat(espaco) + direita
-}
+/** Monta o recibo como lista de linhas marcadas (uma string por linha). */
+function montarReciboLinhas(pedido, config, lojaNome = '', temLogoImagem = false) {
+  const L = []
+  const H = (t) => L.push(`${SOH}H${STX}${t}`)
+  const I = (nome, preco) => L.push(`${SOH}I${STX}${nome}${STX}${preco}`)
+  const S = (t) => L.push(`${SOH}S${STX}${t}`)
+  const P = (label, valor) => L.push(`${SOH}P${STX}${label}${STX}${valor}`)
+  const T = (label, valor) => L.push(`${SOH}T${STX}${label}${STX}${valor}`)
+  const Lin = (t) => L.push(`${SOH}L${STX}${t}`)
+  const C = (t) => L.push(`${SOH}C${STX}${t}`)
+  const HR = () => L.push(`${SOH}R`)
 
-function centro(largura, texto) {
-  const t = texto.slice(0, largura)
-  const pad = Math.max(0, Math.floor((largura - t.length) / 2))
-  return ' '.repeat(pad) + t
-}
-
-// Cabeçalho de seção no estilo "===== TITULO =====": legível e compacto, sem as
-// linhas tracejadas soltas que deixavam o cupom com cara de rascunho. Centraliza o
-// título preenchendo as laterais com '='.
-function secao(largura, titulo) {
-  const t = ` ${titulo} `
-  if (t.length >= largura) return centro(largura, titulo)
-  const total = largura - t.length
-  const left = Math.floor(total / 2)
-  const right = total - left
-  return '='.repeat(left) + t + '='.repeat(right)
-}
-
-// Quebra um texto em linhas que cabem na largura sem cortar palavra no meio. O corte
-// no meio da palavra (ex.: "HAMBUR" / "GUERIA") era o que deixava o cupom "quebrado".
-function quebrar(largura, texto) {
-  const palavras = String(texto).split(/\s+/).filter(Boolean)
-  const linhas = []
-  let atual = ''
-  for (const p of palavras) {
-    if (!atual) atual = p
-    else if ((atual + ' ' + p).length <= largura) atual += ' ' + p
-    else { linhas.push(atual); atual = p }
-  }
-  if (atual) linhas.push(atual)
-  return linhas.length ? linhas : ['']
-}
-
-// Quebra `texto` em linhas de no máximo `largura`, cada uma prefixada por `indent`
-// (as linhas de continuação também recebem o indent). Palavra maior que o espaço
-// disponível é cortada no braço, pra nunca estourar a largura.
-function envolver(largura, texto, indent = '') {
-  const max = Math.max(1, largura - indent.length)
-  const linhas = []
-  let atual = ''
-  for (let palavra of String(texto).split(/\s+/).filter(Boolean)) {
-    while (palavra.length > max) {
-      if (atual) { linhas.push(atual); atual = '' }
-      linhas.push(palavra.slice(0, max))
-      palavra = palavra.slice(max)
-    }
-    if (!atual) atual = palavra
-    else if ((atual + ' ' + palavra).length <= max) atual += ' ' + palavra
-    else { linhas.push(atual); atual = palavra }
-  }
-  if (atual) linhas.push(atual)
-  return (linhas.length ? linhas : ['']).map((l) => indent + l)
-}
-
-// Linha "nome ............ R$ valor" com o valor alinhado à direita e o nome
-// quebrado em várias linhas quando for longo (sem partir palavra).
-function itemLinha(largura, nome, valor) {
-  const maxNome = Math.max(1, largura - valor.length - 1)
-  const nomeLinhas = quebrar(maxNome, nome)
-  return nomeLinhas.map((ln, i) =>
-    i === nomeLinhas.length - 1 ? colunas(largura, ln, valor) : ln,
-  )
-}
-
-/** Monta o recibo em texto simples, respeitando as configurações de impressão da loja.
- * `temLogoImagem` = a logo será desenhada como IMAGEM (pelo print.ps1); nesse caso não
- * repetimos o nome da loja como cabeçalho em texto. */
-function montarRecibo(pedido, config, largura, lojaNome = '', temLogoImagem = false) {
-  const out = []
-
-  // Sem logo-imagem disponível, usamos o nome da loja como cabeçalho (fallback texto).
+  // Nome da loja como cabeçalho em texto só quando NÃO há logo-imagem (senão a logo
+  // já é a marca no topo, desenhada pelo print.ps1).
   if (config.imprimirLogo && lojaNome && !temLogoImagem) {
-    out.push(centro(largura, lojaNome.toUpperCase()))
+    L.push(`${SOH}N${STX}${lojaNome.toUpperCase()}`)
   }
 
-  out.push(secao(largura, `PEDIDO #${pedido.numero}`))
-  out.push(pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA')
+  H(`PEDIDO #${pedido.numero}`)
+  C(pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA')
 
-  out.push(secao(largura, 'ITENS'))
-  for (const item of pedido.itens) {
+  H('ITENS')
+  pedido.itens.forEach((item, idx) => {
     const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
     const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
-    let nomeComVariacao = variacao ? `${baseNome} (${variacao})` : baseNome
-    // Fonte maior na produção: realça o item em MAIÚSCULAS (equivalente textual do preview).
-    if (config.fonteMaiorProducao) nomeComVariacao = nomeComVariacao.toUpperCase()
-    for (const ln of itemLinha(largura, nomeComVariacao, brl(item.precoUnitario * item.quantidade))) {
-      out.push(ln)
-    }
-    if (item.bordaNome) out.push(`  + Borda: ${item.bordaNome}`)
-    if (item.massaNome) out.push(`  + Massa: ${item.massaNome}`)
+    const nomeComVariacao = variacao ? `${baseNome} (${variacao})` : baseNome
+    I(nomeComVariacao, brl(item.precoUnitario * item.quantidade))
+    if (item.bordaNome) S(`+ Borda: ${item.bordaNome}`)
+    if (item.massaNome) S(`+ Massa: ${item.massaNome}`)
     if (config.mostrarNomeComplementos) {
       for (const comp of item.complementos) {
-        // Multiplicar opções pela quantidade do item, igual ao preview do painel.
         const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
         const precoTxt = config.mostrarPrecoComplementos && precoComp > 0 ? ` (+${brl(precoComp)})` : ''
-        out.push(`  + ${comp.nome}${precoTxt}`)
+        S(`+ ${comp.nome}${precoTxt}`)
       }
     }
-    if (item.observacao) out.push(`  Obs: ${item.observacao}`)
-  }
+    if (item.observacao) S(`Obs: ${item.observacao}`)
+    // Separador pontilhado entre itens (não depois do último).
+    if (idx < pedido.itens.length - 1) HR()
+  })
 
-  out.push(secao(largura, 'PAGAMENTO'))
-  out.push(colunas(largura, 'Subtotal', brl(pedido.subtotal)))
-  if (pedido.tipo === 'entrega') out.push(colunas(largura, 'Taxa de entrega', brl(pedido.taxaEntrega)))
-  out.push(colunas(largura, 'TOTAL', brl(pedido.total)))
-  out.push(`Pagamento: ${pedido.formaPagamento.toUpperCase()}`)
-  if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) {
-    out.push(`Troco para: ${brl(pedido.trocoPara)}`)
-  }
-  if (pedido.observacao) out.push(`Obs. do pedido: ${pedido.observacao}`)
+  H('PAGAMENTO')
+  P('Subtotal', brl(pedido.subtotal))
+  if (pedido.tipo === 'entrega') P('Taxa de entrega', brl(pedido.taxaEntrega))
+  T('TOTAL', brl(pedido.total))
+  Lin(`Pagamento: ${pedido.formaPagamento.toUpperCase()}`)
+  if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) Lin(`Troco para: ${brl(pedido.trocoPara)}`)
+  if (pedido.observacao) Lin(`Obs. do pedido: ${pedido.observacao}`)
 
   if (pedido.clienteNome || pedido.clienteTelefone || pedido.tipo === 'entrega') {
-    out.push(secao(largura, 'CLIENTE'))
-    if (pedido.clienteNome) out.push(`Cliente: ${pedido.clienteNome}`)
-    if (pedido.clienteTelefone) out.push(`Tel.: ${pedido.clienteTelefone}`)
+    H('CLIENTE')
+    if (pedido.clienteNome) Lin(`Cliente: ${pedido.clienteNome}`)
+    if (pedido.clienteTelefone) Lin(`Tel.: ${pedido.clienteTelefone}`)
     if (pedido.tipo === 'entrega') {
-      for (const ln of quebrar(largura, `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero} - ${pedido.enderecoBairro}`)) {
-        out.push(ln)
-      }
+      Lin(`End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero}`)
+      if (pedido.enderecoBairro) Lin(`- ${pedido.enderecoBairro}`)
     }
   }
 
-  out.push('')
-  out.push('')
-
-  // Garante que NENHUMA linha ultrapasse `largura`. Sem isso, uma linha longa (nome do
-  // cliente, endereço, complemento, observação) fazia o print.ps1 dimensionar a fonte
-  // pra caber a linha mais larga -> o recibo real saía com fonte MENOR que o teste.
-  // Requebra qualquer linha que estoure, preservando a indentação.
-  const normalizado = []
-  for (const linha of out) {
-    if (linha.length <= largura) { normalizado.push(linha); continue }
-    const indent = linha.slice(0, linha.length - linha.trimStart().length)
-    for (const parte of envolver(largura, linha.trimStart(), indent)) normalizado.push(parte)
-  }
-  return normalizado.join('\n')
+  L.push(`${SOH}F${STX}feito por Menuzia.com.br`)
+  return L
 }
 
-module.exports = { montarRecibo }
+/** String marcada (uma linha por \n) — é o que vai pro print.ps1. */
+function montarRecibo(pedido, config, largura, lojaNome = '', temLogoImagem = false) {
+  return montarReciboLinhas(pedido, config, lojaNome, temLogoImagem).join('\n')
+}
+
+module.exports = { montarRecibo, montarReciboLinhas }

@@ -146,9 +146,11 @@ async function cicloDePolling() {
       impressoras.find((i) => i.id === config.impressoraCloudId) ||
       impressoras.find((i) => i.ativa) ||
       impressoras[0]
-    const cols = colsParaFonte(impressoraCfg?.tamanhoFonte, impressoraCfg?.largura ?? 48)
+    const larguraBase = impressoraCfg?.largura ?? 48
+    const cols = colsParaFonte(impressoraCfg?.tamanhoFonte, larguraBase)
+    const paperMm = larguraBase <= 40 ? 58 : 80
     const copias = impressoraCfg?.copias ?? 1
-    logArquivo(`CICLO: impressora='${impressoraCfg?.nome ?? '(nenhuma cadastrada)'}' tamanhoFonte='${impressoraCfg?.tamanhoFonte}' largura=${impressoraCfg?.largura} -> cols=${cols}; imprimirLogo=${configImpressao.imprimirLogo}`)
+    logArquivo(`CICLO: impressora='${impressoraCfg?.nome ?? '(nenhuma cadastrada)'}' tamanhoFonte='${impressoraCfg?.tamanhoFonte}' largura=${larguraBase} (${paperMm}mm) -> cols=${cols}; imprimirLogo=${configImpressao.imprimirLogo}`)
 
     // Logo: baixa uma vez por ciclo (vale pra todos os pedidos da rodada).
     const logoUrl = data.loja?.logoUrl
@@ -159,7 +161,7 @@ async function cicloDePolling() {
     try {
       for (const pedido of pedidos) {
         const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
-        const saida = await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath)
+        const saida = await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath, paperMm)
         mostrarDiagnostico(saida)
         await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
           method: 'POST',
@@ -267,6 +269,10 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
     // pedido real pequeno). Best-effort: se não conseguir a config, cai em 48.
     const config = carregarConfig()
     let cols = 48
+    let paperMm = 80
+    let cfgLoja = { imprimirLogo: false, mostrarNumeroItem: true, mostrarNomeComplementos: true, mostrarPrecoComplementos: true, multiplicarOpcoesQtd: false, fonteMaiorProducao: false }
+    let lojaNome = ''
+    let logoPath = null
     try {
       const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${config.token}` } })
       if (res.ok) {
@@ -276,10 +282,25 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
           impressoras.find((i) => i.id === config.impressoraCloudId) ||
           impressoras.find((i) => i.ativa) ||
           impressoras[0]
-        cols = colsParaFonte(cfg?.tamanhoFonte, cfg?.largura ?? 48)
+        const larg = cfg?.largura ?? 48
+        cols = colsParaFonte(cfg?.tamanhoFonte, larg)
+        paperMm = larg <= 40 ? 58 : 80
+        if (data.config) cfgLoja = data.config
+        lojaNome = data.loja?.nome ?? ''
+        if (cfgLoja.imprimirLogo && data.loja?.logoUrl) logoPath = await baixarLogo(data.loja.logoUrl)
       }
     } catch {}
-    const saida = await imprimirTexto(impressoraWindows, 'TESTE DE IMPRESSAO\nAssistente de Impressao Menuzia\nFonte no tamanho real do pedido\n\n\n', 1, cols)
+    // Pedido-exemplo pra o teste sair com o MESMO visual de um pedido real (barras, logo, total).
+    const pedidoTeste = {
+      numero: 0, tipo: 'entrega', clienteNome: 'Cliente Teste', clienteTelefone: '(00) 00000-0000',
+      enderecoRua: 'Rua Exemplo', enderecoNumero: '100', enderecoBairro: 'Centro',
+      formaPagamento: 'dinheiro', trocoPara: 50, observacao: 'Impressao de teste',
+      subtotal: 40, taxaEntrega: 5, total: 45,
+      itens: [{ quantidade: 1, nome: 'Item de Teste', precoUnitario: 40, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Adicional', preco: 5 }], observacao: 'Sem observacoes' }],
+    }
+    const recibo = montarRecibo(pedidoTeste, cfgLoja, cols, lojaNome, Boolean(logoPath))
+    const saida = await imprimirTexto(impressoraWindows, recibo, 1, cols, logoPath, paperMm)
+    if (logoPath) fs.unlink(logoPath, () => {})
     mostrarDiagnostico(saida)
     return { ok: true }
   } catch (err) {
