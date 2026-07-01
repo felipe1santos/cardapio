@@ -883,6 +883,36 @@ function ReciboPreview({ config, nomeLoja, logoUrl, cols }: { config: ConfigImpr
     () => montarReciboTexto(PEDIDO_PREVIEW_RECIBO, config, cols, nomeLoja, temLogoImagem),
     [config, nomeLoja, cols, temLogoImagem],
   )
+
+  // Mede a largura real do bloco de texto (= largura do recibo impresso, as `cols`
+  // colunas) pra dimensionar a logo na MESMA proporção que o print.ps1 usa no papel.
+  const paperRef = useRef<HTMLPreElement>(null)
+  const [paperW, setPaperW] = useState(0)
+  const [logoNatural, setLogoNatural] = useState<{ w: number; h: number } | null>(null)
+  useEffect(() => {
+    const el = paperRef.current
+    if (!el) return
+    const medir = () => setPaperW(el.clientWidth)
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [texto])
+
+  // Espelha print.ps1: logo = min(50% da largura útil, tamanho natural), altura máx
+  // 1,3". Como o painel não conhece a largura física do papel, assume 80mm (o mais
+  // comum): as `cols` colunas ocupam ~2,66" de texto e a área útil ~2,83". Assim a
+  // proporção logo/recibo no preview bate com a impressão na maioria das lojas.
+  const logoStyle = useMemo(() => {
+    if (!logoNatural || paperW === 0) return undefined
+    const pxPorPol = paperW / 2.66
+    let w = Math.min(2.83 * pxPorPol * 0.5, logoNatural.w)
+    let h = w * (logoNatural.h / logoNatural.w)
+    const maxH = 1.3 * pxPorPol
+    if (h > maxH) { w = w * (maxH / h); h = maxH }
+    return { width: `${w}px`, height: `${h}px` }
+  }, [logoNatural, paperW])
+
   return (
     <div className="sticky top-0">
       <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
@@ -892,12 +922,19 @@ function ReciboPreview({ config, nomeLoja, logoUrl, cols }: { config: ConfigImpr
       <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
         <div className="mx-auto w-fit rounded bg-white px-3 py-3 shadow-sm">
           {temLogoImagem && (
-            // Logo no preview = espelho do print.ps1: imagem real, ~50% da largura do
-            // papel, centralizada, mantendo o aspecto original (altura automática).
+            // Logo no preview = espelho do print.ps1: imagem real, centralizada, ~50%
+            // da largura útil e altura limitada a 1,3" (via logoStyle), mantendo o
+            // aspecto original — igual ao que sai no papel.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl!} alt="Logo da loja" className="mx-auto mb-2 block h-auto w-1/2 object-contain" />
+            <img
+              src={logoUrl!}
+              alt="Logo da loja"
+              onLoad={(e) => setLogoNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+              style={logoStyle}
+              className="mx-auto mb-2 block object-contain"
+            />
           )}
-          <pre className="whitespace-pre font-mono text-[11px] font-bold leading-snug text-text-main">{texto}</pre>
+          <pre ref={paperRef} className="whitespace-pre text-[11px] font-bold leading-snug text-text-main" style={{ fontFamily: 'Consolas, ui-monospace, monospace' }}>{texto}</pre>
         </div>
       </div>
       {config.imprimirComprovanteCancelamento && (
