@@ -1,4 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu } = require('electron')
+// Remove a barra de menu nativa (File/Edit/View/Window/Help) — deixa a janela limpa.
+Menu.setApplicationMenu(null)
 const path = require('path')
 const fs = require('fs')
 const os = require('os')

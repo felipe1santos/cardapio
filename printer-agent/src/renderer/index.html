@@ -24,7 +24,8 @@
     .feedback.ok { background: #DCFCE7; color: #16A34A; }
     .feedback.erro { background: #FEE2E2; color: #EF4444; }
     .hint { color: #6B7280; font-size: 11px; margin: 6px 0 0; }
-    #log { margin-top: 4px; background: #111827; color: #9CA3AF; border-radius: 3px; padding: 10px; height: 120px; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; }
+    #log { margin-top: 4px; background: #0B1220; color: #9CA3AF; border: 1px solid #E5E7EB; border-radius: 3px; padding: 10px; height: 120px; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; }
+    #log:empty::before { content: 'As mensagens de impressão aparecem aqui.'; color: #6B7280; }
 
     /* Dropdown custom — substitui o <select> nativo pra dar padding generoso,
        hover amarelo com texto preto e destacar bem a opção selecionada. */
@@ -96,6 +97,7 @@
     <div id="status"></div>
   </div>
 
+  <label>Registro de impressão</label>
   <div id="log"></div>
 
   <script src="./renderer.js"></script>

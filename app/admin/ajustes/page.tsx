@@ -835,7 +835,7 @@ function colsParaFontePreview(tamanho: string | undefined, largura: number): num
 }
 
 interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
-interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; enderecoRua: string; enderecoNumero: string; enderecoBairro: string; formaPagamento: string; trocoPara: number | null; observacao: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
+interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoBairro: string; formaPagamento: string; trocoPara: number | null; observacao: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
 
 // Pedido fictício só pra ilustrar — não vem do banco. Traz de propósito um complemento
 // COM preço, uma observação de item, observação do pedido e pagamento em dinheiro com
@@ -845,6 +845,7 @@ const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
   numero: 1234,
   tipo: 'entrega',
   clienteNome: 'João Silva',
+  clienteTelefone: '(81) 99999-0000',
   enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoBairro: 'Centro',
   formaPagamento: 'dinheiro', trocoPara: 150, observacao: 'Tocar a campainha',
   subtotal: 110, taxaEntrega: 6, total: 116,
@@ -889,9 +890,10 @@ function montarReciboTexto(pedido: PreviewPedido, config: ConfigImpressao, largu
   if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) out.push(`Troco para: ${brlR(pedido.trocoPara)}`)
   if (pedido.observacao) out.push(`Obs. do pedido: ${pedido.observacao}`)
 
-  if (pedido.clienteNome || pedido.tipo === 'entrega') {
+  if (pedido.clienteNome || pedido.clienteTelefone || pedido.tipo === 'entrega') {
     out.push(secaoR(largura, 'CLIENTE'))
     if (pedido.clienteNome) out.push(`Cliente: ${pedido.clienteNome}`)
+    if (pedido.clienteTelefone) out.push(`Tel.: ${pedido.clienteTelefone}`)
     if (pedido.tipo === 'entrega') {
       for (const ln of quebrarR(largura, `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero} - ${pedido.enderecoBairro}`)) out.push(ln)
     }
@@ -1096,7 +1098,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.18/AssistenteImpressaoMenuzia-Setup-0.1.18.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.19/AssistenteImpressaoMenuzia-Setup-0.1.19.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)

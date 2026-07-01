@@ -193,6 +193,7 @@ export interface PedidoParaImprimir {
   formaPagamento: string
   trocoPara: number | null
   clienteNome: string
+  clienteTelefone: string
   enderecoRua: string
   enderecoNumero: string
   enderecoBairro: string
@@ -219,7 +220,7 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
   const { data, error } = await admin
     .from('pedidos')
     .select(
-      `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, endereco_rua, endereco_numero, endereco_bairro,
+      `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_bairro,
        observacao, subtotal, taxa_entrega, total, criado_em,
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
@@ -236,6 +237,7 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
     formaPagamento: p.forma_pagamento,
     trocoPara: p.troco_para === null ? null : Number(p.troco_para),
     clienteNome: p.cliente_nome,
+    clienteTelefone: p.cliente_telefone ?? '',
     enderecoRua: p.endereco_rua,
     enderecoNumero: p.endereco_numero,
     enderecoBairro: p.endereco_bairro,

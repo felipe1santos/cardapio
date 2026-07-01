@@ -118,9 +118,10 @@ function montarRecibo(pedido, config, largura, lojaNome = '', temLogoImagem = fa
   }
   if (pedido.observacao) out.push(`Obs. do pedido: ${pedido.observacao}`)
 
-  if (pedido.clienteNome || pedido.tipo === 'entrega') {
+  if (pedido.clienteNome || pedido.clienteTelefone || pedido.tipo === 'entrega') {
     out.push(secao(largura, 'CLIENTE'))
     if (pedido.clienteNome) out.push(`Cliente: ${pedido.clienteNome}`)
+    if (pedido.clienteTelefone) out.push(`Tel.: ${pedido.clienteTelefone}`)
     if (pedido.tipo === 'entrega') {
       for (const ln of quebrar(largura, `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero} - ${pedido.enderecoBairro}`)) {
         out.push(ln)
