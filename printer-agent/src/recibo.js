@@ -40,6 +40,27 @@ function quebrar(largura, texto) {
   return linhas.length ? linhas : ['']
 }
 
+// Quebra `texto` em linhas de no máximo `largura`, cada uma prefixada por `indent`
+// (as linhas de continuação também recebem o indent). Palavra maior que o espaço
+// disponível é cortada no braço, pra nunca estourar a largura.
+function envolver(largura, texto, indent = '') {
+  const max = Math.max(1, largura - indent.length)
+  const linhas = []
+  let atual = ''
+  for (let palavra of String(texto).split(/\s+/).filter(Boolean)) {
+    while (palavra.length > max) {
+      if (atual) { linhas.push(atual); atual = '' }
+      linhas.push(palavra.slice(0, max))
+      palavra = palavra.slice(max)
+    }
+    if (!atual) atual = palavra
+    else if ((atual + ' ' + palavra).length <= max) atual += ' ' + palavra
+    else { linhas.push(atual); atual = palavra }
+  }
+  if (atual) linhas.push(atual)
+  return (linhas.length ? linhas : ['']).map((l) => indent + l)
+}
+
 // Linha "nome ............ R$ valor" com o valor alinhado à direita e o nome
 // quebrado em várias linhas quando for longo (sem partir palavra).
 function itemLinha(largura, nome, valor) {
@@ -109,7 +130,18 @@ function montarRecibo(pedido, config, largura, lojaNome = '', temLogoImagem = fa
 
   out.push('')
   out.push('')
-  return out.join('\n')
+
+  // Garante que NENHUMA linha ultrapasse `largura`. Sem isso, uma linha longa (nome do
+  // cliente, endereço, complemento, observação) fazia o print.ps1 dimensionar a fonte
+  // pra caber a linha mais larga -> o recibo real saía com fonte MENOR que o teste.
+  // Requebra qualquer linha que estoure, preservando a indentação.
+  const normalizado = []
+  for (const linha of out) {
+    if (linha.length <= largura) { normalizado.push(linha); continue }
+    const indent = linha.slice(0, linha.length - linha.trimStart().length)
+    for (const parte of envolver(largura, linha.trimStart(), indent)) normalizado.push(parte)
+  }
+  return normalizado.join('\n')
 }
 
 module.exports = { montarRecibo }

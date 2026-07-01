@@ -51,9 +51,13 @@ function log(mensagem) {
 // largura cheia configurada.
 function colsParaFonte(tamanho, largura) {
   const t = String(tamanho || '').toLowerCase()
-  if (t.includes('grand')) return Math.min(largura, 30)
-  if (t.includes('med') || t.includes('norm')) return Math.min(largura, 38)
-  return largura
+  const base = Number(largura) > 0 ? Number(largura) : 48
+  // Fonte é RELATIVA à largura do papel (nº de colunas base): menos colunas = fonte
+  // maior. Percentuais em vez de cortes fixos pra funcionar tanto em 80mm (base 48)
+  // quanto em 58mm (base 32). Em 48: grande=30, média=38, pequena=48 (igual ao antigo).
+  if (t.includes('grand')) return Math.max(16, Math.round(base * 0.625))
+  if (t.includes('med') || t.includes('norm')) return Math.max(16, Math.round(base * 0.792))
+  return base
 }
 
 // Quando o Windows inicia o agente sozinho (auto-start), ele sobe oculto pra não
@@ -233,7 +237,24 @@ ipcMain.handle('buscar-impressoras-cloud', async (_e, { token }) => {
 
 ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
   try {
-    await imprimirTexto(impressoraWindows, 'TESTE DE IMPRESSAO\nAssistente de Impressao Menuzia\n\n\n', 1, 32)
+    // Usa as MESMAS colunas (= tamanho de fonte) que um pedido real usaria, pra o teste
+    // refletir a impressão de verdade. Antes era fixo em 32 e "mentia" (teste grande,
+    // pedido real pequeno). Best-effort: se não conseguir a config, cai em 48.
+    const config = carregarConfig()
+    let cols = 48
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${config.token}` } })
+      if (res.ok) {
+        const data = await res.json()
+        const impressoras = data.impressoras ?? []
+        const cfg =
+          impressoras.find((i) => i.id === config.impressoraCloudId) ||
+          impressoras.find((i) => i.ativa) ||
+          impressoras[0]
+        cols = colsParaFonte(cfg?.tamanhoFonte, cfg?.largura ?? 48)
+      }
+    } catch {}
+    await imprimirTexto(impressoraWindows, 'TESTE DE IMPRESSAO\nAssistente de Impressao Menuzia\nFonte no tamanho real do pedido\n\n\n', 1, cols)
     return { ok: true }
   } catch (err) {
     return { ok: false, erro: err.message }

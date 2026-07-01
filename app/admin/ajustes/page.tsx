@@ -685,7 +685,7 @@ const TAMANHOS_FONTE = [
   { value: 'pequena', label: 'Pequena (mais conteúdo por linha)' },
 ]
 
-const IMPRESSORA_VAZIA: ImpressoraInput = { nome: '', fabricante: 'Epson', impressoraSistema: '', tamanhoFonte: 'pequena', largura: 48, copias: 1 }
+const IMPRESSORA_VAZIA: ImpressoraInput = { nome: '', fabricante: 'Epson', impressoraSistema: '', tamanhoFonte: 'media', largura: 48, copias: 1 }
 
 function ImpressoraModal({
   initial,
@@ -806,13 +806,35 @@ function itemLinhaR(largura: number, nome: string, valor: string): string[] {
   const nomeLinhas = quebrarR(maxNome, nome)
   return nomeLinhas.map((ln, i) => (i === nomeLinhas.length - 1 ? colunasR(largura, ln, valor) : ln))
 }
+// PORT de envolver() do recibo.js: quebra qualquer linha que estoure a largura,
+// preservando indentação — garante que a prévia case com a impressão real.
+function envolverR(largura: number, texto: string, indent = ''): string[] {
+  const max = Math.max(1, largura - indent.length)
+  const linhas: string[] = []
+  let atual = ''
+  for (let palavra of String(texto).split(/\s+/).filter(Boolean)) {
+    while (palavra.length > max) {
+      if (atual) { linhas.push(atual); atual = '' }
+      linhas.push(palavra.slice(0, max))
+      palavra = palavra.slice(max)
+    }
+    if (!atual) atual = palavra
+    else if ((atual + ' ' + palavra).length <= max) atual += ' ' + palavra
+    else { linhas.push(atual); atual = palavra }
+  }
+  if (atual) linhas.push(atual)
+  return (linhas.length ? linhas : ['']).map((l) => indent + l)
+}
 
-/** Tamanho da fonte (config da impressora) -> nº de colunas — espelha o agente (main.js). */
+/** Tamanho da fonte (config da impressora) -> nº de colunas — espelha o agente (main.js).
+ * Relativo à largura base do papel: em 48 dá grande=30/média=38/pequena=48; em 32
+ * (58mm) escala junto (grande=20/média=25/pequena=32). */
 function colsParaFontePreview(tamanho: string | undefined, largura: number): number {
   const t = String(tamanho || '').toLowerCase()
-  if (t.includes('grand')) return Math.min(largura, 30)
-  if (t.includes('med') || t.includes('norm')) return Math.min(largura, 38)
-  return largura
+  const base = Number(largura) > 0 ? Number(largura) : 48
+  if (t.includes('grand')) return Math.max(16, Math.round(base * 0.625))
+  if (t.includes('med') || t.includes('norm')) return Math.max(16, Math.round(base * 0.792))
+  return base
 }
 
 interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
@@ -877,7 +899,16 @@ function montarReciboTexto(pedido: PreviewPedido, config: ConfigImpressao, largu
       for (const ln of quebrarR(largura, `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero} - ${pedido.enderecoBairro}`)) out.push(ln)
     }
   }
-  return out.join('\n')
+
+  // Mesma normalização do agente (recibo.js): nenhuma linha pode passar da largura,
+  // senão a impressão real encolheria a fonte e divergiria da prévia.
+  const normalizado: string[] = []
+  for (const linha of out) {
+    if (linha.length <= largura) { normalizado.push(linha); continue }
+    const indent = linha.slice(0, linha.length - linha.trimStart().length)
+    for (const parte of envolverR(largura, linha.trimStart(), indent)) normalizado.push(parte)
+  }
+  return normalizado.join('\n')
 }
 
 function ReciboPreview({ config, nomeLoja, logoUrl, cols }: { config: ConfigImpressao; nomeLoja: string; logoUrl: string | null; cols: number }) {
@@ -1071,7 +1102,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.15/AssistenteImpressaoMenuzia-Setup-0.1.15.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.16/AssistenteImpressaoMenuzia-Setup-0.1.16.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)
