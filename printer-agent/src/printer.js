@@ -42,7 +42,8 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath) 
     const args = ['-File', PRINT_SCRIPT, '-FilePath', tmpFile, '-PrinterName', nomeImpressora, '-Copies', String(copias)]
     if (cols && cols > 0) args.push('-Cols', String(cols))
     if (logoPath) args.push('-LogoPath', logoPath)
-    await runPowershell(args)
+    // Retorna o stdout (linhas "MENUZIA: ...") pra o agente mostrar o diagnóstico na janela.
+    return await runPowershell(args)
   } finally {
     fs.unlink(tmpFile, () => {})
   }

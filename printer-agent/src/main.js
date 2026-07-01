@@ -13,6 +13,17 @@ function logArquivo(msg) {
   } catch {}
 }
 
+// Mostra na JANELA do agente as linhas "MENUZIA:" que o print.ps1 emitiu — assim o
+// lojista vê se a impressão usou o render gráfico (fonte grande + logo) ou caiu no
+// texto pequeno, e o motivo, sem precisar abrir arquivo de log no PC.
+function mostrarDiagnostico(saidaPs) {
+  if (!saidaPs) return
+  for (const linha of String(saidaPs).split(/\r?\n/)) {
+    const m = linha.match(/MENUZIA:\s*(.*)$/)
+    if (m && m[1].trim()) log(`impressão › ${m[1].trim()}`)
+  }
+}
+
 /** Baixa a logo da loja pra um arquivo temporário (pra desenhar como imagem no recibo).
  * Retorna o caminho, ou null se falhar (o recibo segue sem imagem). */
 async function baixarLogo(url) {
@@ -64,8 +75,8 @@ function colsParaFonte(tamanho, largura) {
   // Fonte é RELATIVA à largura do papel (nº de colunas base): menos colunas = fonte
   // maior. Percentuais em vez de cortes fixos pra funcionar tanto em 80mm (base 48)
   // quanto em 58mm (base 32). Em 48: grande=30, média=38, pequena=48 (igual ao antigo).
-  if (t.includes('grand')) return Math.max(16, Math.round(base * 0.625))
-  if (t.includes('med') || t.includes('norm')) return Math.max(16, Math.round(base * 0.792))
+  if (t.includes('grand')) return Math.max(14, Math.round(base * 0.55))
+  if (t.includes('med') || t.includes('norm')) return Math.max(16, Math.round(base * 0.72))
   return base
 }
 
@@ -146,7 +157,8 @@ async function cicloDePolling() {
     try {
       for (const pedido of pedidos) {
         const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
-        await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath)
+        const saida = await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath)
+        mostrarDiagnostico(saida)
         await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
           method: 'POST',
           headers: auth,
@@ -265,7 +277,8 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
         cols = colsParaFonte(cfg?.tamanhoFonte, cfg?.largura ?? 48)
       }
     } catch {}
-    await imprimirTexto(impressoraWindows, 'TESTE DE IMPRESSAO\nAssistente de Impressao Menuzia\nFonte no tamanho real do pedido\n\n\n', 1, cols)
+    const saida = await imprimirTexto(impressoraWindows, 'TESTE DE IMPRESSAO\nAssistente de Impressao Menuzia\nFonte no tamanho real do pedido\n\n\n', 1, cols)
+    mostrarDiagnostico(saida)
     return { ok: true }
   } catch (err) {
     return { ok: false, erro: err.message }

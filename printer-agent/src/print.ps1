@@ -11,8 +11,11 @@ $ErrorActionPreference = 'Stop'
 # --- Diagnóstico: grava um log em %TEMP%\menuzia-print.log pra descobrir por que o
 # render gráfico (fonte grande + logo) cai no fallback de texto puro (fonte pequena). ---
 $LogFile = Join-Path $env:TEMP 'menuzia-print.log'
+# Diag grava no arquivo E emite pro stdout (prefixo MENUZIA:) pra o agente mostrar na
+# janela — assim o lojista vê o diagnóstico sem precisar caçar arquivo no PC.
 function Write-Log($msg) {
   try { Add-Content -Path $LogFile -Value ("[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $msg) -Encoding UTF8 } catch {}
+  Write-Output ("MENUZIA: " + $msg)
 }
 Write-Log "==== IMPRIMIR: printer='$PrinterName' cols=$Cols logo='$LogoPath' ===="
 
@@ -44,7 +47,7 @@ function Invoke-ImpressaoTexto {
 # (sem anti-aliasing), deixando as letras grossas e escuras — em vez da fonte fina
 # padrão do Out-Printer. A largura da fonte é auto-ajustada pra linha mais larga
 # caber no papel, e a altura do papel é igual ao conteúdo (não desperdiça bobina).
-function Invoke-ImpressaoGrafica {
+function Invoke-ImpressaoGrafica([bool]$UsarPapelCustom = $true) {
   Add-Type -AssemblyName System.Drawing
 
   $texto = Get-Content -Path $FilePath -Raw -Encoding UTF8
@@ -92,7 +95,8 @@ function Invoke-ImpressaoGrafica {
   $alvo = if ($Cols -gt 0) { [Math]::Max($Cols, $maxLen) } else { $maxLen }
   $amostra = ('M' * $alvo)
   $font = $null
-  for ($sz = 18.0; $sz -ge 5.0; $sz -= 0.5) {
+  # Teto alto (40pt): em papel largo com poucas colunas a fonte pode ficar bem grande.
+  for ($sz = 40.0; $sz -ge 5.0; $sz -= 0.5) {
     $f = New-Object System.Drawing.Font('Consolas', $sz, [System.Drawing.FontStyle]::Bold)
     $w = $mg.MeasureString($amostra, $f).Width
     if ($w -le $larguraTexto) { $font = $f; break }
@@ -122,9 +126,16 @@ function Invoke-ImpressaoGrafica {
 
   # Papel sob medida: mesma largura, altura = conteúdo. Evita avançar a bobina até o
   # fim de uma página "Carta". Margens zeradas (controlamos o respiro na mão).
-  $doc.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize('ReciboMenuzia', [int]$paper.Width, $alturaTotal)
-  $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
-  $doc.OriginAtMargins = $false
+  # ALGUNS drivers térmicos LANÇAM EXCEÇÃO ao receber um PaperSize custom -> nesse caso
+  # o render inteiro caía no fallback de texto pequeno. Por isso é opcional: se a 1a
+  # tentativa (com papel custom) falhar, a 2a roda sem custom (papel padrão do driver).
+  if ($UsarPapelCustom) {
+    $doc.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize('ReciboMenuzia', [int]$paper.Width, $alturaTotal)
+    $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
+    $doc.OriginAtMargins = $false
+  } else {
+    try { $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0); $doc.OriginAtMargins = $false } catch {}
+  }
 
   $script:linhasImpr = $linhas
   $script:fontImpr = $font
@@ -160,7 +171,7 @@ function Invoke-ImpressaoGrafica {
   $doc.add_PrintPage($handler)
   try {
     $doc.Print()
-    Write-Log "GRAFICA OK (fonte escalada + logo desenhada)."
+    Write-Log ("GRAFICA OK (papelCustom={0}, fontSize={1}, logo={2})." -f $UsarPapelCustom, $font.Size, ($null -ne $logoImg))
   } finally {
     if ($logoImg) { $logoImg.Dispose() }
     $mg.Dispose()
@@ -170,11 +181,19 @@ function Invoke-ImpressaoGrafica {
   }
 }
 
+# Camada 1: render gráfico com papel sob medida (ideal: fonte grande + logo, sem
+# desperdício de bobina). Camada 2: se o driver rejeitar o papel custom, tenta o
+# gráfico com o papel PADRÃO do driver (ainda fonte grande + logo). Camada 3: só se
+# ambas falharem, cai no texto puro (fonte pequena) pra impressão nunca parar.
 try {
-  Invoke-ImpressaoGrafica
+  Invoke-ImpressaoGrafica $true
 } catch {
-  # Qualquer problema no render gráfico: cai pro método de texto puro que sempre funcionou.
-  Write-Log ("ERRO GRAFICA -> FALLBACK. Excecao: {0}" -f $_.Exception.Message)
-  Write-Log ("STACK: {0}" -f ($_.ScriptStackTrace))
-  Invoke-ImpressaoTexto
+  Write-Log ("ERRO GRAFICA (papel custom): {0}" -f $_.Exception.Message)
+  try {
+    Invoke-ImpressaoGrafica $false
+  } catch {
+    Write-Log ("ERRO GRAFICA (papel padrao) -> FALLBACK TEXTO: {0}" -f $_.Exception.Message)
+    Write-Log ("STACK: {0}" -f ($_.ScriptStackTrace))
+    Invoke-ImpressaoTexto
+  }
 }

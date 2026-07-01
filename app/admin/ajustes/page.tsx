@@ -829,8 +829,8 @@ function envolverR(largura: number, texto: string, indent = ''): string[] {
 function colsParaFontePreview(tamanho: string | undefined, largura: number): number {
   const t = String(tamanho || '').toLowerCase()
   const base = Number(largura) > 0 ? Number(largura) : 48
-  if (t.includes('grand')) return Math.max(16, Math.round(base * 0.625))
-  if (t.includes('med') || t.includes('norm')) return Math.max(16, Math.round(base * 0.792))
+  if (t.includes('grand')) return Math.max(14, Math.round(base * 0.55))
+  if (t.includes('med') || t.includes('norm')) return Math.max(16, Math.round(base * 0.72))
   return base
 }
 
@@ -1096,7 +1096,7 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               impressos automaticamente sem precisar abrir o navegador.
             </p>
             <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.17/AssistenteImpressaoMenuzia-Setup-0.1.17.exe"
+              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.18/AssistenteImpressaoMenuzia-Setup-0.1.18.exe"
               className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
             >
               ⬇ Baixar Assistente de Impressão (Windows)
