@@ -678,14 +678,18 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
 // ─── Aba Impressão ──────────────────────────────────────────────────────────
 
-const FABRICANTES = ['Epson', 'Bematech', 'Elgin', 'Daruma', 'Outra']
 const TAMANHOS_FONTE = [
   { value: 'grande', label: 'Grande (recomendado)' },
   { value: 'media', label: 'Média' },
   { value: 'pequena', label: 'Pequena (mais conteúdo por linha)' },
 ]
+// Largura do papel -> nº de colunas base (a fonte escala a partir disso).
+const LARGURAS_PAPEL = [
+  { value: 48, label: '80mm (padrão)' },
+  { value: 32, label: '58mm (bobina pequena)' },
+]
 
-const IMPRESSORA_VAZIA: ImpressoraInput = { nome: '', fabricante: 'Epson', impressoraSistema: '', tamanhoFonte: 'media', largura: 48, copias: 1 }
+const IMPRESSORA_VAZIA: ImpressoraInput = { nome: '', tamanhoFonte: 'grande', largura: 48, copias: 1 }
 
 function ImpressoraModal({
   initial,
@@ -701,8 +705,8 @@ function ImpressoraModal({
   const [error, setError] = useState<string | null>(null)
 
   async function handleSave() {
-    if (!form.nome.trim() || !form.impressoraSistema.trim()) {
-      setError('Preencha o nome da impressora e o nome dela no sistema operacional.')
+    if (!form.nome.trim()) {
+      setError('Dê um nome para a impressora.')
       return
     }
     setSaving(true)
@@ -724,31 +728,24 @@ function ImpressoraModal({
           <button onClick={onClose} className="flex h-[28px] w-[28px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
         </div>
         <div className="space-y-3.5 p-4.5">
-          <Field label="Nome da impressora">
+          <Field label="Nome da impressora" hint="Só um apelido pra você identificar (ex.: Cozinha, Balcão).">
             <Input value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} placeholder="Ex: Impressora Padrão" />
-          </Field>
-          <Field label="Fabricante da impressora">
-            <select value={form.fabricante} onChange={(e) => setForm((p) => ({ ...p, fabricante: e.target.value }))}
-              className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
-              {FABRICANTES.map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </Field>
-          <Field label="Nome da impressora no Windows" hint='Copie o nome exato como aparece em "Impressoras e scanners" do Windows. Depois que o Assistente de Impressão estiver pareado, essa lista passa a ser preenchida automaticamente.'>
-            <Input value={form.impressoraSistema} onChange={(e) => setForm((p) => ({ ...p, impressoraSistema: e.target.value }))} placeholder="Ex: EPSON TM-T20X" />
           </Field>
           <div className="flex gap-3">
             <div className="flex-1">
-              <Field label="Tamanho da fonte" hint="Controla a fonte impressa de verdade. 'Grande' = letras maiores (menos colunas por linha). Use 'Grande' pra recibo bem legível.">
-
+              <Field label="Tamanho da fonte" hint="'Grande' = letras maiores. Use 'Grande' pra recibo bem legível.">
                 <select value={form.tamanhoFonte} onChange={(e) => setForm((p) => ({ ...p, tamanhoFonte: e.target.value }))}
                   className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
                   {TAMANHOS_FONTE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </Field>
             </div>
-            <div className="w-28">
-              <Field label="Largura" hint="colunas — 48 p/ 80mm, 32 p/ 58mm">
-                <Input type="number" min={32} max={64} value={form.largura} onChange={(e) => setForm((p) => ({ ...p, largura: Number(e.target.value) || 0 }))} />
+            <div className="flex-1">
+              <Field label="Largura do papel" hint="A bobina que você usa.">
+                <select value={form.largura} onChange={(e) => setForm((p) => ({ ...p, largura: Number(e.target.value) }))}
+                  className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
+                  {LARGURAS_PAPEL.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                </select>
               </Field>
             </div>
           </div>
@@ -951,7 +948,7 @@ function ReciboPreview({ config, nomeLoja, logoUrl, cols }: { config: ConfigImpr
     <div className="sticky top-0">
       <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-        Prévia <b>exata</b> do que o agente imprime — mesma largura ({cols} colunas) e mesmas seções. Atualiza ao vivo. (QR code e comprovante de cancelamento ainda não saem na impressão.)
+        Prévia <b>exata</b> do que o agente imprime — mesma largura ({cols} colunas) e mesmas seções. Atualiza ao vivo.
       </p>
       <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
         <div className="mx-auto w-fit rounded bg-white px-3 py-3 shadow-sm">
@@ -971,9 +968,6 @@ function ReciboPreview({ config, nomeLoja, logoUrl, cols }: { config: ConfigImpr
           <pre ref={paperRef} className="whitespace-pre text-[11px] font-bold leading-snug text-text-main" style={{ fontFamily: 'Consolas, ui-monospace, monospace' }}>{texto}</pre>
         </div>
       </div>
-      {config.imprimirComprovanteCancelamento && (
-        <p className="mt-2 text-[11px] text-text-subtle">+ pedidos cancelados também geram um comprovante extra (em breve).</p>
-      )}
     </div>
   )
 }
@@ -1182,11 +1176,11 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
                           </span>
                         )}
                       </div>
-                      <div className="truncate text-[11px] text-text-subtle">{imp.fabricante} · {imp.impressoraSistema || 'sem impressora do sistema vinculada'} · largura {imp.largura}, {imp.copias}x</div>
+                      <div className="truncate text-[11px] text-text-subtle">Papel {imp.largura === 32 ? '58mm' : '80mm'} · fonte {imp.tamanhoFonte} · {imp.copias}x</div>
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <button
-                        onClick={() => setModal({ id: imp.id, input: { nome: imp.nome, fabricante: imp.fabricante, impressoraSistema: imp.impressoraSistema, tamanhoFonte: imp.tamanhoFonte, largura: imp.largura, copias: imp.copias } })}
+                        onClick={() => setModal({ id: imp.id, input: { nome: imp.nome, tamanhoFonte: imp.tamanhoFonte, largura: imp.largura, copias: imp.copias } })}
                         className="text-[12px] font-semibold text-primary hover:underline"
                       >Editar</button>
                       <button onClick={() => excluirImpressora(imp.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
@@ -1207,8 +1201,6 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
               <ToggleRow label="Usar fonte maior na via de produção" checked={config.fonteMaiorProducao} onChange={(v) => patch({ fonteMaiorProducao: v })} />
               <ToggleRow label="Multiplicar opções pela quantidade do produto" checked={config.multiplicarOpcoesQtd} onChange={(v) => patch({ multiplicarOpcoesQtd: v })} />
               <ToggleRow label="Imprimir logo da loja na nota" checked={config.imprimirLogo} onChange={(v) => patch({ imprimirLogo: v })} />
-              <ToggleRow label="Imprimir comprovante de cancelamento (em breve)" hint="Ainda não sai na impressão — em desenvolvimento." checked={false} disabled onChange={() => {}} />
-              <ToggleRow label="Imprimir QR Code de avaliação do pedido (em breve)" hint="Ainda não sai na impressão — em desenvolvimento. Nem toda impressora suporta essa função." checked={false} disabled onChange={() => {}} />
             </div>
           </Card>
 

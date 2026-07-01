@@ -7,8 +7,6 @@ export interface ConfigImpressao {
   fonteMaiorProducao: boolean
   multiplicarOpcoesQtd: boolean
   imprimirLogo: boolean
-  imprimirComprovanteCancelamento: boolean
-  imprimirQrcodeAvaliacao: boolean
   ativarAssistente: boolean
   impressaoAutomatica: boolean
   aceitarPedidosAutomaticamente: boolean
@@ -22,8 +20,6 @@ interface ConfigImpressaoRow {
   impressao_fonte_maior_producao: boolean
   impressao_multiplicar_opcoes_qtd: boolean
   impressao_logo: boolean
-  impressao_comprovante_cancelamento: boolean
-  impressao_qrcode_avaliacao: boolean
   impressao_ativar_assistente: boolean
   impressao_automatica: boolean
   impressao_aceitar_pedidos_automaticamente: boolean
@@ -33,7 +29,7 @@ interface ConfigImpressaoRow {
 const CONFIG_IMPRESSAO_SELECT = `
   impressao_mostrar_numero_item, impressao_mostrar_preco_complementos, impressao_mostrar_nome_complementos,
   impressao_fonte_maior_producao, impressao_multiplicar_opcoes_qtd, impressao_logo,
-  impressao_comprovante_cancelamento, impressao_qrcode_avaliacao, impressao_ativar_assistente,
+  impressao_ativar_assistente,
   impressao_automatica, impressao_aceitar_pedidos_automaticamente, impressao_agente_token
 `
 
@@ -45,8 +41,6 @@ function mapConfigImpressao(row: ConfigImpressaoRow): ConfigImpressao {
     fonteMaiorProducao: row.impressao_fonte_maior_producao,
     multiplicarOpcoesQtd: row.impressao_multiplicar_opcoes_qtd,
     imprimirLogo: row.impressao_logo,
-    imprimirComprovanteCancelamento: row.impressao_comprovante_cancelamento,
-    imprimirQrcodeAvaliacao: row.impressao_qrcode_avaliacao,
     ativarAssistente: row.impressao_ativar_assistente,
     impressaoAutomatica: row.impressao_automatica,
     aceitarPedidosAutomaticamente: row.impressao_aceitar_pedidos_automaticamente,
@@ -70,8 +64,6 @@ export async function atualizarConfigImpressao(supabase: SupabaseClient, restaur
   if (patch.fonteMaiorProducao !== undefined) row.impressao_fonte_maior_producao = patch.fonteMaiorProducao
   if (patch.multiplicarOpcoesQtd !== undefined) row.impressao_multiplicar_opcoes_qtd = patch.multiplicarOpcoesQtd
   if (patch.imprimirLogo !== undefined) row.impressao_logo = patch.imprimirLogo
-  if (patch.imprimirComprovanteCancelamento !== undefined) row.impressao_comprovante_cancelamento = patch.imprimirComprovanteCancelamento
-  if (patch.imprimirQrcodeAvaliacao !== undefined) row.impressao_qrcode_avaliacao = patch.imprimirQrcodeAvaliacao
   if (patch.ativarAssistente !== undefined) row.impressao_ativar_assistente = patch.ativarAssistente
   if (patch.impressaoAutomatica !== undefined) row.impressao_automatica = patch.impressaoAutomatica
   if (patch.aceitarPedidosAutomaticamente !== undefined) row.impressao_aceitar_pedidos_automaticamente = patch.aceitarPedidosAutomaticamente
@@ -92,8 +84,6 @@ export async function gerarTokenAgente(supabase: SupabaseClient, restauranteId: 
 export interface Impressora {
   id: string
   nome: string
-  fabricante: string
-  impressoraSistema: string
   tamanhoFonte: string
   largura: number
   copias: number
@@ -104,8 +94,6 @@ export interface Impressora {
 interface ImpressoraRow {
   id: string
   nome: string
-  fabricante: string
-  impressora_sistema: string
   tamanho_fonte: string
   largura: number
   copias: number
@@ -113,14 +101,12 @@ interface ImpressoraRow {
   posicao: number
 }
 
-const IMPRESSORA_SELECT = 'id, nome, fabricante, impressora_sistema, tamanho_fonte, largura, copias, ativa, posicao'
+const IMPRESSORA_SELECT = 'id, nome, tamanho_fonte, largura, copias, ativa, posicao'
 
 function mapImpressora(row: ImpressoraRow): Impressora {
   return {
     id: row.id,
     nome: row.nome,
-    fabricante: row.fabricante,
-    impressoraSistema: row.impressora_sistema,
     tamanhoFonte: row.tamanho_fonte,
     largura: row.largura,
     copias: row.copias,
@@ -141,8 +127,6 @@ export async function listarImpressoras(supabase: SupabaseClient, restauranteId:
 
 export interface ImpressoraInput {
   nome: string
-  fabricante: string
-  impressoraSistema: string
   tamanhoFonte: string
   largura: number
   copias: number
@@ -154,8 +138,6 @@ export async function criarImpressora(supabase: SupabaseClient, restauranteId: s
     .insert({
       restaurante_id: restauranteId,
       nome: input.nome,
-      fabricante: input.fabricante,
-      impressora_sistema: input.impressoraSistema,
       tamanho_fonte: input.tamanhoFonte,
       largura: input.largura,
       copias: input.copias,
@@ -172,8 +154,6 @@ export async function atualizarImpressora(supabase: SupabaseClient, id: string, 
     .from('impressoras')
     .update({
       nome: input.nome,
-      fabricante: input.fabricante,
-      impressora_sistema: input.impressoraSistema,
       tamanho_fonte: input.tamanhoFonte,
       largura: input.largura,
       copias: input.copias,
