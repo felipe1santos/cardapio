@@ -149,7 +149,7 @@ async function carregarImpressorasCloud(selecionadaId) {
   ddCloud.setOpcoes(
     lista.map((imp) => ({
       value: imp.id,
-      label: `${imp.nome} (largura ${imp.largura}, ${imp.copias}x cópia${imp.copias > 1 ? 's' : ''})`,
+      label: `${imp.nome} (papel ${imp.largura <= 40 ? '58mm' : '80mm'}, ${imp.copias}x cópia${imp.copias > 1 ? 's' : ''})`,
     })),
     selecionadaId,
   )
