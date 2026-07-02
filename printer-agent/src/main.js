@@ -218,6 +218,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => { app.isQuitting = true })
 app.on('window-all-closed', () => { /* mantém rodando em segundo plano */ })
 
+ipcMain.handle('versao', () => app.getVersion())
 ipcMain.handle('carregar-config', () => carregarConfig())
 
 ipcMain.handle('salvar-config', (_e, patch) => {

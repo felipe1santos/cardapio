@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('agente', {
   testarPareamento: (token) => ipcRenderer.invoke('testar-pareamento', { token }),
   buscarImpressorasCloud: (token) => ipcRenderer.invoke('buscar-impressoras-cloud', { token }),
   testarImpressora: (args) => ipcRenderer.invoke('testar-impressora', args),
+  versao: () => ipcRenderer.invoke('versao'),
   onLog: (callback) => ipcRenderer.on('log', (_e, payload) => callback(payload)),
 })

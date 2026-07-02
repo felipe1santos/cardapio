@@ -163,6 +163,7 @@ async function aposConectar(config) {
 }
 
 async function init() {
+  try { document.getElementById('versao').textContent = 'v' + (await window.agente.versao()) } catch {}
   const config = await window.agente.carregarConfig()
   $token.value = config.token || ''
   // Se já tem token salvo, testa sozinho e libera o Passo 2 se conectar.
