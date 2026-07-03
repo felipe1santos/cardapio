@@ -631,6 +631,8 @@ export interface RestauranteVitrine {
   telefone: string
   endereco: string
   taxaEntregaPadrao: number
+  /** Pedidos com subtotal >= este valor têm entrega grátis. Null = desativado. */
+  freteGratisAcima: number | null
   facebookPixelId: string | null
   googleTagId: string | null
   orderBumpMax: number
@@ -642,7 +644,7 @@ export interface RestauranteVitrine {
 export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
-    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande')
+    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande')
     .eq('slug', slug)
     .maybeSingle()
   if (error) throw error
@@ -656,6 +658,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     telefone: data.telefone,
     endereco: data.endereco,
     taxaEntregaPadrao: Number(data.taxa_entrega_padrao),
+    freteGratisAcima: data.frete_gratis_acima === null || data.frete_gratis_acima === undefined ? null : Number(data.frete_gratis_acima),
     facebookPixelId: data.facebook_pixel_id,
     googleTagId: data.google_tag_id,
     orderBumpMax: Number(data.order_bump_max ?? 4),

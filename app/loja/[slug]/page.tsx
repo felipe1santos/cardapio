@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { UtensilsCrossed } from 'lucide-react'
+import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestaurantePorSlug,
@@ -96,6 +96,15 @@ function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+
+/** Logo oficial do Pix (Banco Central) simplificado. */
+function PixIcon({ className = 'h-6 w-6' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="#32BCAD" aria-hidden>
+      <path d="M11.917 11.71a2.046 2.046 0 0 1-1.454-.602l-2.1-2.1a.4.4 0 0 0-.551 0l-2.108 2.108a2.044 2.044 0 0 1-1.454.602h-.414l2.66 2.66c.83.83 2.177.83 3.007 0l2.667-2.668h-.253zM4.25 4.282c.55 0 1.066.214 1.454.602l2.108 2.108a.39.39 0 0 0 .552 0l2.1-2.1a2.044 2.044 0 0 1 1.453-.602h.253L9.503 1.623a2.127 2.127 0 0 0-3.007 0l-2.66 2.66h.414zM14.377 6.496l-1.612-1.612a.307.307 0 0 1-.114.023h-.733c-.379 0-.75.154-1.017.422l-2.1 2.1a1.005 1.005 0 0 1-1.425 0L5.268 5.32a1.448 1.448 0 0 0-1.018-.422h-.9a.306.306 0 0 1-.109-.021L1.623 6.496c-.83.83-.83 2.177 0 3.008l1.618 1.618a.305.305 0 0 1 .108-.022h.901c.38 0 .75-.153 1.018-.421L7.375 8.57a1.034 1.034 0 0 1 1.426 0l2.1 2.1c.267.268.638.421 1.017.421h.733c.04 0 .079.01.114.024l1.612-1.612c.83-.83.83-2.178 0-3.008" />
+    </svg>
+  )
+}
 
 function PriceTag({ price, originalPrice, hideDiscount = false }: { price: number; originalPrice?: number | null; hideDiscount?: boolean }) {
   if (originalPrice && !hideDiscount) {
@@ -376,7 +385,14 @@ export default function StorefrontPage() {
   }, [restaurante, bairros, endereco.bairro])
 
   const entregavel = freteCalc ? freteCalc.entregavel : true
-  const fee = freteCalc ? (freteCalc.entregavel ? freteCalc.taxa : 0) : feeFallback
+
+  // Entrega grátis quando o subtotal atinge o mínimo configurado pela loja.
+  const freteGratisMinimo = restaurante?.freteGratisAcima ?? null
+  const freteGratisAtivo = freteGratisMinimo !== null && freteGratisMinimo > 0
+  const ganhouFreteGratis = freteGratisAtivo && subtotal >= freteGratisMinimo
+
+  const feeBase = freteCalc ? (freteCalc.entregavel ? freteCalc.taxa : 0) : feeFallback
+  const fee = ganhouFreteGratis ? 0 : feeBase
 
   const total = subtotal + (cart.length ? fee : 0)
 
@@ -638,6 +654,8 @@ export default function StorefrontPage() {
 
   // ── Product sheet ─────────────────────────────────────────────────────────
   const [productSheet, setProductSheet] = useState<ItemCardapio | null>(null)
+  // Quando preenchido, o sheet está editando uma linha existente do carrinho.
+  const [editingLineKey, setEditingLineKey] = useState<string | null>(null)
   const [qty, setQty] = useState(1)
   const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set())
@@ -650,6 +668,7 @@ export default function StorefrontPage() {
 
   function openProduct(item: ItemCardapio) {
     setProductSheet(item)
+    setEditingLineKey(null)
     setQty(1)
     setGroupSelections(new Map())
     setSelectedAddons(new Set())
@@ -659,6 +678,60 @@ export default function StorefrontPage() {
     setSelectedSaborId(item.sabores.find((s) => s.status === 'disponivel')?.id ?? null)
     setSelectedBordaId(null)
     setSelectedMassaId(null)
+  }
+
+  function closeProductSheet() {
+    setProductSheet(null)
+    setEditingLineKey(null)
+  }
+
+  /** Reabre o sheet do produto pré-preenchido com as escolhas de uma linha do carrinho. */
+  function editCartLine(line: CartLine) {
+    const item = allItems.find((i) => i.id === line.itemId)
+    if (!item) { showToast('Esse item não está mais disponível para edição.'); return }
+    setProductSheet(item)
+    setEditingLineKey(line.key)
+    setQty(line.qty)
+    setObs(line.obs)
+
+    // Complementos: casa por nome consumindo cada ocorrência uma única vez,
+    // pra não duplicar quando o mesmo nome existe em um grupo E como avulso.
+    const restantes = new Map<string, number>()
+    for (const a of line.addons) restantes.set(a.nome, (restantes.get(a.nome) ?? 0) + 1)
+    const consumir = (nome: string) => {
+      const n = restantes.get(nome) ?? 0
+      if (n <= 0) return false
+      restantes.set(nome, n - 1)
+      return true
+    }
+    const sel = new Map<string, Set<string>>()
+    for (const g of item.grupos) {
+      const ids = new Set<string>()
+      for (const c of g.complementos) if (consumir(c.nome)) ids.add(c.id)
+      if (ids.size > 0) sel.set(g.id, ids)
+    }
+    setGroupSelections(sel)
+
+    const avulsos = new Set<string>()
+    for (const c of item.complementos) if (consumir(c.nome)) avulsos.add(c.nome)
+    setSelectedAddons(avulsos)
+
+    setSelectedTamanhoId(item.tamanhos.find((t) => t.nome === line.tamanhoNome)?.id ?? item.tamanhos[0]?.id ?? null)
+    if (item.tipoItem === 'pizza') {
+      setSelectedTamanhoPizzaId(tamanhosPizza.find((t) => t.nome === line.tamanhoNome)?.id ?? tamanhosPizza[0]?.id ?? null)
+      setSelectedSaborId(item.sabores.find((s) => s.nome === line.saborNome)?.id ?? item.sabores.find((s) => s.status === 'disponivel')?.id ?? null)
+    } else {
+      setSelectedTamanhoPizzaId(tamanhosPizza[0]?.id ?? null)
+      setSelectedSaborId(item.sabores.find((s) => s.status === 'disponivel')?.id ?? null)
+    }
+    setSelectedBordaId(bordasPizza.find((b) => b.nome === line.bordaNome)?.id ?? null)
+    setSelectedMassaId(massasPizza.find((m) => m.nome === line.massaNome)?.id ?? null)
+
+    // Se o cardápio mudou desde que o item foi adicionado (tamanho renomeado,
+    // sabor esgotado…), avisa em vez de trocar a escolha em silêncio.
+    const tamanhoSumiu = item.tipoItem !== 'pizza' && !!line.tamanhoNome && item.tamanhos.length > 0 && !item.tamanhos.some((t) => t.nome === line.tamanhoNome)
+    const saborSumiu = item.tipoItem === 'pizza' && !!line.saborNome && !item.sabores.some((s) => s.nome === line.saborNome && s.status === 'disponivel')
+    if (tamanhoSumiu || saborSumiu) showToast('O cardápio mudou — confira as opções antes de salvar.')
   }
 
   function selectRadio(grupoId: string, compId: string) {
@@ -735,26 +808,30 @@ export default function StorefrontPage() {
     for (const comp of productSheet.complementos) {
       if (selectedAddons.has(comp.nome)) addonsList.push({ nome: comp.nome, preco: comp.preco })
     }
-    setCart((prev) => [
-      ...prev,
-      {
-        key: `${productSheet.id}-${Date.now()}`,
-        itemId: productSheet.id,
-        name: productSheet.nome,
-        imagemUrl: productSheet.imagemUrl,
-        qty,
-        unit: unitPrice,
-        addons: addonsList,
-        obs,
-        tamanhoNome: productSheet.tipoItem === 'pizza' ? (tamanhosPizza.find((t) => t.id === selectedTamanhoPizzaId)?.nome ?? '') : selectedTamanho?.nome ?? '',
-        saborNome: selectedSabor?.nome ?? '',
-        bordaNome: selectedBorda?.nome ?? '',
-        massaNome: selectedMassa?.nome ?? '',
-      },
-    ])
-    showToast(`${productSheet.nome} adicionado!`)
-    setProductSheet(null)
-    setTab('cart')
+    const novaLinha: CartLine = {
+      key: editingLineKey ?? `${productSheet.id}-${Date.now()}`,
+      itemId: productSheet.id,
+      name: productSheet.nome,
+      imagemUrl: productSheet.imagemUrl,
+      qty,
+      unit: unitPrice,
+      addons: addonsList,
+      obs,
+      tamanhoNome: productSheet.tipoItem === 'pizza' ? (tamanhosPizza.find((t) => t.id === selectedTamanhoPizzaId)?.nome ?? '') : selectedTamanho?.nome ?? '',
+      saborNome: selectedSabor?.nome ?? '',
+      bordaNome: selectedBorda?.nome ?? '',
+      massaNome: selectedMassa?.nome ?? '',
+    }
+    if (editingLineKey) {
+      setCart((prev) => prev.map((l) => (l.key === editingLineKey ? novaLinha : l)))
+      showToast(`${productSheet.nome} atualizado!`)
+    } else {
+      // Cliente permanece no cardápio pra continuar adicionando; a barra
+      // flutuante inferior leva pro carrinho quando ele quiser.
+      setCart((prev) => [...prev, novaLinha])
+      showToast(`${productSheet.nome} adicionado!`)
+    }
+    closeProductSheet()
   }
 
   // ── Order bump quick-add ──────────────────────────────────────────────────
@@ -892,7 +969,7 @@ export default function StorefrontPage() {
       const payload = {
         tipo: 'entrega' as const,
         cliente: { nome: cliente.nome.trim(), telefone: clienteSessao?.telefone ?? cliente.telefone.trim() },
-        endereco,
+        endereco: { ...endereco, cidade: cidadeCliente },
         pagamento: PAY_MAP[payMethod] ?? 'pix',
         trocoPara: payMethod === 'Dinheiro' ? parseMoney(changeFor) : null,
         taxaEntrega: fee,
@@ -946,6 +1023,57 @@ export default function StorefrontPage() {
     if (checkoutStep > 1) setCheckoutStep((s) => (s - 1) as CheckoutStep)
     else setCheckoutOpen(false)
   }
+
+  // ── Blocos reutilizados no carrinho (aba mobile + painel lateral desktop) ──
+  const freteGratisBanner = freteGratisAtivo && cart.length > 0 ? (
+    ganhouFreteGratis ? (
+      <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-[#16A34A]/30 bg-[#DCFCE7] px-3.5 py-3">
+        <Truck className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
+        <span className="text-[13px] font-bold text-[#16A34A]">Você ganhou entrega grátis neste pedido! 🎉</span>
+      </div>
+    ) : (
+      <div className="mb-4 rounded-lg border border-[#16A34A]/30 bg-[#F0FDF4] px-3.5 py-3">
+        <div className="flex items-center gap-2.5">
+          <Truck className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
+          <span className="text-[13px] font-semibold text-[#16A34A]">Entrega grátis para pedidos acima de {brl(freteGratisMinimo ?? 0)}</span>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#DCFCE7]">
+          <div className="h-full rounded-full bg-[#16A34A] transition-all duration-300" style={{ width: `${Math.min(100, (subtotal / (freteGratisMinimo || 1)) * 100)}%` }} />
+        </div>
+        <p className="mt-1.5 text-[12px] font-medium text-[#15803D]">Faltam {brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))} para ganhar a entrega grátis.</p>
+      </div>
+    )
+  ) : null
+
+  /** Linha do carrinho — clicável pra editar (complementos, observação, quantidade). */
+  const renderCartLine = (line: CartLine, hasBorder: boolean) => (
+    <div key={line.key} className={['flex items-start gap-3 p-3', hasBorder ? 'border-b border-border' : ''].join(' ')}>
+      <button onClick={() => editCartLine(line)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-label={`Editar ${line.name}`}>
+        <div className="h-[56px] w-[56px] flex-shrink-0 overflow-hidden rounded-md">
+          <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={56} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-1.5">
+            <span className="min-w-0 text-[13.5px] font-semibold leading-snug">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}{line.saborNome && <span className="font-normal text-text-subtle"> · {line.saborNome}</span>}</span>
+            <Pencil className="mt-0.5 h-3 w-3 flex-shrink-0 text-text-subtle/60" strokeWidth={2} />
+          </div>
+          {(line.bordaNome || line.massaNome) && (
+            <div className="mt-0.5 truncate text-[12px] text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
+          )}
+          {line.addons.length > 0 && (
+            <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
+          )}
+          {line.obs && <div className="mt-0.5 truncate text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
+          <div className="mt-1.5 text-[14px] font-bold text-[#16A34A]">{brl(line.unit * line.qty)}</div>
+        </div>
+      </button>
+      <div className="flex flex-shrink-0 items-center rounded-md border border-border bg-white">
+        <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
+        <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
+        <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">+</button>
+      </div>
+    </div>
+  )
 
   // ── Loading / error ────────────────────────────────────────────────────────
   if (loading) {
@@ -1094,8 +1222,11 @@ export default function StorefrontPage() {
               </div>
             )}
 
+            {/* Duas colunas no desktop: cardápio à esquerda + sacola fixa à direita */}
+            <div className="lg:flex lg:items-start lg:gap-8 lg:px-8">
+            <div className="min-w-0 flex-1">
             {/* Category nav */}
-            <div className="sticky top-0 z-10 mt-2 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-2 [scrollbar-width:none] lg:top-16 lg:mx-8">
+            <div className="sticky top-0 z-10 mt-2 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-2 [scrollbar-width:none] lg:top-16 lg:px-0">
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
@@ -1117,15 +1248,100 @@ export default function StorefrontPage() {
 
             {/* Destaques */}
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
-              <div className="px-4 pb-1 pt-3 lg:px-8">
+              <div className="px-4 pb-1 pt-3 lg:px-0">
                 <h2 className="mb-2.5 text-[17px] font-bold tracking-tight">Destaques</h2>
-                <div className="flex items-start gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible xl:grid-cols-5">
+                <div className="flex items-start gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
                   {destaques.map((item) => (
                     <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[120px] flex-shrink-0 lg:w-auto" compact />
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Promo filter view */}
+            {activeCategory === '__promos__' && (
+              <div className="px-4 pb-1 pt-4 lg:px-0">
+                <div className="mb-3 flex items-center gap-2">
+                  <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
+                  <span className="rounded bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-bold text-[#16A34A]">{promoItems.length} itens</span>
+                </div>
+                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
+              </div>
+            )}
+
+            {/* Regular categories (or search results) */}
+            {activeCategory !== '__promos__' &&
+              (search.trim()
+                ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
+                : groups
+              ).map((cat) => (
+                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4 lg:px-0">
+                  <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
+                  <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
+                </div>
+              ))}
+            {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
+              <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-0">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
+            )}
+            </div>
+
+            {/* Sacola fixa à direita (desktop) */}
+            <aside className="hidden w-[380px] flex-shrink-0 lg:block">
+              <div className="sticky top-20 pt-4">
+                <div className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
+                    <span className="text-[15px] font-bold">Sua sacola</span>
+                    {cartCount > 0 && (
+                      <span className="rounded-full bg-[var(--tema-primaria)] px-2.5 py-0.5 text-[11px] font-bold text-white">
+                        {cartCount} {cartCount === 1 ? 'item' : 'itens'}
+                      </span>
+                    )}
+                  </div>
+                  {cart.length === 0 ? (
+                    <div className="px-4 py-12 text-center">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#F3F4F6] text-2xl">🛍️</div>
+                      <p className="text-[13px] font-semibold text-text-main">Sua sacola está vazia</p>
+                      <p className="mt-1 text-[12px] text-text-subtle">Adicione itens do cardápio ao lado.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="max-h-[34vh] overflow-y-auto">
+                        {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
+                      </div>
+                      <div className="border-t border-border p-4">
+                        {freteGratisBanner}
+                        <div className="mb-3 space-y-1.5 text-[13px]">
+                          <div className="flex items-center justify-between text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-text-subtle">Taxa de entrega</span>
+                            {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
+                          </div>
+                          <div className="flex items-center justify-between pt-1 text-[15px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
+                        </div>
+                        <button
+                          onClick={() => setFreteOpen(true)}
+                          className="mb-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-[12px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
+                        >
+                          <Truck className="h-4 w-4" strokeWidth={2} />
+                          Calcular taxa de entrega
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
+                            setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null)
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-4 py-3.5 text-[14px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98]"
+                        >
+                          <span>Continuar para pagamento</span>
+                          <span>{brl(total)}</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </aside>
+            </div>
           </>
         )}
 
@@ -1157,83 +1373,28 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        {/* ── HOME tab ──────────────────────────────────────────────────── */}
-        {tab === 'home' && (
-          <div>
-            {/* Promo filter view */}
-            {activeCategory === '__promos__' && (
-              <div className="px-4 pb-1 pt-4 lg:px-8">
-                <div className="mb-3 flex items-center gap-2">
-                  <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
-                  <span className="rounded bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-bold text-[#16A34A]">{promoItems.length} itens</span>
-                </div>
-                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
-              </div>
-            )}
-
-            {/* Regular categories (or search results) */}
-            {activeCategory !== '__promos__' &&
-              (search.trim()
-                ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
-                : groups
-              ).map((cat) => (
-                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4 lg:px-8">
-                  <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
-                  <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
-                </div>
-              ))}
-            {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
-              <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-8">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
-            )}
-          </div>
-        )}
-
         {/* ── CART tab ──────────────────────────────────────────────────── */}
         {tab === 'cart' && (
-          <div className="px-4 pt-5 lg:px-8 lg:pt-8">
+          <div className="px-4 pt-4 lg:px-8 lg:pt-8">
             {cart.length === 0 ? (
               <div className="py-20 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🛍️</div>
                 <p className="font-semibold text-text-main">Sua sacola está vazia</p>
                 <p className="mt-1 text-[13px] text-text-subtle">Escolha seus itens favoritos no cardápio.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[var(--tema-primaria)] px-6 py-2.5 text-sm font-bold text-white hover:bg-[var(--tema-dark)]">
+                <button onClick={() => setTab('home')} className="mt-5 rounded-lg bg-[var(--tema-primaria)] px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-[var(--tema-dark)] active:scale-[0.98]">
                   Ver cardápio
                 </button>
               </div>
             ) : (
-              <div className="lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-6">
+              <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-6">
                 <div>
-                  <p className="mb-4 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">
+                  <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">
                     {cartCount} item{cartCount !== 1 ? 's' : ''} no carrinho
                   </p>
 
                   {/* Lines */}
-                  <div className="mb-5 overflow-hidden rounded border border-border bg-white">
-                    {cart.map((line, i) => (
-                      <div key={line.key} className={['flex gap-3.5 p-3.5', i < cart.length - 1 ? 'border-b border-border' : ''].join(' ')}>
-                        <div className="h-[54px] w-[54px] flex-shrink-0 overflow-hidden rounded">
-                          <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={54} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[14px] font-semibold">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}{line.saborNome && <span className="font-normal text-text-subtle"> · {line.saborNome}</span>}</div>
-                          {(line.bordaNome || line.massaNome) && (
-                            <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
-                          )}
-                          {line.addons.length > 0 && (
-                            <div className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
-                          )}
-                          {line.obs && <div className="mt-0.5 text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
-                          <div className="mt-2 flex items-center justify-between">
-                            <span className="text-[14px] font-bold text-[#16A34A]">{brl(line.unit * line.qty)}</span>
-                            <div className="flex items-center rounded border border-border">
-                              <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
-                              <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
-                              <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[32px] w-[32px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">+</button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="mb-5 overflow-hidden rounded-lg border border-border bg-white">
+                    {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
                   </div>
 
                   {/* Order bumps — "Peça também" */}
@@ -1245,7 +1406,7 @@ export default function StorefrontPage() {
                           <button
                             key={item.id}
                             onClick={() => quickAddOrderBump(item)}
-                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
+                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
                           >
                             <div className="h-[100px] w-full overflow-hidden">
                               <ProductThumb item={item} size={142} />
@@ -1265,13 +1426,16 @@ export default function StorefrontPage() {
                 </div>
 
                 <div className="lg:sticky lg:top-24">
+                  {freteGratisBanner}
+
                   {/* Summary */}
-                  <div className="mb-5 overflow-hidden rounded border border-border bg-white">
+                  <div className="mb-4 overflow-hidden rounded-lg border border-border bg-white">
                     <div className="flex items-center justify-between px-4 py-3 text-[13px] text-text-subtle">
                       <span>Subtotal</span><span>{brl(subtotal)}</span>
                     </div>
-                    <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px] text-text-subtle">
-                      <span>Taxa de entrega</span><span>{brl(fee)}</span>
+                    <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px]">
+                      <span className="text-text-subtle">Taxa de entrega</span>
+                      {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
                     </div>
                     <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
                       <span>Total</span><span className="text-[#16A34A]">{brl(total)}</span>
@@ -1279,20 +1443,28 @@ export default function StorefrontPage() {
                   </div>
 
                   <button
+                    onClick={() => setFreteOpen(true)}
+                    className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-5 py-3 text-[13px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
+                  >
+                    <Truck className="h-[18px] w-[18px]" strokeWidth={2} />
+                    Calcular taxa de entrega
+                  </button>
+
+                  <button
+                    onClick={() => setTab('home')}
+                    className="flex w-full items-center justify-center rounded-lg border-2 border-[var(--tema-primaria)] bg-white px-5 py-3 text-[14px] font-bold text-[var(--tema-primaria)] transition-all hover:bg-[var(--tema-light)] active:scale-[0.98]"
+                  >
+                    Continuar comprando
+                  </button>
+                  <button
                     onClick={() => {
                       if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                       setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null)
                     }}
-                    className="flex w-full items-center justify-between rounded bg-[var(--tema-primaria)] px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)] active:scale-[0.99]"
+                    className="mt-2.5 flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98]"
                   >
                     <span>Continuar para pagamento</span>
                     <span>{brl(total)}</span>
-                  </button>
-                  <button
-                    onClick={() => setTab('home')}
-                    className="mt-2.5 flex w-full items-center justify-center rounded bg-[#1F2937] px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-[#111827] active:scale-[0.99]"
-                  >
-                    Continuar comprando
                   </button>
                 </div>
               </div>
@@ -1550,11 +1722,11 @@ export default function StorefrontPage() {
       )}
 
       {/* ── Product sheet overlay ─────────────────────────────────────── */}
-      {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={() => setProductSheet(null)} />}
+      {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={closeProductSheet} />}
       <div className={['fixed inset-y-0 left-1/2 z-50 flex h-dvh w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden bg-white transition-all duration-300 lg:inset-y-auto lg:bottom-auto lg:top-1/2 lg:h-auto lg:max-h-[85vh] lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
         {productSheet && (
           <>
-            <button onClick={() => setProductSheet(null)} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
+            <button onClick={closeProductSheet} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
             <div className="flex-1 overflow-y-auto">
               {productSheet.imagemUrl
                 // eslint-disable-next-line @next/next/no-img-element
@@ -1777,9 +1949,9 @@ export default function StorefrontPage() {
                 <button
                   onClick={addToCart}
                   disabled={!gruposValidos}
-                  className={['flex flex-1 items-center justify-between rounded px-4 py-3.5 text-[15px] font-bold text-white transition-colors', gruposValidos ? 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)] active:scale-[0.99]' : 'cursor-not-allowed bg-border'].join(' ')}
+                  className={['flex flex-1 items-center justify-between rounded-lg px-5 py-3.5 text-[15px] font-bold text-white transition-all', gruposValidos ? 'bg-[var(--tema-primaria)] shadow-sm hover:bg-[var(--tema-dark)] active:scale-[0.98]' : 'cursor-not-allowed bg-border'].join(' ')}
                 >
-                  <span>Adicionar</span>
+                  <span>{editingLineKey ? 'Salvar alterações' : 'Adicionar'}</span>
                   <span>{brl(unitPrice * qty)}</span>
                 </button>
               </div>
@@ -1805,101 +1977,110 @@ export default function StorefrontPage() {
               {[
                 {
                   id: 'Pix',
-                  icon: (
-                    <svg viewBox="0 0 24 24" className="h-6 w-6">
-                      <rect x="4" y="4" width="16" height="16" rx="5" fill="#32BCAD" transform="rotate(45 12 12)" />
-                      <rect x="9" y="9" width="6" height="6" rx="2" fill="#fff" transform="rotate(45 12 12)" />
-                    </svg>
-                  ),
+                  descricao: 'Pagamento instantâneo e seguro',
+                  icon: <PixIcon className="h-6 w-6" />,
+                  chip: 'bg-[#E7F7F5]',
                 },
                 {
                   id: 'Cartão na entrega',
-                  icon: (
-                    <svg viewBox="0 0 24 24" className="h-6 w-6">
-                      <rect x="1.5" y="5" width="21" height="14" rx="2.5" style={{ fill: 'var(--tema-primaria)' }} />
-                      <rect x="1.5" y="8.5" width="21" height="3" fill="#fff" fillOpacity="0.85" />
-                      <rect x="4.5" y="14.5" width="7" height="1.8" rx="0.9" fill="#fff" fillOpacity="0.7" />
-                    </svg>
-                  ),
+                  descricao: 'Crédito ou débito na maquininha',
+                  icon: <CreditCard className="h-6 w-6 text-[#1D4ED8]" strokeWidth={1.8} />,
+                  chip: 'bg-[#E0EAFF]',
                 },
                 {
                   id: 'Dinheiro',
-                  icon: (
-                    <svg viewBox="0 0 24 24" className="h-6 w-6">
-                      <rect x="1" y="5.5" width="22" height="13" rx="2.5" fill="#16A34A" />
-                      <circle cx="12" cy="12" r="3" fill="#fff" fillOpacity="0.9" />
-                      <circle cx="4.5" cy="12" r="1.1" fill="#fff" fillOpacity="0.6" />
-                      <circle cx="19.5" cy="12" r="1.1" fill="#fff" fillOpacity="0.6" />
-                    </svg>
-                  ),
+                  descricao: 'Pague em espécie na entrega',
+                  icon: <Banknote className="h-6 w-6 text-[#16A34A]" strokeWidth={1.8} />,
+                  chip: 'bg-[#DCFCE7]',
                 },
               ].map((opt) => (
                 <button key={opt.id} onClick={() => setPayMethod(opt.id)}
-                  className={['mb-2.5 flex w-full items-center gap-3 rounded border p-3.5 text-left transition-colors', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)]' : 'border-border'].join(' ')}>
-                  <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded bg-[#F3F4F6]">{opt.icon}</span>
-                  <span className="flex-1 text-sm font-semibold">{opt.id}</span>
-                  <span className={['flex h-5 w-5 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')} />
+                  className={['mb-3 flex w-full items-center gap-3.5 rounded-lg border-2 p-4 text-left transition-all active:scale-[0.99]', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)] shadow-sm' : 'border-border bg-white hover:border-text-subtle/40'].join(' ')}>
+                  <span className={['flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg', opt.chip].join(' ')}>{opt.icon}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-bold text-text-main">{opt.id}</span>
+                    <span className="mt-0.5 block text-[12px] text-text-subtle">{opt.descricao}</span>
+                  </span>
+                  <span className={['flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                    {payMethod === opt.id && <span className="h-2 w-2 rounded-full bg-white" />}
+                  </span>
                 </button>
               ))}
               {payMethod === 'Dinheiro' && (
-                <div className="mt-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Troco para quanto? (deixe em branco se não precisar)</label>
-                  <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                <div className="mt-1 rounded-lg border border-border bg-white p-4">
+                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Troco para quanto?</label>
+                  <p className="mb-2 text-[12px] text-text-subtle">Deixe em branco se não precisar de troco.</p>
+                  <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00" inputMode="decimal"
+                    className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               )}
+
+              {/* Resumo compacto pra ancorar a decisão */}
+              <div className="mt-5 flex items-center justify-between rounded-lg border border-border bg-white px-4 py-3.5">
+                <span className="text-[13px] font-semibold text-text-subtle">Total do pedido</span>
+                <span className="text-[16px] font-bold text-[#16A34A]">{brl(total)}</span>
+              </div>
             </div>
           )}
 
           {checkoutStep === 2 && (
             <div className="px-4 pb-5">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seus dados</h3>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome *</label>
-                  <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
-                </div>
-                <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
-                  <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: e.target.value }))} placeholder="(00) 00000-0000"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
-                </div>
-              </div>
-              <h3 className="mb-3 mt-5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
-              {/* CEP primeiro: ao preencher, busca rua/bairro/cidade sozinho */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
-                <input
-                  value={endereco.cep}
-                  onChange={(e) => { const v = e.target.value; setEndereco((a) => ({ ...a, cep: v })); autofillCep(v) }}
-                  placeholder="00000-000"
-                  inputMode="numeric"
-                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
-                <p className="mt-1 text-[11px] text-text-subtle">{cepBuscando ? 'Buscando endereço…' : 'Informe o CEP que preenchemos rua e bairro pra você.'}</p>
-              </div>
-              <div className="mt-3 flex gap-3">
-                <div className="flex-[2]">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua *</label>
-                  <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
-                </div>
-                <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número *</label>
-                  <input value={endereco.numero} onChange={(e) => setEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+              <div className="rounded-lg border border-border bg-white p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seus dados</h3>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Nome *</label>
+                    <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Telefone</label>
+                    <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: e.target.value }))} placeholder="(00) 00000-0000" inputMode="tel"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
                 </div>
               </div>
-              <div className="mt-3 flex gap-3">
-                <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
-                  <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+
+              <div className="mt-4 rounded-lg border border-border bg-white p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
+                {/* CEP primeiro: ao preencher, busca rua/bairro/cidade sozinho */}
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">CEP</label>
+                  <input
+                    value={endereco.cep}
+                    onChange={(e) => { const v = e.target.value; setEndereco((a) => ({ ...a, cep: v })); autofillCep(v) }}
+                    placeholder="00000-000"
+                    inputMode="numeric"
+                    className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  <p className="mt-1.5 text-[12px] text-text-subtle">{cepBuscando ? 'Buscando endereço…' : 'Informe o CEP que preenchemos rua e bairro pra você.'}</p>
                 </div>
-                <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
-                  <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
-                    className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                <div className="mt-3 flex gap-3">
+                  <div className="flex-[2]">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Rua *</label>
+                    <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Número *</label>
+                    <input value={endereco.numero} onChange={(e) => setEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123" inputMode="numeric"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-3">
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Bairro</label>
+                    <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro" list="bairros-loja"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                    {/* Sugestões: bairros que a loja atende (cadastrados no painel Entrega) */}
+                    <datalist id="bairros-loja">
+                      {bairros.map((b) => <option key={b.bairro} value={b.bairro} />)}
+                    </datalist>
+                  </div>
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Complemento</label>
+                    <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
                 </div>
               </div>
               {/* Status do frete calculado */}
@@ -1935,15 +2116,17 @@ export default function StorefrontPage() {
                 <div className="flex justify-between border-t border-border px-3.5 py-3 text-[15px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
               </div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega & pagamento</h3>
-              <div className="mb-2.5 flex items-center gap-3 rounded border border-border p-3.5">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded bg-[#F3F4F6] text-lg">📍</span>
+              <div className="mb-2.5 flex items-center gap-3 rounded-lg border border-border bg-white p-3.5">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]"><MapPin className="h-5 w-5 text-text-subtle" strokeWidth={1.8} /></span>
                 <div className="text-[13px] leading-relaxed">
                   {endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}
                   <br /><span className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</span>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded border border-border p-3.5">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded bg-[#F3F4F6] text-lg">💳</span>
+              <div className="flex items-center gap-3 rounded-lg border border-border bg-white p-3.5">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]">
+                  {payMethod === 'Pix' ? <PixIcon className="h-5 w-5" /> : payMethod === 'Dinheiro' ? <Banknote className="h-5 w-5 text-[#16A34A]" strokeWidth={1.8} /> : <CreditCard className="h-5 w-5 text-[#1D4ED8]" strokeWidth={1.8} />}
+                </span>
                 <div className="text-[13px] font-semibold">{payMethod}{payMethod === 'Dinheiro' && changeFor && <span className="font-normal text-text-subtle"> · troco para R$ {changeFor}</span>}</div>
               </div>
             </div>
@@ -1952,7 +2135,7 @@ export default function StorefrontPage() {
           <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:left-auto lg:max-w-none lg:translate-x-0 lg:pb-4">
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
-              className="flex w-full items-center justify-between rounded bg-[var(--tema-primaria)] px-5 py-4 text-[15px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60 active:scale-[0.99]">
+              className={['flex w-full items-center justify-between rounded-lg px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]', checkoutStep === 3 ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)]'].join(' ')}>
               <span>{submitting ? 'Enviando…' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
               {checkoutStep === 3 && !submitting && <span>{brl(total)}</span>}
             </button>
@@ -1990,8 +2173,11 @@ export default function StorefrontPage() {
                   <p className="text-[13px] text-text-subtle">{freteResult.bairro}{freteResult.bairro && freteResult.cidade ? ' · ' : ''}{freteResult.cidade}</p>
                   <div className="mt-2.5 flex items-center justify-between rounded bg-[#DCFCE7] px-3 py-2">
                     <span className="text-[13px] font-semibold text-[#16A34A]">Taxa de entrega</span>
-                    <span className="text-sm font-bold text-[#16A34A]">{brl(freteResult.taxa)}</span>
+                    <span className="text-sm font-bold text-[#16A34A]">{ganhouFreteGratis ? 'Grátis' : brl(freteResult.taxa)}</span>
                   </div>
+                  {freteGratisAtivo && !ganhouFreteGratis && (
+                    <p className="mt-2 text-[12px] font-medium text-[#16A34A]">Pedidos acima de {brl(freteGratisMinimo ?? 0)} têm entrega grátis.</p>
+                  )}
                   <button onClick={usarEnderecoDoFrete} className="mt-3 w-full rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)]">
                     Usar este endereço no pedido
                   </button>

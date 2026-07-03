@@ -333,6 +333,10 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   const [loaded, setLoaded] = useState(false)
   const [taxaPadrao, setTaxaPadrao] = useState('')
   const [taxaPadraoSalva, setTaxaPadraoSalva] = useState(0)
+  const [freteGratis, setFreteGratis] = useState('')
+  const [freteGratisSalvo, setFreteGratisSalvo] = useState<number | null>(null)
+  const [savingFreteGratis, setSavingFreteGratis] = useState(false)
+  const [savedFreteGratis, setSavedFreteGratis] = useState(false)
   const [bairros, setBairros] = useState<TaxaBairro[]>([])
   const [saving, setSaving] = useState(false)
   const [savedTaxa, setSavedTaxa] = useState(false)
@@ -366,6 +370,8 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
       if (cfg) {
         setTaxaPadrao(String(cfg.taxaEntregaPadrao))
         setTaxaPadraoSalva(cfg.taxaEntregaPadrao)
+        setFreteGratis(cfg.freteGratisAcima === null ? '' : String(cfg.freteGratisAcima))
+        setFreteGratisSalvo(cfg.freteGratisAcima)
       }
       setBairros(rows)
       setRaios(raioRows)
@@ -431,6 +437,28 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
       setError('Não foi possível salvar a taxa padrão.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function saveFreteGratis() {
+    const bruto = freteGratis.trim()
+    let valor: number | null = null
+    if (bruto !== '') {
+      const val = parseFloat(bruto.replace(',', '.'))
+      if (!Number.isFinite(val) || val < 0) { setError('Informe um valor válido para a entrega grátis (ex: 100.00) ou deixe em branco para desativar.'); return }
+      valor = val > 0 ? val : null
+    }
+    setSavingFreteGratis(true)
+    setError(null)
+    try {
+      await atualizarConfigLoja(supabase, restauranteId, { freteGratisAcima: valor })
+      setFreteGratisSalvo(valor)
+      setFreteGratis(valor === null ? '' : String(valor))
+      setSavedFreteGratis(true)
+    } catch {
+      setError('Não foi possível salvar o valor mínimo de entrega grátis.')
+    } finally {
+      setSavingFreteGratis(false)
     }
   }
 
@@ -502,6 +530,33 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
               </Button>
             </div>
             {savedTaxa && !taxaChanged && <p className="mt-1.5 text-[12px] font-medium text-status-ready">Taxa padrão salva.</p>}
+          </Card>
+
+          {/* Entrega grátis acima de um valor */}
+          <Card>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Entrega grátis</h3>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+              Pedidos com subtotal igual ou acima deste valor ganham entrega grátis. O aviso aparece em destaque no
+              carrinho do cliente. Deixe em branco para desativar.
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="w-40">
+                <Input
+                  value={freteGratis}
+                  onChange={(e) => { setFreteGratis(e.target.value); setSavedFreteGratis(false) }}
+                  placeholder="Ex: 100.00"
+                />
+              </div>
+              <span className="text-sm text-text-subtle">R$</span>
+              <Button variant="outline" onClick={saveFreteGratis} disabled={savingFreteGratis}>
+                {savingFreteGratis ? 'Salvando…' : 'Salvar'}
+              </Button>
+            </div>
+            {savedFreteGratis && (
+              <p className="mt-1.5 text-[12px] font-medium text-status-ready">
+                {freteGratisSalvo === null ? 'Entrega grátis desativada.' : `Entrega grátis ativa para pedidos acima de R$ ${freteGratisSalvo.toFixed(2).replace('.', ',')}.`}
+              </p>
+            )}
           </Card>
 
           {/* Taxas por bairro */}

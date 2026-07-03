@@ -11,6 +11,8 @@ export interface ConfigLoja {
   endereco: string
   cep: string
   taxaEntregaPadrao: number
+  /** Pedidos com subtotal >= este valor têm entrega grátis. Null = desativado. */
+  freteGratisAcima: number | null
   facebookPixelId: string | null
   googleTagId: string | null
   layoutCardapio: LayoutCardapio
@@ -30,6 +32,7 @@ interface ConfigRow {
   endereco: string
   cep: string | null
   taxa_entrega_padrao: number
+  frete_gratis_acima: number | null
   facebook_pixel_id: string | null
   google_tag_id: string | null
   layout_cardapio: LayoutCardapio
@@ -39,7 +42,7 @@ interface ConfigRow {
   longitude: number | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -52,6 +55,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     endereco: row.endereco,
     cep: row.cep ?? '',
     taxaEntregaPadrao: Number(row.taxa_entrega_padrao),
+    freteGratisAcima: row.frete_gratis_acima === null ? null : Number(row.frete_gratis_acima),
     facebookPixelId: row.facebook_pixel_id,
     googleTagId: row.google_tag_id,
     layoutCardapio: row.layout_cardapio ?? 'categoria',
@@ -76,6 +80,7 @@ export interface ConfigLojaPatch {
   endereco?: string
   cep?: string
   taxaEntregaPadrao?: number
+  freteGratisAcima?: number | null
   facebookPixelId?: string | null
   googleTagId?: string | null
   layoutCardapio?: LayoutCardapio
@@ -92,6 +97,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.endereco !== undefined) row.endereco = patch.endereco
   if (patch.cep !== undefined) row.cep = patch.cep
   if (patch.taxaEntregaPadrao !== undefined) row.taxa_entrega_padrao = patch.taxaEntregaPadrao
+  if (patch.freteGratisAcima !== undefined) row.frete_gratis_acima = patch.freteGratisAcima
   if (patch.facebookPixelId !== undefined) row.facebook_pixel_id = patch.facebookPixelId
   if (patch.googleTagId !== undefined) row.google_tag_id = patch.googleTagId
   if (patch.layoutCardapio !== undefined) row.layout_cardapio = patch.layoutCardapio
