@@ -34,8 +34,9 @@ async function listarImpressorasWindows() {
 }
 
 /** Envia um texto pra impressora do Windows. `cols` (nº de colunas do recibo) dimensiona
- * a fonte pra preencher o papel — menos colunas = fonte maior. */
-async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, paperWidthMm = 80) {
+ * a fonte pra preencher o papel — menos colunas = fonte maior. `fonteMaior` aumenta a
+ * fonte das linhas de item/complemento (toggle "fonte maior na via de produção"). */
+async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, paperWidthMm = 80, fonteMaior = false) {
   const tmpFile = path.join(os.tmpdir(), `menuzia-recibo-${Date.now()}.txt`)
   fs.writeFileSync(tmpFile, texto, 'utf-8')
   try {
@@ -43,6 +44,7 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, 
     if (cols && cols > 0) args.push('-Cols', String(cols))
     if (logoPath) args.push('-LogoPath', logoPath)
     args.push('-PaperWidthMm', String(paperWidthMm))
+    if (fonteMaior) args.push('-FonteMaior', '1')
     // Retorna o stdout (linhas "MENUZIA: ...") pra o agente mostrar o diagnóstico na janela.
     return await runPowershell(args)
   } finally {

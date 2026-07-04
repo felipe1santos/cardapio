@@ -217,6 +217,18 @@ export async function atualizarGrupo(supabase: SupabaseClient, grupoId: string, 
   return data as GrupoCardapio
 }
 
+/**
+ * Persiste a ordem das categorias (0..n-1, na ordem recebida). A vitrine lista os
+ * grupos por `posicao`, então reordenar aqui muda a ordem do cardápio público.
+ */
+export async function reordenarGrupos(supabase: SupabaseClient, grupos: { id: string }[]) {
+  const results = await Promise.all(
+    grupos.map(({ id }, posicao) => supabase.from('grupos_cardapio').update({ posicao }).eq('id', id))
+  )
+  const falha = results.find((r) => r.error)
+  if (falha?.error) throw falha.error
+}
+
 /** Deleting a category does not delete its items — `grupo_id` is set to null (FK ON DELETE SET NULL). */
 export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
   const { error } = await supabase.from('grupos_cardapio').delete().eq('id', grupoId)

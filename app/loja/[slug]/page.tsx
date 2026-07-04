@@ -657,7 +657,8 @@ export default function StorefrontPage() {
   // Quando preenchido, o sheet está editando uma linha existente do carrinho.
   const [editingLineKey, setEditingLineKey] = useState<string | null>(null)
   const [qty, setQty] = useState(1)
-  const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
+  // grupoId → (complementoId → quantidade). Grupos sem "permite quantidade" usam sempre 1.
+  const [groupSelections, setGroupSelections] = useState<Map<string, Map<string, number>>>(new Map())
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set())
   const [obs, setObs] = useState('')
   const [selectedTamanhoId, setSelectedTamanhoId] = useState<string | null>(null)
@@ -704,11 +705,15 @@ export default function StorefrontPage() {
       restantes.set(nome, n - 1)
       return true
     }
-    const sel = new Map<string, Set<string>>()
+    const sel = new Map<string, Map<string, number>>()
     for (const g of item.grupos) {
-      const ids = new Set<string>()
-      for (const c of g.complementos) if (consumir(c.nome)) ids.add(c.id)
-      if (ids.size > 0) sel.set(g.id, ids)
+      const qtds = new Map<string, number>()
+      for (const c of g.complementos) {
+        let n = 0
+        while (consumir(c.nome)) n++
+        if (n > 0) qtds.set(c.id, n)
+      }
+      if (qtds.size > 0) sel.set(g.id, qtds)
     }
     setGroupSelections(sel)
 
@@ -734,16 +739,34 @@ export default function StorefrontPage() {
     if (tamanhoSumiu || saborSumiu) showToast('O cardápio mudou — confira as opções antes de salvar.')
   }
 
+  /** Soma das quantidades escolhidas num grupo. */
+  const totalGrupo = (sel: Map<string, number> | undefined) => [...(sel?.values() ?? [])].reduce((s, n) => s + n, 0)
+
   function selectRadio(grupoId: string, compId: string) {
-    setGroupSelections((prev) => { const next = new Map(prev); next.set(grupoId, new Set([compId])); return next })
+    setGroupSelections((prev) => { const next = new Map(prev); next.set(grupoId, new Map([[compId, 1]])); return next })
   }
 
   function toggleCheckbox(grupoId: string, compId: string, maxEscolhas: number) {
     setGroupSelections((prev) => {
       const next = new Map(prev)
-      const cur = new Set(next.get(grupoId) ?? [])
+      const cur = new Map(next.get(grupoId) ?? [])
       if (cur.has(compId)) cur.delete(compId)
-      else if (maxEscolhas === 0 || cur.size < maxEscolhas) cur.add(compId)
+      else if (maxEscolhas === 0 || totalGrupo(cur) < maxEscolhas) cur.set(compId, 1)
+      next.set(grupoId, cur)
+      return next
+    })
+  }
+
+  /** Stepper − / + de um complemento (grupos com "permite quantidade"). */
+  function changeCompQty(grupoId: string, compId: string, delta: number, maxEscolhas: number) {
+    setGroupSelections((prev) => {
+      const next = new Map(prev)
+      const cur = new Map(next.get(grupoId) ?? [])
+      const atual = cur.get(compId) ?? 0
+      if (delta > 0 && maxEscolhas !== 0 && totalGrupo(cur) >= maxEscolhas) return prev
+      const novo = atual + delta
+      if (novo <= 0) cur.delete(compId)
+      else cur.set(compId, novo)
       next.set(grupoId, cur)
       return next
     })
@@ -759,19 +782,19 @@ export default function StorefrontPage() {
     if (productSheet.tipoItem === 'pizza' && (!selectedTamanhoPizzaId || !selectedSaborId)) return false
     return productSheet.grupos.every((g) => {
       if (!g.obrigatorio) return true
-      const sel = groupSelections.get(g.id) ?? new Set()
-      return sel.size >= g.minEscolhas
+      return totalGrupo(groupSelections.get(g.id)) >= g.minEscolhas
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productSheet, groupSelections, selectedTamanhoId, selectedTamanhoPizzaId, selectedSaborId])
 
   const addonsTotal = useMemo(() => {
     if (!productSheet) return 0
     let sum = 0
     for (const grupo of productSheet.grupos) {
-      const sel = groupSelections.get(grupo.id) ?? new Set()
-      for (const compId of sel) {
+      const sel = groupSelections.get(grupo.id) ?? new Map<string, number>()
+      for (const [compId, qtd] of sel) {
         const comp = grupo.complementos.find((c) => c.id === compId)
-        if (comp) sum += comp.preco
+        if (comp) sum += comp.preco * qtd
       }
     }
     for (const comp of productSheet.complementos) {
@@ -799,10 +822,11 @@ export default function StorefrontPage() {
     if (!productSheet || !gruposValidos) return
     const addonsList: { nome: string; preco: number }[] = []
     for (const grupo of productSheet.grupos) {
-      const sel = groupSelections.get(grupo.id) ?? new Set()
-      for (const compId of sel) {
+      const sel = groupSelections.get(grupo.id) ?? new Map<string, number>()
+      for (const [compId, qtd] of sel) {
         const comp = grupo.complementos.find((c) => c.id === compId)
-        if (comp) addonsList.push({ nome: comp.nome, preco: comp.preco })
+        // Uma entrada por unidade — o servidor e o recibo somam cada ocorrência.
+        if (comp) for (let i = 0; i < qtd; i++) addonsList.push({ nome: comp.nome, preco: comp.preco })
       }
     }
     for (const comp of productSheet.complementos) {
@@ -952,7 +976,9 @@ export default function StorefrontPage() {
     for (const l of cart) {
       const variacao = [l.tamanhoNome, l.saborNome].filter(Boolean).join(' - ')
       linhas.push(`• ${l.qty}x ${l.name}${variacao ? ` (${variacao})` : ''}`)
-      for (const a of l.addons) linhas.push(`   + ${a.nome}`)
+      const contagem = new Map<string, number>()
+      for (const a of l.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
+      for (const [nome, qtd] of contagem) linhas.push(`   + ${qtd > 1 ? `${qtd}x ` : ''}${nome}`)
       if (l.obs?.trim()) linhas.push(`   obs: ${l.obs.trim()}`)
     }
     linhas.push('')
@@ -1061,7 +1087,13 @@ export default function StorefrontPage() {
             <div className="mt-0.5 truncate text-[12px] text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
           )}
           {line.addons.length > 0 && (
-            <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-text-subtle">{line.addons.map((a) => a.nome).join(', ')}</div>
+            <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-text-subtle">
+              {(() => {
+                const contagem = new Map<string, number>()
+                for (const a of line.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
+                return [...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', ')
+              })()}
+            </div>
           )}
           {line.obs && <div className="mt-0.5 truncate text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
           <div className="mt-1.5 text-[14px] font-bold text-[#16A34A]">{brl(line.unit * line.qty)}</div>
@@ -1860,9 +1892,11 @@ export default function StorefrontPage() {
                 )}
 
                 {productSheet.grupos.map((grupo) => {
-                  const sel = groupSelections.get(grupo.id) ?? new Set()
-                  const isRadio = grupo.maxEscolhas === 1
-                  const showError = grupo.obrigatorio && sel.size > 0 && sel.size < grupo.minEscolhas
+                  const sel = groupSelections.get(grupo.id) ?? new Map<string, number>()
+                  const totalSel = totalGrupo(sel)
+                  const isRadio = grupo.maxEscolhas === 1 && !grupo.permiteQuantidade
+                  const comStepper = grupo.permiteQuantidade && !isRadio
+                  const showError = grupo.obrigatorio && totalSel > 0 && totalSel < grupo.minEscolhas
                   return (
                     <div key={grupo.id} className="mt-5">
                       <div className="mb-2 flex items-start justify-between gap-2">
@@ -1879,17 +1913,40 @@ export default function StorefrontPage() {
                         </span>
                       </div>
                       {!isRadio && (grupo.maxEscolhas === 0 || grupo.maxEscolhas > 1) && (
-                        <div className="mb-1.5 text-[11px] text-text-subtle">{grupo.maxEscolhas === 0 ? `${sel.size} selecionado${sel.size !== 1 ? 's' : ''}` : `${sel.size}/${grupo.maxEscolhas} selecionado${sel.size !== 1 ? 's' : ''}`}</div>
+                        <div className="mb-1.5 text-[11px] text-text-subtle">{grupo.maxEscolhas === 0 ? `${totalSel} selecionado${totalSel !== 1 ? 's' : ''}` : `${totalSel}/${grupo.maxEscolhas} selecionado${totalSel !== 1 ? 's' : ''}`}</div>
                       )}
                       {grupo.complementos.map((comp) => {
-                        const isSelected = sel.has(comp.id)
-                        return (
-                          <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                        const qtdSel = sel.get(comp.id) ?? 0
+                        const isSelected = qtdSel > 0
+                        const conteudo = (
+                          <>
+                            {comp.imagemUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={comp.imagemUrl} alt={comp.nome} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
+                            )}
                             <span className="flex-1 text-sm font-medium">{comp.nome}</span>
                             {comp.preco > 0
                               ? <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(comp.preco)}</span>
                               : <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[11px] font-bold text-[#16A34A]">Grátis</span>
                             }
+                          </>
+                        )
+                        if (comStepper) {
+                          const podeMais = grupo.maxEscolhas === 0 || totalSel < grupo.maxEscolhas
+                          return (
+                            <div key={comp.id} className="flex w-full items-center gap-3 border-b border-border py-2.5 last:border-none">
+                              {conteudo}
+                              <div className="flex flex-shrink-0 items-center rounded border border-border">
+                                <button onClick={() => changeCompQty(grupo.id, comp.id, -1, grupo.maxEscolhas)} disabled={qtdSel === 0} className="flex h-[30px] w-[30px] items-center justify-center text-base font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
+                                <span className={['w-[24px] text-center text-[13px] font-bold', isSelected ? 'text-text-main' : 'text-text-subtle/50'].join(' ')}>{qtdSel}</span>
+                                <button onClick={() => changeCompQty(grupo.id, comp.id, 1, grupo.maxEscolhas)} disabled={!podeMais} className="flex h-[30px] w-[30px] items-center justify-center text-base font-semibold text-[var(--tema-primaria)] disabled:text-border">+</button>
+                              </div>
+                            </div>
+                          )
+                        }
+                        return (
+                          <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                            {conteudo}
                             {isRadio ? (
                               <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -1919,6 +1976,10 @@ export default function StorefrontPage() {
                     </div>
                     {productSheet.complementos.map((addon) => (
                       <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                        {addon.imagemUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={addon.imagemUrl} alt={addon.nome} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
+                        )}
                         <span className="flex-1 text-sm font-medium">{addon.nome}</span>
                         {addon.preco > 0
                           ? <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(addon.preco)}</span>

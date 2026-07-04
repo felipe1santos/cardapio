@@ -5,6 +5,7 @@ param(
   [int]$Cols = 0,
   [string]$LogoPath = '',
   [int]$PaperWidthMm = 80,
+  [int]$FonteMaior = 0,
   [string]$DebugPng = ''
 )
 
@@ -97,8 +98,11 @@ function NovaFonte([double]$mult, [bool]$bold) {
 $fStore = NovaFonte 1.6  $true
 $fSecao = NovaFonte 1.0  $true
 $fTipo  = NovaFonte 1.1  $true
-$fItem  = NovaFonte 1.2  $true
-$fSub   = NovaFonte 0.85 $false
+# "Fonte maior na via de producao": aumenta itens e complementos (o que a cozinha le).
+$multItem = if ($FonteMaior -eq 1) { 1.55 } else { 1.2 }
+$multSub  = if ($FonteMaior -eq 1) { 1.15 } else { 0.85 }
+$fItem  = NovaFonte $multItem $true
+$fSub   = NovaFonte $multSub ($FonteMaior -eq 1)
 $fData  = NovaFonte 1.0  $false
 $fTotal = NovaFonte 1.8  $true
 $fFoot  = NovaFonte 0.7  $false
@@ -140,7 +144,8 @@ if ($LogoPath -and (Test-Path $LogoPath)) {
 # ── Desenha tudo numa bitmap grande e depois recorta na altura exata ─────────
 $sfC = New-Object System.Drawing.StringFormat
 $sfC.Alignment = [System.Drawing.StringAlignment]::Center
-$estH = [int]($H * 2 + $logoH + ($ops.Count + 4) * ($base * 2.4) + 80)
+$estMult = if ($FonteMaior -eq 1) { 3.2 } else { 2.4 }  # fonte maior quebra mais linhas
+$estH = [int]($H * 2 + $logoH + ($ops.Count + 4) * ($base * $estMult) + 80)
 $canvas = New-Object System.Drawing.Bitmap($dotW, $estH)
 $canvas.SetResolution($dpi, $dpi)
 $g = [System.Drawing.Graphics]::FromImage($canvas)

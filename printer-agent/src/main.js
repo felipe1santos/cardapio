@@ -161,7 +161,7 @@ async function cicloDePolling() {
     try {
       for (const pedido of pedidos) {
         const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
-        const saida = await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath, paperMm)
+        const saida = await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
         mostrarDiagnostico(saida)
         await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
           method: 'POST',
@@ -300,7 +300,7 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
       itens: [{ quantidade: 1, nome: 'Item de Teste', precoUnitario: 40, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Adicional', preco: 5 }], observacao: 'Sem observacoes' }],
     }
     const recibo = montarRecibo(pedidoTeste, cfgLoja, cols, lojaNome, Boolean(logoPath))
-    const saida = await imprimirTexto(impressoraWindows, recibo, 1, cols, logoPath, paperMm)
+    const saida = await imprimirTexto(impressoraWindows, recibo, 1, cols, logoPath, paperMm, Boolean(cfgLoja.fonteMaiorProducao))
     if (logoPath) fs.unlink(logoPath, () => {})
     mostrarDiagnostico(saida)
     return { ok: true }

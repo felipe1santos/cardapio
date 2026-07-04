@@ -55,10 +55,17 @@ function montarReciboLinhas(pedido, config, lojaNome = '', temLogoImagem = false
     if (item.bordaNome) S(`+ Borda: ${item.bordaNome}`)
     if (item.massaNome) S(`+ Massa: ${item.massaNome}`)
     if (config.mostrarNomeComplementos) {
+      // Complementos repetidos (cliente escolheu quantidade) viram "2x Bacon" numa linha só.
+      const agrupados = new Map()
       for (const comp of item.complementos) {
-        const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
+        const cur = agrupados.get(comp.nome) ?? { nome: comp.nome, preco: comp.preco, qtd: 0 }
+        cur.qtd += 1
+        agrupados.set(comp.nome, cur)
+      }
+      for (const comp of agrupados.values()) {
+        const precoComp = comp.preco * comp.qtd * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
         const precoTxt = config.mostrarPrecoComplementos && precoComp > 0 ? ` (+${brl(precoComp)})` : ''
-        S(`+ ${comp.nome}${precoTxt}`)
+        S(`+ ${comp.qtd > 1 ? `${comp.qtd}x ` : ''}${comp.nome}${precoTxt}`)
       }
     }
     if (item.observacao) S(`Obs: ${item.observacao}`)

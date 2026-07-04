@@ -877,16 +877,22 @@ function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressa
   pedido.itens.forEach((item, idx) => {
     const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
     const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
-    let nome = variacao ? `${baseNome} (${variacao})` : baseNome
-    if (config.fonteMaiorProducao) nome = nome.toUpperCase()
+    const nome = variacao ? `${baseNome} (${variacao})` : baseNome
     L.push({ t: 'I', nome, preco: brlR(item.precoUnitario * item.quantidade) })
     if (item.bordaNome) L.push({ t: 'S', s: `+ Borda: ${item.bordaNome}` })
     if (item.massaNome) L.push({ t: 'S', s: `+ Massa: ${item.massaNome}` })
     if (config.mostrarNomeComplementos) {
+      // Espelha o agente: complementos repetidos agrupados como "2x Nome".
+      const agrupados = new Map<string, { nome: string; preco: number; qtd: number }>()
       for (const comp of item.complementos) {
-        const precoComp = comp.preco * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
+        const cur = agrupados.get(comp.nome) ?? { nome: comp.nome, preco: comp.preco, qtd: 0 }
+        cur.qtd += 1
+        agrupados.set(comp.nome, cur)
+      }
+      for (const comp of agrupados.values()) {
+        const precoComp = comp.preco * comp.qtd * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
         const precoTxt = config.mostrarPrecoComplementos && precoComp > 0 ? ` (+${brlR(precoComp)})` : ''
-        L.push({ t: 'S', s: `+ ${comp.nome}${precoTxt}` })
+        L.push({ t: 'S', s: `+ ${comp.qtd > 1 ? `${comp.qtd}x ` : ''}${comp.nome}${precoTxt}` })
       }
     }
     if (item.observacao) L.push({ t: 'S', s: `Obs: ${item.observacao}` })
@@ -939,8 +945,8 @@ function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao;
               case 'N': return <div key={i} className="mb-1 text-center text-[18px] font-extrabold leading-tight">{l.s}</div>
               case 'H': return <div key={i} className="my-1 bg-black py-[3px] text-center text-[13px] font-bold uppercase tracking-wide text-white">{l.s}</div>
               case 'C': return <div key={i} className="text-center text-[14px] font-bold">{l.s}</div>
-              case 'I': return <div key={i} className="mt-1 flex justify-between gap-2 text-[15px] font-bold leading-tight"><span>{l.nome}</span><span className="whitespace-nowrap">{l.preco}</span></div>
-              case 'S': return <div key={i} className="pl-3 text-[12px] leading-tight text-text-subtle">{l.s}</div>
+              case 'I': return <div key={i} className={['mt-1 flex justify-between gap-2 font-bold leading-tight', config.fonteMaiorProducao ? 'text-[19px]' : 'text-[15px]'].join(' ')}><span>{l.nome}</span><span className="whitespace-nowrap">{l.preco}</span></div>
+              case 'S': return <div key={i} className={['pl-3 leading-tight', config.fonteMaiorProducao ? 'text-[15px] font-semibold text-text-main' : 'text-[12px] text-text-subtle'].join(' ')}>{l.s}</div>
               case 'P': return <div key={i} className="flex justify-between text-[13px]"><span>{l.k}</span><span>{l.v}</span></div>
               case 'T': return <div key={i} className="mt-1 flex items-end justify-between border-t border-black pt-1 text-[22px] font-extrabold leading-none"><span>{l.k}</span><span>{l.v}</span></div>
               case 'L': return <div key={i} className="text-[13px] leading-snug">{l.s}</div>
