@@ -17,6 +17,8 @@ import {
   Truck,
   Banknote,
   PrinterCheck,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -241,6 +243,7 @@ export default function PedidosPage() {
   const [reimpEstado, setReimpEstado] = useState<'idle' | 'enviando' | 'ok' | 'erro'>('idle')
   const [now, setNow] = useState(() => Date.now())
   const [showCol4, setShowCol4] = useState(false)
+  const [showStats, setShowStats] = useState(true)
   const [pulsando, setPulsando] = useState<Set<string>>(new Set())
   const recebidosConhecidos = useRef<Set<string> | null>(null)
   const [somAtivo, setSomAtivo] = useState(true)
@@ -249,13 +252,22 @@ export default function PedidosPage() {
   const [rotaOpen, setRotaOpen] = useState(false)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
-  // restaura preferências (4º kanban e som)
+  // restaura preferências (4º kanban, som e barra de métricas)
   useEffect(() => {
     setShowCol4(localStorage.getItem('menuzia:kanban-col4') === '1')
+    setShowStats(localStorage.getItem('menuzia:kanban-stats') !== '0')
     const som = localStorage.getItem('menuzia:kanban-som') !== '0'
     setSomAtivo(som)
     somRef.current = som
   }, [])
+
+  function toggleStats() {
+    setShowStats((v) => {
+      const next = !v
+      localStorage.setItem('menuzia:kanban-stats', next ? '1' : '0')
+      return next
+    })
+  }
 
   function toggleSom() {
     setSomAtivo((v) => {
@@ -468,6 +480,13 @@ export default function PedidosPage() {
         <Bike className="h-4 w-4" /> Rotas
       </button>
       <button
+        onClick={toggleStats}
+        title={showStats ? 'Ocultar métricas (pedidos abertos, tempo médio…)' : 'Mostrar métricas'}
+        className={`${TOOL_BTN} ${showStats ? 'bg-page text-text-subtle hover:bg-border' : 'bg-text-main text-white hover:opacity-90'}`}
+      >
+        {showStats ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} Métricas
+      </button>
+      <button
         onClick={toggleCol4}
         title="Coluna de entregas e concluídos"
         className={`${TOOL_BTN} ${showCol4 ? 'bg-purple text-white hover:bg-purple-600' : 'bg-page text-text-subtle hover:bg-border'}`}
@@ -502,8 +521,8 @@ export default function PedidosPage() {
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
-        {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia) */}
-        {!focusMode && (
+        {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia ou pelo botão Métricas) */}
+        {!focusMode && showStats && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard tint="orange" value={abertos} label="Pedidos abertos" icon={IconCheck} />
             <StatCard tint="blue" value={`${tempoMedioMin} min`} label="Tempo médio" icon={IconClock} />
