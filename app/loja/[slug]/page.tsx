@@ -2174,32 +2174,70 @@ export default function StorefrontPage() {
 
           {checkoutStep === 3 && (
             <div className="px-4 pb-5">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Resumo do pedido</h3>
-              <div className="mb-4 overflow-hidden rounded border border-border bg-white">
-                {cart.map((l) => (
-                  <div key={l.key} className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5 last:border-none text-sm">
-                    <span className="text-text-subtle">{l.qty}× {l.name}</span>
-                    <span className="font-semibold">{brl(l.unit * l.qty)}</span>
+              {/* Itens do pedido — com foto e detalhes, fáceis de conferir */}
+              <div className="rounded-lg border border-border bg-white p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seu pedido</h3>
+                {cart.map((l, i) => (
+                  <div key={l.key} className={['flex items-start gap-3 py-3', i < cart.length - 1 ? 'border-b border-border' : 'pb-1'].join(' ')}>
+                    <div className="h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-md">
+                      <ProductThumb item={{ nome: l.name, imagemUrl: l.imagemUrl }} size={48} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[15px] font-semibold leading-snug">
+                        {l.qty}× {l.name}
+                        {(l.tamanhoNome || l.saborNome) && <span className="font-normal text-text-subtle"> · {[l.tamanhoNome, l.saborNome].filter(Boolean).join(' - ')}</span>}
+                      </div>
+                      {l.addons.length > 0 && (
+                        <div className="mt-0.5 text-[13px] leading-snug text-text-subtle">
+                          {(() => {
+                            const contagem = new Map<string, number>()
+                            for (const a of l.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
+                            return [...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', ')
+                          })()}
+                        </div>
+                      )}
+                      {l.obs && <div className="mt-0.5 text-[13px] italic text-text-subtle">&ldquo;{l.obs}&rdquo;</div>}
+                    </div>
+                    <span className="flex-shrink-0 text-[15px] font-bold">{brl(l.unit * l.qty)}</span>
                   </div>
                 ))}
-                <div className="flex justify-between px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
-                <div className="flex justify-between border-t border-border px-3.5 py-2.5 text-[13px] text-text-subtle"><span>Taxa de entrega</span><span>{brl(fee)}</span></div>
-                <div className="flex justify-between border-t border-border px-3.5 py-3 text-[15px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
               </div>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega & pagamento</h3>
-              <div className="mb-2.5 flex items-center gap-3 rounded-lg border border-border bg-white p-3.5">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]"><MapPin className="h-5 w-5 text-text-subtle" strokeWidth={1.8} /></span>
-                <div className="text-[13px] leading-relaxed">
-                  {endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}
-                  <br /><span className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</span>
+
+              {/* Valores */}
+              <div className="mt-4 rounded-lg border border-border bg-white p-4">
+                <div className="flex justify-between py-1 text-[14px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
+                <div className="flex justify-between py-1 text-[14px]">
+                  <span className="text-text-subtle">Taxa de entrega</span>
+                  {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
+                </div>
+                <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
+              </div>
+
+              {/* Entrega & pagamento */}
+              <div className="mt-4 rounded-lg border border-border bg-white p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega &amp; pagamento</h3>
+                <div className="flex items-center gap-3.5 pb-3.5">
+                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]"><MapPin className="h-[22px] w-[22px] text-text-subtle" strokeWidth={1.8} /></span>
+                  <div className="min-w-0 text-[14px] leading-relaxed">
+                    <div className="font-semibold">{endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}</div>
+                    <div className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3.5 border-t border-border pt-3.5">
+                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]">
+                    {payMethod === 'Pix' ? <PixIcon className="h-[22px] w-[22px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[22px] w-[22px] text-[#16A34A]" strokeWidth={1.8} /> : <CreditCard className="h-[22px] w-[22px] text-[#1D4ED8]" strokeWidth={1.8} />}
+                  </span>
+                  <div className="text-[14px]">
+                    <div className="font-semibold">{payMethod}</div>
+                    {payMethod === 'Dinheiro' && changeFor && <div className="text-text-subtle">Troco para R$ {changeFor}</div>}
+                    {payMethod === 'Dinheiro' && !changeFor && <div className="text-text-subtle">Sem troco</div>}
+                    {payMethod === 'Pix' && <div className="text-text-subtle">Pagamento instantâneo</div>}
+                    {payMethod === 'Cartão na entrega' && <div className="text-text-subtle">Na maquininha, na entrega</div>}
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-lg border border-border bg-white p-3.5">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]">
-                  {payMethod === 'Pix' ? <PixIcon className="h-5 w-5" /> : payMethod === 'Dinheiro' ? <Banknote className="h-5 w-5 text-[#16A34A]" strokeWidth={1.8} /> : <CreditCard className="h-5 w-5 text-[#1D4ED8]" strokeWidth={1.8} />}
-                </span>
-                <div className="text-[13px] font-semibold">{payMethod}{payMethod === 'Dinheiro' && changeFor && <span className="font-normal text-text-subtle"> · troco para R$ {changeFor}</span>}</div>
-              </div>
+
+              <p className="mt-4 text-center text-[13px] text-text-subtle">Confira os dados acima antes de confirmar o pedido. 😉</p>
             </div>
           )}
 
