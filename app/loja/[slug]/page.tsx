@@ -186,12 +186,17 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
     >
       <div className={`relative ${compact ? 'aspect-square' : 'aspect-[4/3]'} w-full overflow-hidden rounded-t-md`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
+        {/* Etiqueta sobre a foto (não acima do nome) */}
+        {item.tag && (
+          <span className="absolute left-2.5 top-2.5 shadow-sm">
+            <TagBadge tag={item.tag} />
+          </span>
+        )}
         {item.maisVendido && (
-          <span className="absolute left-2.5 top-2.5 rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
+          <span className={`absolute left-2.5 ${item.tag ? 'top-9' : 'top-2.5'} rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
         )}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 p-2.5' : 'flex flex-1 flex-col gap-1 p-3'}>
-        <TagBadge tag={item.tag} />
         <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2'} text-[14px] font-bold leading-snug text-text-main`}>{item.nome}</div>
         {item.descricao && !compact && (
           <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
@@ -211,7 +216,6 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       className="flex w-full items-center gap-3 border-b border-border bg-white px-3 py-3 text-left transition-colors last:border-none hover:bg-[#F9FAFB] active:bg-[#F3F4F6]"
     >
       <div className="min-w-0 flex-1">
-        <TagBadge tag={item.tag} />
         <div className="line-clamp-1 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
         {item.descricao && (
           <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
@@ -222,8 +226,14 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       </div>
       <div className="relative flex-shrink-0">
         <ProductThumb item={item} size={imagemGrande ? 100 : 76} />
+        {/* Etiqueta sobre a foto (não acima do nome) */}
+        {item.tag && (
+          <span className="absolute left-1 top-1 shadow-sm">
+            <TagBadge tag={item.tag} />
+          </span>
+        )}
         {item.maisVendido && (
-          <span className="absolute left-1 top-1 rounded bg-pink-100 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-pink-600 shadow-sm">Mais vendido</span>
+          <span className={`absolute left-1 ${item.tag ? 'bottom-1' : 'top-1'} rounded bg-pink-100 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
         )}
       </div>
     </button>
