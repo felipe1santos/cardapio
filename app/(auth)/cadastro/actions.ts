@@ -11,8 +11,9 @@ export async function cadastrar(formData: FormData) {
   const nome = String(formData.get('nome') ?? '').trim()
   const telefone = String(formData.get('telefone') ?? '').trim()
   const nomeLoja = String(formData.get('nomeLoja') ?? '').trim()
+  const usuario = String(formData.get('usuario') ?? '').trim()
 
-  if (!email || !nome || !telefone || !nomeLoja) {
+  if (!email || !nome || !telefone || !nomeLoja || !usuario) {
     redirect(`/cadastro?error=${encodeURIComponent('Preencha todos os campos.')}`)
   }
   if (senha.length < 6) {
@@ -23,7 +24,7 @@ export async function cadastrar(formData: FormData) {
   }
 
   const admin = getAdminSupabase()
-  const result = await completarPrimeiroAcesso(admin, { email, senha, nome, telefone, nomeLoja })
+  const result = await completarPrimeiroAcesso(admin, { email, senha, nome, telefone, nomeLoja, usuario })
   if (!result.ok) {
     redirect(`/cadastro?error=${encodeURIComponent(result.error)}`)
   }

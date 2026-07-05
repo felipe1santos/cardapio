@@ -82,12 +82,61 @@ export async function removerConvitePendente(admin: SupabaseClient, usuarioId: s
   return { ok: true }
 }
 
+export type StatusEmailCadastro = 'autorizado' | 'nao_encontrado' | 'ja_cadastrado'
+
+/**
+ * Confere se um e-mail foi pré-autorizado pelo /superadmin e ainda não concluiu o
+ * cadastro — usado pela checagem ao vivo do campo de e-mail em /cadastro.
+ */
+export async function verificarEmailAutorizado(admin: SupabaseClient, email: string): Promise<StatusEmailCadastro> {
+  const { data, error } = await admin
+    .from('usuarios')
+    .select('id, restaurante_id')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return 'nao_encontrado'
+  return data.restaurante_id ? 'ja_cadastrado' : 'autorizado'
+}
+
+const USUARIO_REGEX = /^[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])$/
+
+/** Normaliza e valida um nome de usuário de login. Retorna null se inválido. */
+export function normalizarUsuario(value: string): string | null {
+  const usuario = value.trim().toLowerCase()
+  if (!USUARIO_REGEX.test(usuario)) return null
+  return usuario
+}
+
+/** Checa se o nome de usuário está livre (case-insensitive). */
+export async function usuarioDisponivel(admin: SupabaseClient, usuario: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from('usuarios')
+    .select('id')
+    .ilike('usuario', usuario.trim())
+    .maybeSingle()
+  if (error) throw error
+  return !data
+}
+
+/** Resolve o e-mail de autenticação a partir do nome de usuário (login por usuário). */
+export async function buscarEmailPorUsuario(admin: SupabaseClient, usuario: string): Promise<string | null> {
+  const { data, error } = await admin
+    .from('usuarios')
+    .select('email')
+    .ilike('usuario', usuario.trim())
+    .maybeSingle()
+  if (error) throw error
+  return data?.email ?? null
+}
+
 export interface PrimeiroAcessoInput {
   email: string
   senha: string
   nome: string
   telefone: string
   nomeLoja: string
+  usuario: string
 }
 
 /**
@@ -97,6 +146,14 @@ export interface PrimeiroAcessoInput {
  */
 export async function completarPrimeiroAcesso(admin: SupabaseClient, input: PrimeiroAcessoInput): Promise<Resultado> {
   const email = input.email.trim().toLowerCase()
+
+  const nomeUsuario = normalizarUsuario(input.usuario)
+  if (!nomeUsuario) {
+    return { ok: false, error: 'Nome de usuário inválido. Use de 3 a 30 caracteres: letras, números, ponto, hífen ou underline.' }
+  }
+  if (!(await usuarioDisponivel(admin, nomeUsuario))) {
+    return { ok: false, error: 'Este nome de usuário já está em uso. Escolha outro.' }
+  }
 
   const { data: usuario, error: usuarioError } = await admin
     .from('usuarios')
@@ -134,6 +191,7 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
       nome: input.nome.trim(),
       telefone: input.telefone.trim(),
       nome_loja: input.nomeLoja.trim(),
+      usuario: nomeUsuario,
       restaurante_id: restaurante.id,
       papel: 'dono',
       autorizado: true,
@@ -168,6 +226,7 @@ export async function registrarLogin(admin: SupabaseClient, userId: string): Pro
 export interface LojistaRow {
   id: string
   email: string
+  usuario: string
   nome: string
   nomeLoja: string
   telefone: string
@@ -183,6 +242,7 @@ export interface LojistaRow {
 interface LojistaRowRaw {
   id: string
   email: string
+  usuario: string
   nome: string
   nome_loja: string
   telefone: string
@@ -198,13 +258,14 @@ interface LojistaRowRaw {
 export async function listarLojistas(admin: SupabaseClient): Promise<LojistaRow[]> {
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, email, nome, nome_loja, telefone, papel, autorizado, restaurante_id, ultimo_login_em, criado_em, restaurantes(nome, slug)')
+    .select('id, email, usuario, nome, nome_loja, telefone, papel, autorizado, restaurante_id, ultimo_login_em, criado_em, restaurantes(nome, slug)')
     .order('criado_em', { ascending: false })
   if (error) throw error
 
   return (data as unknown as LojistaRowRaw[]).map((row) => ({
     id: row.id,
     email: row.email,
+    usuario: row.usuario ?? '',
     nome: row.nome,
     nomeLoja: row.nome_loja,
     telefone: row.telefone,

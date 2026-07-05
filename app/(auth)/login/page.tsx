@@ -7,7 +7,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 }
 
 const NOTICE_MESSAGES: Record<string, string> = {
-  'cadastro-concluido': 'Cadastro concluído! Faça login com seu e-mail e senha.',
+  'cadastro-concluido': 'Cadastro concluído! Faça login com seu usuário e senha.',
   'senha-alterada': 'Senha alterada! Faça login com a nova senha.',
 }
 
@@ -39,8 +39,8 @@ export default async function LoginPage({
           name="email"
           type="text"
           required
-          placeholder="E-mail"
-          aria-label="E-mail"
+          placeholder="Usuário ou e-mail"
+          aria-label="Usuário ou e-mail"
           className={`mb-3 ${authInput}`}
         />
 

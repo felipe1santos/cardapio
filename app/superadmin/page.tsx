@@ -83,8 +83,8 @@ export default async function SuperadminPage({
       <div className="mb-6 rounded-menuzia border border-border bg-main p-5">
         <h2 className="mb-1 text-[13px] font-bold text-text-main">Cadastrar cliente</h2>
         <p className="mb-4 text-[12px] text-text-subtle">
-          Informe só o e-mail do cliente. No primeiro acesso (em /cadastro), ele usa esse mesmo
-          e-mail como login para criar a senha, o nome da loja e concluir o cadastro.
+          Informe só o e-mail do cliente. No primeiro acesso (em /cadastro), ele confirma esse
+          e-mail autorizado e então define o próprio usuário de login, a senha e os dados da loja.
         </p>
         <form action={convidarLojistaAction} className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex-1">
@@ -112,7 +112,8 @@ export default async function SuperadminPage({
                 <th className="px-4 py-3">Hamburgueria</th>
                 <th className="px-4 py-3">Responsável</th>
                 <th className="px-4 py-3">Telefone</th>
-                <th className="px-4 py-3">E-mail (login)</th>
+                <th className="px-4 py-3">E-mail autorizado</th>
+                <th className="px-4 py-3">Usuário (login)</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Faturamento</th>
                 <th className="px-4 py-3 text-right">Pedidos</th>
@@ -127,7 +128,7 @@ export default async function SuperadminPage({
             <tbody>
               {lojistas.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-5 py-8 text-center text-[13px] text-text-subtle">
+                  <td colSpan={14} className="px-5 py-8 text-center text-[13px] text-text-subtle">
                     Nenhum cadastro ainda.
                   </td>
                 </tr>
@@ -140,6 +141,7 @@ export default async function SuperadminPage({
                     <td className="px-4 py-4">{lojista.nome || '—'}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{lojista.telefone || '—'}</td>
                     <td className="px-4 py-4">{lojista.email}</td>
+                    <td className="px-4 py-4">{lojista.usuario || '—'}</td>
                     <td className="px-4 py-4">
                       {lojista.autorizado ? (
                         <span className="rounded-menuzia bg-price-bg px-2.5 py-1 text-[11px] font-semibold text-price-text">Ativo</span>
