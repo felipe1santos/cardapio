@@ -560,8 +560,36 @@ export async function removerItemPreset(supabase: SupabaseClient, itemId: string
   if (error) throw error
 }
 
-/** Copies a preset as a new complement group on the item (one-click import). Adds to existing groups, does not replace. */
-export async function importarPresetNoItem(supabase: SupabaseClient, itemId: string, preset: PresetComplementos, posicao: number) {
+/**
+ * Copies a preset as a new complement group on the item (one-click import). Adds to existing groups, does not replace.
+ * Busca o preset fresco no banco — o state da página pode estar desatualizado quando o
+ * usuário acabou de editar o preset na aba "Grupos de complementos" sem recarregar.
+ */
+export async function importarPresetNoItem(supabase: SupabaseClient, itemId: string, presetId: string, posicao: number) {
+  const { data: presetData, error: presetError } = await supabase
+    .from('presets_complementos')
+    .select('id, nome, obrigatorio, min_escolhas, max_escolhas, permite_quantidade, preset_complemento_itens ( id, nome, preco, imagem_url, posicao )')
+    .eq('id', presetId)
+    .single()
+  if (presetError) throw presetError
+
+  const preset: PresetComplementos = {
+    id: presetData.id,
+    nome: presetData.nome,
+    obrigatorio: presetData.obrigatorio,
+    minEscolhas: presetData.min_escolhas,
+    maxEscolhas: presetData.max_escolhas,
+    permiteQuantidade: presetData.permite_quantidade ?? false,
+    itens: (presetData.preset_complemento_itens ?? [])
+      .sort((a: { posicao: number }, b: { posicao: number }) => a.posicao - b.posicao)
+      .map((item: { id: string; nome: string; preco: number; imagem_url: string | null }) => ({
+        id: item.id,
+        nome: item.nome,
+        preco: Number(item.preco),
+        imagemUrl: item.imagem_url ?? null,
+      })),
+  }
+
   const { data: grupoData, error: grupoError } = await supabase
     .from('grupos_item_complementos')
     .insert({
@@ -704,7 +732,11 @@ export async function listarCardapioPublico(supabase: SupabaseClient, restaurant
   return grupos
     .map((grupo) => ({
       ...grupo,
-      itens: itens.filter((item) => item.grupoId === grupo.id && item.status === 'disponivel'),
+      itens: itens
+        .filter((item) => item.grupoId === grupo.id && item.status === 'disponivel')
+        // Grupo de complementos sem opções não pode aparecer na vitrine: um grupo
+        // obrigatório vazio deixaria o item impossível de pedir.
+        .map((item) => ({ ...item, grupos: item.grupos.filter((g) => g.complementos.length > 0) })),
     }))
     .filter((grupo) => grupo.itens.length > 0)
 }

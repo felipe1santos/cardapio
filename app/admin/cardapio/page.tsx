@@ -745,11 +745,14 @@ function PresetGroupCard({
   restauranteId,
   onDeleted,
   onRenamed,
+  onChanged,
 }: {
   preset: PresetComplementos
   restauranteId: string
   onDeleted: (id: string) => void
   onRenamed: (id: string, nome: string) => void
+  /** Propaga regras/itens editados pro state da página — o drawer de importar lê de lá. */
+  onChanged: (id: string, patch: Partial<PresetComplementos>) => void
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [nome, setNome] = useState(preset.nome)
@@ -783,9 +786,19 @@ function PresetGroupCard({
     setEditingNome(false)
   }
 
+  /** Converte o state local de itens pro formato do preset (pro state da página). */
+  function itensDe(lista: PresetItemEdit[]): PresetComplementos['itens'] {
+    return lista.map((i) => {
+      const val = parseFloat(i.preco.replace(',', '.'))
+      return { id: i.id, nome: i.nome, preco: Number.isFinite(val) && val >= 0 ? val : 0, imagemUrl: i.imagemUrl }
+    })
+  }
+
   async function saveRules(newObrigatorio: boolean, newMin: number, newMax: number, newPermiteQuantidade?: boolean) {
     try {
-      await atualizarRegrasPreset(supabase, preset.id, newObrigatorio, newMin, newMax, newPermiteQuantidade ?? permiteQuantidade)
+      const pq = newPermiteQuantidade ?? permiteQuantidade
+      await atualizarRegrasPreset(supabase, preset.id, newObrigatorio, newMin, newMax, pq)
+      onChanged(preset.id, { obrigatorio: newObrigatorio, minEscolhas: newMin, maxEscolhas: newMax, permiteQuantidade: pq })
     } catch { /* silencioso */ }
   }
 
@@ -804,7 +817,9 @@ function PresetGroupCard({
     setSaving(true)
     try {
       const created = await adicionarItemPreset(supabase, preset.id, newNome.trim(), preco, items.length)
-      setItems((prev) => [...prev, { id: created.id, nome: created.nome, preco: String(created.preco), editing: false, imagemUrl: created.imagemUrl }])
+      const next = [...items, { id: created.id, nome: created.nome, preco: String(created.preco), editing: false, imagemUrl: created.imagemUrl }]
+      setItems(next)
+      onChanged(preset.id, { itens: itensDe(next) })
       setNewNome('')
       setNewPreco('')
     } catch { /* silencioso */ }
@@ -818,23 +833,27 @@ function PresetGroupCard({
     const preco = Number.isFinite(val) && val >= 0 ? val : 0
     try {
       await atualizarItemPreset(supabase, id, item.nome.trim(), preco, item.imagemUrl)
-      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, nome: item.nome.trim(), preco: String(preco), editing: false } : i)))
+      const next = items.map((i) => (i.id === id ? { ...i, nome: item.nome.trim(), preco: String(preco), editing: false } : i))
+      setItems(next)
+      onChanged(preset.id, { itens: itensDe(next) })
     } catch { /* silencioso */ }
   }
 
   async function deleteItem(id: string) {
     try {
       await removerItemPreset(supabase, id)
-      setItems((prev) => prev.filter((i) => i.id !== id))
+      const next = items.filter((i) => i.id !== id)
+      setItems(next)
+      onChanged(preset.id, { itens: itensDe(next) })
     } catch { /* silencioso */ }
   }
 
   const hint = ruleHint({ obrigatorio, minEscolhas: minEsc, maxEscolhas: maxEsc })
 
   return (
-    <div className="overflow-hidden rounded-menuzia border border-purple-200 bg-white shadow-sm">
-      {/* Card header */}
-      <div className="flex items-center gap-3 border-b border-purple-100 bg-purple-50 px-4 py-3.5">
+    <div className="overflow-hidden rounded-menuzia border border-purple-300 bg-white shadow-sm">
+      {/* Card header — roxo forte, marca visual do grupo */}
+      <div className="flex items-center gap-3 border-b border-purple-800 bg-purple-700 px-4 py-3.5">
         <div className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-menuzia bg-white shadow-sm">
           <FoodIcon name={nome} size={32} />
         </div>
@@ -846,19 +865,19 @@ function PresetGroupCard({
               onChange={(e) => setNome(e.target.value)}
               onBlur={saveNome}
               onKeyDown={(e) => e.key === 'Enter' && saveNome()}
-              className="w-full rounded-menuzia border border-purple-400 bg-white px-2.5 py-1.5 text-sm font-semibold text-purple-900 outline-none"
+              className="w-full rounded-menuzia border border-purple-300 bg-white px-2.5 py-1.5 text-sm font-semibold text-purple-900 outline-none"
             />
           ) : (
-            <h4 className="truncate text-[15px] font-semibold text-purple-900">{nome}</h4>
+            <h4 className="truncate text-[15px] font-bold text-white">{nome}</h4>
           )}
         </div>
-        <span className="flex-shrink-0 rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-bold text-purple-700">
+        <span className="flex-shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white">
           {items.length} iten{items.length !== 1 ? 's' : ''}
         </span>
-        <button onClick={startEditNome} title="Renomear" className="flex-shrink-0 text-[11px] font-semibold text-purple-400 hover:text-purple-700">
+        <button onClick={startEditNome} title="Renomear" className="flex-shrink-0 text-[11px] font-semibold text-purple-200 transition-colors hover:text-white">
           Renomear
         </button>
-        <button onClick={deletePreset} title="Excluir" className="flex-shrink-0 text-[11px] font-semibold text-purple-300 hover:text-danger">
+        <button onClick={deletePreset} title="Excluir" className="flex-shrink-0 text-[11px] font-semibold text-purple-200 transition-colors hover:text-[#FCA5A5]">
           Excluir
         </button>
       </div>
@@ -937,7 +956,9 @@ function PresetGroupCard({
           />
           Permitir quantidade por opção
         </label>
-        <p className="-mt-2 w-full text-[11px] text-text-subtle">Na vitrine o cliente escolhe a quantidade de cada opção (− 1 +) em vez de só marcar.</p>
+        <p className="-mt-1 w-full rounded-menuzia bg-[#E0F2FE] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-[#1e3a8a]">
+          Na vitrine o cliente escolhe a quantidade de cada opção (− 1 +) em vez de só marcar.
+        </p>
       </div>
 
       {/* Item list */}
@@ -987,7 +1008,9 @@ function PresetGroupCard({
                       try {
                         const url = await enviarImagemItem(supabase, restauranteId, file)
                         await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, url)
-                        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, imagemUrl: url } : i)))
+                        const next = items.map((i) => (i.id === item.id ? { ...i, imagemUrl: url } : i))
+                        setItems(next)
+                        onChanged(preset.id, { itens: itensDe(next) })
                       } catch { /* silencioso */ }
                     }}
                   />
@@ -999,7 +1022,9 @@ function PresetGroupCard({
                       const preco = Number.isFinite(val) && val >= 0 ? val : 0
                       try {
                         await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, null)
-                        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, imagemUrl: null } : i)))
+                        const next = items.map((i) => (i.id === item.id ? { ...i, imagemUrl: null } : i))
+                        setItems(next)
+                        onChanged(preset.id, { itens: itensDe(next) })
                       } catch { /* silencioso */ }
                     }}
                     className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold leading-none text-white shadow-sm hover:bg-[#DC2626]"
@@ -1011,7 +1036,7 @@ function PresetGroupCard({
               </div>
               <span className="flex-1 text-[13px] font-medium text-text-main">{item.nome}</span>
               {Number(item.preco) > 0 ? (
-                <span className="tabular-nums text-[12px] font-semibold text-purple-700">+ R$ {Number(item.preco).toFixed(2).replace('.', ',')}</span>
+                <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 tabular-nums text-[12px] font-bold text-price-text">+ R$ {Number(item.preco).toFixed(2).replace('.', ',')}</span>
               ) : (
                 <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">Grátis</span>
               )}
@@ -1086,9 +1111,9 @@ function GruposComplementos({
 
   return (
     <div className="flex-1 overflow-y-auto p-5">
-      <div className="mb-5 flex flex-col gap-1">
+      <div className="mb-5 flex flex-col gap-2">
         <h2 className="text-[15px] font-bold text-text-main">Grupos de complementos</h2>
-        <p className="text-[12px] leading-relaxed text-text-subtle">
+        <p className="max-w-3xl rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-[12px] font-medium leading-relaxed text-[#1e3a8a]">
           Crie grupos reutilizáveis de adicionais (ex.: <em>Adicionais de Burger</em>, <em>Molhos</em>). Defina se a escolha é{' '}
           <strong>obrigatória</strong> e quantos itens o cliente pode selecionar. No editor de cada item, importe um grupo com
           1 clique — os complementos são copiados com as regras, mas sem afetar o grupo original.
@@ -1129,6 +1154,7 @@ function GruposComplementos({
             restauranteId={restauranteId}
             onDeleted={(id) => setPresets((prev) => prev.filter((p) => p.id !== id))}
             onRenamed={(id, nome) => setPresets((prev) => prev.map((p) => (p.id === id ? { ...p, nome } : p)))}
+            onChanged={(id, patch) => setPresets((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
           />
         ))}
       </div>
@@ -1151,6 +1177,7 @@ function ListaCatalogo({
   extraLabel,
   extraPlaceholder,
   extraType,
+  extraIsPrice = false,
   formatExtra,
   onAdd,
   onUpdate,
@@ -1162,6 +1189,8 @@ function ListaCatalogo({
   extraLabel: string
   extraPlaceholder: string
   extraType: 'text' | 'number'
+  /** Quando o valor extra é um preço, exibe no verde padrão de valores. */
+  extraIsPrice?: boolean
   formatExtra: (extra: string) => string
   onAdd: (nome: string, extra: string) => Promise<void>
   onUpdate: (id: string, nome: string, extra: string) => Promise<void>
@@ -1205,92 +1234,111 @@ function ListaCatalogo({
 
   return (
     <Card>
-      <h3 className="mb-1 text-[13px] font-bold text-[#1e3a8a]">{titulo}</h3>
-      <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">{hint}</p>
-      <div className="overflow-hidden rounded-menuzia border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-page">
-              <th className="px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Nome</th>
-              <th className="px-3.5 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{extraLabel}</th>
-              <th className="w-24 px-3.5 py-2.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {itens.length === 0 && (
-              <tr>
-                <td colSpan={3} className="px-3.5 py-4 text-center text-[13px] text-text-subtle">Nenhum cadastrado ainda.</td>
-              </tr>
-            )}
-            {itens.map((linha) =>
-              editingId === linha.id ? (
-                <tr key={linha.id} className="border-b border-border bg-[#1e3a8a]/5">
-                  <td className="px-2.5 py-2">
-                    <input value={editNome} onChange={(e) => setEditNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                      className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <input type={extraType} value={editExtra} onChange={(e) => setEditExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                      placeholder={extraPlaceholder} className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <div className="flex justify-end gap-1.5">
-                      <button onClick={saveEdit} disabled={busy} className="text-[12px] font-semibold text-[#1e3a8a] hover:underline">Salvar</button>
-                      <button onClick={() => setEditingId(null)} className="text-[12px] text-text-subtle hover:text-text-main">Cancelar</button>
-                    </div>
-                  </td>
-                </tr>
+      {/* Cabeçalho da seção — título forte + observação em azul */}
+      <div className="-mx-4.5 -mt-4.5 mb-3 rounded-t-menuzia border-b border-[#1e3a8a]/10 bg-[#1e3a8a] px-4.5 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[13px] font-bold uppercase tracking-wide text-white">{titulo}</h3>
+          <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white">
+            {itens.length} salvo{itens.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+      <p className="mb-3 rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-[12px] font-medium leading-relaxed text-[#1e3a8a]">{hint}</p>
+
+      {/* Lista do que já foi definido */}
+      {itens.length === 0 && (
+        <div className="mb-3 rounded-menuzia border border-dashed border-[#1e3a8a]/25 bg-[#EFF6FF] px-4 py-6 text-center text-[12px] font-medium text-[#1e3a8a]">
+          Nada definido ainda — preencha os campos abaixo e clique em <strong>Adicionar</strong>.
+        </div>
+      )}
+      <div className="mb-3 flex flex-col gap-1.5">
+        {itens.map((linha) =>
+          editingId === linha.id ? (
+            <div key={linha.id} className="flex items-center gap-2 rounded-menuzia border border-[#1e3a8a]/30 bg-[#EFF6FF] px-3 py-2">
+              <input
+                value={editNome}
+                onChange={(e) => setEditNome(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                autoFocus
+                className="min-w-0 flex-1 rounded-menuzia border border-[#1e3a8a]/30 bg-white px-2.5 py-1.5 text-sm text-[#1e3a8a] outline-none focus:border-[#1e3a8a]"
+              />
+              <input
+                type={extraType}
+                value={editExtra}
+                onChange={(e) => setEditExtra(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                placeholder={extraPlaceholder}
+                className="w-24 rounded-menuzia border border-[#1e3a8a]/30 bg-white px-2.5 py-1.5 text-right text-sm text-[#1e3a8a] outline-none focus:border-[#1e3a8a]"
+              />
+              <button onClick={saveEdit} disabled={busy}
+                className="rounded-menuzia bg-[#1e3a8a] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-50">
+                Salvar
+              </button>
+              <button onClick={() => setEditingId(null)} className="text-[12px] text-text-subtle hover:text-text-main">Cancelar</button>
+            </div>
+          ) : (
+            <div key={linha.id} className="group flex items-center gap-2.5 rounded-menuzia border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 transition-colors hover:border-[#1e3a8a]/40">
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#1e3a8a]">{linha.nome}</span>
+              {extraIsPrice ? (
+                <span className="rounded-menuzia bg-price-bg px-2 py-0.5 tabular-nums text-[12px] font-bold text-price-text">{formatExtra(linha.extra)}</span>
               ) : (
-                <tr key={linha.id} className="border-b border-border last:border-none hover:bg-page">
-                  <td className="px-3.5 py-2.5 font-medium">{linha.nome}</td>
-                  <td className="px-3.5 py-2.5 text-right tabular-nums">{formatExtra(linha.extra)}</td>
-                  <td className="px-3.5 py-2.5">
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => startEdit(linha)} className="text-[12px] font-semibold text-[#1e3a8a] hover:underline">Editar</button>
-                      <button onClick={() => onRemove(linha.id)} className="rounded-menuzia bg-[#fee2e2] px-2 py-0.5 text-[12px] font-semibold text-[#ef4444] hover:bg-[#ef4444] hover:text-white">Remover</button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            )}
-            <tr className="bg-page">
-              <td className="px-2.5 py-2">
-                <input value={newNome} onChange={(e) => setNewNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
-                  placeholder="Nome" className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
-              </td>
-              <td className="px-2.5 py-2">
-                <input type={extraType} value={newExtra} onChange={(e) => setNewExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
-                  placeholder={extraPlaceholder} className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
-              </td>
-              <td className="px-2.5 py-2">
-                <Button variant="outline" onClick={add} disabled={busy || !newNome.trim()} className="w-full justify-center">+ Adicionar</Button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">{formatExtra(linha.extra)}</span>
+              )}
+              <button onClick={() => startEdit(linha)}
+                className="rounded-menuzia border border-[#1e3a8a]/25 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#1e3a8a] transition-colors hover:bg-[#1e3a8a] hover:text-white">
+                Editar
+              </button>
+              <button onClick={() => onRemove(linha.id)}
+                className="rounded-menuzia bg-[#fee2e2] px-2 py-1 text-[11px] font-semibold text-[#ef4444] transition-colors hover:bg-[#ef4444] hover:text-white">
+                ✕
+              </button>
+            </div>
+          )
+        )}
+      </div>
+
+      {/* Adicionar novo */}
+      <div className="rounded-menuzia border border-border bg-page p-2.5">
+        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Adicionar {titulo.toLowerCase().replace(/s$/, '').split(' de ')[0]}</div>
+        <div className="flex items-center gap-2">
+          <input value={newNome} onChange={(e) => setNewNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
+            placeholder="Nome (ex: Grande)" className="min-w-0 flex-1 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
+          <input type={extraType} value={newExtra} onChange={(e) => setNewExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
+            placeholder={extraPlaceholder} className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
+          <Button variant="primary" onClick={add} disabled={busy || !newNome.trim()}>+ Adicionar</Button>
+        </div>
+        <p className="mt-1.5 text-[11px] text-text-subtle">{extraLabel} fica no campo da direita. Aperte Enter ou clique em Adicionar pra salvar.</p>
       </div>
     </Card>
   )
 }
 
-function TamanhosTab({ restauranteId }: { restauranteId: string }) {
+function TamanhosTab({
+  restauranteId,
+  tamanhosPizza,
+  setTamanhosPizza,
+  tamanhosMarmita,
+  setTamanhosMarmita,
+}: {
+  restauranteId: string
+  // Catálogos vivem no state da página: o wizard de cadastro de item lê de lá,
+  // então mudanças feitas aqui aparecem no cadastro sem recarregar.
+  tamanhosPizza: TamanhoPadraoPizza[]
+  setTamanhosPizza: React.Dispatch<React.SetStateAction<TamanhoPadraoPizza[]>>
+  tamanhosMarmita: TamanhoPadraoMarmita[]
+  setTamanhosMarmita: React.Dispatch<React.SetStateAction<TamanhoPadraoMarmita[]>>
+}) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
-  const [tamanhosPizza, setTamanhosPizza] = useState<TamanhoPadraoPizza[]>([])
-  const [tamanhosMarmita, setTamanhosMarmita] = useState<TamanhoPadraoMarmita[]>([])
   const [bordas, setBordas] = useState<BordaPizza[]>([])
   const [massas, setMassas] = useState<MassaPizza[]>([])
 
   useEffect(() => {
     if (loaded) return
     Promise.all([
-      listarTamanhosPadraoPizza(supabase, restauranteId),
-      listarTamanhosPadraoMarmita(supabase, restauranteId),
       listarBordasPizza(supabase, restauranteId),
       listarMassasPizza(supabase, restauranteId),
-    ]).then(([p, m, b, ma]) => {
-      setTamanhosPizza(p)
-      setTamanhosMarmita(m)
+    ]).then(([b, ma]) => {
       setBordas(b)
       setMassas(ma)
       setLoaded(true)
@@ -1305,9 +1353,9 @@ function TamanhosTab({ restauranteId }: { restauranteId: string }) {
     <div className="flex-1 overflow-y-auto p-5">
       <div className="mb-5">
         <h2 className="text-[15px] font-bold text-text-main">Tamanhos</h2>
-        <p className="mt-0.5 max-w-2xl text-[12px] leading-relaxed text-text-subtle">
+        <p className="mt-1.5 max-w-2xl rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-[12px] font-medium leading-relaxed text-[#1e3a8a]">
           Defina aqui o que significa Pequena/Média/Grande na sua loja — cada item de pizza ou marmita reaproveita
-          esses tamanhos. Bordas e massas cadastradas aqui ficam disponíveis em todas as pizzas automaticamente.
+          esses tamanhos no cadastro. Bordas e massas cadastradas aqui ficam disponíveis em todas as pizzas automaticamente.
         </p>
       </div>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -1362,6 +1410,7 @@ function TamanhosTab({ restauranteId }: { restauranteId: string }) {
           extraLabel="Preço extra (R$)"
           extraPlaceholder="Ex: 8,00"
           extraType="text"
+          extraIsPrice
           formatExtra={(e) => `+ R$ ${(Number(e) || 0).toFixed(2).replace('.', ',')}`}
           onAdd={async (nome, extra) => {
             const preco = Number(extra.replace(',', '.')) || 0
@@ -1386,6 +1435,7 @@ function TamanhosTab({ restauranteId }: { restauranteId: string }) {
           extraLabel="Preço extra (R$)"
           extraPlaceholder="Ex: 5,00"
           extraType="text"
+          extraIsPrice
           formatExtra={(e) => `+ R$ ${(Number(e) || 0).toFixed(2).replace('.', ',')}`}
           onAdd={async (nome, extra) => {
             const preco = Number(extra.replace(',', '.')) || 0
@@ -1984,7 +2034,7 @@ export default function CardapioPage() {
     }
     try {
       const posicao = currentItem?.grupos.length ?? 0
-      await importarPresetNoItem(supabase, form.id, preset, posicao)
+      await importarPresetNoItem(supabase, form.id, preset.id, posicao)
       await refreshItems()
       setDrawer('edit')
     } catch {
@@ -2434,7 +2484,15 @@ export default function CardapioPage() {
 
       {/* ── Tab: Tamanhos ── */}
       <div className={cardapioTab !== 'tamanhos' ? 'hidden' : 'flex flex-1 flex-col overflow-hidden'}>
-        {restauranteId && <TamanhosTab restauranteId={restauranteId} />}
+        {restauranteId && (
+          <TamanhosTab
+            restauranteId={restauranteId}
+            tamanhosPizza={tamanhosPizzaCatalogo}
+            setTamanhosPizza={setTamanhosPizzaCatalogo}
+            tamanhosMarmita={tamanhosMarmitaCatalogo}
+            setTamanhosMarmita={setTamanhosMarmitaCatalogo}
+          />
+        )}
       </div>
 
       {/* ── Tab: Order Bump ── */}
