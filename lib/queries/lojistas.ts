@@ -208,19 +208,78 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
 export interface StatusAcesso {
   autorizado: boolean
   restauranteId: string | null
+  acessoExpiraEm: string | null
+}
+
+/** Acesso válido = autorizado e (sem validade ou validade no futuro). */
+export function acessoValido(status: StatusAcesso): boolean {
+  if (!status.autorizado) return false
+  if (!status.acessoExpiraEm) return true
+  return new Date(status.acessoExpiraEm).getTime() > Date.now()
 }
 
 /** Status de autorização da conta logada — consultado pelo /login para liberar (ou não) o acesso ao painel. */
 export async function buscarStatusAcesso(admin: SupabaseClient, userId: string): Promise<StatusAcesso | null> {
-  const { data, error } = await admin.from('usuarios').select('autorizado, restaurante_id').eq('id', userId).maybeSingle()
+  const { data, error } = await admin.from('usuarios').select('autorizado, restaurante_id, acesso_expira_em').eq('id', userId).maybeSingle()
   if (error) throw error
   if (!data) return null
-  return { autorizado: data.autorizado, restauranteId: data.restaurante_id }
+  return { autorizado: data.autorizado, restauranteId: data.restaurante_id, acessoExpiraEm: data.acesso_expira_em }
 }
 
-/** Registra o horário do login mais recente, exibido no painel /superadmin. */
+/** Registra o login (horário + contagem total), exibidos no painel /superadmin. */
 export async function registrarLogin(admin: SupabaseClient, userId: string): Promise<void> {
-  await admin.from('usuarios').update({ ultimo_login_em: new Date().toISOString() }).eq('id', userId)
+  const { data } = await admin.from('usuarios').select('logins_total').eq('id', userId).maybeSingle()
+  await admin
+    .from('usuarios')
+    .update({ ultimo_login_em: new Date().toISOString(), logins_total: (data?.logins_total ?? 0) + 1 })
+    .eq('id', userId)
+}
+
+/**
+ * Libera (ou reativa) o acesso de um lojista. `dias` define acesso temporário —
+ * expira automaticamente; null/0 = acesso permanente.
+ */
+export async function concederAcessoLojista(admin: SupabaseClient, usuarioId: string, dias?: number | null): Promise<Resultado> {
+  const { data: usuario, error: usuarioError } = await admin
+    .from('usuarios')
+    .select('restaurante_id')
+    .eq('id', usuarioId)
+    .maybeSingle()
+  if (usuarioError) throw usuarioError
+  if (!usuario) return { ok: false, error: 'Conta não encontrada.' }
+  if (!usuario.restaurante_id) return { ok: false, error: 'Esta conta ainda não concluiu o cadastro — não há acesso pra liberar.' }
+
+  const expiraEm = dias && dias > 0 ? new Date(Date.now() + dias * 86_400_000).toISOString() : null
+  const { error } = await admin.from('usuarios').update({ autorizado: true, acesso_expira_em: expiraEm }).eq('id', usuarioId)
+  if (error) return { ok: false, error: 'Não foi possível liberar o acesso.' }
+  return { ok: true }
+}
+
+/**
+ * Exclui DE VEZ um lojista sem acesso: a loja (com cardápio, pedidos etc., via
+ * cascade), a linha em `usuarios` e a conta de autenticação. Irreversível — só
+ * permitido quando o acesso já está revogado/expirado (ou cadastro pendente).
+ */
+export async function excluirLojistaCompleto(admin: SupabaseClient, usuarioId: string): Promise<Resultado> {
+  const { data: usuario, error: usuarioError } = await admin
+    .from('usuarios')
+    .select('email, restaurante_id, autorizado, acesso_expira_em')
+    .eq('id', usuarioId)
+    .maybeSingle()
+  if (usuarioError) throw usuarioError
+  if (!usuario) return { ok: false, error: 'Conta não encontrada.' }
+  if (isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível excluir o administrador da plataforma.' }
+
+  const temAcesso = usuario.autorizado && (!usuario.acesso_expira_em || new Date(usuario.acesso_expira_em).getTime() > Date.now())
+  if (temAcesso) return { ok: false, error: 'Revogue o acesso antes de excluir os dados.' }
+
+  await admin.from('usuarios').delete().eq('id', usuarioId)
+  if (usuario.restaurante_id) {
+    const { error } = await admin.from('restaurantes').delete().eq('id', usuario.restaurante_id)
+    if (error) return { ok: false, error: 'A conta foi removida, mas não foi possível excluir a loja. Tente novamente.' }
+  }
+  await admin.auth.admin.deleteUser(usuarioId)
+  return { ok: true }
 }
 
 export interface LojistaRow {
@@ -237,6 +296,8 @@ export interface LojistaRow {
   restauranteSlug: string | null
   ultimoLoginEm: string | null
   criadoEm: string
+  acessoExpiraEm: string | null
+  loginsTotal: number
 }
 
 interface LojistaRowRaw {
@@ -251,6 +312,8 @@ interface LojistaRowRaw {
   restaurante_id: string | null
   ultimo_login_em: string | null
   criado_em: string
+  acesso_expira_em: string | null
+  logins_total: number | null
   restaurantes: { nome: string; slug: string } | null
 }
 
@@ -258,7 +321,10 @@ interface LojistaRowRaw {
 export async function listarLojistas(admin: SupabaseClient): Promise<LojistaRow[]> {
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, email, usuario, nome, nome_loja, telefone, papel, autorizado, restaurante_id, ultimo_login_em, criado_em, restaurantes(nome, slug)')
+    .select('id, email, usuario, nome, nome_loja, telefone, papel, autorizado, restaurante_id, ultimo_login_em, criado_em, acesso_expira_em, logins_total, restaurantes(nome, slug)')
+    // Mais acessados primeiro; empate resolve pelo login mais recente.
+    .order('logins_total', { ascending: false })
+    .order('ultimo_login_em', { ascending: false, nullsFirst: false })
     .order('criado_em', { ascending: false })
   if (error) throw error
 
@@ -276,6 +342,8 @@ export async function listarLojistas(admin: SupabaseClient): Promise<LojistaRow[
     restauranteSlug: row.restaurantes?.slug ?? null,
     ultimoLoginEm: row.ultimo_login_em,
     criadoEm: row.criado_em,
+    acessoExpiraEm: row.acesso_expira_em,
+    loginsTotal: row.logins_total ?? 0,
   }))
 }
 
@@ -330,7 +398,7 @@ export async function revogarAcessoLojista(admin: SupabaseClient, usuarioId: str
   if (usuarioError) throw usuarioError
   if (usuario && isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível revogar o acesso do administrador da plataforma.' }
 
-  const { error } = await admin.from('usuarios').update({ autorizado: false }).eq('id', usuarioId)
+  const { error } = await admin.from('usuarios').update({ autorizado: false, acesso_expira_em: null }).eq('id', usuarioId)
   if (error) return { ok: false, error: 'Não foi possível revogar o acesso.' }
   return { ok: true }
 }

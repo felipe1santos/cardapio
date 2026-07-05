@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
-import { buscarEmailPorUsuario, buscarStatusAcesso, registrarLogin } from '@/lib/queries/lojistas'
+import { acessoValido, buscarEmailPorUsuario, buscarStatusAcesso, registrarLogin } from '@/lib/queries/lojistas'
 
 export async function signIn(formData: FormData) {
   const login = String(formData.get('email') ?? '').trim()
@@ -29,17 +29,22 @@ export async function signIn(formData: FormData) {
   }
 
   const admin = getAdminSupabase()
-  await registrarLogin(admin, data.user.id)
 
   if (isSuperAdminEmail(data.user.email)) {
+    await registrarLogin(admin, data.user.id)
     redirect('/superadmin')
   }
 
   const status = await buscarStatusAcesso(admin, data.user.id)
-  if (!status?.autorizado || !status.restauranteId) {
+  if (!status?.restauranteId || !status.autorizado) {
     await supabase.auth.signOut()
     redirect('/login?error=pendente')
   }
+  if (!acessoValido(status)) {
+    await supabase.auth.signOut()
+    redirect(`/login?error=${encodeURIComponent('Seu acesso expirou. Fale com a Menuzia para renovar.')}`)
+  }
 
+  await registrarLogin(admin, data.user.id)
   redirect('/admin/dashboard')
 }

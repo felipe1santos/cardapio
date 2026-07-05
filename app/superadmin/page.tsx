@@ -1,14 +1,42 @@
 import Link from 'next/link'
+import { ExternalLink } from 'lucide-react'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { listarLojistas, metricasPorRestaurante } from '@/lib/queries/lojistas'
+import { listarLojistas, metricasPorRestaurante, type LojistaRow } from '@/lib/queries/lojistas'
 import { ConfirmSubmitButton } from '@/components/ui/confirm-submit-button'
-import { convidarLojistaAction, removerConviteAction, revogarAcessoAction, sairAction } from './actions'
+import { concederAcessoAction, convidarLojistaAction, excluirLojistaAction, removerConviteAction, revogarAcessoAction, sairAction } from './actions'
+
+// Servidor roda em UTC (Coolify); fixa o fuso de São Paulo pra não mostrar +3h.
+const TZ = 'America/Sao_Paulo'
 
 function formatarData(iso: string | null): string {
   if (!iso) return '—'
-  // Servidor roda em UTC (Coolify); fixa o fuso de São Paulo pra não mostrar +3h.
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: TZ })
 }
+
+/** "dd/mm/aa · h:mm AM/PM" no fuso de São Paulo. */
+function formatarAcesso(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const data = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: TZ })
+  const hora = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ }).format(d)
+  return `${data} · ${hora}`
+}
+
+function acessoRecente(iso: string | null): boolean {
+  if (!iso) return false
+  return Date.now() - new Date(iso).getTime() < 24 * 60 * 60 * 1000
+}
+
+type SituacaoAcesso = 'pendente' | 'ativo' | 'ativo_temporario' | 'expirado' | 'revogado'
+
+function situacaoDe(l: LojistaRow): SituacaoAcesso {
+  if (!l.restauranteId) return 'pendente'
+  if (!l.autorizado) return 'revogado'
+  if (!l.acessoExpiraEm) return 'ativo'
+  return new Date(l.acessoExpiraEm).getTime() > Date.now() ? 'ativo_temporario' : 'expirado'
+}
+
+const SEM_ACESSO: SituacaoAcesso[] = ['revogado', 'expirado']
 
 const brl = (v: number) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const num = (v: number, casas = 0) => v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas })
@@ -37,8 +65,8 @@ export default async function SuperadminPage({
   const admin = getAdminSupabase()
   const [lojistas, metricas] = await Promise.all([listarLojistas(admin), metricasPorRestaurante(admin)])
 
-  const ativos = lojistas.filter((l) => l.autorizado).length
-  const pendentes = lojistas.length - ativos
+  const ativos = lojistas.filter((l) => ['ativo', 'ativo_temporario'].includes(situacaoDe(l))).length
+  const pendentes = lojistas.filter((l) => situacaoDe(l) === 'pendente').length
 
   // Totais da plataforma (somando as métricas de todas as lojas)
   const todasMetricas = [...metricas.values()]
@@ -118,64 +146,84 @@ export default async function SuperadminPage({
                 <th className="px-4 py-3 text-right">Faturamento</th>
                 <th className="px-4 py-3 text-right">Pedidos</th>
                 <th className="px-4 py-3 text-right">Ticket</th>
-                <th className="px-4 py-3 text-right">Ped./dia</th>
                 <th className="px-4 py-3">Loja</th>
                 <th className="px-4 py-3">Cadastro</th>
-                <th className="px-4 py-3">Último login</th>
+                <th className="px-4 py-3">Último acesso</th>
                 <th className="px-4 py-3">Ações</th>
               </tr>
             </thead>
             <tbody>
               {lojistas.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-5 py-8 text-center text-[13px] text-text-subtle">
+                  <td colSpan={13} className="px-5 py-8 text-center text-[13px] text-text-subtle">
                     Nenhum cadastro ainda.
                   </td>
                 </tr>
               )}
               {lojistas.map((lojista) => {
                 const m = lojista.restauranteId ? metricas.get(lojista.restauranteId) : undefined
+                const situacao = situacaoDe(lojista)
+                const semAcesso = SEM_ACESSO.includes(situacao)
+                const recente = acessoRecente(lojista.ultimoLoginEm)
                 return (
-                  <tr key={lojista.id} className="border-b border-border align-top transition-colors last:border-none hover:bg-page/60">
-                    <td className="px-4 py-4 font-semibold text-text-main">{lojista.nomeLoja || '—'}</td>
-                    <td className="px-4 py-4">{lojista.nome || '—'}</td>
-                    <td className="px-4 py-4 whitespace-nowrap">{lojista.telefone || '—'}</td>
-                    <td className="px-4 py-4">{lojista.email}</td>
-                    <td className="px-4 py-4">{lojista.usuario || '—'}</td>
-                    <td className="px-4 py-4">
-                      {lojista.autorizado ? (
-                        <span className="rounded-menuzia bg-price-bg px-2.5 py-1 text-[11px] font-semibold text-price-text">Ativo</span>
-                      ) : (
-                        <span className="rounded-menuzia bg-warn-bg px-2.5 py-1 text-[11px] font-semibold text-warn">Aguardando 1º acesso</span>
+                  <tr key={lojista.id} className="border-b border-border align-middle transition-colors last:border-none hover:bg-page/60">
+                    <td className="max-w-[160px] truncate whitespace-nowrap px-4 py-3 font-semibold text-text-main">{lojista.nomeLoja || '—'}</td>
+                    <td className="max-w-[140px] truncate whitespace-nowrap px-4 py-3">{lojista.nome || '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{lojista.telefone || '—'}</td>
+                    <td className="max-w-[180px] truncate whitespace-nowrap px-4 py-3">{lojista.email}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-medium">{lojista.usuario || '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {situacao === 'pendente' && (
+                        <span className="whitespace-nowrap rounded-menuzia bg-warn-bg px-2.5 py-1 text-[11px] font-semibold text-warn">Aguardando 1º acesso</span>
+                      )}
+                      {situacao === 'ativo' && (
+                        <span className="whitespace-nowrap rounded-menuzia bg-price-bg px-2.5 py-1 text-[11px] font-semibold text-price-text">Ativo</span>
+                      )}
+                      {situacao === 'ativo_temporario' && (
+                        <span className="whitespace-nowrap rounded-menuzia bg-price-bg px-2.5 py-1 text-[11px] font-semibold text-price-text">
+                          Ativo até {new Date(lojista.acessoExpiraEm!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: TZ })}
+                        </span>
+                      )}
+                      {situacao === 'expirado' && (
+                        <span className="whitespace-nowrap rounded-menuzia bg-[#fee2e2] px-2.5 py-1 text-[11px] font-semibold text-[#ef4444]">Acesso expirado</span>
+                      )}
+                      {situacao === 'revogado' && (
+                        <span className="whitespace-nowrap rounded-menuzia bg-[#fee2e2] px-2.5 py-1 text-[11px] font-semibold text-[#ef4444]">Sem acesso</span>
                       )}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right font-semibold text-price-text">{m ? brl(m.faturamento) : '—'}</td>
-                    <td className="px-4 py-4 text-right font-semibold text-text-main">{m ? num(m.qtdPedidos) : '—'}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right text-text-main">{m ? brl(m.ticketMedio) : '—'}</td>
-                    <td className="px-4 py-4 text-right text-text-subtle">{m ? num(m.pedidosPorDia, 1) : '—'}</td>
-                    <td className="px-4 py-4">
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-price-text">{m ? brl(m.faturamento) : '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-text-main">{m ? num(m.qtdPedidos) : '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-text-main">{m ? brl(m.ticketMedio) : '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
                       {lojista.restauranteSlug ? (
-                        <Link href={`/loja/${lojista.restauranteSlug}`} target="_blank" className="font-medium text-primary underline">
-                          {lojista.restauranteNome}
+                        <Link
+                          href={`/loja/${lojista.restauranteSlug}`}
+                          target="_blank"
+                          title={`Abrir a vitrine de ${lojista.restauranteNome}`}
+                          className="inline-flex max-w-[150px] items-center gap-1.5 font-medium text-primary hover:underline"
+                        >
+                          <ExternalLink size={14} className="flex-shrink-0" />
+                          <span className="truncate">{lojista.restauranteNome}</span>
                         </Link>
                       ) : (
                         '—'
                       )}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-[12px] text-text-subtle">{formatarData(lojista.criadoEm)}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-[12px] text-text-subtle">{formatarData(lojista.ultimoLoginEm)}</td>
-                    <td className="px-4 py-4">
-                      {lojista.autorizado ? (
-                        <form action={revogarAcessoAction}>
-                          <input type="hidden" name="usuarioId" value={lojista.id} />
-                          <ConfirmSubmitButton
-                            confirmMessage={`Revogar o acesso de ${lojista.email}? O lojista não vai conseguir entrar até você reativar.`}
-                            className="text-[12px] font-semibold text-danger hover:underline"
-                          >
-                            Revogar acesso
-                          </ConfirmSubmitButton>
-                        </form>
+                    <td className="whitespace-nowrap px-4 py-3 text-[12px] text-text-subtle">{formatarData(lojista.criadoEm)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-[12px]">
+                      {semAcesso && lojista.ultimoLoginEm ? (
+                        <span className="rounded-menuzia bg-[#fee2e2] px-2 py-0.5 font-semibold text-[#ef4444]">{formatarAcesso(lojista.ultimoLoginEm)}</span>
+                      ) : recente ? (
+                        <span className="font-bold text-[#1e3a8a]">{formatarAcesso(lojista.ultimoLoginEm)}</span>
                       ) : (
+                        <span className="text-text-subtle">{formatarAcesso(lojista.ultimoLoginEm)}</span>
+                      )}
+                      {lojista.loginsTotal > 0 && (
+                        <span className="ml-1.5 text-[11px] text-text-subtle">({num(lojista.loginsTotal)}×)</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {situacao === 'pendente' && (
                         <form action={removerConviteAction}>
                           <input type="hidden" name="usuarioId" value={lojista.id} />
                           <ConfirmSubmitButton
@@ -185,6 +233,44 @@ export default async function SuperadminPage({
                             Remover
                           </ConfirmSubmitButton>
                         </form>
+                      )}
+                      {(situacao === 'ativo' || situacao === 'ativo_temporario') && (
+                        <form action={revogarAcessoAction}>
+                          <input type="hidden" name="usuarioId" value={lojista.id} />
+                          <ConfirmSubmitButton
+                            confirmMessage={`Revogar o acesso de ${lojista.email}? O lojista não vai conseguir entrar até você reativar.`}
+                            className="text-[12px] font-semibold text-danger hover:underline"
+                          >
+                            Revogar acesso
+                          </ConfirmSubmitButton>
+                        </form>
+                      )}
+                      {semAcesso && (
+                        <div className="flex items-center gap-3">
+                          <form action={concederAcessoAction} className="flex items-center gap-1.5">
+                            <input type="hidden" name="usuarioId" value={lojista.id} />
+                            <input
+                              name="dias"
+                              type="number"
+                              min="1"
+                              placeholder="dias"
+                              title="Deixe vazio pra acesso permanente ou informe a quantidade de dias de acesso temporário"
+                              className="w-[52px] rounded-menuzia border border-border px-1.5 py-1 text-center text-[12px] outline-none focus:border-primary"
+                            />
+                            <button type="submit" className="rounded-menuzia bg-[#1e3a8a] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:brightness-110">
+                              Dar acesso
+                            </button>
+                          </form>
+                          <form action={excluirLojistaAction}>
+                            <input type="hidden" name="usuarioId" value={lojista.id} />
+                            <ConfirmSubmitButton
+                              confirmMessage={`EXCLUIR DE VEZ ${lojista.email}? Loja, cardápio, pedidos e a conta serão apagados do banco. Essa ação NÃO pode ser desfeita.`}
+                              className="rounded-menuzia bg-[#fee2e2] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#ef4444] transition-colors hover:bg-[#ef4444] hover:text-white"
+                            >
+                              Excluir dados
+                            </ConfirmSubmitButton>
+                          </form>
+                        </div>
                       )}
                     </td>
                   </tr>
