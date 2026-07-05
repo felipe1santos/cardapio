@@ -82,6 +82,34 @@ export async function removerConvitePendente(admin: SupabaseClient, usuarioId: s
   return { ok: true }
 }
 
+export interface ConfigPlataforma {
+  /** Quando ligado, qualquer pessoa cria a conta em /cadastro sem autorização manual do e-mail. */
+  cadastroAutomatico: boolean
+  /** Validade (em dias) do acesso criado pelo cadastro automático. 0 = sem validade. */
+  cadastroAutomaticoDias: number
+}
+
+export async function buscarConfigPlataforma(admin: SupabaseClient): Promise<ConfigPlataforma> {
+  const { data, error } = await admin
+    .from('config_plataforma')
+    .select('cadastro_automatico, cadastro_automatico_dias')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error) throw error
+  return {
+    cadastroAutomatico: data?.cadastro_automatico ?? false,
+    cadastroAutomaticoDias: data?.cadastro_automatico_dias ?? 30,
+  }
+}
+
+export async function salvarConfigPlataforma(admin: SupabaseClient, config: ConfigPlataforma): Promise<Resultado> {
+  const { error } = await admin
+    .from('config_plataforma')
+    .upsert({ id: 1, cadastro_automatico: config.cadastroAutomatico, cadastro_automatico_dias: Math.max(0, Math.floor(config.cadastroAutomaticoDias)) })
+  if (error) return { ok: false, error: 'Não foi possível salvar a configuração.' }
+  return { ok: true }
+}
+
 export type StatusEmailCadastro = 'autorizado' | 'nao_encontrado' | 'ja_cadastrado'
 
 /**
@@ -155,17 +183,72 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
     return { ok: false, error: 'Este nome de usuário já está em uso. Escolha outro.' }
   }
 
-  const { data: usuario, error: usuarioError } = await admin
+  const { data: conta, error: contaError } = await admin
     .from('usuarios')
     .select('id, restaurante_id')
     .eq('email', email)
     .maybeSingle()
-  if (usuarioError) throw usuarioError
-  if (!usuario) {
-    return { ok: false, error: 'E-mail não encontrado. Confirme o e-mail com o administrador da plataforma.' }
-  }
-  if (usuario.restaurante_id) {
+  if (contaError) throw contaError
+  if (conta?.restaurante_id) {
     return { ok: false, error: 'Este e-mail já tem cadastro concluído. Faça login.' }
+  }
+
+  let usuarioId: string
+  let acessoExpiraEm: string | null = null
+  // Conta criada agora pelo cadastro automático — se algo falhar depois, desfaz tudo.
+  let criadoAutomaticamente = false
+
+  if (conta) {
+    // Fluxo com pré-autorização manual: a conta de auth já existe (senha temporária).
+    usuarioId = conta.id
+    const { error: passwordError } = await admin.auth.admin.updateUserById(usuarioId, { password: input.senha })
+    if (passwordError) {
+      return { ok: false, error: 'Não foi possível definir a senha. Tente novamente.' }
+    }
+  } else {
+    // Cadastro automático: sem pré-autorização, cria a conta na hora com a
+    // validade configurada no /superadmin.
+    const config = await buscarConfigPlataforma(admin)
+    if (!config.cadastroAutomatico) {
+      return { ok: false, error: 'E-mail não encontrado. Confirme o e-mail com o administrador da plataforma.' }
+    }
+
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password: input.senha,
+      email_confirm: true,
+    })
+    if (createError || !created.user) {
+      if (createError?.message?.toLowerCase().includes('already')) return { ok: false, error: 'Já existe uma conta com este e-mail. Faça login.' }
+      return { ok: false, error: 'Não foi possível criar a conta. Tente novamente.' }
+    }
+
+    const { error: insertError } = await admin.from('usuarios').insert({
+      id: created.user.id,
+      restaurante_id: null,
+      papel: 'dono',
+      nome: '',
+      email,
+      telefone: '',
+      nome_loja: '',
+      autorizado: false,
+    })
+    if (insertError) {
+      await admin.auth.admin.deleteUser(created.user.id)
+      return { ok: false, error: 'Não foi possível criar a conta. Tente novamente.' }
+    }
+
+    usuarioId = created.user.id
+    criadoAutomaticamente = true
+    acessoExpiraEm = config.cadastroAutomaticoDias > 0
+      ? new Date(Date.now() + config.cadastroAutomaticoDias * 86_400_000).toISOString()
+      : null
+  }
+
+  async function desfazerContaAutomatica() {
+    if (!criadoAutomaticamente) return
+    await admin.from('usuarios').delete().eq('id', usuarioId)
+    await admin.auth.admin.deleteUser(usuarioId)
   }
 
   const slug = await gerarSlugUnico(admin, input.nomeLoja)
@@ -176,13 +259,8 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
     .select('id')
     .single()
   if (restauranteError || !restaurante) {
+    await desfazerContaAutomatica()
     return { ok: false, error: 'Não foi possível criar a loja. Tente novamente.' }
-  }
-
-  const { error: passwordError } = await admin.auth.admin.updateUserById(usuario.id, { password: input.senha })
-  if (passwordError) {
-    await admin.from('restaurantes').delete().eq('id', restaurante.id)
-    return { ok: false, error: 'Não foi possível definir a senha. Tente novamente.' }
   }
 
   const { error: updateError } = await admin
@@ -195,10 +273,12 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
       restaurante_id: restaurante.id,
       papel: 'dono',
       autorizado: true,
+      acesso_expira_em: acessoExpiraEm,
     })
-    .eq('id', usuario.id)
+    .eq('id', usuarioId)
   if (updateError) {
     await admin.from('restaurantes').delete().eq('id', restaurante.id)
+    await desfazerContaAutomatica()
     return { ok: false, error: 'Não foi possível concluir o cadastro. Tente novamente.' }
   }
 

@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { listarLojistas, metricasPorRestaurante, type LojistaRow } from '@/lib/queries/lojistas'
+import { buscarConfigPlataforma, listarLojistas, metricasPorRestaurante, type LojistaRow } from '@/lib/queries/lojistas'
 import { ConfirmSubmitButton } from '@/components/ui/confirm-submit-button'
-import { concederAcessoAction, convidarLojistaAction, excluirLojistaAction, removerConviteAction, revogarAcessoAction, sairAction } from './actions'
+import { concederAcessoAction, convidarLojistaAction, excluirLojistaAction, removerConviteAction, revogarAcessoAction, sairAction, salvarConfigPlataformaAction } from './actions'
 
 // Servidor roda em UTC (Coolify); fixa o fuso de São Paulo pra não mostrar +3h.
 const TZ = 'America/Sao_Paulo'
@@ -63,7 +63,11 @@ export default async function SuperadminPage({
 }) {
   const { error } = await searchParams
   const admin = getAdminSupabase()
-  const [lojistas, metricas] = await Promise.all([listarLojistas(admin), metricasPorRestaurante(admin)])
+  const [lojistas, metricas, config] = await Promise.all([
+    listarLojistas(admin),
+    metricasPorRestaurante(admin),
+    buscarConfigPlataforma(admin),
+  ])
 
   const ativos = lojistas.filter((l) => ['ativo', 'ativo_temporario'].includes(situacaoDe(l))).length
   const pendentes = lojistas.filter((l) => situacaoDe(l) === 'pendente').length
@@ -124,6 +128,54 @@ export default async function SuperadminPage({
             className="rounded-menuzia bg-primary px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
           >
             Pré-cadastrar
+          </button>
+        </form>
+      </div>
+
+      {/* Cadastro automático */}
+      <div className={`mb-6 rounded-menuzia border p-5 ${config.cadastroAutomatico ? 'border-[#16A34A]/40 bg-price-bg/40' : 'border-border bg-main'}`}>
+        <div className="mb-1 flex items-center gap-2.5">
+          <h2 className="text-[13px] font-bold text-text-main">Cadastro automático</h2>
+          {config.cadastroAutomatico ? (
+            <span className="rounded-menuzia bg-price-bg px-2.5 py-0.5 text-[11px] font-bold text-price-text">
+              LIGADO{config.cadastroAutomaticoDias > 0 ? ` · acesso por ${config.cadastroAutomaticoDias} dia${config.cadastroAutomaticoDias !== 1 ? 's' : ''}` : ' · acesso sem validade'}
+            </span>
+          ) : (
+            <span className="rounded-menuzia bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-bold text-[#ef4444]">DESLIGADO</span>
+          )}
+        </div>
+        <p className="mb-4 text-[12px] text-text-subtle">
+          Ligado: qualquer pessoa cria a própria conta em /cadastro, sem você autorizar o e-mail — com a validade
+          definida abaixo (ao expirar, o acesso é bloqueado mas os dados ficam salvos pra você renovar depois).
+          Desligado: só entra quem você pré-cadastrar manualmente acima.
+        </p>
+        <form action={salvarConfigPlataformaAction} className="flex flex-wrap items-end gap-4">
+          <label className="flex cursor-pointer items-center gap-2 pb-2.5 text-[13px] font-semibold text-text-main">
+            <input
+              type="checkbox"
+              name="cadastroAutomatico"
+              defaultChecked={config.cadastroAutomatico}
+              className="h-4 w-4 accent-[#16A34A]"
+            />
+            Permitir cadastro automático
+          </label>
+          <label>
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Validade do acesso (dias)</span>
+            <input
+              name="dias"
+              type="number"
+              min="0"
+              defaultValue={config.cadastroAutomaticoDias || ''}
+              placeholder="30"
+              title="0 ou vazio = acesso sem validade"
+              className="w-28 rounded-menuzia border border-border px-3 py-2.5 text-sm transition-colors focus:border-primary focus:outline-none"
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-menuzia bg-[#1e3a8a] px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:brightness-110"
+          >
+            Salvar
           </button>
         </form>
       </div>

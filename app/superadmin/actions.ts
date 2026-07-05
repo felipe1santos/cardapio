@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
-import { concederAcessoLojista, convidarLojista, excluirLojistaCompleto, removerConvitePendente, revogarAcessoLojista } from '@/lib/queries/lojistas'
+import { concederAcessoLojista, convidarLojista, excluirLojistaCompleto, removerConvitePendente, revogarAcessoLojista, salvarConfigPlataforma } from '@/lib/queries/lojistas'
 
 async function ensureSuperAdmin() {
   const supabase = await getServerSupabase()
@@ -57,6 +57,23 @@ export async function revogarAcessoAction(formData: FormData) {
 
   const admin = getAdminSupabase()
   const result = await revogarAcessoLojista(admin, usuarioId)
+  if (!result.ok) {
+    redirect(`/superadmin?error=${encodeURIComponent(result.error)}`)
+  }
+
+  revalidatePath('/superadmin')
+  redirect('/superadmin')
+}
+
+export async function salvarConfigPlataformaAction(formData: FormData) {
+  await ensureSuperAdmin()
+
+  const ligado = formData.get('cadastroAutomatico') === 'on'
+  const diasRaw = String(formData.get('dias') ?? '').trim()
+  const dias = diasRaw ? Math.max(0, Math.floor(Number(diasRaw))) : 0
+
+  const admin = getAdminSupabase()
+  const result = await salvarConfigPlataforma(admin, { cadastroAutomatico: ligado, cadastroAutomaticoDias: dias })
   if (!result.ok) {
     redirect(`/superadmin?error=${encodeURIComponent(result.error)}`)
   }
