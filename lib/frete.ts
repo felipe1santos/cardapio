@@ -76,3 +76,60 @@ export async function geocodeEndereco(
   }
   return null
 }
+
+// ── Decisão de entregabilidade ────────────────────────────────────────────────
+// Regra (ver docs/superpowers/specs/2026-07-10-bairro-obrigatorio-lista-fechada-design.md):
+// bairro cadastrado resolve primeiro; depois faixas de raio pela distância; a taxa
+// padrão só vale quando a loja não restringiu área (sem bairros e sem raio).
+
+export interface FreteDecisao {
+  entregavel: boolean
+  taxa: number
+  fonte: 'bairro' | 'raio' | 'padrao'
+  distanciaKm: number | null
+  motivo?: string
+}
+
+export function decidirFrete(params: {
+  bairroCliente: string
+  bairros: { bairro: string; taxa: number }[]
+  raios: { ateKm: number; taxa: number }[]
+  taxaPadrao: number
+  /** Distância loja→cliente em km; null quando o geocode falhou ou não foi tentado. */
+  distanciaKm: number | null
+}): FreteDecisao {
+  const alvo = params.bairroCliente.trim().toLowerCase()
+  if (alvo) {
+    const match = params.bairros.find((b) => b.bairro.trim().toLowerCase() === alvo)
+    if (match) return { entregavel: true, taxa: match.taxa, fonte: 'bairro', distanciaKm: null }
+  }
+
+  if (params.raios.length > 0) {
+    if (params.distanciaKm != null) {
+      const dist = Math.round(params.distanciaKm * 10) / 10
+      const faixa = params.raios.find((r) => params.distanciaKm! <= r.ateKm)
+      if (faixa) return { entregavel: true, taxa: faixa.taxa, fonte: 'raio', distanciaKm: dist }
+      const maxKm = params.raios[params.raios.length - 1].ateKm
+      return {
+        entregavel: false,
+        taxa: 0,
+        fonte: 'raio',
+        distanciaKm: dist,
+        motivo: `Esse endereço está a ${dist} km — fora da área de entrega (até ${maxKm} km).`,
+      }
+    }
+    return {
+      entregavel: false,
+      taxa: 0,
+      fonte: 'raio',
+      distanciaKm: null,
+      motivo: 'Não conseguimos localizar esse endereço. Confira o CEP e os dados digitados.',
+    }
+  }
+
+  if (params.bairros.length > 0) {
+    return { entregavel: false, taxa: 0, fonte: 'bairro', distanciaKm: null, motivo: 'A loja não entrega nesse bairro.' }
+  }
+
+  return { entregavel: true, taxa: params.taxaPadrao, fonte: 'padrao', distanciaKm: null }
+}
