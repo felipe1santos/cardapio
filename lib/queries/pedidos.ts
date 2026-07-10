@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { geocodeEndereco, haversineKm, type Coord } from '@/lib/frete'
+import { resolverFrete } from '@/lib/frete'
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -779,59 +779,6 @@ export async function registrarFechamentoCaixa(
 
 // --- Criação do pedido pela vitrine (executa no servidor com service_role) ---
 
-/**
- * Resolve a taxa de entrega com a mesma prioridade do endpoint /api/loja/[slug]/frete:
- * bairro cadastrado → faixa de raio (distância loja→cliente) → taxa padrão.
- * Mantém o pedido sempre aceito (se não geocodificar, cai na taxa padrão).
- */
-export async function calcularTaxaEntrega(
-  admin: SupabaseClient,
-  restauranteId: string,
-  endereco: { rua?: string; numero?: string; bairro: string; cep?: string; cidade?: string }
-): Promise<number> {
-  const limpo = endereco.bairro.trim()
-  if (limpo) {
-    const { data } = await admin
-      .from('taxas_entrega_bairro')
-      .select('taxa')
-      .eq('restaurante_id', restauranteId)
-      .ilike('bairro', limpo)
-      .maybeSingle()
-    if (data) return Number(data.taxa)
-  }
-
-  const { data: loja } = await admin
-    .from('restaurantes')
-    .select('taxa_entrega_padrao, latitude, longitude, cep, endereco')
-    .eq('id', restauranteId)
-    .maybeSingle()
-  const padrao = loja ? Number(loja.taxa_entrega_padrao) : 0
-
-  const { data: raios } = await admin
-    .from('taxas_entrega_raio')
-    .select('ate_km, taxa')
-    .eq('restaurante_id', restauranteId)
-    .order('ate_km', { ascending: true })
-
-  if (loja && raios && raios.length > 0) {
-    const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-    let lojaCoord: Coord | null =
-      loja.latitude != null && loja.longitude != null ? { lat: Number(loja.latitude), lng: Number(loja.longitude) } : null
-    if (!lojaCoord) {
-      lojaCoord = await geocodeEndereco({ cep: loja.cep ?? undefined, endereco: loja.endereco ?? undefined }, mapsKey)
-    }
-    const enderecoCliente = [endereco.rua, endereco.numero, endereco.bairro, endereco.cidade].map((s) => (s ?? '').trim()).filter(Boolean).join(', ')
-    const clienteCoord = await geocodeEndereco({ cep: endereco.cep, endereco: enderecoCliente || undefined }, mapsKey)
-    if (lojaCoord && clienteCoord) {
-      const dist = haversineKm(lojaCoord, clienteCoord)
-      const faixa = raios.find((r) => dist <= Number(r.ate_km))
-      if (faixa) return Number(faixa.taxa)
-    }
-  }
-
-  return padrao
-}
-
 export interface NovoPedidoItemInput {
   itemId: string
   quantidade: number
@@ -849,7 +796,7 @@ export interface NovoPedidoInput {
   endereco: { rua: string; numero: string; complemento: string; bairro: string; cep: string; cidade?: string }
   pagamento: FormaPagamento
   trocoPara: number | null
-  /** Apenas informativo — a taxa real é recalculada no servidor pelo bairro. */
+  /** Apenas informativo — a taxa real é recalculada no servidor (resolverFrete). */
   taxaEntrega?: number
   /** Origem do pedido. Default 'cardapio' (vitrine/manual). PDV manda 'pdv'. */
   origem?: 'cardapio' | 'pdv'
@@ -976,7 +923,14 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   })
 
   const subtotal = linhas.reduce((s, l) => s + l.preco_unitario * l.quantidade, 0)
-  let taxaEntrega = input.tipo === 'entrega' ? await calcularTaxaEntrega(admin, restauranteId, input.endereco) : 0
+  // Taxa server-authoritative: mesma regra do endpoint /frete. Endereço fora da
+  // área (bairro fora da lista fechada ou fora do raio) rejeita o pedido.
+  let taxaEntrega = 0
+  if (input.tipo === 'entrega') {
+    const frete = await resolverFrete(admin, restauranteId, input.endereco, process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
+    if (!frete.entregavel) throw new Error(frete.motivo || 'A loja não entrega nesse endereço. Entre em contato com a loja.')
+    taxaEntrega = frete.taxa
+  }
   // Entrega grátis quando o subtotal atinge o mínimo configurado pela loja.
   if (taxaEntrega > 0) {
     const { data: cfgFrete } = await admin.from('restaurantes').select('frete_gratis_acima').eq('id', restauranteId).maybeSingle()
