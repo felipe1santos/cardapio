@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin } from 'lucide-react'
+import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestaurantePorSlug,
   listarBairrosVitrine,
+  lojaTemRaioVitrine,
   listarCardapioPublico,
   listarOrderBumpsPublico,
   type GrupoComItens,
@@ -259,6 +260,47 @@ function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: I
   )
 }
 
+/**
+ * Autocomplete estrito de bairro (modo lista fechada): filtra os bairros atendidos
+ * conforme o cliente digita e só um valor da lista vale como bairro válido.
+ */
+function BairroAutocomplete({ value, onChange, opcoes }: { value: string; onChange: (v: string) => void; opcoes: string[] }) {
+  const [aberto, setAberto] = useState(false)
+  const filtro = value.trim().toLowerCase()
+  const sugestoes = filtro ? opcoes.filter((b) => b.toLowerCase().includes(filtro)) : opcoes
+  const exato = opcoes.some((b) => b.toLowerCase() === filtro)
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setAberto(true) }}
+        onFocus={() => setAberto(true)}
+        onBlur={() => setAberto(false)}
+        placeholder="Digite e escolha o bairro"
+        className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]"
+      />
+      {aberto && !exato && sugestoes.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-[200px] overflow-y-auto rounded-md border border-border bg-white shadow-lg">
+          {sugestoes.map((b) => (
+            <button
+              key={b}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onChange(b); setAberto(false) }}
+              className="block w-full px-3 py-2.5 text-left text-[14px] hover:bg-[#F3F4F6]"
+            >
+              {b}
+            </button>
+          ))}
+        </div>
+      )}
+      {value.trim() !== '' && !exato && (
+        <p className="mt-1.5 text-[12px] font-medium text-danger">Escolha um bairro da lista — entregamos só nos bairros atendidos.</p>
+      )}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function StorefrontPage() {
@@ -272,6 +314,7 @@ export default function StorefrontPage() {
   const [restaurante, setRestaurante] = useState<RestauranteVitrine | null>(null)
   const [groups, setGroups] = useState<GrupoComItens[]>([])
   const [bairros, setBairros] = useState<{ bairro: string; taxa: number }[]>([])
+  const [temRaio, setTemRaio] = useState(false)
   const [orderBumps, setOrderBumps] = useState<ItemCardapio[]>([])
   const [tamanhosPizza, setTamanhosPizza] = useState<TamanhoPadraoPizza[]>([])
   const [bordasPizza, setBordasPizza] = useState<BordaPizza[]>([])
@@ -291,9 +334,10 @@ export default function StorefrontPage() {
           return
         }
         setRestaurante(loja)
-        const [cardapio, taxasBairro, bumps, tamanhosPizzaData, bordasData, massasData] = await Promise.all([
+        const [cardapio, taxasBairro, temRaioLoja, bumps, tamanhosPizzaData, bordasData, massasData] = await Promise.all([
           listarCardapioPublico(supabase, loja.id),
           listarBairrosVitrine(supabase, loja.id),
+          lojaTemRaioVitrine(supabase, loja.id),
           listarOrderBumpsPublico(supabase, loja.id, loja.orderBumpMax),
           listarTamanhosPadraoPizza(supabase, loja.id),
           listarBordasPizza(supabase, loja.id),
@@ -302,6 +346,7 @@ export default function StorefrontPage() {
         if (cancelled) return
         setGroups(cardapio)
         setBairros(taxasBairro)
+        setTemRaio(temRaioLoja)
         setOrderBumps(bumps)
         setTamanhosPizza(tamanhosPizzaData)
         setBordasPizza(bordasData)
@@ -387,14 +432,19 @@ export default function StorefrontPage() {
 
   // Fallback instantâneo por bairro enquanto o servidor responde (ou se ele falhar).
   const feeFallback = useMemo(() => {
-    const padrao = restaurante?.taxaEntregaPadrao ?? 0
     const alvo = endereco.bairro.trim().toLowerCase()
-    if (!alvo) return padrao
     const match = bairros.find((b) => b.bairro.trim().toLowerCase() === alvo)
-    return match ? match.taxa : padrao
-  }, [restaurante, bairros, endereco.bairro])
+    if (match) return match.taxa
+    if (bairros.length > 0 && !temRaio) return 0 // lista fechada: fora da lista não há frete
+    return restaurante?.taxaEntregaPadrao ?? 0
+  }, [restaurante, bairros, temRaio, endereco.bairro])
 
   const entregavel = freteCalc ? freteCalc.entregavel : true
+
+  // Lista fechada: a loja cadastrou bairros e não usa raio — só entrega nos bairros da lista.
+  const listaFechada = bairros.length > 0 && !temRaio
+  const bairroValido =
+    !listaFechada || bairros.some((b) => b.bairro.trim().toLowerCase() === endereco.bairro.trim().toLowerCase())
 
   // Entrega grátis quando o subtotal atinge o mínimo configurado pela loja.
   const freteGratisMinimo = restaurante?.freteGratisAcima ?? null
@@ -415,7 +465,14 @@ export default function StorefrontPage() {
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
       const data = await res.json()
       if (!data.erro) {
-        setEndereco((a) => ({ ...a, rua: data.logradouro || a.rua, bairro: data.bairro || a.bairro }))
+        setEndereco((a) => {
+          let bairroNovo = data.bairro || a.bairro
+          if (listaFechada && bairroNovo) {
+            const m = bairros.find((b) => b.bairro.trim().toLowerCase() === String(bairroNovo).trim().toLowerCase())
+            bairroNovo = m ? m.bairro : '' // sem match: cliente escolhe da lista
+          }
+          return { ...a, rua: data.logradouro || a.rua, bairro: bairroNovo }
+        })
         setCidadeCliente(data.localidade || '')
       }
     } catch {
@@ -1042,8 +1099,12 @@ export default function StorefrontPage() {
   }
 
   function checkoutNext() {
-    if (checkoutStep === 2 && (!cliente.nome.trim() || !endereco.rua.trim() || !endereco.numero.trim())) {
-      setCheckoutError('Preencha nome, rua e número para continuar.')
+    if (checkoutStep === 2 && (!cliente.nome.trim() || !endereco.rua.trim() || !endereco.numero.trim() || !endereco.bairro.trim())) {
+      setCheckoutError('Preencha nome, rua, número e bairro para continuar.')
+      return
+    }
+    if (checkoutStep === 2 && listaFechada && !bairroValido) {
+      setCheckoutError('Escolha um bairro da lista de bairros atendidos pela loja.')
       return
     }
     if (checkoutStep === 2 && !entregavel) {
@@ -2139,13 +2200,23 @@ export default function StorefrontPage() {
                 </div>
                 <div className="mt-3 flex gap-3">
                   <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Bairro</label>
-                    <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro" list="bairros-loja"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                    {/* Sugestões: bairros que a loja atende (cadastrados no painel Entrega) */}
-                    <datalist id="bairros-loja">
-                      {bairros.map((b) => <option key={b.bairro} value={b.bairro} />)}
-                    </datalist>
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Bairro *</label>
+                    {listaFechada ? (
+                      <BairroAutocomplete
+                        value={endereco.bairro}
+                        onChange={(v) => setEndereco((a) => ({ ...a, bairro: v }))}
+                        opcoes={bairros.map((b) => b.bairro)}
+                      />
+                    ) : (
+                      <>
+                        <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro" list="bairros-loja"
+                          className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                        {/* Sugestões: bairros que a loja atende (cadastrados no painel Entrega) */}
+                        <datalist id="bairros-loja">
+                          {bairros.map((b) => <option key={b.bairro} value={b.bairro} />)}
+                        </datalist>
+                      </>
+                    )}
                   </div>
                   <div className="flex-1">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Complemento</label>
@@ -2164,8 +2235,27 @@ export default function StorefrontPage() {
                     <span className="font-bold text-price-text">{fee === 0 ? 'Grátis' : brl(fee)}</span>
                   </div>
                 ) : (
-                  <div className="mt-3 rounded border border-danger bg-danger/10 px-3 py-2.5 text-[13px] font-medium text-danger">
-                    {freteCalc?.motivo || 'Esse endereço está fora da nossa área de entrega.'}
+                  <div className="mt-3 rounded border border-danger bg-danger/10 px-3 py-3">
+                    <p className="text-[13px] font-semibold text-danger">{freteCalc?.motivo || 'A loja não entrega neste endereço.'}</p>
+                    <p className="mt-1 text-[12px] text-text-subtle">Entre em contato com a loja para combinar a entrega.</p>
+                    {restaurante?.telefone?.trim() && (
+                      <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-text-main">
+                          <Phone className="h-4 w-4 flex-shrink-0" strokeWidth={2} />
+                          {restaurante.telefone}
+                        </span>
+                        {numeroWaLoja() && (
+                          <a
+                            href={`https://wa.me/${numeroWaLoja()}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center gap-1.5 rounded bg-[#16A34A] px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#15803D]"
+                          >
+                            Falar com a loja no WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               )}

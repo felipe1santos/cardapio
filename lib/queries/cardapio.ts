@@ -718,6 +718,16 @@ export async function listarBairrosVitrine(supabase: SupabaseClient, restaurante
   return (data ?? []).map((d) => ({ bairro: d.bairro, taxa: Number(d.taxa) }))
 }
 
+/** True se a loja tem faixas de entrega por raio — muda o modo do campo bairro no checkout. */
+export async function lojaTemRaioVitrine(supabase: SupabaseClient, restauranteId: string): Promise<boolean> {
+  const { count, error } = await supabase
+    .from('taxas_entrega_raio')
+    .select('id', { count: 'exact', head: true })
+    .eq('restaurante_id', restauranteId)
+  if (error) throw error
+  return (count ?? 0) > 0
+}
+
 export interface GrupoComItens extends GrupoCardapio {
   itens: ItemCardapio[]
 }
