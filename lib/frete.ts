@@ -2,6 +2,8 @@
 // Usado no servidor (endpoint /api/loja/[slug]/frete). Mantém o Google só como fallback;
 // a primeira tentativa de coordenadas por CEP é a BrasilAPI, que é gratuita e sem chave.
 
+import type { SupabaseClient } from '@supabase/supabase-js'
+
 export interface Coord {
   lat: number
   lng: number
@@ -132,4 +134,63 @@ export function decidirFrete(params: {
   }
 
   return { entregavel: true, taxa: params.taxaPadrao, fonte: 'padrao', distanciaKm: null }
+}
+
+export interface EnderecoFrete {
+  cep?: string
+  rua?: string
+  numero?: string
+  bairro?: string
+  cidade?: string
+}
+
+/**
+ * Resolve o frete de um endereço buscando a configuração da loja no banco.
+ * Geocodifica só quando necessário (bairro não resolveu e existem faixas de raio)
+ * e cacheia as coordenadas da loja em restaurantes.latitude/longitude.
+ * Usado pelo endpoint /api/loja/[slug]/frete e por criarPedido (server-authoritative).
+ */
+export async function resolverFrete(
+  admin: SupabaseClient,
+  restauranteId: string,
+  endereco: EnderecoFrete,
+  mapsKey?: string
+): Promise<FreteDecisao> {
+  const [{ data: loja }, { data: bairrosDb }, { data: raiosDb }] = await Promise.all([
+    admin
+      .from('restaurantes')
+      .select('taxa_entrega_padrao, latitude, longitude, cep, endereco')
+      .eq('id', restauranteId)
+      .maybeSingle(),
+    admin.from('taxas_entrega_bairro').select('bairro, taxa').eq('restaurante_id', restauranteId),
+    admin.from('taxas_entrega_raio').select('ate_km, taxa').eq('restaurante_id', restauranteId).order('ate_km', { ascending: true }),
+  ])
+  const bairros = (bairrosDb ?? []).map((b) => ({ bairro: String(b.bairro), taxa: Number(b.taxa) }))
+  const raios = (raiosDb ?? []).map((r) => ({ ateKm: Number(r.ate_km), taxa: Number(r.taxa) }))
+  const taxaPadrao = loja ? Number(loja.taxa_entrega_padrao) || 0 : 0
+
+  const alvo = (endereco.bairro ?? '').trim().toLowerCase()
+  const bairroResolve = alvo !== '' && bairros.some((b) => b.bairro.trim().toLowerCase() === alvo)
+
+  let distanciaKm: number | null = null
+  if (!bairroResolve && raios.length > 0 && loja) {
+    let lojaCoord: Coord | null =
+      loja.latitude != null && loja.longitude != null
+        ? { lat: Number(loja.latitude), lng: Number(loja.longitude) }
+        : null
+    if (!lojaCoord) {
+      lojaCoord = await geocodeEndereco({ cep: loja.cep ?? undefined, endereco: loja.endereco ?? undefined }, mapsKey)
+      if (lojaCoord) {
+        await admin.from('restaurantes').update({ latitude: lojaCoord.lat, longitude: lojaCoord.lng }).eq('id', restauranteId)
+      }
+    }
+    const enderecoCliente = [endereco.rua, endereco.numero, endereco.bairro, endereco.cidade]
+      .map((s) => (s ?? '').trim())
+      .filter(Boolean)
+      .join(', ')
+    const clienteCoord = await geocodeEndereco({ cep: endereco.cep, endereco: enderecoCliente || undefined }, mapsKey)
+    if (lojaCoord && clienteCoord) distanciaKm = haversineKm(lojaCoord, clienteCoord)
+  }
+
+  return decidirFrete({ bairroCliente: endereco.bairro ?? '', bairros, raios, taxaPadrao, distanciaKm })
 }
