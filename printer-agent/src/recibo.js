@@ -45,8 +45,16 @@ function montarReciboLinhas(pedido, config, lojaNome = '', temLogoImagem = false
 
   H(`PEDIDO #${pedido.numero}`)
   C(pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA')
+  if (pedido.origem === 'pdv') C(pedido.mesa ? `MESA ${pedido.mesa}` : 'BALCAO (PDV)')
+  if (pedido.criadoEm) {
+    const dt = new Date(pedido.criadoEm)
+    if (!isNaN(dt.getTime())) {
+      C(dt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' -'))
+    }
+  }
 
-  H('ITENS')
+  const totalUnidades = pedido.itens.reduce((s, i) => s + (i.quantidade || 1), 0)
+  H(`ITENS (${totalUnidades})`)
   pedido.itens.forEach((item, idx) => {
     const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
     const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
@@ -78,6 +86,7 @@ function montarReciboLinhas(pedido, config, lojaNome = '', temLogoImagem = false
   if (pedido.tipo === 'entrega') P('Taxa de entrega', brl(pedido.taxaEntrega))
   T('TOTAL', brl(pedido.total))
   Lin(`Pagamento: ${pedido.formaPagamento.toUpperCase()}`)
+  if (typeof pedido.pago === 'boolean') Lin(pedido.pago ? 'Status: PAGO' : 'Status: A RECEBER')
   if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) Lin(`Troco para: ${brl(pedido.trocoPara)}`)
   if (pedido.observacao) Lin(`Obs. do pedido: ${pedido.observacao}`)
 
@@ -87,7 +96,9 @@ function montarReciboLinhas(pedido, config, lojaNome = '', temLogoImagem = false
     if (pedido.clienteTelefone) Lin(`Tel.: ${pedido.clienteTelefone}`)
     if (pedido.tipo === 'entrega') {
       Lin(`End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero}`)
-      if (pedido.enderecoBairro) Lin(`- ${pedido.enderecoBairro}`)
+      if (pedido.enderecoComplemento) Lin(`Compl.: ${pedido.enderecoComplemento}`)
+      if (pedido.enderecoBairro) Lin(`Bairro: ${pedido.enderecoBairro}`)
+      if (pedido.enderecoCep) Lin(`CEP: ${pedido.enderecoCep}`)
     }
   }
 

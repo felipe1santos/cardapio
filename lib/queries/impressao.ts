@@ -196,8 +196,13 @@ export interface PedidoParaImprimir {
   clienteTelefone: string
   enderecoRua: string
   enderecoNumero: string
+  enderecoComplemento: string
   enderecoBairro: string
+  enderecoCep: string
   observacao: string
+  pago: boolean
+  origem: string
+  mesa: string | null
   subtotal: number
   taxaEntrega: number
   total: number
@@ -220,8 +225,8 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
   const { data, error } = await admin
     .from('pedidos')
     .select(
-      `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_bairro,
-       observacao, subtotal, taxa_entrega, total, criado_em,
+      `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
+       observacao, pago, origem, mesa, subtotal, taxa_entrega, total, criado_em,
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
     .eq('restaurante_id', restauranteId)
@@ -240,8 +245,13 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
     clienteTelefone: p.cliente_telefone ?? '',
     enderecoRua: p.endereco_rua,
     enderecoNumero: p.endereco_numero,
+    enderecoComplemento: p.endereco_complemento ?? '',
     enderecoBairro: p.endereco_bairro,
+    enderecoCep: p.endereco_cep ?? '',
     observacao: p.observacao,
+    pago: Boolean(p.pago),
+    origem: p.origem ?? 'cardapio',
+    mesa: p.mesa ?? null,
     subtotal: Number(p.subtotal),
     taxaEntrega: Number(p.taxa_entrega),
     total: Number(p.total),

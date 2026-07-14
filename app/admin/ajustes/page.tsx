@@ -837,7 +837,7 @@ function colsParaFontePreview(tamanho: string | undefined, largura: number): num
 }
 
 interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
-interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoBairro: string; formaPagamento: string; trocoPara: number | null; observacao: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
+interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoComplemento: string; enderecoBairro: string; enderecoCep: string; formaPagamento: string; trocoPara: number | null; pago: boolean; origem: string; mesa: string | null; observacao: string; criadoEm: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
 
 // Pedido fictício só pra ilustrar — não vem do banco. Traz de propósito um complemento
 // COM preço, uma observação de item, observação do pedido e pagamento em dinheiro com
@@ -848,8 +848,9 @@ const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
   tipo: 'entrega',
   clienteNome: 'João Silva',
   clienteTelefone: '(81) 99999-0000',
-  enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoBairro: 'Centro',
-  formaPagamento: 'dinheiro', trocoPara: 150, observacao: 'Tocar a campainha',
+  enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoComplemento: 'Apto 202', enderecoBairro: 'Centro', enderecoCep: '52000-000',
+  formaPagamento: 'dinheiro', trocoPara: 150, pago: false, origem: 'cardapio', mesa: null,
+  observacao: 'Tocar a campainha', criadoEm: '2026-07-14T20:30:00-03:00',
   subtotal: 110, taxaEntrega: 6, total: 116,
   itens: [
     { quantidade: 2, nome: 'Pizza Grande', precoUnitario: 45, tamanhoNome: 'Grande', saborNome: 'Calabresa', bordaNome: 'Catupiry', massaNome: '', complementos: [{ nome: 'Bacon extra', preco: 4 }], observacao: 'Bem assada' },
@@ -872,8 +873,16 @@ function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressa
 
   L.push({ t: 'H', s: `PEDIDO #${pedido.numero}` })
   L.push({ t: 'C', s: pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA' })
+  if (pedido.origem === 'pdv') L.push({ t: 'C', s: pedido.mesa ? `MESA ${pedido.mesa}` : 'BALCAO (PDV)' })
+  if (pedido.criadoEm) {
+    const dt = new Date(pedido.criadoEm)
+    if (!isNaN(dt.getTime())) {
+      L.push({ t: 'C', s: dt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' -') })
+    }
+  }
 
-  L.push({ t: 'H', s: 'ITENS' })
+  const totalUnidades = pedido.itens.reduce((s, i) => s + (i.quantidade || 1), 0)
+  L.push({ t: 'H', s: `ITENS (${totalUnidades})` })
   pedido.itens.forEach((item, idx) => {
     const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
     const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
@@ -904,6 +913,7 @@ function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressa
   if (pedido.tipo === 'entrega') L.push({ t: 'P', k: 'Taxa de entrega', v: brlR(pedido.taxaEntrega) })
   L.push({ t: 'T', k: 'TOTAL', v: brlR(pedido.total) })
   L.push({ t: 'L', s: `Pagamento: ${pedido.formaPagamento.toUpperCase()}` })
+  if (typeof pedido.pago === 'boolean') L.push({ t: 'L', s: pedido.pago ? 'Status: PAGO' : 'Status: A RECEBER' })
   if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) L.push({ t: 'L', s: `Troco para: ${brlR(pedido.trocoPara)}` })
   if (pedido.observacao) L.push({ t: 'L', s: `Obs. do pedido: ${pedido.observacao}` })
 
@@ -913,7 +923,9 @@ function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressa
     if (pedido.clienteTelefone) L.push({ t: 'L', s: `Tel.: ${pedido.clienteTelefone}` })
     if (pedido.tipo === 'entrega') {
       L.push({ t: 'L', s: `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero}` })
-      if (pedido.enderecoBairro) L.push({ t: 'L', s: `- ${pedido.enderecoBairro}` })
+      if (pedido.enderecoComplemento) L.push({ t: 'L', s: `Compl.: ${pedido.enderecoComplemento}` })
+      if (pedido.enderecoBairro) L.push({ t: 'L', s: `Bairro: ${pedido.enderecoBairro}` })
+      if (pedido.enderecoCep) L.push({ t: 'L', s: `CEP: ${pedido.enderecoCep}` })
     }
   }
 
@@ -945,11 +957,11 @@ function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao;
               case 'N': return <div key={i} className="mb-1 text-center text-[18px] font-extrabold leading-tight">{l.s}</div>
               case 'H': return <div key={i} className="my-1 bg-black py-[3px] text-center text-[13px] font-bold uppercase tracking-wide text-white">{l.s}</div>
               case 'C': return <div key={i} className="text-center text-[14px] font-bold">{l.s}</div>
-              case 'I': return <div key={i} className={['mt-1 flex justify-between gap-2 font-bold leading-tight', config.fonteMaiorProducao ? 'text-[19px]' : 'text-[15px]'].join(' ')}><span>{l.nome}</span><span className="whitespace-nowrap">{l.preco}</span></div>
-              case 'S': return <div key={i} className={['pl-3 leading-tight', config.fonteMaiorProducao ? 'text-[15px] font-semibold text-text-main' : 'text-[12px] text-text-subtle'].join(' ')}>{l.s}</div>
-              case 'P': return <div key={i} className="flex justify-between text-[13px]"><span>{l.k}</span><span>{l.v}</span></div>
+              case 'I': return <div key={i} className={['mt-1.5 flex justify-between gap-2 font-bold leading-tight', config.fonteMaiorProducao ? 'text-[19px]' : 'text-[15px]'].join(' ')}><span>{l.nome}</span><span className="whitespace-nowrap">{l.preco}</span></div>
+              case 'S': return <div key={i} className={['mb-0.5 pl-3 leading-snug', config.fonteMaiorProducao ? 'text-[15px] font-semibold text-text-main' : 'text-[13px] text-text-subtle'].join(' ')}>{l.s}</div>
+              case 'P': return <div key={i} className="mb-0.5 flex justify-between text-[13px]"><span>{l.k}</span><span>{l.v}</span></div>
               case 'T': return <div key={i} className="mt-1 flex items-end justify-between border-t border-black pt-1 text-[22px] font-extrabold leading-none"><span>{l.k}</span><span>{l.v}</span></div>
-              case 'L': return <div key={i} className="text-[13px] leading-snug">{l.s}</div>
+              case 'L': return <div key={i} className="mb-0.5 text-[13px] leading-snug">{l.s}</div>
               case 'R': return <div key={i} className="my-1 border-t border-dotted border-black/60" />
               case 'F': return <div key={i} className="mt-3 text-center text-[10px] text-text-subtle">{l.s}</div>
             }

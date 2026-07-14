@@ -294,8 +294,9 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
     // Pedido-exemplo pra o teste sair com o MESMO visual de um pedido real (barras, logo, total).
     const pedidoTeste = {
       numero: 0, tipo: 'entrega', clienteNome: 'Cliente Teste', clienteTelefone: '(00) 00000-0000',
-      enderecoRua: 'Rua Exemplo', enderecoNumero: '100', enderecoBairro: 'Centro',
-      formaPagamento: 'dinheiro', trocoPara: 50, observacao: 'Impressao de teste',
+      enderecoRua: 'Rua Exemplo', enderecoNumero: '100', enderecoComplemento: 'Apto 12', enderecoBairro: 'Centro', enderecoCep: '00000-000',
+      formaPagamento: 'dinheiro', trocoPara: 50, pago: false, origem: 'cardapio', mesa: null,
+      observacao: 'Impressao de teste', criadoEm: new Date().toISOString(),
       subtotal: 40, taxaEntrega: 5, total: 45,
       itens: [{ quantidade: 1, nome: 'Item de Teste', precoUnitario: 40, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Adicional', preco: 5 }], observacao: 'Sem observacoes' }],
     }

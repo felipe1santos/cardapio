@@ -70,12 +70,17 @@ function VisLen($op) {
 }
 
 # ── Fonte base: dimensiona pra `alvo` colunas preencherem a largura em DOTS ──
+# A fonte é definida SÓ pelas colunas configuradas ($Cols) — linhas mais compridas
+# são QUEBRADAS na renderização (Quebrar), nunca encolhem o recibo inteiro.
+# (Bug antigo: $alvo = Max($Cols, $maxVis) fazia uma única linha longa — endereço,
+# observação — reduzir a fonte de TODO o cupom; o teste, de textos curtos, saía
+# normal e o pedido real saía pequeno.)
 $margem = [int]($dotW * 0.03)          # respiro lateral (~3%)
 $usable = $dotW - 2 * $margem
 $maxVis = 1
 foreach ($op in $ops) { $v = VisLen $op; if ($v -gt $maxVis) { $maxVis = $v } }
-$alvo = [Math]::Max($Cols, $maxVis)
-if ($alvo -lt 1) { $alvo = 1 }
+$alvo = $Cols
+if ($alvo -lt 1) { $alvo = [Math]::Min([Math]::Max($maxVis, 32), 48) }
 
 $measBmp = New-Object System.Drawing.Bitmap(4, 4)
 $measBmp.SetResolution($dpi, $dpi)
@@ -100,7 +105,7 @@ $fSecao = NovaFonte 1.0  $true
 $fTipo  = NovaFonte 1.1  $true
 # "Fonte maior na via de producao": aumenta itens e complementos (o que a cozinha le).
 $multItem = if ($FonteMaior -eq 1) { 1.55 } else { 1.2 }
-$multSub  = if ($FonteMaior -eq 1) { 1.15 } else { 0.85 }
+$multSub  = if ($FonteMaior -eq 1) { 1.15 } else { 0.95 }
 $fItem  = NovaFonte $multItem $true
 $fSub   = NovaFonte $multSub ($FonteMaior -eq 1)
 $fData  = NovaFonte 1.0  $false
@@ -144,7 +149,7 @@ if ($LogoPath -and (Test-Path $LogoPath)) {
 # ── Desenha tudo numa bitmap grande e depois recorta na altura exata ─────────
 $sfC = New-Object System.Drawing.StringFormat
 $sfC.Alignment = [System.Drawing.StringAlignment]::Center
-$estMult = if ($FonteMaior -eq 1) { 3.2 } else { 2.4 }  # fonte maior quebra mais linhas
+$estMult = if ($FonteMaior -eq 1) { 4.2 } else { 3.4 }  # folga: linhas longas quebram em várias
 $estH = [int]($H * 2 + $logoH + ($ops.Count + 4) * ($base * $estMult) + 80)
 $canvas = New-Object System.Drawing.Bitmap($dotW, $estH)
 $canvas.SetResolution($dpi, $dpi)
@@ -193,7 +198,7 @@ foreach ($op in $ops) {
         $g.DrawString($ln, $fItem, $black, [single]$margem, [single]$y)
         $y += $fItem.GetHeight($mg)
       }
-      $y += $H * 0.1
+      $y += $H * 0.25
     }
     'S' {
       $indent = $margem + [int]($base * 1.2)
@@ -201,12 +206,13 @@ foreach ($op in $ops) {
         $g.DrawString($ln, $fSub, $black, [single]$indent, [single]$y)
         $y += $fSub.GetHeight($mg)
       }
+      $y += $H * 0.12
     }
     'P' {
       $g.DrawString($op.F[0], $fData, $black, [single]$margem, [single]$y)
       $vW = $g.MeasureString($op.F[1], $fData).Width
       $g.DrawString($op.F[1], $fData, $black, [single]($rightX - $vW), [single]$y)
-      $y += $fData.GetHeight($mg)
+      $y += $fData.GetHeight($mg) + $H * 0.08
     }
     'T' {
       $y += $H * 0.15
@@ -222,6 +228,7 @@ foreach ($op in $ops) {
         $g.DrawString($ln, $fData, $black, [single]$margem, [single]$y)
         $y += $fData.GetHeight($mg)
       }
+      $y += $H * 0.08
     }
     'R' {
       $penDot = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, [single]([Math]::Max(1.0, $base * 0.07)))
