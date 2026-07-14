@@ -82,6 +82,7 @@ import {
   type BordaPizza,
   type MassaPizza,
 } from '@/lib/queries/pizza'
+import { BulkUploadModal, type BulkUploadTarget } from './bulk-upload-modal'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -767,6 +768,7 @@ function PresetGroupCard({
   const [newNome, setNewNome] = useState('')
   const [newPreco, setNewPreco] = useState('')
   const [saving, setSaving] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
   const nomeRef = useRef<HTMLInputElement>(null)
 
   function startEditNome() {
@@ -874,6 +876,9 @@ function PresetGroupCard({
         <span className="flex-shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white">
           {items.length} iten{items.length !== 1 ? 's' : ''}
         </span>
+        <button onClick={() => setBulkOpen(true)} title="Subir fotos em massa" className="flex-shrink-0 text-[11px] font-semibold text-purple-200 transition-colors hover:text-white">
+          📁 Fotos
+        </button>
         <button onClick={startEditNome} title="Renomear" className="flex-shrink-0 text-[11px] font-semibold text-purple-200 transition-colors hover:text-white">
           Renomear
         </button>
@@ -1074,6 +1079,23 @@ function PresetGroupCard({
           </button>
         </div>
       </div>
+
+      {bulkOpen && (
+        <BulkUploadModal
+          restauranteId={restauranteId}
+          target={{ tipo: 'complemento', presetId: preset.id, nome: nome, posicaoInicial: items.length }}
+          onClose={(criados) => {
+            setBulkOpen(false)
+            if (criados.length === 0) return
+            const next = [
+              ...items,
+              ...criados.map((c) => ({ id: c.id, nome: c.nome, preco: c.preco.toFixed(2).replace('.', ','), editing: false, imagemUrl: c.imagemUrl })),
+            ]
+            setItems(next)
+            onChanged(preset.id, { itens: itensDe(next) })
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -1738,6 +1760,7 @@ export default function CardapioPage() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [drawer, setDrawer] = useState<Drawer>(null)
+  const [bulkTarget, setBulkTarget] = useState<BulkUploadTarget | null>(null)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -2316,6 +2339,7 @@ export default function CardapioPage() {
                         className="rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
                       >↓</button>
                       <button onClick={() => startEditCategoria(group)} title="Renomear categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">✎</button>
+                      <button onClick={() => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome })} title="Subir fotos em massa" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">📁</button>
                       <button onClick={() => deleteCategoria(group)} title="Excluir categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-danger">🗑</button>
                     </span>
                   </div>
@@ -3015,6 +3039,17 @@ export default function CardapioPage() {
           </Button>
         </div>
       </aside>
+
+      {bulkTarget && restauranteId && (
+        <BulkUploadModal
+          restauranteId={restauranteId}
+          target={bulkTarget}
+          onClose={async (criados) => {
+            setBulkTarget(null)
+            if (criados.length > 0) await refreshItems()
+          }}
+        />
+      )}
     </>
   )
 }

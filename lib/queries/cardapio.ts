@@ -265,6 +265,7 @@ export interface NovoItemInput {
   maisVendido: boolean
   tag: TagItem | null
   tipoItem: TipoItem
+  imagemUrl?: string | null
 }
 
 export async function criarItem(supabase: SupabaseClient, restauranteId: string, input: NovoItemInput): Promise<ItemCardapio> {
@@ -282,6 +283,7 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       mais_vendido: input.maisVendido,
       tag: input.tag,
       tipo_item: input.tipoItem,
+      imagem_url: input.imagemUrl ?? null,
     })
     .select(ITEM_SELECT)
     .single()
