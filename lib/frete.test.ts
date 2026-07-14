@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { decidirFrete } from './frete'
+import { decidirFrete, normalizarBairro } from './frete'
 
 const bairros = [
   { bairro: 'Jardim Colorado', taxa: 5 },
   { bairro: 'Jardim Marilandia', taxa: 7 },
+  { bairro: 'São Geraldo', taxa: 6 },
 ]
 const raios = [
   { ateKm: 3, taxa: 4 },
@@ -57,5 +58,29 @@ describe('decidirFrete', () => {
   it('nada cadastrado: taxa padrão, aceita qualquer endereço', () => {
     const r = decidirFrete({ bairroCliente: 'Qualquer', bairros: [], raios: [], taxaPadrao: 10, distanciaKm: null })
     expect(r).toEqual({ entregavel: true, taxa: 10, fonte: 'padrao', distanciaKm: null })
+  })
+
+  it('bairro digitado sem acento resolve bairro cadastrado com acento', () => {
+    const r = decidirFrete({ bairroCliente: 'sao geraldo', bairros, raios: [], taxaPadrao: 10, distanciaKm: null })
+    expect(r).toEqual({ entregavel: true, taxa: 6, fonte: 'bairro', distanciaKm: null })
+  })
+
+  it('bairro digitado com acento resolve bairro cadastrado sem acento', () => {
+    const r = decidirFrete({ bairroCliente: 'Jardim Marilândia', bairros, raios: [], taxaPadrao: 10, distanciaKm: null })
+    expect(r).toEqual({ entregavel: true, taxa: 7, fonte: 'bairro', distanciaKm: null })
+  })
+
+  it('espaços duplicados no meio não impedem o match', () => {
+    const r = decidirFrete({ bairroCliente: 'Jardim  Colorado', bairros, raios: [], taxaPadrao: 10, distanciaKm: null })
+    expect(r.entregavel).toBe(true)
+    expect(r.taxa).toBe(5)
+  })
+})
+
+describe('normalizarBairro', () => {
+  it('remove acentos, caixa e espaços extras', () => {
+    expect(normalizarBairro('  São  José ')).toBe('sao jose')
+    expect(normalizarBairro('JARDIM MARILÂNDIA')).toBe('jardim marilandia')
+    expect(normalizarBairro('')).toBe('')
   })
 })

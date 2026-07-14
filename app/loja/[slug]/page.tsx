@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone } from 'lucide-react'
+import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown } from 'lucide-react'
+import { normalizarBairro } from '@/lib/frete'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestaurantePorSlug,
@@ -261,41 +262,87 @@ function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: I
 }
 
 /**
- * Autocomplete estrito de bairro (modo lista fechada): filtra os bairros atendidos
- * conforme o cliente digita e só um valor da lista vale como bairro válido.
+ * Seletor de bairro com busca e lista completa. Digitar filtra os bairros
+ * atendidos (sem diferenciar acento/caixa); a setinha à direita abre a lista
+ * inteira pra quem prefere só tocar e escolher. Em modo estrito (lista
+ * fechada) só um bairro da lista vale como válido.
  */
-function BairroAutocomplete({ value, onChange, opcoes }: { value: string; onChange: (v: string) => void; opcoes: string[] }) {
+function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto }: {
+  value: string
+  onChange: (v: string) => void
+  opcoes: string[]
+  estrito: boolean
+  compacto?: boolean
+}) {
   const [aberto, setAberto] = useState(false)
-  const filtro = value.trim().toLowerCase()
-  const sugestoes = filtro ? opcoes.filter((b) => b.toLowerCase().includes(filtro)) : opcoes
-  const exato = opcoes.some((b) => b.toLowerCase() === filtro)
+  const [mostrarTodos, setMostrarTodos] = useState(false)
+  const alvo = normalizarBairro(value)
+  const filtradas = alvo ? opcoes.filter((b) => normalizarBairro(b).includes(alvo)) : opcoes
+  const exato = opcoes.some((b) => normalizarBairro(b) === alvo)
+  // Sem match pro que foi digitado → mostra a lista inteira (melhor do que "nada").
+  const semMatch = alvo !== '' && filtradas.length === 0
+  const lista = mostrarTodos || semMatch ? opcoes : filtradas
+
+  function selecionar(b: string) {
+    onChange(b)
+    setAberto(false)
+    setMostrarTodos(false)
+  }
+
+  const inputCls = compacto
+    ? 'w-full rounded border border-border p-2.5 pr-10 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]'
+    : 'w-full rounded-md border border-border p-3 pr-11 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]'
+
   return (
     <div className="relative">
       <input
         value={value}
-        onChange={(e) => { onChange(e.target.value); setAberto(true) }}
+        onChange={(e) => { onChange(e.target.value); setAberto(true); setMostrarTodos(false) }}
         onFocus={() => setAberto(true)}
-        onBlur={() => setAberto(false)}
-        placeholder="Digite e escolha o bairro"
-        className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]"
+        onBlur={() => { window.setTimeout(() => { setAberto(false); setMostrarTodos(false) }, 150) }}
+        placeholder="Digite ou toque na seta"
+        autoComplete="off"
+        className={inputCls}
       />
-      {aberto && !exato && sugestoes.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-[200px] overflow-y-auto rounded-md border border-border bg-white shadow-lg">
-          {sugestoes.map((b) => (
-            <button
-              key={b}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { onChange(b); setAberto(false) }}
-              className="block w-full px-3 py-2.5 text-left text-[14px] hover:bg-[#F3F4F6]"
-            >
-              {b}
-            </button>
-          ))}
+      {/* Setinha: abre/fecha a lista completa de bairros atendidos. pointerdown
+          com preventDefault pra não roubar o foco do input (evita corrida com o blur). */}
+      <button
+        type="button"
+        aria-label="Ver lista de bairros atendidos"
+        onPointerDown={(e) => e.preventDefault()}
+        onClick={() => { setMostrarTodos(true); setAberto((a) => !a) }}
+        className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-text-subtle hover:text-text-main"
+      >
+        <ChevronDown className={['h-5 w-5 transition-transform', aberto ? 'rotate-180' : ''].join(' ')} strokeWidth={2.2} />
+      </button>
+      {aberto && lista.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-[240px] overflow-y-auto rounded-md border border-border bg-white shadow-lg">
+          <div className="sticky top-0 border-b border-border bg-[#F9FAFB] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+            {semMatch ? 'Bairro não encontrado — veja os atendidos' : 'Bairros atendidos'}
+          </div>
+          {lista.map((b) => {
+            const selecionado = normalizarBairro(b) === alvo
+            return (
+              <button
+                key={b}
+                type="button"
+                onPointerDown={(e) => { e.preventDefault(); selecionar(b) }}
+                onClick={() => selecionar(b)}
+                className={['block w-full px-3 py-2.5 text-left text-[14px] hover:bg-[#F3F4F6]', selecionado ? 'bg-[#F0F9FF] font-semibold text-[var(--tema-primaria)]' : ''].join(' ')}
+              >
+                {b}
+              </button>
+            )
+          })}
         </div>
       )}
-      {value.trim() !== '' && !exato && (
-        <p className="mt-1.5 text-[12px] font-medium text-danger">Escolha um bairro da lista — entregamos só nos bairros atendidos.</p>
+      {estrito && value.trim() !== '' && !exato && !aberto && (
+        <p className="mt-1.5 text-[12px] font-medium text-danger">
+          Não achamos esse bairro.{' '}
+          <button type="button" onClick={() => { setMostrarTodos(true); setAberto(true) }} className="underline">
+            Toque aqui pra ver os bairros atendidos
+          </button>
+        </p>
       )}
     </div>
   )
@@ -426,14 +473,16 @@ export default function StorefrontPage() {
   const [endereco, setEndereco] = useState({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
   const [cidadeCliente, setCidadeCliente] = useState('')
   const [cepBuscando, setCepBuscando] = useState(false)
+  // CEP retornou bairro que a loja não atende (lista fechada) — orienta a escolher da lista.
+  const [cepSemBairro, setCepSemBairro] = useState(false)
 
   // Frete resolvido pelo servidor: bairro tem prioridade; senão faixa de raio; senão taxa padrão.
   const [freteCalc, setFreteCalc] = useState<{ taxa: number; entregavel: boolean; fonte: 'bairro' | 'raio' | 'padrao'; distanciaKm: number | null; motivo?: string } | null>(null)
 
   // Fallback instantâneo por bairro enquanto o servidor responde (ou se ele falhar).
   const feeFallback = useMemo(() => {
-    const alvo = endereco.bairro.trim().toLowerCase()
-    const match = bairros.find((b) => b.bairro.trim().toLowerCase() === alvo)
+    const alvo = normalizarBairro(endereco.bairro)
+    const match = bairros.find((b) => normalizarBairro(b.bairro) === alvo)
     if (match) return match.taxa
     if (bairros.length > 0 && !temRaio) return 0 // lista fechada: fora da lista não há frete
     return restaurante?.taxaEntregaPadrao ?? 0
@@ -444,7 +493,7 @@ export default function StorefrontPage() {
   // Lista fechada: a loja cadastrou bairros e não usa raio — só entrega nos bairros da lista.
   const listaFechada = bairros.length > 0 && !temRaio
   const bairroValido =
-    !listaFechada || bairros.some((b) => b.bairro.trim().toLowerCase() === endereco.bairro.trim().toLowerCase())
+    !listaFechada || bairros.some((b) => normalizarBairro(b.bairro) === normalizarBairro(endereco.bairro))
 
   // Entrega grátis quando o subtotal atinge o mínimo configurado pela loja.
   const freteGratisMinimo = restaurante?.freteGratisAcima ?? null
@@ -465,14 +514,17 @@ export default function StorefrontPage() {
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
       const data = await res.json()
       if (!data.erro) {
-        setEndereco((a) => {
-          let bairroNovo = data.bairro || a.bairro
-          if (listaFechada && bairroNovo) {
-            const m = bairros.find((b) => b.bairro.trim().toLowerCase() === String(bairroNovo).trim().toLowerCase())
-            bairroNovo = m ? m.bairro : '' // sem match: cliente escolhe da lista
-          }
-          return { ...a, rua: data.logradouro || a.rua, bairro: bairroNovo }
-        })
+        const bairroCep = String(data.bairro || '')
+        // Usa a grafia cadastrada pela loja quando o bairro do CEP é atendido.
+        const m = bairroCep ? bairros.find((b) => normalizarBairro(b.bairro) === normalizarBairro(bairroCep)) : undefined
+        const semMatch = listaFechada && bairroCep !== '' && !m
+        setEndereco((a) => ({
+          ...a,
+          rua: data.logradouro || a.rua,
+          // Sem match na lista fechada: limpa pra forçar a escolha na lista.
+          bairro: m ? m.bairro : semMatch ? '' : bairroCep || a.bairro,
+        }))
+        setCepSemBairro(semMatch)
         setCidadeCliente(data.localidade || '')
       }
     } catch {
@@ -539,7 +591,7 @@ export default function StorefrontPage() {
       }
       const bairro = (data.bairro as string) || ''
       const cidade = (data.localidade as string) || ''
-      const match = bairros.find((b) => b.bairro.trim().toLowerCase() === bairro.trim().toLowerCase())
+      const match = bairros.find((b) => normalizarBairro(b.bairro) === normalizarBairro(bairro))
       const taxa = match ? match.taxa : restaurante?.taxaEntregaPadrao ?? 0
       setFreteResult({ rua: (data.logradouro as string) || '', bairro, cidade, taxa })
     } catch {
@@ -588,6 +640,24 @@ export default function StorefrontPage() {
         if (sessao?.telefone && sessao?.token) setClienteSessao(sessao)
       }
     } catch { /* sessão inválida, ignora */ }
+  }, [slug])
+
+  // Lembra o último endereço confirmado neste aparelho: pré-preenche o checkout
+  // mesmo sem conta (o perfil logado, quando carregar, sobrescreve).
+  useEffect(() => {
+    if (!slug) return
+    try {
+      const raw = localStorage.getItem(`menuzia_endereco_${slug}`)
+      if (!raw) return
+      const salvo = JSON.parse(raw)
+      if (salvo?.endereco?.rua || salvo?.endereco?.bairro) {
+        setEndereco((a) => (a.rua || a.bairro ? a : { rua: '', numero: '', complemento: '', bairro: '', cep: '', ...salvo.endereco }))
+        if (salvo.cidade) setCidadeCliente((c) => c || salvo.cidade)
+      }
+      if (salvo?.nome || salvo?.telefone) {
+        setCliente((c) => ({ nome: c.nome || salvo.nome || '', telefone: c.telefone || salvo.telefone || '' }))
+      }
+    } catch { /* dado inválido, ignora */ }
   }, [slug])
 
   // Carrega o perfil salvo e pré-preenche o checkout.
@@ -1084,6 +1154,29 @@ export default function StorefrontPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
+      // Endereço confirmado: guarda no aparelho e no perfil (se logado) pra
+      // próxima compra já vir preenchida.
+      try {
+        localStorage.setItem(
+          `menuzia_endereco_${slug}`,
+          JSON.stringify({ endereco, cidade: cidadeCliente, nome: cliente.nome.trim(), telefone: (clienteSessao?.telefone ?? cliente.telefone).trim() })
+        )
+      } catch { /* quota/navegação privada */ }
+      if (clienteSessao) {
+        fetch(`/api/loja/${slug}/conta`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telefone: clienteSessao.telefone, token: clienteSessao.token, nome: cliente.nome.trim() || contaNome, endereco }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((perfil: ClientePerfil | null) => {
+            if (!perfil) return
+            setPerfilCliente(perfil)
+            setContaNome(perfil.nome)
+            setContaEndereco(perfil.endereco)
+          })
+          .catch(() => { /* melhor esforço — o pedido já foi */ })
+      }
       // Monta o link de aviso pro WhatsApp da loja ANTES de limpar o carrinho.
       const numero = numeroWaLoja()
       setPedidoWa(numero ? `https://wa.me/${numero}?text=${encodeURIComponent(montarAvisoLoja())}` : null)
@@ -2180,11 +2273,31 @@ export default function StorefrontPage() {
                   <label className="mb-1.5 block text-[13px] font-semibold text-text-main">CEP</label>
                   <input
                     value={endereco.cep}
-                    onChange={(e) => { const v = e.target.value; setEndereco((a) => ({ ...a, cep: v })); autofillCep(v) }}
+                    onChange={(e) => { const v = e.target.value; setEndereco((a) => ({ ...a, cep: v })); setCepSemBairro(false); autofillCep(v) }}
                     placeholder="00000-000"
                     inputMode="numeric"
                     className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   <p className="mt-1.5 text-[12px] text-text-subtle">{cepBuscando ? 'Buscando endereço…' : 'Informe o CEP que preenchemos rua e bairro pra você.'}</p>
+                </div>
+                {/* Bairro logo abaixo do CEP: é o que decide o frete/área de entrega */}
+                <div className="mt-3">
+                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Bairro *</label>
+                  {bairros.length > 0 ? (
+                    <BairroAutocomplete
+                      value={endereco.bairro}
+                      onChange={(v) => { setEndereco((a) => ({ ...a, bairro: v })); setCepSemBairro(false) }}
+                      opcoes={bairros.map((b) => b.bairro)}
+                      estrito={listaFechada}
+                    />
+                  ) : (
+                    <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  )}
+                  {cepSemBairro && endereco.bairro.trim() === '' && (
+                    <p className="mt-1.5 text-[12px] font-medium text-warn">
+                      O bairro do seu CEP não está na lista da loja — toque na setinha acima e escolha o bairro mais próximo.
+                    </p>
+                  )}
                 </div>
                 <div className="mt-3 flex gap-3">
                   <div className="flex-[2]">
@@ -2198,31 +2311,10 @@ export default function StorefrontPage() {
                       className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                 </div>
-                <div className="mt-3 flex gap-3">
-                  <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Bairro *</label>
-                    {listaFechada ? (
-                      <BairroAutocomplete
-                        value={endereco.bairro}
-                        onChange={(v) => setEndereco((a) => ({ ...a, bairro: v }))}
-                        opcoes={bairros.map((b) => b.bairro)}
-                      />
-                    ) : (
-                      <>
-                        <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro" list="bairros-loja"
-                          className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                        {/* Sugestões: bairros que a loja atende (cadastrados no painel Entrega) */}
-                        <datalist id="bairros-loja">
-                          {bairros.map((b) => <option key={b.bairro} value={b.bairro} />)}
-                        </datalist>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Complemento</label>
-                    <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                  </div>
+                <div className="mt-3">
+                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Complemento</label>
+                  <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
+                    className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
               {/* Status do frete calculado */}
@@ -2455,8 +2547,18 @@ export default function StorefrontPage() {
                   <div className="mt-3 flex gap-3">
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
-                      <input value={contaEndereco.bairro} onChange={(e) => setContaEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                      {bairros.length > 0 ? (
+                        <BairroAutocomplete
+                          value={contaEndereco.bairro}
+                          onChange={(v) => setContaEndereco((a) => ({ ...a, bairro: v }))}
+                          opcoes={bairros.map((b) => b.bairro)}
+                          estrito={listaFechada}
+                          compacto
+                        />
+                      ) : (
+                        <input value={contaEndereco.bairro} onChange={(e) => setContaEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
+                          className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                      )}
                     </div>
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>

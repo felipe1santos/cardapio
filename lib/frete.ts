@@ -23,6 +23,20 @@ export function haversineKm(a: Coord, b: Coord): number {
 
 const soDigitos = (cep: string) => cep.replace(/\D/g, '')
 
+/**
+ * Normaliza nome de bairro para comparação: minúsculas, sem acentos e sem
+ * espaços extras. "  São  José " → "sao jose". Usada no cliente (vitrine) e no
+ * servidor para que "Sao Jose" digitado case com "São José" cadastrado.
+ */
+export function normalizarBairro(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** Coordenadas de um CEP via BrasilAPI v2 (gratuita, sem chave). Null se não tiver. */
 async function coordPorCepBrasilApi(cep: string): Promise<Coord | null> {
   const limpo = soDigitos(cep)
@@ -100,9 +114,9 @@ export function decidirFrete(params: {
   /** Distância loja→cliente em km; null quando o geocode falhou ou não foi tentado. */
   distanciaKm: number | null
 }): FreteDecisao {
-  const alvo = params.bairroCliente.trim().toLowerCase()
+  const alvo = normalizarBairro(params.bairroCliente)
   if (alvo) {
-    const match = params.bairros.find((b) => b.bairro.trim().toLowerCase() === alvo)
+    const match = params.bairros.find((b) => normalizarBairro(b.bairro) === alvo)
     if (match) return { entregavel: true, taxa: match.taxa, fonte: 'bairro', distanciaKm: null }
   }
 
@@ -169,8 +183,8 @@ export async function resolverFrete(
   const raios = (raiosDb ?? []).map((r) => ({ ateKm: Number(r.ate_km), taxa: Number(r.taxa) }))
   const taxaPadrao = loja ? Number(loja.taxa_entrega_padrao) || 0 : 0
 
-  const alvo = (endereco.bairro ?? '').trim().toLowerCase()
-  const bairroResolve = alvo !== '' && bairros.some((b) => b.bairro.trim().toLowerCase() === alvo)
+  const alvo = normalizarBairro(endereco.bairro ?? '')
+  const bairroResolve = alvo !== '' && bairros.some((b) => normalizarBairro(b.bairro) === alvo)
 
   let distanciaKm: number | null = null
   if (!bairroResolve && raios.length > 0 && loja) {
