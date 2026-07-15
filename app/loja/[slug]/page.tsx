@@ -517,8 +517,10 @@ export default function StorefrontPage() {
 
   // ── Cupom / prêmio de fidelidade (hoisted: fee/total dependem do desconto) ──
   const [fidelidade, setFidelidade] = useState<FidelidadeCliente | null>(null)
-  // Bump força re-fetch da fidelidade (ex.: pedido acabou de virar "entregue").
+  // Bump força re-fetch da fidelidade (ex.: pedido acabou de virar "entregue", ou retry manual).
   const [fidelidadeVersao, setFidelidadeVersao] = useState(0)
+  // Fetch falhou sem nenhum dado em mãos ainda — aba Cupons mostra erro + botão de retry.
+  const [fidelidadeErro, setFidelidadeErro] = useState(false)
   // Botão Cupons do bottom nav piscando (3x) após ganhar progresso/prêmio.
   const [cuponsPiscando, setCuponsPiscando] = useState(false)
   const [cupomCodigoInput, setCupomCodigoInput] = useState('')
@@ -765,6 +767,12 @@ export default function StorefrontPage() {
     return () => { cancelled = true }
   }, [clienteSessao, slug])
 
+  // Chave do snapshot de fidelidade neste aparelho — por loja e por telefone, pra não
+  // misturar o progresso de contas diferentes usadas no mesmo device (ou visitante anônimo).
+  function snapshotKey() {
+    return `menuzia_fidelidade_${slug}_${clienteSessao?.telefone ?? 'anon'}`
+  }
+
   // ── Fidelidade: missões, prêmios prontos e cupons públicos da loja ────────
   // Sem sessão a API devolve só os cupons públicos (comportamento esperado, não erro).
   useEffect(() => {
@@ -776,12 +784,18 @@ export default function StorefrontPage() {
     fetch(`/api/loja/${slug}/fidelidade${qs}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: FidelidadeCliente | null) => {
-        if (cancelled || !data) return
+        if (cancelled) return
+        if (!data) {
+          // Resposta não-ok: só vira erro pra aba Cupons se ainda não há nada em mãos.
+          if (!fidelidade) setFidelidadeErro(true)
+          return
+        }
         setFidelidade(data)
+        setFidelidadeErro(false)
         if (!clienteSessao) return
         // Comemoração (som + piscar do botão Cupons): compara com o snapshot salvo
         // neste aparelho — progresso maior ou prêmio novo desde a última visita.
-        const chave = `menuzia_fidelidade_${slug}`
+        const chave = snapshotKey()
         const atual = {
           recompensas: data.recompensas.map((r) => r.id),
           progresso: Object.fromEntries(data.campanhas.map((c) => [c.campanha.id, c.progresso])) as Record<
@@ -808,8 +822,13 @@ export default function StorefrontPage() {
         } catch { /* snapshot corrompido — só regrava abaixo */ }
         try { localStorage.setItem(chave, JSON.stringify(atual)) } catch { /* quota/navegação privada */ }
       })
-      .catch(() => { /* fidelidade é acessório — a vitrine segue sem */ })
+      .catch(() => {
+        // Falha de rede: acessório, a vitrine segue sem — mas sinaliza erro se ainda não há dados.
+        if (!cancelled && !fidelidade) setFidelidadeErro(true)
+      })
     return () => { cancelled = true }
+    // fidelidade/snapshotKey são lidos só pra checagem pontual — incluí-los reprovocaria o fetch a cada resposta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, clienteSessao, fidelidadeVersao])
 
   /** Valida o código digitado no servidor, com o subtotal atual do carrinho. */
@@ -963,6 +982,7 @@ export default function StorefrontPage() {
 
   function sairConta() {
     if (!slug) return
+    removerBeneficio() // prêmio/cupom é da conta que está saindo — não pode ficar selecionado
     localStorage.removeItem(`menuzia_cliente_${slug}`)
     setClienteSessao(null)
     setPerfilCliente(null)
@@ -2101,6 +2121,19 @@ export default function StorefrontPage() {
         {/* ── CUPONS tab ────────────────────────────────────────────────── */}
         {tab === 'cupons' && (() => {
           if (!fidelidade) {
+            if (fidelidadeErro) {
+              return (
+                <div className="flex flex-col items-center gap-3 py-20 text-center">
+                  <div className="text-[13px] text-text-subtle">Não conseguimos carregar seus cupons.</div>
+                  <button
+                    onClick={() => { setFidelidadeErro(false); setFidelidadeVersao((v) => v + 1) }}
+                    className="rounded-md border border-border bg-white px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-text-main shadow-sm transition-colors hover:border-[var(--tema-primaria)]"
+                  >
+                    Tentar de novo
+                  </button>
+                </div>
+              )
+            }
             return <div className="py-20 text-center text-[13px] text-text-subtle">Carregando cupons…</div>
           }
           const recompensas = fidelidade.recompensas
