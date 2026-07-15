@@ -692,7 +692,7 @@ export default function FidelidadePage() {
                           <span
                             className={[
                               'inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold',
-                              c.repetivel ? 'bg-alert text-alert' : 'bg-page text-text-subtle border border-border',
+                              c.repetivel ? 'bg-alert-bg text-alert-text' : 'bg-page text-text-subtle border border-border',
                             ].join(' ')}
                           >
                             {c.repetivel ? 'Sim' : 'Não'}
@@ -710,7 +710,7 @@ export default function FidelidadePage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => abrirEditarCampanha(c)} className="rounded px-2 py-1 text-[11px] font-semibold text-primary hover:bg-alert/20">Editar</button>
+                            <button onClick={() => abrirEditarCampanha(c)} className="rounded px-2 py-1 text-[11px] font-semibold text-primary hover:bg-alert-bg">Editar</button>
                             <button onClick={() => excluirCampanha(c.id)} className="rounded px-2 py-1 text-[11px] font-semibold text-text-subtle hover:bg-danger/10 hover:text-danger">Excluir</button>
                           </div>
                         </td>
@@ -808,7 +808,7 @@ export default function FidelidadePage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => abrirEditarCupom(c)} className="rounded px-2 py-1 text-[11px] font-semibold text-primary hover:bg-alert/20">Editar</button>
+                            <button onClick={() => abrirEditarCupom(c)} className="rounded px-2 py-1 text-[11px] font-semibold text-primary hover:bg-alert-bg">Editar</button>
                             <button onClick={() => excluirCupom(c.id)} className="rounded px-2 py-1 text-[11px] font-semibold text-text-subtle hover:bg-danger/10 hover:text-danger">Excluir</button>
                           </div>
                         </td>
