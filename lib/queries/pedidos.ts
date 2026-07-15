@@ -45,6 +45,7 @@ export interface Pedido {
   pago: boolean
   subtotal: number
   taxaEntrega: number
+  desconto: number
   total: number
   observacao: string
   entregadorId: string | null
@@ -91,6 +92,7 @@ interface PedidoRow {
   pago: boolean
   subtotal: number
   taxa_entrega: number
+  desconto: number | null
   total: number
   observacao: string
   entregador_id: string | null
@@ -121,7 +123,7 @@ interface PedidoRow {
 export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
-  forma_pagamento, troco_para, pago, subtotal, taxa_entrega, total, observacao,
+  forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, mesa, comanda_id, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
@@ -144,6 +146,7 @@ export function mapPedido(row: PedidoRow): Pedido {
     pago: row.pago,
     subtotal: Number(row.subtotal),
     taxaEntrega: Number(row.taxa_entrega),
+    desconto: row.desconto === null ? 0 : Number(row.desconto),
     total: Number(row.total),
     observacao: row.observacao,
     entregadorId: row.entregador_id,
@@ -983,6 +986,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
         .select('nome')
         .eq('id', itemGratisId)
         .eq('restaurante_id', restauranteId)
+        .eq('status', 'disponivel')
         .maybeSingle()
       if (itemGratisError) throw itemGratisError
       if (!itemGratis) throw new Error(erroItemIndisponivel)

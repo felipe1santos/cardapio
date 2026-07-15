@@ -39,6 +39,7 @@ export function montarResumoPedido(pedido: Pedido, restauranteNome: string): str
   }
   linhas.push('')
   linhas.push(`*Subtotal: ${brl(pedido.subtotal)}*`)
+  if (pedido.desconto > 0) linhas.push(`*Desconto: -${brl(pedido.desconto)}*`)
   if (pedido.tipo === 'entrega') linhas.push(`*Taxa de entrega: ${brl(pedido.taxaEntrega)}*`)
   linhas.push('```')
   linhas.push(`TOTAL: ${brl(pedido.total)}`)
