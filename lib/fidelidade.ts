@@ -131,3 +131,78 @@ export async function processarFidelidadePedidoEntregue(admin: SupabaseClient, r
     console.error('[fidelidade] erro ao processar progresso do pedido', pedidoId, err)
   }
 }
+
+/**
+ * Reverte os benefícios de fidelidade consumidos por um pedido que foi cancelado:
+ * - `recompensa_id` → a recompensa volta a ficar `disponivel` (limpa `pedido_resgate_id`/`resgatado_em`).
+ * - `cupom_codigo` → apaga a linha de `cupom_usos` daquele pedido e decrementa `cupons.usos` (nunca abaixo de 0).
+ *
+ * Progresso de campanha não reverte aqui: ele só é incrementado em pedidos `entregue` (ver
+ * `processarFidelidadePedidoEntregue`), e a transição `entregue` → `cancelado` não existe no fluxo.
+ *
+ * Segura contra abuso e chamadas repetidas: a única verificação de autorização é reconsultar o
+ * pedido no banco (id + restaurante_id + status='cancelado') antes de fazer qualquer coisa — se
+ * não achar, não faz nada. Isso é o que torna essa função segura de chamar a partir de rotas sem
+ * autenticação de sessão (ex.: `/api/pedidos/[id]/notificar`, que recebe o pedidoId no body sem
+ * validar que quem chamou é dono do pedido).
+ *
+ * Idempotente na prática: rodar 2x não decrementa `usos` 2x porque o delete de `cupom_usos` só
+ * decrementa quando de fato apagou uma linha (na 2ª vez não apaga nada, `cupomId` fica vazio).
+ * Reaplicar `status='disponivel'` numa recompensa que já está `disponivel` é inofensivo.
+ *
+ * Best-effort: nunca lança pro chamador (assim como `processarFidelidadePedidoEntregue`) — mas
+ * ainda assim chame sempre com `.catch(...)` no call site, para não depender só disso.
+ */
+export async function reverterBeneficiosPedidoCancelado(admin: SupabaseClient, restauranteId: string, pedidoId: string): Promise<void> {
+  try {
+    const { data: pedido, error } = await admin
+      .from('pedidos')
+      .select('id, cupom_codigo, recompensa_id')
+      .eq('id', pedidoId)
+      .eq('restaurante_id', restauranteId)
+      .eq('status', 'cancelado')
+      .maybeSingle()
+    if (error) throw error
+    if (!pedido) return // não existe, não é dessa loja, ou não está cancelado — nada a reverter.
+
+    if (pedido.recompensa_id) {
+      const { error: recompensaError } = await admin
+        .from('fidelidade_recompensas')
+        .update({ status: 'disponivel', pedido_resgate_id: null, resgatado_em: null })
+        .eq('id', pedido.recompensa_id)
+        .eq('restaurante_id', restauranteId)
+      if (recompensaError) throw recompensaError
+    }
+
+    if (pedido.cupom_codigo) {
+      const { data: usosApagados, error: usoError } = await admin
+        .from('cupom_usos')
+        .delete()
+        .eq('pedido_id', pedidoId)
+        .eq('restaurante_id', restauranteId)
+        .select('cupom_id')
+      if (usoError) throw usoError
+
+      const cupomId = usosApagados?.[0]?.cupom_id
+      if (cupomId) {
+        const { data: cupom, error: cupomError } = await admin
+          .from('cupons')
+          .select('usos')
+          .eq('id', cupomId)
+          .eq('restaurante_id', restauranteId)
+          .maybeSingle()
+        if (cupomError) throw cupomError
+        if (cupom) {
+          const { error: updError } = await admin
+            .from('cupons')
+            .update({ usos: Math.max(0, cupom.usos - 1) })
+            .eq('id', cupomId)
+            .eq('restaurante_id', restauranteId)
+          if (updError) throw updError
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[fidelidade] erro ao reverter benefícios do pedido cancelado', pedidoId, err)
+  }
+}

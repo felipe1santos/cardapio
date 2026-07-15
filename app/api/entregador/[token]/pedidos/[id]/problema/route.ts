@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarEntregadorPorToken, marcarEntregaComProblema } from '@/lib/queries/pedidos'
+import { reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 
 /** Motoboy sinaliza que não conseguiu entregar um pedido da sua rota — sem login, validado pelo token. */
 export async function POST(_request: Request, { params }: { params: Promise<{ token: string; id: string }> }) {
@@ -12,6 +13,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
     if (!entregador) return NextResponse.json({ error: 'Link inválido' }, { status: 404 })
 
     await marcarEntregaComProblema(admin, id, entregador.id)
+    reverterBeneficiosPedidoCancelado(admin, entregador.restauranteId, id).catch(console.error)
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Não foi possível atualizar o pedido'

@@ -351,6 +351,7 @@ export default function LogisticaPage() {
     setOrders((prev) => prev.filter((o) => o.id !== orderId))
     try {
       await recusarPedido(supabase, orderId)
+      notificarPedido(orderId, 'cancelado')
       if (restauranteId) refetch(restauranteId)
     } catch {
       setError('Não foi possível marcar como não entregue.')

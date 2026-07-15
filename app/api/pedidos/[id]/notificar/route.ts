@@ -3,9 +3,9 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { notificarPedido } from '@/lib/whatsapp'
 import { marcarPreparandoNotificado } from '@/lib/queries/pedidos'
 import type { StatusPedido } from '@/lib/queries/pedidos'
-import { processarFidelidadePedidoEntregue } from '@/lib/fidelidade'
+import { processarFidelidadePedidoEntregue, reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 
-const STATUS_NOTIFICAVEIS: StatusPedido[] = ['recebido', 'preparando', 'pronto', 'em_rota', 'entregue']
+const STATUS_NOTIFICAVEIS: StatusPedido[] = ['recebido', 'preparando', 'pronto', 'em_rota', 'entregue', 'cancelado']
 
 /** Envia a notificação de WhatsApp correspondente à nova etapa do pedido. Fogo-e-esquece: chamado pelo painel após avançar o status. */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +38,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const { data: pedidoRow } = await admin.from('pedidos').select('restaurante_id').eq('id', id).maybeSingle()
       if (pedidoRow) {
         processarFidelidadePedidoEntregue(admin, pedidoRow.restaurante_id, id).catch((err) => console.error('[fidelidade]', err))
+      }
+    }
+
+    // Mesmo raciocínio do bloco 'entregue' acima: rota sem autenticação, mas
+    // `reverterBeneficiosPedidoCancelado` só age se o pedido já estiver `cancelado` no banco
+    // (ver checagem interna) — não vira vetor de abuso.
+    if (body.status === 'cancelado') {
+      const { data: pedidoRow } = await admin.from('pedidos').select('restaurante_id').eq('id', id).maybeSingle()
+      if (pedidoRow) {
+        reverterBeneficiosPedidoCancelado(admin, pedidoRow.restaurante_id, id).catch((err) => console.error('[fidelidade]', err))
       }
     }
 

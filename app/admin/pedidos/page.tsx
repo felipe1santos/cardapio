@@ -444,6 +444,7 @@ export default function PedidosPage() {
     setOrders((prev) => prev.filter((o) => o.id !== p.id))
     try {
       await recusarPedido(supabase, p.id)
+      notificarPedido(p.id, 'cancelado')
       refetch(restauranteId)
     } catch {
       setError('Não foi possível recusar o pedido.')
