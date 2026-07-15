@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarEntregadorPorToken, marcarEntregaConcluida } from '@/lib/queries/pedidos'
 import { notificarPedido } from '@/lib/whatsapp'
+import { processarFidelidadePedidoEntregue } from '@/lib/fidelidade'
 
 /** Motoboy confirma a entrega de um pedido da sua rota — sem login, validado pelo token. */
 export async function POST(_request: Request, { params }: { params: Promise<{ token: string; id: string }> }) {
@@ -14,6 +15,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
 
     await marcarEntregaConcluida(admin, id, entregador.id)
     notificarPedido(admin, id, 'entregue').catch((err) => console.error('[whatsapp] erro ao notificar entrega', err))
+    processarFidelidadePedidoEntregue(admin, entregador.restauranteId, id).catch((err) => console.error('[fidelidade]', err))
 
     return NextResponse.json({ ok: true })
   } catch (err) {

@@ -11,6 +11,7 @@ import {
   marcarPreparandoNotificado,
 } from '@/lib/queries/pedidos'
 import { notificarPedido } from '@/lib/whatsapp'
+import { processarFidelidadePedidoEntregue } from '@/lib/fidelidade'
 
 const ACOES_VALIDAS: AcaoCozinha[] = ['pegar', 'devolver', 'concluir', 'entregue']
 
@@ -61,6 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       notificarPedido(admin, id, 'pronto').catch(() => {})
     } else {
       await marcarPedidoEntregue(admin, id)
+      processarFidelidadePedidoEntregue(admin, estacao.restauranteId, id).catch((err) => console.error('[fidelidade]', err))
     }
 
     return NextResponse.json({ ok: true })

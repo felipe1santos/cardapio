@@ -123,6 +123,78 @@ export function podeResgatarHoje(diasSemanaResgate: number[], diaSemanaHoje: num
   return diasSemanaResgate.includes(diaSemanaHoje)
 }
 
+/**
+ * Fração "X/Y" pro texto de progresso (ex.: "8/10"), só faz sentido pra metas em quantidade —
+ * `valor_gasto` progride em dinheiro, não em unidades discretas, então não tem fração.
+ */
+export function fracaoProgresso(c: CampanhaFidelidade, p: ProgressoCliente): string | null {
+  if (c.tipoMeta === 'valor_gasto') return null
+  return `${p.progressoQtd}/${c.metaQuantidade ?? 0}`
+}
+
+/** Texto do prêmio de uma campanha, usado nas mensagens de WhatsApp do motor de fidelidade. */
+export function premioLabelCampanha(
+  c: Pick<CampanhaFidelidade, 'premioTipo' | 'premioValor'>,
+  premioItemNome?: string | null
+): string {
+  switch (c.premioTipo) {
+    case 'item_gratis':
+      return `${premioItemNome ?? 'item'} grátis`
+    case 'desconto_percentual':
+      return `${c.premioValor ?? 0}% de desconto`
+    case 'desconto_valor':
+      return `${brl(c.premioValor ?? 0)} de desconto`
+    case 'entrega_gratis':
+      return 'entrega grátis'
+  }
+}
+
+export interface ProgressoParaMensagem {
+  faltaTexto: string
+  premioLabel: string
+  fracao: string | null
+}
+
+export interface RecompensaParaMensagem {
+  premioLabel: string
+  diasSemanaResgate: number[]
+}
+
+/** Uma linha "• Faltam X para ganhar Y (N/M)" do bloco de progresso da mensagem de WhatsApp. */
+export function montarLinhaProgresso(p: ProgressoParaMensagem): string {
+  const fracaoTexto = p.fracao ? ` (${p.fracao})` : ''
+  return `• ${p.faltaTexto} para ganhar ${p.premioLabel}${fracaoTexto}`
+}
+
+/** Bloco "🎉 PRÊMIO DESBLOQUEADO: ..." + instrução de resgate, pra cada recompensa nova ganha no pedido. */
+export function montarBlocoRecompensa(r: RecompensaParaMensagem): string {
+  const diasTexto = diasSemanaTexto(r.diasSemanaResgate)
+  const validoTexto = diasTexto ? ` (válido ${diasTexto})` : ''
+  return `🎉 PRÊMIO DESBLOQUEADO: ${r.premioLabel}!\nResgate na aba Cupons do cardápio${validoTexto}.`
+}
+
+/**
+ * Monta a mensagem única de WhatsApp mandada quando um pedido é entregue (no máx. 1 mensagem
+ * por pedido, mesmo que várias campanhas tenham progredido/completado). `null` quando não há
+ * nada a notificar (nenhuma campanha progrediu nem foi completada por esse pedido).
+ */
+export function montarMensagemFidelidade(
+  progressos: ProgressoParaMensagem[],
+  recompensasNovas: RecompensaParaMensagem[],
+  nomeLoja: string
+): string | null {
+  if (progressos.length === 0 && recompensasNovas.length === 0) return null
+
+  const blocos: string[] = ['Pedido entregue! ✅']
+  if (progressos.length > 0) {
+    blocos.push('', `Seu progresso de fidelidade na ${nomeLoja}:`, progressos.map(montarLinhaProgresso).join('\n'))
+  }
+  if (recompensasNovas.length > 0) {
+    blocos.push('', recompensasNovas.map(montarBlocoRecompensa).join('\n\n'))
+  }
+  return blocos.join('\n')
+}
+
 export interface CupomRegra {
   ativo: boolean
   tipo: 'desconto_percentual' | 'desconto_valor' | 'entrega_gratis' | 'item_gratis'

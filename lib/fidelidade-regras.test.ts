@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   aplicarPedidoAoProgresso,
   calcularDesconto,
+  fracaoProgresso,
+  montarBlocoRecompensa,
+  montarLinhaProgresso,
+  montarMensagemFidelidade,
   pedidoContaParaCampanha,
   podeResgatarHoje,
+  premioLabelCampanha,
   resumoProgresso,
   validarCupom,
   type CampanhaFidelidade,
@@ -327,5 +332,147 @@ describe('calcularDesconto', () => {
   it('desconto nunca é negativo', () => {
     const r = calcularDesconto('desconto_valor', -10, 50, 10)
     expect(r.descontoSubtotal).toBe(0)
+  })
+})
+
+describe('fracaoProgresso', () => {
+  it('valor_gasto não tem fração (progresso em dinheiro, não faz sentido "X/Y")', () => {
+    const c = campanha({ tipoMeta: 'valor_gasto', metaValor: 100 })
+    expect(fracaoProgresso(c, progresso({ progressoValor: 75 }))).toBeNull()
+  })
+
+  it('qtd_pedidos retorna "3/5"', () => {
+    const c = campanha({ tipoMeta: 'qtd_pedidos', metaQuantidade: 5 })
+    expect(fracaoProgresso(c, progresso({ progressoQtd: 3 }))).toBe('3/5')
+  })
+
+  it('qtd_itens retorna "8/10"', () => {
+    const c = campanha({ tipoMeta: 'qtd_itens', metaQuantidade: 10 })
+    expect(fracaoProgresso(c, progresso({ progressoQtd: 8 }))).toBe('8/10')
+  })
+})
+
+describe('premioLabelCampanha', () => {
+  it('item_gratis usa o nome do item + "grátis"', () => {
+    const c = campanha({ premioTipo: 'item_gratis', premioValor: null })
+    expect(premioLabelCampanha(c, 'X-Tudo')).toBe('X-Tudo grátis')
+  })
+
+  it('item_gratis sem nome carregado usa fallback', () => {
+    const c = campanha({ premioTipo: 'item_gratis', premioValor: null })
+    expect(premioLabelCampanha(c, undefined)).toBe('item grátis')
+  })
+
+  it('desconto_percentual', () => {
+    const c = campanha({ premioTipo: 'desconto_percentual', premioValor: 10 })
+    expect(premioLabelCampanha(c)).toBe('10% de desconto')
+  })
+
+  it('desconto_valor formata em reais', () => {
+    const c = campanha({ premioTipo: 'desconto_valor', premioValor: 15 })
+    expect(premioLabelCampanha(c)).toBe('R$ 15,00 de desconto')
+  })
+
+  it('entrega_gratis', () => {
+    const c = campanha({ premioTipo: 'entrega_gratis', premioValor: null })
+    expect(premioLabelCampanha(c)).toBe('entrega grátis')
+  })
+})
+
+describe('montarLinhaProgresso', () => {
+  it('com fração (campanha por quantidade)', () => {
+    const linha = montarLinhaProgresso({ faltaTexto: 'Faltam 2 pedidos', premioLabel: '1 X-Tudo grátis', fracao: '8/10' })
+    expect(linha).toBe('• Faltam 2 pedidos para ganhar 1 X-Tudo grátis (8/10)')
+  })
+
+  it('sem fração (campanha por valor gasto)', () => {
+    const linha = montarLinhaProgresso({ faltaTexto: 'Faltam R$ 25,00', premioLabel: '10% de desconto', fracao: null })
+    expect(linha).toBe('• Faltam R$ 25,00 para ganhar 10% de desconto')
+  })
+})
+
+describe('montarBlocoRecompensa', () => {
+  it('com dias de resgate restritos', () => {
+    const bloco = montarBlocoRecompensa({ premioLabel: 'Batata Frita grátis', diasSemanaResgate: [3] })
+    expect(bloco).toBe('🎉 PRÊMIO DESBLOQUEADO: Batata Frita grátis!\nResgate na aba Cupons do cardápio (válido às quartas).')
+  })
+
+  it('com múltiplos dias de resgate', () => {
+    const bloco = montarBlocoRecompensa({ premioLabel: '10% de desconto', diasSemanaResgate: [5, 6] })
+    expect(bloco).toBe('🎉 PRÊMIO DESBLOQUEADO: 10% de desconto!\nResgate na aba Cupons do cardápio (válido às sextas e aos sábados).')
+  })
+
+  it('sem restrição de dia (resgata quando quiser)', () => {
+    const bloco = montarBlocoRecompensa({ premioLabel: 'Entrega grátis', diasSemanaResgate: [] })
+    expect(bloco).toBe('🎉 PRÊMIO DESBLOQUEADO: Entrega grátis!\nResgate na aba Cupons do cardápio.')
+  })
+})
+
+describe('montarMensagemFidelidade', () => {
+  it('retorna null quando não há progresso nem recompensa (nada a notificar)', () => {
+    expect(montarMensagemFidelidade([], [], 'Loja X')).toBeNull()
+  })
+
+  it('monta mensagem só com progresso (nenhuma campanha completou)', () => {
+    const msg = montarMensagemFidelidade(
+      [{ faltaTexto: 'Faltam 2 pedidos', premioLabel: '1 X-Tudo grátis', fracao: '8/10' }],
+      [],
+      'Burger House'
+    )
+    expect(msg).toBe(
+      'Pedido entregue! ✅\n\nSeu progresso de fidelidade na Burger House:\n• Faltam 2 pedidos para ganhar 1 X-Tudo grátis (8/10)'
+    )
+  })
+
+  it('monta mensagem só com recompensa nova (nenhum progresso pendente)', () => {
+    const msg = montarMensagemFidelidade([], [{ premioLabel: 'Batata Frita grátis', diasSemanaResgate: [3] }], 'Burger House')
+    expect(msg).toBe(
+      'Pedido entregue! ✅\n\n🎉 PRÊMIO DESBLOQUEADO: Batata Frita grátis!\nResgate na aba Cupons do cardápio (válido às quartas).'
+    )
+  })
+
+  it('agrupa progresso + recompensa numa única mensagem (máx 1 WhatsApp por pedido)', () => {
+    const msg = montarMensagemFidelidade(
+      [
+        { faltaTexto: 'Faltam 2 pedidos', premioLabel: '1 X-Tudo grátis', fracao: '8/10' },
+        { faltaTexto: 'Faltam R$ 25,00', premioLabel: '10% de desconto', fracao: null },
+      ],
+      [{ premioLabel: 'Batata Frita grátis', diasSemanaResgate: [3] }],
+      'Burger House'
+    )
+    expect(msg).toBe(
+      [
+        'Pedido entregue! ✅',
+        '',
+        'Seu progresso de fidelidade na Burger House:',
+        '• Faltam 2 pedidos para ganhar 1 X-Tudo grátis (8/10)',
+        '• Faltam R$ 25,00 para ganhar 10% de desconto',
+        '',
+        '🎉 PRÊMIO DESBLOQUEADO: Batata Frita grátis!',
+        'Resgate na aba Cupons do cardápio (válido às quartas).',
+      ].join('\n')
+    )
+  })
+
+  it('agrupa múltiplas recompensas novas no mesmo pedido', () => {
+    const msg = montarMensagemFidelidade(
+      [],
+      [
+        { premioLabel: 'Batata Frita grátis', diasSemanaResgate: [] },
+        { premioLabel: '10% de desconto', diasSemanaResgate: [] },
+      ],
+      'Burger House'
+    )
+    expect(msg).toBe(
+      [
+        'Pedido entregue! ✅',
+        '',
+        '🎉 PRÊMIO DESBLOQUEADO: Batata Frita grátis!',
+        'Resgate na aba Cupons do cardápio.',
+        '',
+        '🎉 PRÊMIO DESBLOQUEADO: 10% de desconto!',
+        'Resgate na aba Cupons do cardápio.',
+      ].join('\n')
+    )
   })
 })
