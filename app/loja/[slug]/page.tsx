@@ -2090,6 +2090,9 @@ export default function StorefrontPage() {
 
                   <div className="mt-4 space-y-1.5 border-t border-border pt-4 text-[14px]">
                     <div className="flex justify-between text-text-subtle"><span>Subtotal</span><span>{brl(p.subtotal)}</span></div>
+                    {p.desconto > 0 && (
+                      <div className="flex justify-between text-[#16A34A]"><span>Desconto</span><span>-{brl(p.desconto)}</span></div>
+                    )}
                     {p.tipo === 'entrega' && (
                       <div className="flex justify-between text-text-subtle"><span>Taxa de entrega</span><span>{brl(p.taxaEntrega)}</span></div>
                     )}

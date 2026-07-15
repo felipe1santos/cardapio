@@ -762,6 +762,9 @@ export default function PedidosPage() {
                   </li>
                 ))}
                 <li className="flex justify-between border-t border-border pt-2 text-text-subtle"><span>Subtotal</span><span>{brl(detail.subtotal)}</span></li>
+                {detail.desconto > 0 && (
+                  <li className="flex justify-between text-text-subtle"><span>Desconto</span><span className="text-price-text">-{brl(detail.desconto)}</span></li>
+                )}
                 {detail.taxaEntrega > 0 && (
                   <li className="flex justify-between text-text-subtle"><span>Taxa de entrega</span><span>{brl(detail.taxaEntrega)}</span></li>
                 )}

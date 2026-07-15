@@ -1211,6 +1211,7 @@ export interface PedidoCliente {
   status: StatusPedido
   tipo: TipoPedido
   subtotal: number
+  desconto: number
   total: number
   taxaEntrega: number
   formaPagamento: FormaPagamento
@@ -1223,7 +1224,7 @@ export interface PedidoCliente {
 export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<PedidoCliente[]> {
   const { data, error } = await admin
     .from('pedidos')
-    .select('id, numero, status, tipo, subtotal, total, taxa_entrega, forma_pagamento, observacao, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
+    .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
     .eq('restaurante_id', restauranteId)
     .eq('cliente_telefone', telefone)
     .order('criado_em', { ascending: false })
@@ -1235,6 +1236,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
     status: StatusPedido
     tipo: TipoPedido
     subtotal: number
+    desconto: number | null
     total: number
     taxa_entrega: number
     forma_pagamento: FormaPagamento
@@ -1256,6 +1258,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
     status: p.status,
     tipo: p.tipo,
     subtotal: Number(p.subtotal),
+    desconto: p.desconto === null ? 0 : Number(p.desconto),
     total: Number(p.total),
     taxaEntrega: Number(p.taxa_entrega),
     formaPagamento: p.forma_pagamento,
