@@ -196,7 +196,8 @@ function validarCampanhaInput(input: CampanhaFidelidadeInput): void {
   }
 }
 
-function normalizarCodigoCupom(codigo: string): string {
+/** Normaliza código de cupom (uppercase, sem espaços) — exportada pro endpoint de validação (Task 8) reusar. */
+export function normalizarCodigoCupom(codigo: string): string {
   return (codigo ?? '').trim().toUpperCase().replace(/\s+/g, '')
 }
 
@@ -217,7 +218,8 @@ function validarCupomInput(input: CupomInput, codigo: string): void {
 
 // ─── Data/hora em America/Sao_Paulo (sem depender do fuso do servidor) ────
 
-function hojeSaoPaulo(): { hojeISO: string; diaSemana: number } {
+/** Exportada pro endpoint de validação de cupom (Task 8) montar o mesmo `ctx` usado aqui. */
+export function hojeSaoPaulo(): { hojeISO: string; diaSemana: number } {
   const partes = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
@@ -249,6 +251,8 @@ const CUPOM_SELECT = `
   max_usos, usos, criado_em, atualizado_em,
   itens_cardapio ( nome, imagem_url )
 `
+
+const CUPONS_PUBLICOS_SELECT = `id, codigo, descricao, tipo, valor, valor_minimo_pedido, validade_inicio, validade_fim, dias_semana, itens_cardapio ( nome, imagem_url )`
 
 // ─── CRUD: Campanhas de fidelidade ─────────────────────────────────────────
 
@@ -461,7 +465,7 @@ export async function buscarFidelidadeCliente(admin: SupabaseClient, restaurante
       .order('ganho_em', { ascending: true }),
     admin
       .from('cupons')
-      .select(`id, codigo, descricao, tipo, valor, valor_minimo_pedido, validade_inicio, validade_fim, dias_semana, itens_cardapio ( nome, imagem_url )`)
+      .select(CUPONS_PUBLICOS_SELECT)
       .eq('restaurante_id', restauranteId)
       .eq('ativo', true),
   ])
@@ -518,7 +522,19 @@ export async function buscarFidelidadeCliente(admin: SupabaseClient, restaurante
     }
   })
 
-  const cuponsPublicos: CupomVitrine[] = (cuponsRows ?? [])
+  const cuponsPublicos = mapCuponsPublicos(cuponsRows ?? [], hojeISO, diaSemana)
+
+  return { campanhas, recompensas, cuponsPublicos }
+}
+
+/**
+ * Filtra (janela de validade + dia da semana, "válidos hoje") e mapeia linhas cruas de `cupons`
+ * pro formato exposto na vitrine. Compartilhado por `buscarFidelidadeCliente` (cliente logado) e
+ * `buscarCuponsPublicos` (vitrine anônima) — mesma regra "válido hoje" nos dois casos.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapCuponsPublicos(rows: any[], hojeISO: string, diaSemana: number): CupomVitrine[] {
+  return rows
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((row: any) => {
       if (row.validade_inicio && hojeISO < row.validade_inicio) return false
@@ -539,8 +555,23 @@ export async function buscarFidelidadeCliente(admin: SupabaseClient, restaurante
       valorMinimoPedido: row.valor_minimo_pedido != null ? Number(row.valor_minimo_pedido) : null,
       validadeFim: row.validade_fim,
     }))
+}
 
-  return { campanhas, recompensas, cuponsPublicos }
+/**
+ * Cupons públicos ativos e "válidos hoje" (janela de validade + dia da semana) — sem exigir
+ * telefone/token. Usado pela vitrine anônima (Task 8): nunca deve receber um telefone não
+ * verificado, então não reusa `buscarFidelidadeCliente` (que consultaria progresso/recompensas
+ * daquele telefone) — só a parte de cupons, que não é atrelada a nenhum cliente.
+ */
+export async function buscarCuponsPublicos(admin: SupabaseClient, restauranteId: string): Promise<CupomVitrine[]> {
+  const { hojeISO, diaSemana } = hojeSaoPaulo()
+  const { data: cuponsRows, error } = await admin
+    .from('cupons')
+    .select(CUPONS_PUBLICOS_SELECT)
+    .eq('restaurante_id', restauranteId)
+    .eq('ativo', true)
+  if (error) throw error
+  return mapCuponsPublicos(cuponsRows ?? [], hojeISO, diaSemana)
 }
 
 /**
