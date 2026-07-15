@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown } from 'lucide-react'
+import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
+import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
+import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   buscarRestaurantePorSlug,
@@ -98,6 +100,50 @@ function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+
+// Motivo exato retornado pelo POST /cupom/validar quando o cupom exige sessão —
+// casado por string pra oferecer o CTA de login em vez de erro genérico (Task 8).
+const MOTIVO_LOGIN_CUPOM = 'Entre com seu telefone para usar este cupom.'
+
+/** Rótulo curto do benefício de um cupom da vitrine ("10% de desconto", "Item grátis"…). */
+function labelCupom(c: Pick<CupomVitrine, 'tipo' | 'valor' | 'itemNome'>): string {
+  switch (c.tipo) {
+    case 'item_gratis': return `${c.itemNome ?? 'Item'} grátis`
+    case 'entrega_gratis': return 'Entrega grátis'
+    case 'desconto_percentual': return `${c.valor ?? 0}% de desconto`
+    default: return `${brl(c.valor ?? 0)} de desconto`
+  }
+}
+
+/**
+ * Som curto de sucesso ("moeda/conquista") via Web Audio API — sem asset externo.
+ * Dois osciladores em acorde ascendente (~0.3s). Se o AudioContext estiver
+ * bloqueado por falta de gesto do usuário, falha em silêncio.
+ */
+function tocarSomSucesso() {
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const t0 = ctx.currentTime
+    // E5 e G5 levemente defasados: acorde alegre, curto, sem estridência.
+    const notas: [number, number][] = [[659.25, 0], [783.99, 0.09]]
+    for (const [freq, delay] of notas) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'triangle'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.0001, t0 + delay)
+      gain.gain.exponentialRampToValueAtTime(0.14, t0 + delay + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.3)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(t0 + delay)
+      osc.stop(t0 + delay + 0.32)
+    }
+    window.setTimeout(() => { ctx.close().catch(() => {}) }, 800)
+  } catch { /* AudioContext indisponível/bloqueado — segue sem som */ }
+}
 
 /** Logo oficial do Pix (Banco Central) simplificado. */
 function PixIcon({ className = 'h-6 w-6' }: { className?: string }) {
@@ -469,6 +515,40 @@ export default function StorefrontPage() {
   const cartCount = cart.reduce((sum, l) => sum + l.qty, 0)
   const subtotal = cart.reduce((sum, l) => sum + l.unit * l.qty, 0)
 
+  // ── Cupom / prêmio de fidelidade (hoisted: fee/total dependem do desconto) ──
+  const [fidelidade, setFidelidade] = useState<FidelidadeCliente | null>(null)
+  // Bump força re-fetch da fidelidade (ex.: pedido acabou de virar "entregue").
+  const [fidelidadeVersao, setFidelidadeVersao] = useState(0)
+  // Botão Cupons do bottom nav piscando (3x) após ganhar progresso/prêmio.
+  const [cuponsPiscando, setCuponsPiscando] = useState(false)
+  const [cupomCodigoInput, setCupomCodigoInput] = useState('')
+  const [cupomValidando, setCupomValidando] = useState(false)
+  const [cupomErro, setCupomErro] = useState<string | null>(null)
+  // Cupom aprovado pelo POST /cupom/validar (shape da resposta da Task 8).
+  const [cupomAplicado, setCupomAplicado] = useState<{
+    codigo: string
+    tipo: 'desconto_percentual' | 'desconto_valor' | 'entrega_gratis' | 'item_gratis'
+    valor: number | null
+    descricao: string
+    itemNome?: string
+  } | null>(null)
+  // Prêmio de fidelidade escolhido na aba Cupons (exclusivo com cupomAplicado).
+  const [recompensaSelecionada, setRecompensaSelecionada] = useState<RecompensaDisponivel | null>(null)
+
+  // Benefício ativo (prêmio tem prioridade — os dois nunca coexistem, ver handlers).
+  const beneficio = recompensaSelecionada
+    ? { tipo: recompensaSelecionada.premioTipo, valor: recompensaSelecionada.premioValor, itemNome: recompensaSelecionada.premioItemNome }
+    : cupomAplicado
+      ? { tipo: cupomAplicado.tipo, valor: cupomAplicado.valor, itemNome: cupomAplicado.itemNome }
+      : null
+
+  // PREVIEW do desconto no client — mesma regra do servidor (calcularDesconto:
+  // nunca negativo, nunca maior que o subtotal; entrega_gratis zera o frete;
+  // item_gratis não desconta em R$). O servidor recalcula tudo e é a autoridade.
+  const { descontoSubtotal: desconto, zeraFrete } = beneficio
+    ? calcularDesconto(beneficio.tipo, beneficio.valor, subtotal, 0)
+    : { descontoSubtotal: 0, zeraFrete: false }
+
   // ── Checkout form state (hoisted so fee can access endereco) ───────────────
   const [endereco, setEndereco] = useState({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
   const [cidadeCliente, setCidadeCliente] = useState('')
@@ -501,9 +581,10 @@ export default function StorefrontPage() {
   const ganhouFreteGratis = freteGratisAtivo && subtotal >= freteGratisMinimo
 
   const feeBase = freteCalc ? (freteCalc.entregavel ? freteCalc.taxa : 0) : feeFallback
-  const fee = ganhouFreteGratis ? 0 : feeBase
+  // Cupom/prêmio de entrega grátis zera a taxa por cima do gatilho por subtotal.
+  const fee = ganhouFreteGratis || zeraFrete ? 0 : feeBase
 
-  const total = subtotal + (cart.length ? fee : 0)
+  const total = Math.max(0, subtotal - desconto) + (cart.length ? fee : 0)
 
   // Autopreenche rua/bairro/cidade ao digitar o CEP (ViaCEP).
   async function autofillCep(cepRaw: string) {
@@ -683,6 +764,111 @@ export default function StorefrontPage() {
       .catch(() => {})
     return () => { cancelled = true }
   }, [clienteSessao, slug])
+
+  // ── Fidelidade: missões, prêmios prontos e cupons públicos da loja ────────
+  // Sem sessão a API devolve só os cupons públicos (comportamento esperado, não erro).
+  useEffect(() => {
+    if (!slug) return
+    let cancelled = false
+    const qs = clienteSessao
+      ? `?telefone=${encodeURIComponent(clienteSessao.telefone)}&token=${encodeURIComponent(clienteSessao.token)}`
+      : ''
+    fetch(`/api/loja/${slug}/fidelidade${qs}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: FidelidadeCliente | null) => {
+        if (cancelled || !data) return
+        setFidelidade(data)
+        if (!clienteSessao) return
+        // Comemoração (som + piscar do botão Cupons): compara com o snapshot salvo
+        // neste aparelho — progresso maior ou prêmio novo desde a última visita.
+        const chave = `menuzia_fidelidade_${slug}`
+        const atual = {
+          recompensas: data.recompensas.map((r) => r.id),
+          progresso: Object.fromEntries(data.campanhas.map((c) => [c.campanha.id, c.progresso])) as Record<
+            string,
+            { progressoValor: number; progressoQtd: number; ciclosCompletados: number }
+          >,
+        }
+        try {
+          const raw = localStorage.getItem(chave)
+          if (raw) {
+            const snap = JSON.parse(raw) as typeof atual
+            const recompensaNova = atual.recompensas.some((id) => !(snap.recompensas ?? []).includes(id))
+            const progressoMaior = Object.entries(atual.progresso).some(([id, p]) => {
+              const s = snap.progresso?.[id]
+              if (!s) return false
+              return p.progressoValor > s.progressoValor || p.progressoQtd > s.progressoQtd || p.ciclosCompletados > s.ciclosCompletados
+            })
+            if (recompensaNova || progressoMaior) {
+              tocarSomSucesso()
+              setCuponsPiscando(true)
+              window.setTimeout(() => setCuponsPiscando(false), 2200) // 3 iterações de 0.7s
+            }
+          }
+        } catch { /* snapshot corrompido — só regrava abaixo */ }
+        try { localStorage.setItem(chave, JSON.stringify(atual)) } catch { /* quota/navegação privada */ }
+      })
+      .catch(() => { /* fidelidade é acessório — a vitrine segue sem */ })
+    return () => { cancelled = true }
+  }, [slug, clienteSessao, fidelidadeVersao])
+
+  /** Valida o código digitado no servidor, com o subtotal atual do carrinho. */
+  async function validarCupomCheckout(codigoBruto?: string) {
+    const codigo = (codigoBruto ?? cupomCodigoInput).trim().toUpperCase().replace(/\s+/g, '')
+    if (!codigo) { setCupomErro('Digite o código do cupom.'); return }
+    setCupomValidando(true)
+    setCupomErro(null)
+    try {
+      const res = await fetch(`/api/loja/${slug}/cupom/validar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, telefone: clienteSessao?.telefone, token: clienteSessao?.token, subtotal }),
+      })
+      const data = await res.json()
+      if (data.ok && data.cupom) {
+        setCupomAplicado(data.cupom)
+        setRecompensaSelecionada(null) // exclusivos: cupom OU prêmio, nunca os dois
+        setCupomCodigoInput(data.cupom.codigo)
+      } else {
+        setCupomAplicado(null)
+        setCupomErro(data.motivo ?? data.error ?? 'Não foi possível validar o cupom.')
+      }
+    } catch {
+      setCupomErro('Não foi possível validar o cupom agora. Tente novamente.')
+    } finally {
+      setCupomValidando(false)
+    }
+  }
+
+  function removerBeneficio() {
+    setCupomAplicado(null)
+    setRecompensaSelecionada(null)
+    setCupomCodigoInput('')
+    setCupomErro(null)
+  }
+
+  /** Aba Cupons → "USAR NO PEDIDO": guarda o prêmio e leva pro carrinho. */
+  function usarRecompensa(r: RecompensaDisponivel) {
+    if (!r.podeResgatarHoje) return
+    setRecompensaSelecionada(r)
+    setCupomAplicado(null)
+    setCupomCodigoInput('')
+    setCupomErro(null)
+    setTab('cart')
+    showToast('Prêmio selecionado! Finalize o pedido para resgatar.')
+  }
+
+  /** Aba Cupons → "APLICAR": preenche o código pro checkout e leva pro carrinho. */
+  function aplicarCupomDaAba(codigo: string) {
+    setRecompensaSelecionada(null)
+    setCupomAplicado(null)
+    setCupomErro(null)
+    setCupomCodigoInput(codigo)
+    setTab('cart')
+    showToast(`Cupom ${codigo} pronto pra aplicar no checkout.`)
+    // Com itens na sacola já dá pra validar de imediato (o chip aparece no checkout).
+    if (cart.length > 0) void validarCupomCheckout(codigo)
+  }
 
   async function enviarCodigoConta() {
     setContaLoading(true)
@@ -1089,6 +1275,22 @@ export default function StorefrontPage() {
     setPedidoDetalhe((prev) => (prev ? meusPedidos.find((p) => p.id === prev.id) ?? prev : null))
   }, [meusPedidos])
 
+  // Pedido que VIROU "entregue" no polling → re-busca a fidelidade (o pedido
+  // acabou de contar pra campanha: progresso/prêmio podem ter mudado agora).
+  const statusPedidosRef = useRef<Map<string, string>>(new Map())
+  useEffect(() => {
+    const anterior = statusPedidosRef.current
+    const atual = new Map<string, string>()
+    let entregou = false
+    for (const p of meusPedidos) {
+      atual.set(p.id, p.status)
+      const antes = anterior.get(p.id)
+      if (antes && antes !== 'entregue' && p.status === 'entregue') entregou = true
+    }
+    statusPedidosRef.current = atual
+    if (entregou) setFidelidadeVersao((v) => v + 1)
+  }, [meusPedidos])
+
   const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
     Pix: 'pix',
     'Cartão na entrega': 'cartao',
@@ -1119,6 +1321,8 @@ export default function StorefrontPage() {
       if (l.obs?.trim()) linhas.push(`   obs: ${l.obs.trim()}`)
     }
     linhas.push('')
+    if (desconto > 0) linhas.push(`Desconto${cupomAplicado ? ` (cupom ${cupomAplicado.codigo})` : ' (prêmio fidelidade)'}: -${brl(desconto)}`)
+    if (beneficio?.tipo === 'item_gratis') linhas.push(`Item grátis: ${beneficio.itemNome ?? 'prêmio'}`)
     linhas.push(`Total: ${brl(total)}`)
     linhas.push(`Pagamento: ${payMethod}`)
     if (cliente.nome.trim()) linhas.push(`Cliente: ${cliente.nome.trim()}`)
@@ -1146,6 +1350,10 @@ export default function StorefrontPage() {
           bordaNome: l.bordaNome || undefined,
           massaNome: l.massaNome || undefined,
         })),
+        // Cupom OU prêmio — mutuamente exclusivos; o servidor valida e recalcula
+        // o desconto (o preview do client nunca é enviado).
+        cupomCodigo: recompensaSelecionada ? undefined : cupomAplicado?.codigo,
+        recompensaId: recompensaSelecionada?.id,
       }
       const res = await fetch(`/api/loja/${slug}/pedido`, {
         method: 'POST',
@@ -1183,6 +1391,10 @@ export default function StorefrontPage() {
       setConfirmacaoAberta(true)
       setCheckoutOpen(false)
       setCart([])
+      // Benefício consumido pelo pedido: limpa e re-busca a fidelidade (prêmio
+      // resgatado some da lista de disponíveis).
+      removerBeneficio()
+      setFidelidadeVersao((v) => v + 1)
       setTab('pedidos')
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'Não foi possível enviar o pedido.')
@@ -1234,6 +1446,42 @@ export default function StorefrontPage() {
       </div>
     )
   ) : null
+
+  // Chip do benefício ativo (cupom ou prêmio) — sacola mobile + painel desktop.
+  const beneficioBanner = (recompensaSelecionada || cupomAplicado) ? (
+    <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-[#16A34A]/30 bg-[#F0FDF4] px-3.5 py-3">
+      <Gift className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-bold text-[#15803D]">
+          {recompensaSelecionada
+            ? `Prêmio: ${premioLabelCampanha({ premioTipo: recompensaSelecionada.premioTipo, premioValor: recompensaSelecionada.premioValor }, recompensaSelecionada.premioItemNome)}`
+            : `Cupom ${cupomAplicado?.codigo}`}
+        </div>
+        <div className="truncate text-[12px] text-[#15803D]/80">
+          {beneficio?.tipo === 'item_gratis'
+            ? `Item grátis: ${beneficio.itemNome ?? 'prêmio'}`
+            : beneficio?.tipo === 'entrega_gratis'
+              ? 'Entrega grátis neste pedido'
+              : beneficio?.tipo === 'desconto_percentual'
+                ? `${beneficio.valor ?? 0}% de desconto (-${brl(desconto)})`
+                : `Desconto de ${brl(desconto)}`}
+        </div>
+      </div>
+      <button onClick={removerBeneficio} aria-label="Remover cupom ou prêmio" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] text-text-subtle shadow-sm transition-colors hover:text-danger">✕</button>
+    </div>
+  ) : null
+
+  // ── Contagens de fidelidade (banner de resgate + badge do ícone Cupons) ───
+  const premiosProntosHoje = fidelidade?.recompensas.filter((r) => r.podeResgatarHoje).length ?? 0
+  const recompensasDisponiveis = fidelidade?.recompensas.length ?? 0
+  const cuponsPublicosCount = fidelidade?.cuponsPublicos.length ?? 0
+  // Texto agregado do banner amarelo (UM retângulo só, singular/plural correto).
+  const bannerResgateTexto = (() => {
+    const partes: string[] = []
+    if (premiosProntosHoje > 0) partes.push(`${premiosProntosHoje} ${premiosProntosHoje === 1 ? 'prêmio' : 'prêmios'}`)
+    if (cuponsPublicosCount > 0) partes.push(`${cuponsPublicosCount} ${cuponsPublicosCount === 1 ? 'cupom' : 'cupons'}`)
+    return partes.length > 0 ? `Você tem ${partes.join(' e ')} pra resgatar →` : null
+  })()
 
   /** Linha do carrinho — clicável pra editar (complementos, observação, quantidade). */
   const renderCartLine = (line: CartLine, hasBorder: boolean) => (
@@ -1294,7 +1542,7 @@ export default function StorefrontPage() {
       className="font-loja min-h-dvh bg-[#F3F4F6] text-text-main"
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
     >
-      <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+      <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes cupons-piscar{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.15)}}`}</style>
 
       {/* ── Desktop top nav ──────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 hidden border-b border-border bg-white lg:block">
@@ -1319,9 +1567,15 @@ export default function StorefrontPage() {
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={['rounded px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-[#F3F4F6] text-[var(--tema-primaria)]' : 'text-text-subtle hover:text-text-main'].join(' ')}
+                className={['inline-flex items-center gap-1.5 rounded px-3.5 py-2 text-[13px] font-semibold transition-colors', tab === item.id ? 'bg-[#F3F4F6] text-[var(--tema-primaria)]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
                 {item.label}
+                {/* Badge: prêmios de fidelidade prontos pra resgatar */}
+                {item.id === 'cupons' && recompensasDisponiveis > 0 && (
+                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#EF4444] px-1 text-[10px] font-bold leading-none text-white">
+                    {recompensasDisponiveis}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -1442,6 +1696,19 @@ export default function StorefrontPage() {
               ))}
             </div>
 
+            {/* Banner ÚNICO de resgate: prêmios prontos hoje + cupons públicos da loja */}
+            {bannerResgateTexto && activeCategory !== '__promos__' && !search.trim() && (
+              <div className="px-4 pt-3 lg:px-0">
+                <button
+                  onClick={() => setTab('cupons')}
+                  className="flex w-full items-center gap-3 rounded-md border border-warn bg-warn-bg px-3.5 py-3 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
+                >
+                  <span className="text-[20px] leading-none">🎁</span>
+                  <span className="flex-1 text-[13px] font-bold text-[#92400E]">{bannerResgateTexto}</span>
+                </button>
+              </div>
+            )}
+
             {/* Destaques */}
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
               <div className="px-4 pb-1 pt-3 lg:px-0">
@@ -1506,8 +1773,12 @@ export default function StorefrontPage() {
                       </div>
                       <div className="border-t border-border p-4">
                         {freteGratisBanner}
+                        {beneficioBanner}
                         <div className="mb-3 space-y-1.5 text-[13px]">
                           <div className="flex items-center justify-between text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
+                          {desconto > 0 && (
+                            <div className="flex items-center justify-between font-semibold text-[#16A34A]"><span>Desconto</span><span>-{brl(desconto)}</span></div>
+                          )}
                           <div className="flex items-center justify-between">
                             <span className="text-text-subtle">Taxa de entrega</span>
                             {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
@@ -1623,12 +1894,18 @@ export default function StorefrontPage() {
 
                 <div className="lg:sticky lg:top-24">
                   {freteGratisBanner}
+                  {beneficioBanner}
 
                   {/* Summary */}
                   <div className="mb-4 overflow-hidden rounded-lg border border-border bg-white">
                     <div className="flex items-center justify-between px-4 py-3 text-[13px] text-text-subtle">
                       <span>Subtotal</span><span>{brl(subtotal)}</span>
                     </div>
+                    {desconto > 0 && (
+                      <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px] font-semibold text-[#16A34A]">
+                        <span>Desconto</span><span>-{brl(desconto)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px]">
                       <span className="text-text-subtle">Taxa de entrega</span>
                       {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
@@ -1822,17 +2099,158 @@ export default function StorefrontPage() {
         })()}
 
         {/* ── CUPONS tab ────────────────────────────────────────────────── */}
-        {tab === 'cupons' && (
-          <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
-            <div className="rounded border border-dashed border-border py-20 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🏷️</div>
-              <p className="font-semibold text-text-main">Cupons em breve</p>
-              <p className="mx-auto mt-1.5 max-w-[240px] text-[13px] leading-relaxed text-text-subtle">
-                Em breve você poderá usar cupons de desconto nessa loja.
-              </p>
+        {tab === 'cupons' && (() => {
+          if (!fidelidade) {
+            return <div className="py-20 text-center text-[13px] text-text-subtle">Carregando cupons…</div>
+          }
+          const recompensas = fidelidade.recompensas
+          const missoes = fidelidade.campanhas
+          const cuponsLoja = fidelidade.cuponsPublicos
+          const nadaParaMostrar = recompensas.length === 0 && missoes.length === 0 && cuponsLoja.length === 0
+          return (
+            <div className="space-y-6 px-4 pb-8 pt-5 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
+              {/* Não logado: cupons públicos aparecem, progresso exige sessão */}
+              {!clienteSessao && (
+                <button
+                  onClick={() => setContaOpen(true)}
+                  className="flex w-full items-center gap-3.5 rounded-md border border-border bg-white p-4 text-left shadow-sm transition-all hover:border-[var(--tema-primaria)] active:scale-[0.99]"
+                >
+                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[var(--tema-light)]">
+                    <Gift className="h-5 w-5 text-[var(--tema-primaria)]" strokeWidth={2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-bold text-text-main">Entre pra ver seu progresso</span>
+                    <span className="mt-0.5 block text-[12px] leading-relaxed text-text-subtle">Confirme seu telefone e acompanhe suas missões e prêmios de fidelidade nesta loja.</span>
+                  </span>
+                  <span className="flex-shrink-0 text-text-subtle">→</span>
+                </button>
+              )}
+
+              {/* Prêmios prontos pra resgatar */}
+              {recompensas.length > 0 && (
+                <section>
+                  <h2 className="mb-2.5 text-[17px] font-bold tracking-tight">Prêmios prontos 🎁</h2>
+                  <div className="space-y-3">
+                    {recompensas.map((r) => {
+                      const label = premioLabelCampanha({ premioTipo: r.premioTipo, premioValor: r.premioValor }, r.premioItemNome)
+                      const diasTexto = r.diasSemanaResgate.length > 0 ? diasSemanaTexto(r.diasSemanaResgate) : null
+                      return (
+                        <div key={r.id} className="overflow-hidden rounded-md border border-[#16A34A]/40 bg-white shadow-sm">
+                          <div className="flex items-start gap-3.5 p-3.5">
+                            <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl ?? null }} size={112} />
+                            <div className="min-w-0 flex-1">
+                              <span className="inline-block rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#16A34A]">Prêmio desbloqueado</span>
+                              <div className="mt-1.5 text-[15px] font-bold leading-snug text-text-main first-letter:uppercase">{label}</div>
+                              <div className="mt-0.5 text-[12px] text-text-subtle">{r.campanhaNome}</div>
+                              {diasTexto && <div className="mt-1 text-[12px] font-medium text-text-subtle">Resgate {diasTexto}</div>}
+                            </div>
+                          </div>
+                          <div className="px-3.5 pb-3.5">
+                            <button
+                              onClick={() => usarRecompensa(r)}
+                              disabled={!r.podeResgatarHoje}
+                              className={['w-full rounded py-3 text-[12px] font-bold uppercase tracking-wide transition-all', r.podeResgatarHoje ? 'bg-[#16A34A] text-white hover:bg-[#15803D] active:scale-[0.99]' : 'cursor-not-allowed bg-[#F3F4F6] text-text-subtle'].join(' ')}
+                            >
+                              Usar no pedido
+                            </button>
+                            {!r.podeResgatarHoje && diasTexto && (
+                              <p className="mt-2 rounded border border-warn bg-warn-bg px-2.5 py-1.5 text-[12px] font-medium text-[#92400E]">
+                                Hoje não é dia de resgate — este prêmio vale {diasTexto}.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Missões em andamento (campanhas de fidelidade) */}
+              {missoes.length > 0 && (
+                <section>
+                  <h2 className="mb-2.5 text-[17px] font-bold tracking-tight">Suas missões</h2>
+                  <div className="space-y-3">
+                    {missoes.map(({ campanha, progresso, resumo }) => {
+                      const label = premioLabelCampanha(campanha, campanha.premioItemNome)
+                      const progressoTexto = campanha.tipoMeta === 'valor_gasto'
+                        ? `${brl(progresso.progressoValor)} / ${brl(campanha.metaValor ?? 0)}`
+                        : `${fracaoProgresso(campanha, progresso)} ${campanha.tipoMeta === 'qtd_pedidos' ? 'pedidos' : 'itens'}`
+                      const diasContam = campanha.diasSemanaContam.length > 0 ? diasSemanaTexto(campanha.diasSemanaContam) : null
+                      return (
+                        <div key={campanha.id} className="rounded-md border border-border bg-white p-3.5 shadow-sm">
+                          <div className="flex items-start gap-3">
+                            <ProductThumb item={{ nome: campanha.premioItemNome ?? campanha.nome, imagemUrl: campanha.premioItemImagemUrl ?? null }} size={56} />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[14px] font-bold leading-snug text-text-main">{campanha.nome}</div>
+                              <div className="mt-0.5 text-[12px] text-text-subtle">Prêmio: {label}</div>
+                            </div>
+                          </div>
+                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#F3F4F6]">
+                            <div className="h-full rounded-full bg-[#10B981] transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, resumo.percentual))}%` }} />
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-2 text-[12px]">
+                            <span className="font-bold text-[#10B981]">{progressoTexto}</span>
+                            <span className="font-medium text-text-subtle">{resumo.faltaTexto}</span>
+                          </div>
+                          {diasContam && <p className="mt-1.5 text-[11px] text-text-subtle">Contam pedidos feitos {diasContam}.</p>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Cupons públicos da loja */}
+              {cuponsLoja.length > 0 && (
+                <section>
+                  <h2 className="mb-2.5 flex items-center gap-2 text-[17px] font-bold tracking-tight">
+                    <Ticket className="h-[19px] w-[19px] text-[var(--tema-primaria)]" strokeWidth={2} />
+                    Cupons da loja
+                  </h2>
+                  <div className="space-y-3">
+                    {cuponsLoja.map((c) => (
+                      <div key={c.id} className="rounded-md border border-border bg-white p-3.5 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="flex-shrink-0 rounded border border-dashed border-[var(--tema-primaria)] bg-[var(--tema-light)] px-2.5 py-1.5 text-[13px] font-extrabold tracking-widest text-[var(--tema-primaria)]">{c.codigo}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[13px] font-bold text-text-main">{labelCupom(c)}</div>
+                            {c.descricao && <div className="mt-0.5 truncate text-[12px] text-text-subtle">{c.descricao}</div>}
+                            {(c.valorMinimoPedido != null || c.validadeFim) && (
+                              <div className="mt-0.5 text-[11px] text-text-subtle">
+                                {[
+                                  c.valorMinimoPedido != null ? `Pedido mínimo ${brl(c.valorMinimoPedido)}` : null,
+                                  c.validadeFim ? `Válido até ${new Date(`${c.validadeFim}T12:00:00`).toLocaleDateString('pt-BR')}` : null,
+                                ].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => aplicarCupomDaAba(c.codigo)}
+                          className="mt-3 w-full rounded border border-[var(--tema-primaria)] py-2.5 text-[12px] font-bold uppercase tracking-wide text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-light)] active:scale-[0.99]"
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Estado vazio */}
+              {nadaParaMostrar && (
+                <div className="rounded border border-dashed border-border py-16 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🏷️</div>
+                  <p className="font-semibold text-text-main">Nenhum cupom por aqui ainda</p>
+                  <p className="mx-auto mt-1.5 max-w-[260px] text-[13px] leading-relaxed text-text-subtle">
+                    Quando a loja criar cupons ou campanhas de fidelidade, eles aparecem aqui.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* ── Floating cart bar (mobile only) ──────────────────────────── */}
         {cartCount > 0 && tab !== 'cart' && (
@@ -1872,9 +2290,19 @@ export default function StorefrontPage() {
               <button
                 key={item.id}
                 onClick={item.onClick}
+                // Piscar 3x quando o cliente ganhou progresso/prêmio de fidelidade.
+                style={item.id === 'cupons' && cuponsPiscando ? { animation: 'cupons-piscar 0.7s ease-in-out 3' } : undefined}
                 className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', item.active ? 'text-[var(--tema-primaria)]' : 'text-text-subtle hover:text-text-main'].join(' ')}
               >
-                {item.icon}
+                <span className="relative">
+                  {item.icon}
+                  {/* Badge: quantidade de prêmios disponíveis pra resgatar */}
+                  {item.id === 'cupons' && recompensasDisponiveis > 0 && (
+                    <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#EF4444] px-1 text-[9px] font-bold leading-none text-white">
+                      {recompensasDisponiveis}
+                    </span>
+                  )}
+                </span>
                 {item.label}
               </button>
             ))}
@@ -2240,10 +2668,77 @@ export default function StorefrontPage() {
                 </div>
               )}
 
+              {/* Cupom ou prêmio de fidelidade */}
+              <div className="mt-5 rounded-lg border border-border bg-white p-4">
+                <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Cupom ou prêmio</h3>
+                {recompensaSelecionada || cupomAplicado ? (
+                  <div className="flex items-center gap-2.5 rounded border border-[#16A34A]/40 bg-[#DCFCE7] px-3 py-2.5">
+                    <Gift className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-bold text-[#15803D]">
+                        {recompensaSelecionada
+                          ? `Prêmio: ${premioLabelCampanha({ premioTipo: recompensaSelecionada.premioTipo, premioValor: recompensaSelecionada.premioValor }, recompensaSelecionada.premioItemNome)}`
+                          : `Cupom ${cupomAplicado?.codigo}`}
+                      </div>
+                      <div className="truncate text-[12px] text-[#15803D]/80">
+                        {beneficio?.tipo === 'item_gratis'
+                          ? `Item grátis: ${beneficio.itemNome ?? 'prêmio'}`
+                          : beneficio?.tipo === 'entrega_gratis'
+                            ? 'Entrega grátis neste pedido'
+                            : `-${brl(desconto)} no pedido`}
+                        {!recompensaSelecionada && cupomAplicado?.descricao ? ` · ${cupomAplicado.descricao}` : ''}
+                      </div>
+                    </div>
+                    <button onClick={removerBeneficio} aria-label="Remover cupom ou prêmio" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] text-text-subtle shadow-sm transition-colors hover:text-danger">✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        value={cupomCodigoInput}
+                        onChange={(e) => { setCupomCodigoInput(e.target.value.toUpperCase()); setCupomErro(null) }}
+                        placeholder="Código do cupom"
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        className="w-full rounded-md border border-border p-3 font-sans text-[14px] font-bold uppercase tracking-widest outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal focus:border-[var(--tema-primaria)]"
+                      />
+                      <button
+                        onClick={() => validarCupomCheckout()}
+                        disabled={cupomValidando || !cupomCodigoInput.trim()}
+                        className="flex-shrink-0 rounded-md bg-[var(--tema-primaria)] px-4 text-[12px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-50"
+                      >
+                        {cupomValidando ? 'Validando…' : 'Aplicar'}
+                      </button>
+                    </div>
+                    {cupomErro && (
+                      <div className="mt-2 rounded border border-danger/30 bg-danger-bg px-2.5 py-2 text-[12px] font-medium text-danger">
+                        {cupomErro}
+                        {cupomErro === MOTIVO_LOGIN_CUPOM && (
+                          <button
+                            onClick={() => setContaOpen(true)}
+                            className="mt-1.5 block w-full rounded bg-[var(--tema-primaria)] px-3 py-2 text-center text-[12px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)]"
+                          >
+                            Entrar com meu telefone
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
               {/* Resumo compacto pra ancorar a decisão */}
-              <div className="mt-5 flex items-center justify-between rounded-lg border border-border bg-white px-4 py-3.5">
-                <span className="text-[13px] font-semibold text-text-subtle">Total do pedido</span>
-                <span className="text-[16px] font-bold text-[#16A34A]">{brl(total)}</span>
+              <div className="mt-5 rounded-lg border border-border bg-white px-4 py-3.5">
+                {desconto > 0 && (
+                  <div className="mb-1.5 flex items-center justify-between text-[13px] font-semibold text-[#16A34A]">
+                    <span>Desconto</span><span>-{brl(desconto)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-text-subtle">Total do pedido</span>
+                  <span className="text-[16px] font-bold text-[#16A34A]">{brl(total)}</span>
+                </div>
               </div>
             </div>
           )}
@@ -2388,6 +2883,16 @@ export default function StorefrontPage() {
               {/* Valores */}
               <div className="mt-4 rounded-lg border border-border bg-white p-4">
                 <div className="flex justify-between py-1 text-[14px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
+                {desconto > 0 && (
+                  <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]">
+                    <span>Desconto{cupomAplicado ? ` (${cupomAplicado.codigo})` : ' (prêmio)'}</span><span>-{brl(desconto)}</span>
+                  </div>
+                )}
+                {beneficio?.tipo === 'item_gratis' && (
+                  <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]">
+                    <span>Item grátis</span><span className="truncate pl-3">{beneficio.itemNome ?? 'prêmio'}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-1 text-[14px]">
                   <span className="text-text-subtle">Taxa de entrega</span>
                   {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
