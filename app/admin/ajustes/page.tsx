@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import QRCode from 'qrcode'
-import { Copy, Check, QrCode } from 'lucide-react'
+import { Copy, Check, QrCode, Truck } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -837,7 +838,7 @@ function colsParaFontePreview(tamanho: string | undefined, largura: number): num
 }
 
 interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
-interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoComplemento: string; enderecoBairro: string; enderecoCep: string; formaPagamento: string; trocoPara: number | null; pago: boolean; origem: string; mesa: string | null; observacao: string; criadoEm: string; subtotal: number; taxaEntrega: number; desconto: number; total: number; itens: PreviewItem[] }
+interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoComplemento: string; enderecoBairro: string; enderecoCep: string; formaPagamento: string; trocoPara: number | null; pago: boolean; origem: string; mesa: string | null; observacao: string; criadoEm: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
 
 // Pedido fictício só pra ilustrar — não vem do banco. Traz de propósito um complemento
 // COM preço, uma observação de item, observação do pedido e pagamento em dinheiro com
@@ -851,7 +852,7 @@ const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
   enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoComplemento: 'Apto 202', enderecoBairro: 'Centro', enderecoCep: '52000-000',
   formaPagamento: 'dinheiro', trocoPara: 150, pago: false, origem: 'cardapio', mesa: null,
   observacao: 'Tocar a campainha', criadoEm: '2026-07-14T20:30:00-03:00',
-  subtotal: 110, taxaEntrega: 6, desconto: 0, total: 116,
+  subtotal: 110, taxaEntrega: 6, total: 116,
   itens: [
     { quantidade: 2, nome: 'Pizza Grande', precoUnitario: 45, tamanhoNome: 'Grande', saborNome: 'Calabresa', bordaNome: 'Catupiry', massaNome: '', complementos: [{ nome: 'Bacon extra', preco: 4 }], observacao: 'Bem assada' },
     { quantidade: 1, nome: 'Coca-Cola 2L', precoUnitario: 12, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Bem gelada', preco: 0 }], observacao: '' },
@@ -910,7 +911,6 @@ function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressa
 
   L.push({ t: 'H', s: 'PAGAMENTO' })
   L.push({ t: 'P', k: 'Subtotal', v: brlR(pedido.subtotal) })
-  if (pedido.desconto > 0) L.push({ t: 'P', k: 'Desconto', v: '-' + brlR(pedido.desconto) })
   if (pedido.tipo === 'entrega') L.push({ t: 'P', k: 'Taxa de entrega', v: brlR(pedido.taxaEntrega) })
   L.push({ t: 'T', k: 'TOTAL', v: brlR(pedido.total) })
   L.push({ t: 'L', s: `Pagamento: ${pedido.formaPagamento.toUpperCase()}` })
@@ -1253,6 +1253,8 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [nextaAtivo, setNextaAtivo] = useState(false)
+
   const [wa, setWa] = useState<WaStatus | null>(null)
   const [waQr, setWaQr] = useState<string | null>(null)
   const [waPairingCode, setWaPairingCode] = useState<string | null>(null)
@@ -1283,6 +1285,13 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
   useEffect(() => {
     atualizarStatusWhatsapp()
   }, [atualizarStatusWhatsapp])
+
+  useEffect(() => {
+    fetch('/api/admin/nexta/config')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { config?: { ativo: boolean } | null } | null) => setNextaAtivo(Boolean(d?.config?.ativo)))
+      .catch(() => setNextaAtivo(false))
+  }, [])
 
   // Enquanto o QR está na tela, verifica a cada 3s se o WhatsApp já foi conectado.
   useEffect(() => {
@@ -1390,6 +1399,31 @@ function TabIntegracoes({ restauranteId, active }: { restauranteId: string; acti
               </Button>
             )}
             {waError && <p className="mt-2 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[12px] text-danger">{waError}</p>}
+          </Card>
+          {/* Atalho: a configuração completa mora em /admin/integracoes/nexta. */}
+          <Card>
+            <div className="mb-0.5 flex items-center gap-2">
+              <Truck className="h-5 w-5 flex-shrink-0 text-primary" strokeWidth={2.25} />
+              <h3 className="text-[13px] font-bold text-text-main">Nexta Delivery</h3>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-menuzia px-2 py-0.5 text-[11px] font-semibold ${
+                  nextaAtivo ? 'bg-price-bg text-price-text' : 'bg-page text-text-subtle'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${nextaAtivo ? 'bg-status-ready' : 'bg-text-subtle'}`} />
+                {nextaAtivo ? 'Conectado' : 'Inativo'}
+              </span>
+            </div>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+              Rede de motoboys terceirizada. Com a integração ativa, o Nexta vira uma opção de entregador no despacho, com preço e
+              tempo de coleta cotados na hora.
+            </p>
+            <Link
+              href="/admin/integracoes/nexta"
+              className="inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:border-primary hover:text-primary"
+            >
+              Configurar
+            </Link>
           </Card>
           <Card>
             <div className="mb-0.5 flex items-center gap-2">

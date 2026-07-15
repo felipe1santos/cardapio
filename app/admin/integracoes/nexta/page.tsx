@@ -1,11 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Check, Copy, Link2, Plug, Truck } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Check, Copy, Link2, Plug, RefreshCw, Truck } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import type { NextaConfigPublica } from '@/lib/queries/nexta'
+import { getBrowserSupabase } from '@/lib/supabase/client'
+import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { motivoRejeicaoTexto, nextaEntregaAtiva, nextaEventoTexto, nextaEventoTom } from '@/lib/nexta-eventos'
+import { listarNextaEntregasDetalhadas, type NextaConfigPublica, type NextaEntregaDetalhada } from '@/lib/queries/nexta'
 
 type SubNav = 'nexta'
 
@@ -87,6 +91,36 @@ function formDaConfig(c: NextaConfigPublica): Form {
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
 
+type Periodo = 'hoje' | '7d' | '30d'
+
+const PERIODOS: { id: Periodo; label: string }[] = [
+  { id: 'hoje', label: 'Hoje' },
+  { id: '7d', label: '7 dias' },
+  { id: '30d', label: '30 dias' },
+]
+
+function desdeDoPeriodo(periodo: Periodo): string {
+  if (periodo === 'hoje') {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
+  }
+  return new Date(Date.now() - (periodo === '7d' ? 7 : 30) * 24 * 3600 * 1000).toISOString()
+}
+
+function dataHora(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+/** Número grande + rótulo, no padrão dos cards do Dashboard. */
+function Metrica({ valor, label, tom }: { valor: string; label: string; tom?: 'preco' }) {
+  return (
+    <div className="rounded-menuzia border border-border bg-white p-3.5">
+      <div className={`text-2xl font-bold leading-none ${tom === 'preco' ? 'text-price-text' : 'text-text-main'}`}>{valor}</div>
+      <div className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
+    </div>
+  )
+}
+
 const inputCls = 'w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary'
 const labelCls = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle'
 
@@ -139,6 +173,13 @@ export default function IntegracaoNextaPage() {
   const [testando, setTestando] = useState(false)
   const [teste, setTeste] = useState<{ ok: boolean; preco?: number; erro?: string } | null>(null)
 
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  const [entregas, setEntregas] = useState<NextaEntregaDetalhada[]>([])
+  const [periodo, setPeriodo] = useState<Periodo>('hoje')
+  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'ativas' | 'concluidas' | 'canceladas'>('todos')
+  const [atualizando, setAtualizando] = useState<string | null>(null)
+
   const carregar = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/nexta/config')
@@ -160,6 +201,84 @@ export default function IntegracaoNextaPage() {
   useEffect(() => {
     carregar()
   }, [carregar])
+
+  const carregarEntregas = useCallback(
+    async (id: string, p: Periodo) => {
+      try {
+        setEntregas(await listarNextaEntregasDetalhadas(supabase, id, desdeDoPeriodo(p)))
+      } catch {
+        /* monitor é informativo — não vale derrubar a tela de config por causa dele */
+      }
+    },
+    [supabase]
+  )
+
+  useEffect(() => {
+    let ativo = true
+    ;(async () => {
+      const id = await buscarRestauranteIdDoUsuario(supabase)
+      if (!ativo || !id) return
+      setRestauranteId(id)
+      await carregarEntregas(id, periodo)
+
+      // Mesmo realtime do despacho: o monitor reflete o webhook na hora.
+      const canal = supabase
+        .channel(`nexta-monitor-${id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${id}` }, () =>
+          carregarEntregas(id, periodo)
+        )
+        .subscribe()
+      return () => {
+        supabase.removeChannel(canal)
+      }
+    })()
+    return () => {
+      ativo = false
+    }
+  }, [supabase, periodo, carregarEntregas])
+
+  const metricas = useMemo(() => {
+    const concluidas = entregas.filter((e) => e.status === 'ORDER_DELIVERED' || e.status === 'DELIVERY_FINISHED')
+    const perdidas = entregas.filter((e) => e.status === 'CANCELLED' || e.status === 'REJECTED')
+    // Custo real = o que foi efetivamente rodado. Corrida recusada não gera fatura, e
+    // somá-la inflaria o custo que o lojista vê.
+    const comCusto = entregas.filter((e) => e.preco !== null && e.status !== 'REJECTED')
+    const custoTotal = comCusto.reduce((s, e) => s + (e.preco ?? 0), 0)
+    const coletas = entregas.map((e) => e.minutosAteColeta).filter((m): m is number => m !== null)
+    return {
+      solicitadas: entregas.length,
+      concluidas: concluidas.length,
+      perdidas: perdidas.length,
+      custoTotal,
+      custoMedio: comCusto.length > 0 ? custoTotal / comCusto.length : 0,
+      minutosColeta: coletas.length > 0 ? coletas.reduce((s, m) => s + m, 0) / coletas.length : null,
+    }
+  }, [entregas])
+
+  const entregasFiltradas = useMemo(
+    () =>
+      entregas.filter((e) => {
+        if (filtroStatus === 'ativas') return nextaEntregaAtiva(e.status)
+        if (filtroStatus === 'concluidas') return e.status === 'ORDER_DELIVERED' || e.status === 'DELIVERY_FINISHED'
+        if (filtroStatus === 'canceladas') return e.status === 'CANCELLED' || e.status === 'REJECTED'
+        return true
+      }),
+    [entregas, filtroStatus]
+  )
+
+  async function atualizarEntrega(pedidoId: string) {
+    setAtualizando(pedidoId)
+    try {
+      await fetch('/api/admin/nexta/reconciliar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId }),
+      })
+      if (restauranteId) await carregarEntregas(restauranteId, periodo)
+    } finally {
+      setAtualizando(null)
+    }
+  }
 
   function set<K extends keyof Form>(key: K, valor: Form[K]) {
     setForm((f) => ({ ...f, [key]: valor }))
@@ -253,7 +372,7 @@ export default function IntegracaoNextaPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-6">
-          <div className="max-w-2xl space-y-6">
+          <div className="max-w-4xl space-y-6">
             {erro && <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{erro}</div>}
 
             {/* Status da conexão + credenciais */}
@@ -516,6 +635,121 @@ export default function IntegracaoNextaPage() {
                   {salvando ? 'Salvando…' : 'Salvar preferências'}
                 </Button>
               </div>
+            </Card>
+
+            {/* Métricas */}
+            <Card>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-[13px] font-bold text-text-main">Entregas pelo Nexta</h3>
+                  <p className="mt-0.5 text-[12px] text-text-subtle">Números apurados pelas corridas registradas aqui.</p>
+                </div>
+                <div className="flex gap-0.5 rounded-menuzia border border-border p-0.5">
+                  {PERIODOS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPeriodo(p.id)}
+                      className={`rounded-menuzia px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                        periodo === p.id ? 'bg-primary text-white' : 'text-text-subtle hover:text-text-main'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <Metrica valor={String(metricas.solicitadas)} label="Solicitadas" />
+                <Metrica valor={String(metricas.concluidas)} label="Concluídas" />
+                <Metrica valor={String(metricas.perdidas)} label="Canceladas/recusadas" />
+                <Metrica valor={brl(metricas.custoTotal)} label="Custo total" tom="preco" />
+                <Metrica valor={brl(metricas.custoMedio)} label="Custo médio" tom="preco" />
+                <Metrica
+                  valor={metricas.minutosColeta === null ? '—' : `${Math.round(metricas.minutosColeta)} min`}
+                  label="Tempo médio até a coleta"
+                />
+              </div>
+            </Card>
+
+            {/* Monitor */}
+            <Card className="!p-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4.5">
+                <div>
+                  <h3 className="text-[13px] font-bold text-text-main">Monitor de entregas</h3>
+                  <p className="mt-0.5 text-[12px] text-text-subtle">Atualiza em tempo real conforme o Nexta avisa.</p>
+                </div>
+                <select
+                  value={filtroStatus}
+                  onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)}
+                  className="rounded-menuzia border border-border px-2.5 py-1.5 font-sans text-[12px] outline-none focus:border-primary"
+                >
+                  <option value="todos">Todos os status</option>
+                  <option value="ativas">Em andamento</option>
+                  <option value="concluidas">Concluídas</option>
+                  <option value="canceladas">Canceladas/recusadas</option>
+                </select>
+              </div>
+              {entregasFiltradas.length === 0 ? (
+                <div className="p-8 text-center text-sm text-text-subtle">
+                  {entregas.length === 0 ? 'Nenhuma entrega solicitada ao Nexta neste período.' : 'Nenhuma entrega com esse filtro.'}
+                </div>
+              ) : (
+                // A tabela rola sozinha em telas estreitas — a página nunca rola pro lado.
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-[13px]">
+                    <thead>
+                      <tr className="border-b border-border text-[10px] font-semibold uppercase tracking-wide text-text-subtle">
+                        <th className="px-4.5 py-2.5">Pedido</th>
+                        <th className="px-3 py-2.5">Data/hora</th>
+                        <th className="px-3 py-2.5">Status</th>
+                        <th className="px-3 py-2.5">Entregador</th>
+                        <th className="px-3 py-2.5 text-right">Corrida</th>
+                        <th className="px-4.5 py-2.5 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {entregasFiltradas.map((e) => (
+                        <tr key={e.id} className="hover:bg-page/60">
+                          <td className="px-4.5 py-2.5 font-bold">{e.pedidoNumero === null ? '—' : `#${e.pedidoNumero}`}</td>
+                          <td className="px-3 py-2.5 text-text-subtle">{dataHora(e.criadoEm)}</td>
+                          <td className="px-3 py-2.5">
+                            <Badge tone={nextaEventoTom(e.status)}>{nextaEventoTexto(e.status)}</Badge>
+                            {e.status === 'REJECTED' && (
+                              <div className="mt-1 text-[11px] text-text-subtle">{motivoRejeicaoTexto(e.rejeicaoMotivo)}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">{e.entregadorNome || <span className="text-text-subtle">—</span>}</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-price-text">{e.preco === null ? '—' : brl(e.preco)}</td>
+                          <td className="px-4.5 py-2.5">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {nextaEntregaAtiva(e.status) && (
+                                <button
+                                  onClick={() => atualizarEntrega(e.pedidoId)}
+                                  disabled={atualizando === e.pedidoId}
+                                  title="Buscar o status atual no Nexta"
+                                  className="flex h-7 w-7 items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-50"
+                                >
+                                  <RefreshCw className={`h-3.5 w-3.5 ${atualizando === e.pedidoId ? 'animate-spin' : ''}`} />
+                                </button>
+                              )}
+                              {e.trackingUrl && (
+                                <a
+                                  href={e.trackingUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex h-7 items-center rounded-menuzia border border-border px-2 text-[11px] font-semibold uppercase text-text-subtle hover:border-primary hover:text-primary"
+                                >
+                                  Rastrear
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
 
             {/* Painel do Nexta */}

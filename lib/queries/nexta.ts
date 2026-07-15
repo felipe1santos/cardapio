@@ -315,6 +315,58 @@ export async function buscarNextaEntregaAtivaDoPedido(supabase: SupabaseClient, 
   return linhas.find((e) => nextaEntregaAtiva(e.status)) ?? null
 }
 
+/** Entrega + número do pedido e histórico de eventos — alimenta o monitor e as métricas. */
+export interface NextaEntregaDetalhada extends NextaEntregaLinha {
+  pedidoNumero: number | null
+  /** Quanto o Nexta levou pra coletar, em minutos. Null enquanto não coletou. */
+  minutosAteColeta: number | null
+}
+
+interface EventoRegistrado {
+  recebidoEm?: string
+  payload?: { event?: { type?: string } }
+}
+
+/**
+ * Minutos entre a solicitação e a coleta, lidos do histórico de eventos.
+ *
+ * Não existe coluna `coletado_em`: o instante da coleta é derivado do primeiro
+ * ORDER_PICKED recebido. "Primeiro" importa — o evento pode chegar repetido.
+ */
+function minutosAteColeta(criadoEm: string, eventos: unknown): number | null {
+  if (!Array.isArray(eventos)) return null
+  for (const e of eventos as EventoRegistrado[]) {
+    if (e?.payload?.event?.type !== 'ORDER_PICKED' || !e.recebidoEm) continue
+    const ms = new Date(e.recebidoEm).getTime() - new Date(criadoEm).getTime()
+    return ms > 0 ? ms / 60_000 : null
+  }
+  return null
+}
+
+export async function listarNextaEntregasDetalhadas(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  desdeISO: string
+): Promise<NextaEntregaDetalhada[]> {
+  const { data, error } = await supabase
+    .from('nexta_entregas')
+    .select(`${ENTREGA_SELECT}, eventos, pedidos ( numero )`)
+    .eq('restaurante_id', restauranteId)
+    .gte('criado_em', desdeISO)
+    .order('criado_em', { ascending: false })
+    .limit(500)
+  if (error) throw error
+
+  return ((data ?? []) as unknown as (EntregaRow & { eventos: unknown; pedidos: { numero: number } | { numero: number }[] | null })[]).map((row) => {
+    const pedido = Array.isArray(row.pedidos) ? row.pedidos[0] : row.pedidos
+    return {
+      ...mapEntrega(row),
+      pedidoNumero: pedido?.numero ?? null,
+      minutosAteColeta: minutosAteColeta(row.criado_em, row.eventos),
+    }
+  })
+}
+
 /** Localiza a entrega pelo orderId (= id da linha) — entrada do webhook. */
 export async function buscarNextaEntrega(admin: SupabaseClient, orderId: string): Promise<NextaEntregaLinha | null> {
   const { data, error } = await admin.from('nexta_entregas').select(ENTREGA_SELECT).eq('id', orderId).maybeSingle()
