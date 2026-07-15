@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { notificarPedido } from '@/lib/whatsapp'
-import { marcarPreparandoNotificado } from '@/lib/queries/pedidos'
+import { aplicarEfeitosStatusPedidoComTrava } from '@/lib/pedido-eventos'
 import type { StatusPedido } from '@/lib/queries/pedidos'
-import { processarFidelidadePedidoEntregue, reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 
 const STATUS_NOTIFICAVEIS: StatusPedido[] = ['recebido', 'preparando', 'pronto', 'em_rota', 'entregue', 'cancelado']
 
@@ -24,34 +22,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const admin = getAdminSupabase()
   try {
-    // "Em preparo" só sai uma vez por pedido (idempotente entre Kanban e cozinha).
-    if (body.status === 'preparando' && !(await marcarPreparandoNotificado(admin, id))) {
-      return NextResponse.json({ ok: true, jaNotificado: true })
-    }
-    await notificarPedido(admin, id, body.status)
-
-    // Esta rota não tem autenticação (qualquer pedidoId pode ser enviado no body). O motor de
-    // fidelidade só é inerte a abuso porque ele mesmo checa `status='entregue'` no banco antes
-    // de fazer qualquer coisa (ver marcarPedidoFidelidadeProcessado) — aqui só evitamos a query
-    // extra de restaurante_id quando nem o status pedido bate com 'entregue'.
-    if (body.status === 'entregue') {
-      const { data: pedidoRow } = await admin.from('pedidos').select('restaurante_id').eq('id', id).maybeSingle()
-      if (pedidoRow) {
-        processarFidelidadePedidoEntregue(admin, pedidoRow.restaurante_id, id).catch((err) => console.error('[fidelidade]', err))
-      }
-    }
-
-    // Mesmo raciocínio do bloco 'entregue' acima: rota sem autenticação, mas
-    // `reverterBeneficiosPedidoCancelado` só age se o pedido já estiver `cancelado` no banco
-    // (ver checagem interna) — não vira vetor de abuso.
-    if (body.status === 'cancelado') {
-      const { data: pedidoRow } = await admin.from('pedidos').select('restaurante_id').eq('id', id).maybeSingle()
-      if (pedidoRow) {
-        reverterBeneficiosPedidoCancelado(admin, pedidoRow.restaurante_id, id).catch((err) => console.error('[fidelidade]', err))
-      }
-    }
-
-    return NextResponse.json({ ok: true })
+    // WhatsApp + motor de fidelidade moram em lib/pedido-eventos.ts: o webhook do Nexta
+    // também move o status do pedido (coleta/entrega) e precisa dos mesmos efeitos.
+    // Esta rota não tem autenticação, mas os motores de fidelidade checam o status real
+    // no banco antes de agir, então não viram vetor de abuso.
+    const notificou = await aplicarEfeitosStatusPedidoComTrava(admin, id, body.status)
+    return NextResponse.json(notificou ? { ok: true } : { ok: true, jaNotificado: true })
   } catch (err) {
     console.error('[whatsapp] erro ao notificar pedido', err)
     return NextResponse.json({ error: 'Erro ao notificar' }, { status: 500 })

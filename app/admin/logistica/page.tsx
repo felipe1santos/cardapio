@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap } from 'lucide-react'
+import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +10,9 @@ import { RouteMap } from '@/components/maps/route-map'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
-import { useCotacoesNexta, type CotacaoNextaEstado } from '@/lib/nexta-cotacao-cache'
+import { invalidarCotacaoNexta, useCotacoesNexta, type CotacaoNextaEstado } from '@/lib/nexta-cotacao-cache'
+import { motivoRejeicaoTexto, nextaEntregaAtiva, nextaEventoTexto } from '@/lib/nexta-eventos'
+import { listarNextaEntregas, type NextaEntregaLinha } from '@/lib/queries/nexta'
 import {
   atribuirEntregador,
   atribuirEntregadorEmLote,
@@ -83,6 +85,50 @@ const STAT_TINT: Record<'slate' | 'orange' | 'blue' | 'primary', { box: string; 
   primary: { box: 'bg-primary/10 text-primary', value: '' },
 }
 
+/** Etapas mostradas na timeline do card "Com o Nexta", na ordem do ciclo. */
+const TIMELINE_NEXTA: { status: string; label: string }[] = [
+  { status: 'PENDING', label: 'Aguardando aceite' },
+  { status: 'ACCEPTED', label: 'Aceito' },
+  { status: 'PICKUP_ONGOING', label: 'Indo coletar' },
+  { status: 'ARRIVED_AT_MERCHANT', label: 'Na loja' },
+]
+
+/**
+ * Alerta sonoro dos marcos do Nexta. Mesmo padrão de Web Audio do Kanban
+ * (`playNewOrderSound`), com timbres distintos por tipo de evento:
+ * subindo = entregador vindo buscar; descendo = deu problema.
+ */
+function playNextaSound(tipo: 'indo_coletar' | 'aviso' | 'erro') {
+  try {
+    const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    const ctx = new AudioCtx()
+    const beep = (freq: number, start: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + start)
+      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + start + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + 0.25)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(ctx.currentTime + start)
+      osc.stop(ctx.currentTime + start + 0.25)
+    }
+    const notas: Record<typeof tipo, [number, number]> = {
+      indo_coletar: [660, 990], // sobe: o motoboy está vindo
+      aviso: [880, 880],
+      erro: [660, 440], // desce: rejeição/cancelamento
+    }
+    const [a, b] = notas[tipo]
+    beep(a, 0)
+    beep(b, 0.18)
+    setTimeout(() => ctx.close(), 600)
+  } catch {
+    /* navegador sem suporte a Web Audio — silencioso */
+  }
+}
+
 /**
  * Chip de cotação do Nexta no card do pedido. Falhar em cotar não pode atrapalhar o
  * despacho próprio: vira um chip cinza discreto com o motivo no tooltip.
@@ -113,6 +159,35 @@ function ChipNexta({ estado }: { estado: CotacaoNextaEstado | undefined }) {
       )}
     </span>
   )
+}
+
+/** Primeira opção do dropdown "Atribuir entregador": o Nexta, como um entregador virtual. */
+function OpcaoNexta({ rotulo, detalhe, onClick, disabled }: { rotulo: string; detalhe: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-center justify-between gap-2 rounded-menuzia border-l-2 border-l-primary px-3 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page disabled:opacity-60"
+    >
+      <span className="flex items-center gap-1.5 font-semibold">
+        <Zap className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} /> {rotulo}
+      </span>
+      <span className="text-xs text-text-subtle">{detalhe}</span>
+    </button>
+  )
+}
+
+/** Preço + ETA de uma cotação, no lado direito da opção do dropdown. */
+function detalheCotacao(cotacao: CotacaoNextaEstado | undefined): React.ReactNode {
+  if (cotacao?.status === 'ok') {
+    return (
+      <>
+        <span className="font-bold text-price-text">{brl(cotacao.preco)}</span>
+        {cotacao.etaColetaMin !== null && ` · coleta ~${Math.round(cotacao.etaColetaMin)} min`}
+      </>
+    )
+  }
+  return cotacao?.status === 'erro' ? 'sem cotação' : 'cotando…'
 }
 
 /** Card de métrica da Logística — caixa de ícone colorida + valor, no mesmo padrão do Kanban. */
@@ -171,20 +246,30 @@ export default function LogisticaPage() {
   const [declarado, setDeclarado] = useState<Record<string, string>>({})
 
   const [nextaAtivo, setNextaAtivo] = useState(false)
+  const [nextaEntregas, setNextaEntregas] = useState<NextaEntregaLinha[]>([])
+  const [nextaBusy, setNextaBusy] = useState<string | null>(null)
+  const [cancelandoNexta, setCancelandoNexta] = useState<string | null>(null)
+  const [somNexta, setSomNexta] = useState(false)
+  // Status já visto por entrega — é a comparação com ele que decide se toca o som.
+  const statusNextaVisto = useRef<Map<string, string>>(new Map())
 
   const refetch = useCallback(
     async (id: string) => {
       try {
-        const [pedidos, entregadores, finalizados, aberto] = await Promise.all([
+        const [pedidos, entregadores, finalizados, aberto, entregasNexta] = await Promise.all([
           listarPedidosLogistica(supabase, id),
           listarEntregadores(supabase, id),
           listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
           buscarDespachoAberto(supabase, id),
+          // Janela curta: além das entregas em andamento, precisamos das recém-recusadas
+          // pra avisar o lojista por que aquele pedido voltou pra fila.
+          listarNextaEntregas(supabase, id, new Date(Date.now() - 12 * 3600 * 1000).toISOString()).catch(() => []),
         ])
         setOrders(pedidos)
         setDrivers(entregadores)
         setConcluidos(finalizados)
         setDespachoAberto(aberto)
+        setNextaEntregas(entregasNexta)
       } catch {
         setError('Não foi possível carregar a logística.')
       }
@@ -210,6 +295,9 @@ export default function LogisticaPage() {
         .channel(`logistica-${id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
+        // Eventos do Nexta chegam por webhook e viram UPDATE nesta tabela — é assim que
+        // "entregador a caminho" aparece na tela sem ninguém dar refresh.
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
         .subscribe()
 
       return () => {
@@ -254,13 +342,206 @@ export default function LogisticaPage() {
   }, [restauranteId, refetch])
 
   const available = drivers.filter((d) => d.status === 'online')
-  const unassigned = useMemo(() => orders.filter((o) => o.status === 'pronto' && !o.entregadorId), [orders])
+  /** Prontos sem entregador próprio — inclui os que já foram mandados pro Nexta. */
+  const unassignedTodos = useMemo(() => orders.filter((o) => o.status === 'pronto' && !o.entregadorId), [orders])
   const inRoute = orders.filter((o) => o.status === 'em_rota')
+
+  // Entrega ativa do Nexta por pedido — é o que tira o pedido da fila de despacho.
+  const nextaPorPedido = useMemo(() => {
+    const mapa = new Map<string, NextaEntregaLinha>()
+    for (const e of nextaEntregas) if (nextaEntregaAtiva(e.status)) mapa.set(e.pedidoId, e)
+    return mapa
+  }, [nextaEntregas])
+
+  /** Pedidos "Com o Nexta": solicitados e ainda não coletados (depois disso viram "Em rota"). */
+  const comNexta = useMemo(
+    () => unassignedTodos.filter((o) => nextaPorPedido.has(o.id)),
+    [unassignedTodos, nextaPorPedido]
+  )
+
+  /**
+   * Última tentativa recusada/cancelada de cada pedido que voltou pra fila. Sem isso o
+   * pedido reaparece no despacho sem explicação nenhuma.
+   */
+  const falhasNexta = useMemo(() => {
+    const mapa = new Map<string, NextaEntregaLinha>()
+    for (const e of nextaEntregas) {
+      if (e.status !== 'REJECTED' && e.status !== 'CANCELLED') continue
+      if (nextaPorPedido.has(e.pedidoId)) continue // já tem tentativa nova rodando
+      const atual = mapa.get(e.pedidoId)
+      if (!atual || e.atualizadoEm > atual.atualizadoEm) mapa.set(e.pedidoId, e)
+    }
+    return mapa
+  }, [nextaEntregas, nextaPorPedido])
+
+  /** Fila de despacho de verdade: tira quem já está com o Nexta (tem seção própria). */
+  const unassigned = useMemo(() => unassignedTodos.filter((o) => !nextaPorPedido.has(o.id)), [unassignedTodos, nextaPorPedido])
 
   // Cotações só dos pedidos que estão de fato esperando despacho, e só quando o lojista
   // está olhando pra eles — não faz sentido cotar em segundo plano na aba Concluídos.
   const idsParaCotar = useMemo(() => (tab === 'despacho' ? unassigned.map((o) => o.id) : []), [tab, unassigned])
   const cotacoesNexta = useCotacoesNexta(idsParaCotar, nextaAtivo)
+
+  /** Soma das cotações dos pedidos marcados — o custo do despacho em lote pelo Nexta. */
+  const totalNextaSelecionado = useMemo(() => {
+    let total = 0
+    let cotados = 0
+    for (const id of selected) {
+      const c = cotacoesNexta[id]
+      if (c?.status === 'ok') {
+        total += c.preco
+        cotados++
+      }
+    }
+    return { total, cotados }
+  }, [selected, cotacoesNexta])
+
+  // Pedido que saiu da fila (foi pro Nexta, ou um motoboy pegou pelo app) não pode
+  // continuar marcado: o despacho em lote tentaria atribuí-lo de novo.
+  useEffect(() => {
+    setSelected((prev) => {
+      const validos = new Set(unassigned.map((o) => o.id))
+      if ([...prev].every((id) => validos.has(id))) return prev
+      return new Set([...prev].filter((id) => validos.has(id)))
+    })
+  }, [unassigned])
+
+  useEffect(() => {
+    setSomNexta(localStorage.getItem('menuzia:logistica-som') !== 'off')
+  }, [])
+
+  function alternarSomNexta() {
+    setSomNexta((atual) => {
+      const proximo = !atual
+      localStorage.setItem('menuzia:logistica-som', proximo ? 'on' : 'off')
+      return proximo
+    })
+  }
+
+  // Som nos marcos do Nexta. Compara com o status já visto pra tocar uma vez por
+  // transição — os eventos de movimento repetem sozinhos e apitariam sem parar.
+  useEffect(() => {
+    const vistos = statusNextaVisto.current
+    const primeiraCarga = vistos.size === 0
+    for (const e of nextaEntregas) {
+      const antes = vistos.get(e.id)
+      vistos.set(e.id, e.status)
+      // Na primeira carga da página tudo é "novo" — apitar aqui seria só barulho.
+      if (primeiraCarga || antes === undefined || antes === e.status || !somNexta) continue
+      if (e.status === 'PICKUP_ONGOING') playNextaSound('indo_coletar')
+      else if (e.status === 'ARRIVED_AT_MERCHANT' || e.status === 'RETURNING_TO_MERCHANT' || e.status === 'RETURNED_TO_MERCHANT') playNextaSound('aviso')
+      else if (e.status === 'REJECTED' || e.status === 'CANCELLED') playNextaSound('erro')
+    }
+  }, [nextaEntregas, somNexta])
+
+  /** Manda um pedido pro Nexta. O servidor recota na hora — o preço do chip é só vitrine. */
+  async function despacharNexta(orderId: string): Promise<boolean> {
+    setAssigning(null)
+    setNextaBusy(orderId)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/nexta/despachar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId: orderId }),
+      })
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Falha ao enviar ao Nexta.')
+      invalidarCotacaoNexta(orderId)
+      if (restauranteId) await refetch(restauranteId)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível enviar o pedido ao Nexta.')
+      return false
+    } finally {
+      setNextaBusy(null)
+    }
+  }
+
+  /** Despacho em lote: 1 corrida por pedido, sequencial. Sucesso parcial é reportado. */
+  async function despacharNextaEmLote() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    setBulkAssigning(false)
+    setNextaBusy('lote')
+    setError(null)
+    const falhas: string[] = []
+    for (const id of ids) {
+      try {
+        const res = await fetch('/api/admin/nexta/despachar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pedidoId: id }),
+        })
+        if (!res.ok) throw new Error()
+        invalidarCotacaoNexta(id)
+        setSelected((prev) => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+      } catch {
+        falhas.push(orders.find((o) => o.id === id)?.numero.toString() ?? id)
+      }
+    }
+    setNextaBusy(null)
+    if (falhas.length > 0) setError(`Não foi possível enviar ao Nexta: pedido(s) #${falhas.join(', #')}. Os demais foram enviados.`)
+    if (restauranteId) await refetch(restauranteId)
+  }
+
+  async function avisarProntoNexta(orderId: string) {
+    setNextaBusy(orderId)
+    try {
+      const res = await fetch('/api/admin/nexta/pronto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId: orderId }),
+      })
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Falha ao avisar o Nexta.')
+      if (restauranteId) await refetch(restauranteId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível avisar o Nexta.')
+    } finally {
+      setNextaBusy(null)
+    }
+  }
+
+  async function cancelarNexta(orderId: string) {
+    setNextaBusy(orderId)
+    setCancelandoNexta(null)
+    try {
+      const res = await fetch('/api/admin/nexta/cancelar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId: orderId, reason: 'PROBLEM_AT_MERCHANT', action: 'CANCEL_DELIVERY' }),
+      })
+      const data = (await res.json()) as { error?: string; additionalCharges?: boolean }
+      if (!res.ok) throw new Error(data.error ?? 'Falha ao cancelar no Nexta.')
+      if (data.additionalCharges) setError('Corrida cancelada — o Nexta informou que este cancelamento tem cobrança adicional.')
+      if (restauranteId) await refetch(restauranteId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível cancelar no Nexta.')
+    } finally {
+      setNextaBusy(null)
+    }
+  }
+
+  async function reconciliarNexta(orderId: string) {
+    setNextaBusy(orderId)
+    try {
+      await fetch('/api/admin/nexta/reconciliar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId: orderId }),
+      })
+      if (restauranteId) await refetch(restauranteId)
+    } catch {
+      setError('Não foi possível atualizar a entrega no Nexta.')
+    } finally {
+      setNextaBusy(null)
+    }
+  }
   const locationDriver = drivers.find((d) => d.id === locationDriverId) ?? null
   const profileDriver = drivers.find((d) => d.id === profileDriverId) ?? null
   const locationDriverStops = locationDriver
@@ -705,7 +986,29 @@ export default function LogisticaPage() {
                       Atribuir {selected.size} selecionado{selected.size > 1 ? 's' : ''}
                     </Button>
                     {bulkAssigning && (
-                      <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[200px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
+                      <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[240px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
+                        {nextaAtivo && (
+                          <>
+                            {/* Uma corrida por pedido: quem combina entregas é o próprio
+                                Nexta (mandamos canCombine), não a gente. */}
+                            <OpcaoNexta
+                              rotulo={`Nexta — ${selected.size} corrida${selected.size > 1 ? 's' : ''}`}
+                              detalhe={
+                                totalNextaSelecionado.cotados === 0
+                                  ? 'cotando…'
+                                  : <>
+                                      <span className="font-bold text-price-text">{brl(totalNextaSelecionado.total)}</span>
+                                      {totalNextaSelecionado.cotados < selected.size && ` · ${totalNextaSelecionado.cotados} de ${selected.size} cotados`}
+                                    </>
+                              }
+                              onClick={despacharNextaEmLote}
+                              disabled={nextaBusy !== null}
+                            />
+                            <div className="mt-1 border-t border-border px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">
+                              Meus entregadores
+                            </div>
+                          </>
+                        )}
                         {available.length === 0 && <div className="px-3 py-2 text-xs text-text-subtle">Nenhum entregador disponível</div>}
                         {available.map((driver) => (
                           <button
@@ -754,6 +1057,15 @@ export default function LogisticaPage() {
                           <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
                           {nextaAtivo && <ChipNexta estado={cotacoesNexta[order.id]} />}
                         </div>
+                        {/* Voltou pra fila por causa do Nexta: o lojista precisa saber por quê. */}
+                        {falhasNexta.has(order.id) && (
+                          <div className="mt-2 inline-flex items-center gap-1.5 rounded-menuzia bg-danger-bg px-2 py-1 text-[11px] font-semibold text-danger">
+                            <Zap className="h-3 w-3" />
+                            {falhasNexta.get(order.id)!.status === 'REJECTED'
+                              ? `Nexta recusou: ${motivoRejeicaoTexto(falhasNexta.get(order.id)!.rejeicaoMotivo)}`
+                              : 'Corrida do Nexta cancelada'}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="relative">
@@ -761,7 +1073,20 @@ export default function LogisticaPage() {
                         Atribuir entregador
                       </Button>
                       {assigning === order.id && (
-                        <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[200px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
+                        <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[240px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
+                          {nextaAtivo && (
+                            <>
+                              <OpcaoNexta
+                                rotulo="Nexta"
+                                detalhe={detalheCotacao(cotacoesNexta[order.id])}
+                                onClick={() => despacharNexta(order.id)}
+                                disabled={nextaBusy !== null}
+                              />
+                              <div className="mt-1 border-t border-border px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">
+                                Meus entregadores
+                              </div>
+                            </>
+                          )}
                           {available.length === 0 && <div className="px-3 py-2 text-xs text-text-subtle">Nenhum entregador disponível</div>}
                           {available.map((driver) => (
                             <button
@@ -780,6 +1105,140 @@ export default function LogisticaPage() {
                 ))}
               </div>
             </div>
+
+            {/* Com o Nexta: solicitado, ainda não coletado. Depois da coleta vai pra "Em rota". */}
+            {nextaAtivo && comNexta.length > 0 && (
+              <div className="overflow-hidden rounded-menuzia border border-border bg-white">
+                <div className="flex items-center justify-between bg-primary px-4 py-3 text-white">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4" strokeWidth={2.5} />
+                    <h3 className="text-sm font-bold">Com o Nexta</h3>
+                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{comNexta.length}</span>
+                  </div>
+                  <button
+                    onClick={alternarSomNexta}
+                    title={somNexta ? 'Desligar o alerta sonoro do Nexta' : 'Ligar o alerta sonoro do Nexta'}
+                    className={`inline-flex items-center gap-1.5 rounded-menuzia px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors ${
+                      somNexta ? 'bg-white text-primary hover:bg-white/90' : 'bg-black/20 text-white hover:bg-black/30'
+                    }`}
+                  >
+                    {somNexta ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />} Som
+                  </button>
+                </div>
+                <div className="divide-y divide-border">
+                  {comNexta.map((order) => {
+                    const entrega = nextaPorPedido.get(order.id)!
+                    const etapaAtual = TIMELINE_NEXTA.findIndex((e) => e.status === entrega.status)
+                    const ocupado = nextaBusy === order.id
+                    return (
+                      <div key={order.id} className="border-l-[3px] border-l-primary bg-primary/5 p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold">#{order.numero}</span>
+                              <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
+                              <span className="inline-flex items-center gap-1 rounded-menuzia bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+                                <Zap className="h-3 w-3" /> Nexta
+                              </span>
+                              <Badge tone="alert">{nextaEventoTexto(entrega.status)}</Badge>
+                            </div>
+                            <div className="mb-2 text-xs text-text-subtle">{endereco(order)}</div>
+
+                            {/* Timeline compacta: cada etapa acesa até a atual. Etapa
+                                desconhecida (enum novo) some com a timeline, não quebra. */}
+                            {etapaAtual >= 0 && (
+                              <div className="mb-2 flex flex-wrap items-center gap-1">
+                                {TIMELINE_NEXTA.map((etapa, i) => (
+                                  <span
+                                    key={etapa.status}
+                                    className={`rounded-menuzia px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                      i <= etapaAtual ? 'bg-primary text-white' : 'bg-page text-text-subtle'
+                                    }`}
+                                  >
+                                    {etapa.label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+                              {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
+                                <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
+                              )}
+                              <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                              {entrega.preco !== null && (
+                                <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold text-price-text">
+                                  Corrida {brl(entrega.preco)}
+                                </span>
+                              )}
+                            </div>
+
+                            {entrega.entregadorNome && (
+                              <div className="mt-2.5 flex items-center gap-2">
+                                {entrega.entregadorFotoUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={entrega.entregadorFotoUrl} alt={entrega.entregadorNome} className="h-8 w-8 rounded-full border border-border object-cover" />
+                                ) : (
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-xs font-bold text-text-subtle">
+                                    {entrega.entregadorNome.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <span className="text-[13px] font-semibold">{entrega.entregadorNome}</span>
+                                {entrega.entregadorTelefone && (
+                                  <a href={`tel:${entrega.entregadorTelefone}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                    <Phone className="h-3.5 w-3.5" /> {entrega.entregadorTelefone}
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-shrink-0 flex-wrap gap-2">
+                            <Button variant="primary" onClick={() => avisarProntoNexta(order.id)} disabled={ocupado}>
+                              Pronto p/ coleta
+                            </Button>
+                            <Button variant="outline" onClick={() => reconciliarNexta(order.id)} disabled={ocupado} title="Buscar o status atual no Nexta">
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                            {entrega.trackingUrl && (
+                              <a
+                                href={entrega.trackingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main hover:border-primary hover:text-primary"
+                              >
+                                Rastrear
+                              </a>
+                            )}
+                            <Button variant="ghost" className="text-danger hover:bg-danger-bg" onClick={() => setCancelandoNexta(order.id)} disabled={ocupado}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+
+                        {cancelandoNexta === order.id && (
+                          <div className="mt-3 rounded-menuzia border border-danger bg-danger-bg p-3">
+                            <p className="mb-2.5 text-[12px] font-medium text-danger">
+                              Cancelar a corrida do pedido #{order.numero} no Nexta? Dependendo do estágio, o Nexta pode cobrar pelo
+                              cancelamento — avisamos aqui se houver cobrança. O pedido volta para a fila de despacho.
+                            </p>
+                            <div className="flex gap-2">
+                              <Button variant="secondary" onClick={() => setCancelandoNexta(null)}>
+                                Voltar
+                              </Button>
+                              <Button variant="outline" className="border-danger text-danger hover:bg-white" onClick={() => cancelarNexta(order.id)} disabled={ocupado}>
+                                {ocupado ? 'Cancelando…' : 'Cancelar corrida'}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="overflow-hidden rounded-menuzia border border-border bg-white">
               <div className="flex items-center justify-between bg-status-preparing px-4 py-3 text-white">
@@ -802,9 +1261,18 @@ export default function LogisticaPage() {
                         <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
                         <Badge tone="preparing">Saiu para entrega</Badge>
                         <ArrowRight className="h-4 w-4 text-status-preparing" strokeWidth={2.5} />
-                        <span className="inline-flex items-center gap-1 rounded-full bg-status-preparing/10 px-2 py-0.5 text-[12px] font-semibold text-status-preparing">
-                          <Bike className="h-3.5 w-3.5" /> {driverName(order.entregadorId)}
-                        </span>
+                        {/* Entrega do Nexta não tem entregador próprio: quem aparece é o
+                            motoboy que o webhook informou. */}
+                        {nextaPorPedido.has(order.id) ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[12px] font-semibold text-primary">
+                            <Zap className="h-3.5 w-3.5" /> Nexta
+                            {nextaPorPedido.get(order.id)!.entregadorNome && ` · ${nextaPorPedido.get(order.id)!.entregadorNome}`}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-status-preparing/10 px-2 py-0.5 text-[12px] font-semibold text-status-preparing">
+                            <Bike className="h-3.5 w-3.5" /> {driverName(order.entregadorId)}
+                          </span>
+                        )}
                       </div>
                       <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
                       <div className="flex flex-wrap items-center gap-2">
