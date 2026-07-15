@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight } from 'lucide-react'
+import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import { RouteMap } from '@/components/maps/route-map'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
+import { useCotacoesNexta, type CotacaoNextaEstado } from '@/lib/nexta-cotacao-cache'
 import {
   atribuirEntregador,
   atribuirEntregadorEmLote,
@@ -82,6 +83,38 @@ const STAT_TINT: Record<'slate' | 'orange' | 'blue' | 'primary', { box: string; 
   primary: { box: 'bg-primary/10 text-primary', value: '' },
 }
 
+/**
+ * Chip de cotação do Nexta no card do pedido. Falhar em cotar não pode atrapalhar o
+ * despacho próprio: vira um chip cinza discreto com o motivo no tooltip.
+ */
+function ChipNexta({ estado }: { estado: CotacaoNextaEstado | undefined }) {
+  if (!estado || estado.status === 'carregando') {
+    return (
+      <span className="inline-flex animate-pulse items-center gap-1.5 rounded-menuzia bg-page px-2 py-0.5 text-[11px] font-semibold text-text-subtle">
+        <Zap className="h-3 w-3" /> Cotando Nexta…
+      </span>
+    )
+  }
+  if (estado.status === 'erro') {
+    return (
+      <span
+        title={estado.erro}
+        className="inline-flex cursor-help items-center gap-1.5 rounded-menuzia bg-page px-2 py-0.5 text-[11px] font-semibold text-text-subtle"
+      >
+        <Zap className="h-3 w-3" /> Nexta indisponível
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold text-price-text">
+      <Zap className="h-3 w-3" strokeWidth={2.5} /> Nexta {brl(estado.preco)}
+      {estado.etaColetaMin !== null && (
+        <span className="font-medium text-text-subtle">· coleta ~{Math.round(estado.etaColetaMin)} min</span>
+      )}
+    </span>
+  )
+}
+
 /** Card de métrica da Logística — caixa de ícone colorida + valor, no mesmo padrão do Kanban. */
 function StatCard({ tint, value, label, icon }: { tint: keyof typeof STAT_TINT; value: React.ReactNode; label: string; icon: React.ReactNode }) {
   const t = STAT_TINT[tint]
@@ -137,6 +170,8 @@ export default function LogisticaPage() {
   const [resumo, setResumo] = useState<ResumoCaixa[]>([])
   const [declarado, setDeclarado] = useState<Record<string, string>>({})
 
+  const [nextaAtivo, setNextaAtivo] = useState(false)
+
   const refetch = useCallback(
     async (id: string) => {
       try {
@@ -191,6 +226,15 @@ export default function LogisticaPage() {
     if (inicial) setTab(inicial)
   }, [])
 
+  // A config do Nexta mora numa tabela sem RLS pra `authenticated` (guarda o segredo),
+  // então quem responde é o route handler.
+  useEffect(() => {
+    fetch('/api/admin/nexta/config')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { config?: { ativo: boolean } | null } | null) => setNextaAtivo(Boolean(d?.config?.ativo)))
+      .catch(() => setNextaAtivo(false))
+  }, [])
+
   function irParaTab(proxima: Tab) {
     setTab(proxima)
     const url = new URL(window.location.href)
@@ -210,8 +254,13 @@ export default function LogisticaPage() {
   }, [restauranteId, refetch])
 
   const available = drivers.filter((d) => d.status === 'online')
-  const unassigned = orders.filter((o) => o.status === 'pronto' && !o.entregadorId)
+  const unassigned = useMemo(() => orders.filter((o) => o.status === 'pronto' && !o.entregadorId), [orders])
   const inRoute = orders.filter((o) => o.status === 'em_rota')
+
+  // Cotações só dos pedidos que estão de fato esperando despacho, e só quando o lojista
+  // está olhando pra eles — não faz sentido cotar em segundo plano na aba Concluídos.
+  const idsParaCotar = useMemo(() => (tab === 'despacho' ? unassigned.map((o) => o.id) : []), [tab, unassigned])
+  const cotacoesNexta = useCotacoesNexta(idsParaCotar, nextaAtivo)
   const locationDriver = drivers.find((d) => d.id === locationDriverId) ?? null
   const profileDriver = drivers.find((d) => d.id === profileDriverId) ?? null
   const locationDriverStops = locationDriver
@@ -703,6 +752,7 @@ export default function LogisticaPage() {
                             <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
                           )}
                           <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                          {nextaAtivo && <ChipNexta estado={cotacoesNexta[order.id]} />}
                         </div>
                       </div>
                     </div>
