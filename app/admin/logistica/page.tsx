@@ -32,7 +32,22 @@ import {
   type StatusEntregador,
 } from '@/lib/queries/pedidos'
 
-type Tab = 'despacho' | 'concluidos'
+type Tab = 'despacho' | 'concluidos' | 'entregadores'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'despacho', label: 'Despacho' },
+  { id: 'concluidos', label: 'Concluídos' },
+  { id: 'entregadores', label: 'Entregadores' },
+]
+
+/**
+ * Aba do query param (`?tab=`), pra deep-link e pra não perder o lugar num refresh.
+ * Lida só depois da montagem — ler `window` no estado inicial quebraria a hidratação.
+ */
+function tabDaUrl(): Tab | null {
+  const valor = new URLSearchParams(window.location.search).get('tab')
+  return TABS.some((t) => t.id === valor) ? (valor as Tab) : null
+}
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -170,6 +185,21 @@ export default function LogisticaPage() {
       active = false
     }
   }, [supabase, refetch])
+
+  useEffect(() => {
+    const inicial = tabDaUrl()
+    if (inicial) setTab(inicial)
+  }, [])
+
+  function irParaTab(proxima: Tab) {
+    setTab(proxima)
+    const url = new URL(window.location.href)
+    if (proxima === 'despacho') url.searchParams.delete('tab')
+    else url.searchParams.set('tab', proxima)
+    // replaceState em vez de router.push: trocar de aba não merece entrada no histórico
+    // e não pode remontar a página (mataria o realtime e as cotações em cache).
+    window.history.replaceState(null, '', url)
+  }
 
   // Refetch periódico — "motoboy online" depende do horário atual, então precisa
   // recalcular mesmo sem eventos de realtime (ex.: motoboy fechou o app).
@@ -435,42 +465,94 @@ export default function LogisticaPage() {
         </div>
 
         <div className="flex flex-shrink-0 gap-0.5 border-b border-border">
-          {([
-            { id: 'despacho', label: 'Despacho' },
-            { id: 'concluidos', label: 'Concluídos' },
-          ] as { id: Tab; label: string }[]).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={[
-                'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-                tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
-              ].join(' ')}
-            >
-              {t.label}
-              {t.id === 'concluidos' && concluidos.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-page px-1.5 py-0.5 text-[11px] font-bold text-text-subtle">{concluidos.length}</span>
-              )}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const contador = t.id === 'concluidos' ? concluidos.length : t.id === 'entregadores' ? drivers.length : unassigned.length
+            return (
+              <button
+                key={t.id}
+                onClick={() => irParaTab(t.id)}
+                className={[
+                  'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
+                  tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
+                ].join(' ')}
+              >
+                {t.label}
+                {contador > 0 && (
+                  <span
+                    className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                      tab === t.id ? 'bg-white/20 text-white' : 'bg-page text-text-subtle'
+                    }`}
+                  >
+                    {contador}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
 
-        <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[280px_1fr]">
+        <div className="flex flex-1 flex-col overflow-hidden">
           {/* Entregadores */}
-          <aside className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+          {tab === 'entregadores' && (
+          <section className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
             <div className="flex items-center justify-between bg-text-main px-4 py-3 text-white">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4" strokeWidth={2.5} />
                 <h3 className="text-sm font-bold">Entregadores</h3>
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{drivers.length}</span>
               </div>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{drivers.length}</span>
+              <div className="flex items-center gap-2">
+                {!addDriverOpen && (
+                  <button
+                    onClick={() => setAddDriverOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
+                  >
+                    <Plus className="h-4 w-4" /> Entregador
+                  </button>
+                )}
+                <button
+                  onClick={openClosing}
+                  className="inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
+                >
+                  <Wallet className="h-4 w-4" /> Fechamento de caixa
+                </button>
+              </div>
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-3">
+            {addDriverOpen && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-border bg-page/60 p-3">
+                <input
+                  value={novoDriver.nome}
+                  onChange={(e) => setNovoDriver((d) => ({ ...d, nome: e.target.value }))}
+                  placeholder="Nome do entregador"
+                  autoFocus
+                  className="min-w-[180px] flex-1 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                />
+                <input
+                  value={novoDriver.telefone}
+                  onChange={(e) => setNovoDriver((d) => ({ ...d, telefone: e.target.value }))}
+                  placeholder="Telefone (opcional)"
+                  className="min-w-[160px] flex-1 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                />
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setAddDriverOpen(false)
+                    setNovoDriver({ nome: '', telefone: '' })
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button variant="primary" onClick={addDriver} disabled={addingDriver || !novoDriver.nome.trim()}>
+                  {addingDriver ? 'Adicionando…' : 'Adicionar'}
+                </Button>
+              </div>
+            )}
+            <div className="grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 sm:grid-cols-2 xl:grid-cols-3">
               {drivers.length === 0 && (
-                <div className="px-2 py-6 text-center text-xs text-text-subtle">Nenhum entregador cadastrado ainda.</div>
+                <div className="col-span-full px-2 py-10 text-center text-sm text-text-subtle">Nenhum entregador cadastrado ainda.</div>
               )}
               {drivers.map((driver) => (
-                <div key={driver.id} className="rounded-menuzia border border-border p-3">
+                <div key={driver.id} className="h-fit rounded-menuzia border border-border p-3">
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold">{driver.nome}</span>
                     <div className="flex flex-shrink-0 items-center gap-2.5">
@@ -531,55 +613,11 @@ export default function LogisticaPage() {
                 </div>
               ))}
             </div>
-            <div className="space-y-2 border-t border-border p-3">
-              {addDriverOpen && (
-                <>
-                  <input
-                    value={novoDriver.nome}
-                    onChange={(e) => setNovoDriver((d) => ({ ...d, nome: e.target.value }))}
-                    placeholder="Nome do entregador"
-                    autoFocus
-                    className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
-                  />
-                  <input
-                    value={novoDriver.telefone}
-                    onChange={(e) => setNovoDriver((d) => ({ ...d, telefone: e.target.value }))}
-                    placeholder="Telefone (opcional)"
-                    className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      className="flex-1"
-                      onClick={() => {
-                        setAddDriverOpen(false)
-                        setNovoDriver({ nome: '', telefone: '' })
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button variant="primary" className="flex-1" onClick={addDriver} disabled={addingDriver || !novoDriver.nome.trim()}>
-                      {addingDriver ? 'Adicionando…' : 'Adicionar'}
-                    </Button>
-                  </div>
-                </>
-              )}
-              {!addDriverOpen && (
-                <Button variant="primary" className="w-full" onClick={() => setAddDriverOpen(true)}>
-                  <Plus className="h-4 w-4" /> Entregador
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                className="w-full !border-yellow-400 !bg-yellow-300 !text-black hover:!bg-yellow-400"
-                onClick={openClosing}
-              >
-                <Wallet className="h-4 w-4" /> Fechamento de caixa
-              </Button>
-            </div>
-          </aside>
+          </section>
+          )}
 
           {/* Pedidos */}
+          {tab !== 'entregadores' && (
           <section className="flex flex-col gap-4 overflow-y-auto">
             {tab === 'despacho' && (
             <>
@@ -829,6 +867,7 @@ export default function LogisticaPage() {
             </div>
             )}
           </section>
+          )}
         </div>
       </div>
 
