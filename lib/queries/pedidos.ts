@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolverFrete } from '@/lib/frete'
+import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, type CupomRegra } from '@/lib/fidelidade-regras'
+import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
+import { normalizarTelefone } from '@/lib/queries/clientes'
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -804,6 +807,16 @@ export interface NovoPedidoInput {
   mesa?: string
   /** Comanda da mesa (PDV Fase 2). Null/ausente = pedido avulso (balcão/vitrine). */
   comandaId?: string
+  /**
+   * Código de cupom digitado pelo cliente. Só o código viaja no payload — validação,
+   * cálculo de desconto e travas de uso são todos server-side. Exclusivo com `recompensaId`.
+   */
+  cupomCodigo?: string
+  /**
+   * Recompensa de fidelidade (fidelidade_recompensas.id) a resgatar neste pedido.
+   * Exclusivo com `cupomCodigo`.
+   */
+  recompensaId?: string
   itens: NovoPedidoItemInput[]
 }
 
@@ -834,6 +847,7 @@ async function telefoneClienteVerificado(admin: SupabaseClient, restauranteId: s
 
 export async function criarPedido(admin: SupabaseClient, restauranteId: string, input: NovoPedidoInput): Promise<{ id: string; numero: number }> {
   if (input.itens.length === 0) throw new Error('Pedido sem itens')
+  if (input.cupomCodigo && input.recompensaId) throw new Error('Use apenas um cupom ou prêmio por pedido.')
 
   const itemIds = [...new Set(input.itens.map((i) => i.itemId))]
   const { data: itensDb, error: itensError } = await admin
@@ -937,7 +951,146 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     const minimo = cfgFrete?.frete_gratis_acima === null || cfgFrete?.frete_gratis_acima === undefined ? null : Number(cfgFrete.frete_gratis_acima)
     if (minimo !== null && minimo > 0 && subtotal >= minimo) taxaEntrega = 0
   }
-  const total = subtotal + taxaEntrega
+
+  // ── Fidelidade: cupom de código OU prêmio de campanha (nunca os dois) ──────
+  // Server-authoritative: o cliente só manda `cupomCodigo`/`recompensaId` — validação,
+  // cálculo do desconto e travas de uso acontecem todos aqui, em cima do subtotal
+  // recalculado do banco. O campo `desconto` NUNCA vem do payload.
+  let desconto = 0
+  let cupomAplicado: { id: string; codigo: string; usos: number } | null = null
+  let recompensaResgatada: string | null = null
+
+  /**
+   * Aplica o prêmio (de cupom ou de recompensa) sobre subtotal/taxa já calculados.
+   * `entrega_gratis` zera a taxa final por cima da regra de frete grátis por subtotal
+   * (independentes — quem chegar primeiro em zero, fica zero). `item_gratis` vira uma
+   * linha R$ 0 no pedido, sem mexer no subtotal.
+   */
+  const aplicarPremio = async (
+    tipo: CupomRegra['tipo'],
+    valor: number | null,
+    itemGratisId: string | null,
+    sufixoLinha: string,
+    erroItemIndisponivel: string
+  ) => {
+    const { descontoSubtotal, zeraFrete } = calcularDesconto(tipo, valor, subtotal, taxaEntrega)
+    desconto = descontoSubtotal
+    if (zeraFrete) taxaEntrega = 0
+    if (tipo === 'item_gratis') {
+      if (!itemGratisId) throw new Error(erroItemIndisponivel) // item excluído do cardápio (FK on delete set null)
+      const { data: itemGratis, error: itemGratisError } = await admin
+        .from('itens_cardapio')
+        .select('nome')
+        .eq('id', itemGratisId)
+        .eq('restaurante_id', restauranteId)
+        .maybeSingle()
+      if (itemGratisError) throw itemGratisError
+      if (!itemGratis) throw new Error(erroItemIndisponivel)
+      linhas.push({
+        item_id: itemGratisId,
+        nome: `${itemGratis.nome} — ${sufixoLinha}`,
+        preco_unitario: 0,
+        quantidade: 1,
+        observacao: '',
+        complementos: [],
+        tamanho_nome: '',
+        sabor_nome: '',
+        borda_nome: '',
+        massa_nome: '',
+      })
+    }
+  }
+
+  if (input.cupomCodigo) {
+    const codigo = normalizarCodigoCupom(input.cupomCodigo)
+    const { data: cupom, error: cupomError } = await admin
+      .from('cupons')
+      .select('id, codigo, ativo, tipo, valor, item_id, publico, dias_inatividade, dias_semana, validade_inicio, validade_fim, valor_minimo_pedido, uso_unico_por_cliente, max_usos, usos')
+      .eq('restaurante_id', restauranteId)
+      .eq('codigo', codigo)
+      .eq('ativo', true)
+      .maybeSingle()
+    if (cupomError) throw cupomError
+    if (!cupom) throw new Error('Cupom não encontrado.')
+
+    const historico = await buscarHistoricoCliente(admin, restauranteId, input.cliente.telefone, cupom.id)
+    const { hojeISO, diaSemana } = hojeSaoPaulo()
+    const regra: CupomRegra = {
+      ativo: cupom.ativo,
+      tipo: cupom.tipo,
+      valor: cupom.valor === null || cupom.valor === undefined ? null : Number(cupom.valor),
+      publico: cupom.publico,
+      diasInatividade: cupom.dias_inatividade,
+      diasSemana: cupom.dias_semana ?? [],
+      validadeInicio: cupom.validade_inicio,
+      validadeFim: cupom.validade_fim,
+      valorMinimoPedido: cupom.valor_minimo_pedido === null || cupom.valor_minimo_pedido === undefined ? null : Number(cupom.valor_minimo_pedido),
+      usoUnicoPorCliente: cupom.uso_unico_por_cliente,
+      maxUsos: cupom.max_usos,
+      usos: cupom.usos,
+    }
+    const resultado = validarCupom(regra, historico, { subtotal, diaSemana, hojeISO })
+    if (!resultado.ok) throw new Error(resultado.motivo)
+
+    await aplicarPremio(regra.tipo, regra.valor, cupom.item_id, `Cupom ${cupom.codigo}`, 'O item deste cupom não está mais disponível.')
+    cupomAplicado = { id: cupom.id, codigo: cupom.codigo, usos: cupom.usos }
+  }
+
+  if (input.recompensaId) {
+    const { data: recompensaRow, error: recompensaError } = await admin
+      .from('fidelidade_recompensas')
+      .select('id, cliente_telefone, campanha:campanhas_fidelidade ( premio_tipo, premio_valor, premio_item_id, dias_semana_resgate )')
+      .eq('id', input.recompensaId)
+      .eq('restaurante_id', restauranteId)
+      .eq('status', 'disponivel')
+      .maybeSingle()
+    if (recompensaError) throw recompensaError
+    const recompensa = recompensaRow as unknown as {
+      id: string
+      cliente_telefone: string
+      campanha: {
+        premio_tipo: CupomRegra['tipo']
+        premio_valor: number | null
+        premio_item_id: string | null
+        dias_semana_resgate: number[]
+      } | null
+    } | null
+    if (!recompensa || !recompensa.campanha) throw new Error('Prêmio não encontrado ou já usado.')
+
+    // Recompensa pertence a um telefone específico (gravado já normalizado nas tabelas novas).
+    if (recompensa.cliente_telefone !== normalizarTelefone(input.cliente.telefone)) {
+      throw new Error('Este prêmio pertence a outro cliente.')
+    }
+
+    const diasResgate = recompensa.campanha.dias_semana_resgate ?? []
+    if (!podeResgatarHoje(diasResgate, hojeSaoPaulo().diaSemana)) {
+      throw new Error(`Este prêmio só pode ser resgatado ${diasSemanaTexto(diasResgate)}.`)
+    }
+
+    const premioValor =
+      recompensa.campanha.premio_valor === null || recompensa.campanha.premio_valor === undefined
+        ? null
+        : Number(recompensa.campanha.premio_valor)
+    await aplicarPremio(recompensa.campanha.premio_tipo, premioValor, recompensa.campanha.premio_item_id, 'Prêmio Fidelidade', 'O item deste prêmio não está mais disponível.')
+
+    // CLAIM-FIRST: marca como resgatado ANTES de inserir o pedido. O UPDATE condicional
+    // (`status='disponivel'`) é atômico no Postgres — dois pedidos simultâneos com o mesmo
+    // prêmio disputam a linha e só um vê 1 row; o outro recebe 0 rows e falha aqui, antes
+    // de nascer qualquer pedido. Se o insert do pedido falhar depois, o claim é revertido.
+    const { data: claim, error: claimError } = await admin
+      .from('fidelidade_recompensas')
+      .update({ status: 'resgatado', resgatado_em: new Date().toISOString() })
+      .eq('id', recompensa.id)
+      .eq('status', 'disponivel')
+      .select('id')
+    if (claimError) throw claimError
+    if (!claim || claim.length === 0) throw new Error('Este prêmio já foi usado.')
+    recompensaResgatada = recompensa.id
+  }
+
+  // Desconto trava no subtotal (nunca negativa o pedido); a taxa entra por cima já com
+  // frete grátis por subtotal e/ou entrega_gratis de cupom/prêmio aplicados.
+  const total = Math.max(0, subtotal - desconto) + taxaEntrega
 
   // Telefone verificado? (server-authoritative). Pedidos feitos com o WhatsApp da
   // loja offline entram pelo fallback do checkout com o cliente não verificado.
@@ -961,21 +1114,78 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       troco_para: input.pagamento === 'dinheiro' ? input.trocoPara : null,
       pago: input.pagamento === 'pix',
       subtotal,
+      desconto,
       taxa_entrega: taxaEntrega,
       total,
       observacao: '',
       origem: input.origem ?? 'cardapio',
       mesa: input.origem === 'pdv' ? (input.mesa ?? null) : null,
       comanda_id: input.comandaId ?? null,
+      cupom_codigo: cupomAplicado?.codigo ?? null,
+      recompensa_id: recompensaResgatada,
     })
     .select('id, numero')
     .single()
-  if (pedidoError) throw pedidoError
+  if (pedidoError) {
+    // O prêmio foi consumido no claim-first mas o pedido não nasceu — devolve o prêmio
+    // pro cliente antes de propagar o erro (senão ele perde a recompensa num pedido falho).
+    if (recompensaResgatada) {
+      try {
+        await admin
+          .from('fidelidade_recompensas')
+          .update({ status: 'disponivel', resgatado_em: null })
+          .eq('id', recompensaResgatada)
+      } catch (reverterError) {
+        console.error(`[criarPedido] falha ao reverter claim da recompensa ${recompensaResgatada}:`, reverterError)
+      }
+    }
+    throw pedidoError
+  }
+
+  if (recompensaResgatada) {
+    // Vínculo informativo do resgate com o pedido. O pedido já existe e o claim já
+    // garantiu o uso único — falha aqui não pode derrubar o pedido do cliente, só loga.
+    const { error: vinculoError } = await admin
+      .from('fidelidade_recompensas')
+      .update({ pedido_resgate_id: pedido.id })
+      .eq('id', recompensaResgatada)
+    if (vinculoError) console.error(`[criarPedido] falha ao vincular recompensa ${recompensaResgatada} ao pedido ${pedido.id}:`, vinculoError)
+  }
 
   const { error: itensInsertError } = await admin.from('pedido_itens').insert(
     linhas.map((l) => ({ ...l, pedido_id: pedido.id }))
   )
   if (itensInsertError) throw itensInsertError
+
+  if (cupomAplicado) {
+    // Registros de uso do cupom — aceitação otimista: o pedido já existe e o desconto já
+    // foi concedido; falhar aqui só puniria o cliente por um problema de contabilização.
+    // O pior caso (corrida em volume baixo por loja) é o contador/trava ficar 1 uso
+    // defasado — visível pro admin e corrigível, então apenas loga.
+    const { error: usoError } = await admin.from('cupom_usos').insert({
+      cupom_id: cupomAplicado.id,
+      restaurante_id: restauranteId,
+      cliente_telefone: normalizarTelefone(input.cliente.telefone),
+      pedido_id: pedido.id,
+    })
+    if (usoError) console.error(`[criarPedido] falha ao registrar uso do cupom ${cupomAplicado.codigo} no pedido ${pedido.id}:`, usoError)
+
+    // Incremento com compare-and-swap (supabase-js não expressa `usos = usos + 1`): só
+    // grava se `usos` ainda for o valor lido na validação — assim nunca estoura o teto
+    // de max_usos (validarCupom já garantiu usos < max_usos pra esse valor). 0 rows =
+    // outro pedido incrementou no meio do caminho; pedido mantido, descompasso logado.
+    const { data: incremento, error: incrementoError } = await admin
+      .from('cupons')
+      .update({ usos: cupomAplicado.usos + 1 })
+      .eq('id', cupomAplicado.id)
+      .eq('usos', cupomAplicado.usos)
+      .select('id')
+    if (incrementoError) {
+      console.error(`[criarPedido] falha ao incrementar usos do cupom ${cupomAplicado.codigo}:`, incrementoError)
+    } else if (!incremento || incremento.length === 0) {
+      console.error(`[criarPedido] contador de usos do cupom ${cupomAplicado.codigo} não incrementado (corrida) — pedido ${pedido.id} mantido.`)
+    }
+  }
 
   return { id: pedido.id, numero: pedido.numero }
 }

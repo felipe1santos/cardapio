@@ -228,7 +228,8 @@ const DIA_SEMANA_LABEL: Record<number, string> = {
   6: 'aos sábados',
 }
 
-function diasSemanaTexto(dias: number[]): string {
+/** "às segundas, às quartas e aos sábados" — usado em mensagens de recusa (cupom e resgate de prêmio). */
+export function diasSemanaTexto(dias: number[]): string {
   const labels = dias.map((d) => DIA_SEMANA_LABEL[d]).filter((l): l is string => Boolean(l))
   if (labels.length <= 1) return labels[0] ?? ''
   return `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`
