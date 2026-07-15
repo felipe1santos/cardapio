@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
   { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
+  { href: '/admin/fidelidade', label: 'Fidelidade', novidade: true },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ]
 
