@@ -205,6 +205,7 @@ export interface PedidoParaImprimir {
   mesa: string | null
   subtotal: number
   taxaEntrega: number
+  desconto: number
   total: number
   criadoEm: string
   itens: {
@@ -226,7 +227,7 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
     .from('pedidos')
     .select(
       `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
-       observacao, pago, origem, mesa, subtotal, taxa_entrega, total, criado_em,
+       observacao, pago, origem, mesa, subtotal, taxa_entrega, desconto, total, criado_em,
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
     .eq('restaurante_id', restauranteId)
@@ -254,6 +255,7 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
     mesa: p.mesa ?? null,
     subtotal: Number(p.subtotal),
     taxaEntrega: Number(p.taxa_entrega),
+    desconto: Number(p.desconto) || 0,
     total: Number(p.total),
     criadoEm: p.criado_em,
     itens: (p.pedido_itens ?? []).map((i: { nome: string; quantidade: number; preco_unitario: number; observacao: string; tamanho_nome: string; sabor_nome: string; borda_nome: string; massa_nome: string; complementos: { nome: string; preco: number }[] }) => ({

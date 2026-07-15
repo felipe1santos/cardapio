@@ -837,7 +837,7 @@ function colsParaFontePreview(tamanho: string | undefined, largura: number): num
 }
 
 interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
-interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoComplemento: string; enderecoBairro: string; enderecoCep: string; formaPagamento: string; trocoPara: number | null; pago: boolean; origem: string; mesa: string | null; observacao: string; criadoEm: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
+interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoComplemento: string; enderecoBairro: string; enderecoCep: string; formaPagamento: string; trocoPara: number | null; pago: boolean; origem: string; mesa: string | null; observacao: string; criadoEm: string; subtotal: number; taxaEntrega: number; desconto: number; total: number; itens: PreviewItem[] }
 
 // Pedido fictício só pra ilustrar — não vem do banco. Traz de propósito um complemento
 // COM preço, uma observação de item, observação do pedido e pagamento em dinheiro com
@@ -851,7 +851,7 @@ const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
   enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoComplemento: 'Apto 202', enderecoBairro: 'Centro', enderecoCep: '52000-000',
   formaPagamento: 'dinheiro', trocoPara: 150, pago: false, origem: 'cardapio', mesa: null,
   observacao: 'Tocar a campainha', criadoEm: '2026-07-14T20:30:00-03:00',
-  subtotal: 110, taxaEntrega: 6, total: 116,
+  subtotal: 110, taxaEntrega: 6, desconto: 0, total: 116,
   itens: [
     { quantidade: 2, nome: 'Pizza Grande', precoUnitario: 45, tamanhoNome: 'Grande', saborNome: 'Calabresa', bordaNome: 'Catupiry', massaNome: '', complementos: [{ nome: 'Bacon extra', preco: 4 }], observacao: 'Bem assada' },
     { quantidade: 1, nome: 'Coca-Cola 2L', precoUnitario: 12, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Bem gelada', preco: 0 }], observacao: '' },
@@ -910,6 +910,7 @@ function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressa
 
   L.push({ t: 'H', s: 'PAGAMENTO' })
   L.push({ t: 'P', k: 'Subtotal', v: brlR(pedido.subtotal) })
+  if (pedido.desconto > 0) L.push({ t: 'P', k: 'Desconto', v: '-' + brlR(pedido.desconto) })
   if (pedido.tipo === 'entrega') L.push({ t: 'P', k: 'Taxa de entrega', v: brlR(pedido.taxaEntrega) })
   L.push({ t: 'T', k: 'TOTAL', v: brlR(pedido.total) })
   L.push({ t: 'L', s: `Pagamento: ${pedido.formaPagamento.toUpperCase()}` })

@@ -83,6 +83,7 @@ function montarReciboLinhas(pedido, config, lojaNome = '', temLogoImagem = false
 
   H('PAGAMENTO')
   P('Subtotal', brl(pedido.subtotal))
+  if (pedido.desconto > 0) P('Desconto', '-' + brl(pedido.desconto))
   if (pedido.tipo === 'entrega') P('Taxa de entrega', brl(pedido.taxaEntrega))
   T('TOTAL', brl(pedido.total))
   Lin(`Pagamento: ${pedido.formaPagamento.toUpperCase()}`)
