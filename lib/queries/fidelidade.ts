@@ -375,7 +375,7 @@ export async function criarCupom(admin: SupabaseClient, restauranteId: string, i
       descricao: input.descricao?.trim() ?? '',
       ativo: input.ativo ?? true,
       tipo: input.tipo,
-      valor: input.tipo === 'entrega_gratis' ? null : input.valor,
+      valor: input.tipo === 'entrega_gratis' || input.tipo === 'item_gratis' ? null : input.valor,
       item_id: input.tipo === 'item_gratis' ? input.itemId : null,
       publico: input.publico ?? 'todos',
       dias_inatividade: input.publico === 'recompra' ? input.diasInatividade ?? null : null,
@@ -405,7 +405,7 @@ export async function atualizarCupom(admin: SupabaseClient, restauranteId: strin
       descricao: input.descricao?.trim() ?? '',
       ativo: input.ativo ?? true,
       tipo: input.tipo,
-      valor: input.tipo === 'entrega_gratis' ? null : input.valor,
+      valor: input.tipo === 'entrega_gratis' || input.tipo === 'item_gratis' ? null : input.valor,
       item_id: input.tipo === 'item_gratis' ? input.itemId : null,
       publico: input.publico ?? 'todos',
       dias_inatividade: input.publico === 'recompra' ? input.diasInatividade ?? null : null,
@@ -603,12 +603,15 @@ export async function buscarHistoricoCliente(
  * Trava a idempotência do motor: só marca `fidelidade_processado=true` (e retorna os dados do
  * pedido) se ele estiver `entregue` e ainda não tiver sido processado. Se não achar nada pra
  * atualizar (já processado, ou não está entregue), retorna `null` — o chamador deve parar aí.
+ * Filtra por `restauranteId` como defesa em profundidade multi-tenant (o cliente `admin` é
+ * service-role e ignora RLS).
  */
-export async function marcarPedidoFidelidadeProcessado(admin: SupabaseClient, pedidoId: string): Promise<PedidoFidelidadeInfo | null> {
+export async function marcarPedidoFidelidadeProcessado(admin: SupabaseClient, restauranteId: string, pedidoId: string): Promise<PedidoFidelidadeInfo | null> {
   const { data, error } = await admin
     .from('pedidos')
     .update({ fidelidade_processado: true })
     .eq('id', pedidoId)
+    .eq('restaurante_id', restauranteId)
     .eq('status', 'entregue')
     .eq('fidelidade_processado', false)
     .select('id, restaurante_id, cliente_telefone, origem, subtotal, criado_em, pedido_itens ( quantidade )')
