@@ -167,8 +167,8 @@ export function isoNexta(data: Date): string {
  * Telefone no formato internacional (+55DDNNNNNNNNN). O Nexta repassa esse número
  * pro motoboy ligar pro cliente.
  */
-export function telefoneNexta(telefone: string): string {
-  const digitos = telefone.replace(/\D/g, '')
+export function telefoneNexta(telefone: string | null | undefined): string {
+  const digitos = String(telefone ?? '').replace(/\D/g, '')
   if (!digitos) return ''
   return digitos.startsWith('55') ? `+${digitos}` : `+55${digitos}`
 }

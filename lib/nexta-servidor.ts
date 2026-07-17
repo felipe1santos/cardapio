@@ -146,5 +146,8 @@ export function erroNexta(err: unknown): { mensagem: string; status: number } {
     return { mensagem: err.message, status: err.status >= 400 && err.status < 600 ? err.status : 400 }
   }
   console.error('[nexta] erro inesperado:', err)
-  return { mensagem: 'Erro inesperado ao falar com o Nexta.', status: 500 }
+  // Painel admin: expõe a mensagem crua do erro pra dar pé no diagnóstico da integração.
+  // NextaError (que carrega corpo do Nexta) é tratado acima; aqui só cai exceção nossa.
+  const detalhe = err instanceof Error && err.message ? `: ${err.message}` : ''
+  return { mensagem: `Erro inesperado ao falar com o Nexta${detalhe}`, status: 500 }
 }
