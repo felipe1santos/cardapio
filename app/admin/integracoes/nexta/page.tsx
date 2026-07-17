@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Copy, Link2, Plug, RefreshCw, Truck } from 'lucide-react'
+import { Check, Copy, KeyRound, Link2, Plug, RefreshCw, Truck } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,12 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { motivoRejeicaoTexto, nextaEntregaAtiva, nextaEventoTexto, nextaEventoTom } from '@/lib/nexta-eventos'
 import { listarNextaEntregasDetalhadas, type NextaConfigPublica, type NextaEntregaDetalhada } from '@/lib/queries/nexta'
+
+// Mesma string de NEXTA_BASE_URL em lib/nexta.ts (server-only, não importável no client).
+// É fixa para todas as lojas e não editável — mostrada só para conferência.
+const NEXTA_BASE_URL_FIXA = 'https://bck.nextadelivery.app/api:lZyx1NRE'
+// Azul petróleo escuro: sinaliza que é uma chave do sistema, não um campo de digitação.
+const AZUL_PETROLEO = '#0B3D4E'
 
 type SubNav = 'nexta'
 
@@ -389,6 +395,17 @@ export default function IntegracaoNextaPage() {
               </p>
 
               <div className="space-y-3.5">
+                <div>
+                  <label className={labelCls}>URL base da API</label>
+                  <div
+                    className="flex items-center gap-2 break-all rounded-menuzia border px-2.5 py-2 text-[12px] font-semibold"
+                    style={{ color: AZUL_PETROLEO, borderColor: `${AZUL_PETROLEO}40`, backgroundColor: `${AZUL_PETROLEO}0D` }}
+                  >
+                    <KeyRound className="h-4 w-4 flex-shrink-0" strokeWidth={2.25} />
+                    <span className="min-w-0 flex-1">{NEXTA_BASE_URL_FIXA}</span>
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-text-subtle">Fixa para todas as lojas — não editável.</p>
+                </div>
                 <div className="grid gap-3.5 sm:grid-cols-2">
                   <div>
                     <label className={labelCls}>Client ID</label>
