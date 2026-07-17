@@ -172,6 +172,7 @@ export default function IntegracaoNextaPage() {
 
   const [testando, setTestando] = useState(false)
   const [teste, setTeste] = useState<{ ok: boolean; preco?: number; erro?: string } | null>(null)
+  const [copiadoMerchant, setCopiadoMerchant] = useState(false)
 
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
@@ -330,6 +331,24 @@ export default function IntegracaoNextaPage() {
     }
   }
 
+  // Merchant ID é um código livre que a loja inventa e envia ao Nexta pelo WhatsApp — eles
+  // cadastram o mesmo código do lado deles. O botão gera um legível pra não errar.
+  function gerarMerchantId() {
+    const rand = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 6) : String(Date.now()).slice(-6)
+    set('merchantId', `menuzia-${rand}`)
+  }
+
+  async function copiarMerchantId() {
+    if (!form.merchantId) return
+    try {
+      await navigator.clipboard.writeText(form.merchantId)
+      setCopiadoMerchant(true)
+      setTimeout(() => setCopiadoMerchant(false), 2000)
+    } catch {
+      setCopiadoMerchant(false)
+    }
+  }
+
   async function alternarAtivo() {
     const proximo = !form.ativo
     set('ativo', proximo)
@@ -433,15 +452,34 @@ export default function IntegracaoNextaPage() {
 
                 <div>
                   <label className={labelCls}>Merchant ID</label>
-                  <input
-                    value={form.merchantId}
-                    onChange={(e) => set('merchantId', e.target.value)}
-                    placeholder="ex.: menuzia-000123"
-                    className={inputCls}
-                  />
+                  <div className="flex items-stretch gap-1.5">
+                    <input
+                      value={form.merchantId}
+                      onChange={(e) => set('merchantId', e.target.value)}
+                      placeholder="ex.: menuzia-a1b2c3"
+                      className={`${inputCls} min-w-0 flex-1`}
+                    />
+                    <button
+                      type="button"
+                      onClick={gerarMerchantId}
+                      className="flex-shrink-0 rounded-menuzia border border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:border-primary hover:text-primary"
+                    >
+                      Gerar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copiarMerchantId}
+                      disabled={!form.merchantId}
+                      title="Copiar"
+                      className="flex w-9 flex-shrink-0 items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-40"
+                    >
+                      {copiadoMerchant ? <Check className="h-4 w-4 text-status-ready" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
                   <p className="mt-1.5 text-[11px] leading-relaxed text-text-subtle">
-                    Identificador da sua loja no Nexta. Envie este valor ao suporte do Nexta para cadastrar o estabelecimento — é
-                    por ele que eles reconhecem os pedidos que chegam daqui.
+                    Código que você inventa aqui (use <strong>Gerar</strong> se quiser). <strong>Salve</strong>, copie e envie ao
+                    Nexta pelo WhatsApp — eles cadastram esse mesmo código do lado deles. A partir daí os pedidos desta loja são
+                    reconhecidos por ele.
                   </p>
                 </div>
 
