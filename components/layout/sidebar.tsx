@@ -30,7 +30,7 @@ const NAV_ICONS: Record<string, string> = {
 export function Sidebar({ items, activeHref, storeSlug, onSignOut }: SidebarProps) {
   return (
     <aside className="flex h-screen w-[240px] flex-shrink-0 flex-col bg-sidebar-bg shadow-lg">
-      <div className="flex h-[60px] items-center bg-primary px-4 text-white">
+      <div className="flex h-[60px] items-center rounded-br-[18px] bg-primary px-4 text-white">
         <span className="text-lg font-bold lowercase tracking-wide">menuzia</span>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-2.5">
@@ -44,26 +44,26 @@ export function Sidebar({ items, activeHref, storeSlug, onSignOut }: SidebarProp
               key={item.href}
               href={item.href}
               className={[
-                'relative flex flex-col items-center gap-1.5 border-l-[3px] px-1.5 py-3.5 text-center text-[12px] font-medium transition-colors',
+                'mx-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-colors',
                 isActive
-                  ? 'border-primary bg-sidebar-hover font-semibold text-primary'
-                  : 'border-transparent text-white hover:bg-sidebar-hover hover:text-primary',
+                  ? 'bg-sidebar-hover font-semibold text-primary'
+                  : 'text-white hover:bg-sidebar-hover hover:text-primary',
               ].join(' ')}
             >
-              {item.badge !== undefined && item.badge > 0 && (
-                <span className="absolute right-3 top-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
-                  {item.badge > 99 ? '99+' : item.badge}
-                </span>
-              )}
               {iconPath && (
-                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 fill-current">
                   <path d={iconPath} />
                 </svg>
               )}
-              {item.label}
+              <span className="truncate">{item.label}</span>
               {item.novidade && (
-                <span className="rounded px-1.5 py-[2px] text-[8px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#FCD34D', color: '#78350F' }}>
+                <span className="flex-shrink-0 rounded px-1.5 py-[2px] text-[8px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#FCD34D', color: '#78350F' }}>
                   Novidade
+                </span>
+              )}
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className="ml-auto flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
+                  {item.badge > 99 ? '99+' : item.badge}
                 </span>
               )}
             </Link>

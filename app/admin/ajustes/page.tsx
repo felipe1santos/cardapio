@@ -1,13 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import QRCode from 'qrcode'
-import { Copy, Check, QrCode, Truck } from 'lucide-react'
+import { Copy, Check, QrCode } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { FacebookIcon, GoogleIcon, WhatsAppIcon } from '@/components/ui/brand-icons'
 import { InstalarAppButton } from '@/components/instalar-app-button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, type LayoutCardapio } from '@/lib/queries/cardapio'
@@ -46,7 +44,7 @@ import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao,
 import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
 
-type Tab = 'loja' | 'entrega' | 'mesas' | 'impressao' | 'integracoes' | 'conta' | 'aparencia' | 'cozinha'
+type Tab = 'loja' | 'entrega' | 'mesas' | 'impressao' | 'conta' | 'aparencia' | 'cozinha'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
@@ -55,7 +53,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'aparencia', label: 'Aparência' },
   { id: 'impressao', label: 'Impressão' },
   { id: 'cozinha', label: 'Cozinha' },
-  { id: 'integracoes', label: 'Integrações' },
   { id: 'conta', label: 'Conta' },
 ]
 
@@ -1237,229 +1234,6 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
   )
 }
 
-// ─── Aba Integrações ──────────────────────────────────────────────────────────
-
-interface WaStatus {
-  configurado: boolean
-  connected: boolean
-  state: string | null
-}
-
-function TabIntegracoes({ restauranteId, active }: { restauranteId: string; active: boolean }) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [loaded, setLoaded] = useState(false)
-  const [form, setForm] = useState({ facebookPixelId: '', googleTagId: '' })
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const [nextaAtivo, setNextaAtivo] = useState(false)
-
-  const [wa, setWa] = useState<WaStatus | null>(null)
-  const [waQr, setWaQr] = useState<string | null>(null)
-  const [waPairingCode, setWaPairingCode] = useState<string | null>(null)
-  const [waBusy, setWaBusy] = useState(false)
-  const [waError, setWaError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (loaded) return
-    buscarConfigLoja(supabase, restauranteId).then((c) => {
-      if (!c) return
-      setForm({ facebookPixelId: c.facebookPixelId ?? '', googleTagId: c.googleTagId ?? '' })
-      setLoaded(true)
-    })
-  }, [supabase, restauranteId, loaded])
-
-  const atualizarStatusWhatsapp = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/whatsapp/status')
-      const data: WaStatus = await res.json()
-      setWa(data)
-      if (data.connected) setWaQr(null)
-      return data
-    } catch {
-      return null
-    }
-  }, [])
-
-  useEffect(() => {
-    atualizarStatusWhatsapp()
-  }, [atualizarStatusWhatsapp])
-
-  useEffect(() => {
-    fetch('/api/admin/nexta/config')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { config?: { ativo: boolean } | null } | null) => setNextaAtivo(Boolean(d?.config?.ativo)))
-      .catch(() => setNextaAtivo(false))
-  }, [])
-
-  // Enquanto o QR está na tela, verifica a cada 3s se o WhatsApp já foi conectado.
-  useEffect(() => {
-    if (!waQr) return
-    const interval = setInterval(async () => {
-      const data = await atualizarStatusWhatsapp()
-      if (data?.connected) clearInterval(interval)
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [waQr, atualizarStatusWhatsapp])
-
-  async function conectarWhatsapp() {
-    setWaBusy(true)
-    setWaError(null)
-    try {
-      const res = await fetch('/api/admin/whatsapp/conectar', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido')
-      setWaQr(data.base64 ?? null)
-      setWaPairingCode(data.pairingCode ?? null)
-    } catch {
-      setWaError('Não foi possível conectar. Verifique a configuração da Evolution API no servidor.')
-    } finally {
-      setWaBusy(false)
-    }
-  }
-
-  async function desconectarWhatsapp() {
-    setWaBusy(true)
-    setWaError(null)
-    try {
-      await fetch('/api/admin/whatsapp/desconectar', { method: 'POST' })
-      setWaQr(null)
-      setWaPairingCode(null)
-      await atualizarStatusWhatsapp()
-    } finally {
-      setWaBusy(false)
-    }
-  }
-
-  function set(key: keyof typeof form, value: string) {
-    setForm((f) => ({ ...f, [key]: value }))
-    setSaved(false)
-  }
-
-  async function save() {
-    setSaving(true)
-    setError(null)
-    try {
-      await atualizarConfigLoja(supabase, restauranteId, {
-        facebookPixelId: form.facebookPixelId.trim() || null,
-        googleTagId: form.googleTagId.trim() || null,
-      })
-      setSaved(true)
-    } catch {
-      setError('Não foi possível salvar as integrações. Verifique sua conexão e tente novamente.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
-      <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="max-w-xl space-y-6">
-          <Card>
-            <div className="mb-0.5 flex items-center gap-2">
-              <WhatsAppIcon className="h-5 w-5 flex-shrink-0" />
-              <h3 className="text-[13px] font-bold text-text-main">WhatsApp (Evolution API)</h3>
-              {wa?.connected && (
-                <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold text-price-text">Conectado</span>
-              )}
-            </div>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Conecte o WhatsApp da loja para enviar automaticamente a confirmação do pedido (aceito), e os avisos de
-              preparo, pronto e saiu para entrega ao cliente.
-            </p>
-
-            {wa === null ? (
-              <p className="text-[12px] text-text-subtle">Verificando conexão…</p>
-            ) : !wa.configurado ? (
-              <p className="rounded-menuzia border border-warn bg-warn-bg px-3 py-2 text-[12px] text-warn">
-                Evolution API não configurada no servidor (variáveis EVOLUTION_API_URL / EVOLUTION_API_KEY).
-              </p>
-            ) : wa.connected ? (
-              <Button variant="outline" onClick={desconectarWhatsapp} disabled={waBusy}>
-                {waBusy ? 'Desconectando…' : 'Desconectar WhatsApp'}
-              </Button>
-            ) : waQr ? (
-              <div className="flex flex-col items-start gap-2">
-                <img
-                  src={waQr.startsWith('data:') ? waQr : `data:image/png;base64,${waQr}`}
-                  alt="QR code para conectar o WhatsApp"
-                  className="h-48 w-48 rounded-menuzia border border-border"
-                />
-                {waPairingCode && <p className="text-[12px] text-text-subtle">Código de pareamento: <span className="font-mono font-semibold">{waPairingCode}</span></p>}
-                <p className="text-[12px] leading-relaxed text-text-subtle">
-                  No celular da loja, abra o WhatsApp em <strong>Aparelhos conectados → Conectar um aparelho</strong> e escaneie o QR code acima.
-                  A página atualiza automaticamente quando conectar.
-                </p>
-              </div>
-            ) : (
-              <Button onClick={conectarWhatsapp} disabled={waBusy}>
-                {waBusy ? 'Gerando QR code…' : 'Conectar WhatsApp'}
-              </Button>
-            )}
-            {waError && <p className="mt-2 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[12px] text-danger">{waError}</p>}
-          </Card>
-          {/* Atalho: a configuração completa mora em /admin/integracoes/nexta. */}
-          <Card>
-            <div className="mb-0.5 flex items-center gap-2">
-              <Truck className="h-5 w-5 flex-shrink-0 text-primary" strokeWidth={2.25} />
-              <h3 className="text-[13px] font-bold text-text-main">Nexta Delivery</h3>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-menuzia px-2 py-0.5 text-[11px] font-semibold ${
-                  nextaAtivo ? 'bg-price-bg text-price-text' : 'bg-page text-text-subtle'
-                }`}
-              >
-                <span className={`h-2 w-2 rounded-full ${nextaAtivo ? 'bg-status-ready' : 'bg-text-subtle'}`} />
-                {nextaAtivo ? 'Conectado' : 'Inativo'}
-              </span>
-            </div>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Rede de motoboys terceirizada. Com a integração ativa, o Nexta vira uma opção de entregador no despacho, com preço e
-              tempo de coleta cotados na hora.
-            </p>
-            <Link
-              href="/admin/integracoes/nexta"
-              className="inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:border-primary hover:text-primary"
-            >
-              Configurar
-            </Link>
-          </Card>
-          <Card>
-            <div className="mb-0.5 flex items-center gap-2">
-              <FacebookIcon className="h-5 w-5 flex-shrink-0" />
-              <h3 className="text-[13px] font-bold text-text-main">Facebook Pixel</h3>
-            </div>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Rastreie visualizações, adições ao carrinho e pedidos concluídos no cardápio da sua loja.
-              Cada loja tem seu próprio Pixel — o código é injetado apenas no cardápio público desta loja.
-            </p>
-            <Field label="Pixel ID">
-              <Input value={form.facebookPixelId} onChange={(e) => set('facebookPixelId', e.target.value)} placeholder="Ex: 1234567890123456" />
-            </Field>
-          </Card>
-          <Card>
-            <div className="mb-0.5 flex items-center gap-2">
-              <GoogleIcon className="h-5 w-5 flex-shrink-0" />
-              <h3 className="text-[13px] font-bold text-text-main">Google Tag (GA4 / GTM)</h3>
-            </div>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Insira o ID de medição do Google Analytics 4 (<code className="rounded bg-page px-1 text-[11px]">G-XXXXXXXXXX</code>) ou o ID do
-              Google Tag Manager (<code className="rounded bg-page px-1 text-[11px]">GTM-XXXXXX</code>).
-              O snippet é injetado no &lt;head&gt; do cardápio público desta loja.
-            </p>
-            <Field label="Tag ID">
-              <Input value={form.googleTagId} onChange={(e) => set('googleTagId', e.target.value)} placeholder="Ex: G-ABC123XYZ ou GTM-XXXXXX" />
-            </Field>
-          </Card>
-          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-        </div>
-      </div>
-      <SaveBar saved={saved} saving={saving} onSave={save} />
-    </div>
-  )
-}
-
 // ─── Aba Conta ────────────────────────────────────────────────────────────────
 
 function TabConta({ active }: { active: boolean }) {
@@ -2119,7 +1893,6 @@ export default function AjustesPage() {
           <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
           <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
           <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
-          <TabIntegracoes restauranteId={restauranteId} active={tab === 'integracoes'} />
           <TabConta active={tab === 'conta'} />
         </>
       )}
