@@ -297,7 +297,7 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
       enderecoRua: 'Rua Exemplo', enderecoNumero: '100', enderecoComplemento: 'Apto 12', enderecoBairro: 'Centro', enderecoCep: '00000-000',
       formaPagamento: 'dinheiro', trocoPara: 50, pago: false, origem: 'cardapio', mesa: null,
       observacao: 'Impressao de teste', criadoEm: new Date().toISOString(),
-      subtotal: 40, taxaEntrega: 5, desconto: 0, total: 45,
+      subtotal: 40, taxaEntrega: 5, total: 45,
       itens: [{ quantidade: 1, nome: 'Item de Teste', precoUnitario: 40, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Adicional', preco: 5 }], observacao: 'Sem observacoes' }],
     }
     const recibo = montarRecibo(pedidoTeste, cfgLoja, cols, lojaNome, Boolean(logoPath))

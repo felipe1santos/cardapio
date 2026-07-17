@@ -195,6 +195,14 @@ export function montarMensagemFidelidade(
   return blocos.join('\n')
 }
 
+/**
+ * Motivo lançado por `criarPedido` quando um cupom segmentado (primeira_compra/recompra)
+ * chega com um telefone sem cadastro de cliente no tenant — a vitrine logada sempre tem o
+ * cliente na tabela `clientes` (criado no login por código), então esse erro só aparece
+ * pra quem chama a API direta com telefone forjado.
+ */
+export const MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO = 'Entre com seu telefone no cardápio para usar este cupom.'
+
 export interface CupomRegra {
   ativo: boolean
   tipo: 'desconto_percentual' | 'desconto_valor' | 'entrega_gratis' | 'item_gratis'

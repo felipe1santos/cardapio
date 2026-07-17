@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolverFrete } from '@/lib/frete'
-import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, type CupomRegra } from '@/lib/fidelidade-regras'
+import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
 
@@ -1016,6 +1016,25 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       .maybeSingle()
     if (cupomError) throw cupomError
     if (!cupom) throw new Error('Cupom não encontrado.')
+
+    // Cupom segmentado depende do histórico do telefone informado — sem um cadastro de
+    // cliente no tenant (criado no login por código da vitrine, ou pelo fallback de OTP),
+    // o telefone pode ter sido forjado numa chamada direta à API. A vitrine já exige a
+    // sessão antes de aplicar o cupom, então o fluxo legítimo sempre passa por aqui com
+    // o registro existente em `clientes`.
+    if (cupom.publico !== 'todos') {
+      const telefoneCadastrado = normalizarTelefoneCliente(input.cliente.telefone)
+      const { data: clienteCadastrado, error: clienteCadastradoError } = telefoneCadastrado
+        ? await admin
+            .from('clientes')
+            .select('id')
+            .eq('restaurante_id', restauranteId)
+            .eq('telefone', telefoneCadastrado)
+            .maybeSingle()
+        : { data: null, error: null }
+      if (clienteCadastradoError) throw clienteCadastradoError
+      if (!clienteCadastrado) throw new Error(MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO)
+    }
 
     const historico = await buscarHistoricoCliente(admin, restauranteId, input.cliente.telefone, cupom.id)
     const { hojeISO, diaSemana } = hojeSaoPaulo()
