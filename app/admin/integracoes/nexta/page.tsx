@@ -35,12 +35,10 @@ const TAMANHOS = [
 
 interface Form {
   ativo: boolean
-  baseUrl: string
   clientId: string
   clientSecret: string
   merchantId: string
   merchantName: string
-  cnpj: string
   pickup: { rua: string; numero: string; complemento: string; bairro: string; cidade: string; uf: string; cep: string }
   vehicleType: string
   container: string
@@ -53,12 +51,10 @@ interface Form {
 
 const FORM_VAZIO: Form = {
   ativo: false,
-  baseUrl: '',
   clientId: '',
   clientSecret: '',
   merchantId: '',
   merchantName: '',
-  cnpj: '',
   pickup: { rua: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '', cep: '' },
   vehicleType: 'MOTORBIKE_BAG',
   container: 'THERMIC',
@@ -72,12 +68,10 @@ const FORM_VAZIO: Form = {
 function formDaConfig(c: NextaConfigPublica): Form {
   return {
     ativo: c.ativo,
-    baseUrl: c.baseUrl,
     clientId: c.clientId,
     clientSecret: '', // write-only: o servidor nunca devolve o segredo salvo
     merchantId: c.merchantId,
     merchantName: c.merchantName,
-    cnpj: c.cnpj,
     pickup: { ...c.pickup },
     vehicleType: c.vehicleType,
     container: c.container,
@@ -340,7 +334,7 @@ export default function IntegracaoNextaPage() {
   // esta página que sabe em qual origem ela está rodando.
   const webhookUrl = config?.webhookToken && typeof window !== 'undefined' ? `${window.location.origin}/api/nexta/webhook/${config.webhookToken}` : ''
 
-  const conectado = Boolean(config?.ativo && config.temSecret && config.baseUrl)
+  const conectado = Boolean(config?.ativo && config.temSecret)
 
   if (carregando) {
     return (
@@ -395,16 +389,6 @@ export default function IntegracaoNextaPage() {
               </p>
 
               <div className="space-y-3.5">
-                <div>
-                  <label className={labelCls}>URL base da API</label>
-                  <input
-                    value={form.baseUrl}
-                    onChange={(e) => set('baseUrl', e.target.value)}
-                    placeholder="https://bck.nextadelivery.app/api:..."
-                    className={inputCls}
-                  />
-                  <p className="mt-1.5 text-[11px] text-text-subtle">O Nexta fornece uma URL por estabelecimento.</p>
-                </div>
                 <div className="grid gap-3.5 sm:grid-cols-2">
                   <div>
                     <label className={labelCls}>Client ID</label>
@@ -421,19 +405,13 @@ export default function IntegracaoNextaPage() {
                       className={inputCls}
                     />
                     <p className="mt-1.5 text-[11px] text-text-subtle">
-                      {config?.temSecret ? 'Deixe em branco para manter o segredo atual.' : 'O Nexta emite um par por loja.'}
+                      {config?.temSecret ? 'Salvo. Deixe em branco para manter o segredo atual.' : 'O Nexta emite um par por loja.'}
                     </p>
                   </div>
                 </div>
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                  <div>
-                    <label className={labelCls}>Nome da loja no Nexta</label>
-                    <input value={form.merchantName} onChange={(e) => set('merchantName', e.target.value)} className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>CNPJ (opcional)</label>
-                    <input value={form.cnpj} onChange={(e) => set('cnpj', e.target.value)} placeholder="00.000.000/0000-00" className={inputCls} />
-                  </div>
+                <div>
+                  <label className={labelCls}>Nome da loja no Nexta</label>
+                  <input value={form.merchantName} onChange={(e) => set('merchantName', e.target.value)} className={inputCls} />
                 </div>
 
                 <div>
@@ -441,12 +419,12 @@ export default function IntegracaoNextaPage() {
                   <input
                     value={form.merchantId}
                     onChange={(e) => set('merchantId', e.target.value)}
-                    placeholder={form.clientId || 'preenchido com o Client ID ao salvar'}
+                    placeholder="ex.: menuzia-000123"
                     className={inputCls}
                   />
                   <p className="mt-1.5 text-[11px] leading-relaxed text-text-subtle">
-                    Identificador da sua loja no padrão Open Delivery. O Nexta só reconhece a loja quando este valor é igual ao
-                    Client ID — deixe em branco para preenchermos automaticamente. Só altere se o suporte deles pedir.
+                    Identificador da sua loja no Nexta. Envie este valor ao suporte do Nexta para cadastrar o estabelecimento — é
+                    por ele que eles reconhecem os pedidos que chegam daqui.
                   </p>
                 </div>
 

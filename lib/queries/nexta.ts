@@ -19,12 +19,10 @@ import { nextaEntregaAtiva } from '@/lib/nexta-eventos'
 interface ConfigRow {
   restaurante_id: string
   ativo: boolean
-  base_url: string
   client_id: string
   client_secret: string
   merchant_id: string
   merchant_name: string
-  cnpj: string
   webhook_token: string
   pickup_rua: string
   pickup_numero: string
@@ -45,7 +43,7 @@ interface ConfigRow {
 }
 
 const CONFIG_SELECT =
-  'restaurante_id, ativo, base_url, client_id, client_secret, merchant_id, merchant_name, cnpj, webhook_token, ' +
+  'restaurante_id, ativo, client_id, client_secret, merchant_id, merchant_name, webhook_token, ' +
   'pickup_rua, pickup_numero, pickup_complemento, pickup_bairro, pickup_cidade, pickup_uf, pickup_cep, pickup_latitude, pickup_longitude, ' +
   'vehicle_type, container, container_size, pickup_limit_min, delivery_limit_min, limit_times_as_datetime, peso_padrao_g'
 
@@ -53,12 +51,10 @@ function mapConfig(row: ConfigRow): NextaConfig {
   return {
     restauranteId: row.restaurante_id,
     ativo: row.ativo,
-    baseUrl: row.base_url,
     clientId: row.client_id,
     clientSecret: row.client_secret,
     merchantId: row.merchant_id,
     merchantName: row.merchant_name,
-    cnpj: row.cnpj ?? '',
     webhookToken: row.webhook_token,
     pickup: {
       rua: row.pickup_rua ?? '',
@@ -98,13 +94,11 @@ export async function buscarNextaConfigPorWebhookToken(admin: SupabaseClient, to
 /** Config sem o segredo — é isto que trafega para o browser. */
 export interface NextaConfigPublica {
   ativo: boolean
-  baseUrl: string
   clientId: string
   /** O segredo nunca sai do servidor; o painel só sabe se já existe um salvo. */
   temSecret: boolean
   merchantId: string
   merchantName: string
-  cnpj: string
   webhookToken: string
   pickup: NextaConfig['pickup']
   vehicleType: string
@@ -119,12 +113,10 @@ export interface NextaConfigPublica {
 export function paraConfigPublica(cfg: NextaConfig): NextaConfigPublica {
   return {
     ativo: cfg.ativo,
-    baseUrl: cfg.baseUrl,
     clientId: cfg.clientId,
     temSecret: cfg.clientSecret !== '',
     merchantId: cfg.merchantId,
     merchantName: cfg.merchantName,
-    cnpj: cfg.cnpj,
     webhookToken: cfg.webhookToken,
     pickup: cfg.pickup,
     vehicleType: cfg.vehicleType,
@@ -139,13 +131,11 @@ export function paraConfigPublica(cfg: NextaConfig): NextaConfigPublica {
 
 export interface NextaConfigPatch {
   ativo?: boolean
-  baseUrl?: string
   clientId?: string
   /** String vazia/ausente preserva o segredo atual — o form nunca recebe o valor salvo. */
   clientSecret?: string
   merchantId?: string
   merchantName?: string
-  cnpj?: string
   pickup?: Partial<NextaConfig['pickup']>
   vehicleType?: string
   container?: string
@@ -159,25 +149,18 @@ export interface NextaConfigPatch {
 /**
  * Cria ou atualiza a config da loja. `webhook_token` nasce do default do banco.
  *
- * `merchant_id`: no padrão Open Delivery é um id que o RESTAURANTE escolhe. Na prática o
- * backend do Nexta resolve o estabelecimento por ele e só aceita o `client_id` que eles
- * emitiram — qualquer outro valor devolve `ERROR_FATAL "Unable to locate var:
- * integracaoEstabelecimento1.estabelecimento_id"` (verificado no sandbox em 2026-07-15).
- * Por isso o default é o client_id; o campo continua editável para o dia em que o Nexta
- * (ou outro operador) aceitar um id próprio.
+ * `merchant_id` é o identificador que a loja informa ao suporte do Nexta para ser
+ * cadastrada. É digitado pelo lojista e vai como `merchant.id` no payload Open Delivery
+ * — o Nexta resolve o estabelecimento por ele.
  */
 export async function salvarNextaConfig(admin: SupabaseClient, restauranteId: string, patch: NextaConfigPatch): Promise<NextaConfig> {
-  const atual = await buscarNextaConfig(admin, restauranteId)
-
   const row: Record<string, unknown> = { restaurante_id: restauranteId }
   if (patch.ativo !== undefined) row.ativo = patch.ativo
-  if (patch.baseUrl !== undefined) row.base_url = patch.baseUrl.trim()
   if (patch.clientId !== undefined) row.client_id = patch.clientId.trim()
   // Segredo só é gravado quando o lojista digita um novo; vazio = mantém o que está lá.
   if (patch.clientSecret) row.client_secret = patch.clientSecret.trim()
   if (patch.merchantId !== undefined) row.merchant_id = patch.merchantId.trim()
   if (patch.merchantName !== undefined) row.merchant_name = patch.merchantName.trim()
-  if (patch.cnpj !== undefined) row.cnpj = patch.cnpj.replace(/\D/g, '')
   if (patch.vehicleType !== undefined) row.vehicle_type = patch.vehicleType
   if (patch.container !== undefined) row.container = patch.container
   if (patch.containerSize !== undefined) row.container_size = patch.containerSize
@@ -203,13 +186,6 @@ export async function salvarNextaConfig(admin: SupabaseClient, restauranteId: st
       row.pickup_latitude = null
       row.pickup_longitude = null
     }
-  }
-
-  // Sem merchant_id explícito, espelha o client_id — é o único valor que o Nexta aceita.
-  const merchantIdFinal = (row.merchant_id as string | undefined) ?? atual?.merchantId ?? ''
-  if (!merchantIdFinal) {
-    const clientId = (row.client_id as string | undefined) ?? atual?.clientId ?? ''
-    if (clientId) row.merchant_id = clientId
   }
 
   const { data, error } = await admin.from('nexta_config').upsert(row, { onConflict: 'restaurante_id' }).select(CONFIG_SELECT).single()

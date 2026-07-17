@@ -5,8 +5,9 @@
  * SERVER-ONLY: recebe a config da loja (que carrega o client_secret) e nunca deve ser
  * importado em componente client. O browser fala com as rotas /api/admin/nexta/*.
  *
- * Nada aqui é global: cada loja tem sua própria base_url e seu próprio par
- * client_id/client_secret (o Nexta emite um par por estabelecimento).
+ * A URL base da API é a MESMA para todas as lojas (`NEXTA_BASE_URL`). O que muda por
+ * estabelecimento é só o par client_id/client_secret (o Nexta emite um par por loja) e
+ * o merchant_id (o identificador que a loja informa ao suporte do Nexta).
  *
  * Divergências conhecidas do backend do Nexta (Xano) em relação à spec, todas testadas
  * no sandbox em 2026-07-15 — ver docs/NEXTA-INTEGRACAO-PLANO.md §2:
@@ -44,15 +45,21 @@ export interface NextaPickup {
   longitude: number | null
 }
 
+/**
+ * URL base da API do Nexta — a mesma para todas as lojas. O Nexta expõe um único
+ * backend (Xano); só as credenciais é que são por estabelecimento. Sem o fragmento
+ * `#/` que a UI de docs do Xano acrescenta (ele viraria fragmento de URL e o path
+ * nunca chegaria ao servidor → 405).
+ */
+export const NEXTA_BASE_URL = 'https://bck.nextadelivery.app/api:lZyx1NRE'
+
 export interface NextaConfig {
   restauranteId: string
   ativo: boolean
-  baseUrl: string
   clientId: string
   clientSecret: string
   merchantId: string
   merchantName: string
-  cnpj: string
   webhookToken: string
   pickup: NextaPickup
   vehicleType: string
@@ -328,8 +335,9 @@ export function limparTokenNexta(restauranteId: string) {
   tokenCache.delete(restauranteId)
 }
 
-function urlNexta(cfg: NextaConfig, path: string): string {
-  return `${cfg.baseUrl.replace(/\/$/, '')}${path}`
+function urlNexta(path: string): string {
+  // Tira barra/fragmento no fim por robustez, mesmo a constante já vindo limpa.
+  return `${NEXTA_BASE_URL.replace(/[/#]+$/, '')}${path}`
 }
 
 /** Extrai uma mensagem legível do corpo de erro do Nexta (que varia bastante de forma). */
@@ -359,8 +367,8 @@ async function lerCorpo(res: Response): Promise<unknown> {
 
 /** Token OAuth2 client_credentials da loja, com cache em memória. */
 export async function obterToken(cfg: NextaConfig, forcarRenovacao = false): Promise<string> {
-  if (!cfg.baseUrl || !cfg.clientId || !cfg.clientSecret) {
-    throw new NextaError('Integração Nexta sem URL base ou credenciais configuradas.', 0, null)
+  if (!cfg.clientId || !cfg.clientSecret) {
+    throw new NextaError('Integração Nexta sem credenciais configuradas.', 0, null)
   }
 
   const cache = tokenCache.get(cfg.restauranteId)
@@ -368,7 +376,7 @@ export async function obterToken(cfg: NextaConfig, forcarRenovacao = false): Pro
 
   let res: Response
   try {
-    res = await fetch(urlNexta(cfg, '/oauth/token'), {
+    res = await fetch(urlNexta('/oauth/token'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_id: cfg.clientId, client_secret: cfg.clientSecret, grant_type: 'client_credentials' }),
@@ -395,7 +403,7 @@ export async function obterToken(cfg: NextaConfig, forcarRenovacao = false): Pro
 async function chamar(cfg: NextaConfig, path: string, init: { method: 'GET' | 'POST'; body?: unknown }): Promise<unknown> {
   const executar = async (token: string): Promise<Response> => {
     try {
-      return await fetch(urlNexta(cfg, path), {
+      return await fetch(urlNexta(path), {
         method: init.method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: init.body === undefined ? undefined : JSON.stringify(init.body),

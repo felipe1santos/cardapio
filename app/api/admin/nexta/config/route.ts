@@ -33,12 +33,10 @@ export async function GET() {
 
 interface CorpoPut {
   ativo?: unknown
-  baseUrl?: unknown
   clientId?: unknown
   clientSecret?: unknown
   merchantId?: unknown
   merchantName?: unknown
-  cnpj?: unknown
   pickup?: Record<string, unknown>
   vehicleType?: unknown
   container?: unknown
@@ -74,12 +72,10 @@ export async function PUT(request: Request) {
 
   const patch: NextaConfigPatch = {
     ativo: bool(corpo.ativo),
-    baseUrl: texto(corpo.baseUrl),
     clientId: texto(corpo.clientId),
     clientSecret: texto(corpo.clientSecret),
     merchantId: texto(corpo.merchantId),
     merchantName: texto(corpo.merchantName),
-    cnpj: texto(corpo.cnpj),
     vehicleType: texto(corpo.vehicleType),
     container: texto(corpo.container),
     containerSize: texto(corpo.containerSize),

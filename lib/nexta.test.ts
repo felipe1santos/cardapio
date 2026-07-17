@@ -15,12 +15,10 @@ import {
 const cfg: NextaConfig = {
   restauranteId: 'r1',
   ativo: true,
-  baseUrl: 'https://bck.nextadelivery.app/api:84_dGPfI',
   clientId: 'cid',
   clientSecret: 'segredo',
-  merchantId: '12345678000199-11111111-2222-3333-4444-555555555555',
+  merchantId: 'menuzia-000123',
   merchantName: 'Menuzia Burger',
-  cnpj: '12345678000199',
   webhookToken: 'tok',
   pickup: {
     rua: 'Avenida Ibirapuera',

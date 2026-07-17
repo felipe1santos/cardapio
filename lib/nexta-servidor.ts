@@ -25,8 +25,8 @@ export async function carregarConfigNexta(
   const cfg = await buscarNextaConfig(admin, restauranteId)
   if (!cfg) throw new NextaError('Integração Nexta ainda não configurada nesta loja.', 0, null)
   if (exigirAtivo && !cfg.ativo) throw new NextaError('Integração Nexta está desativada.', 0, null)
-  if (!cfg.baseUrl || !cfg.clientId || !cfg.clientSecret) {
-    throw new NextaError('Integração Nexta sem URL base ou credenciais. Configure em Integrações › Nexta.', 0, null)
+  if (!cfg.clientId || !cfg.clientSecret) {
+    throw new NextaError('Integração Nexta sem credenciais. Configure em Integrações › Nexta.', 0, null)
   }
   if (!cfg.pickup.rua || !cfg.pickup.cidade || !cfg.pickup.uf) {
     throw new NextaError('Endereço de coleta da loja incompleto. Preencha em Integrações › Nexta.', 0, null)
