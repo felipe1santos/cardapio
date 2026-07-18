@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ShieldCheck } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -190,8 +190,9 @@ function FacebookPixelCard({ restauranteId }: { restauranteId: string }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [pixelId, setPixelId] = useState('')
+  const [salvo, setSalvo] = useState('')
+  const [editando, setEditando] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -199,6 +200,7 @@ function FacebookPixelCard({ restauranteId }: { restauranteId: string }) {
     buscarConfigLoja(supabase, restauranteId).then((c) => {
       if (!c) return
       setPixelId(c.facebookPixelId ?? '')
+      setSalvo((c.facebookPixelId ?? '').trim())
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -206,9 +208,12 @@ function FacebookPixelCard({ restauranteId }: { restauranteId: string }) {
   async function save() {
     setSaving(true)
     setError(null)
+    const valor = pixelId.trim()
     try {
-      await atualizarConfigLoja(supabase, restauranteId, { facebookPixelId: pixelId.trim() || null })
-      setSaved(true)
+      await atualizarConfigLoja(supabase, restauranteId, { facebookPixelId: valor || null })
+      setSalvo(valor)
+      setPixelId(valor)
+      setEditando(false)
     } catch {
       setError('Não foi possível salvar. Verifique sua conexão e tente novamente.')
     } finally {
@@ -216,7 +221,8 @@ function FacebookPixelCard({ restauranteId }: { restauranteId: string }) {
     }
   }
 
-  const ativo = loaded && pixelId.trim() !== ''
+  const ativo = loaded && salvo !== ''
+  const readOnly = ativo && !editando
 
   return (
     <Card className="flex flex-col">
@@ -230,13 +236,29 @@ function FacebookPixelCard({ restauranteId }: { restauranteId: string }) {
         Cada loja tem seu próprio Pixel — o código é injetado apenas no cardápio público desta loja.
       </p>
       <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pixel ID</label>
-      <Input value={pixelId} onChange={(e) => { setPixelId(e.target.value); setSaved(false) }} placeholder="Ex: 1234567890123456" />
-      <div className="mt-3 flex items-center gap-3">
-        <Button variant="outline" onClick={save} disabled={saving}>
-          {saving ? 'Salvando…' : 'Salvar'}
-        </Button>
-        {saved && !saving && <span className="text-[12px] font-medium text-status-ready">Salvo.</span>}
-      </div>
+      {readOnly ? (
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-primary-dark">
+            <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{salvo}</span>
+          </span>
+          <Button variant="outline" onClick={() => setEditando(true)}>Editar</Button>
+        </div>
+      ) : (
+        <>
+          <Input value={pixelId} onChange={(e) => setPixelId(e.target.value)} placeholder="Ex: 1234567890123456" />
+          <div className="mt-3 flex items-center gap-3">
+            <Button variant="outline" onClick={save} disabled={saving}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </Button>
+            {editando && (
+              <Button variant="ghost" onClick={() => { setPixelId(salvo); setEditando(false); setError(null) }} disabled={saving}>
+                Cancelar
+              </Button>
+            )}
+          </div>
+        </>
+      )}
       {error && <p className="mt-2 rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[12px] text-danger">{error}</p>}
     </Card>
   )
@@ -248,8 +270,9 @@ function GoogleTagCard({ restauranteId }: { restauranteId: string }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [tagId, setTagId] = useState('')
+  const [salvo, setSalvo] = useState('')
+  const [editando, setEditando] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -257,6 +280,7 @@ function GoogleTagCard({ restauranteId }: { restauranteId: string }) {
     buscarConfigLoja(supabase, restauranteId).then((c) => {
       if (!c) return
       setTagId(c.googleTagId ?? '')
+      setSalvo((c.googleTagId ?? '').trim())
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -264,9 +288,12 @@ function GoogleTagCard({ restauranteId }: { restauranteId: string }) {
   async function save() {
     setSaving(true)
     setError(null)
+    const valor = tagId.trim()
     try {
-      await atualizarConfigLoja(supabase, restauranteId, { googleTagId: tagId.trim() || null })
-      setSaved(true)
+      await atualizarConfigLoja(supabase, restauranteId, { googleTagId: valor || null })
+      setSalvo(valor)
+      setTagId(valor)
+      setEditando(false)
     } catch {
       setError('Não foi possível salvar. Verifique sua conexão e tente novamente.')
     } finally {
@@ -274,7 +301,8 @@ function GoogleTagCard({ restauranteId }: { restauranteId: string }) {
     }
   }
 
-  const ativo = loaded && tagId.trim() !== ''
+  const ativo = loaded && salvo !== ''
+  const readOnly = ativo && !editando
 
   return (
     <Card className="flex flex-col">
@@ -289,13 +317,29 @@ function GoogleTagCard({ restauranteId }: { restauranteId: string }) {
         O snippet é injetado no &lt;head&gt; do cardápio público desta loja.
       </p>
       <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tag ID</label>
-      <Input value={tagId} onChange={(e) => { setTagId(e.target.value); setSaved(false) }} placeholder="Ex: G-ABC123XYZ ou GTM-XXXXXX" />
-      <div className="mt-3 flex items-center gap-3">
-        <Button variant="outline" onClick={save} disabled={saving}>
-          {saving ? 'Salvando…' : 'Salvar'}
-        </Button>
-        {saved && !saving && <span className="text-[12px] font-medium text-status-ready">Salvo.</span>}
-      </div>
+      {readOnly ? (
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-primary-dark">
+            <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{salvo}</span>
+          </span>
+          <Button variant="outline" onClick={() => setEditando(true)}>Editar</Button>
+        </div>
+      ) : (
+        <>
+          <Input value={tagId} onChange={(e) => setTagId(e.target.value)} placeholder="Ex: G-ABC123XYZ ou GTM-XXXXXX" />
+          <div className="mt-3 flex items-center gap-3">
+            <Button variant="outline" onClick={save} disabled={saving}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </Button>
+            {editando && (
+              <Button variant="ghost" onClick={() => { setTagId(salvo); setEditando(false); setError(null) }} disabled={saving}>
+                Cancelar
+              </Button>
+            )}
+          </div>
+        </>
+      )}
       {error && <p className="mt-2 rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[12px] text-danger">{error}</p>}
     </Card>
   )

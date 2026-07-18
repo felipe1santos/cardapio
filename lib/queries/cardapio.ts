@@ -26,6 +26,8 @@ export interface ComplementoItem {
   preco: number
   presetOrigemId: string | null
   imagemUrl: string | null
+  /** Pausado = continua cadastrado no admin, mas não aparece na vitrine. */
+  pausado: boolean
 }
 
 export interface GrupoItemComplementos {
@@ -88,7 +90,7 @@ export interface PresetComplementos {
   minEscolhas: number
   maxEscolhas: number
   permiteQuantidade: boolean
-  itens: { id: string; nome: string; preco: number; imagemUrl: string | null }[]
+  itens: { id: string; nome: string; preco: number; imagemUrl: string | null; pausado: boolean }[]
 }
 
 interface ItemRow {
@@ -104,7 +106,7 @@ interface ItemRow {
   mais_vendido: boolean
   tag: TagItem | null
   tipo_item: TipoItem
-  item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null }[]
+  item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null; pausado: boolean }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number; permite_quantidade: boolean }[]
   tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
   pizza_sabores: {
@@ -131,7 +133,7 @@ function mapItem(row: ItemRow): ItemCardapio {
       permiteQuantidade: g.permite_quantidade ?? false,
       complementos: (row.item_complementos ?? [])
         .filter((c) => c.grupo_id === g.id)
-        .map((c) => ({ id: c.id, nome: c.nome, preco: Number(c.preco), presetOrigemId: c.preset_origem_id, imagemUrl: c.imagem_url ?? null })),
+        .map((c) => ({ id: c.id, nome: c.nome, preco: Number(c.preco), presetOrigemId: c.preset_origem_id, imagemUrl: c.imagem_url ?? null, pausado: c.pausado ?? false })),
     }))
 
   return {
@@ -150,7 +152,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     grupos,
     complementos: (row.item_complementos ?? [])
       .filter((c) => !c.grupo_id)
-      .map((c) => ({ id: c.id, nome: c.nome, preco: Number(c.preco), presetOrigemId: c.preset_origem_id, imagemUrl: c.imagem_url ?? null })),
+      .map((c) => ({ id: c.id, nome: c.nome, preco: Number(c.preco), presetOrigemId: c.preset_origem_id, imagemUrl: c.imagem_url ?? null, pausado: c.pausado ?? false })),
     tamanhos: (row.tamanhos_item ?? [])
       .sort((a, b) => a.posicao - b.posicao)
       .map((t) => ({ id: t.id, nome: t.nome, preco: Number(t.preco), posicao: t.posicao })),
@@ -237,7 +239,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
-  item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url ),
+  item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
   tamanhos_item ( id, nome, preco, posicao ),
   pizza_sabores ( id, nome, descricao, imagem_url, status, posicao, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
@@ -479,7 +481,7 @@ export async function definirPrecoSabor(supabase: SupabaseClient, saborId: strin
 export async function listarPresets(supabase: SupabaseClient, restauranteId: string): Promise<PresetComplementos[]> {
   const { data, error } = await supabase
     .from('presets_complementos')
-    .select('id, nome, obrigatorio, min_escolhas, max_escolhas, permite_quantidade, preset_complemento_itens ( id, nome, preco, imagem_url )')
+    .select('id, nome, obrigatorio, min_escolhas, max_escolhas, permite_quantidade, preset_complemento_itens ( id, nome, preco, imagem_url, pausado )')
     .eq('restaurante_id', restauranteId)
     .order('criado_em', { ascending: true })
 
@@ -491,11 +493,12 @@ export async function listarPresets(supabase: SupabaseClient, restauranteId: str
     minEscolhas: preset.min_escolhas,
     maxEscolhas: preset.max_escolhas,
     permiteQuantidade: preset.permite_quantidade ?? false,
-    itens: (preset.preset_complemento_itens ?? []).map((item: { id: string; nome: string; preco: number; imagem_url: string | null }) => ({
+    itens: (preset.preset_complemento_itens ?? []).map((item: { id: string; nome: string; preco: number; imagem_url: string | null; pausado: boolean }) => ({
       id: item.id,
       nome: item.nome,
       preco: Number(item.preco),
       imagemUrl: item.imagem_url ?? null,
+      pausado: item.pausado ?? false,
     })),
   }))
 }
@@ -542,18 +545,27 @@ export async function adicionarItemPreset(
   preco: number,
   posicao: number,
   imagemUrl?: string | null,
-): Promise<{ id: string; nome: string; preco: number; imagemUrl: string | null }> {
+): Promise<{ id: string; nome: string; preco: number; imagemUrl: string | null; pausado: boolean }> {
   const { data, error } = await supabase
     .from('preset_complemento_itens')
     .insert({ preset_id: presetId, nome, preco, posicao, imagem_url: imagemUrl ?? null })
-    .select('id, nome, preco, imagem_url')
+    .select('id, nome, preco, imagem_url, pausado')
     .single()
   if (error) throw error
-  return { id: data.id, nome: data.nome, preco: Number(data.preco), imagemUrl: data.imagem_url ?? null }
+  return { id: data.id, nome: data.nome, preco: Number(data.preco), imagemUrl: data.imagem_url ?? null, pausado: data.pausado ?? false }
 }
 
-export async function atualizarItemPreset(supabase: SupabaseClient, itemId: string, nome: string, preco: number, imagemUrl?: string | null) {
-  const { error } = await supabase.from('preset_complemento_itens').update({ nome, preco, imagem_url: imagemUrl ?? null }).eq('id', itemId)
+export async function atualizarItemPreset(
+  supabase: SupabaseClient,
+  itemId: string,
+  nome: string,
+  preco: number,
+  imagemUrl?: string | null,
+  pausado?: boolean,
+) {
+  const patch: Record<string, unknown> = { nome, preco, imagem_url: imagemUrl ?? null }
+  if (pausado !== undefined) patch.pausado = pausado
+  const { error } = await supabase.from('preset_complemento_itens').update(patch).eq('id', itemId)
   if (error) throw error
 }
 
@@ -570,7 +582,7 @@ export async function removerItemPreset(supabase: SupabaseClient, itemId: string
 export async function importarPresetNoItem(supabase: SupabaseClient, itemId: string, presetId: string, posicao: number) {
   const { data: presetData, error: presetError } = await supabase
     .from('presets_complementos')
-    .select('id, nome, obrigatorio, min_escolhas, max_escolhas, permite_quantidade, preset_complemento_itens ( id, nome, preco, imagem_url, posicao )')
+    .select('id, nome, obrigatorio, min_escolhas, max_escolhas, permite_quantidade, preset_complemento_itens ( id, nome, preco, imagem_url, posicao, pausado )')
     .eq('id', presetId)
     .single()
   if (presetError) throw presetError
@@ -584,11 +596,12 @@ export async function importarPresetNoItem(supabase: SupabaseClient, itemId: str
     permiteQuantidade: presetData.permite_quantidade ?? false,
     itens: (presetData.preset_complemento_itens ?? [])
       .sort((a: { posicao: number }, b: { posicao: number }) => a.posicao - b.posicao)
-      .map((item: { id: string; nome: string; preco: number; imagem_url: string | null }) => ({
+      .map((item: { id: string; nome: string; preco: number; imagem_url: string | null; pausado: boolean }) => ({
         id: item.id,
         nome: item.nome,
         preco: Number(item.preco),
         imagemUrl: item.imagem_url ?? null,
+        pausado: item.pausado ?? false,
       })),
   }
 
@@ -619,6 +632,7 @@ export async function importarPresetNoItem(supabase: SupabaseClient, itemId: str
       posicao: index,
       preset_origem_id: preset.id,
       imagem_url: item.imagemUrl,
+      pausado: item.pausado,
     }))
   )
   if (error) throw error
@@ -636,21 +650,23 @@ export async function adicionarComplemento(
   const { data, error } = await supabase
     .from('item_complementos')
     .insert({ item_id: itemId, nome, preco, posicao, grupo_id: grupoId ?? null, imagem_url: imagemUrl ?? null })
-    .select('id, nome, preco, preset_origem_id, imagem_url')
+    .select('id, nome, preco, preset_origem_id, imagem_url, pausado')
     .single()
 
   if (error) throw error
-  return { id: data.id, nome: data.nome, preco: Number(data.preco), presetOrigemId: data.preset_origem_id, imagemUrl: data.imagem_url ?? null }
+  return { id: data.id, nome: data.nome, preco: Number(data.preco), presetOrigemId: data.preset_origem_id, imagemUrl: data.imagem_url ?? null, pausado: data.pausado ?? false }
 }
 
 export async function atualizarComplemento(
   supabase: SupabaseClient,
   complementoId: string,
-  dados: { nome: string; preco: number; imagemUrl: string | null },
+  dados: { nome: string; preco: number; imagemUrl: string | null; pausado?: boolean },
 ): Promise<void> {
+  const patch: Record<string, unknown> = { nome: dados.nome, preco: dados.preco, imagem_url: dados.imagemUrl }
+  if (dados.pausado !== undefined) patch.pausado = dados.pausado
   const { error } = await supabase
     .from('item_complementos')
-    .update({ nome: dados.nome, preco: dados.preco, imagem_url: dados.imagemUrl })
+    .update(patch)
     .eq('id', complementoId)
   if (error) throw error
 }
@@ -746,9 +762,16 @@ export async function listarCardapioPublico(supabase: SupabaseClient, restaurant
       ...grupo,
       itens: itens
         .filter((item) => item.grupoId === grupo.id && item.status === 'disponivel')
+        // Complemento pausado some da vitrine (mas continua cadastrado no admin).
         // Grupo de complementos sem opções não pode aparecer na vitrine: um grupo
         // obrigatório vazio deixaria o item impossível de pedir.
-        .map((item) => ({ ...item, grupos: item.grupos.filter((g) => g.complementos.length > 0) })),
+        .map((item) => ({
+          ...item,
+          complementos: item.complementos.filter((c) => !c.pausado),
+          grupos: item.grupos
+            .map((g) => ({ ...g, complementos: g.complementos.filter((c) => !c.pausado) }))
+            .filter((g) => g.complementos.length > 0),
+        })),
     }))
     .filter((grupo) => grupo.itens.length > 0)
 }

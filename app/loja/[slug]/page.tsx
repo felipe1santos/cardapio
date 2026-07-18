@@ -54,7 +54,8 @@ interface ToastItem {
 }
 
 type Tab = 'home' | 'cart' | 'pedidos' | 'cupons'
-type CheckoutStep = 1 | 2 | 3
+/** 0 = Resumo do pedido (só no desktop), 1 = Pagamento, 2 = Endereço, 3 = Revisar. */
+type CheckoutStep = 0 | 1 | 2 | 3
 
 // Cores vivas e sólidas, alinhadas ao Kanban (laranja recebido, azul preparando,
 // verde pronto/entregue, azul claro em rota, vermelho cancelado).
@@ -413,10 +414,16 @@ export default function StorefrontPage() {
   const [bordasPizza, setBordasPizza] = useState<BordaPizza[]>([])
   const [massasPizza, setMassasPizza] = useState<MassaPizza[]>([])
 
+  // Contador de refresh: incrementado quando a aba volta ao foco, para que
+  // alterações feitas no admin (item pausado, destaque removido) apareçam sem
+  // o cliente precisar recarregar a página na mão.
+  const [refreshTick, setRefreshTick] = useState(0)
+
   useEffect(() => {
     let cancelled = false
+    const isRefresh = refreshTick > 0
     async function load() {
-      setLoading(true)
+      if (!isRefresh) setLoading(true)
       setError(null)
       try {
         const loja = await buscarRestaurantePorSlug(supabase, slug)
@@ -445,14 +452,33 @@ export default function StorefrontPage() {
         setBordasPizza(bordasData)
         setMassasPizza(massasData)
       } catch {
-        if (!cancelled) setError('Não foi possível carregar o cardápio agora. Tente novamente em instantes.')
+        // Num refresh silencioso mantemos o cardápio já carregado na tela.
+        if (!cancelled && !isRefresh) setError('Não foi possível carregar o cardápio agora. Tente novamente em instantes.')
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled && !isRefresh) setLoading(false)
       }
     }
     if (slug) load()
     return () => { cancelled = true }
-  }, [supabase, slug])
+  }, [supabase, slug, refreshTick])
+
+  // Revalida o cardápio quando a aba volta a ficar visível (no máximo 1x a cada 30s).
+  useEffect(() => {
+    let ultimo = Date.now()
+    function aoVoltar() {
+      if (document.visibilityState !== 'visible') return
+      const agora = Date.now()
+      if (agora - ultimo < 30_000) return
+      ultimo = agora
+      setRefreshTick((t) => t + 1)
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
+    window.addEventListener('focus', aoVoltar)
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltar)
+      window.removeEventListener('focus', aoVoltar)
+    }
+  }, [])
 
   // ── Tracking pixel injection ───────────────────────────────────────────────
   useEffect(() => {
@@ -485,17 +511,14 @@ export default function StorefrontPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const allItems = useMemo(() => groups.flatMap((g) => g.itens), [groups])
   const promoItems = useMemo(() => allItems.filter((item) => item.promocaoPreco !== null), [allItems])
-  const destaques = useMemo(() => {
-    const marcados = allItems.filter((item) => item.maisVendido)
-    if (marcados.length > 0) return marcados.slice(0, 12)
-    if (promoItems.length > 0) return promoItems.slice(0, 8)
-    const result: ItemCardapio[] = []
-    for (const g of groups) {
-      if (g.itens[0]) result.push(g.itens[0])
-      if (result.length >= 8) break
-    }
-    return result
-  }, [allItems, groups, promoItems])
+  // Destaques respeitam só o que a loja marcou explicitamente como "Item em
+  // destaque" no admin. Sem fallback: se o dono desmarca o último item, a seção
+  // some — antes ela reaparecia com o primeiro item de cada grupo, o que fazia
+  // parecer que desmarcar não tinha efeito nenhum.
+  const destaques = useMemo(
+    () => allItems.filter((item) => item.maisVendido).slice(0, 12),
+    [allItems],
+  )
   const collageImages = useMemo(() => allItems.filter((item) => item.imagemUrl).slice(0, 3), [allItems])
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -589,7 +612,9 @@ export default function StorefrontPage() {
   const total = Math.max(0, subtotal - desconto) + (cart.length ? fee : 0)
 
   // Autopreenche rua/bairro/cidade ao digitar o CEP (ViaCEP).
-  async function autofillCep(cepRaw: string) {
+  // `alvo` escolhe qual endereço recebe o preenchimento: o do checkout (padrão)
+  // ou o endereço salvo do modal "Minha conta".
+  async function autofillCep(cepRaw: string, alvo: 'checkout' | 'conta' = 'checkout') {
     const cep = cepRaw.replace(/\D/g, '')
     if (cep.length !== 8) return
     setCepBuscando(true)
@@ -601,12 +626,14 @@ export default function StorefrontPage() {
         // Usa a grafia cadastrada pela loja quando o bairro do CEP é atendido.
         const m = bairroCep ? bairros.find((b) => normalizarBairro(b.bairro) === normalizarBairro(bairroCep)) : undefined
         const semMatch = listaFechada && bairroCep !== '' && !m
-        setEndereco((a) => ({
+        const aplicar = <T extends { rua: string; bairro: string }>(a: T): T => ({
           ...a,
           rua: data.logradouro || a.rua,
           // Sem match na lista fechada: limpa pra forçar a escolha na lista.
           bairro: m ? m.bairro : semMatch ? '' : bairroCep || a.bairro,
-        }))
+        })
+        if (alvo === 'conta') setContaEndereco(aplicar)
+        else setEndereco(aplicar)
         setCepSemBairro(semMatch)
         setCidadeCliente(data.localidade || '')
       }
@@ -1242,6 +1269,9 @@ export default function StorefrontPage() {
   // ── Checkout ──────────────────────────────────────────────────────────────
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>(1)
+  // Primeiro passo do fluxo aberto: 0 no desktop (resumo) e 1 no mobile (a aba
+  // carrinho já é o resumo). Define até onde o botão voltar (←) recua.
+  const [checkoutMinStep, setCheckoutMinStep] = useState<CheckoutStep>(1)
   const [payMethod, setPayMethod] = useState('Pix')
   const [changeFor, setChangeFor] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -1424,6 +1454,11 @@ export default function StorefrontPage() {
   }
 
   function checkoutNext() {
+    // Dá pra esvaziar a sacola pelas linhas do resumo — não deixa seguir vazio.
+    if (checkoutStep === 0 && cart.length === 0) {
+      setCheckoutError('Sua sacola está vazia.')
+      return
+    }
     if (checkoutStep === 2 && (!cliente.nome.trim() || !endereco.rua.trim() || !endereco.numero.trim() || !endereco.bairro.trim())) {
       setCheckoutError('Preencha nome, rua, número e bairro para continuar.')
       return
@@ -1442,8 +1477,8 @@ export default function StorefrontPage() {
   }
 
   function checkoutBack() {
-    if (checkoutStep > 1) setCheckoutStep((s) => (s - 1) as CheckoutStep)
-    else setCheckoutOpen(false)
+    if (checkoutStep > checkoutMinStep) { setCheckoutError(null); setCheckoutStep((s) => (s - 1) as CheckoutStep); return }
+    setCheckoutOpen(false)
   }
 
   // ── Blocos reutilizados no carrinho (aba mobile + painel lateral desktop) ──
@@ -1488,6 +1523,33 @@ export default function StorefrontPage() {
         </div>
       </div>
       <button onClick={removerBeneficio} aria-label="Remover cupom ou prêmio" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] text-text-subtle shadow-sm transition-colors hover:text-danger">✕</button>
+    </div>
+  ) : null
+
+  // Order bumps — "Peça também" (aba carrinho mobile + resumo do checkout desktop).
+  const orderBumpsBlock = orderBumps.length > 0 ? (
+    <div className="mb-5">
+      <h3 className="mb-3 text-[15px] font-bold tracking-tight">Peça também</h3>
+      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:flex-wrap">
+        {orderBumps.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => quickAddOrderBump(item)}
+            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
+          >
+            <div className="h-[100px] w-full overflow-hidden">
+              <ProductThumb item={item} size={142} />
+            </div>
+            <div className="flex flex-1 flex-col p-2.5">
+              <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
+              <div className="mt-1 text-[12px] font-bold text-[#16A34A]">{brl(item.promocaoPreco ?? item.preco)}</div>
+              <div className="mt-2 rounded bg-[var(--tema-primaria)] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
+                + Adicionar
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   ) : null
 
@@ -1721,7 +1783,7 @@ export default function StorefrontPage() {
               <div className="px-4 pt-3 lg:px-0">
                 <button
                   onClick={() => setTab('cupons')}
-                  className="flex w-full items-center gap-3 rounded-md border border-warn bg-warn-bg px-3.5 py-3 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
+                  className="animate-resgate flex w-full items-center gap-3 rounded-md border border-warn bg-warn-bg px-3.5 py-3 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
                 >
                   <span className="text-[20px] leading-none">🎁</span>
                   <span className="flex-1 text-[13px] font-bold text-[#92400E]">{bannerResgateTexto}</span>
@@ -1815,7 +1877,8 @@ export default function StorefrontPage() {
                         <button
                           onClick={() => {
                             if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
-                            setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null)
+                            // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
+                            setCheckoutOpen(true); setCheckoutMinStep(0); setCheckoutStep(0); setCheckoutError(null)
                           }}
                           className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-4 py-3.5 text-[14px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98]"
                         >
@@ -1885,31 +1948,7 @@ export default function StorefrontPage() {
                   </div>
 
                   {/* Order bumps — "Peça também" */}
-                  {orderBumps.length > 0 && (
-                    <div className="mb-5">
-                      <h3 className="mb-3 text-[15px] font-bold tracking-tight">Peça também</h3>
-                      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:flex-wrap">
-                        {orderBumps.map((item) => (
-                          <button
-                            key={item.id}
-                            onClick={() => quickAddOrderBump(item)}
-                            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
-                          >
-                            <div className="h-[100px] w-full overflow-hidden">
-                              <ProductThumb item={item} size={142} />
-                            </div>
-                            <div className="flex flex-1 flex-col p-2.5">
-                              <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
-                              <div className="mt-1 text-[12px] font-bold text-[#16A34A]">{brl(item.promocaoPreco ?? item.preco)}</div>
-                              <div className="mt-2 rounded bg-[var(--tema-primaria)] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
-                                + Adicionar
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {orderBumpsBlock}
                 </div>
 
                 <div className="lg:sticky lg:top-24">
@@ -1952,7 +1991,8 @@ export default function StorefrontPage() {
                   <button
                     onClick={() => {
                       if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
-                      setCheckoutOpen(true); setCheckoutStep(1); setCheckoutError(null)
+                      // Mobile: a aba carrinho já é o resumo — entra direto no pagamento.
+                      setCheckoutOpen(true); setCheckoutMinStep(1); setCheckoutStep(1); setCheckoutError(null)
                     }}
                     className="mt-2.5 flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98]"
                   >
@@ -2654,11 +2694,40 @@ export default function StorefrontPage() {
         <div className="mx-auto min-h-dvh max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
             <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded bg-[#F3F4F6] text-lg">←</button>
-            <span className="text-base font-bold">{checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
+            <span className="text-base font-bold">{checkoutStep === 0 ? 'Resumo do pedido' : checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
           </div>
           <div className="flex gap-2 px-4 py-4">
-            {[1, 2, 3].map((step) => <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[var(--tema-primaria)]' : 'bg-border'}`} />)}
+            {(checkoutMinStep === 0 ? [0, 1, 2, 3] : [1, 2, 3]).map((step) => (
+              <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[var(--tema-primaria)]' : 'bg-border'}`} />
+            ))}
           </div>
+
+          {checkoutStep === 0 && (
+            <div className="px-4 pb-5">
+              {/* Itens da sacola — mesma renderização do painel lateral/aba carrinho */}
+              <div className="mb-5 overflow-hidden rounded-lg border border-border bg-white">
+                {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
+              </div>
+
+              {/* Valores */}
+              <div className="mb-5 rounded-lg border border-border bg-white p-4">
+                <div className="flex justify-between py-1 text-[14px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
+                {desconto > 0 && (
+                  <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]">
+                    <span>Desconto</span><span>-{brl(desconto)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between py-1 text-[14px]">
+                  <span className="text-text-subtle">Taxa de entrega</span>
+                  {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
+                </div>
+                <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
+              </div>
+
+              {/* Order bumps — "Peça também" */}
+              {orderBumpsBlock}
+            </div>
+          )}
 
           {checkoutStep === 1 && (
             <div className="px-4 pb-5">
@@ -2968,8 +3037,8 @@ export default function StorefrontPage() {
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
               className={['flex w-full items-center justify-between rounded-lg px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]', checkoutStep === 3 ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)]'].join(' ')}>
-              <span>{submitting ? 'Enviando…' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
-              {checkoutStep === 3 && !submitting && <span>{brl(total)}</span>}
+              <span>{submitting ? 'Enviando…' : checkoutStep === 0 ? 'Ir para pagamento' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
+              {(checkoutStep === 0 || checkoutStep === 3) && !submitting && <span>{brl(total)}</span>}
             </button>
           </div>
         </div>
@@ -3073,7 +3142,18 @@ export default function StorefrontPage() {
                     className="mb-3 w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
 
                   <h3 className="mb-2.5 mt-4 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço salvo</h3>
-                  <div className="flex gap-3">
+                  {/* CEP primeiro: ao preencher, busca rua/bairro sozinho */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
+                    <input
+                      value={contaEndereco.cep}
+                      onChange={(e) => { const v = e.target.value; setContaEndereco((a) => ({ ...a, cep: v })); setCepSemBairro(false); autofillCep(v, 'conta') }}
+                      placeholder="00000-000"
+                      inputMode="numeric"
+                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                    <p className="mt-1.5 text-[12px] text-text-subtle">{cepBuscando ? 'Buscando endereço…' : 'Informe o CEP que preenchemos rua e bairro pra você.'}</p>
+                  </div>
+                  <div className="mt-3 flex gap-3">
                     <div className="flex-[2]">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua</label>
                       <input value={contaEndereco.rua} onChange={(e) => setContaEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
@@ -3085,27 +3165,20 @@ export default function StorefrontPage() {
                         className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                   </div>
-                  <div className="mt-3 flex gap-3">
-                    <div className="flex-1">
-                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
-                      {bairros.length > 0 ? (
-                        <BairroAutocomplete
-                          value={contaEndereco.bairro}
-                          onChange={(v) => setContaEndereco((a) => ({ ...a, bairro: v }))}
-                          opcoes={bairros.map((b) => b.bairro)}
-                          estrito={listaFechada}
-                          compacto
-                        />
-                      ) : (
-                        <input value={contaEndereco.bairro} onChange={(e) => setContaEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                          className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">CEP</label>
-                      <input value={contaEndereco.cep} onChange={(e) => setContaEndereco((a) => ({ ...a, cep: e.target.value }))} placeholder="00000-000"
+                  <div className="mt-3">
+                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Bairro</label>
+                    {bairros.length > 0 ? (
+                      <BairroAutocomplete
+                        value={contaEndereco.bairro}
+                        onChange={(v) => setContaEndereco((a) => ({ ...a, bairro: v }))}
+                        opcoes={bairros.map((b) => b.bairro)}
+                        estrito={listaFechada}
+                        compacto
+                      />
+                    ) : (
+                      <input value={contaEndereco.bairro} onChange={(e) => setContaEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
                         className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
-                    </div>
+                    )}
                   </div>
                   <div className="mt-3">
                     <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>

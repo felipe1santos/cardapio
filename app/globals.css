@@ -40,3 +40,25 @@ body {
 .animate-new-order {
   animation: new-order-pulse 1s ease-out 3;
 }
+
+/* Banner de cupom/prêmio na vitrine: pulsa suave e continuamente pra chamar atenção */
+@keyframes resgate-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.18);
+    transform: scale(1.012);
+  }
+}
+
+.animate-resgate {
+  animation: resgate-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-resgate {
+    animation: none;
+  }
+}

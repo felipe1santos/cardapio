@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Pause, Play } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -47,6 +48,7 @@ import {
   type GrupoCardapio,
   type GrupoItemComplementos,
   type ItemCardapio,
+  type ComplementoItem,
   type OrderBumpEntry,
   type PresetComplementos,
   type StatusItem,
@@ -329,6 +331,18 @@ function GrupoItemCard({
   const [newNome, setNewNome] = useState('')
   const [newPreco, setNewPreco] = useState('')
   const [saving, setSaving] = useState(false)
+  const [pausaSavingId, setPausaSavingId] = useState<string | null>(null)
+
+  /** Ação rápida: pausa/retoma um complemento do item (pausado some da vitrine). */
+  async function togglePausadoComp(comp: ComplementoItem) {
+    if (pausaSavingId) return
+    setPausaSavingId(comp.id)
+    try {
+      await atualizarComplemento(supabase, comp.id, { nome: comp.nome, preco: comp.preco, imagemUrl: comp.imagemUrl, pausado: !comp.pausado })
+      await onRefresh()
+    } catch { /* silencioso */ }
+    finally { setPausaSavingId(null) }
+  }
 
   async function saveHeader() {
     const trimmed = nome.trim() || grupo.nome
@@ -479,7 +493,10 @@ function GrupoItemCard({
           <div className="py-2 text-center text-[11px] text-text-subtle">Nenhum item. Adicione abaixo.</div>
         )}
         {grupo.complementos.map((comp) => (
-          <div key={comp.id} className="flex items-center gap-2 border-b border-border py-1.5 last:border-none">
+          <div
+            key={comp.id}
+            className={`flex items-center gap-2 border-b border-border py-1.5 last:border-none ${comp.pausado ? 'opacity-60' : ''}`}
+          >
             <div className="relative h-9 w-9 flex-shrink-0">
               <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-border bg-page block">
                 {comp.imagemUrl ? (
@@ -519,6 +536,11 @@ function GrupoItemCard({
               )}
             </div>
             <span className="flex-1 text-[13px] font-medium">{comp.nome}</span>
+            {comp.pausado && (
+              <span className="flex-shrink-0 rounded-menuzia bg-warn-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn">
+                Pausado
+              </span>
+            )}
             {comp.preco > 0 ? (
               <span className="text-[12px] font-semibold text-price-text">
                 + R$ {comp.preco.toFixed(2).replace('.', ',')}
@@ -528,6 +550,16 @@ function GrupoItemCard({
                 Grátis
               </span>
             )}
+            <button
+              onClick={() => togglePausadoComp(comp)}
+              disabled={pausaSavingId === comp.id}
+              title={comp.pausado ? 'Retomar complemento' : 'Pausar complemento'}
+              className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {comp.pausado
+                ? <Play className="h-[13px] w-[13px]" strokeWidth={2} />
+                : <Pause className="h-[13px] w-[13px]" strokeWidth={2} />}
+            </button>
             <button
               onClick={() => removeComp(comp.id)}
               className="flex h-[22px] w-[22px] items-center justify-center rounded-menuzia bg-danger-bg text-[13px] text-danger hover:bg-[#FCA5A5]"
@@ -739,6 +771,7 @@ interface PresetItemEdit {
   preco: string
   editing: boolean
   imagemUrl: string | null
+  pausado: boolean
 }
 
 function PresetGroupCard({
@@ -763,11 +796,12 @@ function PresetGroupCard({
   const [maxEsc, setMaxEsc] = useState(preset.maxEscolhas)
   const [permiteQuantidade, setPermiteQuantidade] = useState(preset.permiteQuantidade)
   const [items, setItems] = useState<PresetItemEdit[]>(
-    preset.itens.map((i) => ({ id: i.id, nome: i.nome, preco: String(i.preco), editing: false, imagemUrl: i.imagemUrl }))
+    preset.itens.map((i) => ({ id: i.id, nome: i.nome, preco: String(i.preco), editing: false, imagemUrl: i.imagemUrl, pausado: i.pausado }))
   )
   const [newNome, setNewNome] = useState('')
   const [newPreco, setNewPreco] = useState('')
   const [saving, setSaving] = useState(false)
+  const [pausaSavingId, setPausaSavingId] = useState<string | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
   const nomeRef = useRef<HTMLInputElement>(null)
 
@@ -792,7 +826,7 @@ function PresetGroupCard({
   function itensDe(lista: PresetItemEdit[]): PresetComplementos['itens'] {
     return lista.map((i) => {
       const val = parseFloat(i.preco.replace(',', '.'))
-      return { id: i.id, nome: i.nome, preco: Number.isFinite(val) && val >= 0 ? val : 0, imagemUrl: i.imagemUrl }
+      return { id: i.id, nome: i.nome, preco: Number.isFinite(val) && val >= 0 ? val : 0, imagemUrl: i.imagemUrl, pausado: i.pausado }
     })
   }
 
@@ -819,7 +853,7 @@ function PresetGroupCard({
     setSaving(true)
     try {
       const created = await adicionarItemPreset(supabase, preset.id, newNome.trim(), preco, items.length)
-      const next = [...items, { id: created.id, nome: created.nome, preco: String(created.preco), editing: false, imagemUrl: created.imagemUrl }]
+      const next = [...items, { id: created.id, nome: created.nome, preco: String(created.preco), editing: false, imagemUrl: created.imagemUrl, pausado: created.pausado }]
       setItems(next)
       onChanged(preset.id, { itens: itensDe(next) })
       setNewNome('')
@@ -839,6 +873,23 @@ function PresetGroupCard({
       setItems(next)
       onChanged(preset.id, { itens: itensDe(next) })
     } catch { /* silencioso */ }
+  }
+
+  /** Ação rápida: pausa um complemento ativo ou retoma um pausado (some/volta na vitrine). */
+  async function togglePausado(id: string) {
+    const item = items.find((i) => i.id === id)
+    if (!item || pausaSavingId) return
+    const val = parseFloat(item.preco.replace(',', '.'))
+    const preco = Number.isFinite(val) && val >= 0 ? val : 0
+    const novo = !item.pausado
+    setPausaSavingId(id)
+    try {
+      await atualizarItemPreset(supabase, id, item.nome.trim(), preco, item.imagemUrl, novo)
+      const next = items.map((i) => (i.id === id ? { ...i, pausado: novo } : i))
+      setItems(next)
+      onChanged(preset.id, { itens: itensDe(next) })
+    } catch { /* silencioso */ }
+    finally { setPausaSavingId(null) }
   }
 
   async function deleteItem(id: string) {
@@ -992,7 +1043,10 @@ function PresetGroupCard({
               <button onClick={() => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, editing: false } : i)))} className="text-[12px] text-text-subtle hover:text-danger">✕</button>
             </div>
           ) : (
-            <div key={item.id} className="mb-1.5 flex items-center gap-2 rounded-menuzia border border-purple-100 bg-purple-50/60 px-3 py-2">
+            <div
+              key={item.id}
+              className={`mb-1.5 flex items-center gap-2 rounded-menuzia border border-purple-100 bg-purple-50/60 px-3 py-2 ${item.pausado ? 'opacity-60' : ''}`}
+            >
               <div className="relative h-9 w-9 flex-shrink-0">
                 <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-purple-200 bg-white block">
                   {item.imagemUrl ? (
@@ -1040,6 +1094,11 @@ function PresetGroupCard({
                 )}
               </div>
               <span className="flex-1 text-[13px] font-medium text-text-main">{item.nome}</span>
+              {item.pausado && (
+                <span className="flex-shrink-0 rounded-menuzia bg-warn-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn">
+                  Pausado
+                </span>
+              )}
               {Number(item.preco) > 0 ? (
                 <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 tabular-nums text-[12px] font-bold text-price-text">+ R$ {Number(item.preco).toFixed(2).replace('.', ',')}</span>
               ) : (
@@ -1049,6 +1108,16 @@ function PresetGroupCard({
                 onClick={() => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, editing: true } : i)))}
                 className="text-[11px] text-text-subtle hover:text-purple-600"
               >Editar</button>
+              <button
+                onClick={() => togglePausado(item.id)}
+                disabled={pausaSavingId === item.id}
+                title={item.pausado ? 'Retomar complemento' : 'Pausar complemento'}
+                className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-menuzia border border-purple-200 bg-white text-text-subtle hover:border-purple-400 hover:text-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {item.pausado
+                  ? <Play className="h-[13px] w-[13px]" strokeWidth={2} />
+                  : <Pause className="h-[13px] w-[13px]" strokeWidth={2} />}
+              </button>
               <button onClick={() => deleteItem(item.id)} className="text-[11px] text-text-subtle hover:text-danger">✕</button>
             </div>
           )
@@ -1089,7 +1158,7 @@ function PresetGroupCard({
             if (criados.length === 0) return
             const next = [
               ...items,
-              ...criados.map((c) => ({ id: c.id, nome: c.nome, preco: c.preco.toFixed(2).replace('.', ','), editing: false, imagemUrl: c.imagemUrl })),
+              ...criados.map((c) => ({ id: c.id, nome: c.nome, preco: c.preco.toFixed(2).replace('.', ','), editing: false, imagemUrl: c.imagemUrl, pausado: false })),
             ]
             setItems(next)
             onChanged(preset.id, { itens: itensDe(next) })
@@ -1645,8 +1714,11 @@ function OrderBumpTab({ restauranteId, items }: { restauranteId: string; items: 
                       <div className="mt-0.5 text-[11px] text-text-subtle">{fmtBrl(item.preco)}</div>
                     </div>
                     {overLimit && (
-                      <span className="flex-shrink-0 rounded-menuzia bg-warn/10 px-2 py-0.5 text-[10px] font-bold text-warn">
-                        Fora do limite
+                      <span
+                        title={`Este produto está cadastrado, mas não será exibido no checkout porque só os primeiros ${maxItems} aparecem. Aumente o limite ou mova o produto para cima.`}
+                        className="flex-shrink-0 cursor-help rounded-menuzia bg-warn/10 px-2 py-0.5 text-[10px] font-bold text-warn"
+                      >
+                        Fora do limite de exibição ({maxItems})
                       </span>
                     )}
                     {/* Ativo toggle */}
@@ -1763,6 +1835,7 @@ export default function CardapioPage() {
   const [bulkTarget, setBulkTarget] = useState<BulkUploadTarget | null>(null)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [statusSavingId, setStatusSavingId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
 
@@ -1975,6 +2048,21 @@ export default function CardapioPage() {
       setActionsOpen(false)
     } catch {
       setError('Não foi possível atualizar o status dos itens selecionados.')
+    }
+  }
+
+  /** Ação rápida da tabela: pausa um item disponível ou retoma um pausado/esgotado. */
+  async function toggleItemStatus(item: ItemCardapio) {
+    if (statusSavingId) return
+    const novoStatus: StatusItem = item.status === 'disponivel' ? 'pausado' : 'disponivel'
+    setStatusSavingId(item.id)
+    try {
+      await definirStatusEmLote(supabase, [item.id], novoStatus)
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, status: novoStatus } : i)))
+    } catch {
+      setError('Não foi possível atualizar o status do item.')
+    } finally {
+      setStatusSavingId(null)
     }
   }
 
@@ -2437,12 +2525,24 @@ export default function CardapioPage() {
                         </td>
                         <td className="border-b border-border px-3.5 py-3"><StatusBadge status={item.status} /></td>
                         <td className="border-b border-border px-3.5 py-3">
-                          <button onClick={() => openEditItem(item)} title="Editar"
-                            className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
-                            <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
-                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z" />
-                            </svg>
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => openEditItem(item)} title="Editar"
+                              className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
+                              <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
+                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => toggleItemStatus(item)}
+                              disabled={statusSavingId === item.id}
+                              title={item.status === 'disponivel' ? 'Pausar item' : 'Retomar item'}
+                              className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {item.status === 'disponivel'
+                                ? <Pause className="h-[15px] w-[15px]" strokeWidth={2} />
+                                : <Play className="h-[15px] w-[15px]" strokeWidth={2} />}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
