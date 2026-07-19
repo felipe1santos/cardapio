@@ -106,27 +106,53 @@ function timerTone(mins: number) {
   return 'bg-danger-bg text-danger'
 }
 
-/** Beep curto (dois tons) tocado quando um pedido novo chega via realtime. */
-function playNewOrderSound() {
+/** Intervalo de repetição do alarme de pedido novo (ms). */
+const ALARME_INTERVALO_MS = 10_000
+/** Tempo máximo que o alarme fica repetindo sem ninguém aceitar (ms). */
+const ALARME_LIMITE_MS = 120_000
+
+/**
+ * Toca o alarme de pedido novo: 3 toques curtos alternando dois tons
+ * (padrão de sirene/campainha), em volume alto porém sem estourar.
+ * Reaproveita o AudioContext recebido — nunca cria um novo por toque.
+ */
+function playNewOrderSound(ctx: AudioContext) {
   try {
-    const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    const ctx = new AudioCtx()
+    // Navegadores só liberam áudio após interação do usuário. Nesse caso
+    // pedimos o resume mas NÃO esperamos por ele: a promise pode ficar pendente
+    // até a primeira interação e, se aguardássemos, os toques represados
+    // disparariam todos juntos nesse momento (sobrepostos e estourando).
+    // Cada repetição do alarme tenta de novo; assim que o contexto estiver
+    // liberado, o toque seguinte sai normalmente.
+    if (ctx.state !== 'running') {
+      void ctx.resume().catch(() => {})
+      return
+    }
+
+    const PICO = 0.85 // patamar alto, abaixo de 1.0 para não distorcer
+    const DUR = 0.16
+    const GAP = 0.2
     const beep = (freq: number, start: number) => {
+      const t0 = ctx.currentTime + start
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime + start)
-      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + start + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + 0.25)
+      osc.type = 'square' // mais penetrante que a senoide em cozinha barulhenta
+      osc.frequency.setValueAtTime(freq, t0)
+      gain.gain.setValueAtTime(0.0001, t0)
+      gain.gain.exponentialRampToValueAtTime(PICO, t0 + 0.015) // attack curto, sem clique
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + DUR) // decay suave
       osc.connect(gain)
       gain.connect(ctx.destination)
-      osc.start(ctx.currentTime + start)
-      osc.stop(ctx.currentTime + start + 0.25)
+      osc.start(t0)
+      osc.stop(t0 + DUR + 0.02)
+      osc.onended = () => {
+        osc.disconnect()
+        gain.disconnect()
+      }
     }
     beep(880, 0)
-    beep(1175, 0.18)
-    setTimeout(() => ctx.close(), 600)
+    beep(1175, GAP)
+    beep(880, GAP * 2)
   } catch {
     /* navegador sem suporte a Web Audio — silencioso */
   }
@@ -248,6 +274,11 @@ export default function PedidosPage() {
   const recebidosConhecidos = useRef<Set<string> | null>(null)
   const [somAtivo, setSomAtivo] = useState(true)
   const somRef = useRef(true)
+  const [alarmeTocando, setAlarmeTocando] = useState(false)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const alarmeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const alarmeLimiteRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendentesRef = useRef(false)
   const [focusMode, setFocusMode] = useState(false)
   const [rotaOpen, setRotaOpen] = useState(false)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -260,6 +291,63 @@ export default function PedidosPage() {
     setSomAtivo(som)
     somRef.current = som
   }, [])
+
+  // ── Alarme de pedido novo (repete até alguém aceitar) ─────────────────────
+  /** AudioContext único da página — criado sob demanda, fechado no unmount. */
+  const getAudioCtx = useCallback(() => {
+    if (audioCtxRef.current) return audioCtxRef.current
+    try {
+      const AudioCtx =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      if (!AudioCtx) return null
+      audioCtxRef.current = new AudioCtx()
+      return audioCtxRef.current
+    } catch {
+      return null
+    }
+  }, [])
+
+  /** Encerra o ciclo de alarme: limpa interval, limite e o indicador visual. */
+  const pararAlarme = useCallback(() => {
+    if (alarmeIntervalRef.current) {
+      clearInterval(alarmeIntervalRef.current)
+      alarmeIntervalRef.current = null
+    }
+    if (alarmeLimiteRef.current) {
+      clearTimeout(alarmeLimiteRef.current)
+      alarmeLimiteRef.current = null
+    }
+    setAlarmeTocando(false)
+  }, [])
+
+  /**
+   * Inicia (ou reinicia) o ciclo de alarme. Toca na hora e repete a cada 10s
+   * enquanto houver pedido "recebido" pendente, parando em 2 minutos.
+   * Chamar de novo com um ciclo em andamento apenas reinicia a contagem —
+   * nunca cria um segundo timer em paralelo.
+   */
+  const iniciarAlarme = useCallback(() => {
+    if (!somRef.current) return
+    pararAlarme() // garante timer único
+    setAlarmeTocando(true)
+
+    const tocar = () => {
+      const ctx = getAudioCtx()
+      if (ctx) playNewOrderSound(ctx)
+    }
+    tocar()
+
+    alarmeIntervalRef.current = setInterval(() => {
+      // lê sempre o estado ATUAL via refs (evita stale closure)
+      if (!somRef.current || !pendentesRef.current) {
+        pararAlarme()
+        return
+      }
+      tocar()
+    }, ALARME_INTERVALO_MS)
+
+    alarmeLimiteRef.current = setTimeout(pararAlarme, ALARME_LIMITE_MS)
+  }, [getAudioCtx, pararAlarme])
 
   function toggleStats() {
     setShowStats((v) => {
@@ -274,6 +362,7 @@ export default function PedidosPage() {
       const next = !v
       somRef.current = next
       localStorage.setItem('menuzia:kanban-som', next ? '1' : '0')
+      if (!next) pararAlarme() // desligar o som corta o ciclo na hora
       return next
     })
   }
@@ -334,7 +423,7 @@ export default function PedidosPage() {
         if (anteriores) {
           const novos = [...recebidosAgora].filter((pid) => !anteriores.has(pid))
           if (novos.length > 0) {
-            if (somRef.current) playNewOrderSound()
+            if (somRef.current) iniciarAlarme()
             setPulsando((prev) => new Set([...prev, ...novos]))
             for (const pid of novos) {
               setTimeout(() => {
@@ -352,8 +441,44 @@ export default function PedidosPage() {
         setError('Não foi possível carregar os pedidos.')
       }
     },
-    [supabase]
+    [supabase, iniciarAlarme]
   )
+
+  // Espelha em ref se ainda existe pedido "recebido" pendente e corta o alarme
+  // assim que a fila zera (inclusive no update otimista do botão Aceitar).
+  useEffect(() => {
+    const pendentes = orders.some((p) => p.status === 'recebido' && !p.preparandoNotificado)
+    pendentesRef.current = pendentes
+    if (!pendentes) pararAlarme()
+  }, [orders, pararAlarme])
+
+  // O navegador só libera áudio depois de alguma interação. Destravamos o
+  // contexto no primeiro clique/tecla da sessão para que o alarme já saia no
+  // primeiro pedido — sem isso, um painel aberto e intocado ficaria mudo.
+  useEffect(() => {
+    const destravar = () => {
+      const ctx = getAudioCtx()
+      if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => {})
+    }
+    window.addEventListener('pointerdown', destravar, { once: true })
+    window.addEventListener('keydown', destravar, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', destravar)
+      window.removeEventListener('keydown', destravar)
+    }
+  }, [getAudioCtx])
+
+  // Cleanup geral do alarme no unmount: timers + AudioContext.
+  useEffect(() => {
+    return () => {
+      if (alarmeIntervalRef.current) clearInterval(alarmeIntervalRef.current)
+      if (alarmeLimiteRef.current) clearTimeout(alarmeLimiteRef.current)
+      alarmeIntervalRef.current = null
+      alarmeLimiteRef.current = null
+      audioCtxRef.current?.close().catch(() => {})
+      audioCtxRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -472,10 +597,17 @@ export default function PedidosPage() {
       </div>
       <button
         onClick={toggleSom}
-        title={somAtivo ? 'Som ligado' : 'Som desligado'}
-        className={`${TOOL_BTN} ${somAtivo ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-page text-text-subtle hover:bg-border'}`}
+        title={alarmeTocando ? 'Alarme de pedido novo tocando — clique para silenciar' : somAtivo ? 'Som ligado' : 'Som desligado'}
+        className={`${TOOL_BTN} ${
+          alarmeTocando
+            ? 'bg-status-pending text-white hover:brightness-95'
+            : somAtivo
+              ? 'bg-primary text-white hover:bg-primary-dark'
+              : 'bg-page text-text-subtle hover:bg-border'
+        }`}
       >
-        {somAtivo ? <BellRing className="h-4 w-4" /> : <BellOff className="h-4 w-4" />} Som
+        {somAtivo ? <BellRing className={`h-4 w-4 ${alarmeTocando ? 'animate-pulse' : ''}`} /> : <BellOff className="h-4 w-4" />}{' '}
+        {alarmeTocando ? 'Silenciar' : 'Som'}
       </button>
       <button onClick={() => setRotaOpen(true)} title="Despacho de rotas" className={`${TOOL_BTN} bg-status-pending text-white hover:brightness-95`}>
         <Bike className="h-4 w-4" /> Rotas
