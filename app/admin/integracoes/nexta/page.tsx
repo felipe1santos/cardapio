@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Copy, KeyRound, Link2, Plug, RefreshCw, Truck } from 'lucide-react'
+import { Check, ChevronDown, Copy, Headset, KeyRound, Link2, Plug, RefreshCw, Settings2, Truck } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +16,12 @@ import { listarNextaEntregasDetalhadas, type NextaConfigPublica, type NextaEntre
 const NEXTA_BASE_URL_FIXA = 'https://bck.nextadelivery.app/api:lZyx1NRE'
 // Azul petróleo escuro: sinaliza que é uma chave do sistema, não um campo de digitação.
 const AZUL_PETROLEO = '#0B3D4E'
+
+// Suporte do Nexta — o lojista fala direto com eles pelo WhatsApp.
+const SUPORTE_TELEFONE_EXIBICAO = '(27) 99892-5966'
+const SUPORTE_WHATSAPP = `https://wa.me/5527998925966?text=${encodeURIComponent(
+  'Olá! Preciso de ajuda com a integração Nexta na Menuzia.'
+)}`
 
 type SubNav = 'nexta'
 
@@ -173,6 +179,9 @@ export default function IntegracaoNextaPage() {
   const [testando, setTestando] = useState(false)
   const [teste, setTeste] = useState<{ ok: boolean; preco?: number; erro?: string } | null>(null)
   const [copiadoMerchant, setCopiadoMerchant] = useState(false)
+  // Configuração técnica fica recolhida quando já está tudo conectado; aberta quando
+  // ainda falta preencher (aí é justamente o que o lojista precisa ver).
+  const [tecnicaAberta, setTecnicaAberta] = useState(false)
 
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
@@ -187,6 +196,7 @@ export default function IntegracaoNextaPage() {
       if (!res.ok) throw new Error()
       const data = (await res.json()) as { config: NextaConfigPublica | null; sugestao?: { merchantName: string; cep: string } }
       setConfig(data.config)
+      setTecnicaAberta(!(data.config?.ativo && data.config.temSecret))
       setForm(
         data.config
           ? formDaConfig(data.config)
@@ -394,9 +404,9 @@ export default function IntegracaoNextaPage() {
           <div className="max-w-4xl space-y-6">
             {erro && <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{erro}</div>}
 
-            {/* Status da conexão + credenciais */}
+            {/* Topo: o que é a integração + liga/desliga */}
             <Card>
-              <div className="mb-0.5 flex items-center gap-2">
+              <div className="mb-0.5 flex flex-wrap items-center gap-2">
                 <Truck className="h-5 w-5 flex-shrink-0 text-primary" strokeWidth={2.25} />
                 <h3 className="text-[13px] font-bold text-text-main">Nexta Delivery</h3>
                 <span
@@ -408,95 +418,11 @@ export default function IntegracaoNextaPage() {
                   {conectado ? 'Ativo' : 'Inativo'}
                 </span>
               </div>
-              <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
+              <p className="text-[12px] leading-relaxed text-text-subtle">
                 Rede de motoboys terceirizada. Com a integração ativa, o Nexta aparece como uma opção de entregador no despacho —
                 com preço e tempo de coleta cotados na hora. Seus entregadores próprios continuam funcionando normalmente.
               </p>
-
-              <div className="space-y-3.5">
-                <div>
-                  <label className={labelCls}>URL base da API</label>
-                  <div
-                    className="flex items-center gap-2 break-all rounded-menuzia border px-2.5 py-2 text-[12px] font-semibold"
-                    style={{ color: AZUL_PETROLEO, borderColor: `${AZUL_PETROLEO}40`, backgroundColor: `${AZUL_PETROLEO}0D` }}
-                  >
-                    <KeyRound className="h-4 w-4 flex-shrink-0" strokeWidth={2.25} />
-                    <span className="min-w-0 flex-1">{NEXTA_BASE_URL_FIXA}</span>
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-text-subtle">Fixa para todas as lojas — não editável.</p>
-                </div>
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                  <div>
-                    <label className={labelCls}>Client ID</label>
-                    <input value={form.clientId} onChange={(e) => set('clientId', e.target.value)} className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Client Secret</label>
-                    <input
-                      type="password"
-                      value={form.clientSecret}
-                      onChange={(e) => set('clientSecret', e.target.value)}
-                      placeholder={config?.temSecret ? '••••••••  (salvo)' : ''}
-                      autoComplete="new-password"
-                      className={inputCls}
-                    />
-                    <p className="mt-1.5 text-[11px] text-text-subtle">
-                      {config?.temSecret ? 'Salvo. Deixe em branco para manter o segredo atual.' : 'O Nexta emite um par por loja.'}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <label className={labelCls}>Nome da loja no Nexta</label>
-                  <input value={form.merchantName} onChange={(e) => set('merchantName', e.target.value)} className={inputCls} />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Merchant ID</label>
-                  <div className="flex items-stretch gap-1.5">
-                    <input
-                      value={form.merchantId}
-                      onChange={(e) => set('merchantId', e.target.value)}
-                      placeholder="ex.: menuzia-a1b2c3"
-                      className={`${inputCls} min-w-0 flex-1`}
-                    />
-                    <button
-                      type="button"
-                      onClick={gerarMerchantId}
-                      className="flex-shrink-0 rounded-menuzia border border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:border-primary hover:text-primary"
-                    >
-                      Gerar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={copiarMerchantId}
-                      disabled={!form.merchantId}
-                      title="Copiar"
-                      className="flex w-9 flex-shrink-0 items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-40"
-                    >
-                      {copiadoMerchant ? <Check className="h-4 w-4 text-status-ready" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-text-subtle">
-                    Código que você inventa aqui (use <strong>Gerar</strong> se quiser). <strong>Salve</strong>, copie e envie ao
-                    Nexta pelo WhatsApp — eles cadastram esse mesmo código do lado deles. A partir daí os pedidos desta loja são
-                    reconhecidos por ele.
-                  </p>
-                </div>
-
-                <CampoCopiavel
-                  label="URL do webhook"
-                  valor={webhookUrl}
-                  ajuda="Envie esta URL ao suporte do Nexta — é por ela que os eventos da entrega (aceito, coletado, entregue) chegam até aqui. O registro é manual, não há endpoint automático."
-                />
-              </div>
-
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                <Button variant="primary" onClick={() => salvar()} disabled={salvando}>
-                  {salvando ? 'Salvando…' : 'Salvar'}
-                </Button>
-                <Button variant="outline" onClick={testar} disabled={testando || salvando}>
-                  <Plug className="h-4 w-4" /> {testando ? 'Testando…' : 'Testar conexão'}
-                </Button>
                 <Button
                   variant={form.ativo ? 'secondary' : 'success'}
                   onClick={alternarAtivo}
@@ -506,16 +432,152 @@ export default function IntegracaoNextaPage() {
                 </Button>
                 {salvo && !salvando && <span className="text-[13px] font-medium text-status-ready">Alterações salvas.</span>}
               </div>
+            </Card>
 
-              {teste && (
-                <div
-                  className={`mt-3 rounded-menuzia border px-3 py-2 text-[12px] ${
-                    teste.ok ? 'border-status-ready/40 bg-price-bg text-price-text' : 'border-danger bg-danger-bg text-danger'
-                  }`}
+            {/* Suporte do Nexta */}
+            <Card>
+              <div className="flex flex-wrap items-center gap-3.5">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Headset className="h-6 w-6 text-primary" strokeWidth={2.25} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[13px] font-bold text-text-main">Precisa de ajuda com o Nexta?</h3>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">
+                    O suporte do Nexta ajuda a configurar a integração e a resolver qualquer problema com uma entrega em
+                    andamento. Se preferir ligar: <strong className="font-semibold text-text-main">{SUPORTE_TELEFONE_EXIBICAO}</strong>.
+                  </p>
+                </div>
+                <a
+                  href={SUPORTE_WHATSAPP}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-primary px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark sm:w-auto"
                 >
-                  {teste.ok
-                    ? `Conexão OK — cotação de teste retornou ${brl(teste.preco ?? 0)}.`
-                    : `Falha na conexão: ${teste.erro ?? 'erro desconhecido'}`}
+                  <Headset className="h-4 w-4" /> Falar com o suporte
+                </a>
+              </div>
+            </Card>
+
+            {/* Configuração técnica (recolhível) */}
+            <Card className="!p-0">
+              <button
+                type="button"
+                onClick={() => setTecnicaAberta((v) => !v)}
+                aria-expanded={tecnicaAberta}
+                className="flex w-full items-center gap-3 rounded-menuzia p-4.5 text-left transition-colors hover:bg-page/60"
+              >
+                <Settings2 className="h-5 w-5 flex-shrink-0 text-text-subtle" strokeWidth={2.25} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-text-main">Configuração técnica</span>
+                  <span className="mt-0.5 block text-[12px] leading-relaxed text-text-subtle">
+                    Você configura isto uma vez, junto com o suporte do Nexta.
+                  </span>
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 flex-shrink-0 text-text-subtle transition-transform ${tecnicaAberta ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {tecnicaAberta && (
+                <div className="border-t border-border p-4.5">
+                  <div className="space-y-3.5">
+                  <div>
+                    <label className={labelCls}>URL base da API</label>
+                    <div
+                      className="flex items-center gap-2 break-all rounded-menuzia border px-2.5 py-2 text-[12px] font-semibold"
+                      style={{ color: AZUL_PETROLEO, borderColor: `${AZUL_PETROLEO}40`, backgroundColor: `${AZUL_PETROLEO}0D` }}
+                    >
+                      <KeyRound className="h-4 w-4 flex-shrink-0" strokeWidth={2.25} />
+                      <span className="min-w-0 flex-1">{NEXTA_BASE_URL_FIXA}</span>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-text-subtle">Fixa para todas as lojas — não editável.</p>
+                  </div>
+                  <div className="grid gap-3.5 sm:grid-cols-2">
+                    <div>
+                      <label className={labelCls}>Client ID</label>
+                      <input value={form.clientId} onChange={(e) => set('clientId', e.target.value)} className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Client Secret</label>
+                      <input
+                        type="password"
+                        value={form.clientSecret}
+                        onChange={(e) => set('clientSecret', e.target.value)}
+                        placeholder={config?.temSecret ? '••••••••  (salvo)' : ''}
+                        autoComplete="new-password"
+                        className={inputCls}
+                      />
+                      <p className="mt-1.5 text-[11px] text-text-subtle">
+                        {config?.temSecret ? 'Salvo. Deixe em branco para manter o segredo atual.' : 'O Nexta emite um par por loja.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Nome da loja no Nexta</label>
+                    <input value={form.merchantName} onChange={(e) => set('merchantName', e.target.value)} className={inputCls} />
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Merchant ID</label>
+                    <div className="flex items-stretch gap-1.5">
+                      <input
+                        value={form.merchantId}
+                        onChange={(e) => set('merchantId', e.target.value)}
+                        placeholder="ex.: menuzia-a1b2c3"
+                        className={`${inputCls} min-w-0 flex-1`}
+                      />
+                      <button
+                        type="button"
+                        onClick={gerarMerchantId}
+                        className="flex-shrink-0 rounded-menuzia border border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:border-primary hover:text-primary"
+                      >
+                        Gerar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={copiarMerchantId}
+                        disabled={!form.merchantId}
+                        title="Copiar"
+                        className="flex w-9 flex-shrink-0 items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-40"
+                      >
+                        {copiadoMerchant ? <Check className="h-4 w-4 text-status-ready" /> : <Copy className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-text-subtle">
+                      Código que você inventa aqui (use <strong>Gerar</strong> se quiser). <strong>Salve</strong>, copie e envie ao
+                      Nexta pelo WhatsApp — eles cadastram esse mesmo código do lado deles. A partir daí os pedidos desta loja são
+                      reconhecidos por ele.
+                    </p>
+                  </div>
+
+                  <CampoCopiavel
+                    label="URL do webhook"
+                    valor={webhookUrl}
+                    ajuda="Envie esta URL ao suporte do Nexta — é por ela que os eventos da entrega (aceito, coletado, entregue) chegam até aqui. O registro é manual, não há endpoint automático."
+                  />
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                    <Button variant="primary" onClick={() => salvar()} disabled={salvando}>
+                      {salvando ? 'Salvando…' : 'Salvar'}
+                    </Button>
+                    <Button variant="outline" onClick={testar} disabled={testando || salvando}>
+                      <Plug className="h-4 w-4" /> {testando ? 'Testando…' : 'Testar conexão'}
+                    </Button>
+                    {salvo && !salvando && <span className="text-[13px] font-medium text-status-ready">Alterações salvas.</span>}
+                  </div>
+
+                  {teste && (
+                    <div
+                      className={`mt-3 rounded-menuzia border px-3 py-2 text-[12px] ${
+                        teste.ok ? 'border-status-ready/40 bg-price-bg text-price-text' : 'border-danger bg-danger-bg text-danger'
+                      }`}
+                    >
+                      {teste.ok
+                        ? `Conexão OK — cotação de teste retornou ${brl(teste.preco ?? 0)}.`
+                        : `Falha na conexão: ${teste.erro ?? 'erro desconhecido'}`}
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
@@ -589,8 +651,10 @@ export default function IntegracaoNextaPage() {
               <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
                 O que pedimos ao Nexta em cada corrida. Vale para todas as entregas desta loja.
               </p>
-              <div className="space-y-3.5">
-                <div className="grid gap-3.5 sm:grid-cols-3">
+              <div className="space-y-5">
+                <div className="space-y-3.5">
+                  <h4 className="text-[12px] font-bold text-text-main">Como o pedido é transportado</h4>
+                  <div className="grid gap-3.5 sm:grid-cols-3">
                   <div>
                     <label className={labelCls}>Veículo</label>
                     <select value={form.vehicleType} onChange={(e) => set('vehicleType', e.target.value)} className={inputCls}>
@@ -621,8 +685,12 @@ export default function IntegracaoNextaPage() {
                       ))}
                     </select>
                   </div>
+                  </div>
                 </div>
-                <div className="grid gap-3.5 sm:grid-cols-3">
+
+                <div className="space-y-3.5">
+                  <h4 className="text-[12px] font-bold text-text-main">Prazos e peso</h4>
+                  <div className="grid gap-3.5 sm:grid-cols-3">
                   <div>
                     <label className={labelCls}>Limite de coleta (min)</label>
                     <input
@@ -644,6 +712,7 @@ export default function IntegracaoNextaPage() {
                   <div>
                     <label className={labelCls}>Peso padrão (g)</label>
                     <input value={form.pesoPadraoG} onChange={(e) => set('pesoPadraoG', e.target.value)} inputMode="numeric" className={inputCls} />
+                  </div>
                   </div>
                 </div>
 
