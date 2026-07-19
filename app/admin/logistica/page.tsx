@@ -224,6 +224,10 @@ export default function LogisticaPage() {
   const [drivers, setDrivers] = useState<Entregador[]>([])
   const [despachoAberto, setDespachoAberto] = useState(false)
   const [assigning, setAssigning] = useState<string | null>(null)
+  /** Altura aproximada do menu de atribuir — usada só pra decidir o lado da abertura. */
+  const ALTURA_MENU_ATRIBUIR = 200
+  /** true quando o menu de atribuir precisa abrir pra cima por falta de espaço embaixo. */
+  const [assignAcima, setAssignAcima] = useState(false)
   const [closingOpen, setClosingOpen] = useState(false)
 
   const [linkDriver, setLinkDriver] = useState<Entregador | null>(null)
@@ -1148,12 +1152,37 @@ export default function LogisticaPage() {
                       <Button
                         variant="dispatch"
                         className="min-h-[36px] w-full px-4 text-[12px] sm:w-auto"
-                        onClick={() => setAssigning(assigning === order.id ? null : order.id)}
+                        onClick={(e) => {
+                          if (assigning === order.id) {
+                            setAssigning(null)
+                            return
+                          }
+                          // Num pedido no fim da coluna rolável o menu abriria pra baixo e
+                          // ficaria cortado pela borda, escondendo os entregadores próprios.
+                          // Medimos o espaço até o container que corta e viramos pra cima.
+                          const btn = e.currentTarget
+                          let limiteInferior = window.innerHeight
+                          let ancestral: HTMLElement | null = btn.parentElement
+                          while (ancestral) {
+                            const oy = getComputedStyle(ancestral).overflowY
+                            if (oy === 'auto' || oy === 'scroll') {
+                              limiteInferior = ancestral.getBoundingClientRect().bottom
+                              break
+                            }
+                            ancestral = ancestral.parentElement
+                          }
+                          setAssignAcima(limiteInferior - btn.getBoundingClientRect().bottom < ALTURA_MENU_ATRIBUIR)
+                          setAssigning(order.id)
+                        }}
                       >
                         Atribuir entregador
                       </Button>
                       {assigning === order.id && (
-                        <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[240px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
+                        <div
+                          className={`absolute right-0 z-30 min-w-[240px] rounded-menuzia border border-border bg-white p-1 shadow-xl ${
+                            assignAcima ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'
+                          }`}
+                        >
                           {nextaAtivo && (
                             <>
                               <OpcaoNexta
