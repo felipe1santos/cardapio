@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX } from 'lucide-react'
+import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,15 @@ import {
 } from '@/lib/queries/pedidos'
 
 type Tab = 'despacho' | 'concluidos' | 'entregadores'
+
+/**
+ * Coluna visível abaixo de `lg`. No desktop as duas aparecem lado a lado; no celular
+ * viram abas, pra não empilhar duas listas longas numa tela só.
+ */
+type ColunaMobile = 'prontos' | 'rota'
+
+/** Chave do localStorage que lembra se o operador recolheu os cards de resumo. */
+const RESUMO_KEY = 'menuzia:logistica:resumo'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'despacho', label: 'Despacho' },
@@ -230,6 +239,10 @@ export default function LogisticaPage() {
   const fotoInputRef = useRef<HTMLInputElement>(null)
 
   const [tab, setTab] = useState<Tab>('despacho')
+  const [colunaMobile, setColunaMobile] = useState<ColunaMobile>('prontos')
+  // Começa visível sempre: o valor salvo só entra depois da montagem, senão o primeiro
+  // render do servidor e o do cliente divergem e a hidratação quebra.
+  const [resumoVisivel, setResumoVisivel] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkAssigning, setBulkAssigning] = useState(false)
 
@@ -409,6 +422,18 @@ export default function LogisticaPage() {
   useEffect(() => {
     setSomNexta(localStorage.getItem('menuzia:logistica-som') !== 'off')
   }, [])
+
+  useEffect(() => {
+    setResumoVisivel(localStorage.getItem(RESUMO_KEY) !== 'oculto')
+  }, [])
+
+  function alternarResumo() {
+    setResumoVisivel((atual) => {
+      const proximo = !atual
+      localStorage.setItem(RESUMO_KEY, proximo ? 'visivel' : 'oculto')
+      return proximo
+    })
+  }
 
   function alternarSomNexta() {
     setSomNexta((atual) => {
@@ -782,16 +807,29 @@ export default function LogisticaPage() {
     <>
       <TopBar title="Logística" breadcrumb="Logística › Despacho de entregas" />
 
-      <div className="flex flex-1 flex-col gap-4 overflow-hidden p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-5">
         {error && (
-          <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
+          <div className="flex-shrink-0 rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard tint="primary" value={available.length} label="Entregadores online" icon={<Bike className="h-5 w-5" strokeWidth={2} />} />
-          <StatCard tint="orange" value={unassigned.length} label="Aguardando despacho" icon={<Package className="h-5 w-5" strokeWidth={2} />} />
-          <StatCard tint="blue" value={inRoute.length} label="Em rota" icon={<Truck className="h-5 w-5" strokeWidth={2} />} />
-          <StatCard tint="slate" value={drivers.length} label="Entregadores cadastrados" icon={<Users className="h-5 w-5" strokeWidth={2} />} />
+        <div className="flex flex-shrink-0 flex-col gap-2">
+          <div className="flex justify-end">
+            <button
+              onClick={alternarResumo}
+              className="inline-flex items-center gap-1 rounded-menuzia px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:bg-page hover:text-text-main"
+            >
+              {resumoVisivel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              {resumoVisivel ? 'Ocultar resumo' : 'Mostrar resumo'}
+            </button>
+          </div>
+          {resumoVisivel && (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard tint="primary" value={available.length} label="Entregadores online" icon={<Bike className="h-5 w-5" strokeWidth={2} />} />
+              <StatCard tint="orange" value={unassigned.length} label="Aguardando despacho" icon={<Package className="h-5 w-5" strokeWidth={2} />} />
+              <StatCard tint="blue" value={inRoute.length} label="Em rota" icon={<Truck className="h-5 w-5" strokeWidth={2} />} />
+              <StatCard tint="slate" value={drivers.length} label="Entregadores cadastrados" icon={<Users className="h-5 w-5" strokeWidth={2} />} />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-shrink-0 gap-0.5 border-b border-border">
@@ -821,10 +859,10 @@ export default function LogisticaPage() {
           })}
         </div>
 
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* Entregadores */}
           {tab === 'entregadores' && (
-          <section className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-menuzia border border-border bg-white">
             <div className="flex items-center justify-between bg-text-main px-4 py-3 text-white">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4" strokeWidth={2.5} />
@@ -948,11 +986,40 @@ export default function LogisticaPage() {
 
           {/* Pedidos */}
           {tab !== 'entregadores' && (
-          <section className="flex flex-col gap-4 overflow-y-auto">
+          <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
             {tab === 'despacho' && (
             <>
-            <div className="overflow-hidden rounded-menuzia border border-border bg-white">
-              <div className="flex items-center justify-between bg-status-pending px-4 py-3 text-white">
+            {/* Abaixo de lg as duas colunas viram abas — empilhar duas listas longas
+                num celular esconde justamente o que o operador precisa alcançar. */}
+            <div className="flex flex-shrink-0 gap-1 rounded-menuzia border border-border bg-white p-1 lg:hidden">
+              {([
+                { id: 'prontos' as const, label: 'Prontos', contador: unassigned.length },
+                { id: 'rota' as const, label: 'Em rota', contador: comNexta.length + inRoute.length },
+              ]).map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setColunaMobile(c.id)}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-menuzia px-3 py-2 text-[12px] font-bold uppercase tracking-wide transition-colors ${
+                    colunaMobile === c.id ? 'bg-primary text-white' : 'text-text-subtle hover:bg-page hover:text-text-main'
+                  }`}
+                >
+                  {c.label}
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                      colunaMobile === c.id ? 'bg-white/20 text-white' : 'bg-page text-text-subtle'
+                    }`}
+                  >
+                    {c.contador}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-2 lg:gap-4">
+            {/* Coluna da esquerda: onde o operador age. */}
+            <div className={`min-h-0 flex-1 flex-col gap-4 overflow-y-auto ${colunaMobile === 'prontos' ? 'flex' : 'hidden'} lg:flex`}>
+            <div className="rounded-menuzia border border-border bg-white">
+              <div className="sticky top-0 z-20 flex items-center justify-between bg-status-pending px-4 py-3 text-white">
                 <div className="flex items-center gap-2">
                   {unassigned.length > 0 && (
                     <input
@@ -1026,13 +1093,22 @@ export default function LogisticaPage() {
                 )}
                 </div>
               </div>
+              <div className="border-b border-border px-4 py-2 text-[12px] text-text-subtle">
+                Escolha um entregador para cada pedido abaixo.
+              </div>
               {despachoAberto && (
                 <div className="flex items-center gap-1.5 border-b border-border bg-status-pending/5 px-4 py-2 text-[12px] font-medium text-status-pending">
                   <Bike className="h-3.5 w-3.5 flex-shrink-0" /> Despacho aberto — os entregadores podem pegar estes pedidos pelo app.
                 </div>
               )}
               <div className="divide-y divide-border">
-                {unassigned.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido aguardando despacho</div>}
+                {unassigned.length === 0 && (
+                  <div className="flex flex-col items-center gap-1.5 p-8 text-center">
+                    <Package className="h-6 w-6 text-border" strokeWidth={2} />
+                    <div className="text-sm font-semibold text-text-main">Nenhum pedido aguardando despacho</div>
+                    <div className="text-xs text-text-subtle">Assim que a cozinha marcar um pedido como pronto, ele aparece aqui.</div>
+                  </div>
+                )}
                 {unassigned.map((order) => (
                   <div key={order.id} className="flex flex-col gap-3 border-l-[3px] border-l-status-pending bg-status-pending/5 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
@@ -1068,8 +1144,12 @@ export default function LogisticaPage() {
                         )}
                       </div>
                     </div>
-                    <div className="relative">
-                      <Button variant="dispatch" onClick={() => setAssigning(assigning === order.id ? null : order.id)}>
+                    <div className="relative flex-shrink-0">
+                      <Button
+                        variant="dispatch"
+                        className="min-h-[36px] w-full px-4 text-[12px] sm:w-auto"
+                        onClick={() => setAssigning(assigning === order.id ? null : order.id)}
+                      >
                         Atribuir entregador
                       </Button>
                       {assigning === order.id && (
@@ -1106,10 +1186,22 @@ export default function LogisticaPage() {
               </div>
             </div>
 
+            </div>
+
+            {/* Coluna da direita: já despachados, só acompanhamento. */}
+            <div className={`min-h-0 flex-1 flex-col gap-4 overflow-y-auto ${colunaMobile === 'rota' ? 'flex' : 'hidden'} lg:flex`}>
+            {comNexta.length === 0 && inRoute.length === 0 && (
+              <div className="flex flex-col items-center gap-1.5 rounded-menuzia border border-dashed border-border bg-white p-8 text-center">
+                <Truck className="h-6 w-6 text-border" strokeWidth={2} />
+                <div className="text-sm font-semibold text-text-main">Nenhum pedido em rota</div>
+                <div className="text-xs text-text-subtle">Os pedidos que você despachar aparecem aqui até serem entregues.</div>
+              </div>
+            )}
+
             {/* Com o Nexta: solicitado, ainda não coletado. Depois da coleta vai pra "Em rota". */}
             {nextaAtivo && comNexta.length > 0 && (
-              <div className="overflow-hidden rounded-menuzia border border-border bg-white">
-                <div className="flex items-center justify-between bg-primary px-4 py-3 text-white">
+              <div className="rounded-menuzia border border-border bg-white">
+                <div className="sticky top-0 z-20 flex items-center justify-between bg-primary px-4 py-3 text-white">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4" strokeWidth={2.5} />
                     <h3 className="text-sm font-bold">Com o Nexta</h3>
@@ -1124,6 +1216,9 @@ export default function LogisticaPage() {
                   >
                     {somNexta ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />} Som
                   </button>
+                </div>
+                <div className="border-b border-border px-4 py-2 text-[12px] text-text-subtle">
+                  O Nexta já foi chamado. Avise quando o pedido estiver pronto para coleta.
                 </div>
                 <div className="divide-y divide-border">
                   {comNexta.map((order) => {
@@ -1195,7 +1290,7 @@ export default function LogisticaPage() {
                           </div>
 
                           <div className="flex flex-shrink-0 flex-wrap gap-2">
-                            <Button variant="primary" onClick={() => avisarProntoNexta(order.id)} disabled={ocupado}>
+                            <Button variant="primary" className="min-h-[36px] px-4 text-[12px]" onClick={() => avisarProntoNexta(order.id)} disabled={ocupado}>
                               Pronto p/ coleta
                             </Button>
                             <Button variant="outline" onClick={() => reconciliarNexta(order.id)} disabled={ocupado} title="Buscar o status atual no Nexta">
@@ -1240,16 +1335,19 @@ export default function LogisticaPage() {
               </div>
             )}
 
-            <div className="overflow-hidden rounded-menuzia border border-border bg-white">
-              <div className="flex items-center justify-between bg-status-preparing px-4 py-3 text-white">
+            {inRoute.length > 0 && (
+            <div className="rounded-menuzia border border-border bg-white">
+              <div className="sticky top-0 z-20 flex items-center justify-between bg-status-preparing px-4 py-3 text-white">
                 <div className="flex items-center gap-2">
                   <Truck className="h-4 w-4" strokeWidth={2.5} />
                   <h3 className="text-sm font-bold">Em rota</h3>
                 </div>
                 <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{inRoute.length}</span>
               </div>
+              <div className="border-b border-border px-4 py-2 text-[12px] text-text-subtle">
+                Já saíram com o entregador. Marque como entregue quando o cliente receber.
+              </div>
               <div className="divide-y divide-border">
-                {inRoute.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhuma entrega em rota</div>}
                 {inRoute.map((order) => (
                   <div
                     key={order.id}
@@ -1284,10 +1382,14 @@ export default function LogisticaPage() {
                       </div>
                     </div>
                     <div className="flex flex-shrink-0 gap-2">
-                      <Button variant="success" onClick={() => deliver(order.id)}>
+                      <Button variant="success" className="min-h-[36px] flex-1 px-4 text-[12px] sm:flex-none" onClick={() => deliver(order.id)}>
                         Entregue
                       </Button>
-                      <Button variant="outline" className="border-danger text-danger hover:bg-danger-bg" onClick={() => naoEntregue(order.id)}>
+                      <Button
+                        variant="outline"
+                        className="min-h-[36px] border-danger text-danger hover:bg-danger-bg"
+                        onClick={() => naoEntregue(order.id)}
+                      >
                         Não entregue
                       </Button>
                     </div>
@@ -1295,12 +1397,15 @@ export default function LogisticaPage() {
                 ))}
               </div>
             </div>
+            )}
+            </div>
+            </div>
             </>
             )}
 
             {tab === 'concluidos' && (
-            <div className="overflow-hidden rounded-menuzia border border-border bg-white">
-              <div className="flex items-center justify-between bg-text-main px-4 py-3 text-white">
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-menuzia border border-border bg-white">
+              <div className="sticky top-0 z-20 flex items-center justify-between bg-text-main px-4 py-3 text-white">
                 <div className="flex items-center gap-2">
                   <ClipboardCheck className="h-4 w-4" strokeWidth={2.5} />
                   <h3 className="text-sm font-bold">Pedidos do dia</h3>
