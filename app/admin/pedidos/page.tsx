@@ -915,14 +915,10 @@ export default function PedidosPage() {
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between"><span className="text-text-subtle">Pagamento</span><span className="font-medium">{PAY_LABEL[detail.formaPagamento]}</span></div>
+                <div className="flex items-center justify-between"><span className="text-text-subtle">Pagamento</span><span className="rounded-menuzia bg-price-bg px-2 py-0.5 font-semibold text-price-text">{PAY_LABEL[detail.formaPagamento]}</span></div>
                 {detail.formaPagamento === 'dinheiro' && detail.trocoPara !== null && (
                   <div className="flex justify-between"><span className="text-text-subtle">Troco para</span><span className="font-medium">{brl(detail.trocoPara)}</span></div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-text-subtle">Status</span>
-                  <Badge tone={detail.pago ? 'ok' : 'pending'}>{detail.pago ? 'Pago' : 'A receber'}</Badge>
-                </div>
                 {detail.status === 'preparando' && detail.preparandoPor && (
                   <div className="flex justify-between"><span className="text-text-subtle">Em preparo por</span><span className="font-medium">{detail.preparandoPor}</span></div>
                 )}
@@ -935,9 +931,9 @@ export default function PedidosPage() {
                 <>
                   <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</div>
                   <div className="rounded-menuzia border border-border p-3 text-sm text-text-main">
-                    {detail.enderecoRua}, {detail.enderecoNumero}
+                    <span className="font-semibold">{detail.enderecoRua}, {detail.enderecoNumero}</span>
                     {detail.enderecoComplemento && ` · ${detail.enderecoComplemento}`}
-                    <div className="text-text-subtle">{detail.enderecoBairro}{detail.enderecoCep && ` · ${detail.enderecoCep}`}</div>
+                    <div className="text-text-subtle"><span className="font-semibold text-text-main">{detail.enderecoBairro}</span>{detail.enderecoCep && ` · ${detail.enderecoCep}`}</div>
                   </div>
                 </>
               )}
