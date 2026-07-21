@@ -96,6 +96,12 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.telefone !== undefined) row.telefone = patch.telefone
   if (patch.endereco !== undefined) row.endereco = patch.endereco
   if (patch.cep !== undefined) row.cep = patch.cep
+  // Endereço/CEP mudou → as coordenadas cacheadas ficam obsoletas. Zera para o
+  // próximo cálculo de frete (ou a aba Entrega) geocodificar de novo.
+  if (patch.endereco !== undefined || patch.cep !== undefined) {
+    row.latitude = null
+    row.longitude = null
+  }
   if (patch.taxaEntregaPadrao !== undefined) row.taxa_entrega_padrao = patch.taxaEntregaPadrao
   if (patch.freteGratisAcima !== undefined) row.frete_gratis_acima = patch.freteGratisAcima
   if (patch.facebookPixelId !== undefined) row.facebook_pixel_id = patch.facebookPixelId
@@ -107,6 +113,12 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   const { data, error } = await supabase.from('restaurantes').update(row).eq('id', restauranteId).select(CONFIG_SELECT).single()
   if (error) throw error
   return mapConfig(data as ConfigRow)
+}
+
+/** Salva as coordenadas geocodificadas da loja (usadas pelo frete por raio). */
+export async function salvarCoordenadasLoja(supabase: SupabaseClient, restauranteId: string, lat: number, lng: number) {
+  const { error } = await supabase.from('restaurantes').update({ latitude: lat, longitude: lng }).eq('id', restauranteId)
+  if (error) throw error
 }
 
 export interface TaxaBairro {

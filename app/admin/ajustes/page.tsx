@@ -22,10 +22,12 @@ import {
   criarTaxaRaio,
   atualizarTaxaRaio,
   removerTaxaRaio,
+  salvarCoordenadasLoja,
   type TaxaRaio,
   type ConfigLoja,
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
+import { geocodeEndereco } from '@/lib/frete'
 import { PALETAS, temaCores } from '@/lib/paletas'
 import {
   buscarConfigImpressao,
@@ -357,6 +359,31 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   const [newRaioTaxa, setNewRaioTaxa] = useState('')
   const [addingRaio, setAddingRaio] = useState(false)
 
+  // O frete por raio precisa da posição da loja no mapa. Aqui validamos o
+  // CEP/endereço cadastrado: com coordenadas ok libera as faixas; sem, bloqueia
+  // e avisa — senão o raio falha em silêncio e a mensagem sobra pro cliente.
+  const [coordStatus, setCoordStatus] = useState<'verificando' | 'ok' | 'falhou'>('verificando')
+  const [cepLoja, setCepLoja] = useState('')
+
+  const verificarCoordenadas = useCallback(async () => {
+    setCoordStatus('verificando')
+    try {
+      const cfg = await buscarConfigLoja(supabase, restauranteId)
+      if (!cfg) { setCoordStatus('falhou'); return }
+      setCepLoja(cfg.cep)
+      if (cfg.latitude != null && cfg.longitude != null) { setCoordStatus('ok'); return }
+      const coord = await geocodeEndereco(
+        { cep: cfg.cep || undefined, endereco: cfg.endereco || undefined },
+        process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      )
+      if (!coord) { setCoordStatus('falhou'); return }
+      await salvarCoordenadasLoja(supabase, restauranteId, coord.lat, coord.lng)
+      setCoordStatus('ok')
+    } catch {
+      setCoordStatus('falhou')
+    }
+  }, [supabase, restauranteId])
+
   useEffect(() => {
     if (loaded) return
     async function load() {
@@ -374,11 +401,16 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
       setBairros(rows)
       setRaios(raioRows)
       setLoaded(true)
+      verificarCoordenadas()
     }
     load()
-  }, [supabase, restauranteId, loaded])
+  }, [supabase, restauranteId, loaded, verificarCoordenadas])
 
   async function addRaioRow() {
+    if (coordStatus !== 'ok') {
+      setError('Corrija o CEP/endereço da loja (aba Loja) antes de ativar o frete por raio — sem ele não dá pra calcular distância.')
+      return
+    }
     const km = parseFloat(newRaioKm.replace(',', '.'))
     if (!Number.isFinite(km) || km <= 0) { setError('Informe a distância em km da faixa (ex: 3).'); return }
     const val = parseFloat(newRaioTaxa.replace(',', '.'))
@@ -645,9 +677,29 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
               Endereços além da última faixa ficam fora da área de entrega.
             </p>
             <p className="mb-3 rounded-menuzia border-l-[3px] border-l-primary bg-alert-bg/60 px-3 py-2 text-[12px] text-text-main">
-              <b>O bairro tem prioridade.</b> Se o bairro do cliente bater com uma taxa por bairro acima, ela é usada.
-              O raio entra como segunda opção, quando o bairro não está cadastrado.
+              <b>Vale o menor valor.</b> Se o bairro do cliente tem taxa cadastrada E o endereço está dentro de uma
+              faixa de raio mais barata, o cliente paga a mais barata. Bairro fora da tabela usa só o raio.
             </p>
+            {coordStatus === 'verificando' && (
+              <p className="mb-3 rounded-menuzia border border-border bg-page px-3 py-2 text-[12px] text-text-subtle">
+                Verificando o endereço da loja no mapa…
+              </p>
+            )}
+            {coordStatus === 'falhou' && (
+              <div className="mb-3 rounded-menuzia border border-danger bg-danger/10 px-3 py-2.5 text-[12px] text-danger">
+                <p className="font-semibold">
+                  Endereço da loja não localizado no mapa{cepLoja ? ` (CEP cadastrado: “${cepLoja}”)` : ' (sem CEP cadastrado)'}.
+                </p>
+                <p className="mt-1 text-text-main">
+                  Sem a posição da loja não dá pra calcular distância — o frete por raio fica <b>desativado</b>
+                  {raios.length > 0 ? ' e as faixas abaixo não funcionam' : ''}. Corrija o CEP/endereço na aba <b>Loja</b> e
+                  verifique de novo.
+                </p>
+                <button onClick={verificarCoordenadas} className="mt-2 rounded-menuzia border border-danger px-3 py-1.5 text-[12px] font-semibold text-danger transition-colors hover:bg-danger hover:text-white">
+                  Verificar de novo
+                </button>
+              </div>
+            )}
             <div className="overflow-hidden rounded-menuzia border border-border">
               <table className="w-full text-sm">
                 <thead>
@@ -712,7 +764,13 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
                         placeholder="0,00" className="py-1.5 text-right" />
                     </td>
                     <td className="px-2.5 py-2">
-                      <Button variant="outline" onClick={addRaioRow} disabled={addingRaio || !newRaioKm.trim()} className="w-full justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={addRaioRow}
+                        disabled={addingRaio || !newRaioKm.trim() || coordStatus !== 'ok'}
+                        title={coordStatus !== 'ok' ? 'Endereço da loja sem localização no mapa — corrija na aba Loja para liberar o frete por raio.' : undefined}
+                        className="w-full justify-center"
+                      >
                         + Adicionar
                       </Button>
                     </td>

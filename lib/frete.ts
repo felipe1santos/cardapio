@@ -202,6 +202,7 @@ export async function resolverFrete(
   const raioPodeDecidir = raios.length > 0 && (!bairroResolve || raios.some((r) => r.taxa < taxaBairro!))
 
   let distanciaKm: number | null = null
+  let lojaSemCoord = false
   if (raioPodeDecidir && loja) {
     let lojaCoord: Coord | null =
       loja.latitude != null && loja.longitude != null
@@ -213,13 +214,23 @@ export async function resolverFrete(
         await admin.from('restaurantes').update({ latitude: lojaCoord.lat, longitude: lojaCoord.lng }).eq('id', restauranteId)
       }
     }
-    const enderecoCliente = [endereco.rua, endereco.numero, endereco.bairro, endereco.cidade]
-      .map((s) => (s ?? '').trim())
-      .filter(Boolean)
-      .join(', ')
-    const clienteCoord = await geocodeEndereco({ cep: endereco.cep, endereco: enderecoCliente || undefined }, mapsKey)
-    if (lojaCoord && clienteCoord) distanciaKm = haversineKm(lojaCoord, clienteCoord)
+    if (lojaCoord) {
+      const enderecoCliente = [endereco.rua, endereco.numero, endereco.bairro, endereco.cidade]
+        .map((s) => (s ?? '').trim())
+        .filter(Boolean)
+        .join(', ')
+      const clienteCoord = await geocodeEndereco({ cep: endereco.cep, endereco: enderecoCliente || undefined }, mapsKey)
+      if (clienteCoord) distanciaKm = haversineKm(lojaCoord, clienteCoord)
+    } else {
+      // O problema é o cadastro da LOJA (CEP/endereço não geocodificam) — não
+      // adianta geocodificar o cliente, e a mensagem não deve culpar o CEP dele.
+      lojaSemCoord = true
+    }
   }
 
-  return decidirFrete({ bairroCliente: endereco.bairro ?? '', bairros, raios, taxaPadrao, distanciaKm })
+  const decisao = decidirFrete({ bairroCliente: endereco.bairro ?? '', bairros, raios, taxaPadrao, distanciaKm })
+  if (!decisao.entregavel && decisao.fonte === 'raio' && decisao.distanciaKm === null && lojaSemCoord) {
+    decisao.motivo = 'O cálculo de entrega da loja está indisponível no momento. Fale com a loja para combinar a entrega.'
+  }
+  return decisao
 }
