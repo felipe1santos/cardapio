@@ -95,8 +95,10 @@ export async function geocodeEndereco(
 
 // ── Decisão de entregabilidade ────────────────────────────────────────────────
 // Regra (ver docs/superpowers/specs/2026-07-10-bairro-obrigatorio-lista-fechada-design.md):
-// bairro cadastrado resolve primeiro; depois faixas de raio pela distância; a taxa
-// padrão só vale quando a loja não restringiu área (sem bairros e sem raio).
+// bairro cadastrado garante a entrega; se o endereço também cair numa faixa de raio
+// MAIS BARATA, o cliente paga o menor dos dois valores. Sem match de bairro, valem
+// as faixas de raio pela distância; a taxa padrão só vale quando a loja não
+// restringiu área (sem bairros e sem raio).
 
 export interface FreteDecisao {
   entregavel: boolean
@@ -115,9 +117,18 @@ export function decidirFrete(params: {
   distanciaKm: number | null
 }): FreteDecisao {
   const alvo = normalizarBairro(params.bairroCliente)
-  if (alvo) {
-    const match = params.bairros.find((b) => normalizarBairro(b.bairro) === alvo)
-    if (match) return { entregavel: true, taxa: match.taxa, fonte: 'bairro', distanciaKm: null }
+  const matchBairro = alvo ? params.bairros.find((b) => normalizarBairro(b.bairro) === alvo) : undefined
+  if (matchBairro) {
+    // Bairro cadastrado garante a entrega. Se a distância também cai numa faixa
+    // de raio mais barata, cobra o MENOR valor; raio mais caro, fora do raio ou
+    // geocode falho não atrapalham — a taxa do bairro segue valendo.
+    if (params.raios.length > 0 && params.distanciaKm != null) {
+      const faixa = params.raios.find((r) => params.distanciaKm! <= r.ateKm)
+      if (faixa && faixa.taxa < matchBairro.taxa) {
+        return { entregavel: true, taxa: faixa.taxa, fonte: 'raio', distanciaKm: Math.round(params.distanciaKm * 10) / 10 }
+      }
+    }
+    return { entregavel: true, taxa: matchBairro.taxa, fonte: 'bairro', distanciaKm: null }
   }
 
   if (params.raios.length > 0) {
@@ -184,10 +195,14 @@ export async function resolverFrete(
   const taxaPadrao = loja ? Number(loja.taxa_entrega_padrao) || 0 : 0
 
   const alvo = normalizarBairro(endereco.bairro ?? '')
-  const bairroResolve = alvo !== '' && bairros.some((b) => normalizarBairro(b.bairro) === alvo)
+  const taxaBairro = alvo !== '' ? bairros.find((b) => normalizarBairro(b.bairro) === alvo)?.taxa : undefined
+  const bairroResolve = taxaBairro !== undefined
+  // Geocodifica quando o raio pode decidir: sem match de bairro, ou com match mas
+  // existindo faixa de raio mais barata que ainda pode baratear a entrega.
+  const raioPodeDecidir = raios.length > 0 && (!bairroResolve || raios.some((r) => r.taxa < taxaBairro!))
 
   let distanciaKm: number | null = null
-  if (!bairroResolve && raios.length > 0 && loja) {
+  if (raioPodeDecidir && loja) {
     let lojaCoord: Coord | null =
       loja.latitude != null && loja.longitude != null
         ? { lat: Number(loja.latitude), lng: Number(loja.longitude) }

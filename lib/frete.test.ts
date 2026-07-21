@@ -35,9 +35,31 @@ describe('decidirFrete', () => {
     expect(r).toEqual({ entregavel: true, taxa: 8, fonte: 'raio', distanciaKm: 4.3 })
   })
 
-  it('bairros + raio: match de bairro tem prioridade sobre a distância', () => {
+  it('bairros + raio: fora de todas as faixas, bairro cadastrado ainda garante a entrega', () => {
     const r = decidirFrete({ bairroCliente: 'Jardim Marilandia', bairros, raios, taxaPadrao: 10, distanciaKm: 99 })
     expect(r).toEqual({ entregavel: true, taxa: 7, fonte: 'bairro', distanciaKm: null })
+  })
+
+  it('bairros + raio: quando a faixa de raio é mais barata que o bairro, vale o menor valor', () => {
+    // Jardim Marilandia custa 7; a 2 km a faixa "até 3 km" custa 4 → cobra 4.
+    const r = decidirFrete({ bairroCliente: 'Jardim Marilandia', bairros, raios, taxaPadrao: 10, distanciaKm: 2 })
+    expect(r).toEqual({ entregavel: true, taxa: 4, fonte: 'raio', distanciaKm: 2 })
+  })
+
+  it('bairros + raio: quando a faixa de raio é mais cara, mantém a taxa do bairro', () => {
+    // Jardim Colorado custa 5; a 4.26 km a faixa "até 6 km" custa 8 → mantém 5.
+    const r = decidirFrete({ bairroCliente: 'Jardim Colorado', bairros, raios, taxaPadrao: 10, distanciaKm: 4.26 })
+    expect(r).toEqual({ entregavel: true, taxa: 5, fonte: 'bairro', distanciaKm: null })
+  })
+
+  it('bairros + raio: geocode falhou (distanciaKm null), bairro cadastrado resolve normal', () => {
+    const r = decidirFrete({ bairroCliente: 'São Geraldo', bairros, raios, taxaPadrao: 10, distanciaKm: null })
+    expect(r).toEqual({ entregavel: true, taxa: 6, fonte: 'bairro', distanciaKm: null })
+  })
+
+  it('bairros + raio: empate de valor mantém a fonte bairro', () => {
+    const r = decidirFrete({ bairroCliente: 'Jardim Colorado', bairros, raios: [{ ateKm: 3, taxa: 5 }], taxaPadrao: 10, distanciaKm: 1 })
+    expect(r).toEqual({ entregavel: true, taxa: 5, fonte: 'bairro', distanciaKm: null })
   })
 
   it('raio: fora de todas as faixas bloqueia com motivo de distância', () => {

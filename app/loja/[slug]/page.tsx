@@ -580,6 +580,10 @@ export default function StorefrontPage() {
   const [cepBuscando, setCepBuscando] = useState(false)
   // CEP retornou bairro que a loja não atende (lista fechada) — orienta a escolher da lista.
   const [cepSemBairro, setCepSemBairro] = useState(false)
+  // Endereço veio salvo (último pedido neste aparelho ou perfil logado): o checkout
+  // mostra um resumo com "Trocar endereço" em vez do formulário aberto.
+  const [enderecoSalvoOrigem, setEnderecoSalvoOrigem] = useState(false)
+  const [mostrarFormEndereco, setMostrarFormEndereco] = useState(false)
 
   // Frete resolvido pelo servidor: bairro tem prioridade; senão faixa de raio; senão taxa padrão.
   const [freteCalc, setFreteCalc] = useState<{ taxa: number; entregavel: boolean; fonte: 'bairro' | 'raio' | 'padrao'; distanciaKm: number | null; motivo?: string } | null>(null)
@@ -699,11 +703,26 @@ export default function StorefrontPage() {
         setFreteError('CEP não encontrado.')
         return
       }
+      const rua = (data.logradouro as string) || ''
       const bairro = (data.bairro as string) || ''
       const cidade = (data.localidade as string) || ''
-      const match = bairros.find((b) => normalizarBairro(b.bairro) === normalizarBairro(bairro))
-      const taxa = match ? match.taxa : restaurante?.taxaEntregaPadrao ?? 0
-      setFreteResult({ rua: (data.logradouro as string) || '', bairro, cidade, taxa })
+      // A taxa vem do servidor (mesma regra do checkout: bairro/raio/padrão e
+      // menor valor) — nada de recalcular no cliente com regra própria.
+      const freteRes = await fetch(`/api/loja/${slug}/frete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cep: cepLimpo, rua, bairro, cidade }),
+      })
+      if (!freteRes.ok) {
+        setFreteError('Não foi possível calcular o frete agora. Tente novamente.')
+        return
+      }
+      const decisao = (await freteRes.json()) as { entregavel: boolean; taxa: number; motivo?: string }
+      if (!decisao.entregavel) {
+        setFreteError(decisao.motivo || 'A loja não entrega nesse endereço.')
+        return
+      }
+      setFreteResult({ rua, bairro, cidade, taxa: decisao.taxa })
     } catch {
       setFreteError('Não foi possível consultar o CEP agora. Tente novamente.')
     } finally {
@@ -763,6 +782,7 @@ export default function StorefrontPage() {
       if (salvo?.endereco?.rua || salvo?.endereco?.bairro) {
         setEndereco((a) => (a.rua || a.bairro ? a : { rua: '', numero: '', complemento: '', bairro: '', cep: '', ...salvo.endereco }))
         if (salvo.cidade) setCidadeCliente((c) => c || salvo.cidade)
+        setEnderecoSalvoOrigem(true)
       }
       if (salvo?.nome || salvo?.telefone) {
         setCliente((c) => ({ nome: c.nome || salvo.nome || '', telefone: c.telefone || salvo.telefone || '' }))
@@ -788,7 +808,10 @@ export default function StorefrontPage() {
         setContaEndereco(data.endereco)
         setContaEditando(!data.nome && !data.endereco.rua)
         setCliente((c) => ({ nome: data.nome || c.nome, telefone: data.telefone }))
-        if (data.endereco.rua || data.endereco.bairro) setEndereco(data.endereco)
+        if (data.endereco.rua || data.endereco.bairro) {
+          setEndereco(data.endereco)
+          setEnderecoSalvoOrigem(true)
+        }
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -2866,6 +2889,40 @@ export default function StorefrontPage() {
                 </div>
               </div>
 
+              {/* Endereço salvo (último pedido/perfil): resumo com opção de trocar */}
+              {enderecoSalvoOrigem && !mostrarFormEndereco && endereco.rua && endereco.numero && endereco.bairro ? (
+                <div className="mt-4 rounded-lg border border-border bg-white p-4">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
+                  <div className="rounded-md border border-border bg-page/60 p-3">
+                    <p className="text-[15px] font-semibold text-text-main">
+                      {endereco.rua}, {endereco.numero}
+                      {endereco.complemento ? ` · ${endereco.complemento}` : ''}
+                    </p>
+                    <p className="mt-0.5 text-[13px] text-text-subtle">
+                      {endereco.bairro}
+                      {endereco.cep ? ` · CEP ${endereco.cep}` : ''}
+                    </p>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => setMostrarFormEndereco(true)}
+                      className="flex-1 rounded-md border border-border px-3 py-2.5 text-[13px] font-semibold text-text-main transition-colors hover:bg-page"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEndereco({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+                        setCepSemBairro(false)
+                        setMostrarFormEndereco(true)
+                      }}
+                      className="flex-1 rounded-md border border-[var(--tema-primaria)] px-3 py-2.5 text-[13px] font-semibold text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-primaria)]/5"
+                    >
+                      Trocar endereço
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div className="mt-4 rounded-lg border border-border bg-white p-4">
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
                 {/* CEP primeiro: ao preencher, busca rua/bairro/cidade sozinho */}
@@ -2917,6 +2974,7 @@ export default function StorefrontPage() {
                     className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
+              )}
               {/* Status do frete calculado */}
               {(endereco.bairro.trim() || endereco.cep.replace(/\D/g, '').length === 8) && (
                 entregavel ? (
