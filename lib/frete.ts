@@ -37,23 +37,50 @@ export function normalizarBairro(s: string): string {
     .trim()
 }
 
-/** Coordenadas de um CEP via BrasilAPI v2 (gratuita, sem chave). Null se não tiver. */
-async function coordPorCepBrasilApi(cep: string): Promise<Coord | null> {
+interface CepBrasilApi {
+  coord: Coord | null
+  /** Endereço textual do CEP ("Rua X, Bairro, Cidade, UF") para geocodificar no Google. */
+  enderecoTexto: string | null
+}
+
+/**
+ * Consulta um CEP na BrasilAPI v2 (gratuita, sem chave). Muitos CEPs vêm SEM
+ * coordinates — nesses casos ainda aproveitamos rua/cidade/UF como texto para
+ * o Google geocodificar a rua real (mais preciso que o centroide do CEP).
+ */
+async function cepPorBrasilApi(cep: string): Promise<CepBrasilApi> {
+  const vazio: CepBrasilApi = { coord: null, enderecoTexto: null }
   const limpo = soDigitos(cep)
-  if (limpo.length !== 8) return null
+  if (limpo.length !== 8) return vazio
   try {
     const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${limpo}`, { signal: AbortSignal.timeout(4000) })
-    if (!res.ok) return null
-    const data = (await res.json()) as { location?: { coordinates?: { latitude?: string; longitude?: string } } }
+    if (!res.ok) return vazio
+    const data = (await res.json()) as {
+      street?: string
+      neighborhood?: string
+      city?: string
+      state?: string
+      location?: { coordinates?: { latitude?: string; longitude?: string } }
+    }
+    let coord: Coord | null = null
     const c = data.location?.coordinates
-    if (!c?.latitude || !c?.longitude) return null
-    const lat = Number(c.latitude)
-    const lng = Number(c.longitude)
-    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng }
-    return null
+    if (c?.latitude && c?.longitude) {
+      const lat = Number(c.latitude)
+      const lng = Number(c.longitude)
+      if (Number.isFinite(lat) && Number.isFinite(lng)) coord = { lat, lng }
+    }
+    const partes = [data.street, data.neighborhood, data.city, data.state].map((s) => (s ?? '').trim()).filter(Boolean)
+    return { coord, enderecoTexto: partes.length >= 2 ? partes.join(', ') : null }
   } catch {
-    return null
+    return vazio
   }
+}
+
+/** "29100500" → "29100-500" — o Google só resolve CEP nesse formato (e com país). */
+function formatarCepGoogle(cep: string): string | null {
+  const limpo = soDigitos(cep)
+  if (limpo.length !== 8) return null
+  return `${limpo.slice(0, 5)}-${limpo.slice(5)}, Brasil`
 }
 
 /** Geocodifica um texto livre (endereço ou CEP) via Google Geocoding REST. */
@@ -73,8 +100,13 @@ async function coordPorGoogle(consulta: string, mapsKey?: string): Promise<Coord
 }
 
 /**
- * Resolve coordenadas de um endereço: tenta o endereço completo no Google (mais preciso),
- * depois o CEP na BrasilAPI (grátis) e, por fim, o CEP no Google.
+ * Resolve coordenadas de um endereço, do mais preciso ao mais genérico:
+ * 1. endereço completo no Google;
+ * 2. coordenadas oficiais do CEP na BrasilAPI (grátis);
+ * 3. rua/cidade que a BrasilAPI devolve para o CEP, geocodificada no Google
+ *    (muitos CEPs não têm coordinates na BrasilAPI);
+ * 4. o próprio CEP no Google, no formato "29100-500, Brasil" (dígitos crus
+ *    retornam ZERO_RESULTS).
  */
 export async function geocodeEndereco(
   partes: { cep?: string; endereco?: string },
@@ -85,10 +117,17 @@ export async function geocodeEndereco(
     if (g) return g
   }
   if (partes.cep) {
-    const b = await coordPorCepBrasilApi(partes.cep)
-    if (b) return b
-    const g = await coordPorGoogle(soDigitos(partes.cep), mapsKey)
-    if (g) return g
+    const b = await cepPorBrasilApi(partes.cep)
+    if (b.coord) return b.coord
+    if (b.enderecoTexto) {
+      const g = await coordPorGoogle(b.enderecoTexto, mapsKey)
+      if (g) return g
+    }
+    const cepGoogle = formatarCepGoogle(partes.cep)
+    if (cepGoogle) {
+      const g = await coordPorGoogle(cepGoogle, mapsKey)
+      if (g) return g
+    }
   }
   return null
 }
