@@ -222,6 +222,10 @@ export interface PedidoParaImprimir {
 
 /** Pedidos recém-chegados ainda não impressos, prontos pra virar recibo no agente desktop. */
 export async function listarPedidosParaImprimir(admin: SupabaseClient, restauranteId: string): Promise<PedidoParaImprimir[]> {
+  // Com o aceite automático ligado, o pedido pode virar "preparando" antes de o
+  // agente varrer — por isso pedidos recentes em preparo e não impressos também
+  // entram na fila (janela de 6h para não reimprimir histórico antigo).
+  const preparadoDesde = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
   const { data, error } = await admin
     .from('pedidos')
     .select(
@@ -230,8 +234,9 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
     .eq('restaurante_id', restauranteId)
-    // Pedidos novos não impressos, OU qualquer pedido com reimpressão pedida manualmente.
-    .or('and(status.eq.recebido,impresso.eq.false),reimprimir.eq.true')
+    // Pedidos novos não impressos (incluindo os já aceitos automaticamente),
+    // OU qualquer pedido com reimpressão pedida manualmente.
+    .or(`and(status.eq.recebido,impresso.eq.false),and(status.eq.preparando,impresso.eq.false,criado_em.gte.${preparadoDesde}),reimprimir.eq.true`)
     .order('criado_em', { ascending: true })
   if (error) throw error
 

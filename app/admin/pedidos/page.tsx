@@ -19,6 +19,7 @@ import {
   PrinterCheck,
   Eye,
   EyeOff,
+  Zap,
 } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,7 @@ import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
-import { solicitarReimpressao } from '@/lib/queries/impressao'
+import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
   listarPedidosConcluidos,
@@ -110,10 +111,14 @@ function timerTone(mins: number) {
 const ALARME_INTERVALO_MS = 10_000
 /** Tempo máximo que o alarme fica repetindo sem ninguém aceitar (ms). */
 const ALARME_LIMITE_MS = 120_000
+/** Arquivo de som do alarme de pedido novo (servido de public/). */
+const ALARME_SOM_SRC = '/sounds/som-telefone-alarme.mp3'
+/** Com o aceite automático ligado, o pedido toca o alarme por esse tempo antes de ir sozinho pra "Preparando". */
+const AUTO_ACEITE_DELAY_MS = 5_000
 
 /**
- * Toca o alarme de pedido novo: 3 toques curtos alternando dois tons
- * (padrão de sirene/campainha), em volume alto porém sem estourar.
+ * Fallback do alarme de pedido novo quando o mp3 não pode tocar (bloqueio de
+ * autoplay, arquivo indisponível): 3 toques curtos alternando dois tons.
  * Reaproveita o AudioContext recebido — nunca cria um novo por toque.
  */
 function playNewOrderSound(ctx: AudioContext) {
@@ -270,15 +275,20 @@ export default function PedidosPage() {
   const [now, setNow] = useState(() => Date.now())
   const [showCol4, setShowCol4] = useState(false)
   const [showStats, setShowStats] = useState(true)
-  const [pulsando, setPulsando] = useState<Set<string>>(new Set())
   const recebidosConhecidos = useRef<Set<string> | null>(null)
   const [somAtivo, setSomAtivo] = useState(true)
   const somRef = useRef(true)
   const [alarmeTocando, setAlarmeTocando] = useState(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
+  const audioElRef = useRef<HTMLAudioElement | null>(null)
   const alarmeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const alarmeLimiteRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendentesRef = useRef(false)
+  const [autoAceitar, setAutoAceitar] = useState(false)
+  const autoAceitarRef = useRef(false)
+  const autoAceiteTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const ordersRef = useRef<Pedido[]>([])
+  const avancarRef = useRef<(p: Pedido) => void>(() => {})
   const [focusMode, setFocusMode] = useState(false)
   const [rotaOpen, setRotaOpen] = useState(false)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -307,7 +317,20 @@ export default function PedidosPage() {
     }
   }, [])
 
-  /** Encerra o ciclo de alarme: limpa interval, limite e o indicador visual. */
+  /** Elemento de áudio único do alarme (mp3) — criado sob demanda. */
+  const getAlarmeAudio = useCallback(() => {
+    if (audioElRef.current) return audioElRef.current
+    try {
+      const el = new Audio(ALARME_SOM_SRC)
+      el.preload = 'auto'
+      audioElRef.current = el
+      return el
+    } catch {
+      return null
+    }
+  }, [])
+
+  /** Encerra o ciclo de alarme: limpa interval, limite, corta o som e o indicador visual. */
   const pararAlarme = useCallback(() => {
     if (alarmeIntervalRef.current) {
       clearInterval(alarmeIntervalRef.current)
@@ -316,6 +339,10 @@ export default function PedidosPage() {
     if (alarmeLimiteRef.current) {
       clearTimeout(alarmeLimiteRef.current)
       alarmeLimiteRef.current = null
+    }
+    if (audioElRef.current && !audioElRef.current.paused) {
+      audioElRef.current.pause()
+      audioElRef.current.currentTime = 0
     }
     setAlarmeTocando(false)
   }, [])
@@ -332,8 +359,20 @@ export default function PedidosPage() {
     setAlarmeTocando(true)
 
     const tocar = () => {
-      const ctx = getAudioCtx()
-      if (ctx) playNewOrderSound(ctx)
+      // Preferência: o mp3 do alarme (SOM-TELEFONE-ALARME). Se o navegador
+      // bloquear o play (autoplay sem interação) ou o arquivo falhar, cai no
+      // beep sintetizado via Web Audio para não deixar o pedido passar mudo.
+      const el = getAlarmeAudio()
+      const fallback = () => {
+        const ctx = getAudioCtx()
+        if (ctx) playNewOrderSound(ctx)
+      }
+      if (!el) {
+        fallback()
+        return
+      }
+      el.currentTime = 0
+      void el.play().catch(fallback)
     }
     tocar()
 
@@ -347,7 +386,47 @@ export default function PedidosPage() {
     }, ALARME_INTERVALO_MS)
 
     alarmeLimiteRef.current = setTimeout(pararAlarme, ALARME_LIMITE_MS)
-  }, [getAudioCtx, pararAlarme])
+  }, [getAudioCtx, getAlarmeAudio, pararAlarme])
+
+  // ── Aceite automático de pedidos ──────────────────────────────────────────
+  /** Cancela o timer de aceite automático de um pedido (ou de todos, sem argumento). */
+  const cancelarAutoAceite = useCallback((pedidoId?: string) => {
+    const timers = autoAceiteTimersRef.current
+    if (pedidoId) {
+      const t = timers.get(pedidoId)
+      if (t) {
+        clearTimeout(t)
+        timers.delete(pedidoId)
+      }
+      return
+    }
+    for (const t of timers.values()) clearTimeout(t)
+    timers.clear()
+  }, [])
+
+  /**
+   * Agenda o aceite automático dos pedidos "recebido" ainda sem timer.
+   * O pedido fica alguns segundos tocando o alarme/piscando e então avança
+   * sozinho para "Preparando" — a menos que alguém aceite/recuse antes
+   * (o timer confere o status atual na hora de disparar).
+   */
+  const agendarAutoAceite = useCallback(
+    (pedidos: Pedido[]) => {
+      if (!autoAceitarRef.current) return
+      const timers = autoAceiteTimersRef.current
+      for (const p of pedidos) {
+        if (p.status !== 'recebido' || p.preparandoNotificado || timers.has(p.id)) continue
+        const timer = setTimeout(() => {
+          timers.delete(p.id)
+          if (!autoAceitarRef.current) return
+          const atual = ordersRef.current.find((o) => o.id === p.id)
+          if (atual && atual.status === 'recebido') avancarRef.current(atual)
+        }, AUTO_ACEITE_DELAY_MS)
+        timers.set(p.id, timer)
+      }
+    },
+    []
+  )
 
   function toggleStats() {
     setShowStats((v) => {
@@ -415,38 +494,31 @@ export default function PedidosPage() {
         setTransit(logistica.filter((p) => p.status === 'em_rota'))
         setConcluded(finalizados)
 
-        // detecta pedidos novos (status "recebido") para tocar som e pulsar o card.
+        // detecta pedidos novos (status "recebido") para tocar o alarme — o card
+        // pisca via CSS enquanto estiver "recebido" (até alguém aceitar).
         // Ignora pedidos devolvidos pela cozinha (preparandoNotificado=true): voltam
-        // pra fila mas não são "novos", então não disparam som/pulso de novo pedido.
+        // pra fila mas não são "novos", então não disparam som de novo pedido.
         const recebidosAgora = new Set(kanban.filter((p) => p.status === 'recebido' && !p.preparandoNotificado).map((p) => p.id))
         const anteriores = recebidosConhecidos.current
         if (anteriores) {
           const novos = [...recebidosAgora].filter((pid) => !anteriores.has(pid))
-          if (novos.length > 0) {
-            if (somRef.current) iniciarAlarme()
-            setPulsando((prev) => new Set([...prev, ...novos]))
-            for (const pid of novos) {
-              setTimeout(() => {
-                setPulsando((prev) => {
-                  const next = new Set(prev)
-                  next.delete(pid)
-                  return next
-                })
-              }, 3000)
-            }
-          }
+          if (novos.length > 0 && somRef.current) iniciarAlarme()
         }
         recebidosConhecidos.current = recebidosAgora
+
+        // com o aceite automático ligado, agenda o avanço dos pedidos pendentes
+        agendarAutoAceite(kanban)
       } catch {
         setError('Não foi possível carregar os pedidos.')
       }
     },
-    [supabase, iniciarAlarme]
+    [supabase, iniciarAlarme, agendarAutoAceite]
   )
 
   // Espelha em ref se ainda existe pedido "recebido" pendente e corta o alarme
   // assim que a fila zera (inclusive no update otimista do botão Aceitar).
   useEffect(() => {
+    ordersRef.current = orders
     const pendentes = orders.some((p) => p.status === 'recebido' && !p.preparandoNotificado)
     pendentesRef.current = pendentes
     if (!pendentes) pararAlarme()
@@ -459,6 +531,22 @@ export default function PedidosPage() {
     const destravar = () => {
       const ctx = getAudioCtx()
       if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => {})
+      // destrava também o elemento <audio> do mp3: um play mudo + pause na
+      // primeira interação libera os plays programáticos seguintes.
+      const el = getAlarmeAudio()
+      if (el && el.paused) {
+        el.muted = true
+        void el
+          .play()
+          .then(() => {
+            el.pause()
+            el.currentTime = 0
+            el.muted = false
+          })
+          .catch(() => {
+            el.muted = false
+          })
+      }
     }
     window.addEventListener('pointerdown', destravar, { once: true })
     window.addEventListener('keydown', destravar, { once: true })
@@ -466,10 +554,11 @@ export default function PedidosPage() {
       window.removeEventListener('pointerdown', destravar)
       window.removeEventListener('keydown', destravar)
     }
-  }, [getAudioCtx])
+  }, [getAudioCtx, getAlarmeAudio])
 
-  // Cleanup geral do alarme no unmount: timers + AudioContext.
+  // Cleanup geral do alarme no unmount: timers + AudioContext + áudio + aceite automático.
   useEffect(() => {
+    const timers = autoAceiteTimersRef.current
     return () => {
       if (alarmeIntervalRef.current) clearInterval(alarmeIntervalRef.current)
       if (alarmeLimiteRef.current) clearTimeout(alarmeLimiteRef.current)
@@ -477,6 +566,10 @@ export default function PedidosPage() {
       alarmeLimiteRef.current = null
       audioCtxRef.current?.close().catch(() => {})
       audioCtxRef.current = null
+      audioElRef.current?.pause()
+      audioElRef.current = null
+      for (const t of timers.values()) clearTimeout(t)
+      timers.clear()
     }
   }, [])
 
@@ -491,6 +584,17 @@ export default function PedidosPage() {
         return
       }
       setRestauranteId(id)
+      // carrega o aceite automático ANTES do primeiro fetch, para os pedidos
+      // pendentes já entrarem na fila de aceite se a chave estiver ligada.
+      try {
+        const cfg = await buscarConfigImpressao(supabase, id)
+        const ligado = cfg?.aceitarPedidosAutomaticamente ?? false
+        autoAceitarRef.current = ligado
+        setAutoAceitar(ligado)
+      } catch {
+        /* sem config — segue com aceite manual */
+      }
+      if (!active) return
       await refetch(id)
       setLoading(false)
 
@@ -536,6 +640,7 @@ export default function PedidosPage() {
     else if (p.status === 'preparando') novo = 'pronto'
     else if (p.status === 'pronto' && p.tipo === 'retirada') novo = 'entregue'
     if (!novo || !restauranteId) return
+    cancelarAutoAceite(p.id)
 
     // otimista
     setOrders((prev) =>
@@ -548,6 +653,31 @@ export default function PedidosPage() {
     } catch {
       setError('Não foi possível atualizar o pedido.')
       refetch(restauranteId)
+    }
+  }
+
+  // Mantém a ref apontando pro avancar mais recente — os timers de aceite
+  // automático chamam via ref para não prender um closure com estado velho.
+  useEffect(() => {
+    avancarRef.current = avancar
+  })
+
+  /** Liga/desliga o aceite automático — mesma chave de Ajustes › Impressão. */
+  async function toggleAutoAceite() {
+    if (!restauranteId) return
+    const next = !autoAceitar
+    setAutoAceitar(next)
+    autoAceitarRef.current = next
+    if (next) agendarAutoAceite(ordersRef.current)
+    else cancelarAutoAceite()
+    try {
+      await atualizarConfigImpressao(supabase, restauranteId, { aceitarPedidosAutomaticamente: next })
+    } catch {
+      const volta = !next
+      setAutoAceitar(volta)
+      autoAceitarRef.current = volta
+      if (!volta) cancelarAutoAceite()
+      setError('Não foi possível salvar o aceite automático de pedidos.')
     }
   }
 
@@ -566,6 +696,7 @@ export default function PedidosPage() {
 
   async function recusar(p: Pedido) {
     if (!restauranteId) return
+    cancelarAutoAceite(p.id)
     setOrders((prev) => prev.filter((o) => o.id !== p.id))
     try {
       await recusarPedido(supabase, p.id)
@@ -608,6 +739,17 @@ export default function PedidosPage() {
       >
         {somAtivo ? <BellRing className={`h-4 w-4 ${alarmeTocando ? 'animate-pulse' : ''}`} /> : <BellOff className="h-4 w-4" />}{' '}
         {alarmeTocando ? 'Silenciar' : 'Som'}
+      </button>
+      <button
+        onClick={toggleAutoAceite}
+        title={
+          autoAceitar
+            ? 'Aceite automático ligado — pedido novo toca o alarme por alguns segundos e vai sozinho para Preparando'
+            : 'Aceite automático desligado — pedidos novos aguardam aceite manual'
+        }
+        className={`${TOOL_BTN} ${autoAceitar ? 'bg-status-ready text-white hover:brightness-95' : 'bg-page text-text-subtle hover:bg-border'}`}
+      >
+        <Zap className="h-4 w-4" /> Aceite auto
       </button>
       <button onClick={() => setRotaOpen(true)} title="Despacho de rotas" className={`${TOOL_BTN} bg-status-pending text-white hover:brightness-95`}>
         <Bike className="h-4 w-4" /> Rotas
@@ -688,7 +830,7 @@ export default function PedidosPage() {
                         className={[
                           'rounded-menuzia border border-border border-l-[4px] bg-white p-3.5 shadow-md transition-shadow hover:shadow-lg',
                           accent[coluna],
-                          pulsando.has(order.id) ? 'animate-new-order' : '',
+                          order.status === 'recebido' && !order.preparandoNotificado ? 'animate-new-order' : '',
                         ].join(' ')}
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">

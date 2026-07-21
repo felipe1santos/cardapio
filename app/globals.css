@@ -30,15 +30,22 @@ body {
   font-family: 'Inter', sans-serif;
 }
 
-/* Destaque curto no card do Kanban quando um pedido novo chega em tempo real */
-@keyframes new-order-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(250, 204, 21, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+/* Card de pedido novo no Kanban: pisca alternando azul/vermelho enquanto
+   estiver aguardando aceite (para assim que alguém aceita ou o aceite
+   automático avança o pedido). */
+@keyframes new-order-blink {
+  0%, 100% {
+    background-color: #DBEAFE;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.55);
+  }
+  50% {
+    background-color: #FEE2E2;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.55);
+  }
 }
 
 .animate-new-order {
-  animation: new-order-pulse 1s ease-out 3;
+  animation: new-order-blink 0.9s ease-in-out infinite;
 }
 
 /* Banner de cupom/prêmio na vitrine: pulsa suave e continuamente pra chamar atenção */

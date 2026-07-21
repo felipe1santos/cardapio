@@ -284,3 +284,18 @@ aprovação**. Esse plano deve cobrir, no mínimo:
    do plano, já que é o módulo voltado ao cliente final.
 
 Não comece a implementação sem que esse plano seja revisado e aprovado por mim.
+
+---
+
+## 7. ⚠️ IMPRESSÃO TÉRMICA — NÃO ALTERAR A FOLHA DE IMPRESSÃO
+
+A folha de impressão térmica (recibo) **já está com as dimensões, layout e
+informações corretos e validados em produção**. É PROIBIDO alterar sem pedido
+explícito:
+
+- O layout/formatação do recibo (`printer-agent` / `recibo.js`);
+- Tamanhos de fonte, largura de colunas/papel, número de colunas;
+- O conteúdo e a ordem das informações impressas.
+
+Qualquer mudança relacionada a impressão deve se limitar à **lógica de disparo**
+(quando/quais pedidos entram na fila de impressão), nunca à formatação da folha.
