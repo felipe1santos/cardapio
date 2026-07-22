@@ -729,6 +729,7 @@ export default function LogisticaPage() {
     setOrders((prev) => prev.filter((o) => o.id !== orderId))
     try {
       await marcarPedidoEntregue(supabase, orderId)
+      notificarPedido(orderId, 'entregue')
       if (restauranteId) refetch(restauranteId)
     } catch {
       setError('Não foi possível marcar como entregue.')

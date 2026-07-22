@@ -649,7 +649,7 @@ export default function PedidosPage() {
     try {
       if (novo === 'entregue') await marcarPedidoEntregue(supabase, p.id)
       else await avancarStatusPedido(supabase, p.id, novo)
-      if (novo === 'preparando' || novo === 'pronto') notificarPedido(p.id, novo)
+      notificarPedido(p.id, novo)
     } catch {
       setError('Não foi possível atualizar o pedido.')
       refetch(restauranteId)
