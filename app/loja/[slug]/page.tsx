@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket } from 'lucide-react'
+import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -191,7 +191,7 @@ function TagBadge({ tag }: { tag: string | null }) {
   )
 }
 
-function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number }) {
+function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = UtensilsCrossed }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number; fallbackIcon?: typeof UtensilsCrossed }) {
   if (item.imagemUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -208,9 +208,16 @@ function ProductThumb({ item, size = 96 }: { item: Pick<ItemCardapio, 'nome' | '
       className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]"
       style={{ width: size, height: size }}
     >
-      <UtensilsCrossed style={{ width: size * 0.4, height: size * 0.4 }} className="text-[#9CA3AF]" strokeWidth={1.75} />
+      <FallbackIcon style={{ width: size * 0.4, height: size * 0.4 }} className="text-[#9CA3AF]" strokeWidth={1.75} />
     </div>
   )
+}
+
+/** Ícone de fallback do thumb de prêmio/cupom quando não há foto — "%" para descontos, caminhão pra frete grátis, talheres pra item. */
+function iconePremio(tipo: 'item_gratis' | 'desconto_percentual' | 'desconto_valor' | 'entrega_gratis'): typeof UtensilsCrossed {
+  if (tipo === 'desconto_percentual' || tipo === 'desconto_valor') return Percent
+  if (tipo === 'entrega_gratis') return Truck
+  return UtensilsCrossed
 }
 
 function ProductImage({ item, className = '' }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; className?: string }) {
@@ -2236,7 +2243,7 @@ export default function StorefrontPage() {
                       return (
                         <div key={r.id} className="overflow-hidden rounded-md border border-[#16A34A]/40 bg-white shadow-sm">
                           <div className="flex items-start gap-3.5 p-3.5">
-                            <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl ?? null }} size={112} />
+                            <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl ?? null }} size={112} fallbackIcon={iconePremio(r.premioTipo)} />
                             <div className="min-w-0 flex-1">
                               <span className="inline-block rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#16A34A]">Prêmio desbloqueado</span>
                               <div className="mt-1.5 text-[15px] font-bold leading-snug text-text-main first-letter:uppercase">{label}</div>
@@ -2279,7 +2286,7 @@ export default function StorefrontPage() {
                       return (
                         <div key={campanha.id} className="rounded-md border border-border bg-white p-3.5 shadow-sm">
                           <div className="flex items-start gap-3">
-                            <ProductThumb item={{ nome: campanha.premioItemNome ?? campanha.nome, imagemUrl: campanha.premioItemImagemUrl ?? null }} size={56} />
+                            <ProductThumb item={{ nome: campanha.premioItemNome ?? campanha.nome, imagemUrl: campanha.premioItemImagemUrl ?? null }} size={56} fallbackIcon={iconePremio(campanha.premioTipo)} />
                             <div className="min-w-0 flex-1">
                               <div className="text-[14px] font-bold leading-snug text-text-main">{campanha.nome}</div>
                               <div className="mt-0.5 text-[12px] text-text-subtle">Prêmio: {label}</div>
@@ -2311,6 +2318,7 @@ export default function StorefrontPage() {
                     {cuponsLoja.map((c) => (
                       <div key={c.id} className="rounded-md border border-border bg-white p-3.5 shadow-sm">
                         <div className="flex items-center gap-3">
+                          <ProductThumb item={{ nome: c.itemNome ?? labelCupom(c), imagemUrl: c.itemImagemUrl ?? null }} size={48} fallbackIcon={iconePremio(c.tipo)} />
                           <span className="flex-shrink-0 rounded border border-dashed border-[var(--tema-primaria)] bg-[var(--tema-light)] px-2.5 py-1.5 text-[13px] font-extrabold tracking-widest text-[var(--tema-primaria)]">{c.codigo}</span>
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-[13px] font-bold text-text-main">{labelCupom(c)}</div>
