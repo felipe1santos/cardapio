@@ -522,24 +522,6 @@ export default function LogisticaPage() {
     if (restauranteId) await refetch(restauranteId)
   }
 
-  async function avisarProntoNexta(orderId: string) {
-    setNextaBusy(orderId)
-    try {
-      const res = await fetch('/api/admin/nexta/pronto', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pedidoId: orderId }),
-      })
-      const data = (await res.json()) as { error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Falha ao avisar o Nexta.')
-      if (restauranteId) await refetch(restauranteId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível avisar o Nexta.')
-    } finally {
-      setNextaBusy(null)
-    }
-  }
-
   async function cancelarNexta(orderId: string) {
     setNextaBusy(orderId)
     setCancelandoNexta(null)
@@ -1252,7 +1234,7 @@ export default function LogisticaPage() {
                   </button>
                 </div>
                 <div className="border-b border-border px-4 py-2 text-[12px] text-text-subtle">
-                  O Nexta já foi chamado. Avise quando o pedido estiver pronto para coleta.
+                  O Nexta já foi chamado e avisado que está pronto para coleta.
                 </div>
                 <div className="divide-y divide-border">
                   {comNexta.map((order) => {
@@ -1324,9 +1306,6 @@ export default function LogisticaPage() {
                           </div>
 
                           <div className="flex flex-shrink-0 flex-wrap gap-2">
-                            <Button variant="primary" className="min-h-[36px] px-4 text-[12px]" onClick={() => avisarProntoNexta(order.id)} disabled={ocupado}>
-                              Pronto p/ coleta
-                            </Button>
                             <Button variant="outline" onClick={() => reconciliarNexta(order.id)} disabled={ocupado} title="Buscar o status atual no Nexta">
                               <RefreshCw className="h-4 w-4" />
                             </Button>

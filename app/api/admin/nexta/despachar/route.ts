@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
-import { cotarEntrega, criarEntrega } from '@/lib/nexta'
+import { avisarPronto, cotarEntrega, criarEntrega } from '@/lib/nexta'
 import { carregarConfigNexta, carregarPedidoNexta, erroNexta, montarEntregaDoPedido, pedidoParaNexta, resolverCoordenadasColeta } from '@/lib/nexta-servidor'
 import { apagarNextaEntrega, atualizarNextaEntrega, criarNextaEntrega, vincularEntregaAoPedido } from '@/lib/queries/nexta'
 
@@ -66,6 +66,15 @@ export async function POST(request: Request) {
 
     await atualizarNextaEntrega(admin, linha.id, { deliveryId: criacao.deliveryId, status: criacao.evento })
     await vincularEntregaAoPedido(admin, pedidoId, linha.id)
+
+    // Só despachamos pedido que já está `pronto` no Kanban — a comida já está pronta
+    // desde antes de chamar o Nexta, então avisamos na hora, sem depender de clique manual.
+    // Melhor esforço: o Nexta já sabe que a corrida existe; falhar aqui não desfaz o despacho.
+    try {
+      await avisarPronto(cfg, linha.id)
+    } catch (err) {
+      console.error(`[nexta] falha ao avisar readyForPickup da entrega ${linha.id}:`, err)
+    }
 
     return NextResponse.json({
       ok: true,
