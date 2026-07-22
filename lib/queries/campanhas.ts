@@ -39,7 +39,7 @@ export interface CampanhaEnvio {
   restauranteId: string
   telefone: string
   nomeCliente: string
-  status: 'pendente' | 'enviado' | 'erro'
+  status: 'pendente' | 'reservado' | 'enviado' | 'erro'
   erro: string | null
   enviadoEm: string | null
   // joined
@@ -261,47 +261,68 @@ export async function popularFilaCampanha(
 }
 
 export async function buscarProximoEnvio(admin: SupabaseClient): Promise<CampanhaEnvio | null> {
-  // Busca o próximo envio pendente de campanha cujo agendamento já chegou,
-  // junto dos dados da campanha e da instância WhatsApp do restaurante.
-  const { data, error } = await admin
-    .from('campanha_envios')
-    .select(`
-      id, campanha_id, restaurante_id, telefone, nome_cliente, status, erro, enviado_em,
-      campanhas!inner (
-        tipo_mensagem, mensagem, imagem_url, audio_url, agendado_em, status,
-        restaurantes!inner ( evolution_instance )
-      )
-    `)
-    .eq('status', 'pendente')
-    .eq('campanhas.status', 'agendada')
-    .lte('campanhas.agendado_em', new Date().toISOString())
-    .order('criado_em', { ascending: true })
-    .limit(1)
-    .maybeSingle()
+  // Busca o próximo envio pendente de campanha cujo agendamento já chegou e reserva
+  // atomicamente (UPDATE ... WHERE status='pendente') antes de devolver — se outra
+  // invocação do cron já tiver pego essa linha entre o SELECT e o UPDATE, o UPDATE
+  // afeta 0 linhas e tentamos a próxima; evita reenviar a mesma mensagem em duplicidade
+  // quando duas execuções do cron se sobrepõem.
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: candidato, error } = await admin
+      .from('campanha_envios')
+      .select(`
+        id, campanha_id, restaurante_id, telefone, nome_cliente, status, erro, enviado_em,
+        campanhas!inner (
+          tipo_mensagem, mensagem, imagem_url, audio_url, agendado_em, status,
+          restaurantes!inner ( evolution_instance )
+        )
+      `)
+      .eq('status', 'pendente')
+      .eq('campanhas.status', 'agendada')
+      .lte('campanhas.agendado_em', new Date().toISOString())
+      .order('criado_em', { ascending: true })
+      .limit(1)
+      .maybeSingle()
 
-  if (error) throw error
-  if (!data) return null
+    if (error) throw error
+    if (!candidato) return null
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const c = (data as any).campanhas
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const r = c?.restaurantes as any
+    const { data: reservado, error: errReserva } = await admin
+      .from('campanha_envios')
+      .update({ status: 'reservado' })
+      .eq('id', candidato.id)
+      .eq('status', 'pendente')
+      .select('id')
+      .maybeSingle()
+    if (errReserva) throw errReserva
+    if (!reservado) continue // outra invocação do cron pegou essa linha primeiro — tenta a próxima
 
-  return {
-    id: data.id,
-    campanhaId: data.campanha_id,
-    restauranteId: data.restaurante_id,
-    telefone: data.telefone,
-    nomeCliente: data.nome_cliente,
-    status: data.status,
-    erro: data.erro,
-    enviadoEm: data.enviado_em,
-    tipoMensagem: c?.tipo_mensagem,
-    mensagem: c?.mensagem,
-    imagemUrl: c?.imagem_url,
-    audioUrl: c?.audio_url,
-    evolutionInstance: r?.evolution_instance ?? null,
+    // Primeira mensagem de fato sendo enviada: reflete no status da campanha
+    // (antes ficava travado em "Agendada" até concluir, sem estado intermediário visível).
+    await admin.from('campanhas').update({ status: 'enviando' }).eq('id', candidato.campanha_id).eq('status', 'agendada')
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = (candidato as any).campanhas
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = c?.restaurantes as any
+
+    return {
+      id: candidato.id,
+      campanhaId: candidato.campanha_id,
+      restauranteId: candidato.restaurante_id,
+      telefone: candidato.telefone,
+      nomeCliente: candidato.nome_cliente,
+      status: 'reservado',
+      erro: candidato.erro,
+      enviadoEm: candidato.enviado_em,
+      tipoMensagem: c?.tipo_mensagem,
+      mensagem: c?.mensagem,
+      imagemUrl: c?.imagem_url,
+      audioUrl: c?.audio_url,
+      evolutionInstance: r?.evolution_instance ?? null,
+    }
   }
+  return null
 }
 
 export async function marcarEnvioSucesso(admin: SupabaseClient, envioId: string, campanhaId: string): Promise<void> {
@@ -320,7 +341,7 @@ export async function verificarConclusaoCampanha(admin: SupabaseClient, campanha
     .from('campanha_envios')
     .select('id')
     .eq('campanha_id', campanhaId)
-    .eq('status', 'pendente')
+    .in('status', ['pendente', 'reservado'])
     .limit(1)
     .maybeSingle()
   if (!data) {
