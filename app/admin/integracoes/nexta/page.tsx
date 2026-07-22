@@ -50,7 +50,6 @@ interface Form {
   clientId: string
   clientSecret: string
   merchantId: string
-  merchantName: string
   pickup: { rua: string; numero: string; complemento: string; bairro: string; cidade: string; uf: string; cep: string }
   vehicleType: string
   container: string
@@ -66,7 +65,6 @@ const FORM_VAZIO: Form = {
   clientId: '',
   clientSecret: '',
   merchantId: '',
-  merchantName: '',
   pickup: { rua: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '', cep: '' },
   vehicleType: 'MOTORBIKE_BAG',
   container: 'THERMIC',
@@ -83,7 +81,6 @@ function formDaConfig(c: NextaConfigPublica): Form {
     clientId: c.clientId,
     clientSecret: '', // write-only: o servidor nunca devolve o segredo salvo
     merchantId: c.merchantId,
-    merchantName: c.merchantName,
     pickup: { ...c.pickup },
     vehicleType: c.vehicleType,
     container: c.container,
@@ -194,13 +191,13 @@ export default function IntegracaoNextaPage() {
     try {
       const res = await fetch('/api/admin/nexta/config')
       if (!res.ok) throw new Error()
-      const data = (await res.json()) as { config: NextaConfigPublica | null; sugestao?: { merchantName: string; cep: string } }
+      const data = (await res.json()) as { config: NextaConfigPublica | null; sugestao?: { cep: string } }
       setConfig(data.config)
       setTecnicaAberta(!(data.config?.ativo && data.config.temSecret))
       setForm(
         data.config
           ? formDaConfig(data.config)
-          : { ...FORM_VAZIO, merchantName: data.sugestao?.merchantName ?? '', pickup: { ...FORM_VAZIO.pickup, cep: data.sugestao?.cep ?? '' } }
+          : { ...FORM_VAZIO, pickup: { ...FORM_VAZIO.pickup, cep: data.sugestao?.cep ?? '' } }
       )
     } catch {
       setErro('Não foi possível carregar a configuração da integração.')
@@ -512,11 +509,6 @@ export default function IntegracaoNextaPage() {
                       </p>
                     </div>
                   </div>
-                  <div>
-                    <label className={labelCls}>Nome da loja no Nexta</label>
-                    <input value={form.merchantName} onChange={(e) => set('merchantName', e.target.value)} className={inputCls} />
-                  </div>
-
                   <div>
                     <label className={labelCls}>Merchant ID</label>
                     <div className="flex items-stretch gap-1.5">

@@ -36,7 +36,6 @@ interface CorpoPut {
   clientId?: unknown
   clientSecret?: unknown
   merchantId?: unknown
-  merchantName?: unknown
   pickup?: Record<string, unknown>
   vehicleType?: unknown
   container?: unknown
@@ -70,12 +69,17 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }
 
+  // Nome da loja no Nexta não é um campo que o lojista precisa preencher — o merchant_id
+  // já é o identificador que o Nexta usa para reconhecer o estabelecimento (ver
+  // salvarNextaConfig). Deriva sempre do nome cadastrado da loja.
+  const loja = await buscarConfigLoja(supabase, restauranteId)
+
   const patch: NextaConfigPatch = {
     ativo: bool(corpo.ativo),
     clientId: texto(corpo.clientId),
     clientSecret: texto(corpo.clientSecret),
     merchantId: texto(corpo.merchantId),
-    merchantName: texto(corpo.merchantName),
+    merchantName: loja?.nome ?? undefined,
     vehicleType: texto(corpo.vehicleType),
     container: texto(corpo.container),
     containerSize: texto(corpo.containerSize),
