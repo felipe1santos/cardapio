@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp } from 'lucide-react'
+import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -93,6 +93,10 @@ const STAT_TINT: Record<'slate' | 'orange' | 'blue' | 'primary', { box: string; 
   blue: { box: 'bg-status-preparing/10 text-status-preparing', value: 'text-status-preparing' },
   primary: { box: 'bg-primary/10 text-primary', value: '' },
 }
+
+// Painel do lojista Nexta — não tem deep link por entrega (o id que eles usam na UI deles
+// é interno e nunca chega até nós), então o atalho abre o monitor geral.
+const NEXTA_PAINEL_URL = 'https://nexta-est.flutterflow.app/monitor'
 
 /** Etapas mostradas na timeline do card "Com o Nexta", na ordem do ciclo. */
 const TIMELINE_NEXTA: { status: string; label: string }[] = [
@@ -1326,6 +1330,15 @@ export default function LogisticaPage() {
                             <Button variant="outline" onClick={() => reconciliarNexta(order.id)} disabled={ocupado} title="Buscar o status atual no Nexta">
                               <RefreshCw className="h-4 w-4" />
                             </Button>
+                            <a
+                              href={NEXTA_PAINEL_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Abrir o painel do Nexta (código de coleta, ocorrências etc.)"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main hover:border-primary hover:text-primary"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" /> Nexta
+                            </a>
                             {entrega.trackingUrl && (
                               <a
                                 href={entrega.trackingUrl}
