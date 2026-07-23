@@ -31,13 +31,7 @@ import {
   salvarProgressoCliente,
 } from '@/lib/queries/fidelidade'
 import { enviarWhatsapp, formatarTelefoneWhatsapp } from '@/lib/whatsapp'
-
-/** Dia da semana (0=dom..6=sáb) de um timestamp ISO, calculado em America/Sao_Paulo — não no fuso do servidor. */
-function diaSemanaSaoPaulo(isoDate: string): number {
-  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date(isoDate))
-  const mapa: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-  return mapa[weekday] ?? new Date(isoDate).getDay()
-}
+import { diaSemanaSaoPaulo } from '@/lib/timezone'
 
 /** Busca em lote o nome dos itens premiados (premio_tipo=item_gratis), pra não fazer 1 query por campanha. */
 async function buscarNomesItens(admin: SupabaseClient, itemIds: string[]): Promise<Map<string, string>> {

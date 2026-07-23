@@ -131,11 +131,33 @@ function SaveBar({ saved, saving, onSave }: { saved: boolean; saving: boolean; o
 
 // ─── Aba Loja ─────────────────────────────────────────────────────────────────
 
+const DIAS_SEMANA_LABEL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+
+type HorarioDiaForm = { ativo: boolean; abre: string; fecha: string }
+type HorarioSemanaForm = Record<string, HorarioDiaForm>
+
+function horarioSemanaPadrao(): HorarioSemanaForm {
+  const dias: HorarioSemanaForm = {}
+  for (let i = 0; i < 7; i++) dias[String(i)] = { ativo: false, abre: '08:00', fecha: '22:00' }
+  return dias
+}
+
+function horarioSemanaFromConfig(horario: ConfigLoja['horarioFuncionamento']): HorarioSemanaForm {
+  const dias = horarioSemanaPadrao()
+  if (!horario) return dias
+  for (let i = 0; i < 7; i++) {
+    const intervalo = horario[String(i)]
+    if (intervalo) dias[String(i)] = { ativo: true, abre: intervalo.abre, fecha: intervalo.fecha }
+  }
+  return dias
+}
+
 function TabLoja({ restauranteId, active }: { restauranteId: string; active: boolean }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
   const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', cep: '', logoUrl: '', bannerUrl: '', layoutCardapio: 'categoria' as LayoutCardapio, imagemGrande: false })
+  const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -150,6 +172,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       if (!c) return
       setConfig(c)
       setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, cep: c.cep ?? '', logoUrl: c.logoUrl ?? '', bannerUrl: c.bannerUrl ?? '', layoutCardapio: c.layoutCardapio, imagemGrande: c.imagemGrande })
+      setHorarioDias(horarioSemanaFromConfig(c.horarioFuncionamento))
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -196,11 +219,20 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     setSaved(false)
   }
 
+  function setHorarioDia(dia: string, patch: Partial<HorarioDiaForm>) {
+    setHorarioDias((prev) => ({ ...prev, [dia]: { ...prev[dia], ...patch } }))
+    setSaved(false)
+  }
+
   async function save() {
     if (!form.nome.trim()) { setError('O nome do estabelecimento é obrigatório.'); return }
     setSaving(true)
     setError(null)
     try {
+      const horarioFuncionamento: NonNullable<ConfigLoja['horarioFuncionamento']> = {}
+      for (const [dia, v] of Object.entries(horarioDias)) {
+        horarioFuncionamento[dia] = v.ativo ? { abre: v.abre, fecha: v.fecha } : null
+      }
       const updated = await atualizarConfigLoja(supabase, restauranteId, {
         nome: form.nome.trim(),
         telefone: form.telefone.trim(),
@@ -210,8 +242,10 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerUrl: form.bannerUrl.trim() || null,
         layoutCardapio: form.layoutCardapio,
         imagemGrande: form.imagemGrande,
+        horarioFuncionamento,
       })
       setConfig(updated)
+      setHorarioDias(horarioSemanaFromConfig(updated.horarioFuncionamento))
       setSaved(true)
     } catch {
       setError('Não foi possível salvar as alterações. Verifique sua conexão e tente novamente.')
@@ -235,6 +269,46 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           </Field>
           <Field label="CEP" hint="Usado para centralizar o mapa de calor do Dashboard na região da sua loja e posicionar corretamente os bairros das entregas.">
             <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
+          </Field>
+          <Field label="Horário de funcionamento" hint="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Dia sem marcação = fechada nesse dia. Você ainda pode forçar aberta/fechada a qualquer momento pelo Painel de Pedidos.">
+            <div className="space-y-1.5 rounded-menuzia border border-border bg-white p-3">
+              {DIAS_SEMANA_LABEL.map((label, i) => {
+                const dia = String(i)
+                const v = horarioDias[dia]
+                return (
+                  <div key={dia} className="flex items-center gap-2.5">
+                    <label className="flex w-[110px] flex-shrink-0 cursor-pointer items-center gap-2 text-[12px] font-medium text-text-main">
+                      <input
+                        type="checkbox"
+                        checked={v.ativo}
+                        onChange={(e) => setHorarioDia(dia, { ativo: e.target.checked })}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      {label}
+                    </label>
+                    {v.ativo ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="time"
+                          value={v.abre}
+                          onChange={(e) => setHorarioDia(dia, { abre: e.target.value })}
+                          className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
+                        />
+                        <span className="text-[12px] text-text-subtle">até</span>
+                        <input
+                          type="time"
+                          value={v.fecha}
+                          onChange={(e) => setHorarioDia(dia, { fecha: e.target.value })}
+                          className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-[12px] text-text-subtle">Fechada</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </Field>
           <Field label="Logotipo" hint="Exibido como avatar da loja no painel e no cardápio do cliente. Deixe em branco para usar a inicial do nome.">
             <div className="flex items-center gap-3">

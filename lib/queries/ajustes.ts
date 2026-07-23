@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LayoutCardapio } from './cardapio'
+import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 
 export interface ConfigLoja {
   id: string
@@ -20,6 +21,8 @@ export interface ConfigLoja {
   imagemGrande: boolean
   latitude: number | null
   longitude: number | null
+  horarioFuncionamento: HorarioFuncionamento | null
+  statusLoja: StatusLoja
 }
 
 interface ConfigRow {
@@ -40,9 +43,11 @@ interface ConfigRow {
   imagem_grande: boolean
   latitude: number | null
   longitude: number | null
+  horario_funcionamento: HorarioFuncionamento | null
+  status_loja: StatusLoja
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, horario_funcionamento, status_loja'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -63,6 +68,8 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     imagemGrande: row.imagem_grande ?? false,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
+    horarioFuncionamento: row.horario_funcionamento ?? null,
+    statusLoja: row.status_loja ?? 'automatico',
   }
 }
 
@@ -86,6 +93,7 @@ export interface ConfigLojaPatch {
   layoutCardapio?: LayoutCardapio
   corTema?: string
   imagemGrande?: boolean
+  horarioFuncionamento?: HorarioFuncionamento
 }
 
 export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteId: string, patch: ConfigLojaPatch): Promise<ConfigLoja> {
@@ -109,10 +117,32 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.layoutCardapio !== undefined) row.layout_cardapio = patch.layoutCardapio
   if (patch.corTema !== undefined) row.cor_tema = patch.corTema
   if (patch.imagemGrande !== undefined) row.imagem_grande = patch.imagemGrande
+  if (patch.horarioFuncionamento !== undefined) row.horario_funcionamento = patch.horarioFuncionamento
 
   const { data, error } = await supabase.from('restaurantes').update(row).eq('id', restauranteId).select(CONFIG_SELECT).single()
   if (error) throw error
   return mapConfig(data as ConfigRow)
+}
+
+/** Toggle rápido usado no Kanban: força a loja aberta/fechada, ou devolve pro modo automático (segue a grade de horário). */
+export async function definirStatusLoja(supabase: SupabaseClient, restauranteId: string, status: StatusLoja): Promise<void> {
+  const { error } = await supabase.from('restaurantes').update({ status_loja: status }).eq('id', restauranteId)
+  if (error) throw error
+}
+
+/** Leitura leve (sem o resto do ConfigLoja) usada pra calcular "aberto agora" — Kanban, vitrine, criarPedido. */
+export async function buscarStatusELoja(
+  supabase: SupabaseClient,
+  restauranteId: string
+): Promise<{ statusLoja: StatusLoja; horarioFuncionamento: HorarioFuncionamento | null } | null> {
+  const { data, error } = await supabase
+    .from('restaurantes')
+    .select('status_loja, horario_funcionamento')
+    .eq('id', restauranteId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return { statusLoja: data.status_loja ?? 'automatico', horarioFuncionamento: data.horario_funcionamento ?? null }
 }
 
 /** Salva as coordenadas geocodificadas da loja (usadas pelo frete por raio). */

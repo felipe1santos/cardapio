@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -18,6 +19,9 @@ export interface GrupoCardapio {
   id: string
   nome: string
   posicao: number
+  /** Ativação automática por horário (ex.: marmitaria de dia, pizza à noite). Ambos null = sempre ativa. */
+  horarioAtivoInicio: string | null
+  horarioAtivoFim: string | null
 }
 
 export interface ComplementoItem {
@@ -185,38 +189,69 @@ export async function buscarRestauranteIdDoUsuario(supabase: SupabaseClient): Pr
   return data.restaurante_id as string
 }
 
+const GRUPO_SELECT = 'id, nome, posicao, horario_ativo_inicio, horario_ativo_fim'
+
+interface GrupoRow {
+  id: string
+  nome: string
+  posicao: number
+  horario_ativo_inicio: string | null
+  horario_ativo_fim: string | null
+}
+
+/** Postgres `time` volta como "HH:MM:SS" — trunca pra "HH:MM" (formato usado em todo o front). */
+function mapGrupo(row: GrupoRow): GrupoCardapio {
+  return {
+    id: row.id,
+    nome: row.nome,
+    posicao: row.posicao,
+    horarioAtivoInicio: row.horario_ativo_inicio?.slice(0, 5) ?? null,
+    horarioAtivoFim: row.horario_ativo_fim?.slice(0, 5) ?? null,
+  }
+}
+
 export async function listarGrupos(supabase: SupabaseClient, restauranteId: string): Promise<GrupoCardapio[]> {
   const { data, error } = await supabase
     .from('grupos_cardapio')
-    .select('id, nome, posicao')
+    .select(GRUPO_SELECT)
     .eq('restaurante_id', restauranteId)
     .order('posicao', { ascending: true })
 
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(mapGrupo)
 }
 
 export async function criarGrupo(supabase: SupabaseClient, restauranteId: string, nome: string, posicao: number) {
   const { data, error } = await supabase
     .from('grupos_cardapio')
     .insert({ restaurante_id: restauranteId, nome, posicao })
-    .select('id, nome, posicao')
+    .select(GRUPO_SELECT)
     .single()
 
   if (error) throw error
-  return data as GrupoCardapio
+  return mapGrupo(data)
 }
 
-export async function atualizarGrupo(supabase: SupabaseClient, grupoId: string, nome: string) {
+export async function atualizarGrupo(
+  supabase: SupabaseClient,
+  grupoId: string,
+  nome: string,
+  horario?: { horarioAtivoInicio: string | null; horarioAtivoFim: string | null }
+) {
   const { data, error } = await supabase
     .from('grupos_cardapio')
-    .update({ nome })
+    .update({
+      nome,
+      ...(horario
+        ? { horario_ativo_inicio: horario.horarioAtivoInicio, horario_ativo_fim: horario.horarioAtivoFim }
+        : {}),
+    })
     .eq('id', grupoId)
-    .select('id, nome, posicao')
+    .select(GRUPO_SELECT)
     .single()
 
   if (error) throw error
-  return data as GrupoCardapio
+  return mapGrupo(data)
 }
 
 /**
@@ -697,12 +732,14 @@ export interface RestauranteVitrine {
   layoutCardapio: LayoutCardapio
   corTema: string
   imagemGrande: boolean
+  /** true se a loja está aceitando pedidos agora (manual ou pela grade de horário — ver lib/timezone.ts). */
+  lojaAberta: boolean
 }
 
 export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
-    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande')
+    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento')
     .eq('slug', slug)
     .maybeSingle()
   if (error) throw error
@@ -723,6 +760,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     layoutCardapio: (data.layout_cardapio as LayoutCardapio) ?? 'categoria',
     corTema: (data.cor_tema as string) ?? 'azul',
     imagemGrande: Boolean(data.imagem_grande),
+    lojaAberta: lojaEstaAberta({ statusLoja: data.status_loja ?? 'automatico', horarioFuncionamento: data.horario_funcionamento ?? null }),
   }
 }
 
@@ -758,10 +796,11 @@ export async function listarCardapioPublico(supabase: SupabaseClient, restaurant
   ])
 
   return grupos
+    .filter((grupo) => grupoEstaAtivoAgora(grupo))
     .map((grupo) => ({
       ...grupo,
       itens: itens
-        .filter((item) => item.grupoId === grupo.id && item.status === 'disponivel')
+        .filter((item) => item.grupoId === grupo.id && item.status === 'disponivel' && itemDisponivelHoje(item.diasDisponiveis))
         // Complemento pausado some da vitrine (mas continua cadastrado no admin).
         // Grupo de complementos sem opções não pode aparecer na vitrine: um grupo
         // obrigatório vazio deixaria o item impossível de pedir.

@@ -1828,6 +1828,8 @@ export default function CardapioPage() {
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [editingGroupName, setEditingGroupName] = useState('')
+  const [schedulingGroupId, setSchedulingGroupId] = useState<string | null>(null)
+  const [scheduleForm, setScheduleForm] = useState({ ativo: false, inicio: '11:00', fim: '15:00' })
   const [view, setView] = useState<View>('table')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -2108,6 +2110,31 @@ export default function CardapioPage() {
       setEditingGroupId(null)
     } catch {
       setError('Não foi possível renomear a categoria.')
+    }
+  }
+
+  function startScheduleCategoria(group: GrupoCardapio) {
+    setSchedulingGroupId(group.id)
+    setScheduleForm({
+      ativo: !!(group.horarioAtivoInicio && group.horarioAtivoFim),
+      inicio: group.horarioAtivoInicio ?? '11:00',
+      fim: group.horarioAtivoFim ?? '15:00',
+    })
+  }
+
+  async function saveScheduleCategoria() {
+    if (!schedulingGroupId) return
+    const group = groups.find((g) => g.id === schedulingGroupId)
+    if (!group) return
+    try {
+      const updated = await atualizarGrupo(supabase, schedulingGroupId, group.nome, {
+        horarioAtivoInicio: scheduleForm.ativo ? scheduleForm.inicio : null,
+        horarioAtivoFim: scheduleForm.ativo ? scheduleForm.fim : null,
+      })
+      setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
+      setSchedulingGroupId(null)
+    } catch {
+      setError('Não foi possível salvar o horário da categoria.')
     }
   }
 
@@ -2397,6 +2424,43 @@ export default function CardapioPage() {
                     <button onClick={saveEditCategoria} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page">✓</button>
                     <button onClick={() => setEditingGroupId(null)} title="Cancelar" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-page">✕</button>
                   </div>
+                ) : schedulingGroupId === group.id ? (
+                  <div key={group.id} className="space-y-1.5 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-text-main">
+                      <input
+                        type="checkbox"
+                        checked={scheduleForm.ativo}
+                        onChange={(e) => setScheduleForm((prev) => ({ ...prev, ativo: e.target.checked }))}
+                      />
+                      Ativar automaticamente por horário
+                    </label>
+                    {scheduleForm.ativo && (
+                      <div className="flex items-center gap-1 text-xs">
+                        <input
+                          type="time"
+                          value={scheduleForm.inicio}
+                          onChange={(e) => setScheduleForm((prev) => ({ ...prev, inicio: e.target.value }))}
+                          className="w-full rounded-menuzia border border-border px-1.5 py-1 text-xs outline-none focus:border-primary"
+                        />
+                        <span className="text-text-subtle">até</span>
+                        <input
+                          type="time"
+                          value={scheduleForm.fim}
+                          onChange={(e) => setScheduleForm((prev) => ({ ...prev, fim: e.target.value }))}
+                          className="w-full rounded-menuzia border border-border px-1.5 py-1 text-xs outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
+                    <p className="text-[10px] leading-tight text-text-subtle">
+                      {scheduleForm.ativo
+                        ? 'Categoria só aparece na vitrine dentro desse horário (fuso de São Paulo).'
+                        : 'Desativado: categoria sempre aparece na vitrine.'}
+                    </p>
+                    <div className="flex justify-end gap-1 pt-0.5">
+                      <button onClick={() => setSchedulingGroupId(null)} className="rounded-menuzia px-2 py-1 text-[11px] font-semibold text-text-subtle hover:bg-white">Cancelar</button>
+                      <button onClick={saveScheduleCategoria} className="rounded-menuzia bg-primary px-2 py-1 text-[11px] font-semibold text-white hover:bg-primary-dark">Salvar</button>
+                    </div>
+                  </div>
                 ) : (
                   <div
                     key={group.id}
@@ -2409,6 +2473,9 @@ export default function CardapioPage() {
                   >
                     <button onClick={() => setActiveGroup(group.nome)} className="flex flex-1 items-center gap-2 py-1.5 text-left">
                       <span>{group.nome}</span>
+                      {group.horarioAtivoInicio && group.horarioAtivoFim && (
+                        <span title={`Ativa das ${group.horarioAtivoInicio} às ${group.horarioAtivoFim}`} className="text-[11px] text-primary-dark">🕐</span>
+                      )}
                       <span className={['rounded-full px-2 py-0.5 text-[11px] font-bold', group.nome === activeGroup ? 'bg-white text-primary-dark' : 'bg-page text-text-subtle'].join(' ')}>
                         {groupCounts.get(group.id) ?? 0}
                       </span>
@@ -2427,6 +2494,7 @@ export default function CardapioPage() {
                         className="rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
                       >↓</button>
                       <button onClick={() => startEditCategoria(group)} title="Renomear categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">✎</button>
+                      <button onClick={() => startScheduleCategoria(group)} title="Ativação automática por horário" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">🕐</button>
                       <button onClick={() => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome })} title="Subir fotos em massa" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">📁</button>
                       <button onClick={() => deleteCategoria(group)} title="Excluir categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-danger">🗑</button>
                     </span>

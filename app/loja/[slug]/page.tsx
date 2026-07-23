@@ -1484,6 +1484,10 @@ export default function StorefrontPage() {
   }
 
   function checkoutNext() {
+    if (!restaurante?.lojaAberta) {
+      setCheckoutError('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
+      return
+    }
     // Dá pra esvaziar a sacola pelas linhas do resumo — não deixa seguir vazio.
     if (checkoutStep === 0 && cart.length === 0) {
       setCheckoutError('Sua sacola está vazia.')
@@ -1736,9 +1740,15 @@ export default function StorefrontPage() {
                 <div className="min-w-0 flex-1">
                   <h1 className="line-clamp-1 break-words text-[18px] font-extrabold leading-tight tracking-tight text-text-main sm:text-[22px] lg:text-[25px]">{storeName}</h1>
                   <div className="mt-1 inline-flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-medium text-text-subtle sm:text-[13px]">
-                    <span className="inline-flex items-center gap-1.5 font-semibold text-[#16A34A]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" /> Aberto agora
-                    </span>
+                    {restaurante.lojaAberta ? (
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#16A34A]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" /> Aberto agora
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-danger">
+                        <span className="h-1.5 w-1.5 rounded-full bg-danger" /> Loja fechada
+                      </span>
+                    )}
                     <span>⏱ 30–45 min</span>
                   </div>
                 </div>
@@ -1904,13 +1914,19 @@ export default function StorefrontPage() {
                           <Truck className="h-4 w-4" strokeWidth={2} />
                           Calcular taxa de entrega
                         </button>
+                        {!restaurante.lojaAberta && (
+                          <p className="mb-2.5 rounded-lg bg-danger-bg px-3 py-2 text-center text-[12px] font-semibold text-danger">
+                            Loja fechada no momento — não é possível finalizar o pedido.
+                          </p>
+                        )}
                         <button
+                          disabled={!restaurante.lojaAberta}
                           onClick={() => {
                             if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
                             setCheckoutOpen(true); setCheckoutMinStep(0); setCheckoutStep(0); setCheckoutError(null)
                           }}
-                          className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-4 py-3.5 text-[14px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98]"
+                          className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-4 py-3.5 text-[14px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <span>Continuar para pagamento</span>
                           <span>{brl(total)}</span>
@@ -2018,13 +2034,19 @@ export default function StorefrontPage() {
                   >
                     Continuar comprando
                   </button>
+                  {!restaurante.lojaAberta && (
+                    <p className="mt-2.5 rounded-lg bg-danger-bg px-3 py-2 text-center text-[12px] font-semibold text-danger">
+                      Loja fechada no momento — não é possível finalizar o pedido.
+                    </p>
+                  )}
                   <button
+                    disabled={!restaurante.lojaAberta}
                     onClick={() => {
                       if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                       // Mobile: a aba carrinho já é o resumo — entra direto no pagamento.
                       setCheckoutOpen(true); setCheckoutMinStep(1); setCheckoutStep(1); setCheckoutError(null)
                     }}
-                    className="mt-2.5 flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98]"
+                    className="mt-2.5 flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span>Continuar para pagamento</span>
                     <span>{brl(total)}</span>

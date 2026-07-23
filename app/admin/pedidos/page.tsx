@@ -27,6 +27,8 @@ import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { buscarStatusELoja, definirStatusLoja } from '@/lib/queries/ajustes'
+import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
@@ -292,6 +294,8 @@ export default function PedidosPage() {
   const [focusMode, setFocusMode] = useState(false)
   const [rotaOpen, setRotaOpen] = useState(false)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  const [lojaStatus, setLojaStatus] = useState<{ statusLoja: StatusLoja; horarioFuncionamento: HorarioFuncionamento | null } | null>(null)
+  const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
 
   // restaura preferências (4º kanban, som e barra de métricas)
   useEffect(() => {
@@ -594,6 +598,12 @@ export default function PedidosPage() {
       } catch {
         /* sem config — segue com aceite manual */
       }
+      try {
+        const status = await buscarStatusELoja(supabase, id)
+        if (active && status) setLojaStatus(status)
+      } catch {
+        /* sem status — assume automático (fallback do próprio lojaEstaAberta) */
+      }
       if (!active) return
       await refetch(id)
       setLoading(false)
@@ -626,6 +636,21 @@ export default function PedidosPage() {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
+
+  const lojaAberta = useMemo(() => (lojaStatus ? lojaEstaAberta(lojaStatus) : true), [lojaStatus, now])
+
+  async function mudarStatusLoja(status: StatusLoja) {
+    if (!restauranteId) return
+    setLojaMenuOpen(false)
+    const anterior = lojaStatus
+    setLojaStatus((prev) => (prev ? { ...prev, statusLoja: status } : prev))
+    try {
+      await definirStatusLoja(supabase, restauranteId, status)
+    } catch {
+      setLojaStatus(anterior)
+      setError('Não foi possível atualizar o status da loja.')
+    }
+  }
 
   function colunaDe(p: Pedido): Coluna | null {
     if (p.status === 'recebido') return 'recebido'
@@ -719,12 +744,51 @@ export default function PedidosPage() {
 
   const topActions = (
     <>
-      <div className="flex items-center gap-2 rounded-full bg-price-bg px-3 py-1.5 text-xs font-semibold text-price-text">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-price-text opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-price-text" />
-        </span>
-        Recebendo pedidos
+      <div className="relative">
+        <button
+          onClick={() => setLojaMenuOpen((v) => !v)}
+          title="Clique para abrir/fechar a loja manualmente"
+          className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+            lojaAberta ? 'bg-price-bg text-price-text hover:brightness-95' : 'bg-danger-bg text-danger hover:brightness-95'
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            {lojaAberta && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-price-text opacity-60" />}
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${lojaAberta ? 'bg-price-text' : 'bg-danger'}`} />
+          </span>
+          {lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'}
+          {lojaStatus && lojaStatus.statusLoja !== 'automatico' && (
+            <span className="rounded-full bg-white/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide">Manual</span>
+          )}
+        </button>
+        {lojaMenuOpen && (
+          <>
+            <button className="fixed inset-0 z-40 cursor-default" onClick={() => setLojaMenuOpen(false)} aria-label="Fechar menu" />
+            <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-menuzia border border-border bg-white py-1.5 shadow-lg">
+              <button
+                onClick={() => mudarStatusLoja('aberto_manual')}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-text-main hover:bg-page"
+              >
+                <span className="h-2 w-2 rounded-full bg-price-text" /> Forçar aberta agora
+              </button>
+              <button
+                onClick={() => mudarStatusLoja('fechado_manual')}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-text-main hover:bg-page"
+              >
+                <span className="h-2 w-2 rounded-full bg-danger" /> Fechar agora
+              </button>
+              <button
+                onClick={() => mudarStatusLoja('automatico')}
+                className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-[12px] font-medium text-text-main hover:bg-page"
+              >
+                <span className="h-2 w-2 rounded-full bg-text-subtle" /> Voltar ao automático (grade de horário)
+              </button>
+              <p className="px-3 pt-1.5 text-[10px] leading-tight text-text-subtle">
+                Grade de horário semanal se configura em Ajustes. Forçar aberta/fechada aqui vale até você reverter.
+              </p>
+            </div>
+          </>
+        )}
       </div>
       <button
         onClick={toggleSom}

@@ -3,6 +3,7 @@ import { resolverFrete } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
+import { itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -852,11 +853,21 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   if (input.itens.length === 0) throw new Error('Pedido sem itens')
   if (input.cupomCodigo && input.recompensaId) throw new Error('Use apenas um cupom ou prêmio por pedido.')
 
+  const { data: lojaRow, error: lojaError } = await admin
+    .from('restaurantes')
+    .select('status_loja, horario_funcionamento')
+    .eq('id', restauranteId)
+    .single()
+  if (lojaError) throw lojaError
+  if (!lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })) {
+    throw new Error('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
+  }
+
   const itemIds = [...new Set(input.itens.map((i) => i.itemId))]
   const { data: itensDb, error: itensError } = await admin
     .from('itens_cardapio')
     .select(`
-      id, nome, preco, promocao_preco, status, tipo_item,
+      id, nome, preco, promocao_preco, status, tipo_item, dias_disponiveis,
       item_complementos ( nome, preco ),
       tamanhos_item ( nome, preco ),
       pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
@@ -886,6 +897,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     const item = byId.get(linha.itemId)
     if (!item) throw new Error(`Item ${linha.itemId} não encontrado nesta loja`)
     if (item.status !== 'disponivel') throw new Error(`Item "${item.nome}" não está disponível`)
+    if (!itemDisponivelHoje(item.dias_disponiveis ?? [])) throw new Error(`Item "${item.nome}" não está disponível hoje`)
 
     let base = item.promocao_preco === null || item.promocao_preco === undefined ? Number(item.preco) : Number(item.promocao_preco)
     let tamanhoNome = ''
