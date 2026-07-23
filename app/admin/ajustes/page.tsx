@@ -14,6 +14,7 @@ import {
   atualizarConfigLoja,
   enviarLogoLoja,
   enviarBannerLoja,
+  enviarBannerPromocionalLoja,
   listarTaxasBairro,
   criarTaxaBairro,
   atualizarTaxaBairro,
@@ -28,6 +29,8 @@ import {
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
 import { geocodeEndereco } from '@/lib/frete'
+import { StorePinMap } from '@/components/maps/store-pin-map'
+import { composeEndereco } from '@/lib/endereco'
 import { PALETAS, temaCores } from '@/lib/paletas'
 import {
   buscarConfigImpressao,
@@ -156,7 +159,26 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
-  const [form, setForm] = useState({ nome: '', telefone: '', endereco: '', cep: '', logoUrl: '', bannerUrl: '', layoutCardapio: 'categoria' as LayoutCardapio, imagemGrande: false })
+  const [form, setForm] = useState({
+    nome: '',
+    telefone: '',
+    enderecoRua: '',
+    enderecoNumero: '',
+    enderecoComplemento: '',
+    enderecoBairro: '',
+    enderecoCidade: '',
+    enderecoEstado: '',
+    cep: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
+    avaliacaoNota: '',
+    avaliacaoQtd: '',
+    logoUrl: '',
+    bannerUrl: '',
+    bannerPromocionalUrl: '',
+    layoutCardapio: 'categoria' as LayoutCardapio,
+    imagemGrande: false,
+  })
   const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -165,20 +187,53 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [uploadingBanner, setUploadingBanner] = useState(false)
   const bannerInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingBannerPromo, setUploadingBannerPromo] = useState(false)
+  const bannerPromoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (loaded) return
     buscarConfigLoja(supabase, restauranteId).then((c) => {
       if (!c) return
       setConfig(c)
-      setForm({ nome: c.nome, telefone: c.telefone, endereco: c.endereco, cep: c.cep ?? '', logoUrl: c.logoUrl ?? '', bannerUrl: c.bannerUrl ?? '', layoutCardapio: c.layoutCardapio, imagemGrande: c.imagemGrande })
+      setForm({
+        nome: c.nome,
+        telefone: c.telefone,
+        enderecoRua: c.enderecoRua,
+        enderecoNumero: c.enderecoNumero,
+        enderecoComplemento: c.enderecoComplemento,
+        enderecoBairro: c.enderecoBairro,
+        enderecoCidade: c.enderecoCidade,
+        enderecoEstado: c.enderecoEstado,
+        cep: c.cep,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        avaliacaoNota: c.avaliacaoNota === null ? '' : String(c.avaliacaoNota),
+        avaliacaoQtd: c.avaliacaoQtd === null ? '' : String(c.avaliacaoQtd),
+        logoUrl: c.logoUrl ?? '',
+        bannerUrl: c.bannerUrl ?? '',
+        bannerPromocionalUrl: c.bannerPromocionalUrl ?? '',
+        layoutCardapio: c.layoutCardapio,
+        imagemGrande: c.imagemGrande,
+      })
       setHorarioDias(horarioSemanaFromConfig(c.horarioFuncionamento))
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
 
-  function set(key: 'nome' | 'telefone' | 'endereco' | 'cep' | 'logoUrl' | 'bannerUrl', value: string) {
+  function set(
+    key:
+      | 'nome' | 'telefone' | 'cep'
+      | 'enderecoRua' | 'enderecoNumero' | 'enderecoComplemento' | 'enderecoBairro' | 'enderecoCidade' | 'enderecoEstado'
+      | 'avaliacaoNota' | 'avaliacaoQtd'
+      | 'logoUrl' | 'bannerUrl' | 'bannerPromocionalUrl',
+    value: string
+  ) {
     setForm((f) => ({ ...f, [key]: value }))
+    setSaved(false)
+  }
+
+  function setPin(lat: number, lng: number) {
+    setForm((f) => ({ ...f, latitude: lat, longitude: lng }))
     setSaved(false)
   }
 
@@ -214,6 +269,22 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     }
   }
 
+  async function handleBannerPromoPick(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setUploadingBannerPromo(true)
+    setError(null)
+    try {
+      const url = await enviarBannerPromocionalLoja(supabase, restauranteId, file)
+      set('bannerPromocionalUrl', url)
+    } catch {
+      setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
+    } finally {
+      setUploadingBannerPromo(false)
+    }
+  }
+
   function setLayout(value: LayoutCardapio) {
     setForm((f) => ({ ...f, layoutCardapio: value }))
     setSaved(false)
@@ -236,15 +307,26 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       const updated = await atualizarConfigLoja(supabase, restauranteId, {
         nome: form.nome.trim(),
         telefone: form.telefone.trim(),
-        endereco: form.endereco.trim(),
+        enderecoRua: form.enderecoRua.trim(),
+        enderecoNumero: form.enderecoNumero.trim(),
+        enderecoComplemento: form.enderecoComplemento.trim(),
+        enderecoBairro: form.enderecoBairro.trim(),
+        enderecoCidade: form.enderecoCidade.trim(),
+        enderecoEstado: form.enderecoEstado.trim(),
         cep: form.cep.trim(),
+        latitude: form.latitude,
+        longitude: form.longitude,
+        avaliacaoNota: form.avaliacaoNota.trim() === '' ? null : Number(form.avaliacaoNota.replace(',', '.')),
+        avaliacaoQtd: form.avaliacaoQtd.trim() === '' ? null : Math.round(Number(form.avaliacaoQtd)),
         logoUrl: form.logoUrl.trim() || null,
         bannerUrl: form.bannerUrl.trim() || null,
+        bannerPromocionalUrl: form.bannerPromocionalUrl.trim() || null,
         layoutCardapio: form.layoutCardapio,
         imagemGrande: form.imagemGrande,
         horarioFuncionamento,
       })
       setConfig(updated)
+      setForm((f) => ({ ...f, latitude: updated.latitude, longitude: updated.longitude }))
       setHorarioDias(horarioSemanaFromConfig(updated.horarioFuncionamento))
       setSaved(true)
     } catch {
@@ -265,10 +347,75 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
           </Field>
           <Field label="Endereço">
-            <Input value={form.endereco} onChange={(e) => set('endereco', e.target.value)} placeholder="Rua, número, bairro, cidade" />
+            <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+              <div className="space-y-3">
+                <div className="grid grid-cols-[1fr_120px] gap-3">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Rua</label>
+                    <Input value={form.enderecoRua} onChange={(e) => set('enderecoRua', e.target.value)} placeholder="Rua das Flores" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Número</label>
+                    <Input value={form.enderecoNumero} onChange={(e) => set('enderecoNumero', e.target.value)} placeholder="123" />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-text-subtle">Complemento</label>
+                  <Input value={form.enderecoComplemento} onChange={(e) => set('enderecoComplemento', e.target.value)} placeholder="Sala, bloco, referência (opcional)" />
+                </div>
+                <div className="grid grid-cols-[1fr_1fr_70px] gap-3">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Bairro</label>
+                    <Input value={form.enderecoBairro} onChange={(e) => set('enderecoBairro', e.target.value)} placeholder="Centro" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Cidade</label>
+                    <Input value={form.enderecoCidade} onChange={(e) => set('enderecoCidade', e.target.value)} placeholder="Fortaleza" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">UF</label>
+                    <Input value={form.enderecoEstado} onChange={(e) => set('enderecoEstado', e.target.value.toUpperCase().slice(0, 2))} placeholder="CE" maxLength={2} />
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <StorePinMap
+                  apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+                  address={composeEndereco({
+                    rua: form.enderecoRua,
+                    numero: form.enderecoNumero,
+                    complemento: form.enderecoComplemento,
+                    bairro: form.enderecoBairro,
+                    cidade: form.enderecoCidade,
+                    estado: form.enderecoEstado,
+                  })}
+                  lat={form.latitude}
+                  lng={form.longitude}
+                  onChange={setPin}
+                  className="h-[220px] w-full border border-border"
+                />
+                <p className="text-[11px] text-text-subtle">Arraste o pin pra ajustar a localização exata da loja no mapa.</p>
+              </div>
+            </div>
           </Field>
           <Field label="CEP" hint="Usado para centralizar o mapa de calor do Dashboard na região da sua loja e posicionar corretamente os bairros das entregas.">
             <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
+          </Field>
+          <Field label="Avaliação" hint="Exibida na vitrine como prova social — preencha manualmente com base nas avaliações reais da loja (Google, iFood, etc.). Deixe em branco pra não mostrar nada.">
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                value={form.avaliacaoNota}
+                onChange={(e) => set('avaliacaoNota', e.target.value)}
+                placeholder="Nota (ex: 4.9)"
+                inputMode="decimal"
+              />
+              <Input
+                value={form.avaliacaoQtd}
+                onChange={(e) => set('avaliacaoQtd', e.target.value)}
+                placeholder="Qtd. de avaliações (ex: 912)"
+                inputMode="numeric"
+              />
+            </div>
           </Field>
           <Field label="Horário de funcionamento" hint="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Dia sem marcação = fechada nesse dia. Você ainda pode forçar aberta/fechada a qualquer momento pelo Painel de Pedidos.">
             <div className="space-y-1.5 rounded-menuzia border border-border bg-white p-3">
@@ -343,6 +490,23 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 </Button>
                 {form.bannerUrl && (
                   <button type="button" onClick={() => set('bannerUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                )}
+              </div>
+            </div>
+          </Field>
+          <Field label="Banner promocional" hint="Aparece dentro do cardápio, entre a busca e as categorias — use pra destacar uma promoção. Deixe em branco pra não mostrar nada.">
+            <div className="space-y-2.5">
+              {form.bannerPromocionalUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.bannerPromocionalUrl} alt="Banner promocional" className="h-28 w-full rounded-menuzia border border-border object-cover" />
+              )}
+              <input ref={bannerPromoInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerPromoPick} />
+              <div className="flex items-center gap-3">
+                <Button variant="outline" type="button" onClick={() => bannerPromoInputRef.current?.click()} disabled={uploadingBannerPromo}>
+                  {uploadingBannerPromo ? 'Enviando…' : form.bannerPromocionalUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                </Button>
+                {form.bannerPromocionalUrl && (
+                  <button type="button" onClick={() => set('bannerPromocionalUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
                 )}
               </div>
             </div>
