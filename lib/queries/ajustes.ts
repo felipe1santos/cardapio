@@ -154,7 +154,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
     row.endereco_bairro = patch.enderecoBairro ?? ''
     row.endereco_cidade = patch.enderecoCidade ?? ''
     row.endereco_estado = patch.enderecoEstado ?? ''
-    row.endereco = composeEndereco({
+    const composto = composeEndereco({
       rua: patch.enderecoRua,
       numero: patch.enderecoNumero ?? '',
       complemento: patch.enderecoComplemento ?? '',
@@ -162,7 +162,12 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
       cidade: patch.enderecoCidade ?? '',
       estado: patch.enderecoEstado ?? '',
     })
-    enderecoMudou = true
+    // Loja legada sem os campos estruturados ainda preenchidos: preserva o
+    // endereco de texto livre existente em vez de apagar com string vazia.
+    if (composto !== '') {
+      row.endereco = composto
+      enderecoMudou = true
+    }
   } else if (patch.endereco !== undefined) {
     row.endereco = patch.endereco
     enderecoMudou = true
