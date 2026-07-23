@@ -85,14 +85,17 @@ export function StorePinMap({ apiKey, address, lat, lng, onChange, className }: 
   useEffect(() => {
     if (!ready || !address.trim() || address === lastAddressRef.current) return
     lastAddressRef.current = address
+    // Captura a versão do arraste no momento em que o debounce é AGENDADO (não quando
+    // ele dispara) — assim um arraste feito durante a espera do debounce, ou durante a
+    // latência da própria chamada de geocode, invalida o resultado atrasado nos dois casos.
+    const versionAtSchedule = dragVersionRef.current
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       const geocoder = new google.maps.Geocoder()
-      const versionAtRequest = dragVersionRef.current
       geocoder.geocode({ address, region: 'BR' }, (results, status) => {
-        // Um arraste manual aconteceu depois que este geocode foi disparado — o
+        // Um arraste manual aconteceu desde que este geocode foi agendado — o
         // resultado chegou atrasado e está desatualizado, descarta sem mostrar erro.
-        if (dragVersionRef.current !== versionAtRequest) return
+        if (dragVersionRef.current !== versionAtSchedule) return
         if (status !== google.maps.GeocoderStatus.OK || !results?.[0]) {
           setError('Não foi possível localizar esse endereço no mapa — ajuste o pin manualmente.')
           return
