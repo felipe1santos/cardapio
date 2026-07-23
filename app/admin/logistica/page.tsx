@@ -311,24 +311,30 @@ export default function LogisticaPage() {
       setRestauranteId(id)
       await refetch(id)
       setLoading(false)
-
-      const channel = supabase
-        .channel(`logistica-${id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
-        // Eventos do Nexta chegam por webhook e viram UPDATE nesta tabela — é assim que
-        // "entregador a caminho" aparece na tela sem ninguém dar refresh.
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
     })()
     return () => {
       active = false
     }
   }, [supabase, refetch])
+
+  // Canal Realtime num effect próprio: o cleanup retornado por uma função
+  // async nunca é chamado pelo React, então o canal ficava aberto pra sempre
+  // a cada remontagem da página, vazando conexões Realtime ao longo do turno.
+  useEffect(() => {
+    if (!restauranteId) return
+    const channel = supabase
+      .channel(`logistica-${restauranteId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch(restauranteId))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch(restauranteId))
+      // Eventos do Nexta chegam por webhook e viram UPDATE nesta tabela — é assim que
+      // "entregador a caminho" aparece na tela sem ninguém dar refresh.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch(restauranteId))
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, refetch, restauranteId])
 
   useEffect(() => {
     const inicial = tabDaUrl()

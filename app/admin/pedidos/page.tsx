@@ -278,6 +278,10 @@ export default function PedidosPage() {
   const [showCol4, setShowCol4] = useState(false)
   const [showStats, setShowStats] = useState(true)
   const recebidosConhecidos = useRef<Set<string> | null>(null)
+  // Realtime e o poll de 8s podem disparar refetch() quase ao mesmo tempo; sem
+  // isso, a resposta mais lenta pode resolver depois e sobrescrever o estado
+  // com dados desatualizados (card sumindo, alarme disparando fora de hora).
+  const refetchSeq = useRef(0)
   const [somAtivo, setSomAtivo] = useState(true)
   const somRef = useRef(true)
   const [alarmeTocando, setAlarmeTocando] = useState(false)
@@ -488,12 +492,17 @@ export default function PedidosPage() {
 
   const refetch = useCallback(
     async (id: string) => {
+      const seq = ++refetchSeq.current
       try {
         const [kanban, logistica, finalizados] = await Promise.all([
           listarPedidosKanban(supabase, id),
           listarPedidosLogistica(supabase, id),
           listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
         ])
+        // uma chamada mais nova já começou e vai vencer — descarta esta resposta
+        // desatualizada em vez de deixá-la sobrescrever o estado por último.
+        if (seq !== refetchSeq.current) return
+
         setOrders(kanban)
         setTransit(logistica.filter((p) => p.status === 'em_rota'))
         setConcluded(finalizados)
@@ -513,7 +522,7 @@ export default function PedidosPage() {
         // com o aceite automático ligado, agenda o avanço dos pedidos pendentes
         agendarAutoAceite(kanban)
       } catch {
-        setError('Não foi possível carregar os pedidos.')
+        if (seq === refetchSeq.current) setError('Não foi possível carregar os pedidos.')
       }
     },
     [supabase, iniciarAlarme, agendarAutoAceite]
@@ -607,20 +616,31 @@ export default function PedidosPage() {
       if (!active) return
       await refetch(id)
       setLoading(false)
-
-      const channel = supabase
-        .channel(`pedidos-kanban-${id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${id}` }, () => refetch(id))
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
     })()
     return () => {
       active = false
     }
   }, [supabase, refetch])
+
+  // Canal Realtime num effect próprio (fora da IIFE assíncrona acima): o
+  // cleanup retornado por uma função async nunca é chamado pelo React — o
+  // canal ficava aberto pra sempre a cada remontagem da página, vazando
+  // conexões e concorrendo com o poll de 8s (ver refetchSeq acima).
+  useEffect(() => {
+    if (!restauranteId) return
+    const channel = supabase
+      .channel(`pedidos-kanban-${restauranteId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` },
+        () => refetch(restauranteId)
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, refetch, restauranteId])
 
   // Atualização periódica — fallback caso o realtime do Supabase não chegue
   // (ex.: instância self-hosted com realtime indisponível). Garante que o painel

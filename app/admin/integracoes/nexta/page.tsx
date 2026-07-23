@@ -228,22 +228,27 @@ export default function IntegracaoNextaPage() {
       if (!ativo || !id) return
       setRestauranteId(id)
       await carregarEntregas(id, periodo)
-
-      // Mesmo realtime do despacho: o monitor reflete o webhook na hora.
-      const canal = supabase
-        .channel(`nexta-monitor-${id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${id}` }, () =>
-          carregarEntregas(id, periodo)
-        )
-        .subscribe()
-      return () => {
-        supabase.removeChannel(canal)
-      }
     })()
     return () => {
       ativo = false
     }
   }, [supabase, periodo, carregarEntregas])
+
+  // Canal Realtime num effect próprio: o cleanup retornado por uma função
+  // async nunca é chamado pelo React, então o canal ficava aberto pra sempre
+  // a cada remontagem da página, vazando conexões Realtime ao longo do turno.
+  useEffect(() => {
+    if (!restauranteId) return
+    const canal = supabase
+      .channel(`nexta-monitor-${restauranteId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${restauranteId}` }, () =>
+        carregarEntregas(restauranteId, periodo)
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(canal)
+    }
+  }, [supabase, periodo, carregarEntregas, restauranteId])
 
   const metricas = useMemo(() => {
     const concluidas = entregas.filter((e) => e.status === 'ORDER_DELIVERED' || e.status === 'DELIVERY_FINISHED')

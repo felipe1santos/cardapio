@@ -27,6 +27,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [badges, setBadges] = useState<BadgesNav>({ novosPedidos: 0, logisticaPendente: 0 })
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // null = nenhum sinal explícito ainda; cai no default por rota.
   const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
 
@@ -52,29 +53,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       buscarConfigLoja(supabase, id).then((c) => { if (active && c) setStoreSlug(c.slug) })
 
-      const carregar = async () => {
-        try {
-          const b = await contarBadgesNav(supabase, id)
-          if (active) setBadges(b)
-        } catch {
-          /* silencioso: badge é informativo */
-        }
+      try {
+        const b = await contarBadgesNav(supabase, id)
+        if (active) setBadges(b)
+      } catch {
+        /* silencioso: badge é informativo */
       }
-      await carregar()
-
-      const channel = supabase
-        .channel(`nav-badges-${id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${id}` }, carregar)
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
+      if (active) setRestauranteId(id)
     })()
     return () => {
       active = false
     }
   }, [supabase])
+
+  // Canal Realtime num effect próprio: o cleanup retornado por uma função
+  // async nunca é chamado pelo React, então o canal ficava aberto pra sempre
+  // a cada remontagem do layout, vazando conexões Realtime ao longo do turno.
+  useEffect(() => {
+    if (!restauranteId) return
+    const carregar = async () => {
+      try {
+        const b = await contarBadgesNav(supabase, restauranteId)
+        setBadges(b)
+      } catch {
+        /* silencioso: badge é informativo */
+      }
+    }
+    const channel = supabase
+      .channel(`nav-badges-${restauranteId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, carregar)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, restauranteId])
 
   const items = NAV_ITEMS.map((item) => {
     if (item.href === '/admin/pedidos') return { ...item, badge: badges.novosPedidos }
