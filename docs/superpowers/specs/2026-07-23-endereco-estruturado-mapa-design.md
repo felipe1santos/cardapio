@@ -1,4 +1,4 @@
-# Endereço estruturado + mapa do PIN + cidade/bairro na vitrine
+# Endereço estruturado + mapa do PIN + cidade/bairro/avaliação/banner na vitrine
 
 ## Contexto
 
@@ -16,6 +16,11 @@ geocode, sem revisão humana).
    ajusta manualmente o PIN da loja.
 2. Vitrine do cliente: mostrar "bairro, cidade" da loja logo abaixo de
    "Aberto agora ⏱ 30–45 min".
+3. Vitrine do cliente: mostrar nota de avaliação (⭐ "4,9 (912 avaliações)") na mesma
+   linha de "Aberto agora ⏱ 30–45 min" — campo manual configurado pelo dono (o sistema
+   não tem coleta de avaliações de clientes hoje).
+4. Ajustes > Perfil da loja: opção de subir um banner promocional que aparece dentro do
+   cardápio da vitrine (diferente do banner de capa que já existe).
 
 ## Modelagem de dados
 
@@ -43,9 +48,24 @@ Lojas existentes: campos novos ficam `null`/vazios até o dono preencher e salva
 vez pela aba Loja. Nenhuma tentativa de parsear o texto livre existente (formato
 inconsistente demais pra confiar).
 
+Migration adicional, mesmas colunas nullable em `restaurantes` pra avaliação e banner
+promocional:
+
+```sql
+alter table restaurantes
+  add column avaliacao_nota numeric(2,1),      -- ex: 4.9 (0.0–5.0)
+  add column avaliacao_qtd integer,             -- ex: 912
+  add column banner_promocional_url text;
+```
+
+`avaliacao_nota`/`avaliacao_qtd` só aparecem na vitrine quando ambos estiverem
+preenchidos (evita mostrar "0,0 (0 avaliações)" pra loja nova). `banner_promocional_url`
+segue o mesmo padrão de `logo_url`/`banner_url` — nulo = não mostra nada.
+
 ## Backend (`lib/queries/ajustes.ts`)
 
-- `ConfigLoja` e `CONFIG_SELECT`: adicionar os 6 campos estruturados.
+- `ConfigLoja` e `CONFIG_SELECT`: adicionar os 6 campos estruturados de endereço +
+  `avaliacaoNota`, `avaliacaoQtd`, `bannerPromocionalUrl`.
 - `AtualizarConfigLojaInput` e `atualizarConfigLoja`:
   - Aceita os 6 campos estruturados (todos opcionais/patch).
   - Ao salvar, recompõe `endereco` = `composeEndereco(rua, numero, complemento,
@@ -58,6 +78,11 @@ inconsistente demais pra confiar).
     mesmo request. O reset condicional só permanece se o save não incluir lat/lng
     (não deve ocorrer no fluxo normal da UI, mas evita ficar com endereço novo e
     coordenada antiga órfã em uso direto da função).
+  - Aceita `avaliacaoNota` (number|null), `avaliacaoQtd` (number|null) e
+    `bannerPromocionalUrl` (string|null) no patch, gravação direta.
+- `enviarBannerPromocionalLoja(supabase, restauranteId, file)`: mesma implementação de
+  `enviarBannerLoja`/`enviarLogoLoja`, reaproveitando `enviarImagemPerfil(...,
+  'banner-promo')` — mesmo bucket `cardapio`, sem infra nova.
 
 ## Frontend — Ajustes > Loja (`app/admin/ajustes/page.tsx`, `TabLoja`)
 
@@ -70,6 +95,13 @@ inconsistente demais pra confiar).
 - Estado do formulário ganha os 6 campos + `latitude`/`longitude` (inicializados do
   `ConfigLoja` carregado).
 - `save()` inclui os 6 campos + lat/lng atual do mapa no patch.
+- Novo `Field label="Avaliação"` (perto do endereço, campo simples): dois inputs numéricos
+  lado a lado — "Nota (0 a 5)" (step 0.1) e "Quantidade de avaliações" (inteiro). Hint:
+  "Exibido na vitrine como prova social — preencha manualmente com base nas avaliações
+  reais da loja (Google, iFood, etc.)."
+- Novo `Field label="Banner promocional"` logo após o "Banner de capa" existente, mesmo
+  padrão de upload/preview/remover (usa `enviarBannerPromocionalLoja`). Hint: "Aparece
+  dentro do cardápio, entre a busca e as categorias — use pra destacar uma promoção."
 
 ## Componente novo: `components/maps/store-pin-map.tsx`
 
@@ -94,12 +126,23 @@ Comportamento:
 
 ## Vitrine (`app/loja/[slug]/page.tsx`, `lib/queries/cardapio.ts`)
 
-- `RestauranteVitrine` ganha `bairro: string | null` e `cidade: string | null`.
-- `buscarRestaurantePorSlug` seleciona `endereco_bairro, endereco_cidade` e mapeia.
-- Abaixo da linha `Aberto agora / Loja fechada` + `⏱ 30–45 min` (por volta da
-  page.tsx:1742-1753), nova linha: `📍 {bairro}, {cidade}`.
+- `RestauranteVitrine` ganha `bairro: string | null`, `cidade: string | null`,
+  `avaliacaoNota: number | null`, `avaliacaoQtd: number | null`,
+  `bannerPromocionalUrl: string | null`.
+- `buscarRestaurantePorSlug` seleciona `endereco_bairro, endereco_cidade,
+  avaliacao_nota, avaliacao_qtd, banner_promocional_url` e mapeia.
+- Linha `Aberto agora / Loja fechada` + `⏱ 30–45 min` (page.tsx:1742-1753) ganha um
+  terceiro item inline, só quando `avaliacaoNota` e `avaliacaoQtd` estão preenchidos:
+  `⭐ 4,9 (912 avaliações)` (nota formatada com vírgula, `toLocaleString('pt-BR', {
+  minimumFractionDigits: 1 })`).
+- Abaixo dessa linha, nova linha: `📍 {bairro}, {cidade}`.
   - Se só um dos dois estiver preenchido, mostra só ele (sem vírgula sobrando).
   - Se os dois estiverem vazios, a linha não é renderizada.
+- Banner promocional: quando `bannerPromocionalUrl` estiver preenchido, renderiza um
+  card de imagem full-width (`rounded-md`, borda fina, radius 3px do design system)
+  logo abaixo do cartão de cabeçalho da loja (nome/status/busca) e antes dos chips de
+  categoria — só na aba Home. Sem link/clique (puramente ilustrativo/decorativo por
+  ora), sem carrossel (é um banner só).
 
 ## Fora de escopo
 
@@ -112,3 +155,14 @@ Comportamento:
 - Não mexe na aba Entrega (`verificarCoordenadas`) além de manter compatibilidade —
   ela continua funcionando como fallback pra lojas que não passaram pela aba Loja
   atualizada ainda.
+- Sem sistema de coleta de avaliações — o campo é 100% manual, preenchido pelo dono.
+- Banner promocional é único (não é carrossel/lista), sem link clicável.
+
+## Validação
+
+Depois de implementado, validar visualmente com a extensão do Chrome (não só
+typecheck/lint): abrir Ajustes > Loja e a vitrine pública da loja de teste, preencher
+endereço estruturado, arrastar o pin no mapa, salvar, subir banner promocional, setar
+avaliação, e conferir na vitrine: card "Aberto agora ⏱ 30–45 min ⭐ 4,9 (912
+avaliações)", linha de bairro/cidade abaixo, e o banner promocional aparecendo entre o
+cabeçalho da loja e as categorias.
