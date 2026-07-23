@@ -721,8 +721,11 @@ export interface RestauranteVitrine {
   slug: string
   logoUrl: string | null
   bannerUrl: string | null
+  bannerPromocionalUrl: string | null
   telefone: string
   endereco: string
+  bairro: string | null
+  cidade: string | null
   taxaEntregaPadrao: number
   /** Pedidos com subtotal >= este valor têm entrega grátis. Null = desativado. */
   freteGratisAcima: number | null
@@ -734,12 +737,16 @@ export interface RestauranteVitrine {
   imagemGrande: boolean
   /** true se a loja está aceitando pedidos agora (manual ou pela grade de horário — ver lib/timezone.ts). */
   lojaAberta: boolean
+  avaliacaoNota: number | null
+  avaliacaoQtd: number | null
 }
 
 export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
-    .select('id, nome, slug, logo_url, banner_url, telefone, endereco, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento')
+    .select(
+      'id, nome, slug, logo_url, banner_url, banner_promocional_url, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd'
+    )
     .eq('slug', slug)
     .maybeSingle()
   if (error) throw error
@@ -750,8 +757,11 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     slug: data.slug,
     logoUrl: data.logo_url,
     bannerUrl: data.banner_url,
+    bannerPromocionalUrl: data.banner_promocional_url,
     telefone: data.telefone,
     endereco: data.endereco,
+    bairro: data.endereco_bairro,
+    cidade: data.endereco_cidade,
     taxaEntregaPadrao: Number(data.taxa_entrega_padrao),
     freteGratisAcima: data.frete_gratis_acima === null || data.frete_gratis_acima === undefined ? null : Number(data.frete_gratis_acima),
     facebookPixelId: data.facebook_pixel_id,
@@ -761,6 +771,8 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     corTema: (data.cor_tema as string) ?? 'azul',
     imagemGrande: Boolean(data.imagem_grande),
     lojaAberta: lojaEstaAberta({ statusLoja: data.status_loja ?? 'automatico', horarioFuncionamento: data.horario_funcionamento ?? null }),
+    avaliacaoNota: data.avaliacao_nota === null || data.avaliacao_nota === undefined ? null : Number(data.avaliacao_nota),
+    avaliacaoQtd: data.avaliacao_qtd ?? null,
   }
 }
 
