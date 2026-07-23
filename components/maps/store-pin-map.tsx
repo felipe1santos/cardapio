@@ -28,6 +28,10 @@ export function StorePinMap({ apiKey, address, lat, lng, onChange, className }: 
   // evita regeocodificar (e sobrescrever um ajuste manual) sem o texto ter mudado de fato.
   const lastAddressRef = useRef<string>(address)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Incrementado a cada arraste manual do pin — usado pra descartar um geocode
+  // atrasado que resolveria depois de um arraste mais recente (senão ele sobrescreveria
+  // a correção manual do dono com uma posição desatualizada).
+  const dragVersionRef = useRef(0)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +53,7 @@ export function StorePinMap({ apiKey, address, lat, lng, onChange, className }: 
         marker.addListener('dragend', () => {
           const pos = marker.getPosition()
           if (!pos) return
+          dragVersionRef.current += 1
           onChangeRef.current(pos.lat(), pos.lng())
         })
         mapRef.current = map
@@ -83,7 +88,11 @@ export function StorePinMap({ apiKey, address, lat, lng, onChange, className }: 
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       const geocoder = new google.maps.Geocoder()
+      const versionAtRequest = dragVersionRef.current
       geocoder.geocode({ address, region: 'BR' }, (results, status) => {
+        // Um arraste manual aconteceu depois que este geocode foi disparado — o
+        // resultado chegou atrasado e está desatualizado, descarta sem mostrar erro.
+        if (dragVersionRef.current !== versionAtRequest) return
         if (status !== google.maps.GeocoderStatus.OK || !results?.[0]) {
           setError('Não foi possível localizar esse endereço no mapa — ajuste o pin manualmente.')
           return
