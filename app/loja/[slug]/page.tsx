@@ -102,6 +102,8 @@ function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 
+const formatarNota = (nota: number) => nota.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
 // Motivo exato retornado pelo POST /cupom/validar quando o cupom exige sessão —
 // casado por string pra oferecer o CTA de login em vez de erro genérico (Task 8).
 const MOTIVO_LOGIN_CUPOM = 'Entre com seu telefone para usar este cupom.'
@@ -1750,7 +1752,18 @@ export default function StorefrontPage() {
                       </span>
                     )}
                     <span>⏱ 30–45 min</span>
+                    {restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null && (
+                      <span className="inline-flex items-center gap-1">
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-[#F59E0B]"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                        {formatarNota(restaurante.avaliacaoNota)} ({restaurante.avaliacaoQtd} avaliações)
+                      </span>
+                    )}
                   </div>
+                  {(restaurante.bairro || restaurante.cidade) && (
+                    <p className="mt-0.5 text-xs font-medium text-text-subtle sm:text-[13px]">
+                      📍 {[restaurante.bairro, restaurante.cidade].filter(Boolean).join(', ')}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-2">
                   <button
@@ -1774,6 +1787,17 @@ export default function StorefrontPage() {
                 </div>
               </div>
             </div>
+
+            {restaurante.bannerPromocionalUrl && (
+              <div className="mx-4 mt-3 lg:mx-8">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={restaurante.bannerPromocionalUrl}
+                  alt="Promoção"
+                  className="h-28 w-full rounded-md border border-border object-cover sm:h-36"
+                />
+              </div>
+            )}
 
             {/* Search (colapsável) — só ocupa espaço quando aberta */}
             {searchOpen && (
