@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LayoutCardapio } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
+import { composeEndereco } from '@/lib/endereco'
 
 export interface ConfigLoja {
   id: string
@@ -8,8 +9,15 @@ export interface ConfigLoja {
   slug: string
   logoUrl: string | null
   bannerUrl: string | null
+  bannerPromocionalUrl: string | null
   telefone: string
   endereco: string
+  enderecoRua: string
+  enderecoNumero: string
+  enderecoComplemento: string
+  enderecoBairro: string
+  enderecoCidade: string
+  enderecoEstado: string
   cep: string
   taxaEntregaPadrao: number
   /** Pedidos com subtotal >= este valor têm entrega grátis. Null = desativado. */
@@ -21,6 +29,8 @@ export interface ConfigLoja {
   imagemGrande: boolean
   latitude: number | null
   longitude: number | null
+  avaliacaoNota: number | null
+  avaliacaoQtd: number | null
   horarioFuncionamento: HorarioFuncionamento | null
   statusLoja: StatusLoja
 }
@@ -31,8 +41,15 @@ interface ConfigRow {
   slug: string
   logo_url: string | null
   banner_url: string | null
+  banner_promocional_url: string | null
   telefone: string
   endereco: string
+  endereco_rua: string | null
+  endereco_numero: string | null
+  endereco_complemento: string | null
+  endereco_bairro: string | null
+  endereco_cidade: string | null
+  endereco_estado: string | null
   cep: string | null
   taxa_entrega_padrao: number
   frete_gratis_acima: number | null
@@ -43,11 +60,13 @@ interface ConfigRow {
   imagem_grande: boolean
   latitude: number | null
   longitude: number | null
+  avaliacao_nota: number | null
+  avaliacao_qtd: number | null
   horario_funcionamento: HorarioFuncionamento | null
   status_loja: StatusLoja
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, telefone, endereco, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, horario_funcionamento, status_loja'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_promocional_url, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -56,8 +75,15 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     slug: row.slug,
     logoUrl: row.logo_url,
     bannerUrl: row.banner_url,
+    bannerPromocionalUrl: row.banner_promocional_url,
     telefone: row.telefone,
     endereco: row.endereco,
+    enderecoRua: row.endereco_rua ?? '',
+    enderecoNumero: row.endereco_numero ?? '',
+    enderecoComplemento: row.endereco_complemento ?? '',
+    enderecoBairro: row.endereco_bairro ?? '',
+    enderecoCidade: row.endereco_cidade ?? '',
+    enderecoEstado: row.endereco_estado ?? '',
     cep: row.cep ?? '',
     taxaEntregaPadrao: Number(row.taxa_entrega_padrao),
     freteGratisAcima: row.frete_gratis_acima === null ? null : Number(row.frete_gratis_acima),
@@ -68,6 +94,8 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     imagemGrande: row.imagem_grande ?? false,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
+    avaliacaoNota: row.avaliacao_nota === null || row.avaliacao_nota === undefined ? null : Number(row.avaliacao_nota),
+    avaliacaoQtd: row.avaliacao_qtd ?? null,
     horarioFuncionamento: row.horario_funcionamento ?? null,
     statusLoja: row.status_loja ?? 'automatico',
   }
@@ -83,9 +111,20 @@ export interface ConfigLojaPatch {
   nome?: string
   logoUrl?: string | null
   bannerUrl?: string | null
+  bannerPromocionalUrl?: string | null
   telefone?: string
   endereco?: string
+  enderecoRua?: string
+  enderecoNumero?: string
+  enderecoComplemento?: string
+  enderecoBairro?: string
+  enderecoCidade?: string
+  enderecoEstado?: string
   cep?: string
+  latitude?: number | null
+  longitude?: number | null
+  avaliacaoNota?: number | null
+  avaliacaoQtd?: number | null
   taxaEntregaPadrao?: number
   freteGratisAcima?: number | null
   facebookPixelId?: string | null
@@ -101,15 +140,51 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.nome !== undefined) row.nome = patch.nome
   if (patch.logoUrl !== undefined) row.logo_url = patch.logoUrl
   if (patch.bannerUrl !== undefined) row.banner_url = patch.bannerUrl
+  if (patch.bannerPromocionalUrl !== undefined) row.banner_promocional_url = patch.bannerPromocionalUrl
   if (patch.telefone !== undefined) row.telefone = patch.telefone
-  if (patch.endereco !== undefined) row.endereco = patch.endereco
-  if (patch.cep !== undefined) row.cep = patch.cep
-  // Endereço/CEP mudou → as coordenadas cacheadas ficam obsoletas. Zera para o
-  // próximo cálculo de frete (ou a aba Entrega) geocodificar de novo.
-  if (patch.endereco !== undefined || patch.cep !== undefined) {
+
+  // Campos estruturados vêm sempre juntos (o form da aba Loja manda os 6 de uma vez) —
+  // quando presentes, recompõe o endereco texto-livre automaticamente. `patch.endereco`
+  // direto continua aceito pra qualquer chamada legada que não use os campos separados.
+  let enderecoMudou = false
+  if (patch.enderecoRua !== undefined) {
+    row.endereco_rua = patch.enderecoRua
+    row.endereco_numero = patch.enderecoNumero ?? ''
+    row.endereco_complemento = patch.enderecoComplemento ?? ''
+    row.endereco_bairro = patch.enderecoBairro ?? ''
+    row.endereco_cidade = patch.enderecoCidade ?? ''
+    row.endereco_estado = patch.enderecoEstado ?? ''
+    row.endereco = composeEndereco({
+      rua: patch.enderecoRua,
+      numero: patch.enderecoNumero ?? '',
+      complemento: patch.enderecoComplemento ?? '',
+      bairro: patch.enderecoBairro ?? '',
+      cidade: patch.enderecoCidade ?? '',
+      estado: patch.enderecoEstado ?? '',
+    })
+    enderecoMudou = true
+  } else if (patch.endereco !== undefined) {
+    row.endereco = patch.endereco
+    enderecoMudou = true
+  }
+  if (patch.cep !== undefined) {
+    row.cep = patch.cep
+    enderecoMudou = true
+  }
+
+  // Se quem chamou já manda lat/lng junto (aba Loja, com o PIN confirmado no mapa),
+  // grava direto. Senão, se endereço/CEP mudaram sem coordenada nova junto (chamada
+  // legada), invalida o cache pro próximo cálculo de frete regeocodificar.
+  if (patch.latitude !== undefined && patch.longitude !== undefined) {
+    row.latitude = patch.latitude
+    row.longitude = patch.longitude
+  } else if (enderecoMudou) {
     row.latitude = null
     row.longitude = null
   }
+
+  if (patch.avaliacaoNota !== undefined) row.avaliacao_nota = patch.avaliacaoNota
+  if (patch.avaliacaoQtd !== undefined) row.avaliacao_qtd = patch.avaliacaoQtd
   if (patch.taxaEntregaPadrao !== undefined) row.taxa_entrega_padrao = patch.taxaEntregaPadrao
   if (patch.freteGratisAcima !== undefined) row.frete_gratis_acima = patch.freteGratisAcima
   if (patch.facebookPixelId !== undefined) row.facebook_pixel_id = patch.facebookPixelId
@@ -246,4 +321,8 @@ export function enviarLogoLoja(supabase: SupabaseClient, restauranteId: string, 
 
 export function enviarBannerLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
   return enviarImagemPerfil(supabase, restauranteId, file, 'banner')
+}
+
+export function enviarBannerPromocionalLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
+  return enviarImagemPerfil(supabase, restauranteId, file, 'banner-promo')
 }
