@@ -2421,7 +2421,7 @@ export default function CardapioPage() {
         {/* Layout: categories + content */}
         <div className="flex flex-1 gap-4 overflow-hidden">
           {/* Categories panel */}
-          <aside className="flex w-[230px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+          <aside className="flex w-[280px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white">
             <div className="border-b border-border px-3.5 py-3">
               <h3 className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Categorias</h3>
             </div>
