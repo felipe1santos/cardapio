@@ -897,14 +897,21 @@ export async function listarOrderBumpsPublico(
   if (!bumps || bumps.length === 0) return []
 
   const itemIds = bumps.map((b) => b.item_id)
-  const { data, error } = await supabase
-    .from('itens_cardapio')
-    .select(ITEM_SELECT)
-    .in('id', itemIds)
+  const [{ data, error }, grupos] = await Promise.all([
+    supabase.from('itens_cardapio').select(ITEM_SELECT).in('id', itemIds),
+    listarGrupos(supabase, restauranteId),
+  ])
   if (error) throw error
 
+  const grupoMap = new Map(grupos.map((g) => [g.id, g]))
   const itemMap = new Map(((data ?? []) as unknown as ItemRow[]).map((d) => [d.id, mapItem(d)]))
   return bumps
     .map((b) => itemMap.get(b.item_id))
-    .filter((item): item is ItemCardapio => item !== undefined && item.status === 'disponivel')
+    .filter((item): item is ItemCardapio => {
+      if (!item || item.status !== 'disponivel') return false
+      if (!itemDisponivelHoje(item.diasDisponiveis)) return false
+      const grupo = item.grupoId ? grupoMap.get(item.grupoId) : undefined
+      if (grupo && !grupoEstaAtivoAgora(grupo)) return false
+      return true
+    })
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
+import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import {
   adicionarComplemento,
   adicionarItemPreset,
@@ -1551,7 +1552,17 @@ function TamanhosTab({
 
 // ─── Order Bump Tab ────────────────────────────────────────────────────────────
 
-function OrderBumpTab({ restauranteId, items }: { restauranteId: string; items: ItemCardapio[] }) {
+/** Por que um item configurado no order bump não vai aparecer pro cliente agora — null = disponível normalmente. */
+function motivoIndisponivelAgora(item: ItemCardapio, grupoMap: Map<string, GrupoCardapio>): string | null {
+  if (item.status === 'pausado') return 'Item pausado'
+  if (item.status === 'esgotado') return 'Item esgotado'
+  if (!itemDisponivelHoje(item.diasDisponiveis)) return 'Indisponível hoje (dia da semana)'
+  const grupo = item.grupoId ? grupoMap.get(item.grupoId) : undefined
+  if (grupo && !grupoEstaAtivoAgora(grupo)) return 'Categoria fora do horário agora'
+  return null
+}
+
+function OrderBumpTab({ restauranteId, items, groups }: { restauranteId: string; items: ItemCardapio[]; groups: GrupoCardapio[] }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [bumps, setBumps] = useState<OrderBumpEntry[]>([])
   const [maxItems, setMaxItems] = useState(4)
@@ -1582,6 +1593,7 @@ function OrderBumpTab({ restauranteId, items }: { restauranteId: string; items: 
     return () => { cancelled = true }
   }, [supabase, restauranteId])
 
+  const grupoMap = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups])
   const bumpItemIds = useMemo(() => new Set(bumps.map((b) => b.itemId)), [bumps])
   const availableItems = useMemo(() => items.filter((item) => !bumpItemIds.has(item.id)), [items, bumpItemIds])
   const filteredAvailable = useMemo(
@@ -1699,6 +1711,7 @@ function OrderBumpTab({ restauranteId, items }: { restauranteId: string; items: 
                 const item = items.find((i) => i.id === bump.itemId)
                 if (!item) return null
                 const overLimit = index >= maxItems
+                const motivoIndisponivel = motivoIndisponivelAgora(item, grupoMap)
                 return (
                   <div
                     key={bump.id}
@@ -1713,6 +1726,14 @@ function OrderBumpTab({ restauranteId, items }: { restauranteId: string; items: 
                       <div className="truncate text-[13px] font-semibold">{item.nome}</div>
                       <div className="mt-0.5 text-[11px] text-text-subtle">{fmtBrl(item.preco)}</div>
                     </div>
+                    {motivoIndisponivel && (
+                      <span
+                        title={`Este produto não vai aparecer no "Peça também" agora: ${motivoIndisponivel}. O toggle abaixo é só a configuração do order bump — a disponibilidade real do produto é definida no cadastro do item/categoria.`}
+                        className="flex-shrink-0 cursor-help rounded-menuzia bg-danger-bg px-2 py-0.5 text-[10px] font-bold text-danger"
+                      >
+                        {motivoIndisponivel}
+                      </span>
+                    )}
                     {overLimit && (
                       <span
                         title={`Este produto está cadastrado, mas não será exibido no checkout porque só os primeiros ${maxItems} aparecem. Aumente o limite ou mova o produto para cima.`}
@@ -2689,7 +2710,7 @@ export default function CardapioPage() {
 
       {/* ── Tab: Order Bump ── */}
       <div className={cardapioTab !== 'orderbump' ? 'hidden' : 'flex flex-1 flex-col overflow-hidden'}>
-        {restauranteId && <OrderBumpTab restauranteId={restauranteId} items={items} />}
+        {restauranteId && <OrderBumpTab restauranteId={restauranteId} items={items} groups={groups} />}
       </div>
 
       {/* Overlay + drawers */}
