@@ -1714,16 +1714,22 @@ export default function StorefrontPage() {
         {/* ── HOME header: cover banner + profile + search + category nav ── */}
         {tab === 'home' && (
           <>
-            {/* Cover banner */}
-            <div className="relative z-0 h-28 w-full overflow-hidden sm:h-40 lg:mx-8 lg:mt-6 lg:h-52 lg:rounded-md">
-              {restaurante.bannerUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={restaurante.bannerUrl} alt={storeName} className="h-full w-full object-cover" />
-              ) : collageImages[0] ? (
-                <ProductImage item={collageImages[0]} className="h-full w-full" />
-              ) : (
-                <div className="h-full w-full bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)]" />
-              )}
+            {/* Cover banner — no desktop ganha uma faixa colorida (cor do tema da loja) atrás
+                e uma moldura branca ao redor, tipo vitrine premium; no mobile fica como sempre foi. */}
+            <div className="relative">
+              <div className="absolute inset-x-0 top-0 hidden h-44 bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)] lg:block" />
+              <div className="relative lg:mx-8 lg:mt-10 lg:rounded-menuzia lg:bg-white lg:p-1.5 lg:shadow-md">
+                <div className="relative z-0 h-28 w-full overflow-hidden sm:h-40 lg:h-80 lg:rounded-menuzia">
+                  {restaurante.bannerUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={restaurante.bannerUrl} alt={storeName} className="h-full w-full object-cover" />
+                  ) : collageImages[0] ? (
+                    <ProductImage item={collageImages[0]} className="h-full w-full" />
+                  ) : (
+                    <div className="h-full w-full bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)]" />
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta) */}
