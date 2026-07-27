@@ -47,7 +47,7 @@ describe('turnosDoDia', () => {
     expect(turnosDoDia(grade, 1)).toHaveLength(2)
   })
 
-  it('lê o formato antigo (um objeto por dia) sem quebrar', () => {
+  it('lê o formato legado (um objeto por dia) sem quebrar', () => {
     const antigo = { '1': { abre: '18:00', fecha: '23:00' } } as unknown as HorarioFuncionamento
     expect(turnosDoDia(antigo, 1)).toEqual([{ abre: '18:00', fecha: '23:00' }])
   })

@@ -10,14 +10,21 @@ export interface HorarioDia {
  * Grade semanal de funcionamento: chave = dia da semana (0=domingo..6=sábado), lista de
  * turnos do dia. `null` ou lista vazia = fechado nesse dia. Dois turnos permitem, por
  * exemplo, marmita no almoço e pizza à noite com a loja fechada no vão da tarde.
+ *
+ * Linhas antigas no banco guardam um objeto único em vez da lista — leia sempre por
+ * `turnosDoDia`, nunca acessando `grade[dia]` direto.
  */
 export type HorarioFuncionamento = Record<string, HorarioDia[] | null>
 
 /**
- * Turnos de um dia, tolerando o formato antigo (um único objeto `{abre, fecha}` por dia,
- * anterior à migration 0047). A migration roda no Supabase remoto e o deploy do app pode
- * chegar antes ou depois dela — sem essa tolerância existe uma janela em que toda loja
- * apareceria fechada por erro de leitura.
+ * Turnos de um dia, tolerando o formato legado (um único objeto `{abre, fecha}` por dia,
+ * usado antes dos turnos múltiplos existirem).
+ *
+ * Essa tolerância é permanente e NÃO deve ser trocada por uma migration que converta o
+ * dado. Uma conversão dessas coloca o schema à frente do código: o código antigo lê o
+ * array como se fosse o intervalo, `abre`/`fecha` viram undefined e a loja passa a
+ * aparecer fechada até o deploy chegar. Já aconteceu em produção — ler os dois formatos
+ * sai de graça, converter o dado não traz nada.
  */
 export function turnosDoDia(grade: HorarioFuncionamento | null, dia: number): HorarioDia[] {
   if (!grade) return []
