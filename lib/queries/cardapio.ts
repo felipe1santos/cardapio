@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
+import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -737,6 +737,8 @@ export interface RestauranteVitrine {
   imagemGrande: boolean
   /** true se a loja está aceitando pedidos agora (manual ou pela grade de horário — ver lib/timezone.ts). */
   lojaAberta: boolean
+  /** Texto de próxima abertura para quando a loja está fechada ("abre às 18:00"). Null = sem previsão. */
+  proximaAberturaTexto: string | null
   avaliacaoNota: number | null
   avaliacaoQtd: number | null
 }
@@ -751,6 +753,10 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     .maybeSingle()
   if (error) throw error
   if (!data) return null
+  const estadoLoja = {
+    statusLoja: data.status_loja ?? 'automatico',
+    horarioFuncionamento: data.horario_funcionamento ?? null,
+  }
   return {
     id: data.id,
     nome: data.nome,
@@ -770,7 +776,8 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     layoutCardapio: (data.layout_cardapio as LayoutCardapio) ?? 'categoria',
     corTema: (data.cor_tema as string) ?? 'azul',
     imagemGrande: Boolean(data.imagem_grande),
-    lojaAberta: lojaEstaAberta({ statusLoja: data.status_loja ?? 'automatico', horarioFuncionamento: data.horario_funcionamento ?? null }),
+    lojaAberta: lojaEstaAberta(estadoLoja),
+    proximaAberturaTexto: textoProximaAbertura(estadoLoja),
     avaliacaoNota: data.avaliacao_nota === null || data.avaliacao_nota === undefined ? null : Number(data.avaliacao_nota),
     avaliacaoQtd: data.avaliacao_qtd ?? null,
   }

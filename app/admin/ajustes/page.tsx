@@ -29,6 +29,7 @@ import {
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
 import { geocodeEndereco } from '@/lib/frete'
+import { turnosDoDia } from '@/lib/timezone'
 import { StorePinMap } from '@/components/maps/store-pin-map'
 import { composeEndereco } from '@/lib/endereco'
 import { PALETAS, temaCores } from '@/lib/paletas'
@@ -136,23 +137,39 @@ function SaveBar({ saved, saving, onSave }: { saved: boolean; saving: boolean; o
 
 const DIAS_SEMANA_LABEL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
-type HorarioDiaForm = { ativo: boolean; abre: string; fecha: string }
-type HorarioSemanaForm = Record<string, HorarioDiaForm>
+type TurnoForm = { abre: string; fecha: string }
+type HorarioSemanaForm = Record<string, TurnoForm[]>
+
+const TURNO_PADRAO: TurnoForm = { abre: '08:00', fecha: '22:00' }
 
 function horarioSemanaPadrao(): HorarioSemanaForm {
   const dias: HorarioSemanaForm = {}
-  for (let i = 0; i < 7; i++) dias[String(i)] = { ativo: false, abre: '08:00', fecha: '22:00' }
+  for (let i = 0; i < 7; i++) dias[String(i)] = []
   return dias
 }
 
 function horarioSemanaFromConfig(horario: ConfigLoja['horarioFuncionamento']): HorarioSemanaForm {
   const dias = horarioSemanaPadrao()
   if (!horario) return dias
-  for (let i = 0; i < 7; i++) {
-    const intervalo = horario[String(i)]
-    if (intervalo) dias[String(i)] = { ativo: true, abre: intervalo.abre, fecha: intervalo.fecha }
-  }
+  for (let i = 0; i < 7; i++) dias[String(i)] = turnosDoDia(horario, i).map((t) => ({ ...t }))
   return dias
+}
+
+/** true se dois turnos do mesmo dia se sobrepõem. Turno que vira o dia é normalizado
+ *  para minutos corridos a partir da abertura, senão 18:00–02:00 nunca colidiria. */
+function turnosSobrepostos(turnos: TurnoForm[]): boolean {
+  const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5))
+  const faixas = turnos.map((t) => {
+    const inicio = min(t.abre)
+    const fim = min(t.fecha)
+    return { inicio, fim: fim > inicio ? fim : fim + 24 * 60 }
+  })
+  for (let a = 0; a < faixas.length; a++) {
+    for (let b = a + 1; b < faixas.length; b++) {
+      if (faixas[a].inicio < faixas[b].fim && faixas[b].inicio < faixas[a].fim) return true
+    }
+  }
+  return false
 }
 
 function TabLoja({ restauranteId, active }: { restauranteId: string; active: boolean }) {
@@ -290,19 +307,45 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     setSaved(false)
   }
 
-  function setHorarioDia(dia: string, patch: Partial<HorarioDiaForm>) {
-    setHorarioDias((prev) => ({ ...prev, [dia]: { ...prev[dia], ...patch } }))
+  function setTurnos(dia: string, turnos: TurnoForm[]) {
+    setHorarioDias((prev) => ({ ...prev, [dia]: turnos }))
     setSaved(false)
   }
 
+  /** Marcar o dia cria o primeiro turno; desmarcar apaga todos (dia fechado). */
+  function toggleDia(dia: string, ativo: boolean) {
+    setTurnos(dia, ativo ? [{ ...TURNO_PADRAO }] : [])
+  }
+
+  function addTurno(dia: string) {
+    setTurnos(dia, [...horarioDias[dia], { ...TURNO_PADRAO }])
+  }
+
+  /** Remover o último turno equivale a fechar o dia. */
+  function removeTurno(dia: string, index: number) {
+    setTurnos(dia, horarioDias[dia].filter((_, i) => i !== index))
+  }
+
+  function setTurno(dia: string, index: number, patch: Partial<TurnoForm>) {
+    setTurnos(dia, horarioDias[dia].map((t, i) => (i === index ? { ...t, ...patch } : t)))
+  }
+
+  const diasComSobreposicao = Object.entries(horarioDias)
+    .filter(([, turnos]) => turnosSobrepostos(turnos))
+    .map(([dia]) => Number(dia))
+
   async function save() {
     if (!form.nome.trim()) { setError('O nome do estabelecimento é obrigatório.'); return }
+    if (diasComSobreposicao.length > 0) {
+      setError(`Turnos sobrepostos em: ${diasComSobreposicao.map((d) => DIAS_SEMANA_LABEL[d]).join(', ')}.`)
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       const horarioFuncionamento: NonNullable<ConfigLoja['horarioFuncionamento']> = {}
-      for (const [dia, v] of Object.entries(horarioDias)) {
-        horarioFuncionamento[dia] = v.ativo ? { abre: v.abre, fecha: v.fecha } : null
+      for (const [dia, turnos] of Object.entries(horarioDias)) {
+        horarioFuncionamento[dia] = turnos.length > 0 ? turnos.map((t) => ({ ...t })) : null
       }
       const updated = await atualizarConfigLoja(supabase, restauranteId, {
         nome: form.nome.trim(),
@@ -417,40 +460,66 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               />
             </div>
           </Field>
-          <Field label="Horário de funcionamento" hint="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Dia sem marcação = fechada nesse dia. Você ainda pode forçar aberta/fechada a qualquer momento pelo Painel de Pedidos.">
-            <div className="space-y-1.5 rounded-menuzia border border-border bg-white p-3">
+          <Field label="Horário de funcionamento" hint="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Cada dia pode ter mais de um turno — ex.: almoço 11:00–14:00 e jantar 18:00–23:00, com a loja fechada no vão da tarde. Dia sem marcação = fechada. Você ainda pode forçar aberta/fechada a qualquer momento pelo Painel de Pedidos.">
+            <div className="space-y-2 rounded-menuzia border border-border bg-white p-3">
               {DIAS_SEMANA_LABEL.map((label, i) => {
                 const dia = String(i)
-                const v = horarioDias[dia]
+                const turnos = horarioDias[dia]
+                const sobreposto = diasComSobreposicao.includes(i)
                 return (
-                  <div key={dia} className="flex items-center gap-2.5">
-                    <label className="flex w-[110px] flex-shrink-0 cursor-pointer items-center gap-2 text-[12px] font-medium text-text-main">
+                  <div key={dia} className="flex gap-2.5 border-b border-border pb-2 last:border-0 last:pb-0">
+                    <label className="flex w-[110px] flex-shrink-0 cursor-pointer items-center gap-2 pt-1 text-[12px] font-medium text-text-main">
                       <input
                         type="checkbox"
-                        checked={v.ativo}
-                        onChange={(e) => setHorarioDia(dia, { ativo: e.target.checked })}
+                        checked={turnos.length > 0}
+                        onChange={(e) => toggleDia(dia, e.target.checked)}
                         className="h-4 w-4 accent-primary"
                       />
                       {label}
                     </label>
-                    {v.ativo ? (
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="time"
-                          value={v.abre}
-                          onChange={(e) => setHorarioDia(dia, { abre: e.target.value })}
-                          className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
-                        />
-                        <span className="text-[12px] text-text-subtle">até</span>
-                        <input
-                          type="time"
-                          value={v.fecha}
-                          onChange={(e) => setHorarioDia(dia, { fecha: e.target.value })}
-                          className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
-                        />
-                      </div>
+                    {turnos.length === 0 ? (
+                      <span className="pt-1 text-[12px] text-text-subtle">Fechada</span>
                     ) : (
-                      <span className="text-[12px] text-text-subtle">Fechada</span>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        {turnos.map((t, index) => (
+                          <div key={index} className="flex flex-wrap items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={t.abre}
+                              onChange={(e) => setTurno(dia, index, { abre: e.target.value })}
+                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
+                            />
+                            <span className="text-[12px] text-text-subtle">até</span>
+                            <input
+                              type="time"
+                              value={t.fecha}
+                              onChange={(e) => setTurno(dia, index, { fecha: e.target.value })}
+                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
+                            />
+                            {t.fecha <= t.abre && (
+                              <span className="text-[11px] text-text-subtle">vira o dia seguinte</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeTurno(dia, index)}
+                              title="Remover turno"
+                              className="ml-auto flex h-[26px] w-[26px] items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-danger hover:text-danger"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addTurno(dia)}
+                          className="text-[11px] font-semibold uppercase tracking-wide text-primary hover:text-primary-dark"
+                        >
+                          + adicionar turno
+                        </button>
+                        {sobreposto && (
+                          <p className="text-[11px] font-medium text-danger">Os turnos deste dia se sobrepõem.</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )

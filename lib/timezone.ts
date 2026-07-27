@@ -6,8 +6,26 @@ export interface HorarioDia {
   fecha: string // "HH:MM"
 }
 
-/** Grade semanal de funcionamento: chave = dia da semana (0=domingo..6=sábado), null = fechado nesse dia. */
-export type HorarioFuncionamento = Record<string, HorarioDia | null>
+/**
+ * Grade semanal de funcionamento: chave = dia da semana (0=domingo..6=sábado), lista de
+ * turnos do dia. `null` ou lista vazia = fechado nesse dia. Dois turnos permitem, por
+ * exemplo, marmita no almoço e pizza à noite com a loja fechada no vão da tarde.
+ */
+export type HorarioFuncionamento = Record<string, HorarioDia[] | null>
+
+/**
+ * Turnos de um dia, tolerando o formato antigo (um único objeto `{abre, fecha}` por dia,
+ * anterior à migration 0047). A migration roda no Supabase remoto e o deploy do app pode
+ * chegar antes ou depois dela — sem essa tolerância existe uma janela em que toda loja
+ * apareceria fechada por erro de leitura.
+ */
+export function turnosDoDia(grade: HorarioFuncionamento | null, dia: number): HorarioDia[] {
+  if (!grade) return []
+  const valor = grade[String(dia)] as unknown
+  if (!valor) return []
+  const lista = Array.isArray(valor) ? valor : [valor as HorarioDia]
+  return lista.filter((t): t is HorarioDia => Boolean(t?.abre && t?.fecha))
+}
 
 export type StatusLoja = 'automatico' | 'aberto_manual' | 'fechado_manual'
 
@@ -28,9 +46,27 @@ export function horaAtualSaoPaulo(): string {
   }).format(new Date())
 }
 
-/** true se `hora` (HH:MM) cai dentro de [inicio, fim), sem suporte a intervalo que cruza a meia-noite. */
+/**
+ * true se `hora` (HH:MM) cai dentro de [inicio, fim). `fim` menor que `inicio` significa
+ * que o intervalo atravessa a meia-noite (ex: 18:00–02:00, pizzaria que vira a noite).
+ * `inicio` igual a `fim` = 24 horas.
+ */
 export function horaDentroDoIntervalo(hora: string, inicio: string, fim: string): boolean {
-  return hora >= inicio && hora < fim
+  if (inicio === fim) return true
+  if (inicio < fim) return hora >= inicio && hora < fim
+  return hora >= inicio || hora < fim
+}
+
+/** Parte do turno que corre no próprio dia em que ele começa. */
+function turnoCorrendoNoDiaDeInicio(hora: string, turno: HorarioDia): boolean {
+  if (turno.abre < turno.fecha) return hora >= turno.abre && hora < turno.fecha
+  return hora >= turno.abre // atravessa a meia-noite: daqui até 23:59 é o dia de início
+}
+
+/** Parte do turno que já virou o dia — só existe em turno que atravessa a meia-noite. */
+function turnoCorrendoNoDiaSeguinte(hora: string, turno: HorarioDia): boolean {
+  if (turno.abre < turno.fecha) return false
+  return hora < turno.fecha
 }
 
 /**
@@ -51,11 +87,60 @@ export function lojaEstaAberta(restaurante: {
   const grade = restaurante.horarioFuncionamento
   if (!grade) return true
 
-  const dia = diaSemanaSaoPaulo(new Date().toISOString())
-  const intervalo = grade[String(dia)]
-  if (!intervalo) return false
+  const hoje = diaSemanaSaoPaulo(new Date().toISOString())
+  const hora = horaAtualSaoPaulo()
 
-  return horaDentroDoIntervalo(horaAtualSaoPaulo(), intervalo.abre, intervalo.fecha)
+  if (turnosDoDia(grade, hoje).some((t) => turnoCorrendoNoDiaDeInicio(hora, t))) return true
+
+  // Um turno de ontem que atravessa a meia-noite ainda pode estar correndo agora — sem
+  // isso, uma loja aberta segunda 18:00–02:00 fecharia à meia-noite de segunda pra terça.
+  const ontem = (hoje + 6) % 7
+  return turnosDoDia(grade, ontem).some((t) => turnoCorrendoNoDiaSeguinte(hora, t))
+}
+
+/**
+ * Próximo turno que ainda vai abrir, varrendo até 7 dias à frente. `null` = grade sem
+ * nenhum turno configurado. Não considera o override manual: quem chama decide se faz
+ * sentido mostrar (loja travada fechada não tem próxima abertura previsível).
+ */
+export function proximaAbertura(
+  grade: HorarioFuncionamento | null
+): { diaSemana: number; hora: string } | null {
+  if (!grade) return null
+
+  const hoje = diaSemanaSaoPaulo(new Date().toISOString())
+  const agora = horaAtualSaoPaulo()
+
+  for (let offset = 0; offset < 7; offset++) {
+    const dia = (hoje + offset) % 7
+    const turnos = [...turnosDoDia(grade, dia)].sort((a, b) => a.abre.localeCompare(b.abre))
+    for (const turno of turnos) {
+      if (offset > 0 || turno.abre > agora) return { diaSemana: dia, hora: turno.abre }
+    }
+  }
+  return null
+}
+
+const DIAS_SEMANA_NOME = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+
+/**
+ * Texto curto de próxima abertura para a vitrine ("abre às 18:00", "abre amanhã às
+ * 11:00", "abre sábado às 11:00"). `null` quando não há previsão: loja travada fechada
+ * pelo operador, ou grade sem nenhum turno.
+ */
+export function textoProximaAbertura(restaurante: {
+  statusLoja: StatusLoja
+  horarioFuncionamento: HorarioFuncionamento | null
+}): string | null {
+  if (restaurante.statusLoja === 'fechado_manual') return null
+
+  const proxima = proximaAbertura(restaurante.horarioFuncionamento)
+  if (!proxima) return null
+
+  const hoje = diaSemanaSaoPaulo(new Date().toISOString())
+  if (proxima.diaSemana === hoje) return `abre às ${proxima.hora}`
+  if (proxima.diaSemana === (hoje + 1) % 7) return `abre amanhã às ${proxima.hora}`
+  return `abre ${DIAS_SEMANA_NOME[proxima.diaSemana]} às ${proxima.hora}`
 }
 
 /** true se o grupo (categoria) está ativo agora — sem horário configurado = sempre ativo. */

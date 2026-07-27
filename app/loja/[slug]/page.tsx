@@ -1754,7 +1754,11 @@ export default function StorefrontPage() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 font-semibold text-danger">
-                        <span className="h-1.5 w-1.5 rounded-full bg-danger" /> Loja fechada
+                        <span className="h-1.5 w-1.5 rounded-full bg-danger" />
+                        Loja fechada
+                        {restaurante.proximaAberturaTexto && (
+                          <span className="font-medium text-text-subtle">· {restaurante.proximaAberturaTexto}</span>
+                        )}
                       </span>
                     )}
                     <span>⏱ 30–45 min</span>
@@ -1946,7 +1950,7 @@ export default function StorefrontPage() {
                         </button>
                         {!restaurante.lojaAberta && (
                           <p className="mb-2.5 rounded-lg bg-danger-bg px-3 py-2 text-center text-[12px] font-semibold text-danger">
-                            Loja fechada no momento — não é possível finalizar o pedido.
+                            Loja fechada no momento{restaurante.proximaAberturaTexto ? ` — ${restaurante.proximaAberturaTexto}` : ' — não é possível finalizar o pedido'}.
                           </p>
                         )}
                         <button
@@ -2066,7 +2070,7 @@ export default function StorefrontPage() {
                   </button>
                   {!restaurante.lojaAberta && (
                     <p className="mt-2.5 rounded-lg bg-danger-bg px-3 py-2 text-center text-[12px] font-semibold text-danger">
-                      Loja fechada no momento — não é possível finalizar o pedido.
+                      Loja fechada no momento{restaurante.proximaAberturaTexto ? ` — ${restaurante.proximaAberturaTexto}` : ' — não é possível finalizar o pedido'}.
                     </p>
                   )}
                   <button
