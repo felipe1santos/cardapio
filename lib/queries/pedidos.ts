@@ -57,6 +57,9 @@ export interface Pedido {
   origem: 'cardapio' | 'pdv'
   mesa: string | null
   comandaId: string | null
+  canceladoMotivo: string | null
+  canceladoObservacao: string | null
+  canceladoPor: string | null
   criadoEm: string
   atualizadoEm: string
   itens: PedidoItem[]
@@ -104,6 +107,9 @@ interface PedidoRow {
   origem: 'cardapio' | 'pdv'
   mesa: string | null
   comanda_id: string | null
+  cancelado_motivo: string | null
+  cancelado_observacao: string | null
+  cancelado_por: string | null
   criado_em: string
   atualizado_em: string
   pedido_itens: {
@@ -125,7 +131,8 @@ export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
-  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, mesa, comanda_id, criado_em, atualizado_em,
+  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, mesa, comanda_id,
+  cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
@@ -158,6 +165,9 @@ export function mapPedido(row: PedidoRow): Pedido {
     origem: (row.origem as 'cardapio' | 'pdv') ?? 'cardapio',
     mesa: row.mesa ?? null,
     comandaId: row.comanda_id ?? null,
+    canceladoMotivo: row.cancelado_motivo ?? null,
+    canceladoObservacao: row.cancelado_observacao ?? null,
+    canceladoPor: row.cancelado_por ?? null,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
     itens: (row.pedido_itens ?? []).map((i) => ({
@@ -442,11 +452,9 @@ export async function marcarPedidoEntregue(supabase: SupabaseClient, pedidoId: s
   if (error) throw error
 }
 
-/** Recusa/cancela um pedido (não entregue) — vai para o histórico em vermelho. */
-export async function recusarPedido(supabase: SupabaseClient, pedidoId: string) {
-  const { error } = await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', pedidoId)
-  if (error) throw error
-}
+// Cancelamento não passa pelo cliente do navegador: vai por
+// POST /api/admin/pedidos/[id]/cancelar, que valida o motivo, guarda o status
+// server-side e reverte os benefícios de fidelidade. Ver lib/cancelamento.ts.
 
 /** Pedidos concluídos (entregues + recusados) desde uma data — para o histórico. */
 export async function listarPedidosConcluidos(supabase: SupabaseClient, restauranteId: string, desdeISO: string): Promise<Pedido[]> {

@@ -25,6 +25,8 @@ import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
+import { CancelarPedidoModal } from '@/components/pedidos/cancelar-modal'
+import { podeCancelar, rotuloMotivo } from '@/lib/cancelamento'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarStatusELoja, definirStatusLoja } from '@/lib/queries/ajustes'
@@ -37,7 +39,6 @@ import {
   listarPedidosKanban,
   listarPedidosLogistica,
   marcarPedidoEntregue,
-  recusarPedido,
   type Pedido,
   type StatusPedido,
 } from '@/lib/queries/pedidos'
@@ -273,6 +274,7 @@ export default function PedidosPage() {
   const [transit, setTransit] = useState<Pedido[]>([])
   const [concluded, setConcluded] = useState<Pedido[]>([])
   const [detail, setDetail] = useState<Pedido | null>(null)
+  const [cancelando, setCancelando] = useState<Pedido | null>(null)
   const [reimpEstado, setReimpEstado] = useState<'idle' | 'enviando' | 'ok' | 'erro'>('idle')
   const [now, setNow] = useState(() => Date.now())
   const [showCol4, setShowCol4] = useState(false)
@@ -739,18 +741,19 @@ export default function PedidosPage() {
     }
   }
 
-  async function recusar(p: Pedido) {
-    if (!restauranteId) return
+  /** Abre o modal de motivo. Pausa o aceite automático para o pedido não avançar sozinho. */
+  function pedirCancelamento(p: Pedido) {
     cancelarAutoAceite(p.id)
-    setOrders((prev) => prev.filter((o) => o.id !== p.id))
-    try {
-      await recusarPedido(supabase, p.id)
-      notificarPedido(p.id, 'cancelado')
-      refetch(restauranteId)
-    } catch {
-      setError('Não foi possível recusar o pedido.')
-      refetch(restauranteId)
-    }
+    setCancelando(p)
+  }
+
+  /** Chamado depois que o servidor confirmou o cancelamento. */
+  function aoCancelar(pedidoId: string) {
+    setOrders((prev) => prev.filter((o) => o.id !== pedidoId))
+    setCancelando(null)
+    setDetail(null)
+    notificarPedido(pedidoId, 'cancelado')
+    if (restauranteId) refetch(restauranteId)
   }
 
   const abertos = orders.length
@@ -983,7 +986,7 @@ export default function PedidosPage() {
                               <Button
                                 variant="outline"
                                 className="border-danger px-2.5 text-danger hover:bg-danger-bg"
-                                onClick={() => recusar(order)}
+                                onClick={() => pedirCancelamento(order)}
                                 title="Recusar pedido"
                               >
                                 ✕
@@ -1069,6 +1072,14 @@ export default function PedidosPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4.5">
+              {detail.status === 'cancelado' && (
+                <div className="mb-5 rounded-menuzia border border-danger bg-danger-bg p-3 text-sm">
+                  <div className="font-semibold text-danger">Pedido cancelado · {rotuloMotivo(detail.canceladoMotivo)}</div>
+                  {detail.canceladoObservacao && <div className="mt-1 text-text-main">{detail.canceladoObservacao}</div>}
+                  {detail.canceladoPor && <div className="mt-1 text-xs text-text-subtle">por {detail.canceladoPor}</div>}
+                </div>
+              )}
+
               <div className="mb-5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Linha do tempo</div>
               <div className="mb-6 space-y-0">
                 {TIMELINE_STEPS.map((step, index) => {
@@ -1180,10 +1191,27 @@ export default function PedidosPage() {
               {reimpEstado === 'erro' && (
                 <p className="mt-2 text-center text-[11px] text-danger">Não foi possível solicitar a reimpressão. Tente de novo.</p>
               )}
+              {podeCancelar(detail.status) && (
+                <button
+                  onClick={() => pedirCancelamento(detail)}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-menuzia border border-danger px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-danger transition-colors hover:bg-danger-bg"
+                >
+                  <span aria-hidden>✕</span>
+                  Cancelar pedido
+                </button>
+              )}
             </div>
           </>
         )}
       </aside>
+
+      {cancelando && (
+        <CancelarPedidoModal
+          pedido={cancelando}
+          onFechar={() => setCancelando(null)}
+          onCancelado={aoCancelar}
+        />
+      )}
     </>
   )
 }

@@ -27,13 +27,13 @@ import {
   listarPedidosLogistica,
   listarResumoCaixa,
   marcarPedidoEntregue,
-  recusarPedido,
   registrarFechamentoCaixa,
   type Entregador,
   type Pedido,
   type ResumoCaixa,
   type StatusEntregador,
 } from '@/lib/queries/pedidos'
+import { cancelarPedidoRequest } from '@/lib/cancelamento'
 
 type Tab = 'despacho' | 'concluidos' | 'entregadores'
 
@@ -732,7 +732,7 @@ export default function LogisticaPage() {
   async function naoEntregue(orderId: string) {
     setOrders((prev) => prev.filter((o) => o.id !== orderId))
     try {
-      await recusarPedido(supabase, orderId)
+      await cancelarPedidoRequest(orderId, 'nao_entregue', '')
       notificarPedido(orderId, 'cancelado')
       if (restauranteId) refetch(restauranteId)
     } catch {
