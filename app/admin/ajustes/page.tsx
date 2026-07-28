@@ -107,6 +107,34 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
+/** Bloco de seção do painel de ajustes — agrupa campos afins sob um título. */
+function Secao({
+  titulo,
+  descricao,
+  className = '',
+  children,
+}: {
+  titulo: string
+  descricao?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card className={['space-y-4.5', className].join(' ')}>
+      <div className="border-b border-border pb-3">
+        <h3 className="text-[13px] font-bold text-text-main">{titulo}</h3>
+        {descricao && <p className="mt-0.5 text-[11px] leading-relaxed text-text-subtle">{descricao}</p>}
+      </div>
+      {children}
+    </Card>
+  )
+}
+
+/** Rótulo de campo dentro de uma grade de endereço. */
+function CampoLabel({ children }: { children: React.ReactNode }) {
+  return <label className="mb-1 block text-[11px] font-medium text-text-subtle">{children}</label>
+}
+
 function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
@@ -120,16 +148,69 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   )
 }
 
-function SaveBar({ saved, saving, onSave }: { saved: boolean; saving: boolean; onSave: () => void }) {
+/** Feedback central de salvamento: spinner enquanto grava, check verde ao concluir. */
+function SaveOverlay({ estado }: { estado: 'saving' | 'ok' }) {
   return (
-    <div className="flex items-center justify-between border-t border-border bg-main px-5 py-3">
-      {saved && !saving
-        ? <span className="text-[13px] font-medium text-status-ready">Alterações salvas.</span>
-        : <span />}
-      <Button onClick={onSave} disabled={saving}>
-        {saving ? 'Salvando…' : 'Salvar alterações'}
-      </Button>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#111827]/35">
+      <div className="flex min-w-[210px] flex-col items-center gap-3 rounded-menuzia border border-border bg-white px-9 py-7 shadow-2xl">
+        {estado === 'saving' ? (
+          <>
+            <svg viewBox="0 0 50 50" className="h-11 w-11 animate-spin text-primary">
+              <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" strokeWidth="5" strokeOpacity="0.18" />
+              <path d="M25 5a20 20 0 0 1 20 20" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+            </svg>
+            <span className="text-[13px] font-semibold text-text-main">Salvando…</span>
+          </>
+        ) : (
+          <>
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-status-ready">
+              <svg viewBox="0 0 24 24" className="h-6 w-6 fill-white">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+              </svg>
+            </span>
+            <span className="text-[13px] font-semibold text-status-ready">Salvo!</span>
+          </>
+        )}
+      </div>
     </div>
+  )
+}
+
+function SaveBar({ saved, saving, onSave }: { saved: boolean; saving: boolean; onSave: () => void }) {
+  const [overlay, setOverlay] = useState<'idle' | 'saving' | 'ok'>('idle')
+  const estavaSalvando = useRef(false)
+
+  // O check só aparece na transição de "salvando" para "salvo" — assim o overlay não
+  // reabre sozinho quando o componente re-renderiza com `saved` ainda true.
+  useEffect(() => {
+    if (saving) {
+      estavaSalvando.current = true
+      setOverlay('saving')
+      return
+    }
+    if (!estavaSalvando.current) return
+    estavaSalvando.current = false
+    if (!saved) {
+      setOverlay('idle') // falhou: fecha e deixa a mensagem de erro da aba aparecer
+      return
+    }
+    setOverlay('ok')
+    const timer = setTimeout(() => setOverlay('idle'), 1400)
+    return () => clearTimeout(timer)
+  }, [saving, saved])
+
+  return (
+    <>
+      <div className="flex items-center justify-between border-t border-border bg-main px-5 py-3">
+        {saved && !saving
+          ? <span className="text-[13px] font-medium text-status-ready">Alterações salvas.</span>
+          : <span />}
+        <Button onClick={onSave} disabled={saving}>
+          {saving ? 'Salvando…' : 'Salvar alterações'}
+        </Button>
+      </div>
+      {overlay !== 'idle' && <SaveOverlay estado={overlay} />}
+    </>
   )
 }
 
@@ -334,6 +415,16 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     .filter(([, turnos]) => turnosSobrepostos(turnos))
     .map(([dia]) => Number(dia))
 
+  /** Endereço montado a partir do formulário — alimenta o mapa e o resumo abaixo dele. */
+  const enderecoResumo = composeEndereco({
+    rua: form.enderecoRua,
+    numero: form.enderecoNumero,
+    complemento: form.enderecoComplemento,
+    bairro: form.enderecoBairro,
+    cidade: form.enderecoCidade,
+    estado: form.enderecoEstado,
+  })
+
   async function save() {
     if (!form.nome.trim()) { setError('O nome do estabelecimento é obrigatório.'); return }
     if (diasComSobreposicao.length > 0) {
@@ -382,92 +473,165 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
-        <Card className="max-w-xl space-y-5">
+        <div className="mx-auto grid max-w-5xl items-start gap-5 xl:grid-cols-2">
+
+        <Secao titulo="Identidade da loja" descricao="Como o cliente reconhece você no cardápio e no painel.">
           <Field label="Nome do estabelecimento">
             <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} placeholder="Ex: Burger House" />
           </Field>
           <Field label="Telefone / WhatsApp">
             <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
           </Field>
-          <Field label="Endereço">
-            <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
-              <div className="space-y-3">
-                <div className="grid grid-cols-[1fr_120px] gap-3">
-                  <div>
-                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Rua</label>
-                    <Input value={form.enderecoRua} onChange={(e) => set('enderecoRua', e.target.value)} placeholder="Rua das Flores" />
+          <Field label="Logotipo" hint="Exibido como avatar da loja no painel e no cardápio do cliente. Deixe em branco para usar a inicial do nome.">
+            <div className="flex items-center gap-3">
+              {form.logoUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={form.logoUrl} alt="Logotipo" className="h-16 w-16 rounded-menuzia border border-border object-cover" />
+                : <div className="flex h-16 w-16 items-center justify-center rounded-menuzia border border-border bg-page text-xl font-bold text-text-subtle">
+                    {form.nome.trim().charAt(0).toUpperCase() || '?'}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Número</label>
-                    <Input value={form.enderecoNumero} onChange={(e) => set('enderecoNumero', e.target.value)} placeholder="123" />
-                  </div>
+              }
+              <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoPick} />
+              <div className="flex flex-col gap-1.5">
+                <Button variant="outline" type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                  {uploadingLogo ? 'Enviando…' : form.logoUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                </Button>
+                {form.logoUrl && (
+                  <button type="button" onClick={() => set('logoUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                )}
+              </div>
+            </div>
+          </Field>
+          {config && (
+            <Field label="Endereço público da loja" hint="Gerado automaticamente a partir do nome — não pode ser alterado por aqui.">
+              <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-page px-3 py-2.5">
+                <span className="text-sm text-text-subtle">cardapio.app/loja/</span>
+                <span className="text-sm font-semibold text-text-main">{config.slug}</span>
+              </div>
+            </Field>
+          )}
+        </Secao>
+
+        <Secao titulo="Prova social" descricao="Reforça a confiança de quem chega no cardápio pela primeira vez.">
+          <Field label="Avaliação" hint="Exibida na vitrine como prova social — preencha manualmente com base nas avaliações reais da loja (Google, iFood, etc.). Deixe em branco pra não mostrar nada.">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <CampoLabel>Nota</CampoLabel>
+                <Input
+                  value={form.avaliacaoNota}
+                  onChange={(e) => set('avaliacaoNota', e.target.value)}
+                  placeholder="4.9"
+                  inputMode="decimal"
+                />
+              </div>
+              <div>
+                <CampoLabel>Quantidade de avaliações</CampoLabel>
+                <Input
+                  value={form.avaliacaoQtd}
+                  onChange={(e) => set('avaliacaoQtd', e.target.value)}
+                  placeholder="912"
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+          </Field>
+        </Secao>
+
+        <Secao
+          titulo="Endereço da loja"
+          descricao="Base do cálculo de frete, do mapa de calor do Dashboard e da localização mostrada ao cliente."
+          className="xl:col-span-2"
+        >
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="space-y-3.5">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                <div>
+                  <CampoLabel>Rua</CampoLabel>
+                  <Input value={form.enderecoRua} onChange={(e) => set('enderecoRua', e.target.value)} placeholder="Rua das Flores" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-text-subtle">Complemento</label>
-                  <Input value={form.enderecoComplemento} onChange={(e) => set('enderecoComplemento', e.target.value)} placeholder="Sala, bloco, referência (opcional)" />
-                </div>
-                <div className="grid grid-cols-[1fr_1fr_70px] gap-3">
-                  <div>
-                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Bairro</label>
-                    <Input value={form.enderecoBairro} onChange={(e) => set('enderecoBairro', e.target.value)} placeholder="Centro" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">Cidade</label>
-                    <Input value={form.enderecoCidade} onChange={(e) => set('enderecoCidade', e.target.value)} placeholder="Fortaleza" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-medium text-text-subtle">UF</label>
-                    <Input value={form.enderecoEstado} onChange={(e) => set('enderecoEstado', e.target.value.toUpperCase().slice(0, 2))} placeholder="CE" maxLength={2} />
-                  </div>
+                  <CampoLabel>Número</CampoLabel>
+                  <Input value={form.enderecoNumero} onChange={(e) => set('enderecoNumero', e.target.value)} placeholder="123" />
                 </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <StorePinMap
-                  apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
-                  address={composeEndereco({
-                    rua: form.enderecoRua,
-                    numero: form.enderecoNumero,
-                    complemento: form.enderecoComplemento,
-                    bairro: form.enderecoBairro,
-                    cidade: form.enderecoCidade,
-                    estado: form.enderecoEstado,
-                  })}
-                  lat={form.latitude}
-                  lng={form.longitude}
-                  onChange={setPin}
-                  className="h-[220px] w-full border border-border"
-                />
-                <p className="text-[11px] text-text-subtle">Arraste o pin pra ajustar a localização exata da loja no mapa.</p>
+              <div>
+                <CampoLabel>Complemento</CampoLabel>
+                <Input value={form.enderecoComplemento} onChange={(e) => set('enderecoComplemento', e.target.value)} placeholder="Sala, bloco, referência (opcional)" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <CampoLabel>Bairro</CampoLabel>
+                  <Input value={form.enderecoBairro} onChange={(e) => set('enderecoBairro', e.target.value)} placeholder="Centro" />
+                </div>
+                <div>
+                  <CampoLabel>Cidade</CampoLabel>
+                  <Input value={form.enderecoCidade} onChange={(e) => set('enderecoCidade', e.target.value)} placeholder="Fortaleza" />
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                <div>
+                  <CampoLabel>UF</CampoLabel>
+                  <Input value={form.enderecoEstado} onChange={(e) => set('enderecoEstado', e.target.value.toUpperCase().slice(0, 2))} placeholder="CE" maxLength={2} />
+                </div>
+                <div>
+                  <CampoLabel>CEP</CampoLabel>
+                  <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
+                </div>
               </div>
             </div>
-          </Field>
-          <Field label="CEP" hint="Usado para centralizar o mapa de calor do Dashboard na região da sua loja e posicionar corretamente os bairros das entregas.">
-            <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
-          </Field>
-          <Field label="Avaliação" hint="Exibida na vitrine como prova social — preencha manualmente com base nas avaliações reais da loja (Google, iFood, etc.). Deixe em branco pra não mostrar nada.">
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                value={form.avaliacaoNota}
-                onChange={(e) => set('avaliacaoNota', e.target.value)}
-                placeholder="Nota (ex: 4.9)"
-                inputMode="decimal"
+
+            <div className="flex flex-col gap-2">
+              <StorePinMap
+                apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+                address={enderecoResumo}
+                lat={form.latitude}
+                lng={form.longitude}
+                onChange={setPin}
+                className="h-[240px] w-full border border-border"
               />
-              <Input
-                value={form.avaliacaoQtd}
-                onChange={(e) => set('avaliacaoQtd', e.target.value)}
-                placeholder="Qtd. de avaliações (ex: 912)"
-                inputMode="numeric"
-              />
+              <p className="text-[11px] text-text-subtle">Arraste o pin pra ajustar a localização exata da loja no mapa.</p>
+
+              {/* Confirmação do que foi preenchido, logo abaixo do mapa. */}
+              <div className="rounded-menuzia bg-[#024A7D] px-3.5 py-3 text-white">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-white/65">
+                  Endereço cadastrado
+                </div>
+                {enderecoResumo ? (
+                  <>
+                    <p className="mt-1 text-[13px] font-semibold leading-snug">{enderecoResumo}</p>
+                    {form.cep.trim() && (
+                      <p className="mt-0.5 text-[12px] text-white/75">CEP {form.cep.trim()}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-1 text-[12px] leading-snug text-white/75">
+                    Preencha os campos ao lado para confirmar o endereço aqui.
+                  </p>
+                )}
+              </div>
             </div>
-          </Field>
-          <Field label="Horário de funcionamento" hint="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Cada dia pode ter mais de um turno — ex.: almoço 11:00–14:00 e jantar 18:00–23:00, com a loja fechada no vão da tarde. Dia sem marcação = fechada. Você ainda pode forçar aberta/fechada a qualquer momento pelo Painel de Pedidos.">
-            <div className="space-y-2 rounded-menuzia border border-border bg-white p-3">
+          </div>
+        </Secao>
+
+        <Secao
+          titulo="Horário de funcionamento"
+          descricao="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Cada dia pode ter mais de um turno — ex.: almoço 11:00–14:00 e jantar 18:00–23:00, com a loja fechada no vão da tarde. Dia sem marcação = fechada. Você ainda pode forçar aberta/fechada a qualquer momento pelo Painel de Pedidos."
+          className="xl:col-span-2"
+        >
+          <Field label="Turnos da semana">
+            <div className="grid gap-2.5 sm:grid-cols-2">
               {DIAS_SEMANA_LABEL.map((label, i) => {
                 const dia = String(i)
                 const turnos = horarioDias[dia]
                 const sobreposto = diasComSobreposicao.includes(i)
                 return (
-                  <div key={dia} className="flex gap-2.5 border-b border-border pb-2 last:border-0 last:pb-0">
+                  <div
+                    key={dia}
+                    className={[
+                      'flex gap-2.5 rounded-menuzia border bg-white p-2.5',
+                      turnos.length > 0 ? 'border-border' : 'border-border/60 bg-page/40',
+                    ].join(' ')}
+                  >
                     <label className="flex w-[110px] flex-shrink-0 cursor-pointer items-center gap-2 pt-1 text-[12px] font-medium text-text-main">
                       <input
                         type="checkbox"
@@ -526,26 +690,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               })}
             </div>
           </Field>
-          <Field label="Logotipo" hint="Exibido como avatar da loja no painel e no cardápio do cliente. Deixe em branco para usar a inicial do nome.">
-            <div className="flex items-center gap-3">
-              {form.logoUrl
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={form.logoUrl} alt="Logotipo" className="h-16 w-16 rounded-menuzia border border-border object-cover" />
-                : <div className="flex h-16 w-16 items-center justify-center rounded-menuzia border border-border bg-page text-xl font-bold text-text-subtle">
-                    {form.nome.trim().charAt(0).toUpperCase() || '?'}
-                  </div>
-              }
-              <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoPick} />
-              <div className="flex flex-col gap-1.5">
-                <Button variant="outline" type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
-                  {uploadingLogo ? 'Enviando…' : form.logoUrl ? 'Trocar imagem' : 'Enviar imagem'}
-                </Button>
-                {form.logoUrl && (
-                  <button type="button" onClick={() => set('logoUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
-                )}
-              </div>
-            </div>
-          </Field>
+        </Secao>
+
+        <Secao titulo="Imagens do cardápio" descricao="Capa e destaque promocional exibidos na vitrine pública.">
           <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
             <div className="space-y-2.5">
               {form.bannerUrl && (
@@ -580,7 +727,10 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               </div>
             </div>
           </Field>
-          <Field label="Apresentação do cardápio" hint="Define como os itens aparecem para o cliente na vitrine pública.">
+        </Secao>
+
+        <Secao titulo="Apresentação do cardápio" descricao="Como os itens aparecem para o cliente na vitrine pública.">
+          <Field label="Formato da lista">
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
@@ -617,16 +767,14 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
             </label>
           </Field>
-          {config && (
-            <Field label="Slug (endereço público da loja)" hint="O slug é gerado automaticamente e não pode ser alterado por aqui.">
-              <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-page px-3 py-2.5">
-                <span className="text-sm text-text-subtle">cardapio.app/loja/</span>
-                <span className="text-sm font-semibold text-text-main">{config.slug}</span>
-              </div>
-            </Field>
-          )}
-          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-        </Card>
+        </Secao>
+
+        {error && (
+          <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger xl:col-span-2">
+            {error}
+          </p>
+        )}
+        </div>
       </div>
       <SaveBar saved={saved} saving={saving} onSave={save} />
     </div>
