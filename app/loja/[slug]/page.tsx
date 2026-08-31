@@ -1740,8 +1740,8 @@ export default function StorefrontPage() {
               <div className="relative lg:mx-8 lg:mt-10 lg:rounded-menuzia lg:bg-white lg:p-1.5 lg:shadow-md">
                 <div className="relative z-0 h-28 w-full overflow-hidden sm:h-40 lg:h-80 lg:rounded-menuzia">
                   {restaurante.bannerUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     // Capa da loja: é o LCP da vitrine — carrega cedo e com prioridade alta.
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={restaurante.bannerUrl}
                       alt={storeName}
@@ -1764,8 +1764,8 @@ export default function StorefrontPage() {
               <div className="-mt-8 flex items-center gap-3 rounded-md border border-border bg-white px-3 py-3 shadow-md sm:-mt-10 sm:gap-4 sm:px-4 sm:py-3.5">
                 <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-20 sm:w-20 lg:h-[88px] lg:w-[88px]">
                   {restaurante.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={restaurante.logoUrl} alt={storeName} loading="eager" decoding="async" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-2xl font-extrabold text-white sm:text-3xl">
@@ -2548,9 +2548,9 @@ export default function StorefrontPage() {
             <button onClick={closeProductSheet} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
             <div className="flex-1 overflow-y-auto">
               {productSheet.imagemUrl
-                // eslint-disable-next-line @next/next/no-img-element
                 // O sheet só é montado depois do clique, então não concorre com o
                 // carregamento inicial — aqui a foto é o conteúdo principal.
+                // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={productSheet.imagemUrl} alt={productSheet.nome} loading="eager" decoding="async" fetchPriority="high" className="h-[42vh] w-full object-cover lg:h-[260px]" />
                 : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><UtensilsCrossed className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
