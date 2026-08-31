@@ -4,6 +4,7 @@ import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTI
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
 import { itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
+import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -395,11 +396,13 @@ export async function atualizarPerfilEntregador(supabase: SupabaseClient, entreg
 
 /** Envia a foto de perfil do entregador para o bucket público `cardapio` e retorna a URL pública. */
 export async function enviarFotoEntregador(supabase: SupabaseClient, restauranteId: string, entregadorId: string, file: File): Promise<string> {
-  const extensao = file.name.split('.').pop() ?? 'jpg'
+  // Perfil `thumb`: a foto do entregador nunca passa de 64 px na tela.
+  const otimizado = await otimizarImagem(file, 'thumb')
+  const extensao = otimizado.name.split('.').pop() ?? 'jpg'
   const caminho = `${restauranteId}/entregadores/${entregadorId}-${crypto.randomUUID()}.${extensao}`
 
-  const { error } = await supabase.storage.from('cardapio').upload(caminho, file, {
-    cacheControl: '3600',
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, otimizado, {
+    cacheControl: CACHE_CONTROL_SEGUNDOS,
     upsert: false,
   })
   if (error) throw error

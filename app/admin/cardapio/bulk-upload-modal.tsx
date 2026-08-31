@@ -90,7 +90,8 @@ export function BulkUploadModal({
 
   /** Sobe um arquivo e cria o registro correspondente. Retorna a linha pra revisão. */
   async function processarArquivo(file: File, indice: number, jaExistentes: number): Promise<LinhaRevisao> {
-    const url = await enviarImagemItem(supabase, restauranteId, file)
+    // Complementos de preset nunca passam de 40 px na tela; itens vão pro sheet da vitrine.
+    const url = await enviarImagemItem(supabase, restauranteId, file, target.tipo === 'item' ? 'produto' : 'thumb')
     const nome = limparNomeArquivo(file.name) ?? `Item ${indice + 1}`
 
     if (target.tipo === 'item') {
@@ -308,7 +309,7 @@ export function BulkUploadModal({
                     {linhas.map((linha, idx) => (
                       <div key={linha.registroId} className="flex items-center gap-2.5 rounded-menuzia border border-border px-2.5 py-2">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={linha.imagemUrl} alt={linha.nome} className="h-10 w-10 flex-shrink-0 rounded-menuzia object-cover" />
+                        <img src={linha.imagemUrl} alt={linha.nome} loading="lazy" decoding="async" width={40} height={40} className="h-10 w-10 flex-shrink-0 rounded-menuzia object-cover" />
                         <input
                           value={linha.nome}
                           onChange={(e) => setLinhas((prev) => prev.map((l, i) => (i === idx ? { ...l, nome: e.target.value } : l)))}

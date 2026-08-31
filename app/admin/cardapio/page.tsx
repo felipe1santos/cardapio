@@ -221,7 +221,7 @@ function ItemThumb({ item, size = 42 }: { item: ItemCardapio; size?: number }) {
   if (item.imagemUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={item.imagemUrl} alt={item.nome} className="flex-shrink-0 rounded-menuzia object-cover" style={{ width: size, height: size }} />
+      <img src={item.imagemUrl} alt={item.nome} loading="lazy" decoding="async" width={size} height={size} className="flex-shrink-0 rounded-menuzia object-cover" style={{ width: size, height: size }} />
     )
   }
   return (
@@ -502,7 +502,7 @@ function GrupoItemCard({
               <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-border bg-page block">
                 {comp.imagemUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={comp.imagemUrl} alt={comp.nome} className="h-full w-full object-cover" />
+                  <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
                 )}
@@ -514,7 +514,7 @@ function GrupoItemCard({
                     const file = e.target.files?.[0]
                     if (!file) return
                     try {
-                      const url = await enviarImagemItem(supabase, restauranteId, file)
+                      const url = await enviarImagemItem(supabase, restauranteId, file, 'thumb')
                       await atualizarComplemento(supabase, comp.id, { nome: comp.nome, preco: comp.preco, imagemUrl: url })
                       await onRefresh()
                     } catch { /* silencioso */ }
@@ -671,7 +671,7 @@ function SaborCard({
     if (!file) return
     setUploading(true)
     try {
-      const url = await enviarImagemItem(supabase, restauranteId, file)
+      const url = await enviarImagemItem(supabase, restauranteId, file, 'thumb')
       await atualizarSabor(supabase, sabor.id, { nome: sabor.nome, descricao: sabor.descricao, status: sabor.status, imagemUrl: url })
       await onRefresh()
     } catch { /* silencioso */ }
@@ -683,7 +683,7 @@ function SaborCard({
       <div className="flex items-center gap-2.5 border-b border-border bg-page px-3 py-2.5">
         {sabor.imagemUrl
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={sabor.imagemUrl} alt={sabor.nome} className="h-8 w-8 flex-shrink-0 rounded-menuzia object-cover" />
+          ? <img src={sabor.imagemUrl} alt={sabor.nome} loading="lazy" decoding="async" width={32} height={32} className="h-8 w-8 flex-shrink-0 rounded-menuzia object-cover" />
           : <div className="h-8 w-8 flex-shrink-0 rounded-menuzia bg-gradient-to-br from-slate-100 to-slate-200" />
         }
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFoto} />
@@ -1052,7 +1052,7 @@ function PresetGroupCard({
                 <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-purple-200 bg-white block">
                   {item.imagemUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-cover" />
+                    <img src={item.imagemUrl} alt={item.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
                   )}
@@ -1066,7 +1066,7 @@ function PresetGroupCard({
                       const val = parseFloat(item.preco.replace(',', '.'))
                       const preco = Number.isFinite(val) && val >= 0 ? val : 0
                       try {
-                        const url = await enviarImagemItem(supabase, restauranteId, file)
+                        const url = await enviarImagemItem(supabase, restauranteId, file, 'thumb')
                         await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, url)
                         const next = items.map((i) => (i.id === item.id ? { ...i, imagemUrl: url } : i))
                         setItems(next)
@@ -2645,7 +2645,7 @@ export default function CardapioPage() {
                       <div className="relative flex h-[120px] items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
                         {item.imagemUrl
                           // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={item.imagemUrl} alt={item.nome} className="h-full w-full object-cover" />
+                          ? <img src={item.imagemUrl} alt={item.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                           : <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] fill-text-subtle/50"><path d="M12 6c-3.87 0-7 2.46-7 5.5 0 .5.09.98.26 1.43.07.2.27.32.49.27.21-.05.34-.26.3-.47A4 4 0 017 11.5C7 9.57 9.24 8 12 8s5 1.57 5 3.5c0 .42-.07.82-.2 1.2-.05.21.08.42.29.47.22.05.42-.07.49-.27.17-.45.26-.93.26-1.4C19 8.46 15.87 6 12 6zM4 15h16v2H4zm0 3h16v2H4z" /></svg>
                         }
                         {item.status !== 'disponivel' && <div className="absolute left-2 top-2"><StatusBadge status={item.status} /></div>}

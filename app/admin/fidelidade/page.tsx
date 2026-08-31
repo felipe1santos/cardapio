@@ -188,7 +188,7 @@ function DiasChips({ dias, onChange }: { dias: number[]; onChange: (dias: number
 function ItemThumb({ nome, imagemUrl, size = 'h-8 w-8' }: { nome: string; imagemUrl: string | null; size?: string }) {
   if (imagemUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imagemUrl} alt={nome} className={`${size} flex-shrink-0 rounded-menuzia border border-border object-cover`} />
+    return <img src={imagemUrl} alt={nome} loading="lazy" decoding="async" className={`${size} flex-shrink-0 rounded-menuzia border border-border object-cover`} />
   }
   return (
     <div className={`${size} flex flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-page text-[12px] font-bold text-text-subtle`}>

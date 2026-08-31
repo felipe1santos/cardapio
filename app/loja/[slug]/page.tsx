@@ -200,6 +200,13 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = UtensilsCr
       <img
         src={item.imagemUrl}
         alt={item.nome}
+        // Thumb de listagem: só baixa quando chega perto da viewport. O cardápio
+        // inteiro fica no DOM de uma vez, então sem isso o browser buscaria
+        // todas as fotos no primeiro paint.
+        loading="lazy"
+        decoding="async"
+        width={size}
+        height={size}
         className="flex-shrink-0 rounded object-cover"
         style={{ width: size, height: size }}
       />
@@ -222,11 +229,23 @@ function iconePremio(tipo: 'item_gratis' | 'desconto_percentual' | 'desconto_val
   return UtensilsCrossed
 }
 
-function ProductImage({ item, className = '' }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; className?: string }) {
+/**
+ * Foto de produto. `prioritaria` só é usada quando a imagem é o próprio LCP da
+ * página (a colagem que substitui o banner da loja quando ela não tem capa);
+ * em qualquer listagem o padrão é lazy.
+ */
+function ProductImage({ item, className = '', prioritaria = false }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; className?: string; prioritaria?: boolean }) {
   if (item.imagemUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={item.imagemUrl} alt={item.nome} className={`object-cover ${className}`} />
+      <img
+        src={item.imagemUrl}
+        alt={item.nome}
+        loading={prioritaria ? 'eager' : 'lazy'}
+        decoding="async"
+        {...(prioritaria ? { fetchPriority: 'high' as const } : {})}
+        className={`object-cover ${className}`}
+      />
     )
   }
   return (
@@ -1668,7 +1687,7 @@ export default function StorefrontPage() {
           <div className="flex items-center gap-2.5 font-extrabold tracking-tight">
             {restaurante.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={restaurante.logoUrl} alt={storeName} className="h-8 w-8 rounded object-cover" />
+              <img src={restaurante.logoUrl} alt={storeName} loading="eager" decoding="async" width={32} height={32} className="h-8 w-8 rounded object-cover" />
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-sm font-extrabold text-white">
                 {storeName.charAt(0).toUpperCase()}
@@ -1722,9 +1741,17 @@ export default function StorefrontPage() {
                 <div className="relative z-0 h-28 w-full overflow-hidden sm:h-40 lg:h-80 lg:rounded-menuzia">
                   {restaurante.bannerUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={restaurante.bannerUrl} alt={storeName} className="h-full w-full object-cover" />
+                    // Capa da loja: é o LCP da vitrine — carrega cedo e com prioridade alta.
+                    <img
+                      src={restaurante.bannerUrl}
+                      alt={storeName}
+                      loading="eager"
+                      decoding="async"
+                      fetchPriority="high"
+                      className="h-full w-full object-cover"
+                    />
                   ) : collageImages[0] ? (
-                    <ProductImage item={collageImages[0]} className="h-full w-full" />
+                    <ProductImage item={collageImages[0]} className="h-full w-full" prioritaria />
                   ) : (
                     <div className="h-full w-full bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)]" />
                   )}
@@ -1738,7 +1765,8 @@ export default function StorefrontPage() {
                 <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-20 sm:w-20 lg:h-[88px] lg:w-[88px]">
                   {restaurante.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={restaurante.logoUrl} alt={storeName} className="h-full w-full object-cover" />
+                    // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
+                    <img src={restaurante.logoUrl} alt={storeName} loading="eager" decoding="async" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-2xl font-extrabold text-white sm:text-3xl">
                       {storeName.charAt(0).toUpperCase()}
@@ -1804,6 +1832,10 @@ export default function StorefrontPage() {
                 <img
                   src={restaurante.bannerPromocionalUrl}
                   alt="Promoção"
+                  // Fica logo abaixo do hero: quando está visível o browser baixa
+                  // na hora; quando não está, deixa de concorrer com o LCP.
+                  loading="lazy"
+                  decoding="async"
                   className="h-28 w-full rounded-md border border-border object-cover sm:h-36"
                 />
               </div>
@@ -2517,7 +2549,9 @@ export default function StorefrontPage() {
             <div className="flex-1 overflow-y-auto">
               {productSheet.imagemUrl
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} className="h-[42vh] w-full object-cover lg:h-[260px]" />
+                // O sheet só é montado depois do clique, então não concorre com o
+                // carregamento inicial — aqui a foto é o conteúdo principal.
+                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} loading="eager" decoding="async" fetchPriority="high" className="h-[42vh] w-full object-cover lg:h-[260px]" />
                 : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><UtensilsCrossed className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
               <div className="p-4.5">
@@ -2677,7 +2711,7 @@ export default function StorefrontPage() {
                           <>
                             {comp.imagemUrl && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={comp.imagemUrl} alt={comp.nome} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
+                              <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={36} height={36} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
                             )}
                             <span className="flex-1 text-sm font-medium">{comp.nome}</span>
                             {comp.preco > 0
@@ -2733,7 +2767,7 @@ export default function StorefrontPage() {
                       <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                         {addon.imagemUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={addon.imagemUrl} alt={addon.nome} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
+                          <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={36} height={36} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
                         )}
                         <span className="flex-1 text-sm font-medium">{addon.nome}</span>
                         {addon.preco > 0

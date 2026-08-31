@@ -549,7 +549,7 @@ function PagamentoModal({
                   <li key={i.uid} className="flex items-center gap-3">
                     {img ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={img} alt={i.nome} className="h-12 w-12 flex-shrink-0 rounded-menuzia bg-page object-cover" />
+                      <img src={img} alt={i.nome} loading="lazy" decoding="async" width={48} height={48} className="h-12 w-12 flex-shrink-0 rounded-menuzia bg-page object-cover" />
                     ) : (
                       <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-text-subtle/25">
                         <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
@@ -1238,7 +1238,7 @@ export default function PdvPage() {
                                 <li key={i.id} className="flex items-center gap-3">
                                   {img ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={img} alt={i.nome} className="h-12 w-12 flex-shrink-0 rounded-menuzia bg-page object-cover" />
+                                    <img src={img} alt={i.nome} loading="lazy" decoding="async" width={48} height={48} className="h-12 w-12 flex-shrink-0 rounded-menuzia bg-page object-cover" />
                                   ) : (
                                     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-text-subtle/25">
                                       <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
@@ -1533,6 +1533,10 @@ export default function PdvPage() {
                         <img
                           src={item.imagemUrl}
                           alt={item.nome}
+                          // Sem filtro de grupo a grade mostra o cardápio inteiro;
+                          // sem lazy o PDV baixava todas as fotos ao abrir.
+                          loading="lazy"
+                          decoding="async"
                           className="aspect-[4/3] w-full object-cover object-center"
                         />
                       ) : (
@@ -1684,6 +1688,10 @@ export default function PdvPage() {
                           <img
                             src={linha.item.imagemUrl}
                             alt={linha.item.nome}
+                            loading="lazy"
+                            decoding="async"
+                            width={56}
+                            height={56}
                             className="h-14 w-14 flex-shrink-0 rounded-menuzia bg-page object-contain"
                           />
                         ) : (

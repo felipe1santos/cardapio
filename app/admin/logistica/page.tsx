@@ -1295,7 +1295,7 @@ export default function LogisticaPage() {
                               <div className="mt-2.5 flex items-center gap-2">
                                 {entrega.entregadorFotoUrl ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={entrega.entregadorFotoUrl} alt={entrega.entregadorNome} className="h-8 w-8 rounded-full border border-border object-cover" />
+                                  <img src={entrega.entregadorFotoUrl} alt={entrega.entregadorNome} loading="lazy" decoding="async" width={32} height={32} className="h-8 w-8 rounded-full border border-border object-cover" />
                                 ) : (
                                   <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-xs font-bold text-text-subtle">
                                     {entrega.entregadorNome.charAt(0).toUpperCase()}

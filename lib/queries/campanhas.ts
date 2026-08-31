@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizarTelefone } from './clientes'
+import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,9 +154,12 @@ export async function excluirCampanha(supabase: SupabaseClient, restauranteId: s
 // ─── Upload de mídia ──────────────────────────────────────────────────────────
 
 export async function uploadMidiaCampanha(supabase: SupabaseClient, restauranteId: string, file: File, tipo: 'imagem' | 'audio'): Promise<string> {
-  const ext = file.name.split('.').pop() ?? (tipo === 'audio' ? 'mp3' : 'jpg')
+  // Áudio passa intacto; imagem de campanha é enviada pelo WhatsApp, então o
+  // perfil `produto` (1200 px) é o teto útil.
+  const midia = tipo === 'imagem' ? await otimizarImagem(file, 'produto') : file
+  const ext = midia.name.split('.').pop() ?? (tipo === 'audio' ? 'mp3' : 'jpg')
   const caminho = `${restauranteId}/campanhas/${tipo}-${crypto.randomUUID()}.${ext}`
-  const { error } = await supabase.storage.from('cardapio').upload(caminho, file, { cacheControl: '3600', upsert: false })
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, midia, { cacheControl: CACHE_CONTROL_SEGUNDOS, upsert: false })
   if (error) throw error
   const { data } = supabase.storage.from('cardapio').getPublicUrl(caminho)
   return data.publicUrl

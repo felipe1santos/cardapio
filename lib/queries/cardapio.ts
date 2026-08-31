@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
+import { otimizarImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -377,13 +378,25 @@ export async function excluirItens(supabase: SupabaseClient, itemIds: string[]) 
   if (error) throw error
 }
 
-/** Uploads a menu photo to the tenant-scoped folder of the public `cardapio` bucket and returns its public URL. */
-export async function enviarImagemItem(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
-  const extensao = file.name.split('.').pop() ?? 'jpg'
+/**
+ * Uploads a menu photo to the tenant-scoped folder of the public `cardapio` bucket and returns its public URL.
+ *
+ * O perfil define o tamanho em que a imagem é guardada: `produto` para a foto do
+ * item (aparece em 600 px no sheet da vitrine) e `thumb` para complementos, que
+ * nunca passam de 40 px na tela.
+ */
+export async function enviarImagemItem(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  file: File,
+  perfil: PerfilImagem = 'produto'
+): Promise<string> {
+  const otimizado = await otimizarImagem(file, perfil)
+  const extensao = otimizado.name.split('.').pop() ?? 'jpg'
   const caminho = `${restauranteId}/${crypto.randomUUID()}.${extensao}`
 
-  const { error } = await supabase.storage.from('cardapio').upload(caminho, file, {
-    cacheControl: '3600',
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, otimizado, {
+    cacheControl: CACHE_CONTROL_SEGUNDOS,
     upsert: false,
   })
   if (error) throw error

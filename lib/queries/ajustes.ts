@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LayoutCardapio } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { composeEndereco } from '@/lib/endereco'
+import { otimizarImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 
 export interface ConfigLoja {
   id: string
@@ -306,12 +307,19 @@ export async function removerTaxaRaio(supabase: SupabaseClient, id: string) {
 }
 
 /** Uploads a profile image (logo/banner) to the tenant-scoped folder of the public `cardapio` bucket and returns its public URL. */
-async function enviarImagemPerfil(supabase: SupabaseClient, restauranteId: string, file: File, prefixo: string): Promise<string> {
-  const extensao = file.name.split('.').pop() ?? 'jpg'
+async function enviarImagemPerfil(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  file: File,
+  prefixo: string,
+  perfil: PerfilImagem
+): Promise<string> {
+  const otimizado = await otimizarImagem(file, perfil)
+  const extensao = otimizado.name.split('.').pop() ?? 'jpg'
   const caminho = `${restauranteId}/perfil/${prefixo}-${crypto.randomUUID()}.${extensao}`
 
-  const { error } = await supabase.storage.from('cardapio').upload(caminho, file, {
-    cacheControl: '3600',
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, otimizado, {
+    cacheControl: CACHE_CONTROL_SEGUNDOS,
     upsert: false,
   })
   if (error) throw error
@@ -321,13 +329,13 @@ async function enviarImagemPerfil(supabase: SupabaseClient, restauranteId: strin
 }
 
 export function enviarLogoLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
-  return enviarImagemPerfil(supabase, restauranteId, file, 'logo')
+  return enviarImagemPerfil(supabase, restauranteId, file, 'logo', 'logo')
 }
 
 export function enviarBannerLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
-  return enviarImagemPerfil(supabase, restauranteId, file, 'banner')
+  return enviarImagemPerfil(supabase, restauranteId, file, 'banner', 'banner')
 }
 
 export function enviarBannerPromocionalLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
-  return enviarImagemPerfil(supabase, restauranteId, file, 'banner-promo')
+  return enviarImagemPerfil(supabase, restauranteId, file, 'banner-promo', 'banner')
 }
