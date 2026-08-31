@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
-import { otimizarImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
+import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -75,6 +75,8 @@ export interface ItemCardapio {
   descricao: string
   preco: number
   imagemUrl: string | null
+  /** Miniatura ~400px pras listagens. Null = usar imagemUrl. */
+  imagemThumbUrl: string | null
   status: StatusItem
   diasDisponiveis: number[]
   promocaoPreco: number | null
@@ -105,6 +107,7 @@ interface ItemRow {
   descricao: string
   preco: number
   imagem_url: string | null
+  imagem_thumb_url: string | null
   status: StatusItem
   dias_disponiveis: number[]
   promocao_preco: number | null
@@ -148,6 +151,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     descricao: row.descricao,
     preco: Number(row.preco),
     imagemUrl: row.imagem_url,
+    imagemThumbUrl: row.imagem_thumb_url ?? null,
     status: row.status,
     diasDisponiveis: row.dias_disponiveis ?? [],
     promocaoPreco: row.promocao_preco === null ? null : Number(row.promocao_preco),
@@ -274,7 +278,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 }
 
 const ITEM_SELECT = `
-  id, grupo_id, nome, descricao, preco, imagem_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
+  id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
   tamanhos_item ( id, nome, preco, posicao ),
@@ -304,6 +308,7 @@ export interface NovoItemInput {
   tag: TagItem | null
   tipoItem: TipoItem
   imagemUrl?: string | null
+  imagemThumbUrl?: string | null
 }
 
 export async function criarItem(supabase: SupabaseClient, restauranteId: string, input: NovoItemInput): Promise<ItemCardapio> {
@@ -322,6 +327,7 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       tag: input.tag,
       tipo_item: input.tipoItem,
       imagem_url: input.imagemUrl ?? null,
+      imagem_thumb_url: input.imagemThumbUrl ?? null,
     })
     .select(ITEM_SELECT)
     .single()
@@ -338,6 +344,7 @@ export interface AtualizarItemInput {
   status: StatusItem
   diasDisponiveis: number[]
   imagemUrl: string | null
+  imagemThumbUrl?: string | null
   promocaoPreco: number | null
   maisVendido: boolean
   tag: TagItem | null
@@ -355,6 +362,9 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
       status: input.status,
       dias_disponiveis: input.diasDisponiveis,
       imagem_url: input.imagemUrl,
+      // Só toca na miniatura quando o chamador realmente mandou uma: uma edição
+      // que não mexe na foto não pode zerar a thumb já existente.
+      ...('imagemThumbUrl' in input ? { imagem_thumb_url: input.imagemThumbUrl ?? null } : {}),
       promocao_preco: input.promocaoPreco,
       mais_vendido: input.maisVendido,
       tag: input.tag,
@@ -392,10 +402,15 @@ export async function enviarImagemItem(
   perfil: PerfilImagem = 'produto'
 ): Promise<string> {
   const otimizado = await otimizarImagem(file, perfil)
-  const extensao = otimizado.name.split('.').pop() ?? 'jpg'
+  return subirArquivo(supabase, restauranteId, otimizado)
+}
+
+/** Sobe um arquivo já otimizado na pasta do tenant e devolve a URL pública. */
+async function subirArquivo(supabase: SupabaseClient, restauranteId: string, arquivo: File): Promise<string> {
+  const extensao = arquivo.name.split('.').pop() ?? 'jpg'
   const caminho = `${restauranteId}/${crypto.randomUUID()}.${extensao}`
 
-  const { error } = await supabase.storage.from('cardapio').upload(caminho, otimizado, {
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, arquivo, {
     cacheControl: CACHE_CONTROL_SEGUNDOS,
     upsert: false,
   })
@@ -403,6 +418,29 @@ export async function enviarImagemItem(
 
   const { data } = supabase.storage.from('cardapio').getPublicUrl(caminho)
   return data.publicUrl
+}
+
+/**
+ * Envia a foto de um item nas duas versões que a UI usa: a full que abre no
+ * sheet do produto e a miniatura das listagens.
+ *
+ * A miniatura é oportunista — se a geração ou o upload dela falhar, o cadastro
+ * segue normalmente com `thumbUrl: null` e o frontend cai no fallback. Nunca
+ * impedir o lojista de salvar o produto por causa da thumb.
+ */
+export async function enviarImagemItemComThumb(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  file: File
+): Promise<{ url: string; thumbUrl: string | null }> {
+  const { full, thumb } = await otimizarParImagem(file, 'produto')
+  const url = await subirArquivo(supabase, restauranteId, full)
+  if (!thumb) return { url, thumbUrl: null }
+  try {
+    return { url, thumbUrl: await subirArquivo(supabase, restauranteId, thumb) }
+  } catch {
+    return { url, thumbUrl: null }
+  }
 }
 
 // ─── Complement groups per item ───────────────────────────────────────────────

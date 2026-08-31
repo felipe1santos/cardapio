@@ -8,6 +8,7 @@ import {
   atualizarItemPreset,
   criarItem,
   enviarImagemItem,
+  enviarImagemItemComThumb,
   type ItemCardapio,
 } from '@/lib/queries/cardapio'
 import { limparNomeArquivo } from './bulk-upload-nome'
@@ -90,8 +91,12 @@ export function BulkUploadModal({
 
   /** Sobe um arquivo e cria o registro correspondente. Retorna a linha pra revisão. */
   async function processarArquivo(file: File, indice: number, jaExistentes: number): Promise<LinhaRevisao> {
-    // Complementos de preset nunca passam de 40 px na tela; itens vão pro sheet da vitrine.
-    const url = await enviarImagemItem(supabase, restauranteId, file, target.tipo === 'item' ? 'produto' : 'thumb')
+    // Item vai pro sheet da vitrine e também pras listagens, então precisa das
+    // duas versões. Complemento de preset nunca passa de 40 px: só a miniatura.
+    const par = target.tipo === 'item'
+      ? await enviarImagemItemComThumb(supabase, restauranteId, file)
+      : { url: await enviarImagemItem(supabase, restauranteId, file, 'thumb'), thumbUrl: null }
+    const url = par.url
     const nome = limparNomeArquivo(file.name) ?? `Item ${indice + 1}`
 
     if (target.tipo === 'item') {
@@ -107,6 +112,7 @@ export function BulkUploadModal({
         tag: null,
         tipoItem: 'simples',
         imagemUrl: url,
+        imagemThumbUrl: par.thumbUrl,
       })
       return { registroId: item.id, imagemUrl: url, nome: item.nome, preco: '0,00', item }
     }

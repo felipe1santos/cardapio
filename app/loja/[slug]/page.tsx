@@ -193,12 +193,28 @@ function TagBadge({ tag }: { tag: string | null }) {
   )
 }
 
-function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = UtensilsCrossed }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; size?: number; fallbackIcon?: typeof UtensilsCrossed }) {
-  if (item.imagemUrl) {
+/**
+ * O que basta para desenhar a foto de um item. `imagemThumbUrl` é opcional
+ * porque prêmios de fidelidade, cupons e linhas do carrinho carregam só a URL
+ * cheia — nesses casos o fallback resolve.
+ */
+type FotoDeItem = { nome: string; imagemUrl: string | null; imagemThumbUrl?: string | null }
+
+/**
+ * Foto que aparece numa listagem. Usa a miniatura de 400 px; quando o item ainda
+ * não tem uma (cadastro antigo), cai na full — que é o que sempre foi exibido.
+ */
+function urlDeListagem(item: FotoDeItem): string | null {
+  return item.imagemThumbUrl ?? item.imagemUrl
+}
+
+function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = UtensilsCrossed }: { item: FotoDeItem; size?: number; fallbackIcon?: typeof UtensilsCrossed }) {
+  const src = urlDeListagem(item)
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={item.imagemUrl}
+        src={src}
         alt={item.nome}
         // Thumb de listagem: só baixa quando chega perto da viewport. O cardápio
         // inteiro fica no DOM de uma vez, então sem isso o browser buscaria
@@ -234,12 +250,15 @@ function iconePremio(tipo: 'item_gratis' | 'desconto_percentual' | 'desconto_val
  * página (a colagem que substitui o banner da loja quando ela não tem capa);
  * em qualquer listagem o padrão é lazy.
  */
-function ProductImage({ item, className = '', prioritaria = false }: { item: Pick<ItemCardapio, 'nome' | 'imagemUrl'>; className?: string; prioritaria?: boolean }) {
-  if (item.imagemUrl) {
+function ProductImage({ item, className = '', prioritaria = false }: { item: FotoDeItem; className?: string; prioritaria?: boolean }) {
+  // Prioritária = está substituindo a capa da loja, ocupando a largura toda:
+  // aí vale a full. Nos cards de listagem, a miniatura basta.
+  const src = prioritaria ? item.imagemUrl : urlDeListagem(item)
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={item.imagemUrl}
+        src={src}
         alt={item.nome}
         loading={prioritaria ? 'eager' : 'lazy'}
         decoding="async"

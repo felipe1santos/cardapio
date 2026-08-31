@@ -46,6 +46,36 @@ const PERFIS: Record<PerfilImagem, Perfil> = {
   banner: { maxLado: 1600, qualidade: 0.82 },
 }
 
+/** Par full + miniatura de um mesmo arquivo. `thumb` é null quando não valeu a pena gerar. */
+export interface ParImagem {
+  full: File
+  thumb: File | null
+}
+
+/**
+ * Gera as duas versões que a UI precisa a partir de um único arquivo escolhido:
+ * a `full` do perfil pedido (o que abre no sheet do produto) e uma `thumb` de
+ * 400 px (o que aparece nos cards de listagem).
+ *
+ * A miniatura é oportunista: se falhar, ou se ficar do mesmo tamanho da full
+ * — imagem que já era pequena —, devolve `thumb: null` e o chamador grava só a
+ * full. O frontend cai no fallback e nada quebra.
+ */
+export async function otimizarParImagem(file: File, perfil: PerfilImagem = 'produto'): Promise<ParImagem> {
+  const full = await otimizarImagem(file, perfil)
+  if (perfil === 'thumb') return { full, thumb: null }
+
+  try {
+    // A thumb sai da full já reduzida: menos um decode do arquivo original.
+    const thumb = await otimizarImagem(full, 'thumb')
+    // `otimizarImagem` devolve a própria entrada quando não há ganho.
+    if (thumb === full || thumb.size >= full.size) return { full, thumb: null }
+    return { full, thumb }
+  } catch {
+    return { full, thumb: null }
+  }
+}
+
 /** Formatos que não podem passar pelo canvas sem perder o que os torna úteis. */
 const FORMATOS_INTOCAVEIS = ['image/gif', 'image/svg+xml', 'image/apng']
 

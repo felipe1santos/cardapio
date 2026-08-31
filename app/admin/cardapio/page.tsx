@@ -28,6 +28,7 @@ import {
   criarTamanho,
   definirStatusEmLote,
   enviarImagemItem,
+  enviarImagemItemComThumb,
   excluirItens,
   importarPresetNoItem,
   listarGrupos,
@@ -113,6 +114,7 @@ interface ItemFormState {
   status: StatusItem
   diasDisponiveis: number[]
   imagemUrl: string | null
+  imagemThumbUrl: string | null
   promocaoPreco: string
   maisVendido: boolean
   tag: TagItem | null
@@ -129,7 +131,7 @@ const TIPO_ITEM_OPTIONS: { value: TipoItem; label: string }[] = [
 
 function blankForm(grupoId: string | null): ItemFormState {
   return {
-    id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null,
+    id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null, imagemThumbUrl: null,
     promocaoPreco: '', maisVendido: false, tag: null, tipoItem: 'simples',
   }
 }
@@ -144,6 +146,7 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     status: item.status,
     diasDisponiveis: item.diasDisponiveis,
     imagemUrl: item.imagemUrl,
+    imagemThumbUrl: item.imagemThumbUrl,
     promocaoPreco: item.promocaoPreco !== null ? item.promocaoPreco.toFixed(2).replace('.', ',') : '',
     maisVendido: item.maisVendido,
     tag: item.tag,
@@ -218,10 +221,12 @@ function DayToggles({ days, onChange }: { days: number[]; onChange: (days: numbe
 }
 
 function ItemThumb({ item, size = 42 }: { item: ItemCardapio; size?: number }) {
-  if (item.imagemUrl) {
+  // Miniatura nas listagens do admin; item sem thumb cai na full.
+  const src = item.imagemThumbUrl ?? item.imagemUrl
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={item.imagemUrl} alt={item.nome} loading="lazy" decoding="async" width={size} height={size} className="flex-shrink-0 rounded-menuzia object-cover" style={{ width: size, height: size }} />
+      <img src={src} alt={item.nome} loading="lazy" decoding="async" width={size} height={size} className="flex-shrink-0 rounded-menuzia object-cover" style={{ width: size, height: size }} />
     )
   }
   return (
@@ -1989,8 +1994,10 @@ export default function CardapioPage() {
     setUploading(true)
     setError(null)
     try {
-      const url = await enviarImagemItem(supabase, restauranteId, file)
-      setForm((prev) => ({ ...prev, imagemUrl: url }))
+      // Gera full + miniatura numa operação só. Se a thumb falhar, vem null e a
+      // listagem cai no fallback — o cadastro não é bloqueado por causa dela.
+      const { url, thumbUrl } = await enviarImagemItemComThumb(supabase, restauranteId, file)
+      setForm((prev) => ({ ...prev, imagemUrl: url, imagemThumbUrl: thumbUrl }))
     } catch {
       setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
     } finally {
@@ -2017,13 +2024,13 @@ export default function CardapioPage() {
         tipoItem: form.tipoItem,
       }
       if (form.id) {
-        const updated = await atualizarItem(supabase, form.id, { ...payload, imagemUrl: form.imagemUrl })
+        const updated = await atualizarItem(supabase, form.id, { ...payload, imagemUrl: form.imagemUrl, imagemThumbUrl: form.imagemThumbUrl })
         setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
       } else {
         const created = await criarItem(supabase, restauranteId, payload)
         let final = created
         if (form.imagemUrl) {
-          final = await atualizarItem(supabase, created.id, { ...payload, imagemUrl: form.imagemUrl })
+          final = await atualizarItem(supabase, created.id, { ...payload, imagemUrl: form.imagemUrl, imagemThumbUrl: form.imagemThumbUrl })
         }
         setItems((prev) => [...prev, final])
         // Update form with the new item id so complementos can be added
@@ -2643,9 +2650,10 @@ export default function CardapioPage() {
                   {visibleItems.map((item) => (
                     <div key={item.id} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
                       <div className="relative flex h-[120px] items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                        {item.imagemUrl
+                        {(item.imagemThumbUrl ?? item.imagemUrl)
+                          // Card de 120px de altura: miniatura basta.
                           // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={item.imagemUrl} alt={item.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                          ? <img src={item.imagemThumbUrl ?? item.imagemUrl!} alt={item.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                           : <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] fill-text-subtle/50"><path d="M12 6c-3.87 0-7 2.46-7 5.5 0 .5.09.98.26 1.43.07.2.27.32.49.27.21-.05.34-.26.3-.47A4 4 0 017 11.5C7 9.57 9.24 8 12 8s5 1.57 5 3.5c0 .42-.07.82-.2 1.2-.05.21.08.42.29.47.22.05.42-.07.49-.27.17-.45.26-.93.26-1.4C19 8.46 15.87 6 12 6zM4 15h16v2H4zm0 3h16v2H4z" /></svg>
                         }
                         {item.status !== 'disponivel' && <div className="absolute left-2 top-2"><StatusBadge status={item.status} /></div>}

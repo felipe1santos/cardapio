@@ -842,7 +842,7 @@ export default function PdvPage() {
   // (o snapshot do pedido não guarda a imagem; buscamos pelo nome no cardápio atual).
   const imagemPorNome = useMemo(() => {
     const m = new Map<string, string>()
-    for (const i of itens) if (i.imagemUrl) m.set(i.nome, i.imagemUrl)
+    for (const i of itens) { const u = i.imagemThumbUrl ?? i.imagemUrl; if (u) m.set(i.nome, u) }
     return m
   }, [itens])
 
@@ -1528,10 +1528,11 @@ export default function PdvPage() {
                       onClick={() => addItem(item)}
                       className="group flex flex-col overflow-hidden rounded-menuzia border border-border bg-white text-left transition-all hover:border-primary hover:shadow-md active:scale-[0.98]"
                     >
-                      {item.imagemUrl ? (
+                      {(item.imagemThumbUrl ?? item.imagemUrl) ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={item.imagemUrl}
+                          // Card pequeno: miniatura basta. Sem ela (item antigo), a full.
+                          src={item.imagemThumbUrl ?? item.imagemUrl!}
                           alt={item.nome}
                           // Sem filtro de grupo a grade mostra o cardápio inteiro;
                           // sem lazy o PDV baixava todas as fotos ao abrir.
