@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import QRCode from 'qrcode'
 import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
@@ -320,21 +321,18 @@ export default function LogisticaPage() {
   // Canal Realtime num effect próprio: o cleanup retornado por uma função
   // async nunca é chamado pelo React, então o canal ficava aberto pra sempre
   // a cada remontagem da página, vazando conexões Realtime ao longo do turno.
-  useEffect(() => {
-    if (!restauranteId) return
-    const channel = supabase
-      .channel(`logistica-${restauranteId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch(restauranteId))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch(restauranteId))
-      // Eventos do Nexta chegam por webhook e viram UPDATE nesta tabela — é assim que
-      // "entregador a caminho" aparece na tela sem ninguém dar refresh.
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch(restauranteId))
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [supabase, refetch, restauranteId])
+  // Eventos do Nexta chegam por webhook e viram UPDATE em `nexta_entregas` — é
+  // assim que "entregador a caminho" aparece na tela sem ninguém dar refresh.
+  const { intervaloMs } = useRealtimeComFallback({
+    supabase,
+    canal: restauranteId ? `logistica-${restauranteId}` : null,
+    tabelas: useMemo(() => {
+      const filtro = restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined
+      return [{ tabela: 'pedidos', filtro }, { tabela: 'entregadores', filtro }, { tabela: 'nexta_entregas', filtro }]
+    }, [restauranteId]),
+    aoEvento: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
+    aoSincronizar: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
+  })
 
   useEffect(() => {
     const inicial = tabDaUrl()
@@ -361,12 +359,13 @@ export default function LogisticaPage() {
   }
 
   // Refetch periódico — "motoboy online" depende do horário atual, então precisa
-  // recalcular mesmo sem eventos de realtime (ex.: motoboy fechou o app).
+  // recalcular mesmo sem eventos de realtime (ex.: motoboy fechou o app). Com o
+  // canal saudável vira heartbeat; se ele cair, volta ao ritmo agressivo.
   useEffect(() => {
     if (!restauranteId) return
-    const interval = setInterval(() => refetch(restauranteId), 10000)
+    const interval = setInterval(() => refetch(restauranteId), intervaloMs)
     return () => clearInterval(interval)
-  }, [restauranteId, refetch])
+  }, [restauranteId, refetch, intervaloMs])
 
   const available = drivers.filter((d) => d.status === 'online')
   /** Prontos sem entregador próprio — inclui os que já foram mandados pro Nexta. */

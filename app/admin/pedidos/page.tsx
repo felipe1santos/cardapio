@@ -1,6 +1,7 @@
 'use client'
 
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import {
   type LucideIcon,
   BellRing,
@@ -628,30 +629,26 @@ export default function PedidosPage() {
   // cleanup retornado por uma função async nunca é chamado pelo React — o
   // canal ficava aberto pra sempre a cada remontagem da página, vazando
   // conexões e concorrendo com o poll de 8s (ver refetchSeq acima).
+  const { saudavel: realtimeOk, intervaloMs } = useRealtimeComFallback({
+    supabase,
+    canal: restauranteId ? `pedidos-kanban-${restauranteId}` : null,
+    tabelas: useMemo(
+      () => [{ tabela: 'pedidos', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined }],
+      [restauranteId]
+    ),
+    aoEvento: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
+    aoSincronizar: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
+  })
+
+  // Rede de segurança, não fonte primária: com o canal saudável basta um
+  // heartbeat lento; se ele cair, o poll volta ao ritmo antigo de 8s. Um refetch
+  // do Kanban custa ~30 KB num dia de pico, então manter os dois em 8s era
+  // repetir de graça o que o evento já tinha trazido.
   useEffect(() => {
     if (!restauranteId) return
-    const channel = supabase
-      .channel(`pedidos-kanban-${restauranteId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` },
-        () => refetch(restauranteId)
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [supabase, refetch, restauranteId])
-
-  // Atualização periódica — fallback caso o realtime do Supabase não chegue
-  // (ex.: instância self-hosted com realtime indisponível). Garante que o painel
-  // reflita mudanças de estágio (aceitar, pronto, devolver da cozinha) sem F5.
-  useEffect(() => {
-    if (!restauranteId) return
-    const interval = setInterval(() => refetch(restauranteId), 8000)
+    const interval = setInterval(() => refetch(restauranteId), intervaloMs)
     return () => clearInterval(interval)
-  }, [restauranteId, refetch])
+  }, [restauranteId, refetch, intervaloMs])
 
   // relógio para os tempos decorridos (ticando a cada segundo)
   useEffect(() => {
