@@ -23,7 +23,7 @@
  */
 export const CACHE_CONTROL_SEGUNDOS = '31536000'
 
-export type PerfilImagem = 'produto' | 'thumb' | 'logo' | 'banner'
+export type PerfilImagem = 'produto' | 'thumb' | 'logo' | 'banner' | 'bannerMobile'
 
 interface Perfil {
   /** Limite do maior lado, em px. A proporção é sempre preservada. */
@@ -38,12 +38,35 @@ interface Perfil {
  *  - thumb:   complementos e avatares aparecem em 9–64 px → 400 é folga de sobra
  *  - logo:    maior uso é 88 px (barra da loja na vitrine) → 512
  *  - banner:  hero da vitrine ocupa a largura toda do container de 1280 → 1600
+ *  - bannerMobile: a mesma capa para telas estreitas. Um celular de 390 px com
+ *    DPR 2 precisa de ~780 px; servir os 1600 px ali significava baixar 190 KB
+ *    para exibir o equivalente a 18 KB, e a capa é o elemento de LCP.
  */
 const PERFIS: Record<PerfilImagem, Perfil> = {
   produto: { maxLado: 1200, qualidade: 0.82 },
   thumb: { maxLado: 400, qualidade: 0.8 },
   logo: { maxLado: 512, qualidade: 0.85 },
   banner: { maxLado: 1600, qualidade: 0.82 },
+  bannerMobile: { maxLado: 800, qualidade: 0.8 },
+}
+
+/** Largura em pixels de cada perfil — usada para montar o `srcset`. */
+export const LARGURA_PERFIL: Record<PerfilImagem, number> = {
+  produto: 1200, thumb: 400, logo: 512, banner: 1600, bannerMobile: 800,
+}
+
+/**
+ * Largura em que a capa da loja é exibida. Acima de `lg` ela mora num container
+ * de 1280 px com 32 px de margem de cada lado; abaixo disso ocupa a tela toda.
+ * Precisa bater com o que a vitrine desenha, senão o navegador escolhe a
+ * variante errada do `srcset` — e o preload baixa uma imagem que ninguém usa.
+ */
+export const TAMANHOS_CAPA = '(min-width: 1024px) 1216px, 100vw'
+
+/** Monta o `srcset` da capa. Sem a variante estreita, devolve undefined. */
+export function srcSetCapa(bannerUrl: string | null, bannerMobileUrl: string | null): string | undefined {
+  if (!bannerUrl || !bannerMobileUrl) return undefined
+  return `${bannerMobileUrl} ${LARGURA_PERFIL.bannerMobile}w, ${bannerUrl} ${LARGURA_PERFIL.banner}w`
 }
 
 /** Par full + miniatura de um mesmo arquivo. `thumb` é null quando não valeu a pena gerar. */
@@ -63,11 +86,15 @@ export interface ParImagem {
  */
 export async function otimizarParImagem(file: File, perfil: PerfilImagem = 'produto'): Promise<ParImagem> {
   const full = await otimizarImagem(file, perfil)
-  if (perfil === 'thumb') return { full, thumb: null }
+  if (perfil === 'thumb' || perfil === 'bannerMobile') return { full, thumb: null }
+
+  // A capa não usa miniatura de 400 px: ela é exibida na largura toda da tela,
+  // então a variante pequena precisa dar conta de um celular com DPR 2.
+  const menor: PerfilImagem = perfil === 'banner' ? 'bannerMobile' : 'thumb'
 
   try {
-    // A thumb sai da full já reduzida: menos um decode do arquivo original.
-    const thumb = await otimizarImagem(full, 'thumb')
+    // A versão menor sai da full já reduzida: menos um decode do arquivo original.
+    const thumb = await otimizarImagem(full, menor)
     // `otimizarImagem` devolve a própria entrada quando não há ganho.
     if (thumb === full || thumb.size >= full.size) return { full, thumb: null }
     return { full, thumb }

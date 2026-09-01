@@ -21,6 +21,7 @@ import {
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { resolverPaleta } from '@/lib/paletas'
+import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import {
   listarTamanhosPadraoPizza,
   listarBordasPizza,
@@ -1767,6 +1768,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={restaurante.bannerUrl}
+                      // Celular estreito baixa a variante de 800 px; o desktop
+                      // continua na de 1600 px. Loja sem a variante cai no src.
+                      {...(srcSetCapa(restaurante.bannerUrl, restaurante.bannerMobileUrl) ? { srcSet: srcSetCapa(restaurante.bannerUrl, restaurante.bannerMobileUrl), sizes: TAMANHOS_CAPA } : {})}
                       alt={storeName}
                       loading="eager"
                       decoding="async"

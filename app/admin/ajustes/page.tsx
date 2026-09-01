@@ -273,6 +273,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     avaliacaoQtd: '',
     logoUrl: '',
     bannerUrl: '',
+    bannerMobileUrl: '',
     bannerPromocionalUrl: '',
     layoutCardapio: 'categoria' as LayoutCardapio,
     imagemGrande: false,
@@ -309,6 +310,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         avaliacaoQtd: c.avaliacaoQtd === null ? '' : String(c.avaliacaoQtd),
         logoUrl: c.logoUrl ?? '',
         bannerUrl: c.bannerUrl ?? '',
+        bannerMobileUrl: c.bannerMobileUrl ?? '',
         bannerPromocionalUrl: c.bannerPromocionalUrl ?? '',
         layoutCardapio: c.layoutCardapio,
         imagemGrande: c.imagemGrande,
@@ -323,7 +325,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       | 'nome' | 'telefone' | 'cep'
       | 'enderecoRua' | 'enderecoNumero' | 'enderecoComplemento' | 'enderecoBairro' | 'enderecoCidade' | 'enderecoEstado'
       | 'avaliacaoNota' | 'avaliacaoQtd'
-      | 'logoUrl' | 'bannerUrl' | 'bannerPromocionalUrl',
+      | 'logoUrl' | 'bannerUrl' | 'bannerMobileUrl' | 'bannerPromocionalUrl',
     value: string
   ) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -358,8 +360,11 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     setUploadingBanner(true)
     setError(null)
     try {
-      const url = await enviarBannerLoja(supabase, restauranteId, file)
+      // Sobe a capa nas duas larguras; a estreita pode vir null e a vitrine
+      // simplesmente não emite o srcset.
+      const { url, mobileUrl } = await enviarBannerLoja(supabase, restauranteId, file)
       set('bannerUrl', url)
+      set('bannerMobileUrl', mobileUrl ?? '')
     } catch {
       setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
     } finally {
@@ -454,6 +459,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         avaliacaoQtd: form.avaliacaoQtd.trim() === '' ? null : Math.round(Number(form.avaliacaoQtd)),
         logoUrl: form.logoUrl.trim() || null,
         bannerUrl: form.bannerUrl.trim() || null,
+        bannerMobileUrl: form.bannerMobileUrl.trim() || null,
         bannerPromocionalUrl: form.bannerPromocionalUrl.trim() || null,
         layoutCardapio: form.layoutCardapio,
         imagemGrande: form.imagemGrande,

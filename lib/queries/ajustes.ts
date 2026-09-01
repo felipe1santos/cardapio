@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LayoutCardapio } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { composeEndereco } from '@/lib/endereco'
-import { otimizarImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
+import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 
 export interface ConfigLoja {
   id: string
@@ -10,6 +10,8 @@ export interface ConfigLoja {
   slug: string
   logoUrl: string | null
   bannerUrl: string | null
+  /** Capa ~800px para telas estreitas (srcset). Null = servir só bannerUrl. */
+  bannerMobileUrl: string | null
   bannerPromocionalUrl: string | null
   telefone: string
   endereco: string
@@ -42,6 +44,7 @@ interface ConfigRow {
   slug: string
   logo_url: string | null
   banner_url: string | null
+  banner_mobile_url: string | null
   banner_promocional_url: string | null
   telefone: string
   endereco: string
@@ -67,7 +70,7 @@ interface ConfigRow {
   status_loja: StatusLoja
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_promocional_url, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -76,6 +79,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     slug: row.slug,
     logoUrl: row.logo_url,
     bannerUrl: row.banner_url,
+    bannerMobileUrl: row.banner_mobile_url ?? null,
     bannerPromocionalUrl: row.banner_promocional_url,
     telefone: row.telefone,
     endereco: row.endereco,
@@ -112,6 +116,7 @@ export interface ConfigLojaPatch {
   nome?: string
   logoUrl?: string | null
   bannerUrl?: string | null
+  bannerMobileUrl?: string | null
   bannerPromocionalUrl?: string | null
   telefone?: string
   endereco?: string
@@ -141,6 +146,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.nome !== undefined) row.nome = patch.nome
   if (patch.logoUrl !== undefined) row.logo_url = patch.logoUrl
   if (patch.bannerUrl !== undefined) row.banner_url = patch.bannerUrl
+  if (patch.bannerMobileUrl !== undefined) row.banner_mobile_url = patch.bannerMobileUrl
   if (patch.bannerPromocionalUrl !== undefined) row.banner_promocional_url = patch.bannerPromocionalUrl
   if (patch.telefone !== undefined) row.telefone = patch.telefone
 
@@ -315,10 +321,15 @@ async function enviarImagemPerfil(
   perfil: PerfilImagem
 ): Promise<string> {
   const otimizado = await otimizarImagem(file, perfil)
-  const extensao = otimizado.name.split('.').pop() ?? 'jpg'
+  return subirPerfil(supabase, restauranteId, prefixo, otimizado)
+}
+
+/** Sobe um arquivo já otimizado na pasta de perfil do tenant. */
+async function subirPerfil(supabase: SupabaseClient, restauranteId: string, prefixo: string, arquivo: File): Promise<string> {
+  const extensao = arquivo.name.split('.').pop() ?? 'jpg'
   const caminho = `${restauranteId}/perfil/${prefixo}-${crypto.randomUUID()}.${extensao}`
 
-  const { error } = await supabase.storage.from('cardapio').upload(caminho, otimizado, {
+  const { error } = await supabase.storage.from('cardapio').upload(caminho, arquivo, {
     cacheControl: CACHE_CONTROL_SEGUNDOS,
     upsert: false,
   })
@@ -332,8 +343,27 @@ export function enviarLogoLoja(supabase: SupabaseClient, restauranteId: string, 
   return enviarImagemPerfil(supabase, restauranteId, file, 'logo', 'logo')
 }
 
-export function enviarBannerLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
-  return enviarImagemPerfil(supabase, restauranteId, file, 'banner', 'banner')
+/**
+ * Envia a capa nas duas larguras que a vitrine oferece por `srcset`: 1600 px
+ * para desktop e ~800 px para telas estreitas.
+ *
+ * A variante mobile é oportunista — se falhar, volta `mobileUrl: null` e a
+ * vitrine serve só a capa cheia, como antes. Trocar a capa nunca pode falhar
+ * por causa dela.
+ */
+export async function enviarBannerLoja(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  file: File
+): Promise<{ url: string; mobileUrl: string | null }> {
+  const { full, thumb } = await otimizarParImagem(file, 'banner')
+  const url = await subirPerfil(supabase, restauranteId, 'banner', full)
+  if (!thumb) return { url, mobileUrl: null }
+  try {
+    return { url, mobileUrl: await subirPerfil(supabase, restauranteId, 'banner-mob', thumb) }
+  } catch {
+    return { url, mobileUrl: null }
+  }
 }
 
 export function enviarBannerPromocionalLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {

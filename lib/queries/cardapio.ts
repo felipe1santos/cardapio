@@ -772,6 +772,8 @@ export interface RestauranteVitrine {
   slug: string
   logoUrl: string | null
   bannerUrl: string | null
+  /** Capa ~800px pra telas estreitas (srcset). Null = servir só bannerUrl. */
+  bannerMobileUrl: string | null
   bannerPromocionalUrl: string | null
   telefone: string
   endereco: string
@@ -798,7 +800,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_promocional_url, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -814,6 +816,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
     slug: data.slug,
     logoUrl: data.logo_url,
     bannerUrl: data.banner_url,
+    bannerMobileUrl: data.banner_mobile_url ?? null,
     bannerPromocionalUrl: data.banner_promocional_url,
     telefone: data.telefone,
     endereco: data.endereco,

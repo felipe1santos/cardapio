@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { buscarRestaurantePorSlug } from '@/lib/queries/cardapio'
+import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import Vitrine from './vitrine'
 
 /**
@@ -55,12 +56,26 @@ export default async function PaginaDaLoja({ params }: { params: Promise<{ slug:
 
   // O LCP da vitrine é a capa (ou a logo, quando a loja não tem capa).
   const lcp = loja.bannerUrl ?? loja.logoUrl
+  // Quando existe a variante estreita, o preload precisa oferecer as mesmas
+  // opções do <img>. Sem isso o navegador baixaria a de 1600 px no preload e a
+  // de 800 px no elemento — duas imagens em vez de uma.
+  const srcSet = srcSetCapa(loja.bannerUrl, loja.bannerMobileUrl)
 
   return (
     <>
       {lcp && (
-        // eslint-disable-next-line @next/next/no-head-element
-        <link rel="preload" as="image" href={lcp} fetchPriority="high" />
+        <link
+          rel="preload"
+          as="image"
+          // Com `srcset`, o `href` NÃO pode ir junto: o navegador o trata como um
+          // recurso à parte e baixa a versão de 1600 px além da que o srcset
+          // escolheu — medido, duas requisições da mesma capa. Sem srcset ele é
+          // a única forma de indicar o arquivo.
+          {...(srcSet
+            ? { imageSrcSet: srcSet, imageSizes: TAMANHOS_CAPA }
+            : { href: lcp })}
+          fetchPriority="high"
+        />
       )}
       <Vitrine slug={slug} restauranteInicial={loja} />
     </>
