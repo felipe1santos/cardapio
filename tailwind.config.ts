@@ -60,7 +60,9 @@ const config: Config = {
         menuzia: "3px",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        // A variável vem do next/font (app/layout.tsx). "Inter" fica como
+        // segunda opção para quem já tiver a fonte instalada no sistema.
+        sans: ["var(--font-inter)", "Inter", "sans-serif"],
       },
     },
   },

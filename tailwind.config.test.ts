@@ -22,7 +22,11 @@ describe('Menuzia Tailwind theme tokens', () => {
   })
 
   it('uses Inter as the sans font family', () => {
-    const sans = config.theme?.extend?.fontFamily?.sans
-    expect(sans?.[0]).toBe('Inter')
+    const sans = config.theme?.extend?.fontFamily?.sans as string[] | undefined
+    // A Inter passou a vir do next/font (app/layout.tsx), que auto-hospeda os
+    // arquivos e publica a família nesta variável. O nome literal fica logo
+    // atrás, para quem já tem a fonte instalada no sistema.
+    expect(sans?.[0]).toBe('var(--font-inter)')
+    expect(sans).toContain('Inter')
   })
 })

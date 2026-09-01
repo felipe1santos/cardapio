@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* A Inter é carregada por next/font em app/layout.tsx, que auto-hospeda os
+   arquivos e expõe a família em --font-inter. Nada de @import aqui: ele
+   bloqueava a primeira pintura esperando dois domínios de terceiros. */
 
 @tailwind base;
 @tailwind components;
@@ -27,7 +29,7 @@ body {
 /* Vitrine do cliente: fonte Inter (mesma do painel), escopada por segurança */
 .font-loja,
 .font-loja * {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-inter), 'Inter', sans-serif;
 }
 
 /* Card de pedido novo no Kanban: pisca alternando azul/vermelho enquanto
