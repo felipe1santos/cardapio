@@ -5,7 +5,7 @@ import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, Ch
 import { normalizarBairro } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
-import { getBrowserSupabase } from '@/lib/supabase/client'
+import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import {
   buscarRestaurantePorSlug,
   listarBairrosVitrine,
@@ -450,7 +450,7 @@ function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto }: {
  * em vez de esperar a query de `restaurantes` voltar.
  */
 export default function Vitrine({ slug, restauranteInicial }: { slug: string; restauranteInicial: RestauranteVitrine }) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const supabase = useMemo(() => getVitrineSupabase(), [])
 
   // ── Data ──────────────────────────────────────────────────────────────────
   // O cabeçalho já veio pronto do servidor: nada de estado de carregamento pra ele.

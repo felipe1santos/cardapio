@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 
@@ -215,7 +216,7 @@ function mapGrupo(row: GrupoRow): GrupoCardapio {
   }
 }
 
-export async function listarGrupos(supabase: SupabaseClient, restauranteId: string): Promise<GrupoCardapio[]> {
+export async function listarGrupos(supabase: ClienteLeitura, restauranteId: string): Promise<GrupoCardapio[]> {
   const { data, error } = await supabase
     .from('grupos_cardapio')
     .select(GRUPO_SELECT)
@@ -285,7 +286,7 @@ const ITEM_SELECT = `
   pizza_sabores ( id, nome, descricao, imagem_url, status, posicao, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
 `
 
-export async function listarItens(supabase: SupabaseClient, restauranteId: string): Promise<ItemCardapio[]> {
+export async function listarItens(supabase: ClienteLeitura, restauranteId: string): Promise<ItemCardapio[]> {
   const { data, error } = await supabase
     .from('itens_cardapio')
     .select(ITEM_SELECT)
@@ -796,7 +797,7 @@ export interface RestauranteVitrine {
   avaliacaoQtd: number | null
 }
 
-export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: string): Promise<RestauranteVitrine | null> {
+export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
@@ -837,7 +838,7 @@ export async function buscarRestaurantePorSlug(supabase: SupabaseClient, slug: s
   }
 }
 
-export async function listarBairrosVitrine(supabase: SupabaseClient, restauranteId: string): Promise<{ bairro: string; taxa: number }[]> {
+export async function listarBairrosVitrine(supabase: ClienteLeitura, restauranteId: string): Promise<{ bairro: string; taxa: number }[]> {
   const { data, error } = await supabase
     .from('taxas_entrega_bairro')
     .select('bairro, taxa')
@@ -848,7 +849,7 @@ export async function listarBairrosVitrine(supabase: SupabaseClient, restaurante
 }
 
 /** True se a loja tem faixas de entrega por raio — muda o modo do campo bairro no checkout. */
-export async function lojaTemRaioVitrine(supabase: SupabaseClient, restauranteId: string): Promise<boolean> {
+export async function lojaTemRaioVitrine(supabase: ClienteLeitura, restauranteId: string): Promise<boolean> {
   const { count, error } = await supabase
     .from('taxas_entrega_raio')
     .select('id', { count: 'exact', head: true })
@@ -862,7 +863,7 @@ export interface GrupoComItens extends GrupoCardapio {
 }
 
 /** Loads the public menu (groups + available items + complementos) for the storefront. */
-export async function listarCardapioPublico(supabase: SupabaseClient, restauranteId: string): Promise<GrupoComItens[]> {
+export async function listarCardapioPublico(supabase: ClienteLeitura, restauranteId: string): Promise<GrupoComItens[]> {
   const [grupos, itens] = await Promise.all([
     listarGrupos(supabase, restauranteId),
     listarItens(supabase, restauranteId),
@@ -955,7 +956,7 @@ export async function atualizarOrderBumpMax(supabase: SupabaseClient, restaurant
 }
 
 export async function listarOrderBumpsPublico(
-  supabase: SupabaseClient,
+  supabase: ClienteLeitura,
   restauranteId: string,
   max: number
 ): Promise<ItemCardapio[]> {

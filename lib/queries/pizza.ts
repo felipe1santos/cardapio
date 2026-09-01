@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 
 export interface TamanhoPadraoPizza {
   id: string
@@ -30,7 +31,7 @@ export interface MassaPizza {
 
 // ─── Tamanhos padrão de pizza ──────────────────────────────────────────────
 
-export async function listarTamanhosPadraoPizza(supabase: SupabaseClient, restauranteId: string): Promise<TamanhoPadraoPizza[]> {
+export async function listarTamanhosPadraoPizza(supabase: ClienteLeitura, restauranteId: string): Promise<TamanhoPadraoPizza[]> {
   const { data, error } = await supabase
     .from('tamanhos_padrao_pizza')
     .select('id, nome, fatias, posicao')
@@ -94,7 +95,7 @@ export async function removerTamanhoPadraoMarmita(supabase: SupabaseClient, id: 
 
 // ─── Bordas de pizza ────────────────────────────────────────────────────────
 
-export async function listarBordasPizza(supabase: SupabaseClient, restauranteId: string): Promise<BordaPizza[]> {
+export async function listarBordasPizza(supabase: ClienteLeitura, restauranteId: string): Promise<BordaPizza[]> {
   const { data, error } = await supabase
     .from('bordas_pizza')
     .select('id, nome, preco, posicao')
@@ -126,7 +127,7 @@ export async function removerBordaPizza(supabase: SupabaseClient, id: string) {
 
 // ─── Massas de pizza ────────────────────────────────────────────────────────
 
-export async function listarMassasPizza(supabase: SupabaseClient, restauranteId: string): Promise<MassaPizza[]> {
+export async function listarMassasPizza(supabase: ClienteLeitura, restauranteId: string): Promise<MassaPizza[]> {
   const { data, error } = await supabase
     .from('massas_pizza')
     .select('id, nome, preco, posicao')
