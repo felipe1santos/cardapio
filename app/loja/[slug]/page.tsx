@@ -1,7 +1,10 @@
+import { cache } from 'react'
 import { notFound } from 'next/navigation'
+import type { Viewport } from 'next'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { buscarRestaurantePorSlug } from '@/lib/queries/cardapio'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
+import { resolverPaleta } from '@/lib/paletas'
 import Vitrine from './vitrine'
 
 /**
@@ -25,11 +28,42 @@ import Vitrine from './vitrine'
 // minuto de cache absorve rajadas sem deixar o status envelhecer na tela.
 export const revalidate = 60
 
+/**
+ * Uma leitura da loja por requisição, compartilhada por `generateViewport`,
+ * `generateMetadata` e o corpo da página. Sem o `cache` do React cada um desses
+ * faria a sua própria query de `restaurantes`.
+ *
+ * Deixa o erro subir: cada chamador já decide o que fazer quando o Supabase não
+ * responde, e um `null` aqui apagaria a diferença entre "loja não existe" e
+ * "banco fora do ar".
+ */
+const carregarLoja = cache((slug: string) =>
+  getServerSupabase().then((supabase) => buscarRestaurantePorSlug(supabase, slug))
+)
+
+/**
+ * A barra do navegador (e a status bar do Android) usam a `theme-color`. O
+ * layout raiz define o ciano da Menuzia, o que deixava a moldura do navegador
+ * destoando do tema que o lojista escolheu em Ajustes → Aparência.
+ *
+ * Aqui ela passa a ser a mesma `--tema-primaria` que pinta os botões da vitrine.
+ * Se a loja não existe ou o banco não responde, fica o ciano padrão do layout.
+ */
+export async function generateViewport({ params }: { params: Promise<{ slug: string }> }): Promise<Viewport> {
+  const { slug } = await params
+  try {
+    const loja = await carregarLoja(slug)
+    if (!loja) return {}
+    return { themeColor: resolverPaleta(loja.corTema).primaria }
+  } catch {
+    return {}
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   try {
-    const supabase = await getServerSupabase()
-    const loja = await buscarRestaurantePorSlug(supabase, slug)
+    const loja = await carregarLoja(slug)
     if (!loja) return { title: 'Loja não encontrada' }
     return {
       title: loja.nome,
@@ -43,11 +77,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PaginaDaLoja({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const supabase = await getServerSupabase()
 
   let loja
   try {
-    loja = await buscarRestaurantePorSlug(supabase, slug)
+    loja = await carregarLoja(slug)
   } catch {
     // Supabase fora do ar não pode virar 404: o cliente tenta de novo sozinho.
     loja = null
