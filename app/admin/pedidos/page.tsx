@@ -629,7 +629,7 @@ export default function PedidosPage() {
   // cleanup retornado por uma função async nunca é chamado pelo React — o
   // canal ficava aberto pra sempre a cada remontagem da página, vazando
   // conexões e concorrendo com o poll de 8s (ver refetchSeq acima).
-  const { saudavel: realtimeOk, intervaloMs } = useRealtimeComFallback({
+  const { intervaloMs } = useRealtimeComFallback({
     supabase,
     canal: restauranteId ? `pedidos-kanban-${restauranteId}` : null,
     tabelas: useMemo(
