@@ -64,6 +64,24 @@ Referência olhada: cardápio do CardápioWeb (telefabrica_dpizza).
       deixaram de ser promovidas a camada própria (transform-gpu/will-change).
 - [x] horarioFechamentoAtual() novo em lib/timezone.ts (pílula "Até 23:00").
 
+## 🚨 Checklist de configuração no painel (03/09, madrugada — commits `58184dd` e `9a35061`)
+
+O painel agora avalia a configuração da loja a cada troca de rota e avisa o dono
+quando falta algo que atrapalha o pedido do cliente.
+
+- Regra pura em `lib/setup-checklist.ts` (20 testes), leitura em `lib/queries/setup.ts`.
+- **Críticas**: sem canal de venda, loja travada fechada, cardápio sem item,
+  sem categoria, item simples com preço zerado, item sem dia da semana marcado,
+  telefone vazio, endereço da loja incompleto (com entrega ligada).
+- **Atenção**: sem taxa de entrega, sem grade de horário, sem entregador,
+  sem logo, sem capa, itens sem foto.
+- Crítica abre modal piscando; "OK, entendi" guarda a assinatura do conjunto e
+  deixa só o marcador vermelho no item do menu. Pendência nova reabre o modal.
+- Atalho "N pendências" no rodapé da sidebar reabre a lista.
+- No Kanban e no PDV o modal não abre (não interrompe quem atende).
+- Validado em produção na loja MENUZIA: acusou endereço incompleto (crítico),
+  horário não configurado e 2 itens sem foto.
+
 ## ⬜ O QUE FALTA
 
 ### 1. ⬜ Testar no celular de verdade (só o Felipe consegue)
@@ -74,7 +92,10 @@ Referência olhada: cardápio do CardápioWeb (telefabrica_dpizza).
 - Apertar voltar no cardápio: aparece **"Sair do cardápio?"**.
 - Adicionar item, recarregar a aba: a sacola tem que continuar lá.
 
-### 2. ⬜ Decidir os toggles da loja MENUZIA
+### 2. ⬜ Resolver as pendências que o próprio painel está acusando
+Endereço da loja incompleto e grade de horário em branco (Ajustes), 2 itens sem foto.
+
+### 3. ⬜ Decidir os toggles da loja MENUZIA
 Ficaram assim depois dos testes: **entrega ON, retirada ON, logística ON**.
 O original era retirada **OFF** — desligar se a loja não faz retirada de verdade.
 
