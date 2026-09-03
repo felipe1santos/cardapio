@@ -6,6 +6,15 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body {
+  /* Mata o "puxar pra baixo = recarregar" do Chrome/Android.
+     Na vitrine ele era destrutivo: um scroll para cima com o dedo no topo da
+     lista recarregava a página no meio da compra. O `contain` também impede o
+     scroll de uma sheet aberta de vazar para a página atrás dela. */
+  overscroll-behavior-y: contain;
+}
+
 html {
   /* O design system Menuzia é desenhado sobre uma base de 14px (não os 16px
      padrão do navegador). Reduzir o root font-size faz com que todas as

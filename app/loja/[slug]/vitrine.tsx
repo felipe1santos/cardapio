@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
@@ -56,6 +56,8 @@ interface ToastItem {
 type Tab = 'home' | 'cart' | 'pedidos' | 'cupons'
 /** 0 = Resumo do pedido (só no desktop), 1 = Pagamento, 2 = Endereço, 3 = Revisar. */
 type CheckoutStep = 0 | 1 | 2 | 3
+
+const ENDERECO_VAZIO: EnderecoCliente = { rua: '', numero: '', complemento: '', bairro: '', cep: '', cidade: '', referencia: '' }
 
 // Cores vivas e sólidas, alinhadas ao Kanban (laranja recebido, azul preparando,
 // verde pronto/entregue, azul claro em rota, vermelho cancelado).
@@ -412,7 +414,10 @@ function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto }: {
       {aberto && lista.length > 0 && (
         <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-[240px] overflow-y-auto rounded-md border border-border bg-white shadow-lg">
           <div className="sticky top-0 border-b border-border bg-[#F9FAFB] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-            {semMatch ? 'Bairro não encontrado — veja os atendidos' : 'Bairros atendidos'}
+            {/* Fora do modo estrito a loja também entrega por raio: um bairro que
+                não está na lista continua válido, e chamar isso de "não
+                encontrado" fazia o cliente achar que estava barrado. */}
+            {!semMatch ? 'Bairros atendidos' : estrito ? 'Bairro não encontrado — veja os atendidos' : 'Não está na lista — seguimos pela distância'}
           </div>
           {lista.map((b) => {
             const selecionado = normalizarBairro(b) === alvo
@@ -586,6 +591,38 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Cart ──────────────────────────────────────────────────────────────────
   const [cart, setCart] = useState<CartLine[]>([])
+  // A sacola só passa a ser gravada depois de restaurada — senão o `[]` inicial
+  // sobrescreveria o carrinho salvo antes de o efeito de leitura rodar.
+  const [cartRestaurado, setCartRestaurado] = useState(false)
+
+  /**
+   * Sacola guardada no aparelho.
+   *
+   * Ela vivia só na memória: qualquer recarga (o "puxar pra baixo" do Android,
+   * o navegador descartando a aba, o cliente saindo e voltando) apagava o
+   * pedido inteiro e a compra morria ali. O prazo de 24h evita ressuscitar uma
+   * sacola de dias atrás, com preços e itens que provavelmente mudaram.
+   */
+  useEffect(() => {
+    if (!slug) return
+    try {
+      const raw = localStorage.getItem(`menuzia_carrinho_${slug}`)
+      if (raw) {
+        const salvo = JSON.parse(raw) as { em?: number; linhas?: CartLine[] }
+        const fresco = typeof salvo.em === 'number' && Date.now() - salvo.em < 24 * 60 * 60 * 1000
+        if (fresco && Array.isArray(salvo.linhas) && salvo.linhas.length > 0) setCart(salvo.linhas)
+      }
+    } catch { /* dado inválido: começa com a sacola vazia */ }
+    setCartRestaurado(true)
+  }, [slug])
+
+  useEffect(() => {
+    if (!slug || !cartRestaurado) return
+    try {
+      if (cart.length === 0) localStorage.removeItem(`menuzia_carrinho_${slug}`)
+      else localStorage.setItem(`menuzia_carrinho_${slug}`, JSON.stringify({ em: Date.now(), linhas: cart }))
+    } catch { /* quota/navegação privada */ }
+  }, [slug, cart, cartRestaurado])
 
   const cartCount = cart.reduce((sum, l) => sum + l.qty, 0)
   const subtotal = cart.reduce((sum, l) => sum + l.unit * l.qty, 0)
@@ -627,8 +664,28 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     : { descontoSubtotal: 0, zeraFrete: false }
 
   // ── Checkout form state (hoisted so fee can access endereco) ───────────────
-  const [endereco, setEndereco] = useState({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
-  const [cidadeCliente, setCidadeCliente] = useState('')
+  // ── Canal do pedido: entrega ou retirada ──────────────────────────────────
+  // A vitrine só sabia vender entrega. Loja que não tem entregador (ou que só
+  // atende no balcão) ligava a retirada em Ajustes › Entrega e passa a oferecer
+  // a escolha aqui. Quando só um canal está ligado, não há escolha a fazer: o
+  // checkout usa esse e não mostra o seletor.
+  const aceitaEntrega = restaurante?.aceitaEntrega ?? true
+  const aceitaRetirada = restaurante?.aceitaRetirada ?? false
+  const [tipoPedido, setTipoPedido] = useState<'entrega' | 'retirada'>('entrega')
+
+  // A loja pode desligar a entrega depois que a aba já estava aberta — mantém o
+  // tipo escolhido dentro do que ela aceita.
+  useEffect(() => {
+    if (tipoPedido === 'entrega' && !aceitaEntrega && aceitaRetirada) setTipoPedido('retirada')
+    if (tipoPedido === 'retirada' && !aceitaRetirada && aceitaEntrega) setTipoPedido('entrega')
+  }, [tipoPedido, aceitaEntrega, aceitaRetirada])
+
+  // A cidade mora DENTRO do endereço. Ela já viveu numa variável separada, e
+  // qualquer caminho que preenchesse o endereço sem passar pelo CEP (perfil
+  // salvo, endereço do último pedido) deixava a cidade vazia — o geocode do
+  // frete recebia "Rua X, 100, Bairro" e o Google resolvia a rua em outro
+  // município. Junto do endereço, ela não tem como se perder no caminho.
+  const [endereco, setEndereco] = useState<EnderecoCliente>(ENDERECO_VAZIO)
   const [cepBuscando, setCepBuscando] = useState(false)
   // CEP retornou bairro que a loja não atende (lista fechada) — orienta a escolher da lista.
   const [cepSemBairro, setCepSemBairro] = useState(false)
@@ -639,6 +696,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // Frete resolvido pelo servidor: bairro tem prioridade; senão faixa de raio; senão taxa padrão.
   const [freteCalc, setFreteCalc] = useState<{ taxa: number; entregavel: boolean; fonte: 'bairro' | 'raio' | 'padrao'; distanciaKm: number | null; motivo?: string } | null>(null)
+  const [freteStatus, setFreteStatus] = useState<'idle' | 'calculando' | 'ok' | 'erro'>('idle')
 
   // Fallback instantâneo por bairro enquanto o servidor responde (ou se ele falhar).
   const feeFallback = useMemo(() => {
@@ -663,9 +721,33 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   const feeBase = freteCalc ? (freteCalc.entregavel ? freteCalc.taxa : 0) : feeFallback
   // Cupom/prêmio de entrega grátis zera a taxa por cima do gatilho por subtotal.
-  const fee = ganhouFreteGratis || zeraFrete ? 0 : feeBase
+  // Retirada não tem frete nenhum.
+  const fee = tipoPedido === 'retirada' || ganhouFreteGratis || zeraFrete ? 0 : feeBase
 
-  const total = Math.max(0, subtotal - desconto) + (cart.length ? fee : 0)
+  /**
+   * O que escrever na linha "Taxa de entrega". Um número só aparece quando ele
+   * é verdade: endereço em branco, cálculo em andamento, endereço fora da área
+   * e falha de rede têm cada um o seu texto. `null` = mostra o valor em R$.
+   */
+  const freteRotulo: string | null =
+    tipoPedido === 'retirada'
+      ? null
+      : ganhouFreteGratis || zeraFrete
+        ? null
+        : freteStatus === 'idle'
+          ? 'A calcular'
+          : freteStatus === 'calculando'
+            ? 'Calculando…'
+            : freteStatus === 'erro'
+              ? 'Confirmaremos com você'
+              : freteCalc && !freteCalc.entregavel
+                ? 'Fora da área'
+                : null
+
+  // O total só soma a taxa quando ela é um valor confirmado (`freteRotulo` nulo).
+  // Somar o palpite enquanto a linha diz "A calcular" deixava a conta sem fechar
+  // na tela: subtotal 14 + "a calcular" = total 17.
+  const total = Math.max(0, subtotal - desconto) + (cart.length && !freteRotulo ? fee : 0)
 
   // Autopreenche rua/bairro/cidade ao digitar o CEP (ViaCEP).
   // `alvo` escolhe qual endereço recebe o preenchimento: o do checkout (padrão)
@@ -682,16 +764,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         // Usa a grafia cadastrada pela loja quando o bairro do CEP é atendido.
         const m = bairroCep ? bairros.find((b) => normalizarBairro(b.bairro) === normalizarBairro(bairroCep)) : undefined
         const semMatch = listaFechada && bairroCep !== '' && !m
-        const aplicar = <T extends { rua: string; bairro: string }>(a: T): T => ({
+        const aplicar = (a: EnderecoCliente): EnderecoCliente => ({
           ...a,
           rua: data.logradouro || a.rua,
           // Sem match na lista fechada: limpa pra forçar a escolha na lista.
           bairro: m ? m.bairro : semMatch ? '' : bairroCep || a.bairro,
+          cidade: String(data.localidade || '') || a.cidade,
         })
         if (alvo === 'conta') setContaEndereco(aplicar)
         else setEndereco(aplicar)
         setCepSemBairro(semMatch)
-        setCidadeCliente(data.localidade || '')
       }
     } catch {
       /* mantém o que o cliente já digitou */
@@ -701,28 +783,33 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }
 
   // Recalcula o frete (servidor) quando o endereço muda — com debounce.
+  // O status é explícito porque o resumo precisa distinguir "ainda não sei"
+  // de "não deu pra calcular" de "R$ 0,00 de verdade". Antes tudo virava um
+  // `null` silencioso e o cliente lia "Taxa de entrega R$ 0,00" num endereço
+  // que a loja nem atende.
   useEffect(() => {
-    if (!slug) return
+    if (!slug || tipoPedido !== 'entrega') { setFreteCalc(null); setFreteStatus('idle'); return }
     const cep = endereco.cep.replace(/\D/g, '')
     const temBase = cep.length === 8 || endereco.bairro.trim() !== ''
-    if (!temBase) { setFreteCalc(null); return }
+    if (!temBase) { setFreteCalc(null); setFreteStatus('idle'); return }
     let cancel = false
+    setFreteStatus('calculando')
     const t = setTimeout(async () => {
       try {
         const res = await fetch(`/api/loja/${slug}/frete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cep, rua: endereco.rua, numero: endereco.numero, bairro: endereco.bairro, cidade: cidadeCliente }),
+          body: JSON.stringify({ cep, rua: endereco.rua, numero: endereco.numero, bairro: endereco.bairro, cidade: endereco.cidade }),
         })
-        if (!res.ok) { if (!cancel) setFreteCalc(null); return }
+        if (!res.ok) { if (!cancel) { setFreteCalc(null); setFreteStatus('erro') } return }
         const data = await res.json()
-        if (!cancel) setFreteCalc(data)
+        if (!cancel) { setFreteCalc(data); setFreteStatus('ok') }
       } catch {
-        if (!cancel) setFreteCalc(null)
+        if (!cancel) { setFreteCalc(null); setFreteStatus('erro') }
       }
     }, 600)
     return () => { cancel = true; clearTimeout(t) }
-  }, [slug, endereco.cep, endereco.bairro, endereco.rua, endereco.numero, cidadeCliente])
+  }, [slug, tipoPedido, endereco.cep, endereco.bairro, endereco.rua, endereco.numero, endereco.cidade])
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<ToastItem[]>([])
@@ -805,7 +892,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [contaTelefone, setContaTelefone] = useState('')
   const [contaCodigo, setContaCodigo] = useState('')
   const [contaNome, setContaNome] = useState('')
-  const [contaEndereco, setContaEndereco] = useState<EnderecoCliente>({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+  const [contaEndereco, setContaEndereco] = useState<EnderecoCliente>(ENDERECO_VAZIO)
   const [contaLoading, setContaLoading] = useState(false)
   const [contaError, setContaError] = useState<string | null>(null)
   const [contaSaved, setContaSaved] = useState(false)
@@ -823,6 +910,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     } catch { /* sessão inválida, ignora */ }
   }, [slug])
 
+  /**
+   * Completa a cidade com a da loja quando o endereço não traz uma.
+   *
+   * A loja é local: quase todo cliente mora na mesma cidade dela, e a cidade é
+   * o que o geocode do frete precisa pra não confundir ruas homônimas de
+   * municípios vizinhos. Aplicado em TODA origem de endereço (perfil, último
+   * pedido do aparelho) — um efeito separado só cobriria a primeira delas.
+   */
+  const cidadeDaLoja = restaurante?.cidade?.trim() ?? ''
+  const comCidadePadrao = useCallback(
+    (e: EnderecoCliente): EnderecoCliente => (e.cidade.trim() ? e : { ...e, cidade: cidadeDaLoja }),
+    [cidadeDaLoja]
+  )
+
   // Lembra o último endereço confirmado neste aparelho: pré-preenche o checkout
   // mesmo sem conta (o perfil logado, quando carregar, sobrescreve).
   useEffect(() => {
@@ -832,15 +933,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       if (!raw) return
       const salvo = JSON.parse(raw)
       if (salvo?.endereco?.rua || salvo?.endereco?.bairro) {
-        setEndereco((a) => (a.rua || a.bairro ? a : { rua: '', numero: '', complemento: '', bairro: '', cep: '', ...salvo.endereco }))
-        if (salvo.cidade) setCidadeCliente((c) => c || salvo.cidade)
+        // `salvo.cidade` é o formato antigo (cidade fora do endereço) — ainda
+        // existe no aparelho de quem pediu antes desta versão.
+        const cidadeSalva = salvo.endereco?.cidade || salvo.cidade || ''
+        setEndereco((a) => (a.rua || a.bairro ? a : comCidadePadrao({ ...ENDERECO_VAZIO, ...salvo.endereco, cidade: cidadeSalva })))
         setEnderecoSalvoOrigem(true)
       }
       if (salvo?.nome || salvo?.telefone) {
         setCliente((c) => ({ nome: c.nome || salvo.nome || '', telefone: c.telefone || salvo.telefone || '' }))
       }
     } catch { /* dado inválido, ignora */ }
-  }, [slug])
+  }, [slug, comCidadePadrao])
 
   // Carrega o perfil salvo e pré-preenche o checkout.
   useEffect(() => {
@@ -857,17 +960,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         }
         setPerfilCliente(data)
         setContaNome(data.nome)
-        setContaEndereco(data.endereco)
+        setContaEndereco(comCidadePadrao(data.endereco))
         setContaEditando(!data.nome && !data.endereco.rua)
         setCliente((c) => ({ nome: data.nome || c.nome, telefone: data.telefone }))
         if (data.endereco.rua || data.endereco.bairro) {
-          setEndereco(data.endereco)
+          setEndereco(comCidadePadrao(data.endereco))
           setEnderecoSalvoOrigem(true)
         }
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [clienteSessao, slug])
+  }, [clienteSessao, slug, comCidadePadrao])
 
   // Chave do snapshot de fidelidade neste aparelho — por loja e por telefone, pra não
   // misturar o progresso de contas diferentes usadas no mesmo device (ou visitante anônimo).
@@ -1064,7 +1167,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível salvar.')
       setPerfilCliente(data)
       setCliente((c) => ({ nome: data.nome, telefone: data.telefone || c.telefone }))
-      setEndereco(data.endereco)
+      setEndereco(comCidadePadrao(data.endereco))
       setContaSaved(true)
       setContaEditando(false)
     } catch (err) {
@@ -1092,7 +1195,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     setContaTelefone('')
     setContaCodigo('')
     setContaNome('')
-    setContaEndereco({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+    setContaEndereco(ENDERECO_VAZIO)
     setContaEditando(false)
     setContaSaved(false)
   }
@@ -1354,16 +1457,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // Confirmação pós-pedido + link wa.me para o cliente avisar a loja (conversa
   // bidirecional reduz risco de bloqueio dos disparos da loja).
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false)
+  // Guarda de saída do botão voltar — ver "Botão voltar do celular" mais abaixo.
+  const [saidaAberta, setSaidaAberta] = useState(false)
   const [pedidoWa, setPedidoWa] = useState<string | null>(null)
   const [cliente, setCliente] = useState({ nome: '', telefone: '' })
   const [pedidoDetalhe, setPedidoDetalhe] = useState<PedidoCliente | null>(null)
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
   useEffect(() => {
-    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe
+    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe || confirmacaoAberta || saidaAberta
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe])
+  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe, confirmacaoAberta, saidaAberta])
 
   // ── Histórico de pedidos do cliente logado ────────────────────────────────
   const [meusPedidos, setMeusPedidos] = useState<PedidoCliente[]>([])
@@ -1450,6 +1555,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (beneficio?.tipo === 'item_gratis') linhas.push(`Item grátis: ${beneficio.itemNome ?? 'prêmio'}`)
     linhas.push(`Total: ${brl(total)}`)
     linhas.push(`Pagamento: ${payMethod}`)
+    linhas.push(tipoPedido === 'retirada' ? 'Retirada no local' : 'Entrega')
     if (cliente.nome.trim()) linhas.push(`Cliente: ${cliente.nome.trim()}`)
     return linhas.join('\n')
   }
@@ -1459,9 +1565,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     setCheckoutError(null)
     try {
       const payload = {
-        tipo: 'entrega' as const,
+        tipo: tipoPedido,
         cliente: { nome: cliente.nome.trim(), telefone: clienteSessao?.telefone ?? cliente.telefone.trim() },
-        endereco: { ...endereco, cidade: cidadeCliente },
+        // Retirada não tem endereço: mandar o do último pedido de entrega
+        // sujaria a comanda com um endereço que ninguém vai usar.
+        endereco: tipoPedido === 'retirada' ? ENDERECO_VAZIO : endereco,
         pagamento: PAY_MAP[payMethod] ?? 'pix',
         trocoPara: payMethod === 'Dinheiro' ? parseMoney(changeFor) : null,
         taxaEntrega: fee,
@@ -1490,16 +1598,23 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       // Endereço confirmado: guarda no aparelho e no perfil (se logado) pra
       // próxima compra já vir preenchida.
       try {
-        localStorage.setItem(
-          `menuzia_endereco_${slug}`,
-          JSON.stringify({ endereco, cidade: cidadeCliente, nome: cliente.nome.trim(), telefone: (clienteSessao?.telefone ?? cliente.telefone).trim() })
-        )
+        // Numa retirada o `endereco` do estado é o que sobrou de antes (ou nada):
+        // não vale sobrescrever o endereço bom que o aparelho já guardava.
+        if (tipoPedido === 'entrega') {
+          localStorage.setItem(
+            `menuzia_endereco_${slug}`,
+            JSON.stringify({ endereco, nome: cliente.nome.trim(), telefone: (clienteSessao?.telefone ?? cliente.telefone).trim() })
+          )
+        }
       } catch { /* quota/navegação privada */ }
       if (clienteSessao) {
+        // Numa retirada o perfil guarda só o nome — o endereço que ele já tinha
+        // fica como está, senão um pedido de balcão apagaria o endereço de casa.
+        const enderecoPerfil = tipoPedido === 'entrega' ? endereco : (perfilCliente?.endereco ?? contaEndereco)
         fetch(`/api/loja/${slug}/conta`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telefone: clienteSessao.telefone, token: clienteSessao.token, nome: cliente.nome.trim() || contaNome, endereco }),
+          body: JSON.stringify({ telefone: clienteSessao.telefone, token: clienteSessao.token, nome: cliente.nome.trim() || contaNome, endereco: enderecoPerfil }),
         })
           .then((r) => (r.ok ? r.json() : null))
           .then((perfil: ClientePerfil | null) => {
@@ -1538,17 +1653,26 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       setCheckoutError('Sua sacola está vazia.')
       return
     }
-    if (checkoutStep === 2 && (!cliente.nome.trim() || !endereco.rua.trim() || !endereco.numero.trim() || !endereco.bairro.trim())) {
-      setCheckoutError('Preencha nome, rua, número e bairro para continuar.')
-      return
-    }
-    if (checkoutStep === 2 && listaFechada && !bairroValido) {
-      setCheckoutError('Escolha um bairro da lista de bairros atendidos pela loja.')
-      return
-    }
-    if (checkoutStep === 2 && !entregavel) {
-      setCheckoutError(freteCalc?.motivo || 'Não entregamos nesse endereço.')
-      return
+    if (checkoutStep === 2) {
+      if (!cliente.nome.trim()) {
+        setCheckoutError('Informe seu nome para continuar.')
+        return
+      }
+      // Retirada não tem endereço: o passo 2 pede só o nome.
+      if (tipoPedido === 'entrega') {
+        if (!endereco.rua.trim() || !endereco.numero.trim() || !endereco.bairro.trim()) {
+          setCheckoutError('Preencha rua, número e bairro para continuar.')
+          return
+        }
+        if (listaFechada && !bairroValido) {
+          setCheckoutError('Escolha um bairro da lista de bairros atendidos pela loja.')
+          return
+        }
+        if (!entregavel) {
+          setCheckoutError(freteCalc?.motivo || 'Não entregamos nesse endereço.')
+          return
+        }
+      }
     }
     setCheckoutError(null)
     if (checkoutStep < 3) { setCheckoutStep((s) => (s + 1) as CheckoutStep); return }
@@ -1560,8 +1684,102 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     setCheckoutOpen(false)
   }
 
+  // ── Botão voltar do celular ───────────────────────────────────────────────
+  //
+  // A vitrine é uma página só: abrir produto, sacola, checkout e acompanhamento
+  // nunca tocava no histórico. O resultado é que o voltar do Android jogava o
+  // cliente PRA FORA do cardápio em um toque, de qualquer ponto da compra.
+  //
+  // A solução é uma entrada-sentinela: empurramos uma no histórico e, a cada
+  // "voltar", consumimos ela para fechar a camada de cima e empurramos outra no
+  // lugar. Assim cada toque desce um nível — sem precisar contar profundidade
+  // nem espelhar estado na URL, que é onde esse tipo de código costuma quebrar.
+  //
+  // Na raiz (cardápio aberto, nada por cima) o voltar não sai: abre a confirmação.
+  const saindoRef = useRef(false)
+
+  /** Fecha a camada mais alta. Devolve false quando já estamos na raiz. */
+  const fecharCamadaDoTopo = (): boolean => {
+    if (saidaAberta) { setSaidaAberta(false); return true }
+    if (confirmacaoAberta) { setConfirmacaoAberta(false); return true }
+    if (productSheet) { closeProductSheet(); return true }
+    if (checkoutOpen) { checkoutBack(); return true }
+    if (pedidoDetalhe) { setPedidoDetalhe(null); return true }
+    if (freteOpen) { setFreteOpen(false); return true }
+    if (contaOpen) { setContaOpen(false); return true }
+    if (infoOpen) { setInfoOpen(false); return true }
+    if (searchOpen) { setSearchOpen(false); return true }
+    if (tab !== 'home') { setTab('home'); return true }
+    return false
+  }
+  // O listener é recriado a cada render pra enxergar o estado atual das camadas;
+  // a ref evita prender um closure velho dentro do addEventListener.
+  const fecharTopoRef = useRef(fecharCamadaDoTopo)
+  fecharTopoRef.current = fecharCamadaDoTopo
+
+  useEffect(() => {
+    const marcar = () => window.history.pushState({ menuziaVitrine: true }, '')
+
+    // A sentinela NÃO pode ser plantada no carregamento. O Chrome tem uma
+    // "history manipulation intervention": entradas que a página cria antes de
+    // receber qualquer interação do usuário são marcadas como puláveis, e o
+    // voltar passa por cima delas — foi exatamente o que aconteceu no teste,
+    // o primeiro voltar saía do site como se nada tivesse sido empurrado.
+    // Depois do primeiro toque a ativação fica "grudada" no documento e todos
+    // os pushes seguintes (inclusive os do handler abaixo) valem.
+    //
+    // Efeito colateral aceitável: quem abriu o cardápio e não tocou em nada
+    // ainda sai com um voltar. Não há pedido em risco nesse estado, e prender
+    // alguém que nem interagiu seria hostil.
+    let armado = false
+    const armar = () => {
+      if (armado) return
+      armado = true
+      marcar()
+    }
+
+    const aoVoltar = () => {
+      // Sem sentinela plantada não há nada nosso pra consumir; e saída
+      // autorizada pelo próprio cliente deixa o navegador seguir.
+      if (!armado || saindoRef.current) return
+      const fechou = fecharTopoRef.current()
+      marcar()
+      if (!fechou) setSaidaAberta(true)
+    }
+
+    // Num celular lento o cliente costuma tocar/rolar ANTES do JS hidratar —
+    // esse toque não passa pelo listener abaixo, mas deixa a ativação registrada
+    // no documento. Se ela já existe, dá pra plantar a sentinela na hora.
+    // (`userActivation` é do Chrome/Edge, que é onde o problema aparece.)
+    if (navigator.userActivation?.hasBeenActive) armar()
+
+    window.addEventListener('pointerdown', armar, true)
+    window.addEventListener('keydown', armar, true)
+    window.addEventListener('popstate', aoVoltar)
+    return () => {
+      window.removeEventListener('pointerdown', armar, true)
+      window.removeEventListener('keydown', armar, true)
+      window.removeEventListener('popstate', aoVoltar)
+    }
+  }, [])
+
+  /** "Sair mesmo assim": libera a guarda e sai de verdade. */
+  function sairDaVitrine() {
+    setSaidaAberta(false)
+    saindoRef.current = true
+    // -2 = a sentinela MAIS a entrada da própria vitrine. Um -1 só desfaria a
+    // sentinela e devolveria o cliente pra mesma página — ele acharia que o
+    // botão não funcionou.
+    window.history.go(-2)
+    // Cardápio aberto direto num link (sem histórico anterior): não há pra onde
+    // ir e a navegação não acontece. Rearma a guarda pra ela não ficar
+    // desligada no resto da sessão.
+    window.setTimeout(() => { saindoRef.current = false }, 1000)
+  }
+
   // ── Blocos reutilizados no carrinho (aba mobile + painel lateral desktop) ──
-  const freteGratisBanner = freteGratisAtivo && cart.length > 0 ? (
+  // Numa retirada não existe frete pra ficar grátis — o banner só confunde.
+  const freteGratisBanner = freteGratisAtivo && cart.length > 0 && tipoPedido === 'entrega' ? (
     ganhouFreteGratis ? (
       <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-[#16A34A]/30 bg-[#DCFCE7] px-3.5 py-3">
         <Truck className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
@@ -1580,6 +1798,50 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       </div>
     )
   ) : null
+
+  /**
+   * "Como você quer receber?" — só aparece quando a loja aceita os dois canais.
+   * Com um canal só não há decisão a tomar, e um seletor de uma opção só é ruído
+   * entre o cliente e o botão de finalizar.
+   */
+  const canalSelector = aceitaEntrega && aceitaRetirada ? (
+    <div className="mb-4">
+      <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Como você quer receber?</div>
+      <div className="grid grid-cols-2 gap-2">
+        {([
+          { id: 'entrega' as const, titulo: 'Entrega', desc: 'A gente leva até você' },
+          { id: 'retirada' as const, titulo: 'Retirada', desc: 'Você retira no local' },
+        ]).map((op) => (
+          <button
+            key={op.id}
+            onClick={() => setTipoPedido(op.id)}
+            className={[
+              'rounded-lg border p-3 text-left transition-all active:scale-[0.98]',
+              tipoPedido === op.id
+                ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]/5'
+                : 'border-border bg-white hover:border-[var(--tema-primaria)]/40',
+            ].join(' ')}
+            aria-pressed={tipoPedido === op.id}
+          >
+            <div className={['text-[14px] font-bold', tipoPedido === op.id ? 'text-[var(--tema-primaria)]' : 'text-text-main'].join(' ')}>{op.titulo}</div>
+            <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{op.desc}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null
+
+  // Linha do frete nos quatro resumos (sacola mobile, painel desktop, resumo do
+  // checkout e revisão). `freteRotulo` só é null quando o número é confiável —
+  // é o que impede o "R$ 0,00" aparecer como se fosse entrega grátis.
+  const rotuloLinhaFrete = tipoPedido === 'retirada' ? 'Retirada no balcão' : 'Taxa de entrega'
+  const valorLinhaFrete = freteRotulo ? (
+    <span className="text-text-subtle">{freteRotulo}</span>
+  ) : fee === 0 ? (
+    <span className="font-bold text-[#16A34A]">{tipoPedido === 'retirada' ? 'Sem taxa' : 'Grátis'}</span>
+  ) : (
+    <span className="text-text-subtle">{brl(fee)}</span>
+  )
 
   // Chip do benefício ativo (cupom ou prêmio) — sacola mobile + painel desktop.
   const beneficioBanner = (recompensaSelecionada || cupomAplicado) ? (
@@ -1992,6 +2254,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
                       </div>
                       <div className="border-t border-border p-4">
+                        {canalSelector}
                         {freteGratisBanner}
                         {beneficioBanner}
                         <div className="mb-3 space-y-1.5 text-[13px]">
@@ -2000,11 +2263,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <div className="flex items-center justify-between font-semibold text-[#16A34A]"><span>Desconto</span><span>-{brl(desconto)}</span></div>
                           )}
                           <div className="flex items-center justify-between">
-                            <span className="text-text-subtle">Taxa de entrega</span>
-                            {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
+                            <span className="text-text-subtle">{rotuloLinhaFrete}</span>
+                            {valorLinhaFrete}
                           </div>
                           <div className="flex items-center justify-between pt-1 text-[15px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
                         </div>
+                        {tipoPedido === 'entrega' && (
                         <button
                           onClick={() => setFreteOpen(true)}
                           className="mb-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-[12px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
@@ -2012,6 +2276,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           <Truck className="h-4 w-4" strokeWidth={2} />
                           Calcular taxa de entrega
                         </button>
+                        )}
                         {!restaurante.lojaAberta && (
                           <p className="mb-2.5 rounded-lg bg-danger-bg px-3 py-2 text-center text-[12px] font-semibold text-danger">
                             Loja fechada no momento{restaurante.proximaAberturaTexto ? ` — ${restaurante.proximaAberturaTexto}` : ' — não é possível finalizar o pedido'}.
@@ -2096,6 +2361,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
 
                 <div className="lg:sticky lg:top-24">
+                  {canalSelector}
                   {freteGratisBanner}
                   {beneficioBanner}
 
@@ -2110,21 +2376,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       </div>
                     )}
                     <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px]">
-                      <span className="text-text-subtle">Taxa de entrega</span>
-                      {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
+                      <span className="text-text-subtle">{rotuloLinhaFrete}</span>
+                      {valorLinhaFrete}
                     </div>
                     <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
                       <span>Total</span><span className="text-[#16A34A]">{brl(total)}</span>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => setFreteOpen(true)}
-                    className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-5 py-3 text-[13px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
-                  >
-                    <Truck className="h-[18px] w-[18px]" strokeWidth={2} />
-                    Calcular taxa de entrega
-                  </button>
+                  {tipoPedido === 'entrega' && (
+                    <button
+                      onClick={() => setFreteOpen(true)}
+                      className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-5 py-3 text-[13px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
+                    >
+                      <Truck className="h-[18px] w-[18px]" strokeWidth={2} />
+                      Calcular taxa de entrega
+                    </button>
+                  )}
 
                   <button
                     onClick={() => setTab('home')}
@@ -2537,6 +2804,35 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </nav>
       </div>
 
+      {/* ── Guarda de saída: o voltar na raiz pergunta antes de largar a loja ── */}
+      {saidaAberta && (
+        <>
+          <div className="fixed inset-0 z-[80] bg-[#111827]/60" onClick={() => setSaidaAberta(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-[80] mx-auto w-full max-w-[600px] rounded-t-2xl bg-white p-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-2xl">
+            <h2 className="text-center text-lg font-bold text-text-main">Sair do cardápio?</h2>
+            <p className="mx-auto mt-1.5 max-w-[320px] text-center text-[13px] leading-relaxed text-text-subtle">
+              {cartCount > 0
+                ? `Você tem ${cartCount} ${cartCount === 1 ? 'item' : 'itens'} na sacola. Guardamos tudo neste aparelho, mas o pedido ainda não foi enviado.`
+                : `Você ainda não finalizou nenhum pedido em ${restaurante?.nome ?? 'nossa loja'}.`}
+            </p>
+            <div className="mt-5 flex flex-col gap-2.5">
+              <button
+                onClick={() => setSaidaAberta(false)}
+                className="w-full rounded-lg bg-[var(--tema-primaria)] px-5 py-3.5 text-[15px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)] active:scale-[0.99]"
+              >
+                {cartCount > 0 ? 'Continuar meu pedido' : 'Continuar no cardápio'}
+              </button>
+              <button
+                onClick={sairDaVitrine}
+                className="w-full rounded-lg border border-border px-5 py-3 text-[14px] font-semibold text-text-subtle transition-colors hover:bg-page"
+              >
+                Sair mesmo assim
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* ── Confirmação pós-pedido + aviso pra loja no WhatsApp ───────── */}
       {confirmacaoAberta && (
         <>
@@ -2847,7 +3143,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         <div className="mx-auto min-h-dvh max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
             <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded bg-[#F3F4F6] text-lg">←</button>
-            <span className="text-base font-bold">{checkoutStep === 0 ? 'Resumo do pedido' : checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? 'Endereço' : 'Revisar pedido'}</span>
+            <span className="text-base font-bold">{checkoutStep === 0 ? 'Resumo do pedido' : checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? (tipoPedido === 'retirada' ? 'Seus dados' : 'Endereço') : 'Revisar pedido'}</span>
           </div>
           <div className="flex gap-2 px-4 py-4">
             {(checkoutMinStep === 0 ? [0, 1, 2, 3] : [1, 2, 3]).map((step) => (
@@ -2871,8 +3167,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </div>
                 )}
                 <div className="flex justify-between py-1 text-[14px]">
-                  <span className="text-text-subtle">Taxa de entrega</span>
-                  {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
+                  <span className="text-text-subtle">{rotuloLinhaFrete}</span>
+                  {valorLinhaFrete}
                 </div>
                 <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
               </div>
@@ -3019,8 +3315,31 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
               </div>
 
+              {/* Retirada não tem endereço de entrega: no lugar do formulário,
+                  o cliente precisa saber ONDE buscar. */}
+              {tipoPedido === 'retirada' && (
+                <div className="mt-4 rounded-lg border border-border bg-white p-4">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Retirada no local</h3>
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]">
+                      <MapPin className="h-5 w-5 text-text-subtle" strokeWidth={1.8} />
+                    </span>
+                    <div className="min-w-0 text-[14px] leading-relaxed">
+                      <div className="font-semibold text-text-main">{restaurante?.nome}</div>
+                      <div className="text-text-subtle">
+                        {restaurante?.endereco?.trim() || 'Confirme o endereço com a loja.'}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-3 rounded border border-border bg-page/60 px-3 py-2.5 text-[12px] text-text-subtle">
+                    Avisaremos quando o pedido estiver pronto para retirada. Não há taxa de entrega.
+                  </p>
+                </div>
+              )}
+
               {/* Endereço salvo (último pedido/perfil): resumo com opção de trocar */}
-              {enderecoSalvoOrigem && !mostrarFormEndereco && endereco.rua && endereco.numero && endereco.bairro ? (
+              {tipoPedido === 'entrega' && (
+              enderecoSalvoOrigem && !mostrarFormEndereco && endereco.rua && endereco.numero && endereco.bairro ? (
                 <div className="mt-4 rounded-lg border border-border bg-white p-4">
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
                   <div className="rounded-md border border-border bg-page/60 p-3">
@@ -3042,7 +3361,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     </button>
                     <button
                       onClick={() => {
-                        setEndereco({ rua: '', numero: '', complemento: '', bairro: '', cep: '' })
+                        setEndereco(comCidadePadrao(ENDERECO_VAZIO))
                         setCepSemBairro(false)
                         setMostrarFormEndereco(true)
                       }}
@@ -3098,16 +3417,39 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                 </div>
+                <div className="mt-3 flex gap-3">
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Complemento</label>
+                    <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
+                  {/* Cidade: já vem com a da loja, mas fica editável pra quem
+                      mora na cidade vizinha. Ela é o que impede o cálculo de
+                      distância de cair numa rua homônima de outro município. */}
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Cidade</label>
+                    <input value={endereco.cidade} onChange={(e) => setEndereco((a) => ({ ...a, cidade: e.target.value }))} placeholder="Cidade"
+                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
+                </div>
                 <div className="mt-3">
-                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Complemento</label>
-                  <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
+                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Ponto de referência</label>
+                  <input value={endereco.referencia} onChange={(e) => setEndereco((a) => ({ ...a, referencia: e.target.value }))} placeholder="Ex: ao lado da padaria, portão azul"
                     className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  <p className="mt-1.5 text-[12px] text-text-subtle">Opcional — ajuda quem vai entregar a achar você mais rápido.</p>
                 </div>
               </div>
-              )}
+              ))}
               {/* Status do frete calculado */}
-              {(endereco.bairro.trim() || endereco.cep.replace(/\D/g, '').length === 8) && (
-                entregavel ? (
+              {tipoPedido === 'entrega' && (endereco.bairro.trim() || endereco.cep.replace(/\D/g, '').length === 8) && (
+                freteStatus === 'calculando' ? (
+                  <div className="mt-3 rounded border border-border bg-page/60 px-3 py-2.5 text-[13px] text-text-subtle">Calculando a taxa de entrega…</div>
+                ) : freteStatus === 'erro' ? (
+                  <div className="mt-3 rounded border border-warn bg-warn-bg px-3 py-3">
+                    <p className="text-[13px] font-semibold text-text-main">Não conseguimos calcular a taxa agora.</p>
+                    <p className="mt-1 text-[12px] text-text-subtle">Você pode seguir com o pedido — a loja confirma o valor da entrega com você.</p>
+                  </div>
+                ) : entregavel ? (
                   <div className="mt-3 flex items-center justify-between gap-2 rounded border border-price-bg bg-price-bg/40 px-3 py-2.5 text-[13px]">
                     <span className="font-medium text-text-main">
                       Frete{freteCalc?.fonte === 'raio' && freteCalc.distanciaKm != null ? ` · ~${freteCalc.distanciaKm} km` : ''}
@@ -3187,21 +3529,31 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </div>
                 )}
                 <div className="flex justify-between py-1 text-[14px]">
-                  <span className="text-text-subtle">Taxa de entrega</span>
-                  {fee === 0 && entregavel ? <span className="font-bold text-[#16A34A]">Grátis</span> : <span className="text-text-subtle">{brl(fee)}</span>}
+                  <span className="text-text-subtle">{rotuloLinhaFrete}</span>
+                  {valorLinhaFrete}
                 </div>
                 <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
               </div>
 
               {/* Entrega & pagamento */}
               <div className="mt-4 rounded-lg border border-border bg-white p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Entrega &amp; pagamento</h3>
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">
+                  {tipoPedido === 'retirada' ? 'Retirada' : 'Entrega'} &amp; pagamento
+                </h3>
                 <div className="flex items-center gap-3.5 pb-3.5">
                   <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]"><MapPin className="h-[22px] w-[22px] text-text-subtle" strokeWidth={1.8} /></span>
-                  <div className="min-w-0 text-[14px] leading-relaxed">
-                    <div className="font-semibold">{endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}</div>
-                    <div className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</div>
-                  </div>
+                  {tipoPedido === 'retirada' ? (
+                    <div className="min-w-0 text-[14px] leading-relaxed">
+                      <div className="font-semibold">Retirar em {restaurante?.nome}</div>
+                      <div className="text-text-subtle">{restaurante?.endereco?.trim() || 'Combine o local com a loja'}</div>
+                    </div>
+                  ) : (
+                    <div className="min-w-0 text-[14px] leading-relaxed">
+                      <div className="font-semibold">{endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}</div>
+                      <div className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</div>
+                      {endereco.referencia.trim() && <div className="text-text-subtle">Ref.: {endereco.referencia}</div>}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3.5 border-t border-border pt-3.5">
                   <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]">
@@ -3225,7 +3577,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
               className={['flex w-full items-center justify-between rounded-lg px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]', checkoutStep === 3 ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)]'].join(' ')}>
-              <span>{submitting ? 'Enviando…' : checkoutStep === 0 ? 'Ir para pagamento' : checkoutStep === 1 ? 'Ir para endereço' : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
+              <span>{submitting ? 'Enviando…' : checkoutStep === 0 ? 'Ir para pagamento' : checkoutStep === 1 ? (tipoPedido === 'retirada' ? 'Continuar' : 'Ir para endereço') : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
               {(checkoutStep === 0 || checkoutStep === 3) && !submitting && <span>{brl(total)}</span>}
             </button>
           </div>
@@ -3368,9 +3720,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     )}
                   </div>
+                  <div className="mt-3 flex gap-3">
+                    <div className="flex-1">
+                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
+                      <input value={contaEndereco.complemento} onChange={(e) => setContaEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Cidade</label>
+                      <input value={contaEndereco.cidade} onChange={(e) => setContaEndereco((a) => ({ ...a, cidade: e.target.value }))} placeholder="Cidade"
+                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                    </div>
+                  </div>
                   <div className="mt-3">
-                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
-                    <input value={contaEndereco.complemento} onChange={(e) => setContaEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco, referência"
+                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Ponto de referência</label>
+                    <input value={contaEndereco.referencia} onChange={(e) => setContaEndereco((a) => ({ ...a, referencia: e.target.value }))} placeholder="Ex: ao lado da padaria"
                       className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
 

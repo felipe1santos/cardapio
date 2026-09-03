@@ -43,7 +43,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ sl
 
     const cliente = await atualizarPerfilCliente(admin, restauranteId, body.telefone, body.token, {
       nome: body.nome ?? '',
-      endereco: body.endereco ?? { rua: '', numero: '', complemento: '', bairro: '', cep: '' },
+      endereco: body.endereco ?? { rua: '', numero: '', complemento: '', bairro: '', cep: '', cidade: '', referencia: '' },
     })
     if (!cliente) return NextResponse.json({ error: 'Sessão inválida' }, { status: 401 })
     return NextResponse.json(cliente)

@@ -47,7 +47,7 @@ function tempoRelativo(iso: string) {
 }
 
 function endereco(p: Pedido) {
-  const partes = [p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`, p.enderecoBairro].filter(Boolean)
+  const partes = [p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`, p.enderecoBairro, p.enderecoReferencia].filter(Boolean)
   return partes.join(' · ') || 'Entrega'
 }
 

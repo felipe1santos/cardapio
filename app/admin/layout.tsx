@@ -27,6 +27,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [badges, setBadges] = useState<BadgesNav>({ novosPedidos: 0, logisticaPendente: 0 })
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
+  // Loja que não trabalha com entregador fecha a entrega no próprio Kanban — o
+  // módulo de Logística sai do menu. `true` até a config chegar: esconder e
+  // reaparecer o item piscaria o menu a cada carregamento.
+  const [usaLogistica, setUsaLogistica] = useState(true)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // null = nenhum sinal explícito ainda; cai no default por rota.
   const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
@@ -51,7 +55,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       const id = await buscarRestauranteIdDoUsuario(supabase)
       if (!active || !id) return
 
-      buscarConfigLoja(supabase, id).then((c) => { if (active && c) setStoreSlug(c.slug) })
+      buscarConfigLoja(supabase, id).then((c) => {
+        if (!active || !c) return
+        setStoreSlug(c.slug)
+        setUsaLogistica(c.usaLogistica)
+      })
 
       try {
         const b = await contarBadgesNav(supabase, id)
@@ -89,7 +97,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [supabase, restauranteId])
 
-  const items = NAV_ITEMS.map((item) => {
+  const items = NAV_ITEMS.filter((item) => item.href !== '/admin/logistica' || usaLogistica).map((item) => {
     if (item.href === '/admin/pedidos') return { ...item, badge: badges.novosPedidos }
     if (item.href === '/admin/logistica') return { ...item, badge: badges.logisticaPendente }
     return item

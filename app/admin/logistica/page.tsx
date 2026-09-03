@@ -84,7 +84,9 @@ function tempoRelativo(iso: string) {
 }
 
 function endereco(p: Pedido) {
-  const partes = [p.enderecoBairro, p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`].filter(Boolean)
+  // A referência entra aqui porque é aqui que o operador lê o endereço antes de
+  // despachar — é o dado que evita a ligação "não achei a casa".
+  const partes = [p.enderecoBairro, p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`, p.enderecoReferencia].filter(Boolean)
   return partes.join(' · ') || 'Entrega'
 }
 

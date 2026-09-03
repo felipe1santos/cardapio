@@ -795,13 +795,16 @@ export interface RestauranteVitrine {
   proximaAberturaTexto: string | null
   avaliacaoNota: number | null
   avaliacaoQtd: number | null
+  /** Canais de venda ligados em Ajustes › Entrega. Ver migration 0049. */
+  aceitaEntrega: boolean
+  aceitaRetirada: boolean
 }
 
 export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -835,6 +838,9 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     proximaAberturaTexto: textoProximaAbertura(estadoLoja),
     avaliacaoNota: data.avaliacao_nota === null || data.avaliacao_nota === undefined ? null : Number(data.avaliacao_nota),
     avaliacaoQtd: data.avaliacao_qtd ?? null,
+    // Defaults iguais aos da migration: antes dela a vitrine só vendia entrega.
+    aceitaEntrega: data.aceita_entrega ?? true,
+    aceitaRetirada: data.aceita_retirada ?? false,
   }
 }
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { Copy, Check, QrCode } from 'lucide-react'
+import { normalizarBairro } from '@/lib/frete'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -511,7 +512,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           {config && (
             <Field label="Endereço público da loja" hint="Gerado automaticamente a partir do nome — não pode ser alterado por aqui.">
               <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-page px-3 py-2.5">
-                <span className="text-sm text-text-subtle">cardapio.app/loja/</span>
+                {/* O domínio precisa ser o real — o lojista copia daqui pra
+                    colar na bio do Instagram. "cardapio.app" era placeholder
+                    e mandava o cliente pra um endereço que não existe. */}
+                <span className="text-sm text-text-subtle">
+                  {typeof window === 'undefined' ? '' : `${window.location.host}/loja/`}
+                </span>
                 <span className="text-sm font-semibold text-text-main">{config.slug}</span>
               </div>
             </Field>
@@ -803,6 +809,11 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   const [savedTaxa, setSavedTaxa] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Canais de venda e fluxo de conclusão. Ficam com o default conservador até a
+  // config carregar (ver migration 0049).
+  const [fluxo, setFluxo] = useState({ usaLogistica: true, aceitaEntrega: true, aceitaRetirada: false })
+  const [savingFluxo, setSavingFluxo] = useState(false)
+
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editBairro, setEditBairro] = useState('')
   const [editTaxa, setEditTaxa] = useState('')
@@ -858,6 +869,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
         setTaxaPadraoSalva(cfg.taxaEntregaPadrao)
         setFreteGratis(cfg.freteGratisAcima === null ? '' : String(cfg.freteGratisAcima))
         setFreteGratisSalvo(cfg.freteGratisAcima)
+        setFluxo({ usaLogistica: cfg.usaLogistica, aceitaEntrega: cfg.aceitaEntrega, aceitaRetirada: cfg.aceitaRetirada })
       }
       setBairros(rows)
       setRaios(raioRows)
@@ -915,6 +927,33 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
     }
   }
 
+  /**
+   * Salva um dos toggles de fluxo. Aplica otimista (o switch responde na hora) e
+   * reverte se o servidor recusar — são três chaves que mudam o que o cliente vê
+   * na vitrine, então ficar "ligado" sem ter salvo seria pior que o clique perdido.
+   */
+  async function salvarFluxo(patch: Partial<typeof fluxo>) {
+    const anterior = fluxo
+    const proximo = { ...fluxo, ...patch }
+    // A loja precisa vender por algum canal — desligar os dois deixaria a
+    // vitrine sem nenhum botão de finalizar pedido.
+    if (!proximo.aceitaEntrega && !proximo.aceitaRetirada) {
+      setError('A loja precisa aceitar pelo menos um canal: entrega ou retirada.')
+      return
+    }
+    setFluxo(proximo)
+    setSavingFluxo(true)
+    setError(null)
+    try {
+      await atualizarConfigLoja(supabase, restauranteId, patch)
+    } catch {
+      setFluxo(anterior)
+      setError('Não foi possível salvar as opções de entrega.')
+    } finally {
+      setSavingFluxo(false)
+    }
+  }
+
   async function saveTaxaPadrao() {
     const val = parseFloat(taxaPadrao.replace(',', '.'))
     if (!Number.isFinite(val) || val < 0) { setError('Informe um valor numérico válido para a taxa padrão (ex: 5.00).'); return }
@@ -955,6 +994,14 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
   async function addBairroRow() {
     if (!newBairro.trim()) return
+    // Bairro repetido (ignorando acento e caixa) é armadilha silenciosa: o
+    // cálculo do frete pega o PRIMEIRO que casar, então a segunda taxa nunca
+    // vale e o lojista não entende por que o cliente pagou o valor errado.
+    const jaExiste = bairros.find((b) => normalizarBairro(b.bairro) === normalizarBairro(newBairro))
+    if (jaExiste) {
+      setError(`"${jaExiste.bairro}" já está cadastrado. Edite a taxa dele em vez de adicionar de novo.`)
+      return
+    }
     const val = parseFloat(newTaxa.replace(',', '.'))
     const taxa = Number.isFinite(val) && val >= 0 ? val : 0
     setAddingRow(true)
@@ -973,6 +1020,11 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
   async function saveEditRow(id: string) {
     if (!editBairro.trim()) return
+    const colide = bairros.find((b) => b.id !== id && normalizarBairro(b.bairro) === normalizarBairro(editBairro))
+    if (colide) {
+      setError(`"${colide.bairro}" já está cadastrado — dois bairros com o mesmo nome fazem o frete usar sempre o primeiro.`)
+      return
+    }
     const val = parseFloat(editTaxa.replace(',', '.'))
     const taxa = Number.isFinite(val) && val >= 0 ? val : 0
     setError(null)
@@ -1001,6 +1053,37 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="max-w-xl space-y-6">
+          {/* Como a loja vende e como fecha o pedido */}
+          <Card>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Como a loja atende</h3>
+            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+              Define o que o cliente pode escolher no cardápio e quem encerra o pedido no painel.
+            </p>
+            <div className="divide-y divide-border">
+              <ToggleRow
+                label="Aceitar pedidos para entrega"
+                hint="O cliente informa o endereço e paga a taxa de entrega."
+                checked={fluxo.aceitaEntrega}
+                onChange={(v) => salvarFluxo({ aceitaEntrega: v })}
+                disabled={savingFluxo}
+              />
+              <ToggleRow
+                label="Aceitar pedidos para retirada"
+                hint="O cliente retira no balcão: sem endereço e sem taxa de entrega."
+                checked={fluxo.aceitaRetirada}
+                onChange={(v) => salvarFluxo({ aceitaRetirada: v })}
+                disabled={savingFluxo}
+              />
+              <ToggleRow
+                label="Usar o módulo de Logística"
+                hint="Ligado: a entrega pronta sai do Kanban e vai para a Logística ser despachada a um entregador. Desligado: você marca “Saiu para entrega” e “Entregue” direto no Kanban, e o menu Logística some."
+                checked={fluxo.usaLogistica}
+                onChange={(v) => salvarFluxo({ usaLogistica: v })}
+                disabled={savingFluxo}
+              />
+            </div>
+          </Card>
+
           {/* Taxa padrão */}
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Taxa padrão de entrega</h3>

@@ -42,6 +42,9 @@ export interface Pedido {
   enderecoComplemento: string
   enderecoBairro: string
   enderecoCep: string
+  enderecoCidade: string
+  /** Ponto de referência informado pelo cliente ("ao lado da padaria"). Ajuda o entregador. */
+  enderecoReferencia: string
   formaPagamento: FormaPagamento
   trocoPara: number | null
   pago: boolean
@@ -92,6 +95,8 @@ interface PedidoRow {
   endereco_complemento: string
   endereco_bairro: string
   endereco_cep: string
+  endereco_cidade: string | null
+  endereco_referencia: string | null
   forma_pagamento: FormaPagamento
   troco_para: number | null
   pago: boolean
@@ -130,7 +135,7 @@ interface PedidoRow {
 
 export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
-  endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
+  endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, mesa, comanda_id,
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em,
@@ -150,6 +155,8 @@ export function mapPedido(row: PedidoRow): Pedido {
     enderecoComplemento: row.endereco_complemento,
     enderecoBairro: row.endereco_bairro,
     enderecoCep: row.endereco_cep,
+    enderecoCidade: row.endereco_cidade ?? '',
+    enderecoReferencia: row.endereco_referencia ?? '',
     formaPagamento: row.forma_pagamento,
     trocoPara: row.troco_para === null ? null : Number(row.troco_para),
     pago: row.pago,
@@ -187,11 +194,35 @@ export function mapPedido(row: PedidoRow): Pedido {
   }
 }
 
+/**
+ * Próximo status pelo botão principal do card do Kanban. `null` = o card não
+ * avança por ali.
+ *
+ * Com a Logística ligada, a entrega pronta é um beco sem saída de propósito: ela
+ * sai do Kanban e quem despacha é o outro módulo. Com a Logística desligada
+ * (loja que entrega com o próprio pessoal, ou que só usa o balcão) o ciclo
+ * inteiro se fecha no Kanban: pronto → em rota → entregue.
+ */
+export function proximoStatusKanban(
+  status: StatusPedido,
+  tipo: TipoPedido,
+  usaLogistica: boolean
+): StatusPedido | null {
+  if (status === 'recebido') return 'preparando'
+  if (status === 'preparando') return 'pronto'
+  if (status === 'pronto' && tipo === 'retirada') return 'entregue'
+  if (status === 'pronto' && tipo === 'entrega' && !usaLogistica) return 'em_rota'
+  if (status === 'em_rota' && !usaLogistica) return 'entregue'
+  return null
+}
+
 /** Endereço completo do pedido, no formato usado pela Directions API do Google Maps. */
 export function enderecoCompletoPedido(p: Pedido): string {
   const linha1 = [p.enderecoRua, p.enderecoNumero].filter(Boolean).join(', ')
   const linha2 = [p.enderecoComplemento, p.enderecoBairro].filter(Boolean).join(' - ')
-  return [linha1, linha2, p.enderecoCep].filter(Boolean).join(', ')
+  // A cidade entra quando o pedido a tem: sem ela o Google já resolveu rua
+  // homônima em município vizinho ao traçar a rota.
+  return [linha1, linha2, p.enderecoCidade, p.enderecoCep].filter(Boolean).join(', ')
 }
 
 // --- Painel (Kanban / Logística) — lê com a sessão do usuário (RLS por loja) ---
@@ -811,7 +842,7 @@ export interface NovoPedidoItemInput {
 export interface NovoPedidoInput {
   tipo: TipoPedido
   cliente: { nome: string; telefone: string }
-  endereco: { rua: string; numero: string; complemento: string; bairro: string; cep: string; cidade?: string }
+  endereco: { rua: string; numero: string; complemento: string; bairro: string; cep: string; cidade?: string; referencia?: string }
   pagamento: FormaPagamento
   trocoPara: number | null
   /** Apenas informativo — a taxa real é recalculada no servidor (resolverFrete). */
@@ -866,12 +897,23 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
 
   const { data: lojaRow, error: lojaError } = await admin
     .from('restaurantes')
-    .select('status_loja, horario_funcionamento')
+    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada')
     .eq('id', restauranteId)
     .single()
   if (lojaError) throw lojaError
   if (!lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })) {
     throw new Error('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
+  }
+  // Canal server-authoritative: a vitrine já esconde o que a loja desligou, mas
+  // uma aba aberta antes da mudança (ou um POST direto) não pode furar a regra.
+  // O PDV é balcão e fica de fora — ele registra o que aconteceu na loja física.
+  if (input.origem !== 'pdv') {
+    if (input.tipo === 'entrega' && (lojaRow.aceita_entrega ?? true) === false) {
+      throw new Error('A loja não está aceitando pedidos para entrega no momento.')
+    }
+    if (input.tipo === 'retirada' && (lojaRow.aceita_retirada ?? false) === false) {
+      throw new Error('A loja não está aceitando pedidos para retirada no momento.')
+    }
   }
 
   const itemIds = [...new Set(input.itens.map((i) => i.itemId))]
@@ -1156,6 +1198,8 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       endereco_complemento: input.endereco.complemento,
       endereco_bairro: input.endereco.bairro,
       endereco_cep: input.endereco.cep,
+      endereco_cidade: input.endereco.cidade ?? '',
+      endereco_referencia: input.endereco.referencia ?? '',
       forma_pagamento: input.pagamento,
       troco_para: input.pagamento === 'dinheiro' ? input.trocoPara : null,
       pago: input.pagamento === 'pix',

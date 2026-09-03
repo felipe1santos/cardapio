@@ -30,7 +30,7 @@ import { CancelarPedidoModal } from '@/components/pedidos/cancelar-modal'
 import { podeCancelar, rotuloMotivo } from '@/lib/cancelamento'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
-import { buscarStatusELoja, definirStatusLoja } from '@/lib/queries/ajustes'
+import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
@@ -40,6 +40,7 @@ import {
   listarPedidosKanban,
   listarPedidosLogistica,
   marcarPedidoEntregue,
+  proximoStatusKanban,
   type Pedido,
   type StatusPedido,
 } from '@/lib/queries/pedidos'
@@ -209,23 +210,35 @@ const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: st
   failed: { accent: 'border-l-danger', bg: 'bg-danger/5', badge: 'danger', label: 'Não entregue' },
 }
 
-function FluxoCard({ order, tone, onClick }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void }) {
+/**
+ * Card das listas da 4ª coluna. `onConcluir` só chega para os pedidos em rota de
+ * uma loja que não usa a Logística: é a única tela onde ela fecha a entrega, então
+ * o botão precisa estar aqui. O corpo continua sendo um botão (abre os detalhes),
+ * mas o container virou div — botão dentro de botão é HTML inválido.
+ */
+function FluxoCard({ order, tone, onClick, onConcluir }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void }) {
   const t = FLUXO_TONE[tone]
   return (
-    <button
-      onClick={onClick}
-      className={`w-full rounded-menuzia border border-border border-l-[3px] p-3 text-left shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-bold">#{order.numero}</span>
-        <Badge tone={t.badge}>{t.label}</Badge>
-      </div>
-      <div className="mt-1 text-xs text-text-subtle">
-        {order.clienteNome || 'Cliente'}
-        {order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}
-      </div>
-      <div className="mt-1 text-[11px] font-medium text-price-text">{brl(order.total)}</div>
-    </button>
+    <div className={`rounded-menuzia border border-border border-l-[3px] shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`}>
+      <button onClick={onClick} className="w-full p-3 text-left">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-bold">#{order.numero}</span>
+          <Badge tone={t.badge}>{t.label}</Badge>
+        </div>
+        <div className="mt-1 text-xs text-text-subtle">
+          {order.clienteNome || 'Cliente'}
+          {order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}
+        </div>
+        <div className="mt-1 text-[11px] font-medium text-price-text">{brl(order.total)}</div>
+      </button>
+      {onConcluir && (
+        <div className="px-3 pb-3">
+          <Button variant="success" className="w-full" onClick={onConcluir}>
+            Entregue
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -302,6 +315,9 @@ export default function PedidosPage() {
   const [rotaOpen, setRotaOpen] = useState(false)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const [lojaStatus, setLojaStatus] = useState<{ statusLoja: StatusLoja; horarioFuncionamento: HorarioFuncionamento | null } | null>(null)
+  // Loja sem entregador fecha a entrega aqui mesmo (Ajustes › Entrega). Começa
+  // no default antigo pra não mostrar botões que a loja não pediu.
+  const [fluxo, setFluxo] = useState(FLUXO_LOJA_PADRAO)
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
 
   // restaura preferências (4º kanban, som e barra de métricas)
@@ -616,6 +632,17 @@ export default function PedidosPage() {
       } catch {
         /* sem status — assume automático (fallback do próprio lojaEstaAberta) */
       }
+      try {
+        const f = await buscarFluxoLoja(supabase, id)
+        if (!active) return
+        setFluxo(f)
+        // Sem Logística, a coluna "Entregas & concluídos" deixa de ser um extra:
+        // é onde o pedido em rota vive até ser marcado como entregue. Abre por
+        // padrão, mas respeita quem já escolheu explicitamente.
+        if (!f.usaLogistica && localStorage.getItem('menuzia:kanban-col4') === null) setShowCol4(true)
+      } catch {
+        /* sem config — mantém o fluxo com Logística, que é como sempre foi */
+      }
       if (!active) return
       await refetch(id)
       setLoading(false)
@@ -678,18 +705,26 @@ export default function PedidosPage() {
     return null
   }
 
-  async function avancar(p: Pedido) {
-    let novo: StatusPedido | null = null
-    if (p.status === 'recebido') novo = 'preparando'
-    else if (p.status === 'preparando') novo = 'pronto'
-    else if (p.status === 'pronto' && p.tipo === 'retirada') novo = 'entregue'
+  /**
+   * Move o pedido para `novo`. `avancar` usa o passo natural do card; a ação
+   * "Entregue" do pedido pronto pula o "em rota" (loja que entrega na hora, sem
+   * rota nenhuma pra registrar).
+   */
+  async function moverPara(p: Pedido, novo: StatusPedido | null) {
     if (!novo || !restauranteId) return
     cancelarAutoAceite(p.id)
 
-    // otimista
-    setOrders((prev) =>
-      novo === 'entregue' ? prev.filter((o) => o.id !== p.id) : prev.map((o) => (o.id === p.id ? { ...o, status: novo! } : o))
-    )
+    // Otimista. `entregue` e `em_rota` tiram o pedido das três colunas do
+    // Kanban, então ele precisa aparecer na lista certa da 4ª coluna na mesma
+    // hora — senão some da tela até o próximo refetch.
+    setOrders((prev) => (novo === 'entregue' || novo === 'em_rota' ? prev.filter((o) => o.id !== p.id) : prev.map((o) => (o.id === p.id ? { ...o, status: novo } : o))))
+    if (novo === 'em_rota') {
+      setTransit((prev) => (prev.some((o) => o.id === p.id) ? prev : [...prev, { ...p, status: 'em_rota' }]))
+    }
+    if (novo === 'entregue') {
+      setTransit((prev) => prev.filter((o) => o.id !== p.id))
+      setConcluded((prev) => (prev.some((o) => o.id === p.id) ? prev : [{ ...p, status: 'entregue' }, ...prev]))
+    }
     try {
       if (novo === 'entregue') await marcarPedidoEntregue(supabase, p.id)
       else await avancarStatusPedido(supabase, p.id, novo)
@@ -698,6 +733,10 @@ export default function PedidosPage() {
       setError('Não foi possível atualizar o pedido.')
       refetch(restauranteId)
     }
+  }
+
+  async function avancar(p: Pedido) {
+    await moverPara(p, proximoStatusKanban(p.status, p.tipo, fluxo.usaLogistica))
   }
 
   // Mantém a ref apontando pro avancar mais recente — os timers de aceite
@@ -1000,10 +1039,26 @@ export default function PedidosPage() {
                               Entregue
                             </Button>
                           )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && (
+                          {order.status === 'pronto' && order.tipo === 'entrega' && fluxo.usaLogistica && (
                             <span className="flex flex-1 items-center justify-center rounded-menuzia bg-page text-[11px] font-semibold uppercase text-text-subtle">
                               Na logística
                             </span>
+                          )}
+                          {order.status === 'pronto' && order.tipo === 'entrega' && !fluxo.usaLogistica && (
+                            <>
+                              <Button variant="dispatch" className="flex-1" onClick={() => avancar(order)}>
+                                Saiu p/ entrega
+                              </Button>
+                              {/* Atalho pra quem entrega na hora e não quer registrar a rota. */}
+                              <Button
+                                variant="outline"
+                                className="border-status-ready px-2.5 text-status-ready hover:bg-status-ready/10"
+                                onClick={() => moverPara(order, 'entregue')}
+                                title="Marcar como entregue agora"
+                              >
+                                ✓
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -1025,7 +1080,13 @@ export default function PedidosPage() {
               <div className="flex-1 space-y-4 overflow-y-auto p-3">
                 <SubSecao titulo="Em trânsito" cor="text-status-preparing" vazio="Ninguém em rota">
                   {transit.map((o) => (
-                    <FluxoCard key={o.id} order={o} tone="transit" onClick={() => setDetail(o)} />
+                    <FluxoCard
+                      key={o.id}
+                      order={o}
+                      tone="transit"
+                      onClick={() => setDetail(o)}
+                      onConcluir={fluxo.usaLogistica ? undefined : () => moverPara(o, 'entregue')}
+                    />
                   ))}
                 </SubSecao>
                 <SubSecao titulo="Concluídos" cor="text-price-text" vazio="Nada concluído hoje">
@@ -1167,7 +1228,14 @@ export default function PedidosPage() {
                   <div className="rounded-menuzia border border-border p-3 text-sm text-text-main">
                     <span className="font-semibold">{detail.enderecoRua}, {detail.enderecoNumero}</span>
                     {detail.enderecoComplemento && ` · ${detail.enderecoComplemento}`}
-                    <div className="text-text-subtle"><span className="font-semibold text-text-main">{detail.enderecoBairro}</span>{detail.enderecoCep && ` · ${detail.enderecoCep}`}</div>
+                    <div className="text-text-subtle">
+                      <span className="font-semibold text-text-main">{detail.enderecoBairro}</span>
+                      {detail.enderecoCidade && ` · ${detail.enderecoCidade}`}
+                      {detail.enderecoCep && ` · ${detail.enderecoCep}`}
+                    </div>
+                    {detail.enderecoReferencia && (
+                      <div className="mt-1.5 text-text-subtle">Referência: <span className="font-medium text-text-main">{detail.enderecoReferencia}</span></div>
+                    )}
                   </div>
                 </>
               )}
@@ -1187,6 +1255,18 @@ export default function PedidosPage() {
               )}
               {reimpEstado === 'erro' && (
                 <p className="mt-2 text-center text-[11px] text-danger">Não foi possível solicitar a reimpressão. Tente de novo.</p>
+              )}
+              {/* Escape para quem usa a Logística no dia a dia mas entregou este
+                  pedido na mão (o dono levou, o cliente passou pra buscar). Sem
+                  isso o pedido fica preso esperando um entregador que não existe. */}
+              {fluxo.usaLogistica && detail.tipo === 'entrega' && (detail.status === 'pronto' || detail.status === 'em_rota') && (
+                <button
+                  onClick={() => { const p = detail; setDetail(null); moverPara(p, 'entregue') }}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-menuzia border border-status-ready px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-status-ready transition-colors hover:bg-status-ready/10"
+                >
+                  <span aria-hidden>✓</span>
+                  Concluir sem entregador
+                </button>
               )}
               {podeCancelar(detail.status) && (
                 <button

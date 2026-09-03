@@ -7,6 +7,9 @@ export interface EnderecoCliente {
   complemento: string
   bairro: string
   cep: string
+  cidade: string
+  /** Ponto de referência pro entregador achar a casa. Opcional. */
+  referencia: string
 }
 
 export interface ClientePerfil {
@@ -25,6 +28,8 @@ interface ClienteRow {
   endereco_complemento: string
   endereco_bairro: string
   endereco_cep: string
+  endereco_cidade: string | null
+  endereco_referencia: string | null
 }
 
 function mapCliente(row: ClienteRow): ClientePerfil {
@@ -38,11 +43,13 @@ function mapCliente(row: ClienteRow): ClientePerfil {
       complemento: row.endereco_complemento,
       bairro: row.endereco_bairro,
       cep: row.endereco_cep,
+      cidade: row.endereco_cidade ?? '',
+      referencia: row.endereco_referencia ?? '',
     },
   }
 }
 
-const CLIENTE_SELECT = 'telefone, token, nome, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep'
+const CLIENTE_SELECT = 'telefone, token, nome, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia'
 
 /** Resolve o id do restaurante a partir do slug da vitrine. */
 export async function buscarRestauranteIdPorSlug(admin: SupabaseClient, slug: string): Promise<string | null> {
@@ -204,6 +211,8 @@ export async function atualizarPerfilCliente(admin: SupabaseClient, restauranteI
       endereco_complemento: input.endereco.complemento.trim(),
       endereco_bairro: input.endereco.bairro.trim(),
       endereco_cep: input.endereco.cep.trim(),
+      endereco_cidade: (input.endereco.cidade ?? '').trim(),
+      endereco_referencia: (input.endereco.referencia ?? '').trim(),
     })
     .eq('restaurante_id', restauranteId)
     .eq('telefone', telefone)
@@ -241,6 +250,8 @@ interface PedidoClienteRow {
   endereco_complemento: string
   endereco_bairro: string
   endereco_cep: string
+  endereco_cidade: string | null
+  endereco_referencia: string | null
   total: number
   criado_em: string
 }
@@ -257,7 +268,7 @@ export async function listarClientesComMetricas(supabase: SupabaseClient, restau
   const [{ data: pedidos, error: pedidosError }, { data: perfis, error: perfisError }] = await Promise.all([
     supabase
       .from('pedidos')
-      .select('cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, total, criado_em')
+      .select('cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia, total, criado_em')
       .eq('restaurante_id', restauranteId)
       .neq('status', 'cancelado')
       .order('criado_em', { ascending: true }),
@@ -308,6 +319,8 @@ export async function listarClientesComMetricas(supabase: SupabaseClient, restau
         complemento: ultimo.endereco_complemento,
         bairro: ultimo.endereco_bairro,
         cep: ultimo.endereco_cep,
+        cidade: ultimo.endereco_cidade ?? '',
+        referencia: ultimo.endereco_referencia ?? '',
       },
       sexo: sexoPorTelefone.get(chave) ?? '',
       totalPedidos,

@@ -36,6 +36,11 @@ export interface ConfigLoja {
   avaliacaoQtd: number | null
   horarioFuncionamento: HorarioFuncionamento | null
   statusLoja: StatusLoja
+  /** Loja usa o módulo de Logística (despacho por entregador) para fechar entregas. */
+  usaLogistica: boolean
+  /** Canais de venda oferecidos na vitrine. */
+  aceitaEntrega: boolean
+  aceitaRetirada: boolean
 }
 
 interface ConfigRow {
@@ -68,9 +73,12 @@ interface ConfigRow {
   avaliacao_qtd: number | null
   horario_funcionamento: HorarioFuncionamento | null
   status_loja: StatusLoja
+  usa_logistica: boolean | null
+  aceita_entrega: boolean | null
+  aceita_retirada: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -103,6 +111,11 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     avaliacaoQtd: row.avaliacao_qtd ?? null,
     horarioFuncionamento: row.horario_funcionamento ?? null,
     statusLoja: row.status_loja ?? 'automatico',
+    // O `?? default` cobre a janela entre o deploy do código e a migration
+    // rodar: coluna ausente/nula mantém o comportamento antigo.
+    usaLogistica: row.usa_logistica ?? true,
+    aceitaEntrega: row.aceita_entrega ?? true,
+    aceitaRetirada: row.aceita_retirada ?? false,
   }
 }
 
@@ -139,6 +152,9 @@ export interface ConfigLojaPatch {
   corTema?: string
   imagemGrande?: boolean
   horarioFuncionamento?: HorarioFuncionamento
+  usaLogistica?: boolean
+  aceitaEntrega?: boolean
+  aceitaRetirada?: boolean
 }
 
 export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteId: string, patch: ConfigLojaPatch): Promise<ConfigLoja> {
@@ -205,10 +221,42 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.corTema !== undefined) row.cor_tema = patch.corTema
   if (patch.imagemGrande !== undefined) row.imagem_grande = patch.imagemGrande
   if (patch.horarioFuncionamento !== undefined) row.horario_funcionamento = patch.horarioFuncionamento
+  if (patch.usaLogistica !== undefined) row.usa_logistica = patch.usaLogistica
+  if (patch.aceitaEntrega !== undefined) row.aceita_entrega = patch.aceitaEntrega
+  if (patch.aceitaRetirada !== undefined) row.aceita_retirada = patch.aceitaRetirada
 
   const { data, error } = await supabase.from('restaurantes').update(row).eq('id', restauranteId).select(CONFIG_SELECT).single()
   if (error) throw error
   return mapConfig(data as ConfigRow)
+}
+
+export interface FluxoLoja {
+  usaLogistica: boolean
+  aceitaEntrega: boolean
+  aceitaRetirada: boolean
+}
+
+/** Default usado enquanto a config não chegou (ou se a leitura falhar): mantém o comportamento anterior à migration 0049. */
+export const FLUXO_LOJA_PADRAO: FluxoLoja = { usaLogistica: true, aceitaEntrega: true, aceitaRetirada: false }
+
+/**
+ * Leitura leve dos canais de venda e do fluxo de conclusão. O Kanban precisa
+ * saber se mostra os botões de entrega ou o rótulo "Na logística", e não tem
+ * motivo pra puxar o ConfigLoja inteiro (banner, pixel, horário…) só por isso.
+ */
+export async function buscarFluxoLoja(supabase: SupabaseClient, restauranteId: string): Promise<FluxoLoja> {
+  const { data, error } = await supabase
+    .from('restaurantes')
+    .select('usa_logistica, aceita_entrega, aceita_retirada')
+    .eq('id', restauranteId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return FLUXO_LOJA_PADRAO
+  return {
+    usaLogistica: data.usa_logistica ?? FLUXO_LOJA_PADRAO.usaLogistica,
+    aceitaEntrega: data.aceita_entrega ?? FLUXO_LOJA_PADRAO.aceitaEntrega,
+    aceitaRetirada: data.aceita_retirada ?? FLUXO_LOJA_PADRAO.aceitaRetirada,
+  }
 }
 
 /** Toggle rápido usado no Kanban: força a loja aberta/fechada, ou devolve pro modo automático (segue a grade de horário). */
