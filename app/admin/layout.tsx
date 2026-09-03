@@ -7,6 +7,9 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { contarBadgesNav, type BadgesNav } from '@/lib/queries/pedidos'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
+import { carregarDadosSetup } from '@/lib/queries/setup'
+import { assinaturaPendencias, avaliarSetup, contarPorMenu, type PendenciaSetup } from '@/lib/setup-checklist'
+import { SetupAlerta } from '@/components/admin/setup-alerta'
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
@@ -21,6 +24,25 @@ const NAV_ITEMS = [
   { href: '/admin/ajustes', label: 'Ajustes' },
 ]
 
+/** Onde fica registrado o "OK, entendi" do dono, por loja. */
+function chaveDispensa(restauranteId: string) {
+  return `menuzia:setup-ok:${restauranteId}`
+}
+
+/**
+ * O modal só interrompe o trabalho quando há pendência CRÍTICA (o que trava o
+ * pedido do cliente) e essa combinação ainda não foi dispensada. Pendência de
+ * atenção vive só no marcador do menu — brigar por foto de item seria ruído.
+ */
+function deveAbrirAlerta(restauranteId: string, lista: PendenciaSetup[]): boolean {
+  if (!lista.some((p) => p.severidade === 'critico')) return false
+  try {
+    return localStorage.getItem(chaveDispensa(restauranteId)) !== assinaturaPendencias(lista)
+  } catch {
+    return true
+  }
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -34,6 +56,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // null = nenhum sinal explícito ainda; cai no default por rota.
   const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
+  // Checklist de configuração (lib/setup-checklist.ts).
+  const [pendencias, setPendencias] = useState<PendenciaSetup[]>([])
+  const [alertaAberto, setAlertaAberto] = useState(false)
 
   // Modo tela cheia: páginas como Pedidos/PDV escondem a sidebar.
   // O evento pode chegar tarde no load direto (o efeito do filho dispara antes do
@@ -74,6 +99,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [supabase])
 
+  // Checklist de configuração: recarregado a cada troca de rota, que é quando o
+  // dono acabou de mexer em Ajustes/Cardápio. Corrigiu, o marcador some sozinho.
+  useEffect(() => {
+    if (!restauranteId) return
+    let active = true
+    ;(async () => {
+      try {
+        const config = await buscarConfigLoja(supabase, restauranteId)
+        if (!active || !config) return
+        setStoreSlug(config.slug)
+        setUsaLogistica(config.usaLogistica)
+
+        const lista = avaliarSetup(await carregarDadosSetup(supabase, restauranteId, config))
+        if (!active) return
+        setPendencias(lista)
+        setAlertaAberto(deveAbrirAlerta(restauranteId, lista))
+      } catch {
+        /* silencioso: o checklist é auxiliar e não pode derrubar o painel */
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [supabase, restauranteId, pathname])
+
   // Canal Realtime num effect próprio: o cleanup retornado por uma função
   // async nunca é chamado pelo React, então o canal ficava aberto pra sempre
   // a cada remontagem do layout, vazando conexões Realtime ao longo do turno.
@@ -97,10 +147,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [supabase, restauranteId])
 
+  const alertasPorMenu = contarPorMenu(pendencias)
+
   const items = NAV_ITEMS.filter((item) => item.href !== '/admin/logistica' || usaLogistica).map((item) => {
-    if (item.href === '/admin/pedidos') return { ...item, badge: badges.novosPedidos }
-    if (item.href === '/admin/logistica') return { ...item, badge: badges.logisticaPendente }
-    return item
+    const alerta = alertasPorMenu[item.href]
+    const base = alerta ? { ...item, alerta } : item
+    if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
+    if (item.href === '/admin/logistica') return { ...base, badge: badges.logisticaPendente }
+    return base
   })
 
   const handleSignOut = async () => {
@@ -108,10 +162,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/login')
   }
 
+  const dispensarAlerta = () => {
+    setAlertaAberto(false)
+    if (!restauranteId) return
+    try {
+      localStorage.setItem(chaveDispensa(restauranteId), assinaturaPendencias(pendencias))
+    } catch {
+      /* navegador sem storage: o modal volta no próximo carregamento, e tudo bem */
+    }
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
-      {!focusMode && <Sidebar items={items} activeHref={pathname} storeSlug={storeSlug} onSignOut={handleSignOut} />}
+      {!focusMode && (
+        <Sidebar
+          items={items}
+          activeHref={pathname}
+          storeSlug={storeSlug}
+          onSignOut={handleSignOut}
+          pendencias={pendencias.length}
+          onAbrirPendencias={() => setAlertaAberto(true)}
+        />
+      )}
       <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
+      {alertaAberto && (
+        <SetupAlerta
+          pendencias={pendencias}
+          onDispensar={dispensarAlerta}
+          onResolver={(href) => {
+            dispensarAlerta()
+            router.push(href)
+          }}
+        />
+      )}
     </div>
   )
 }

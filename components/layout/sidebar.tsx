@@ -4,6 +4,8 @@ export interface SidebarItem {
   href: string
   label: string
   badge?: number
+  /** Pendências de configuração desta seção (ver lib/setup-checklist.ts). */
+  alerta?: number
   novidade?: boolean
 }
 
@@ -12,6 +14,9 @@ export interface SidebarProps {
   activeHref: string
   storeSlug?: string | null
   onSignOut?: () => void
+  /** Total de pendências de configuração — mostra o atalho pra reabrir o alerta. */
+  pendencias?: number
+  onAbrirPendencias?: () => void
 }
 
 const NAV_ICONS: Record<string, string> = {
@@ -27,7 +32,7 @@ const NAV_ICONS: Record<string, string> = {
   '/admin/ajustes': 'M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z',
 }
 
-export function Sidebar({ items, activeHref, storeSlug, onSignOut }: SidebarProps) {
+export function Sidebar({ items, activeHref, storeSlug, onSignOut, pendencias = 0, onAbrirPendencias }: SidebarProps) {
   return (
     <aside className="flex h-screen w-[240px] flex-shrink-0 flex-col bg-sidebar-bg shadow-lg">
       <div className="flex h-[60px] items-center rounded-br-[18px] bg-primary px-4 text-white">
@@ -56,6 +61,17 @@ export function Sidebar({ items, activeHref, storeSlug, onSignOut }: SidebarProp
                 </svg>
               )}
               <span className="truncate">{item.label}</span>
+              {/* Marcador de configuração pendente: fica colado no nome da seção
+                  que resolve o problema, pra o dono saber onde clicar. */}
+              {item.alerta !== undefined && item.alerta > 0 && (
+                <span
+                  className="animate-alerta-menu flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
+                  title={`${item.alerta} ${item.alerta === 1 ? 'pendência de configuração' : 'pendências de configuração'}`}
+                  aria-label={`${item.alerta} ${item.alerta === 1 ? 'pendência de configuração' : 'pendências de configuração'}`}
+                >
+                  {item.alerta}
+                </span>
+              )}
               {item.novidade && (
                 <span className="flex-shrink-0 rounded px-1.5 py-[2px] text-[8px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#FCD34D', color: '#78350F' }}>
                   Novidade
@@ -70,6 +86,18 @@ export function Sidebar({ items, activeHref, storeSlug, onSignOut }: SidebarProp
           )
         })}
       </nav>
+      {pendencias > 0 && onAbrirPendencias && (
+        <button
+          type="button"
+          onClick={onAbrirPendencias}
+          className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-menuzia border border-danger/40 bg-danger/10 px-3 py-2.5 text-[12px] font-semibold text-danger transition-colors hover:bg-danger/20"
+        >
+          <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] flex-shrink-0 fill-current">
+            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+          </svg>
+          {pendencias} {pendencias === 1 ? 'pendência' : 'pendências'}
+        </button>
+      )}
       {onSignOut && (
         <button
           type="button"
