@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   horaDentroDoIntervalo,
   lojaEstaAberta,
+  horarioFechamentoAtual,
   proximaAbertura,
   turnosDoDia,
   type HorarioFuncionamento,
@@ -147,5 +148,42 @@ describe('proximaAbertura', () => {
     congelarEmSaoPaulo('2026-07-27T10:00:00')
     expect(proximaAbertura({ '1': null })).toBeNull()
     expect(proximaAbertura(null)).toBeNull()
+  })
+})
+
+describe('horarioFechamentoAtual', () => {
+  const auto = (horarioFuncionamento: HorarioFuncionamento | null) => ({
+    statusLoja: 'automatico' as const,
+    horarioFuncionamento,
+  })
+
+  it('devolve o fim do turno que está correndo agora', () => {
+    congelarEmSaoPaulo('2026-07-27T19:00:00') // segunda, dentro do turno da noite
+    const grade: HorarioFuncionamento = {
+      '1': [{ abre: '11:00', fecha: '14:00' }, { abre: '18:00', fecha: '23:00' }],
+    }
+    expect(horarioFechamentoAtual(auto(grade))).toBe('23:00')
+  })
+
+  it('devolve o fim do turno de ontem que atravessou a meia-noite', () => {
+    congelarEmSaoPaulo('2026-07-28T01:00:00') // terça de madrugada, turno da segunda
+    const grade: HorarioFuncionamento = { '1': [{ abre: '18:00', fecha: '02:00' }] }
+    expect(horarioFechamentoAtual(auto(grade))).toBe('02:00')
+  })
+
+  it('devolve null no vão entre turnos', () => {
+    congelarEmSaoPaulo('2026-07-27T16:00:00')
+    const grade: HorarioFuncionamento = {
+      '1': [{ abre: '11:00', fecha: '14:00' }, { abre: '18:00', fecha: '23:00' }],
+    }
+    expect(horarioFechamentoAtual(auto(grade))).toBeNull()
+  })
+
+  it('devolve null sem grade e com override manual (a grade não manda)', () => {
+    congelarEmSaoPaulo('2026-07-27T19:00:00')
+    const grade: HorarioFuncionamento = { '1': [{ abre: '18:00', fecha: '23:00' }] }
+    expect(horarioFechamentoAtual(auto(null))).toBeNull()
+    expect(horarioFechamentoAtual({ statusLoja: 'aberto_manual', horarioFuncionamento: grade })).toBeNull()
+    expect(horarioFechamentoAtual({ statusLoja: 'fechado_manual', horarioFuncionamento: grade })).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
-import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
+import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
@@ -793,6 +793,8 @@ export interface RestauranteVitrine {
   lojaAberta: boolean
   /** Texto de próxima abertura para quando a loja está fechada ("abre às 18:00"). Null = sem previsão. */
   proximaAberturaTexto: string | null
+  /** Hora em que o turno de agora fecha ("23:00"), pra vitrine dizer até quando atende. Null = sem grade correndo. */
+  fechamentoHoraTexto: string | null
   avaliacaoNota: number | null
   avaliacaoQtd: number | null
   /** Canais de venda ligados em Ajustes › Entrega. Ver migration 0049. */
@@ -836,6 +838,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     imagemGrande: Boolean(data.imagem_grande),
     lojaAberta: lojaEstaAberta(estadoLoja),
     proximaAberturaTexto: textoProximaAbertura(estadoLoja),
+    fechamentoHoraTexto: horarioFechamentoAtual(estadoLoja),
     avaliacaoNota: data.avaliacao_nota === null || data.avaliacao_nota === undefined ? null : Number(data.avaliacao_nota),
     avaliacaoQtd: data.avaliacao_qtd ?? null,
     // Defaults iguais aos da migration: antes dela a vitrine só vendia entrega.

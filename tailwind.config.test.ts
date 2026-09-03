@@ -17,6 +17,11 @@ describe('Menuzia Tailwind theme tokens', () => {
     expect(colors.warn).toBe('#F59E0B')
   })
 
+  it('defines the vitrine accents (verde de promoção e azul petróleo)', () => {
+    expect(colors.promo).toEqual({ DEFAULT: '#15803D', dark: '#166534', bg: '#DCFCE7' })
+    expect(colors.petrol).toEqual({ DEFAULT: '#0F5468', dark: '#0B3D4C', bg: '#E4EFF3' })
+  })
+
   it('defines the near-square Menuzia border radius', () => {
     expect(config.theme?.extend?.borderRadius?.menuzia).toBe('3px')
   })

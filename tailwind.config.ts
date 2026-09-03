@@ -31,6 +31,22 @@ const config: Config = {
           bg: "#DCFCE7",
           text: "#16A34A",
         },
+        // Verde de promoção da vitrine: mais fechado que o --text-price, para o
+        // preço com desconto e as pílulas de "Promoções" terem peso de destaque
+        // sem virar o verde claro de "valor positivo" usado no painel.
+        promo: {
+          DEFAULT: "#15803D",
+          dark: "#166534",
+          bg: "#DCFCE7",
+        },
+        // Azul petróleo: usado no horário de funcionamento da vitrine. É um
+        // neutro frio que convive com o verde de aberto e o vermelho de fechado
+        // sem competir com a cor de marca da loja.
+        petrol: {
+          DEFAULT: "#0F5468",
+          dark: "#0B3D4C",
+          bg: "#E4EFF3",
+        },
         alert: {
           bg: "#E0F2FE",
           text: "#0369A1",

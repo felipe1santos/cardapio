@@ -29,6 +29,18 @@ body {
   font-size: 14px;
 }
 
+/* A faixa que o Chrome Android descobre ao recolher a barra de endereços é
+   pintada com o fundo do canvas, não com o do <body>. Sem uma cor explícita no
+   <html> ela vem branca e "pisca" no meio do scroll. Na vitrine o fundo é um
+   cinza um pouco mais claro que o do painel — daí a variante por :has(). */
+html {
+  background-color: #edeef1;
+}
+
+html:has(.font-loja) {
+  background-color: #f3f4f6;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

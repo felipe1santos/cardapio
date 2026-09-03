@@ -150,6 +150,32 @@ export function textoProximaAbertura(restaurante: {
   return `abre ${DIAS_SEMANA_NOME[proxima.diaSemana]} às ${proxima.hora}`
 }
 
+/**
+ * Hora em que o turno que está correndo agora termina ("23:00"), para a vitrine dizer
+ * até quando a loja atende. `null` quando não dá pra afirmar: loja aberta na mão (a
+ * grade não manda), sem grade nenhuma, ou nenhum turno correndo neste instante.
+ */
+export function horarioFechamentoAtual(restaurante: {
+  statusLoja: StatusLoja
+  horarioFuncionamento: HorarioFuncionamento | null
+}): string | null {
+  if (restaurante.statusLoja !== 'automatico') return null
+
+  const grade = restaurante.horarioFuncionamento
+  if (!grade) return null
+
+  const hoje = diaSemanaSaoPaulo(new Date().toISOString())
+  const hora = horaAtualSaoPaulo()
+
+  const turnoDeHoje = turnosDoDia(grade, hoje).find((t) => turnoCorrendoNoDiaDeInicio(hora, t))
+  if (turnoDeHoje) return turnoDeHoje.fecha
+
+  // Turno de ontem que atravessou a meia-noite ainda está correndo (18:00–02:00).
+  const ontem = (hoje + 6) % 7
+  const turnoDeOntem = turnosDoDia(grade, ontem).find((t) => turnoCorrendoNoDiaSeguinte(hora, t))
+  return turnoDeOntem ? turnoDeOntem.fecha : null
+}
+
 /** true se o grupo (categoria) está ativo agora — sem horário configurado = sempre ativo. */
 export function grupoEstaAtivoAgora(grupo: { horarioAtivoInicio: string | null; horarioAtivoFim: string | null }): boolean {
   if (!grupo.horarioAtivoInicio || !grupo.horarioAtivoFim) return true

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent } from 'lucide-react'
+import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -20,6 +20,7 @@ import {
 } from '@/lib/queries/cardapio'
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
+import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { resolverPaleta } from '@/lib/paletas'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import {
@@ -165,14 +166,37 @@ function PriceTag({ price, originalPrice, hideDiscount = false }: { price: numbe
     // Em promoção: preço verde (fonte fina), valor antigo riscado e pill de % verde.
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="text-[15px] font-medium text-price-text">{brl(price)}</span>
+        <span className="text-[15px] font-bold text-promo">{brl(price)}</span>
         <span className="text-[12px] font-normal text-text-subtle line-through">{brl(originalPrice)}</span>
-        <span className="rounded bg-price-bg px-1.5 py-0.5 text-[11px] font-semibold text-price-text">-{off}%</span>
+        <span className="rounded bg-promo-bg px-1.5 py-0.5 text-[11px] font-bold text-promo">-{off}%</span>
       </span>
     )
   }
   // Sem desconto: preço neutro (não verde), fonte fina.
-  return <span className="text-[15px] font-medium text-text-main">{brl(price)}</span>
+  return <span className="text-[15.5px] font-bold text-text-main">{brl(price)}</span>
+}
+
+/**
+ * Cabeçalho de um grupo de escolhas dentro da ficha do produto (Tamanho, Sabor,
+ * Adicionais…). Faixa cinza de ponta a ponta da sheet, com a regra do grupo, o
+ * contador de selecionados e a etiqueta obrigatório/opcional — dá âncora visual
+ * pra quem rola uma ficha longa e separa um grupo do outro.
+ */
+function GrupoHeader({ titulo, regra, obrigatorio, contador }: { titulo: string; regra?: string; obrigatorio: boolean; contador?: string }) {
+  return (
+    <div className="-mx-4.5 mb-2.5 flex items-start justify-between gap-2 border-y border-border bg-[#F9FAFB] px-4.5 py-2.5">
+      <div className="min-w-0">
+        <h3 className="text-[15px] font-bold leading-tight text-text-main">{titulo}</h3>
+        {regra && <div className="mt-0.5 text-[12px] text-text-subtle">{regra}</div>}
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-1.5">
+        {contador && <span className="rounded bg-border px-1.5 py-[3px] text-[10px] font-bold text-text-main">{contador}</span>}
+        <span className={['rounded px-2 py-[3px] text-[10px] font-bold uppercase tracking-wide', obrigatorio ? 'bg-[#DC2626] text-white' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
+          {obrigatorio ? 'Obrigatório' : 'Opcional'}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 const TAG_STYLES: Record<string, { label: string; cls: string }> = {
@@ -180,7 +204,7 @@ const TAG_STYLES: Record<string, { label: string; cls: string }> = {
   edicao_limitada: { label: 'Edição limitada', cls: 'bg-pink-100 text-pink-600' },
   novo: { label: 'Novo', cls: 'bg-sky-100 text-sky-700' },
   favorito: { label: 'Favorito da casa', cls: 'bg-purple-100 text-purple-700' },
-  promocao: { label: 'Promoção', cls: 'bg-price-bg text-price-text' },
+  promocao: { label: 'Promoção', cls: 'bg-promo-bg text-promo' },
 }
 
 /** Pílula de etiqueta do item na vitrine (configurada no cadastro). */
@@ -898,7 +922,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [contaSaved, setContaSaved] = useState(false)
   const [contaEditando, setContaEditando] = useState(false)
 
-  // Restaura sessão salva no navegador.
+  // Restaura sessão salva no navegador. Mesmo quem saiu da conta tem o último
+  // telefone guardado: o campo de login já vem preenchido na próxima visita, que
+  // é o único dado que o cliente precisa digitar pra voltar.
   useEffect(() => {
     if (!slug) return
     try {
@@ -907,6 +933,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         const sessao = JSON.parse(raw)
         if (sessao?.telefone && sessao?.token) setClienteSessao(sessao)
       }
+      const ultimo = localStorage.getItem(`menuzia_telefone_${slug}`)
+      if (ultimo) setContaTelefone(mascararTelefoneBR(ultimo))
     } catch { /* sessão inválida, ignora */ }
   }, [slug])
 
@@ -1110,6 +1138,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       // confirmar o código. Entra direto, sem o passo de digitar o código.
       if (data.fallback) {
         localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token }))
+        localStorage.setItem(`menuzia_telefone_${slug}`, data.telefone)
         setClienteSessao({ telefone: data.telefone, token: data.token })
         setPerfilCliente(data)
         setContaNome(data.nome)
@@ -1139,6 +1168,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       const data: ClientePerfil & { error?: string } = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Código inválido.')
       localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token }))
+      localStorage.setItem(`menuzia_telefone_${slug}`, data.telefone)
       setClienteSessao({ telefone: data.telefone, token: data.token })
       setPerfilCliente(data)
       setContaNome(data.nome)
@@ -1959,6 +1989,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   const storeName = restaurante.nome
 
+  // Horário de funcionamento resumido numa pílula: aberta mostra até quando
+  // atende; fechada mostra quando volta. Sem grade configurada, some.
+  const horarioTexto = restaurante.lojaAberta
+    ? restaurante.fechamentoHoraTexto
+      ? `Até ${restaurante.fechamentoHoraTexto}`
+      : null
+    : restaurante.proximaAberturaTexto
+      ? restaurante.proximaAberturaTexto.charAt(0).toUpperCase() + restaurante.proximaAberturaTexto.slice(1)
+      : null
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
@@ -2049,9 +2089,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
 
             {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta) */}
-            <div className="relative z-10 px-4 lg:px-8">
-              <div className="-mt-8 flex items-center gap-3 rounded-md border border-border bg-white px-3 py-3 shadow-md sm:-mt-10 sm:gap-4 sm:px-4 sm:py-3.5">
-                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-20 sm:w-20 lg:h-[88px] lg:w-[88px]">
+            <div className="relative z-10 px-3 sm:px-4 lg:px-8">
+              {/* Altura da barra = altura da logo: o bloco de texto não estica o
+                  card no celular (nome, pílulas e endereço somam ~76px). */}
+              <div className="-mt-8 flex items-center gap-3 rounded-md border border-border bg-white p-2.5 shadow-md sm:-mt-10 sm:gap-4 sm:p-3.5">
+                <div className="h-[76px] w-[76px] flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-[92px] sm:w-[92px] lg:h-[104px] lg:w-[104px]">
                   {restaurante.logoUrl ? (
                     // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -2063,31 +2105,38 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="line-clamp-1 break-words text-[18px] font-extrabold leading-tight tracking-tight text-text-main sm:text-[22px] lg:text-[25px]">{storeName}</h1>
-                  <div className="mt-1 inline-flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-medium text-text-subtle sm:text-[13px]">
+                  <h1 className="truncate text-[17px] font-extrabold leading-tight tracking-tight text-text-main sm:text-[22px] lg:text-[26px]">{storeName}</h1>
+                  {/* Pílulas em vez de texto corrido: no celular a linha antiga
+                      quebrava em duas e empurrava o card pra baixo da logo. */}
+                  <div className="mt-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-1.5 sm:overflow-visible">
                     {restaurante.lojaAberta ? (
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#16A34A]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" /> Aberto agora
+                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded bg-price-bg px-2 py-[3px] text-[11px] font-bold text-promo sm:text-[12px]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-promo" /> Aberto
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-danger">
-                        <span className="h-1.5 w-1.5 rounded-full bg-danger" />
-                        Loja fechada
-                        {restaurante.proximaAberturaTexto && (
-                          <span className="font-medium text-text-subtle">· {restaurante.proximaAberturaTexto}</span>
-                        )}
+                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded bg-danger-bg px-2 py-[3px] text-[11px] font-bold text-[#B91C1C] sm:text-[12px]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#B91C1C]" /> Fechada
                       </span>
                     )}
-                    <span>⏱ 30–45 min</span>
+                    {horarioTexto && (
+                      <span className="inline-flex max-w-full flex-shrink-0 items-center gap-1 rounded bg-petrol-bg px-2 py-[3px] text-[11px] font-semibold text-petrol sm:text-[12px]">
+                        <Clock className="h-3 w-3 flex-shrink-0" strokeWidth={2.5} />
+                        <span className="truncate">{horarioTexto}</span>
+                      </span>
+                    )}
+                    <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-[var(--tema-light)] px-2 py-[3px] text-[11px] font-semibold text-[var(--tema-primaria)] sm:text-[12px]">
+                      <Truck className="h-3 w-3 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
+                    </span>
                     {restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null && (
-                      <span className="inline-flex items-center gap-1">
-                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-[#F59E0B]"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                        {formatarNota(restaurante.avaliacaoNota)} ({restaurante.avaliacaoQtd} avaliações)
+                      <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-warn-bg px-2 py-[3px] text-[11px] font-semibold text-[#B45309] sm:text-[12px]">
+                        <svg viewBox="0 0 24 24" className="h-3 w-3 flex-shrink-0 fill-[#F59E0B]"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                        {formatarNota(restaurante.avaliacaoNota)}
+                        <span className="hidden sm:inline">({restaurante.avaliacaoQtd})</span>
                       </span>
                     )}
                   </div>
                   {(restaurante.bairro || restaurante.cidade) && (
-                    <p className="mt-0.5 text-xs font-medium text-text-subtle sm:text-[13px]">
+                    <p className="mt-1 truncate text-[11.5px] font-medium text-text-subtle sm:text-[13px]">
                       📍 {[restaurante.bairro, restaurante.cidade].filter(Boolean).join(', ')}
                     </p>
                   )}
@@ -2157,7 +2206,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-[#16A34A] bg-[#DCFCE7] text-[#16A34A]' : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-promo bg-promo text-white shadow-sm' : 'border-promo/40 bg-promo-bg text-promo hover:border-promo'].join(' ')}
                 >
                   🏷️ Promoções
                 </button>
@@ -2203,7 +2252,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <div className="px-4 pb-1 pt-4 lg:px-0">
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
-                  <span className="rounded bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-bold text-[#16A34A]">{promoItems.length} itens</span>
+                  <span className="rounded bg-promo px-2 py-0.5 text-[11px] font-bold text-white">{promoItems.length} itens</span>
                 </div>
                 <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
               </div>
@@ -2750,7 +2799,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {cartCount > 0 && tab !== 'cart' && (
           <button
             onClick={() => setTab('cart')}
-            className="fixed bottom-[78px] left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-[568px] -translate-x-1/2 items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg lg:hidden"
+            className="fixed inset-x-0 bottom-[78px] z-30 mx-auto flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg lg:hidden"
           >
             <span className="flex items-center gap-2.5 text-sm font-bold">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{cartCount}</span>
@@ -2761,7 +2810,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         )}
 
         {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
-        <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[600px] -translate-x-1/2 transform-gpu border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] [backface-visibility:hidden] [will-change:transform] lg:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
           <div className="flex">
             {([
               { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0l8.954 8.955M4.5 9.75v10.125a.75.75 0 00.75.75H9a.75.75 0 00.75-.75v-4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v4.5c0 .414.336.75.75.75h3.75a.75.75 0 00.75-.75V9.75" /></svg> },
@@ -2891,18 +2940,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.tipoItem === 'pizza' && (
                   <div className="mt-1">
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-bold">Tamanho</h3>
-                        <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
-                      </div>
-                      <span className="mt-0.5 flex-shrink-0 rounded bg-[#ef4444] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Obrigatório</span>
-                    </div>
+                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoPizzaId ? '1/1' : '0/1'} />
                     {tamanhosPizza.map((tamanho) => {
                       const isSelected = selectedTamanhoPizzaId === tamanho.id
                       return (
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
-                          <span className="flex-1 text-sm font-medium">{tamanho.nome} <span className="text-text-subtle">({tamanho.fatias} fatias)</span></span>
+                          <span className="flex-1 text-[14.5px] font-semibold">{tamanho.nome} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span></span>
                           <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -2910,23 +2953,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       )
                     })}
 
-                    <div className="mb-2 mt-5 flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-bold">Sabor</h3>
-                        <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
-                      </div>
-                      <span className="mt-0.5 flex-shrink-0 rounded bg-[#ef4444] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Obrigatório</span>
-                    </div>
+                    <div className="mt-5" />
+                    <GrupoHeader titulo="Sabor" regra="Escolha 1" obrigatorio contador={selectedSaborId ? '1/1' : '0/1'} />
                     {productSheet.sabores.filter((s) => s.status === 'disponivel').map((sabor) => {
                       const isSelected = selectedSaborId === sabor.id
                       const preco = sabor.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
                       return (
                         <button key={sabor.id} onClick={() => setSelectedSaborId(sabor.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                           <div className="flex-1">
-                            <div className="text-sm font-medium">{sabor.nome}</div>
-                            {sabor.descricao && <div className="text-[11px] text-text-subtle">{sabor.descricao}</div>}
+                            <div className="text-[14.5px] font-semibold leading-snug">{sabor.nome}</div>
+                            {sabor.descricao && <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{sabor.descricao}</div>}
                           </div>
-                          <span className="text-[13px] font-semibold text-price-text">{brl(preco)}</span>
+                          <span className="flex-shrink-0 text-[14px] font-bold text-promo">{brl(preco)}</span>
                           <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -2938,7 +2976,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       <>
                         <div className="mb-2 mt-5 text-sm font-bold">Borda</div>
                         <button onClick={() => setSelectedBordaId(null)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left">
-                          <span className="flex-1 text-sm font-medium">Sem borda</span>
+                          <span className="flex-1 text-[14.5px] font-semibold">Sem borda</span>
                           <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedBordaId ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {!selectedBordaId && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -2947,8 +2985,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           const isSelected = selectedBordaId === borda.id
                           return (
                             <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
-                              <span className="flex-1 text-sm font-medium">{borda.nome}</span>
-                              <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(borda.preco)}</span>
+                              <span className="flex-1 text-[14.5px] font-semibold">{borda.nome}</span>
+                              <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(borda.preco)}</span>
                               <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -2972,7 +3010,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           return (
                             <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                               <span className="flex-1 text-sm font-medium">{massa.nome}</span>
-                              <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(massa.preco)}</span>
+                              <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(massa.preco)}</span>
                               <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -2986,19 +3024,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.tamanhos.length > 0 && (
                   <div className="mt-1">
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-bold">Tamanho</h3>
-                        <div className="mt-0.5 text-[11px] text-text-subtle">Escolha 1</div>
-                      </div>
-                      <span className="mt-0.5 flex-shrink-0 rounded bg-[#ef4444] px-2 py-0.5 text-[10px] font-bold uppercase text-white">Obrigatório</span>
-                    </div>
+                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoId ? '1/1' : '0/1'} />
                     {productSheet.tamanhos.map((tamanho) => {
                       const isSelected = selectedTamanhoId === tamanho.id
                       return (
-                        <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
-                          <span className="flex-1 text-sm font-medium">{tamanho.nome}</span>
-                          <span className="text-[13px] font-semibold text-price-text">{brl(tamanho.preco)}</span>
+                        <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-3 text-left last:border-none">
+                          <span className="flex-1 text-[14.5px] font-semibold">{tamanho.nome}</span>
+                          <span className="text-[14px] font-bold text-promo">{brl(tamanho.preco)}</span>
                           <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -3016,22 +3048,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   const showError = grupo.obrigatorio && totalSel > 0 && totalSel < grupo.minEscolhas
                   return (
                     <div key={grupo.id} className="mt-5">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-sm font-bold">{grupo.nome}</h3>
-                          <div className="mt-0.5 text-[11px] text-text-subtle">
-                            {grupo.obrigatorio
-                              ? grupo.maxEscolhas === 0 ? `No mínimo ${grupo.minEscolhas}` : grupo.minEscolhas === grupo.maxEscolhas ? `Escolha ${grupo.minEscolhas}` : `Escolha ${grupo.minEscolhas}–${grupo.maxEscolhas}`
-                              : grupo.maxEscolhas === 0 ? 'Quantos quiser' : grupo.maxEscolhas === 1 ? 'Opcional' : `Até ${grupo.maxEscolhas}`}
-                          </div>
-                        </div>
-                        <span className={['mt-0.5 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase', grupo.obrigatorio ? 'bg-[#ef4444] text-white' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
-                          {grupo.obrigatorio ? 'Obrigatório' : 'Opcional'}
-                        </span>
-                      </div>
-                      {!isRadio && (grupo.maxEscolhas === 0 || grupo.maxEscolhas > 1) && (
-                        <div className="mb-1.5 text-[11px] text-text-subtle">{grupo.maxEscolhas === 0 ? `${totalSel} selecionado${totalSel !== 1 ? 's' : ''}` : `${totalSel}/${grupo.maxEscolhas} selecionado${totalSel !== 1 ? 's' : ''}`}</div>
-                      )}
+                      <GrupoHeader
+                        titulo={grupo.nome}
+                        regra={
+                          grupo.obrigatorio
+                            ? grupo.maxEscolhas === 0 ? `No mínimo ${grupo.minEscolhas}` : grupo.minEscolhas === grupo.maxEscolhas ? `Escolha ${grupo.minEscolhas}` : `Escolha ${grupo.minEscolhas}–${grupo.maxEscolhas}`
+                            : grupo.maxEscolhas === 0 ? 'Quantos quiser' : grupo.maxEscolhas === 1 ? 'Opcional' : `Até ${grupo.maxEscolhas}`
+                        }
+                        obrigatorio={grupo.obrigatorio}
+                        contador={grupo.maxEscolhas > 0 ? `${totalSel}/${grupo.maxEscolhas}` : totalSel > 0 ? `${totalSel}` : undefined}
+                      />
                       {grupo.complementos.map((comp) => {
                         const qtdSel = sel.get(comp.id) ?? 0
                         const isSelected = qtdSel > 0
@@ -3039,12 +3065,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           <>
                             {comp.imagemUrl && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={36} height={36} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
+                              <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={56} height={56} className="h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                             )}
-                            <span className="flex-1 text-sm font-medium">{comp.nome}</span>
+                            <span className="min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{comp.nome}</span>
                             {comp.preco > 0
-                              ? <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(comp.preco)}</span>
-                              : <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[11px] font-bold text-[#16A34A]">Grátis</span>
+                              ? <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(comp.preco)}</span>
+                              : <span className="flex-shrink-0 rounded bg-promo-bg px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
                             }
                           </>
                         )
@@ -3054,9 +3080,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <div key={comp.id} className="flex w-full items-center gap-3 border-b border-border py-2.5 last:border-none">
                               {conteudo}
                               <div className="flex flex-shrink-0 items-center rounded border border-border">
-                                <button onClick={() => changeCompQty(grupo.id, comp.id, -1, grupo.maxEscolhas)} disabled={qtdSel === 0} className="flex h-[30px] w-[30px] items-center justify-center text-base font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
-                                <span className={['w-[24px] text-center text-[13px] font-bold', isSelected ? 'text-text-main' : 'text-text-subtle/50'].join(' ')}>{qtdSel}</span>
-                                <button onClick={() => changeCompQty(grupo.id, comp.id, 1, grupo.maxEscolhas)} disabled={!podeMais} className="flex h-[30px] w-[30px] items-center justify-center text-base font-semibold text-[var(--tema-primaria)] disabled:text-border">+</button>
+                                <button onClick={() => changeCompQty(grupo.id, comp.id, -1, grupo.maxEscolhas)} disabled={qtdSel === 0} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
+                                <span className={['w-[24px] text-center text-[14px] font-bold', isSelected ? 'text-text-main' : 'text-text-subtle/50'].join(' ')}>{qtdSel}</span>
+                                <button onClick={() => changeCompQty(grupo.id, comp.id, 1, grupo.maxEscolhas)} disabled={!podeMais} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] disabled:text-border">+</button>
                               </div>
                             </div>
                           )
@@ -3087,20 +3113,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.complementos.length > 0 && (
                   <div className="mt-5">
-                    <div className="mb-2.5 flex items-center justify-between">
-                      <h3 className="text-sm font-bold">Adicionais</h3>
-                      <span className="rounded bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-bold uppercase text-text-subtle">Opcional</span>
-                    </div>
+                    <GrupoHeader titulo="Adicionais" regra="Quantos quiser" obrigatorio={false} contador={selectedAddons.size > 0 ? `${selectedAddons.size}` : undefined} />
                     {productSheet.complementos.map((addon) => (
                       <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
                         {addon.imagemUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={36} height={36} className="h-9 w-9 flex-shrink-0 rounded object-cover" />
+                          <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={56} height={56} className="h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                         )}
-                        <span className="flex-1 text-sm font-medium">{addon.nome}</span>
+                        <span className="min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{addon.nome}</span>
                         {addon.preco > 0
-                          ? <span className="text-[13px] font-semibold text-[#16A34A]">+ {brl(addon.preco)}</span>
-                          : <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[11px] font-bold text-[#16A34A]">Grátis</span>
+                          ? <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(addon.preco)}</span>
+                          : <span className="flex-shrink-0 rounded bg-promo-bg px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
                         }
                         <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', selectedAddons.has(addon.nome) ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
@@ -3111,7 +3134,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 )}
 
                 <div className="mt-5">
-                  <h3 className="mb-2.5 text-sm font-bold">Observações</h3>
+                  <h3 className="mb-2.5 text-[15px] font-bold">Observações</h3>
                   <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
@@ -3309,7 +3332,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </div>
                   <div className="flex-1">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Telefone</label>
-                    <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: e.target.value }))} placeholder="(00) 00000-0000" inputMode="tel"
+                    <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: mascararTelefoneBR(e.target.value) }))} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel" maxLength={16}
                       className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                 </div>
@@ -3573,7 +3596,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
           )}
 
-          <div className="fixed bottom-0 left-1/2 w-full max-w-[600px] -translate-x-1/2 border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:left-auto lg:max-w-none lg:translate-x-0 lg:pb-4">
+          <div className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-[600px] border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:mx-0 lg:max-w-none lg:pb-4">
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
               className={['flex w-full items-center justify-between rounded-lg px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]', checkoutStep === 3 ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)]'].join(' ')}>
@@ -3640,32 +3663,53 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <div className="flex-1 overflow-y-auto p-4.5 pb-[max(env(safe-area-inset-bottom),1.125rem)]">
               {!perfilCliente ? (
                 contaStep === 'telefone' ? (
-                  <>
-                    <p className="mb-3 text-[13px] text-text-subtle">Informe seu telefone com DDD para receber um código de confirmação pelo WhatsApp.</p>
-                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Telefone</label>
-                    <input value={contaTelefone} onChange={(e) => setContaTelefone(e.target.value)} placeholder="(00) 00000-0000" inputMode="tel"
-                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                  <div className="py-1 text-center">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--tema-light)]">
+                      <Phone className="h-6 w-6 text-[var(--tema-primaria)]" strokeWidth={2} />
+                    </div>
+                    <h3 className="text-[17px] font-bold tracking-tight">Informe seu telefone</h3>
+                    <p className="mx-auto mt-1 max-w-[300px] text-[13px] leading-relaxed text-text-subtle">
+                      É com ele que a loja te reconhece: seus pedidos, endereço e cupons ficam salvos pra próxima vez.
+                    </p>
+                    <input
+                      value={contaTelefone}
+                      onChange={(e) => setContaTelefone(mascararTelefoneBR(e.target.value))}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && telefoneCompleto(contaTelefone) && !contaLoading) void enviarCodigoConta() }}
+                      placeholder="(00) 00000-0000"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      autoFocus
+                      maxLength={16}
+                      className="mt-4 w-full rounded border-2 border-border p-3 text-center font-sans text-[17px] font-bold tracking-wide outline-none focus:border-[var(--tema-primaria)]"
+                    />
                     {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
-                    <button onClick={enviarCodigoConta} disabled={contaLoading || !contaTelefone}
-                      className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
-                      {contaLoading ? 'Enviando…' : 'Receber código por WhatsApp'}
+                    <button onClick={enviarCodigoConta} disabled={contaLoading || !telefoneCompleto(contaTelefone)}
+                      className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
+                      {contaLoading ? 'Enviando…' : 'Continuar'}
                     </button>
-                  </>
+                    <p className="mt-3 text-[12px] leading-relaxed text-text-subtle">
+                      Enviamos um código pelo WhatsApp só pra confirmar que o número é seu.
+                    </p>
+                  </div>
                 ) : (
-                  <>
-                    <p className="mb-3 text-[13px] text-text-subtle">Enviamos um código de 6 dígitos pelo WhatsApp para {contaTelefone}.</p>
-                    <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Código</label>
-                    <input value={contaCodigo} onChange={(e) => setContaCodigo(e.target.value)} placeholder="000000" inputMode="numeric" maxLength={6}
-                      className="w-full rounded border border-border p-2.5 text-center font-sans text-lg font-bold tracking-[0.5em] outline-none focus:border-[var(--tema-primaria)]" />
+                  <div className="py-1 text-center">
+                    <h3 className="text-[17px] font-bold tracking-tight">Confirme o código</h3>
+                    <p className="mx-auto mt-1 max-w-[300px] text-[13px] leading-relaxed text-text-subtle">
+                      Enviamos 6 dígitos pelo WhatsApp para <span className="font-semibold text-text-main">{contaTelefone}</span>.
+                    </p>
+                    <input value={contaCodigo} onChange={(e) => setContaCodigo(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && contaCodigo.length === 6 && !contaLoading) void confirmarCodigoConta() }}
+                      placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus
+                      className="mt-4 w-full rounded border-2 border-border p-3 text-center font-sans text-xl font-bold tracking-[0.5em] outline-none focus:border-[var(--tema-primaria)]" />
                     {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
                     <button onClick={confirmarCodigoConta} disabled={contaLoading || contaCodigo.length < 6}
-                      className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
+                      className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
                       {contaLoading ? 'Confirmando…' : 'Confirmar código'}
                     </button>
                     <button onClick={() => { setContaStep('telefone'); setContaCodigo(''); setContaError(null) }} className="mt-3 w-full text-center text-[13px] font-semibold text-[var(--tema-primaria)]">
                       Trocar número / reenviar código
                     </button>
-                  </>
+                  </div>
                 )
               ) : contaEditando ? (
                 <>
