@@ -1,7 +1,7 @@
 # 🔴 RETOMAR — o que fazer quando voltar
 
 > Última sessão: **2026-09-03 (noite)**. Tudo commitado e no GitHub (`main`).
-> Migration **0049 aplicada**. Deploy do commit `6595a87` **no ar** (Coolify, 03/09 20:36 UTC).
+> Migration **0049 aplicada**. Deploy do commit `2b11a70` **no ar** (Coolify, 03/09 noite).
 
 ---
 
@@ -44,9 +44,31 @@ anterior. Só o teste no celular ficou de fora.
 
 ---
 
+## 🎨 Sessão de design da vitrine (03/09, noite — commit `2b11a70`, deploy feito)
+
+Referência olhada: cardápio do CardápioWeb (telefabrica_dpizza).
+
+- [x] Cabeçalho da loja no celular: barra com a altura da logo (76px), nome numa
+      linha, pílulas de status/horário/tempo/nota rolando na horizontal, endereço
+      truncado. Some o vão vertical do print.
+- [x] Azul petróleo no horário de funcionamento e cor da loja no tempo de entrega.
+- [x] Verde de promoção mais fechado (#15803D) no preço com desconto, na pílula
+      de -%, no chip "Promoções" e nos preços dos complementos.
+- [x] Etiqueta "Obrigatório" em vermelho de verdade (#DC2626).
+- [x] Ficha do produto: cabeçalho de grupo em faixa cinza com regra + contador,
+      miniatura do complemento de 36px para 56px, nome e preço maiores.
+- [x] Login: telefone com máscara, teclado numérico, Enter, e o último número
+      fica salvo no aparelho (volta preenchido). O código do WhatsApp continua —
+      é o que impede alguém de entrar com o telefone de outro cliente.
+- [x] Branco no rodapé ao rolar: o html ganhou cor de fundo e as barras fixas
+      deixaram de ser promovidas a camada própria (transform-gpu/will-change).
+- [x] horarioFechamentoAtual() novo em lib/timezone.ts (pílula "Até 23:00").
+
 ## ⬜ O QUE FALTA
 
 ### 1. ⬜ Testar no celular de verdade (só o Felipe consegue)
+- Conferir o cabeçalho da loja, as pílulas e a ficha de produto redesenhados.
+- Rolar a lista até o fim: **não pode aparecer faixa branca** embaixo dos botões.
 - Puxar a tela pra baixo no cardápio: **não pode recarregar**.
 - Abrir um produto e apertar voltar: fecha só a sheet.
 - Apertar voltar no cardápio: aparece **"Sair do cardápio?"**.
