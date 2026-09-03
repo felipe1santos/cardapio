@@ -30,11 +30,19 @@ function chaveDispensa(restauranteId: string) {
 }
 
 /**
+ * Telas de operação: quem está no Kanban ou no PDV está atendendo cliente, e
+ * um modal no meio disso atrapalha mais do que ajuda. O marcador no menu
+ * continua aparecendo — o alerta abre quando o dono for para outra tela.
+ */
+const ROTAS_SEM_INTERRUPCAO = ['/admin/pedidos', '/admin/pdv']
+
+/**
  * O modal só interrompe o trabalho quando há pendência CRÍTICA (o que trava o
  * pedido do cliente) e essa combinação ainda não foi dispensada. Pendência de
  * atenção vive só no marcador do menu — brigar por foto de item seria ruído.
  */
-function deveAbrirAlerta(restauranteId: string, lista: PendenciaSetup[]): boolean {
+function deveAbrirAlerta(restauranteId: string, lista: PendenciaSetup[], pathname: string): boolean {
+  if (ROTAS_SEM_INTERRUPCAO.some((rota) => pathname === rota || pathname.startsWith(`${rota}/`))) return false
   if (!lista.some((p) => p.severidade === 'critico')) return false
   try {
     return localStorage.getItem(chaveDispensa(restauranteId)) !== assinaturaPendencias(lista)
@@ -114,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const lista = avaliarSetup(await carregarDadosSetup(supabase, restauranteId, config))
         if (!active) return
         setPendencias(lista)
-        setAlertaAberto(deveAbrirAlerta(restauranteId, lista))
+        setAlertaAberto(deveAbrirAlerta(restauranteId, lista, pathname))
       } catch {
         /* silencioso: o checklist é auxiliar e não pode derrubar o painel */
       }

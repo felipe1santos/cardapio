@@ -8,7 +8,9 @@ import type { DadosSetup } from '@/lib/setup-checklist'
 
 const push = vi.fn()
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/admin/dashboard', useRouter: () => ({ push }) }))
+let rotaAtual = '/admin/dashboard'
+
+vi.mock('next/navigation', () => ({ usePathname: () => rotaAtual, useRouter: () => ({ push }) }))
 vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabase: () => ({
     // O layout abre um canal Realtime assim que conhece a loja.
@@ -59,6 +61,7 @@ function dadosSetup(over: Partial<DadosSetup> = {}): DadosSetup {
 }
 
 beforeEach(() => {
+  rotaAtual = '/admin/dashboard'
   localStorage.clear()
   push.mockClear()
   vi.mocked(carregarDadosSetup).mockClear()
@@ -155,6 +158,18 @@ describe('AdminLayout — checklist de configuração', () => {
 
     await waitFor(() => expect(screen.getByLabelText('1 pendência de configuração')).toBeInTheDocument())
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('não interrompe quem está no Kanban ou no PDV — só marca o menu', async () => {
+    vi.mocked(buscarRestauranteIdDoUsuario).mockResolvedValue('loja-1')
+    vi.mocked(carregarDadosSetup).mockResolvedValue(dadosSetup({ itensDisponiveis: 0 }))
+    rotaAtual = '/admin/pedidos'
+
+    render(<AdminLayout><p>Kanban</p></AdminLayout>)
+
+    await waitFor(() => expect(carregarDadosSetup).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('1 pendência de configuração')).toBeInTheDocument()
   })
 
   it('"Resolver agora" navega para a seção e fecha o alerta', async () => {
