@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock, Check } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -23,6 +23,7 @@ import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
+import { avisoRepeticao, montarRepeticaoPedido } from '@/lib/repetir-pedido'
 import { resolverPaleta } from '@/lib/paletas'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import {
@@ -250,17 +251,17 @@ function GrupoHeader({ titulo, regra, obrigatorio, contador, atendido = false }:
 }
 
 /**
- * Fundo verde que acende da esquerda pra direita quando a opção é escolhida.
- * É o mesmo verde do resultado do cálculo de frete — o cérebro do cliente
- * associa "verde acendeu" a "deu certo" em qualquer tela da vitrine.
+ * Clarão verde que corre da esquerda pra direita quando a opção é escolhida e
+ * some sozinho. É o mesmo verde do resultado do cálculo de frete — "verde
+ * acendeu" quer dizer "deu certo" em qualquer tela da vitrine —, mas ele não
+ * fica: pintar todas as linhas escolhidas deixava a ficha um bloco verde.
+ *
+ * A prop chave remonta o span pra animação repetir a cada novo toque (somar mais um
+ * adicional, por exemplo).
  */
-function AcendeSelecao({ ativo }: { ativo: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={['pointer-events-none absolute inset-y-0 left-0 right-0 origin-left bg-promo-bg transition-transform duration-200 ease-out', ativo ? 'scale-x-100' : 'scale-x-0'].join(' ')}
-    />
-  )
+function FlashSelecao({ ativo, chave }: { ativo: boolean; chave?: string | number }) {
+  if (!ativo) return null
+  return <span key={chave} aria-hidden className="animate-flash-selecao pointer-events-none absolute inset-y-0 left-0 right-0 origin-left bg-promo-bg" />
 }
 
 const TAG_STYLES: Record<string, { label: string; cls: string }> = {
@@ -1170,6 +1171,24 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     setPremioCarrinhoVisto(true)
   }, [tab, cart.length, premioCarrinhoVisto, recompensaSelecionada, cupomAplicado, fidelidade])
 
+  /**
+   * "Pedir de novo": monta a sacola com o pedido antigo, casando cada item com o
+   * cardápio de agora (preço atual, sem o que saiu). Nunca substitui o que o
+   * cliente já escolheu — acrescenta, senão o clique poderia apagar a sacola.
+   */
+  function repetirPedido(pedido: PedidoCliente) {
+    const resultado = montarRepeticaoPedido(pedido, allItems)
+    if (resultado.linhas.length === 0) {
+      showToast('Os itens desse pedido não estão mais disponíveis.')
+      return
+    }
+    setCart((prev) => [...prev, ...resultado.linhas])
+    setPedidoDetalhe(null)
+    setTab('cart')
+    const aviso = avisoRepeticao(resultado)
+    showToast(aviso ? `Sacola montada — ${aviso}` : 'Pedido montado na sacola!')
+  }
+
   /** Fecha o modal de prêmio e marca este conjunto como visto neste aparelho. */
   function fecharPremioModal() {
     setPremioModal(null)
@@ -1619,7 +1638,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [pedidosLoading, setPedidosLoading] = useState(false)
 
   useEffect(() => {
-    if (tab !== 'pedidos' || !clienteSessao) { setMeusPedidos([]); return }
+    // Os pedidos são carregados com a sessão, não só na aba Pedidos: a faixa de
+    // acompanhamento no cardápio depende deles. Fora da aba o intervalo é longo
+    // (só precisa saber que existe pedido rolando); dentro dela, curto.
+    if (!clienteSessao) { setMeusPedidos([]); return }
     let active = true
     // Hidrata do cache local (salvo no celular do cliente) pra consulta imediata/offline.
     try {
@@ -1639,8 +1661,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       } catch { /* mantém lista atual (cache) */ }
       finally { if (active) setPedidosLoading(false) }
     }
-    load(true)
-    const interval = setInterval(() => load(false), 8000)
+    load(tab === 'pedidos')
+    const interval = setInterval(() => load(false), tab === 'pedidos' ? 8000 : 30000)
     return () => { active = false; clearInterval(interval) }
   }, [tab, clienteSessao, slug])
 
@@ -2109,6 +2131,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   const storeName = restaurante.nome
 
+  // Pedido que ainda está rolando — vira a faixa de acompanhamento no cardápio.
+  const pedidoEmAndamento = meusPedidos.find((pedido) => PEDIDO_ATIVO.has(pedido.status)) ?? null
+
   // Prêmio que o cliente já conquistou e pode usar hoje, ainda não aplicado no
   // pedido. É o que o lembrete da sacola oferece em um clique.
   const premioParaUsarNoCarrinho = (!recompensaSelecionada && !cupomAplicado)
@@ -2355,6 +2380,34 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </button>
               ))}
             </div>
+
+            {/* Pedido em andamento: enquanto a cozinha trabalha, o cliente
+                acompanha sem sair do cardápio (e volta a pedir sem perder o fio). */}
+            {pedidoEmAndamento && (
+              <div className="px-4 pt-3 lg:px-0">
+                <button
+                  onClick={() => setPedidoDetalhe(pedidoEmAndamento)}
+                  className="flex w-full items-center gap-3 rounded-md border border-border bg-white px-3.5 py-3 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
+                >
+                  <span className={['flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full', (STATUS_PEDIDO_INFO[pedidoEmAndamento.status]?.cls ?? 'bg-[#F3F4F6]')].join(' ')}>
+                    <Truck className="h-[18px] w-[18px]" strokeWidth={2.2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13.5px] font-bold leading-tight text-text-main">
+                      Pedido #{pedidoEmAndamento.numero} · {STATUS_PEDIDO_INFO[pedidoEmAndamento.status]?.label ?? 'Em andamento'}
+                    </span>
+                    <span className="mt-0.5 block text-[12px] text-text-subtle">
+                      {pedidoEmAndamento.status === 'pronto' && pedidoEmAndamento.tipo === 'retirada'
+                        ? 'Pronto para retirada — pode vir buscar'
+                        : pedidoEmAndamento.status === 'em_rota'
+                          ? 'Saiu para entrega — chega já'
+                          : 'Acompanhe o preparo em tempo real'}
+                    </span>
+                  </span>
+                  <span className="flex-shrink-0 text-[12px] font-bold uppercase tracking-wide text-[var(--tema-primaria)]">Ver</span>
+                </button>
+              </div>
+            )}
 
             {/* Banner ÚNICO de resgate: prêmios prontos hoje + cupons públicos da loja */}
             {bannerResgateTexto && activeCategory !== '__promos__' && !search.trim() && (
@@ -2662,11 +2715,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   const data = new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                   const resumo = p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')
                   return (
+                    <div key={p.id} className="overflow-hidden rounded border border-border bg-white transition-shadow hover:shadow-md">
                     <button
-                      key={p.id}
                       type="button"
                       onClick={() => setPedidoDetalhe(p)}
-                      className="block w-full overflow-hidden rounded border border-border bg-white text-left transition-shadow hover:shadow-md active:scale-[0.99]"
+                      className="block w-full text-left active:scale-[0.99]"
                     >
                       <div className="flex items-start justify-between gap-3 p-4">
                         <div className="min-w-0">
@@ -2687,6 +2740,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         <div className="border-t border-danger/30 bg-danger-bg px-4 py-2.5 text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
                       )}
                     </button>
+                    {/* Repetir só faz sentido em pedido encerrado — o que está em
+                        andamento o cliente ainda vai receber. */}
+                    {!ativo && (
+                      <div className="border-t border-border p-3">
+                        <button
+                          onClick={() => repetirPedido(p)}
+                          className="flex w-full items-center justify-center gap-2 rounded bg-[var(--tema-light)] py-2.5 text-[12px] font-bold uppercase tracking-wide text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-primaria)] hover:text-white"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.5} />
+                          Pedir de novo
+                        </button>
+                      </div>
+                    )}
+                    </div>
                   )
                 })}
               </div>
@@ -2978,7 +3045,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         )}
 
         {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
+        <nav className="nav-rodape fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
           <div className="flex">
             {([
               { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M12 3.1 2.5 11.4a1 1 0 0 0 .66 1.75H4.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-4.25h3.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-6.85h1.34a1 1 0 0 0 .66-1.75L12 3.1z" /></svg> },
@@ -3113,7 +3180,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       const isSelected = selectedTamanhoPizzaId === tamanho.id
                       return (
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
-                          <AcendeSelecao ativo={isSelected} />
+                          <FlashSelecao ativo={isSelected} />
                           <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span></span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -3129,12 +3196,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       const preco = sabor.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
                       return (
                         <button key={sabor.id} onClick={() => setSelectedSaborId(sabor.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
-                          <AcendeSelecao ativo={isSelected} />
+                          <FlashSelecao ativo={isSelected} />
                           <div className="relative flex-1">
                             <div className="text-[14.5px] font-semibold leading-snug">{sabor.nome}</div>
                             {sabor.descricao && <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{sabor.descricao}</div>}
                           </div>
-                          <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">{brl(preco)}</span>
+                          <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(preco)}</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -3146,7 +3213,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       <>
                         <GrupoHeader titulo="Borda" regra="Escolha 1" obrigatorio={false} atendido />
                         <button onClick={() => setSelectedBordaId(null)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left">
-                          <AcendeSelecao ativo={!selectedBordaId} />
+                          <FlashSelecao ativo={!selectedBordaId} />
                           <span className="relative flex-1 text-[14.5px] font-semibold">Sem borda</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', !selectedBordaId ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {!selectedBordaId && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -3156,9 +3223,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           const isSelected = selectedBordaId === borda.id
                           return (
                             <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
-                              <AcendeSelecao ativo={isSelected} />
+                              <FlashSelecao ativo={isSelected} />
                               <span className="relative flex-1 text-[14.5px] font-semibold">{borda.nome}</span>
-                              <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(borda.preco)}</span>
+                              <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(borda.preco)}</span>
                               <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -3172,7 +3239,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       <>
                         <GrupoHeader titulo="Massa" regra="Escolha 1" obrigatorio={false} atendido />
                         <button onClick={() => setSelectedMassaId(null)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left">
-                          <AcendeSelecao ativo={!selectedMassaId} />
+                          <FlashSelecao ativo={!selectedMassaId} />
                           <span className="relative flex-1 text-[14.5px] font-semibold">Massa tradicional</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', !selectedMassaId ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {!selectedMassaId && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -3182,9 +3249,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           const isSelected = selectedMassaId === massa.id
                           return (
                             <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
-                              <AcendeSelecao ativo={isSelected} />
+                              <FlashSelecao ativo={isSelected} />
                               <span className="relative flex-1 text-[14.5px] font-semibold">{massa.nome}</span>
-                              <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(massa.preco)}</span>
+                              <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(massa.preco)}</span>
                               <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -3203,9 +3270,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       const isSelected = selectedTamanhoId === tamanho.id
                       return (
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-3 text-left last:border-none">
-                          <AcendeSelecao ativo={isSelected} />
+                          <FlashSelecao ativo={isSelected} />
                           <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome}</span>
-                          <span className="relative text-[14px] font-bold text-promo">{brl(tamanho.preco)}</span>
+                          <span className={['relative text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(tamanho.preco)}</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -3243,10 +3310,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                             )}
-                            <span className="relative min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{comp.nome}</span>
+                            <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', isSelected ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{comp.nome}</span>
                             {comp.preco > 0
-                              ? <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(comp.preco)}</span>
-                              : <span className="relative flex-shrink-0 rounded bg-white px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
+                              ? <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(comp.preco)}</span>
+                              : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold transition-colors', isSelected ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
                             }
                           </>
                         )
@@ -3254,7 +3321,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           const podeMais = grupo.maxEscolhas === 0 || totalSel < grupo.maxEscolhas
                           return (
                             <div key={comp.id} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 last:border-none">
-                              <AcendeSelecao ativo={isSelected} />
+                              <FlashSelecao ativo={isSelected} chave={qtdSel} />
                               {conteudo}
                               <div className="relative flex flex-shrink-0 items-center rounded border border-border bg-white">
                                 <button onClick={() => changeCompQty(grupo.id, comp.id, -1, grupo.maxEscolhas)} disabled={qtdSel === 0} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
@@ -3266,7 +3333,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         }
                         return (
                           <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
-                            <AcendeSelecao ativo={isSelected} />
+                            <FlashSelecao ativo={isSelected} chave={qtdSel} />
                             {conteudo}
                             {isRadio ? (
                               <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
@@ -3294,15 +3361,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     <GrupoHeader titulo="Adicionais" regra="Quantos quiser" obrigatorio={false} contador={selectedAddons.size > 0 ? `${selectedAddons.size}` : undefined} atendido={selectedAddons.size > 0} />
                     {productSheet.complementos.map((addon) => (
                       <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
-                        <AcendeSelecao ativo={selectedAddons.has(addon.nome)} />
+                        <FlashSelecao ativo={selectedAddons.has(addon.nome)} />
                         {addon.imagemUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                         )}
-                        <span className="relative min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{addon.nome}</span>
+                        <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', selectedAddons.has(addon.nome) ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{addon.nome}</span>
                         {addon.preco > 0
-                          ? <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(addon.preco)}</span>
-                          : <span className="relative flex-shrink-0 rounded bg-white px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
+                          ? <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', selectedAddons.has(addon.nome) ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(addon.preco)}</span>
+                          : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold transition-colors', selectedAddons.has(addon.nome) ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
                         }
                         <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors', selectedAddons.has(addon.nome) ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}

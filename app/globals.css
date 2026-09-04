@@ -118,7 +118,8 @@ html:has(.font-loja) {
   .animate-resgate,
   .animate-alerta-setup,
   .animate-alerta-menu,
-  .animate-premio-pronto {
+  .animate-premio-pronto,
+  .animate-flash-selecao {
     animation: none;
   }
 }
@@ -136,4 +137,33 @@ html:has(.font-loja) {
 
 .animate-premio-pronto {
   animation: premio-pronto-pulse 2s ease-in-out infinite;
+}
+
+/* Clarão de seleção na ficha do produto: entra da esquerda pra direita e some.
+   Ficar verde depois de escolhido pintava a ficha inteira. */
+@keyframes flash-selecao {
+  0% { transform: scaleX(0); opacity: 0.9; }
+  45% { transform: scaleX(1); opacity: 0.9; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+.animate-flash-selecao {
+  animation: flash-selecao 620ms ease-out both;
+}
+
+/* Menu inferior da vitrine.
+
+   O padding de safe-area vinha aplicado sempre. No Chrome do Android, quando a
+   barra de endereço recolhe durante a rolagem, o `env(safe-area-inset-bottom)`
+   passa a valer a altura da barra de navegação do sistema: o padding cresce, a
+   barra branca estica e sobra uma faixa branca embaixo dos ícones. Dentro de um
+   app instalado (standalone) esse respiro é necessário; no navegador, não. */
+.nav-rodape {
+  padding-bottom: 6px;
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .nav-rodape {
+    padding-bottom: max(env(safe-area-inset-bottom), 6px);
+  }
 }
