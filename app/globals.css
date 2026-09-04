@@ -117,7 +117,23 @@ html:has(.font-loja) {
 @media (prefers-reduced-motion: reduce) {
   .animate-resgate,
   .animate-alerta-setup,
-  .animate-alerta-menu {
+  .animate-alerta-menu,
+  .animate-premio-pronto {
     animation: none;
   }
+}
+
+/* Prêmio pronto pra usar hoje (aba Cupons): pulsa o contorno verde pra puxar o
+   clique sem virar pisca-pisca. */
+@keyframes premio-pronto-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(21, 128, 61, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(21, 128, 61, 0.18);
+  }
+}
+
+.animate-premio-pronto {
+  animation: premio-pronto-pulse 2s ease-in-out infinite;
 }

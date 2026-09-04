@@ -83,3 +83,22 @@ export function assinaturaPremios(fidelidade: FidelidadeCliente | null): string 
   const cupons = fidelidade.cuponsPublicos.map((c) => `c:${c.id}`)
   return [...premios, ...cupons].sort().join('|')
 }
+
+/**
+ * Deve abrir o lembrete de prêmio quando o cliente chega na sacola?
+ *
+ * Só faz sentido com sacola cheia, prêmio resgatável HOJE e nenhum benefício já
+ * aplicado — oferecer um prêmio por cima de um cupom que o cliente escolheu
+ * seria tirar dele a escolha (os dois são exclusivos no checkout).
+ */
+export function deveLembrarPremioNaSacola(estado: {
+  aba: string
+  itensNaSacola: number
+  jaMostrado: boolean
+  temBeneficioAplicado: boolean
+  fidelidade: FidelidadeCliente | null
+}): boolean {
+  if (estado.aba !== 'cart' || estado.itensNaSacola === 0) return false
+  if (estado.jaMostrado || estado.temBeneficioAplicado) return false
+  return Boolean(estado.fidelidade?.recompensas.some((r) => r.podeResgatarHoje))
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock, Check } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -22,7 +22,7 @@ import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
-import { assinaturaPremios, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
+import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
 import { resolverPaleta } from '@/lib/paletas'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import {
@@ -201,7 +201,25 @@ function PriceTag({ price, originalPrice, hideDiscount = false }: { price: numbe
  * contador de selecionados e a etiqueta obrigatório/opcional — dá âncora visual
  * pra quem rola uma ficha longa e separa um grupo do outro.
  */
-function GrupoHeader({ titulo, regra, obrigatorio, contador }: { titulo: string; regra?: string; obrigatorio: boolean; contador?: string }) {
+function EstadoVazio({ emoji, titulo, texto, acao }: { emoji: string; titulo: string; texto: string; acao?: { label: string; onClick: () => void } }) {
+  return (
+    <div className="flex min-h-[60dvh] flex-col items-center justify-center px-6 text-center">
+      <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#F3F4F6] text-[36px] leading-none">{emoji}</div>
+      <p className="text-[17px] font-bold tracking-tight text-text-main">{titulo}</p>
+      <p className="mt-1.5 max-w-[290px] text-[13.5px] leading-relaxed text-text-subtle">{texto}</p>
+      {acao && (
+        <button
+          onClick={acao.onClick}
+          className="mt-6 rounded-md bg-[var(--tema-primaria)] px-7 py-3.5 text-[13px] font-bold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-[var(--tema-dark)] active:scale-[0.98]"
+        >
+          {acao.label}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function GrupoHeader({ titulo, regra, obrigatorio, contador, atendido = false }: { titulo: string; regra?: string; obrigatorio: boolean; contador?: string; atendido?: boolean }) {
   return (
     <div className="-mx-4.5 mb-2.5 flex items-start justify-between gap-2 border-y border-border bg-[#F9FAFB] px-4.5 py-2.5">
       <div className="min-w-0">
@@ -209,12 +227,39 @@ function GrupoHeader({ titulo, regra, obrigatorio, contador }: { titulo: string;
         {regra && <div className="mt-0.5 text-[12px] text-text-subtle">{regra}</div>}
       </div>
       <div className="flex flex-shrink-0 items-center gap-1.5">
-        {contador && <span className="rounded bg-border px-1.5 py-[3px] text-[10px] font-bold text-text-main">{contador}</span>}
-        <span className={['rounded px-2 py-[3px] text-[10px] font-bold uppercase tracking-wide', obrigatorio ? 'bg-[#DC2626] text-white' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
-          {obrigatorio ? 'Obrigatório' : 'Opcional'}
-        </span>
+        {/* Contador aceso no mesmo verde da seleção: confirma o que já foi escolhido. */}
+        {contador && (
+          <span className={['rounded px-1.5 py-[3px] text-[10px] font-bold transition-colors', atendido ? 'bg-promo-bg text-promo' : 'bg-border text-text-main'].join(' ')}>
+            {contador}
+          </span>
+        )}
+        {/* Cumprido o mínimo, o vermelho de "Obrigatório" vira um check verde —
+            o alerta some junto com o motivo dele. */}
+        {atendido ? (
+          <span className="flex h-[19px] w-[19px] items-center justify-center rounded-full bg-promo text-white" aria-label="Escolha concluída">
+            <Check className="h-3 w-3" strokeWidth={3.5} />
+          </span>
+        ) : (
+          <span className={['rounded px-2 py-[3px] text-[10px] font-bold uppercase tracking-wide', obrigatorio ? 'bg-[#DC2626] text-white' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
+            {obrigatorio ? 'Obrigatório' : 'Opcional'}
+          </span>
+        )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Fundo verde que acende da esquerda pra direita quando a opção é escolhida.
+ * É o mesmo verde do resultado do cálculo de frete — o cérebro do cliente
+ * associa "verde acendeu" a "deu certo" em qualquer tela da vitrine.
+ */
+function AcendeSelecao({ ativo }: { ativo: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={['pointer-events-none absolute inset-y-0 left-0 right-0 origin-left bg-promo-bg transition-transform duration-200 ease-out', ativo ? 'scale-x-100' : 'scale-x-0'].join(' ')}
+    />
   )
 }
 
@@ -689,6 +734,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [cuponsPiscando, setCuponsPiscando] = useState(false)
   // Benefício anunciado no modal de boas-vindas (null = nada a anunciar agora).
   const [premioModal, setPremioModal] = useState<PremioBoasVindas | null>(null)
+  // Lembrete de prêmio ao abrir a sacola: uma vez por visita, não a cada clique.
+  const [premioCarrinhoVisto, setPremioCarrinhoVisto] = useState(false)
+  const [premioCarrinhoAberto, setPremioCarrinhoAberto] = useState(false)
   const [cupomCodigoInput, setCupomCodigoInput] = useState('')
   const [cupomValidando, setCupomValidando] = useState(false)
   const [cupomErro, setCupomErro] = useState<string | null>(null)
@@ -1106,6 +1154,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // fidelidade/snapshotKey são lidos só pra checagem pontual — incluí-los reprovocaria o fetch a cada resposta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, clienteSessao, fidelidadeVersao])
+
+  // Lembrete de prêmio ao abrir a sacola: uma vez por visita, e só quando há
+  // prêmio resgatável hoje sem nenhum benefício já aplicado no pedido.
+  useEffect(() => {
+    const deveAbrir = deveLembrarPremioNaSacola({
+      aba: tab,
+      itensNaSacola: cart.length,
+      jaMostrado: premioCarrinhoVisto,
+      temBeneficioAplicado: Boolean(recompensaSelecionada || cupomAplicado),
+      fidelidade,
+    })
+    if (!deveAbrir) return
+    setPremioCarrinhoAberto(true)
+    setPremioCarrinhoVisto(true)
+  }, [tab, cart.length, premioCarrinhoVisto, recompensaSelecionada, cupomAplicado, fidelidade])
 
   /** Fecha o modal de prêmio e marca este conjunto como visto neste aparelho. */
   function fecharPremioModal() {
@@ -2046,6 +2109,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   const storeName = restaurante.nome
 
+  // Prêmio que o cliente já conquistou e pode usar hoje, ainda não aplicado no
+  // pedido. É o que o lembrete da sacola oferece em um clique.
+  const premioParaUsarNoCarrinho = (!recompensaSelecionada && !cupomAplicado)
+    ? (fidelidade?.recompensas.find((r) => r.podeResgatarHoje) ?? null)
+    : null
+
   // Menor taxa de entrega da loja — a informação que o cliente procura primeiro
   // ao abrir "Sobre a loja" ("de quanto sai daqui?").
   const menorTaxaEntrega = bairros.length > 0
@@ -2402,7 +2471,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           </div>
                           <div className="flex items-center justify-between pt-1 text-[15px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
                         </div>
-                        {tipoPedido === 'entrega' && (
+                        {tipoPedido === 'entrega' && freteRotulo !== null && (
                         <button
                           onClick={() => setFreteOpen(true)}
                           className="mb-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-[12px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
@@ -2482,14 +2551,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {tab === 'cart' && (
           <div className="px-4 pt-4 lg:px-8 lg:pt-8">
             {cart.length === 0 ? (
-              <div className="py-20 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🛍️</div>
-                <p className="font-semibold text-text-main">Sua sacola está vazia</p>
-                <p className="mt-1 text-[13px] text-text-subtle">Escolha seus itens favoritos no cardápio.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded-lg bg-[var(--tema-primaria)] px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-[var(--tema-dark)] active:scale-[0.98]">
-                  Ver cardápio
-                </button>
-              </div>
+              <EstadoVazio
+                emoji="🛍️"
+                titulo="Sua sacola está vazia"
+                texto="Escolha seus itens favoritos no cardápio e eles aparecem aqui."
+                acao={{ label: 'Ver cardápio', onClick: () => setTab('home') }}
+              />
             ) : (
               <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-6">
                 <div>
@@ -2529,7 +2596,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       <span>Total</span><span className="text-[#16A34A]">{brl(total)}</span>
                     </div>
                   </div>
-                  {tipoPedido === 'entrega' && (
+                  {tipoPedido === 'entrega' && freteRotulo !== null && (
                     <button
                       onClick={() => setFreteOpen(true)}
                       className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-5 py-3 text-[13px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
@@ -2572,25 +2639,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {tab === 'pedidos' && (
           <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
             {!clienteSessao ? (
-              <div className="py-16 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🔒</div>
-                <p className="font-semibold text-text-main">Entre para ver seus pedidos</p>
-                <p className="mx-auto mt-1 max-w-[260px] text-[13px] text-text-subtle">Confirme seu telefone para acompanhar o status e o histórico dos seus pedidos nesta loja.</p>
-                <button onClick={() => setContaOpen(true)} className="mt-5 rounded bg-[var(--tema-primaria)] px-6 py-2.5 text-sm font-bold text-white hover:bg-[var(--tema-dark)]">
-                  Entrar com WhatsApp
-                </button>
-              </div>
+              <EstadoVazio
+                emoji="🔒"
+                titulo="Entre para ver seus pedidos"
+                texto="Confirme seu telefone para acompanhar o status e o histórico dos seus pedidos nesta loja."
+                acao={{ label: 'Entrar com WhatsApp', onClick: () => setContaOpen(true) }}
+              />
             ) : pedidosLoading && meusPedidos.length === 0 ? (
               <div className="py-20 text-center text-[13px] text-text-subtle">Carregando seus pedidos…</div>
             ) : meusPedidos.length === 0 ? (
-              <div className="py-20 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">📦</div>
-                <p className="font-semibold text-text-main">Nenhum pedido ainda</p>
-                <p className="mt-1 text-[13px] text-text-subtle">Quando você finalizar um pedido, o acompanhamento aparece aqui.</p>
-                <button onClick={() => setTab('home')} className="mt-5 rounded bg-[var(--tema-primaria)] px-6 py-2.5 text-sm font-bold text-white hover:bg-[var(--tema-dark)]">
-                  Ver cardápio
-                </button>
-              </div>
+              <EstadoVazio
+                emoji="📦"
+                titulo="Nenhum pedido ainda"
+                texto="Quando você finalizar um pedido, o acompanhamento aparece aqui."
+                acao={{ label: 'Ver cardápio', onClick: () => setTab('home') }}
+              />
             ) : (
               <div className="space-y-4 pb-4">
                 {meusPedidos.map((p) => {
@@ -2742,7 +2805,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             }
             return <div className="py-20 text-center text-[13px] text-text-subtle">Carregando cupons…</div>
           }
-          const recompensas = fidelidade.recompensas
+          const recompensas = [...fidelidade.recompensas].sort(
+            (a, b) => Number(b.podeResgatarHoje) - Number(a.podeResgatarHoje)
+          )
           const missoes = fidelidade.campanhas
           const cuponsLoja = fidelidade.cuponsPublicos
           const nadaParaMostrar = recompensas.length === 0 && missoes.length === 0 && cuponsLoja.length === 0
@@ -2774,11 +2839,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       const label = premioLabelCampanha({ premioTipo: r.premioTipo, premioValor: r.premioValor }, r.premioItemNome)
                       const diasTexto = r.diasSemanaResgate.length > 0 ? diasSemanaTexto(r.diasSemanaResgate) : null
                       return (
-                        <div key={r.id} className="overflow-hidden rounded-md border border-[#16A34A]/40 bg-white shadow-sm">
+                        <div
+                          key={r.id}
+                          className={[
+                            'overflow-hidden rounded-md bg-white shadow-sm',
+                            r.podeResgatarHoje ? 'animate-premio-pronto border-2 border-promo' : 'border border-border opacity-90',
+                          ].join(' ')}
+                        >
                           <div className="flex items-start gap-3.5 p-3.5">
                             <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl ?? null }} size={112} fallbackIcon={iconePremio(r.premioTipo)} />
                             <div className="min-w-0 flex-1">
-                              <span className="inline-block rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#16A34A]">Prêmio desbloqueado</span>
+                              <span className={['inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide', r.podeResgatarHoje ? 'bg-promo text-white' : 'bg-promo-bg text-promo'].join(' ')}>
+                                {r.podeResgatarHoje ? 'Pronto pra usar hoje' : 'Prêmio desbloqueado'}
+                              </span>
                               <div className="mt-1.5 text-[15px] font-bold leading-snug text-text-main first-letter:uppercase">{label}</div>
                               <div className="mt-0.5 text-[12px] text-text-subtle">{r.campanhaNome}</div>
                               {diasTexto && <div className="mt-1 text-[12px] font-medium text-text-subtle">Resgate {diasTexto}</div>}
@@ -2788,7 +2861,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <button
                               onClick={() => usarRecompensa(r)}
                               disabled={!r.podeResgatarHoje}
-                              className={['w-full rounded py-3 text-[12px] font-bold uppercase tracking-wide transition-all', r.podeResgatarHoje ? 'bg-[#16A34A] text-white hover:bg-[#15803D] active:scale-[0.99]' : 'cursor-not-allowed bg-[#F3F4F6] text-text-subtle'].join(' ')}
+                              className={['w-full rounded py-3 text-[12px] font-bold uppercase tracking-wide transition-all', r.podeResgatarHoje ? 'bg-promo text-white hover:bg-promo-dark active:scale-[0.99]' : 'cursor-not-allowed bg-[#F3F4F6] text-text-subtle'].join(' ')}
                             >
                               Usar no pedido
                             </button>
@@ -2880,13 +2953,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
               {/* Estado vazio */}
               {nadaParaMostrar && (
-                <div className="rounded border border-dashed border-border py-16 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F3F4F6] text-3xl">🏷️</div>
-                  <p className="font-semibold text-text-main">Nenhum cupom por aqui ainda</p>
-                  <p className="mx-auto mt-1.5 max-w-[260px] text-[13px] leading-relaxed text-text-subtle">
-                    Quando a loja criar cupons ou campanhas de fidelidade, eles aparecem aqui.
-                  </p>
-                </div>
+                <EstadoVazio
+                  emoji="🏷️"
+                  titulo="Nenhum cupom por aqui ainda"
+                  texto="Quando a loja criar cupons ou campanhas de fidelidade, eles aparecem aqui."
+                />
               )}
             </div>
           )
@@ -3037,13 +3108,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.tipoItem === 'pizza' && (
                   <div className="mt-1">
-                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoPizzaId ? '1/1' : '0/1'} />
+                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoPizzaId ? '1/1' : '0/1'} atendido={!!selectedTamanhoPizzaId} />
                     {tamanhosPizza.map((tamanho) => {
                       const isSelected = selectedTamanhoPizzaId === tamanho.id
                       return (
-                        <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
-                          <span className="flex-1 text-[14.5px] font-semibold">{tamanho.nome} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span></span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                        <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                          <AcendeSelecao ativo={isSelected} />
+                          <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span></span>
+                          <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -3051,18 +3123,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     })}
 
                     <div className="mt-5" />
-                    <GrupoHeader titulo="Sabor" regra="Escolha 1" obrigatorio contador={selectedSaborId ? '1/1' : '0/1'} />
+                    <GrupoHeader titulo="Sabor" regra="Escolha 1" obrigatorio contador={selectedSaborId ? '1/1' : '0/1'} atendido={!!selectedSaborId} />
                     {productSheet.sabores.filter((s) => s.status === 'disponivel').map((sabor) => {
                       const isSelected = selectedSaborId === sabor.id
                       const preco = sabor.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
                       return (
-                        <button key={sabor.id} onClick={() => setSelectedSaborId(sabor.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
-                          <div className="flex-1">
+                        <button key={sabor.id} onClick={() => setSelectedSaborId(sabor.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                          <AcendeSelecao ativo={isSelected} />
+                          <div className="relative flex-1">
                             <div className="text-[14.5px] font-semibold leading-snug">{sabor.nome}</div>
                             {sabor.descricao && <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{sabor.descricao}</div>}
                           </div>
-                          <span className="flex-shrink-0 text-[14px] font-bold text-promo">{brl(preco)}</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                          <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">{brl(preco)}</span>
+                          <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -3071,20 +3144,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                     {bordasPizza.length > 0 && (
                       <>
-                        <div className="mb-2 mt-5 text-sm font-bold">Borda</div>
-                        <button onClick={() => setSelectedBordaId(null)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left">
-                          <span className="flex-1 text-[14.5px] font-semibold">Sem borda</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedBordaId ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                        <GrupoHeader titulo="Borda" regra="Escolha 1" obrigatorio={false} atendido />
+                        <button onClick={() => setSelectedBordaId(null)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left">
+                          <AcendeSelecao ativo={!selectedBordaId} />
+                          <span className="relative flex-1 text-[14.5px] font-semibold">Sem borda</span>
+                          <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', !selectedBordaId ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {!selectedBordaId && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
                         {bordasPizza.map((borda) => {
                           const isSelected = selectedBordaId === borda.id
                           return (
-                            <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
-                              <span className="flex-1 text-[14.5px] font-semibold">{borda.nome}</span>
-                              <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(borda.preco)}</span>
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                            <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                              <AcendeSelecao ativo={isSelected} />
+                              <span className="relative flex-1 text-[14.5px] font-semibold">{borda.nome}</span>
+                              <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(borda.preco)}</span>
+                              <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             </button>
@@ -3095,20 +3170,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                     {massasPizza.length > 0 && (
                       <>
-                        <div className="mb-2 mt-5 text-sm font-bold">Massa</div>
-                        <button onClick={() => setSelectedMassaId(null)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left">
-                          <span className="flex-1 text-sm font-medium">Massa tradicional</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', !selectedMassaId ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                        <GrupoHeader titulo="Massa" regra="Escolha 1" obrigatorio={false} atendido />
+                        <button onClick={() => setSelectedMassaId(null)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left">
+                          <AcendeSelecao ativo={!selectedMassaId} />
+                          <span className="relative flex-1 text-[14.5px] font-semibold">Massa tradicional</span>
+                          <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', !selectedMassaId ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {!selectedMassaId && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
                         {massasPizza.map((massa) => {
                           const isSelected = selectedMassaId === massa.id
                           return (
-                            <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
-                              <span className="flex-1 text-sm font-medium">{massa.nome}</span>
-                              <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(massa.preco)}</span>
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                            <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                              <AcendeSelecao ativo={isSelected} />
+                              <span className="relative flex-1 text-[14.5px] font-semibold">{massa.nome}</span>
+                              <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(massa.preco)}</span>
+                              <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             </button>
@@ -3121,14 +3198,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.tamanhos.length > 0 && (
                   <div className="mt-1">
-                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoId ? '1/1' : '0/1'} />
+                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoId ? '1/1' : '0/1'} atendido={!!selectedTamanhoId} />
                     {productSheet.tamanhos.map((tamanho) => {
                       const isSelected = selectedTamanhoId === tamanho.id
                       return (
-                        <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="flex w-full items-center gap-3 border-b border-border py-3 text-left last:border-none">
-                          <span className="flex-1 text-[14.5px] font-semibold">{tamanho.nome}</span>
-                          <span className="text-[14px] font-bold text-promo">{brl(tamanho.preco)}</span>
-                          <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                        <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-3 text-left last:border-none">
+                          <AcendeSelecao ativo={isSelected} />
+                          <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome}</span>
+                          <span className="relative text-[14px] font-bold text-promo">{brl(tamanho.preco)}</span>
+                          <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -3154,6 +3232,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         }
                         obrigatorio={grupo.obrigatorio}
                         contador={grupo.maxEscolhas > 0 ? `${totalSel}/${grupo.maxEscolhas}` : totalSel > 0 ? `${totalSel}` : undefined}
+                        atendido={grupo.obrigatorio ? totalSel >= grupo.minEscolhas : totalSel > 0}
                       />
                       {grupo.complementos.map((comp) => {
                         const qtdSel = sel.get(comp.id) ?? 0
@@ -3162,21 +3241,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           <>
                             {comp.imagemUrl && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={56} height={56} className="h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
+                              <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                             )}
-                            <span className="min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{comp.nome}</span>
+                            <span className="relative min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{comp.nome}</span>
                             {comp.preco > 0
-                              ? <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(comp.preco)}</span>
-                              : <span className="flex-shrink-0 rounded bg-promo-bg px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
+                              ? <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(comp.preco)}</span>
+                              : <span className="relative flex-shrink-0 rounded bg-white px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
                             }
                           </>
                         )
                         if (comStepper) {
                           const podeMais = grupo.maxEscolhas === 0 || totalSel < grupo.maxEscolhas
                           return (
-                            <div key={comp.id} className="flex w-full items-center gap-3 border-b border-border py-2.5 last:border-none">
+                            <div key={comp.id} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 last:border-none">
+                              <AcendeSelecao ativo={isSelected} />
                               {conteudo}
-                              <div className="flex flex-shrink-0 items-center rounded border border-border">
+                              <div className="relative flex flex-shrink-0 items-center rounded border border-border bg-white">
                                 <button onClick={() => changeCompQty(grupo.id, comp.id, -1, grupo.maxEscolhas)} disabled={qtdSel === 0} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
                                 <span className={['w-[24px] text-center text-[14px] font-bold', isSelected ? 'text-text-main' : 'text-text-subtle/50'].join(' ')}>{qtdSel}</span>
                                 <button onClick={() => changeCompQty(grupo.id, comp.id, 1, grupo.maxEscolhas)} disabled={!podeMais} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] disabled:text-border">+</button>
@@ -3185,14 +3265,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           )
                         }
                         return (
-                          <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                          <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                            <AcendeSelecao ativo={isSelected} />
                             {conteudo}
                             {isRadio ? (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                              <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
                             ) : (
-                              <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', isSelected ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                              <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                               </span>
                             )}
@@ -3210,19 +3291,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.complementos.length > 0 && (
                   <div className="mt-5">
-                    <GrupoHeader titulo="Adicionais" regra="Quantos quiser" obrigatorio={false} contador={selectedAddons.size > 0 ? `${selectedAddons.size}` : undefined} />
+                    <GrupoHeader titulo="Adicionais" regra="Quantos quiser" obrigatorio={false} contador={selectedAddons.size > 0 ? `${selectedAddons.size}` : undefined} atendido={selectedAddons.size > 0} />
                     {productSheet.complementos.map((addon) => (
-                      <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="flex w-full items-center gap-3 border-b border-border py-2.5 text-left last:border-none">
+                      <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                        <AcendeSelecao ativo={selectedAddons.has(addon.nome)} />
                         {addon.imagemUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={56} height={56} className="h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
+                          <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                         )}
-                        <span className="min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{addon.nome}</span>
+                        <span className="relative min-w-0 flex-1 text-[14.5px] font-semibold leading-snug">{addon.nome}</span>
                         {addon.preco > 0
-                          ? <span className="flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(addon.preco)}</span>
-                          : <span className="flex-shrink-0 rounded bg-promo-bg px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
+                          ? <span className="relative flex-shrink-0 text-[14px] font-bold text-promo">+ {brl(addon.preco)}</span>
+                          : <span className="relative flex-shrink-0 rounded bg-white px-1.5 py-0.5 text-[11px] font-bold text-promo">Grátis</span>
                         }
-                        <span className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2', selectedAddons.has(addon.nome) ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
+                        <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors', selectedAddons.has(addon.nome) ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
                         </span>
                       </button>
@@ -4046,6 +4128,38 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Lembrete de prêmio na sacola: usar agora é um clique ────────── */}
+      {premioCarrinhoAberto && premioParaUsarNoCarrinho && (
+        <>
+          <div className="fixed inset-0 z-[85] bg-[#111827]/70" onClick={() => setPremioCarrinhoAberto(false)} />
+          <div className="fixed left-1/2 top-1/2 z-[86] w-[calc(100%-2.5rem)] max-w-[340px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg bg-white shadow-2xl">
+            <div className="border-b border-border px-5 pb-4 pt-5 text-center">
+              <span className="mx-auto mb-2.5 flex h-14 w-14 items-center justify-center rounded-full bg-promo-bg text-[28px] leading-none">🎁</span>
+              <h2 className="text-[17px] font-extrabold leading-tight text-text-main">Você tem um prêmio pra usar</h2>
+              <p className="mt-1 text-[13px] leading-relaxed text-text-subtle">Aplique agora e ele entra no total deste pedido.</p>
+            </div>
+            <div className="px-5 pb-5 pt-4 text-center">
+              <p className="text-[16px] font-extrabold leading-snug text-promo first-letter:uppercase">
+                {premioLabelCampanha(
+                  { premioTipo: premioParaUsarNoCarrinho.premioTipo, premioValor: premioParaUsarNoCarrinho.premioValor },
+                  premioParaUsarNoCarrinho.premioItemNome
+                )}
+              </p>
+              <p className="mt-0.5 text-[12px] text-text-subtle">{premioParaUsarNoCarrinho.campanhaNome}</p>
+              <button
+                onClick={() => { setPremioCarrinhoAberto(false); usarRecompensa(premioParaUsarNoCarrinho) }}
+                className="mt-4 w-full rounded-md bg-promo px-4 py-3.5 text-[13px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-promo-dark active:scale-[0.99]"
+              >
+                Usar meu prêmio
+              </button>
+              <button onClick={() => setPremioCarrinhoAberto(false)} className="mt-2 w-full py-2 text-[12.5px] font-semibold text-text-subtle">
+                Agora não
+              </button>
             </div>
           </div>
         </>

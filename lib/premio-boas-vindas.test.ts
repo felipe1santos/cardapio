@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assinaturaPremios, premioDeBoasVindas } from './premio-boas-vindas'
+import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas } from './premio-boas-vindas'
 import type { FidelidadeCliente } from '@/lib/queries/fidelidade'
 
 type Recompensa = FidelidadeCliente['recompensas'][number]
@@ -70,7 +70,6 @@ describe('premioDeBoasVindas', () => {
       premioDeBoasVindas(fidelidade({ cuponsPublicos: [cupom({ descricao: '  ', ...over })] }))?.descricao
 
     expect(semDescricao({ tipo: 'entrega_gratis', valor: null })).toBe('Frete grátis')
-    // O Intl separa "R$" do número com espaço não-quebrável — daí o regex.
     // O Intl separa "R$" do número com espaço não-quebrável — daí o \s no lugar do espaço.
     expect(semDescricao({ tipo: 'desconto_valor', valor: 12.5 })).toMatch(/^R\$\s12,50 de desconto$/)
     expect(semDescricao({ tipo: 'desconto_percentual', valor: 15 })).toBe('15% de desconto')
@@ -110,5 +109,38 @@ describe('assinaturaPremios', () => {
   it('é vazia sem nada ativo', () => {
     expect(assinaturaPremios(null)).toBe('')
     expect(assinaturaPremios(fidelidade())).toBe('')
+  })
+})
+
+describe('deveLembrarPremioNaSacola', () => {
+  const base = {
+    aba: 'cart',
+    itensNaSacola: 2,
+    jaMostrado: false,
+    temBeneficioAplicado: false,
+    fidelidade: fidelidade({ recompensas: [recompensa()] }),
+  }
+
+  it('lembra quando há prêmio pra hoje e a sacola tem itens', () => {
+    expect(deveLembrarPremioNaSacola(base)).toBe(true)
+  })
+
+  it('não lembra fora da sacola nem com sacola vazia', () => {
+    expect(deveLembrarPremioNaSacola({ ...base, aba: 'home' })).toBe(false)
+    expect(deveLembrarPremioNaSacola({ ...base, itensNaSacola: 0 })).toBe(false)
+  })
+
+  it('não repete depois de mostrado', () => {
+    expect(deveLembrarPremioNaSacola({ ...base, jaMostrado: true })).toBe(false)
+  })
+
+  it('não atropela cupom ou prêmio já aplicado', () => {
+    expect(deveLembrarPremioNaSacola({ ...base, temBeneficioAplicado: true })).toBe(false)
+  })
+
+  it('não lembra quando o prêmio não vale hoje', () => {
+    const soOutroDia = fidelidade({ recompensas: [recompensa({ podeResgatarHoje: false })] })
+    expect(deveLembrarPremioNaSacola({ ...base, fidelidade: soOutroDia })).toBe(false)
+    expect(deveLembrarPremioNaSacola({ ...base, fidelidade: null })).toBe(false)
   })
 })
