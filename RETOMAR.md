@@ -1,7 +1,7 @@
 # 🔴 RETOMAR — o que fazer quando voltar
 
 > Última sessão: **2026-09-03 (noite)**. Tudo commitado e no GitHub (`main`).
-> Migration **0049 aplicada**. Deploy do commit `d06e7ba` **no ar** (Coolify, 03/09 madrugada).
+> Migration **0049 aplicada**. Deploy do commit `0c79b66` **no ar** (Coolify, 04/09).
 
 ---
 
@@ -102,6 +102,19 @@ instalado sob demanda — não é dependência do projeto).
       telefone, tabela de bairros com rolagem própria e atalho pro cálculo por CEP.
 - [x] Modal de prêmio na primeira visita (cupom público ou prêmio de fidelidade
       resgatável hoje), com assinatura guardada no aparelho — `lib/premio-boas-vindas.ts`.
+
+## ✅ Feedback de escolha e fidelidade na vitrine (04/09 — commits `5e85a85`, `0c79b66`)
+
+- [x] Escolher complemento acende a linha em verde (o mesmo do resultado do frete),
+      radio/checkbox verde e contador do grupo aceso.
+- [x] Grupo obrigatório cumprido troca a etiqueta vermelha por um check verde.
+- [x] Aba Cupons: prêmio resgatável hoje vem primeiro, com contorno pulsando.
+- [x] Sacola: lembrete central de prêmio disponível, "Usar meu prêmio" em um clique
+      (uma vez por visita; regra pura `deveLembrarPremioNaSacola`).
+- [x] "Calcular taxa de entrega" some quando a taxa já está confirmada.
+- [x] Estados vazios (pedidos, sacola, cupons) centralizados e maiores.
+- [x] "Peça também" menor que as linhas da sacola; item sem foto usa mão com bandeja;
+      rodapé "feito por Menuzia" no fim do cardápio.
 
 ## ⬜ O QUE FALTA
 
