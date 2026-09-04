@@ -1997,9 +1997,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-1.5">
-            <span className="min-w-0 text-[15px] font-bold leading-snug">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}{line.saborNome && <span className="font-normal text-text-subtle"> · {line.saborNome}</span>}</span>
+            <span className="min-w-0 text-[15px] font-bold leading-snug">{line.name}</span>
             <Pencil className="mt-0.5 h-3 w-3 flex-shrink-0 text-text-subtle/60" strokeWidth={2} />
           </div>
+          {(line.tamanhoNome || line.saborNome) && (
+            <div className="mt-0.5 truncate text-[12.5px] font-medium text-text-subtle">
+              {[line.tamanhoNome, line.saborNome].filter(Boolean).join(' · ')}
+            </div>
+          )}
           {(line.bordaNome || line.massaNome) && (
             <div className="mt-0.5 truncate text-[12.5px] text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
           )}
