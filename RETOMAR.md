@@ -1,7 +1,7 @@
 # 🔴 RETOMAR — o que fazer quando voltar
 
 > Última sessão: **2026-09-03 (noite)**. Tudo commitado e no GitHub (`main`).
-> Migration **0049 aplicada**. Deploy do commit `2b11a70` **no ar** (Coolify, 03/09 noite).
+> Migration **0049 aplicada**. Deploy do commit `d06e7ba` **no ar** (Coolify, 03/09 madrugada).
 
 ---
 
@@ -81,6 +81,27 @@ quando falta algo que atrapalha o pedido do cliente.
 - No Kanban e no PDV o modal não abre (não interrompe quem atende).
 - Validado em produção na loja MENUZIA: acusou endereço incompleto (crítico),
   horário não configurado e 2 itens sem foto.
+
+## 📱 UX da vitrine no celular (03/09, madrugada — commits `6d17f1a`, `d06e7ba`)
+
+Conferido em viewport de iPhone 13 com `node scripts/shots-vitrine.mjs` (playwright,
+instalado sob demanda — não é dependência do projeto).
+
+- [x] Cabeçalho: logo 88px e três linhas de texto na altura dela. Tempo de entrega e
+      estrela em azul petróleo sem fundo; horário encurtado ("Amanhã 18:00").
+- [x] Busca e informações empilhados (lado a lado cortavam o nome da loja).
+- [x] Endereço/bairro/cidade capitalizados por `lib/texto.ts` (UF e KM ficam em caixa alta).
+- [x] Item com desconto ganha etiqueta roxa "Promoção" automática; chip Promoções só
+      acende quando clicado.
+- [x] Ícones do menu inferior preenchidos.
+- [x] Sacola: logo da loja no cabeçalho, linhas maiores (foto 84px) e "Peça também"
+      um pouco menor — os dois blocos ficaram no mesmo peso.
+- [x] Toast de "adicionado" no canto superior direito (embaixo cobria o botão da sacola).
+- [x] "Calcular taxa de entrega" virou modal centralizado no celular.
+- [x] "Sobre a loja" reorganizado: cartões de status/prazo, canais, endereço com mapa e
+      telefone, tabela de bairros com rolagem própria e atalho pro cálculo por CEP.
+- [x] Modal de prêmio na primeira visita (cupom público ou prêmio de fidelidade
+      resgatável hoje), com assinatura guardada no aparelho — `lib/premio-boas-vindas.ts`.
 
 ## ⬜ O QUE FALTA
 
