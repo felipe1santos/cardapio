@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -262,7 +262,7 @@ function urlDeListagem(item: FotoDeItem): string | null {
   return item.imagemThumbUrl ?? item.imagemUrl
 }
 
-function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = UtensilsCrossed }: { item: FotoDeItem; size?: number; fallbackIcon?: typeof UtensilsCrossed }) {
+function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatter }: { item: FotoDeItem; size?: number; fallbackIcon?: typeof UtensilsCrossed }) {
   const src = urlDeListagem(item)
   if (src) {
     return (
@@ -323,7 +323,7 @@ function ProductImage({ item, className = '', prioritaria = false }: { item: Fot
   }
   return (
     <div className={`flex items-center justify-center bg-[#F3F4F6] ${className}`}>
-      <UtensilsCrossed className="h-1/3 w-1/3 text-[#9CA3AF]" strokeWidth={1.75} />
+      <HandPlatter className="h-1/3 w-1/3 text-[#9CA3AF]" strokeWidth={1.75} />
     </div>
   )
 }
@@ -1952,21 +1952,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // Order bumps — "Peça também" (aba carrinho mobile + resumo do checkout desktop).
   const orderBumpsBlock = orderBumps.length > 0 ? (
     <div className="mb-5">
-      <h3 className="mb-3 text-[15px] font-bold tracking-tight">Peça também</h3>
+      <h3 className="mb-2.5 text-[13.5px] font-bold uppercase tracking-wide text-text-subtle">Peça também</h3>
       <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:flex-wrap">
         {orderBumps.map((item) => (
           <button
             key={item.id}
             onClick={() => quickAddOrderBump(item)}
-            className="group flex w-[132px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
+            className="group flex w-[110px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
           >
-            <div className="h-[88px] w-full overflow-hidden">
-              <ProductThumb item={item} size={132} />
+            <div className="h-[72px] w-full overflow-hidden">
+              <ProductThumb item={item} size={110} />
             </div>
-            <div className="flex flex-1 flex-col p-2.5">
-              <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
-              <div className="mt-1 text-[12px] font-bold text-[#16A34A]">{brl(item.promocaoPreco ?? item.preco)}</div>
-              <div className="mt-2 rounded bg-[var(--tema-primaria)] py-1.5 text-center text-[11px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
+            <div className="flex flex-1 flex-col p-2">
+              <div className="line-clamp-2 min-h-[30px] text-[11.5px] font-semibold leading-snug text-text-main">{item.nome}</div>
+              <div className="mt-0.5 text-[11.5px] font-bold text-promo">{brl(item.promocaoPreco ?? item.preco)}</div>
+              <div className="mt-1.5 rounded bg-[var(--tema-primaria)] py-1 text-center text-[10.5px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
                 + Adicionar
               </div>
             </div>
@@ -2341,6 +2341,26 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               ))}
             {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
               <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-0">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
+            )}
+
+            {/* Fim do cardápio: sinaliza que a lista acabou (senão o cliente
+                fica rolando achando que carrega mais) sem disputar atenção com
+                os produtos — tudo em cinza, sem cor de marca. */}
+            {!loading && !search.trim() && (
+              <footer className="mt-6 border-t border-border px-4 py-7 text-center lg:px-0">
+                <p className="text-[12px] font-semibold text-text-subtle">Você chegou ao fim do cardápio</p>
+                <p className="mt-1 text-[11.5px] text-text-subtle/80">
+                  {restaurante.lojaAberta ? 'Bom apetite!' : 'Volte no horário de funcionamento pra fazer seu pedido.'}
+                </p>
+                <a
+                  href="https://menuzia.com.br"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-block text-[11px] text-text-subtle/70 transition-colors hover:text-text-subtle"
+                >
+                  Cardápio digital feito por <span className="font-semibold">Menuzia</span>
+                </a>
+              </footer>
             )}
             </div>
 
@@ -3006,7 +3026,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 // carregamento inicial — aqui a foto é o conteúdo principal.
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={productSheet.imagemUrl} alt={productSheet.nome} loading="eager" decoding="async" fetchPriority="high" className="h-[42vh] w-full object-cover lg:h-[260px]" />
-                : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><UtensilsCrossed className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
+                : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><HandPlatter className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>

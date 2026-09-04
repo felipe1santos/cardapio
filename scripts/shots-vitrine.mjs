@@ -42,6 +42,11 @@ if (await page.locator('text=Ver meus prêmios').count()) {
 
 await shot('02-home')
 
+// Fim do cardápio (rodapé discreto).
+await page.mouse.wheel(0, 40000)
+await shot('02b-rodape')
+await page.mouse.wheel(0, -40000)
+
 // Sobre a loja.
 await page.locator('[aria-label="Informações da loja"]').click()
 await shot('03-info-loja')
@@ -68,7 +73,7 @@ if (await bump.count()) {
   await shot('07-carrinho-toast-bump')
 }
 
-// Calcular frete (agora modal centralizado).
+// Calcular frete (modal centralizado).
 await page.goto(`${base}/loja/${slug}`, { waitUntil: 'networkidle' })
 await page.locator('text=Ver sacola').first().click()
 await page.waitForTimeout(600)
