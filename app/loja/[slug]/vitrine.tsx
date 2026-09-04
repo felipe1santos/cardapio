@@ -21,6 +21,8 @@ import {
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
+import { capitalizarTexto } from '@/lib/texto'
+import { assinaturaPremios, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
 import { resolverPaleta } from '@/lib/paletas'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import {
@@ -160,6 +162,23 @@ function PixIcon({ className = 'h-6 w-6' }: { className?: string }) {
   )
 }
 
+/**
+ * Encurta o texto de próxima abertura pra caber na pílula do cabeçalho:
+ * "abre amanhã às 18:00" → "Amanhã 18:00", "abre sábado às 11:00" → "Sáb 11:00".
+ */
+function abreviarProximaAbertura(texto: string | null): string | null {
+  if (!texto) return null
+  const abreviacoes: Record<string, string> = {
+    domingo: 'Dom', segunda: 'Seg', terça: 'Ter', quarta: 'Qua', quinta: 'Qui', sexta: 'Sex', sábado: 'Sáb',
+  }
+  const hora = texto.match(/(\d{1,2}:\d{2})/)?.[1] ?? ''
+  if (/amanhã/i.test(texto)) return `Amanhã ${hora}`.trim()
+  for (const [dia, curto] of Object.entries(abreviacoes)) {
+    if (texto.includes(dia)) return `${curto} ${hora}`.trim()
+  }
+  return hora ? `Abre ${hora}` : texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
 function PriceTag({ price, originalPrice, hideDiscount = false }: { price: number; originalPrice?: number | null; hideDiscount?: boolean }) {
   if (originalPrice && !hideDiscount) {
     const off = Math.round((1 - price / originalPrice) * 100)
@@ -204,7 +223,16 @@ const TAG_STYLES: Record<string, { label: string; cls: string }> = {
   edicao_limitada: { label: 'Edição limitada', cls: 'bg-pink-100 text-pink-600' },
   novo: { label: 'Novo', cls: 'bg-sky-100 text-sky-700' },
   favorito: { label: 'Favorito da casa', cls: 'bg-purple-100 text-purple-700' },
-  promocao: { label: 'Promoção', cls: 'bg-promo-bg text-promo' },
+  promocao: { label: 'Promoção', cls: 'bg-purple-100 text-purple-700' },
+}
+
+/**
+ * Etiqueta que o item mostra na vitrine. Item com desconto ativo ganha a
+ * etiqueta roxa de promoção mesmo quando o lojista não marcou nada no cadastro —
+ * é o que faz a oferta ser vista na lista.
+ */
+export function tagDoItem(item: { tag: string | null; promocaoPreco: number | null }): string | null {
+  return item.tag ?? (item.promocaoPreco !== null ? 'promocao' : null)
 }
 
 /** Pílula de etiqueta do item na vitrine (configurada no cadastro). */
@@ -309,13 +337,13 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
       <div className={`relative ${compact ? 'aspect-square' : 'aspect-[4/3]'} w-full overflow-hidden rounded-t-md`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
         {/* Etiqueta sobre a foto (não acima do nome) */}
-        {item.tag && (
+        {tagDoItem(item) && (
           <span className="absolute left-2.5 top-2.5 shadow-sm">
-            <TagBadge tag={item.tag} />
+            <TagBadge tag={tagDoItem(item)} />
           </span>
         )}
         {item.maisVendido && (
-          <span className={`absolute left-2.5 ${item.tag ? 'top-9' : 'top-2.5'} rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
+          <span className={`absolute left-2.5 ${tagDoItem(item) ? 'top-9' : 'top-2.5'} rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
         )}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 p-2.5' : 'flex flex-1 flex-col gap-1 p-3'}>
@@ -349,13 +377,13 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       <div className="relative flex-shrink-0">
         <ProductThumb item={item} size={imagemGrande ? 100 : 76} />
         {/* Etiqueta sobre a foto (não acima do nome) */}
-        {item.tag && (
+        {tagDoItem(item) && (
           <span className="absolute left-1 top-1 shadow-sm">
-            <TagBadge tag={item.tag} />
+            <TagBadge tag={tagDoItem(item)} />
           </span>
         )}
         {item.maisVendido && (
-          <span className={`absolute left-1 ${item.tag ? 'bottom-1' : 'top-1'} rounded bg-pink-100 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
+          <span className={`absolute left-1 ${tagDoItem(item) ? 'bottom-1' : 'top-1'} rounded bg-pink-100 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
         )}
       </div>
     </button>
@@ -659,6 +687,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [fidelidadeErro, setFidelidadeErro] = useState(false)
   // Botão Cupons do bottom nav piscando (3x) após ganhar progresso/prêmio.
   const [cuponsPiscando, setCuponsPiscando] = useState(false)
+  // Benefício anunciado no modal de boas-vindas (null = nada a anunciar agora).
+  const [premioModal, setPremioModal] = useState<PremioBoasVindas | null>(null)
   const [cupomCodigoInput, setCupomCodigoInput] = useState('')
   const [cupomValidando, setCupomValidando] = useState(false)
   const [cupomErro, setCupomErro] = useState<string | null>(null)
@@ -1025,6 +1055,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         }
         setFidelidade(data)
         setFidelidadeErro(false)
+
+        // Benefício ativo aparece num modal na primeira visita: o banner amarelo
+        // no meio da lista era rolado direto por boa parte dos clientes.
+        const premio = premioDeBoasVindas(data)
+        if (premio) {
+          const chavePremio = `menuzia_premio_visto_${slug}_${clienteSessao?.telefone ?? 'anon'}`
+          try {
+            if (localStorage.getItem(chavePremio) !== assinaturaPremios(data)) setPremioModal(premio)
+          } catch {
+            setPremioModal(premio)
+          }
+        }
+
         if (!clienteSessao) return
         // Comemoração (som + piscar do botão Cupons): compara com o snapshot salvo
         // neste aparelho — progresso maior ou prêmio novo desde a última visita.
@@ -1063,6 +1106,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // fidelidade/snapshotKey são lidos só pra checagem pontual — incluí-los reprovocaria o fetch a cada resposta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, clienteSessao, fidelidadeVersao])
+
+  /** Fecha o modal de prêmio e marca este conjunto como visto neste aparelho. */
+  function fecharPremioModal() {
+    setPremioModal(null)
+    try {
+      localStorage.setItem(`menuzia_premio_visto_${slug}_${clienteSessao?.telefone ?? 'anon'}`, assinaturaPremios(fidelidade))
+    } catch { /* navegação privada: o modal volta na próxima visita, e tudo bem */ }
+  }
 
   /** Valida o código digitado no servidor, com o subtotal atual do carrinho. */
   async function validarCupomCheckout(codigoBruto?: string) {
@@ -1495,10 +1546,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
   useEffect(() => {
-    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe || confirmacaoAberta || saidaAberta
+    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe || confirmacaoAberta || saidaAberta || !!premioModal
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe, confirmacaoAberta, saidaAberta])
+  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe, confirmacaoAberta, saidaAberta, premioModal])
 
   // ── Histórico de pedidos do cliente logado ────────────────────────────────
   const [meusPedidos, setMeusPedidos] = useState<PedidoCliente[]>([])
@@ -1731,6 +1782,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   /** Fecha a camada mais alta. Devolve false quando já estamos na raiz. */
   const fecharCamadaDoTopo = (): boolean => {
     if (saidaAberta) { setSaidaAberta(false); return true }
+    if (premioModal) { fecharPremioModal(); return true }
     if (confirmacaoAberta) { setConfirmacaoAberta(false); return true }
     if (productSheet) { closeProductSheet(); return true }
     if (checkoutOpen) { checkoutBack(); return true }
@@ -1906,10 +1958,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           <button
             key={item.id}
             onClick={() => quickAddOrderBump(item)}
-            className="group flex w-[142px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
+            className="group flex w-[132px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
           >
-            <div className="h-[100px] w-full overflow-hidden">
-              <ProductThumb item={item} size={142} />
+            <div className="h-[88px] w-full overflow-hidden">
+              <ProductThumb item={item} size={132} />
             </div>
             <div className="flex flex-1 flex-col p-2.5">
               <div className="line-clamp-2 min-h-[34px] text-[12px] font-semibold leading-snug text-text-main">{item.nome}</div>
@@ -1938,21 +1990,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   /** Linha do carrinho — clicável pra editar (complementos, observação, quantidade). */
   const renderCartLine = (line: CartLine, hasBorder: boolean) => (
-    <div key={line.key} className={['flex items-start gap-3 p-3', hasBorder ? 'border-b border-border' : ''].join(' ')}>
+    <div key={line.key} className={['flex items-start gap-3 p-3.5', hasBorder ? 'border-b border-border' : ''].join(' ')}>
       <button onClick={() => editCartLine(line)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-label={`Editar ${line.name}`}>
-        <div className="h-[56px] w-[56px] flex-shrink-0 overflow-hidden rounded-md">
-          <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={56} />
+        <div className="h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-md border border-border">
+          <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={84} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-1.5">
-            <span className="min-w-0 text-[13.5px] font-semibold leading-snug">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}{line.saborNome && <span className="font-normal text-text-subtle"> · {line.saborNome}</span>}</span>
+            <span className="min-w-0 text-[15px] font-bold leading-snug">{line.name}{line.tamanhoNome && <span className="font-normal text-text-subtle"> · {line.tamanhoNome}</span>}{line.saborNome && <span className="font-normal text-text-subtle"> · {line.saborNome}</span>}</span>
             <Pencil className="mt-0.5 h-3 w-3 flex-shrink-0 text-text-subtle/60" strokeWidth={2} />
           </div>
           {(line.bordaNome || line.massaNome) && (
-            <div className="mt-0.5 truncate text-[12px] text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
+            <div className="mt-0.5 truncate text-[12.5px] text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
           )}
           {line.addons.length > 0 && (
-            <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-text-subtle">
+            <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-text-subtle">
               {(() => {
                 const contagem = new Map<string, number>()
                 for (const a of line.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
@@ -1961,13 +2013,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
           )}
           {line.obs && <div className="mt-0.5 truncate text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
-          <div className="mt-1.5 text-[14px] font-bold text-[#16A34A]">{brl(line.unit * line.qty)}</div>
+          <div className="mt-1.5 text-[15px] font-bold text-promo">{brl(line.unit * line.qty)}</div>
         </div>
       </button>
       <div className="flex flex-shrink-0 items-center rounded-md border border-border bg-white">
-        <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
-        <span className="w-[26px] text-center text-[13px] font-bold">{line.qty}</span>
-        <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">+</button>
+        <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[38px] w-[38px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
+        <span className="w-[28px] text-center text-[14px] font-bold">{line.qty}</span>
+        <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[38px] w-[38px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">+</button>
       </div>
     </div>
   )
@@ -1989,15 +2041,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   const storeName = restaurante.nome
 
+  // Menor taxa de entrega da loja — a informação que o cliente procura primeiro
+  // ao abrir "Sobre a loja" ("de quanto sai daqui?").
+  const menorTaxaEntrega = bairros.length > 0
+    ? Math.min(restaurante.taxaEntregaPadrao, ...bairros.map((b) => b.taxa))
+    : restaurante.taxaEntregaPadrao
+
   // Horário de funcionamento resumido numa pílula: aberta mostra até quando
   // atende; fechada mostra quando volta. Sem grade configurada, some.
   const horarioTexto = restaurante.lojaAberta
     ? restaurante.fechamentoHoraTexto
       ? `Até ${restaurante.fechamentoHoraTexto}`
       : null
-    : restaurante.proximaAberturaTexto
-      ? restaurante.proximaAberturaTexto.charAt(0).toUpperCase() + restaurante.proximaAberturaTexto.slice(1)
-      : null
+    : abreviarProximaAbertura(restaurante.proximaAberturaTexto)
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -2005,7 +2061,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       className="font-loja min-h-dvh bg-[#F3F4F6] text-text-main"
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
     >
-      <style>{`@keyframes toast-pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes cupons-piscar{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.15)}}`}</style>
+      <style>{`@keyframes toast-pop-top{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes cupons-piscar{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.15)}}`}</style>
 
       {/* ── Desktop top nav ──────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 hidden border-b border-border bg-white lg:block">
@@ -2090,10 +2146,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
             {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta) */}
             <div className="relative z-10 px-3 sm:px-4 lg:px-8">
-              {/* Altura da barra = altura da logo: o bloco de texto não estica o
-                  card no celular (nome, pílulas e endereço somam ~76px). */}
+              {/* Logo grande e o texto do lado ocupando a mesma altura: nome,
+                  status, tempo/nota e endereço somam a altura da logo. */}
               <div className="-mt-8 flex items-center gap-3 rounded-md border border-border bg-white p-2.5 shadow-md sm:-mt-10 sm:gap-4 sm:p-3.5">
-                <div className="h-[76px] w-[76px] flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-[92px] sm:w-[92px] lg:h-[104px] lg:w-[104px]">
+                <div className="h-[88px] w-[88px] flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-[96px] sm:w-[96px] lg:h-[108px] lg:w-[108px]">
                   {restaurante.logoUrl ? (
                     // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -2106,12 +2162,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
                 <div className="min-w-0 flex-1">
                   <h1 className="truncate text-[17px] font-extrabold leading-tight tracking-tight text-text-main sm:text-[22px] lg:text-[26px]">{storeName}</h1>
-                  {/* Pílulas em vez de texto corrido: no celular a linha antiga
-                      quebrava em duas e empurrava o card pra baixo da logo. */}
-                  <div className="mt-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-1.5 sm:overflow-visible">
+                  {/* Uma pílula por linha de informação: com tudo na mesma
+                      linha, tempo de entrega e nota saíam da tela no celular. */}
+                  <div className="mt-1 flex items-center gap-1.5">
                     {restaurante.lojaAberta ? (
                       <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded bg-price-bg px-2 py-[3px] text-[11px] font-bold text-promo sm:text-[12px]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-promo" /> Aberto
+                        <span className="h-1.5 w-1.5 rounded-full bg-promo" /> Aberta
                       </span>
                     ) : (
                       <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded bg-danger-bg px-2 py-[3px] text-[11px] font-bold text-[#B91C1C] sm:text-[12px]">
@@ -2119,29 +2175,33 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       </span>
                     )}
                     {horarioTexto && (
-                      <span className="inline-flex max-w-full flex-shrink-0 items-center gap-1 rounded bg-petrol-bg px-2 py-[3px] text-[11px] font-semibold text-petrol sm:text-[12px]">
+                      <span className="inline-flex min-w-0 items-center gap-1 rounded bg-petrol-bg px-2 py-[3px] text-[11px] font-semibold text-petrol sm:text-[12px]">
                         <Clock className="h-3 w-3 flex-shrink-0" strokeWidth={2.5} />
                         <span className="truncate">{horarioTexto}</span>
                       </span>
                     )}
-                    <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-[var(--tema-light)] px-2 py-[3px] text-[11px] font-semibold text-[var(--tema-primaria)] sm:text-[12px]">
-                      <Truck className="h-3 w-3 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 text-[11.5px] font-semibold text-petrol sm:text-[12.5px]">
+                    <span className="inline-flex flex-shrink-0 items-center gap-1">
+                      <Truck className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
                     </span>
                     {restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null && (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-warn-bg px-2 py-[3px] text-[11px] font-semibold text-[#B45309] sm:text-[12px]">
-                        <svg viewBox="0 0 24 24" className="h-3 w-3 flex-shrink-0 fill-[#F59E0B]"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                      <span className="inline-flex flex-shrink-0 items-center gap-1">
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 flex-shrink-0 fill-petrol"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                         {formatarNota(restaurante.avaliacaoNota)}
-                        <span className="hidden sm:inline">({restaurante.avaliacaoQtd})</span>
+                        <span className="font-medium text-text-subtle">({restaurante.avaliacaoQtd})</span>
                       </span>
                     )}
                   </div>
                   {(restaurante.bairro || restaurante.cidade) && (
-                    <p className="mt-1 truncate text-[11.5px] font-medium text-text-subtle sm:text-[13px]">
-                      📍 {[restaurante.bairro, restaurante.cidade].filter(Boolean).join(', ')}
+                    <p className="mt-1 truncate text-[11.5px] font-medium text-text-subtle sm:text-[12.5px]">
+                      📍 {capitalizarTexto([restaurante.bairro, restaurante.cidade].filter(Boolean).join(', '))}
                     </p>
                   )}
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
+                {/* Empilhados no celular: lado a lado eles comiam a largura do
+                    nome da loja e cortavam o texto. */}
+                <div className="flex flex-shrink-0 flex-col items-center gap-1.5 sm:flex-row sm:gap-2">
                   <button
                     onClick={() => setSearchOpen((v) => !v)}
                     className="flex h-9 w-9 items-center justify-center rounded-md bg-[#F3F4F6] transition-colors hover:bg-border sm:h-10 sm:w-10"
@@ -2206,7 +2266,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-promo bg-promo text-white shadow-sm' : 'border-promo/40 bg-promo-bg text-promo hover:border-promo'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-promo bg-promo text-white shadow-sm' : 'border-border bg-white text-text-subtle hover:border-promo hover:text-promo'].join(' ')}
                 >
                   🏷️ Promoções
                 </button>
@@ -2355,7 +2415,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
         {/* ── CART header: minimal ── */}
         {tab === 'cart' && (
-          <div className="flex h-14 items-center gap-3.5 border-b border-border bg-white px-4 lg:hidden">
+          <div className="flex h-16 items-center gap-3 border-b border-border bg-white px-4 lg:hidden">
+            {/* Logo junto do nome: no meio do checkout o cliente precisa ver de
+                qual loja é a sacola, não só ler. */}
+            <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6]">
+              {restaurante.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={restaurante.logoUrl} alt={storeName} loading="eager" decoding="async" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-sm font-extrabold text-white">
+                  {storeName.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
             <div className="min-w-0 flex-1">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Sua sacola</div>
               <div className="truncate text-[14px] font-bold">{storeName}</div>
@@ -2803,7 +2875,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           >
             <span className="flex items-center gap-2.5 text-sm font-bold">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{cartCount}</span>
-              Ver carrinho
+              Ver sacola
             </span>
             <span className="text-sm font-bold">{brl(total)}</span>
           </button>
@@ -2813,9 +2885,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pb-[max(env(safe-area-inset-bottom),6px)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
           <div className="flex">
             {([
-              { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0l8.954 8.955M4.5 9.75v10.125a.75.75 0 00.75.75H9a.75.75 0 00.75-.75v-4.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v4.5c0 .414.336.75.75.75h3.75a.75.75 0 00.75-.75V9.75" /></svg> },
-              { id: 'pedidos' as Tab, label: 'Pedidos', onClick: () => setTab('pedidos'), active: tab === 'pedidos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 15.75h6M9 19.5h6M5.25 5.25h13.5A1.5 1.5 0 0120.25 6.75v13.5a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5zM9 5.25V3.75a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v1.5" /></svg> },
-              { id: 'cupons' as Tab, label: 'Cupons', onClick: () => setTab('cupons'), active: tab === 'cupons', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v3m0 3v3m0 3v1.5m-9-12.75h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" /></svg> },
+              { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M12 3.1 2.5 11.4a1 1 0 0 0 .66 1.75H4.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-4.25h3.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-6.85h1.34a1 1 0 0 0 .66-1.75L12 3.1z" /></svg> },
+              { id: 'pedidos' as Tab, label: 'Pedidos', onClick: () => setTab('pedidos'), active: tab === 'pedidos', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M9 2a1 1 0 0 0-1 1v1H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V3a1 1 0 0 0-1-1H9zm1 2h4v1h-4V4zM8 11h8v1.8H8V11zm0 4h8v1.8H8V15z" /></svg> },
+              { id: 'cupons' as Tab, label: 'Cupons', onClick: () => setTab('cupons'), active: tab === 'cupons', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M3.4 5.25h17.2c.66 0 1.15.5 1.15 1.13v3.03a1.1 1.1 0 0 1-.72 1.03 2 2 0 0 0 0 3.12c.44.17.72.57.72 1.03v3.03c0 .63-.5 1.13-1.15 1.13H3.4c-.66 0-1.15-.5-1.15-1.13v-3.03c0-.46.28-.86.72-1.03a2 2 0 0 0 0-3.12 1.1 1.1 0 0 1-.72-1.03V6.38c0-.63.5-1.13 1.15-1.13zM15.6 7.4v2.05h1.5V7.4h-1.5zm0 4.05v2.05h1.5v-2.05h-1.5zm0 4.05v2.1h1.5v-2.1h-1.5z" /></svg> },
               {
                 id: 'perfil' as const,
                 label: perfilCliente ? 'Perfil' : 'Entrar',
@@ -2826,7 +2898,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     {(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}
                   </span>
                 ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[22px] w-[22px]"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.964 0a9 9 0 10-11.964 0m11.964 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5z" /></svg>
                 ),
               },
             ] as const).map((item) => (
@@ -3609,7 +3681,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
       {/* ── Frete calculator overlay ──────────────────────────────────── */}
       {freteOpen && <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setFreteOpen(false)} />}
-      <div className={['fixed bottom-0 left-1/2 z-[65] flex max-h-[85vh] w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden rounded-t-md bg-white transition-all duration-300 lg:bottom-auto lg:top-1/2 lg:max-w-[480px] lg:-translate-y-1/2 lg:rounded', freteOpen ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+      {/* Modal centralizado também no celular: como sheet embaixo, o teclado
+          subia junto do CEP e cobria o resultado do cálculo. */}
+      <div className={['fixed left-1/2 top-1/2 z-[65] flex max-h-[86dvh] w-[calc(100%-2rem)] max-w-[420px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-md bg-white shadow-2xl transition-all duration-200', freteOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'].join(' ')}>
         {freteOpen && (
           <>
             <div className="flex items-center justify-between border-b border-border p-4.5">
@@ -3857,34 +3931,94 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 <button onClick={() => setInfoOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
               </div>
               <div className="p-4.5">
+                {/* Resumo em cartões: quem abre isso quer decidir "dá pra pedir
+                    daqui?" — status, tempo e taxa vêm antes da lista de bairros. */}
+                <div className="mb-4 grid grid-cols-2 gap-2">
+                  <div className={['rounded-md border p-3', restaurante.lojaAberta ? 'border-promo/30 bg-promo-bg' : 'border-danger/30 bg-danger-bg'].join(' ')}>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Agora</div>
+                    <div className={['mt-0.5 text-[14px] font-bold', restaurante.lojaAberta ? 'text-promo' : 'text-[#B91C1C]'].join(' ')}>
+                      {restaurante.lojaAberta ? 'Aberta' : 'Fechada'}
+                    </div>
+                    {horarioTexto && <div className="mt-0.5 text-[11.5px] font-medium text-text-subtle">{horarioTexto}</div>}
+                  </div>
+                  <div className="rounded-md border border-petrol/20 bg-petrol-bg p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Entrega em</div>
+                    <div className="mt-0.5 text-[14px] font-bold text-petrol">30–45 min</div>
+                    <div className="mt-0.5 text-[11.5px] font-medium text-text-subtle">
+                      {restaurante.taxaEntregaPadrao > 0 ? `Taxa a partir de ${brl(menorTaxaEntrega)}` : 'Taxa a combinar'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {restaurante.aceitaEntrega && (
+                    <span className="inline-flex items-center gap-1.5 rounded bg-[var(--tema-light)] px-2.5 py-1 text-[12px] font-semibold text-[var(--tema-primaria)]">
+                      <Truck className="h-3.5 w-3.5" strokeWidth={2.5} /> Entrega
+                    </span>
+                  )}
+                  {restaurante.aceitaRetirada && (
+                    <span className="inline-flex items-center gap-1.5 rounded bg-[var(--tema-light)] px-2.5 py-1 text-[12px] font-semibold text-[var(--tema-primaria)]">
+                      <MapPin className="h-3.5 w-3.5" strokeWidth={2.5} /> Retirada no balcão
+                    </span>
+                  )}
+                  {freteGratisMinimo !== null && (
+                    <span className="inline-flex items-center gap-1.5 rounded bg-promo-bg px-2.5 py-1 text-[12px] font-semibold text-promo">
+                      Frete grátis acima de {brl(freteGratisMinimo)}
+                    </span>
+                  )}
+                </div>
+
                 {restaurante.endereco && (
-                  <div className="mb-4">
-                    <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço</h3>
-                    <p className="text-sm">{restaurante.endereco}</p>
+                  <div className="mb-4 rounded-md border border-border p-3.5">
+                    <h3 className="mb-1 text-[10px] font-bold uppercase tracking-wide text-text-subtle">Onde ficamos</h3>
+                    <p className="text-[13.5px] font-semibold leading-snug text-text-main">{capitalizarTexto(restaurante.endereco)}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurante.endereco)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-[var(--tema-primaria)]"
+                      >
+                        <MapPin className="h-3.5 w-3.5" strokeWidth={2.5} /> Ver no mapa
+                      </a>
+                      {restaurante.telefone && (
+                        <a href={`tel:${restaurante.telefone.replace(/\D/g, '')}`} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-text-subtle">
+                          <Phone className="h-3.5 w-3.5" strokeWidth={2.5} /> {mascararTelefoneBR(restaurante.telefone)}
+                        </a>
+                      )}
+                    </div>
                   </div>
                 )}
-                <div className="mb-4">
-                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">Tempo médio de entrega</h3>
-                  <p className="text-sm">⏱ 30–45 min</p>
-                </div>
+
                 <div>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-subtle">Bairros atendidos</h3>
+                  <div className="mb-2 flex items-baseline justify-between gap-2">
+                    <h3 className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Taxa por bairro</h3>
+                    {bairros.length > 6 && <span className="text-[11px] text-text-subtle">{bairros.length} bairros</span>}
+                  </div>
                   {bairros.length > 0 ? (
-                    <div className="overflow-hidden rounded border border-border">
+                    <div className="max-h-[38vh] overflow-y-auto overscroll-contain rounded-md border border-border">
                       {bairros.map((b) => (
-                        <div key={b.bairro} className="flex items-center justify-between border-b border-border px-3.5 py-2.5 text-sm last:border-none">
-                          <span>{b.bairro}</span>
-                          <span className="font-semibold text-[#16A34A]">{b.taxa === 0 ? 'Grátis' : brl(b.taxa)}</span>
+                        <div key={b.bairro} className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-2.5 text-[13.5px] last:border-none">
+                          <span className="min-w-0 truncate font-medium">{capitalizarTexto(b.bairro)}</span>
+                          <span className={['flex-shrink-0 font-bold', b.taxa === 0 ? 'text-promo' : 'text-text-main'].join(' ')}>{b.taxa === 0 ? 'Grátis' : brl(b.taxa)}</span>
                         </div>
                       ))}
-                      <div className="flex items-center justify-between border-t border-border bg-[#F3F4F6] px-3.5 py-2.5 text-sm">
+                      <div className="flex items-center justify-between gap-3 border-t border-border bg-[#F9FAFB] px-3.5 py-2.5 text-[13.5px]">
                         <span className="text-text-subtle">Demais bairros</span>
-                        <span className="font-semibold">{brl(restaurante.taxaEntregaPadrao)}</span>
+                        <span className="font-bold">{brl(restaurante.taxaEntregaPadrao)}</span>
                       </div>
                     </div>
                   ) : (
-                    <p className="rounded border border-border px-3.5 py-2.5 text-sm text-text-subtle">Taxa de entrega: {brl(restaurante.taxaEntregaPadrao)}</p>
+                    <p className="rounded-md border border-border px-3.5 py-2.5 text-[13.5px] text-text-subtle">
+                      Taxa única de entrega: <span className="font-bold text-text-main">{brl(restaurante.taxaEntregaPadrao)}</span>
+                    </p>
                   )}
+                  <button
+                    onClick={() => { setInfoOpen(false); setFreteOpen(true) }}
+                    className="mt-3 w-full rounded-md bg-[var(--tema-primaria)] px-4 py-3 text-[12px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)]"
+                  >
+                    Calcular taxa pelo meu CEP
+                  </button>
                 </div>
               </div>
             </div>
@@ -3892,18 +4026,65 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </>
       )}
 
+      {/* ── Prêmio de boas-vindas: o que o cliente já tem antes de comprar ── */}
+      {premioModal && (
+        <>
+          <div className="fixed inset-0 z-[85] bg-[#111827]/70" onClick={fecharPremioModal} />
+          <div className="fixed left-1/2 top-1/2 z-[86] w-[calc(100%-2.5rem)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg bg-white shadow-2xl">
+            <div className="relative bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] px-5 pb-8 pt-7 text-center">
+              <button
+                onClick={fecharPremioModal}
+                aria-label="Fechar"
+                className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-lg font-light text-white"
+              >
+                ×
+              </button>
+              <span className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-[34px] leading-none">🎁</span>
+              <h2 className="text-[19px] font-extrabold leading-tight text-white">{premioModal.titulo}</h2>
+              <p className="mx-auto mt-1 max-w-[240px] text-[13px] leading-relaxed text-white/85">
+                {premioModal.origem === 'fidelidade'
+                  ? 'Você conquistou este prêmio nesta loja.'
+                  : 'A loja liberou este cupom pra você usar hoje.'}
+              </p>
+            </div>
+
+            <div className="-mt-4 rounded-t-lg bg-white px-5 pb-5 pt-5 text-center">
+              <p className="text-[17px] font-extrabold leading-snug text-promo">{premioModal.descricao}</p>
+              {premioModal.codigo && (
+                <div className="mt-3 rounded-md border border-dashed border-[var(--tema-primaria)] bg-[var(--tema-light)] px-3 py-2.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Código</div>
+                  <div className="text-[17px] font-extrabold tracking-[0.18em] text-[var(--tema-primaria)]">{premioModal.codigo}</div>
+                </div>
+              )}
+              <button
+                onClick={() => { fecharPremioModal(); setTab('cupons') }}
+                className="mt-4 w-full rounded-md bg-[var(--tema-primaria)] px-4 py-3.5 text-[13px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] active:scale-[0.99]"
+              >
+                Ver meus prêmios
+              </button>
+              <button
+                onClick={fecharPremioModal}
+                className="mt-2 w-full py-2 text-[12.5px] font-semibold text-text-subtle"
+              >
+                Continuar no cardápio
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* ── Toast container ───────────────────────────────────────────── */}
-      <div className="pointer-events-none fixed bottom-24 left-1/2 z-[70] flex w-full max-w-[380px] -translate-x-1/2 flex-col items-center gap-2 px-4">
+      <div className="pointer-events-none fixed right-3 top-3 z-[95] flex w-[min(260px,calc(100%-5rem))] flex-col items-end gap-2">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="flex w-full items-center gap-2.5 rounded-full bg-[#111827]/95 px-5 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-sm"
-            style={{ animation: 'toast-pop 0.25s ease-out both' }}
+            className="flex w-full items-center gap-2 rounded-md bg-[#111827]/95 px-3 py-2 text-[12.5px] font-semibold text-white shadow-2xl backdrop-blur-sm"
+            style={{ animation: 'toast-pop-top 0.25s ease-out both' }}
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-status-ready">
               <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
             </svg>
-            {toast.message}
+            <span className="line-clamp-1">{toast.message}</span>
           </div>
         ))}
       </div>
