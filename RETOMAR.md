@@ -1,7 +1,7 @@
 # 🔴 RETOMAR — o que fazer quando voltar
 
 > Última sessão: **2026-09-03 (noite)**. Tudo commitado e no GitHub (`main`).
-> Migration **0049 aplicada**. Deploy do commit `0c79b66` **no ar** (Coolify, 04/09).
+> Migration **0049 aplicada**. Deploy do commit `baf90ca` **no ar** (Coolify, 04/09).
 
 ---
 
@@ -115,6 +115,21 @@ instalado sob demanda — não é dependência do projeto).
 - [x] Estados vazios (pedidos, sacola, cupons) centralizados e maiores.
 - [x] "Peça também" menor que as linhas da sacola; item sem foto usa mão com bandeja;
       rodapé "feito por Menuzia" no fim do cardápio.
+
+## ✅ Recompra e acompanhamento (04/09 — commit `baf90ca`)
+
+- [x] "Pedir de novo" no histórico: remonta a sacola pelo cardápio de hoje
+      (lib/repetir-pedido.ts, 12 testes). Acrescenta à sacola, nunca apaga.
+- [x] Faixa de pedido em andamento no cardápio, com status colorido e atalho.
+- [x] Pedidos do cliente passam a carregar junto da sessão (antes só na aba
+      Pedidos, por isso a faixa nunca aparecia). 30s fora da aba, 8s dentro.
+- [x] Verde da escolha acende e apaga; preço verde só no escolhido.
+- [x] Menu inferior branco ao rolar: era o `env(safe-area-inset-bottom)` valendo
+      sempre — no Chrome do Android ele cresce quando a barra de endereço
+      recolhe. Agora só em app instalado (`display-mode: standalone`).
+
+⚠️ Ficou um **pedido de teste #99 (retirada, R$ 14) em "recebido"** na loja
+MENUZIA, criado pra validar a faixa. Fechar no Kanban quando puder.
 
 ## ⬜ O QUE FALTA
 
