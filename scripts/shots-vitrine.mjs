@@ -1,6 +1,10 @@
 /**
  * Tira screenshots da vitrine num viewport de celular.
  *
+ * O playwright NÃO é dependência do projeto: ele baixa um Chromium de ~150 MB e
+ * isso pesaria em todo deploy. Instale só quando for conferir o visual:
+ *   npm i -D playwright && npx playwright install chromium
+ *
  * Rodar contra o servidor local (`npm run start`) enquanto se mexe no visual:
  *   node scripts/shots-vitrine.mjs http://localhost:3003 estancia-burger
  *
