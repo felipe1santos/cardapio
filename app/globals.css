@@ -167,3 +167,29 @@ html:has(.font-loja) {
     padding-bottom: max(env(safe-area-inset-bottom), 6px);
   }
 }
+
+/* Etiquetas de QR Code do cardápio (Ajustes → QR Code).
+   A folha real é montada em um portal no <body> (#qr-print-root) porque o
+   layout do painel usa overflow hidden e cortaria a impressão. Enquanto a
+   classe `imprimindo-qr` estiver no <body>, o print mostra só a folha. */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body.imprimindo-qr {
+    background: #fff;
+  }
+
+  body.imprimindo-qr > *:not(#qr-print-root) {
+    display: none !important;
+  }
+
+  body.imprimindo-qr #qr-print-root {
+    display: block !important;
+    /* o badge escuro da mesa precisa sair impresso, não só na tela */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

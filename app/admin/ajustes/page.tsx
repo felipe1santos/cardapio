@@ -8,6 +8,7 @@ import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { InstalarAppButton } from '@/components/instalar-app-button'
+import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, type LayoutCardapio } from '@/lib/queries/cardapio'
 import {
@@ -51,12 +52,13 @@ import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao,
 import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
 
-type Tab = 'loja' | 'entrega' | 'mesas' | 'impressao' | 'conta' | 'aparencia' | 'cozinha'
+type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'impressao' | 'conta' | 'aparencia' | 'cozinha'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
   { id: 'entrega', label: 'Entrega' },
   { id: 'mesas', label: 'Mesas' },
+  { id: 'qrcode', label: 'QR Code' },
   { id: 'aparencia', label: 'Aparência' },
   { id: 'impressao', label: 'Impressão' },
   { id: 'cozinha', label: 'Cozinha' },
@@ -2492,6 +2494,7 @@ export default function AjustesPage() {
           <TabLoja restauranteId={restauranteId} active={tab === 'loja'} />
           <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
           <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
+          <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
           <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
           <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
           <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
