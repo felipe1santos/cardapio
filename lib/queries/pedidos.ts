@@ -5,6 +5,8 @@ import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/l
 import { normalizarTelefone } from '@/lib/queries/clientes'
 import { itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
+import { resolverPizza, type SaborCatalogo, type TamanhoCatalogo } from './pedidos-pizza'
+import type { RegraPrecoPizza } from '@/lib/pizza-preco'
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -897,7 +899,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
 
   const { data: lojaRow, error: lojaError } = await admin
     .from('restaurantes')
-    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada')
+    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada, pizza_calculo_preco')
     .eq('id', restauranteId)
     .single()
   if (lojaError) throw lojaError
@@ -932,16 +934,21 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   const byId = new Map((itensDb ?? []).map((i) => [i.id, i]))
 
   const precisaCatalogoPizza = (itensDb ?? []).some((i) => i.tipo_item === 'pizza')
-  let tamanhosPizza: { id: string; nome: string }[] = []
+  const regraPizza: RegraPrecoPizza = lojaRow.pizza_calculo_preco === 'maior' ? 'maior' : 'media'
+  let tamanhosPizza: TamanhoCatalogo[] = []
   let bordasPizza: { nome: string; preco: number }[] = []
   let massasPizza: { nome: string; preco: number }[] = []
   if (precisaCatalogoPizza) {
     const [tamanhosRes, bordasRes, massasRes] = await Promise.all([
-      admin.from('tamanhos_padrao_pizza').select('id, nome').eq('restaurante_id', restauranteId),
+      admin.from('tamanhos_padrao_pizza').select('id, nome, max_sabores').eq('restaurante_id', restauranteId),
       admin.from('bordas_pizza').select('nome, preco').eq('restaurante_id', restauranteId),
       admin.from('massas_pizza').select('nome, preco').eq('restaurante_id', restauranteId),
     ])
-    tamanhosPizza = tamanhosRes.data ?? []
+    tamanhosPizza = (tamanhosRes.data ?? []).map((t) => ({
+      id: t.id,
+      nome: t.nome,
+      maxSabores: Math.max(1, Number(t.max_sabores ?? 1)),
+    }))
     bordasPizza = (bordasRes.data ?? []).map((b) => ({ nome: b.nome, preco: Number(b.preco) }))
     massasPizza = (massasRes.data ?? []).map((m) => ({ nome: m.nome, preco: Number(m.preco) }))
   }
@@ -959,15 +966,29 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     let massaNome = ''
 
     if (item.tipo_item === 'pizza') {
-      if (!linha.tamanhoNome || !linha.saborNome) throw new Error(`Selecione tamanho e sabor pra "${item.nome}"`)
+      if (!linha.tamanhoNome) throw new Error(`Selecione o tamanho da pizza "${item.nome}"`)
       const tamanho = tamanhosPizza.find((t) => t.nome === linha.tamanhoNome)
       if (!tamanho) throw new Error(`Tamanho "${linha.tamanhoNome}" não encontrado`)
-      const sabor = (item.pizza_sabores ?? []).find((s: { nome: string; status: string }) => s.nome === linha.saborNome)
-      if (!sabor || sabor.status !== 'disponivel') throw new Error(`Sabor "${linha.saborNome}" não encontrado para o item "${item.nome}"`)
-      const precoSabor = sabor.pizza_sabor_precos.find((p: { tamanho_padrao_id: string; preco: number }) => p.tamanho_padrao_id === tamanho.id)
-      base = precoSabor ? Number(precoSabor.preco) : 0
+
+      const catalogo: SaborCatalogo[] = (item.pizza_sabores ?? []).map(
+        (s: { nome: string; status: string; pizza_sabor_precos: { tamanho_padrao_id: string; preco: number }[] }) => ({
+          nome: s.nome,
+          status: s.status,
+          precoPorTamanho: new Map(s.pizza_sabor_precos.map((p) => [p.tamanho_padrao_id, Number(p.preco)])),
+        }),
+      )
+
+      const resolvido = resolverPizza({
+        itemNome: item.nome,
+        tamanho,
+        saborTexto: linha.saborNome ?? '',
+        catalogo,
+        regra: regraPizza,
+      })
+      base = resolvido.base
       tamanhoNome = tamanho.nome
-      saborNome = sabor.nome
+      saborNome = resolvido.saborNome
+
       if (linha.bordaNome) {
         const borda = bordasPizza.find((b) => b.nome === linha.bordaNome)
         if (borda) { base += borda.preco; bordaNome = borda.nome }
