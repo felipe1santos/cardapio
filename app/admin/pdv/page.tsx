@@ -68,6 +68,20 @@ function needsSelector(item: ItemCardapio): boolean {
   return false
 }
 
+/**
+ * Soma o preço dos complementos escolhidos (por nome) contra o catálogo do
+ * próprio item — mesma busca que `criarPedido` faz no servidor (`item_complementos`
+ * achatado, ungrouped + de cada grupo). Nome que não resolve (removido do
+ * cardápio depois que a linha foi montada) é ignorado, nunca "adivinhado".
+ */
+function precoComplementosItem(item: ItemCardapio, nomes: string[]): number {
+  const catalogo = [...item.complementos, ...item.grupos.flatMap((g) => g.complementos)]
+  return nomes.reduce((soma, nome) => {
+    const comp = catalogo.find((c) => c.nome === nome)
+    return comp ? soma + comp.preco : soma
+  }, 0)
+}
+
 function linhaDescricao(linha: ComandaLinha): string {
   const parts: string[] = []
   if (linha.tamanhoNome) parts.push(linha.tamanhoNome)
@@ -1111,12 +1125,15 @@ export default function PdvPage() {
 
   // ── Computed ───────────────────────────────────────────────────────────────
 
-  // Preço de referência de uma linha da comanda. Pizza: sabores pela regra da
-  // loja (média/maior) + borda + massa; demais itens: preço base (ou promo).
+  // Preço de referência de uma linha da comanda — igual ao que criarPedido calcula
+  // no servidor (preco_unitario = base + soma dos complementos, * quantidade):
+  // pizza: sabores pela regra da loja (média/maior) + borda + massa + complementos;
+  // demais itens: preço base (ou promo) + complementos.
   // O servidor sempre recalcula o real ao lançar — isto é só o que mostramos aqui.
   function precoLinha(linha: ComandaLinha): number {
+    const precoComplementos = precoComplementosItem(linha.item, linha.complementos)
     if (linha.item.tipoItem !== 'pizza') {
-      return (linha.item.promocaoPreco ?? linha.item.preco) * linha.quantidade
+      return ((linha.item.promocaoPreco ?? linha.item.preco) + precoComplementos) * linha.quantidade
     }
     const tamPizza = tamanhosPizza.find((t) => t.nome === linha.tamanhoNome)
     const precoSabores = precoPizzaSabores(
@@ -1127,7 +1144,7 @@ export default function PdvPage() {
     )
     const precoBorda = bordasPizza.find((b) => b.nome === linha.bordaNome)?.preco ?? 0
     const precoMassa = massasPizza.find((m) => m.nome === linha.massaNome)?.preco ?? 0
-    return (precoSabores + precoBorda + precoMassa) * linha.quantidade
+    return (precoSabores + precoBorda + precoMassa + precoComplementos) * linha.quantidade
   }
 
   const totalConta = pedidosComanda
