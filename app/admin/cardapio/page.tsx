@@ -65,6 +65,7 @@ import {
   definirPrecoSabor,
 } from '@/lib/queries/cardapio'
 import {
+  buscarRegraPrecoPizza,
   listarTamanhosPadraoPizza,
   criarTamanhoPadraoPizza,
   atualizarTamanhoPadraoPizza,
@@ -1265,6 +1266,7 @@ interface LinhaCatalogo {
   id: string
   nome: string
   extra: string
+  extra2?: string
 }
 
 function ListaCatalogo({
@@ -1276,6 +1278,9 @@ function ListaCatalogo({
   extraType,
   extraIsPrice = false,
   formatExtra,
+  extra2Label,
+  extra2Placeholder,
+  formatExtra2,
   onAdd,
   onUpdate,
   onRemove,
@@ -1289,28 +1294,35 @@ function ListaCatalogo({
   /** Quando o valor extra é um preço, exibe no verde padrão de valores. */
   extraIsPrice?: boolean
   formatExtra: (extra: string) => string
-  onAdd: (nome: string, extra: string) => Promise<void>
-  onUpdate: (id: string, nome: string, extra: string) => Promise<void>
+  /** Segundo campo opcional (ex.: "máx. sabores" no tamanho de pizza). */
+  extra2Label?: string
+  extra2Placeholder?: string
+  formatExtra2?: (extra2: string) => string
+  onAdd: (nome: string, extra: string, extra2?: string) => Promise<void>
+  onUpdate: (id: string, nome: string, extra: string, extra2?: string) => Promise<void>
   onRemove: (id: string) => Promise<void>
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNome, setEditNome] = useState('')
   const [editExtra, setEditExtra] = useState('')
+  const [editExtra2, setEditExtra2] = useState('')
   const [newNome, setNewNome] = useState('')
   const [newExtra, setNewExtra] = useState('')
+  const [newExtra2, setNewExtra2] = useState('')
   const [busy, setBusy] = useState(false)
 
   function startEdit(linha: LinhaCatalogo) {
     setEditingId(linha.id)
     setEditNome(linha.nome)
     setEditExtra(linha.extra)
+    setEditExtra2(linha.extra2 ?? '')
   }
 
   async function saveEdit() {
     if (!editingId || !editNome.trim()) return
     setBusy(true)
     try {
-      await onUpdate(editingId, editNome.trim(), editExtra)
+      await onUpdate(editingId, editNome.trim(), editExtra, extra2Label !== undefined ? editExtra2 : undefined)
       setEditingId(null)
     } finally {
       setBusy(false)
@@ -1321,9 +1333,10 @@ function ListaCatalogo({
     if (!newNome.trim()) return
     setBusy(true)
     try {
-      await onAdd(newNome.trim(), newExtra)
+      await onAdd(newNome.trim(), newExtra, extra2Label !== undefined ? newExtra2 : undefined)
       setNewNome('')
       setNewExtra('')
+      setNewExtra2('')
     } finally {
       setBusy(false)
     }
@@ -1367,6 +1380,16 @@ function ListaCatalogo({
                 placeholder={extraPlaceholder}
                 className="w-24 rounded-menuzia border border-[#1e3a8a]/30 bg-white px-2.5 py-1.5 text-right text-sm text-[#1e3a8a] outline-none focus:border-[#1e3a8a]"
               />
+              {extra2Label !== undefined && (
+                <input
+                  type="number"
+                  value={editExtra2}
+                  onChange={(e) => setEditExtra2(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                  placeholder={extra2Placeholder}
+                  className="w-24 rounded-menuzia border border-[#1e3a8a]/30 bg-white px-2.5 py-1.5 text-right text-sm text-[#1e3a8a] outline-none focus:border-[#1e3a8a]"
+                />
+              )}
               <button onClick={saveEdit} disabled={busy}
                 className="rounded-menuzia bg-[#1e3a8a] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-50">
                 Salvar
@@ -1380,6 +1403,9 @@ function ListaCatalogo({
                 <span className="rounded-menuzia bg-price-bg px-2 py-0.5 tabular-nums text-[12px] font-bold text-price-text">{formatExtra(linha.extra)}</span>
               ) : (
                 <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">{formatExtra(linha.extra)}</span>
+              )}
+              {formatExtra2 && (
+                <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">{formatExtra2(linha.extra2 ?? '')}</span>
               )}
               <button onClick={() => startEdit(linha)}
                 className="rounded-menuzia border border-[#1e3a8a]/25 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#1e3a8a] transition-colors hover:bg-[#1e3a8a] hover:text-white">
@@ -1402,6 +1428,10 @@ function ListaCatalogo({
             placeholder="Nome (ex: Grande)" className="min-w-0 flex-1 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
           <input type={extraType} value={newExtra} onChange={(e) => setNewExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
             placeholder={extraPlaceholder} className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
+          {extra2Label !== undefined && (
+            <input type="number" value={newExtra2} onChange={(e) => setNewExtra2(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
+              placeholder={extra2Placeholder} className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
+          )}
           <Button variant="primary" onClick={add} disabled={busy || !newNome.trim()}>+ Adicionar</Button>
         </div>
         <p className="mt-1.5 text-[11px] text-text-subtle">{extraLabel} fica no campo da direita. Aperte Enter ou clique em Adicionar pra salvar.</p>
@@ -1429,15 +1459,18 @@ function TamanhosTab({
   const [loaded, setLoaded] = useState(false)
   const [bordas, setBordas] = useState<BordaPizza[]>([])
   const [massas, setMassas] = useState<MassaPizza[]>([])
+  const [regraPizza, setRegraPizza] = useState<'media' | 'maior'>('media')
 
   useEffect(() => {
     if (loaded) return
     Promise.all([
       listarBordasPizza(supabase, restauranteId),
       listarMassasPizza(supabase, restauranteId),
-    ]).then(([b, ma]) => {
+      buscarRegraPrecoPizza(supabase, restauranteId),
+    ]).then(([b, ma, regra]) => {
       setBordas(b)
       setMassas(ma)
+      setRegraPizza(regra)
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -1454,23 +1487,50 @@ function TamanhosTab({
           Defina aqui o que significa Pequena/Média/Grande na sua loja — cada item de pizza ou marmita reaproveita
           esses tamanhos no cadastro. Bordas e massas cadastradas aqui ficam disponíveis em todas as pizzas automaticamente.
         </p>
+        <div className="mt-3 flex items-center gap-3">
+          <span className="text-[12px] font-semibold text-text-main">Pizza com mais de um sabor cobra:</span>
+          {(['media', 'maior'] as const).map((regra) => (
+            <button
+              key={regra}
+              onClick={async () => {
+                const anterior = regraPizza
+                setRegraPizza(regra)
+                const { error } = await supabase.from('restaurantes').update({ pizza_calculo_preco: regra }).eq('id', restauranteId)
+                if (error) {
+                  setRegraPizza(anterior)
+                  alert('Não foi possível salvar a regra de preço. Tente novamente.')
+                }
+              }}
+              className={[
+                'rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                regraPizza === regra ? 'border-primary bg-primary text-white' : 'border-border bg-main text-text-subtle',
+              ].join(' ')}
+            >
+              {regra === 'media' ? 'Média dos sabores' : 'Sabor mais caro'}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <ListaCatalogo
           titulo="Tamanhos de pizza"
-          hint='Ex.: "Pequena" com 4 fatias, "Grande" com 8 fatias. Cada sabor define o preço para cada um desses tamanhos.'
-          itens={tamanhosPizza.map((t) => ({ id: t.id, nome: t.nome, extra: String(t.fatias) }))}
+          hint='Ex.: "Pequena" com 4 fatias e 1 sabor, "Grande" com 8 fatias e até 3 sabores. Cada sabor define o preço para cada um desses tamanhos.'
+          itens={tamanhosPizza.map((t) => ({ id: t.id, nome: t.nome, extra: String(t.fatias), extra2: String(t.maxSabores) }))}
           extraLabel="Fatias"
           extraPlaceholder="Ex: 8"
           extraType="number"
           formatExtra={(e) => `${e} fatias`}
-          onAdd={async (nome, extra) => {
-            const novo = await criarTamanhoPadraoPizza(supabase, restauranteId, nome, Number(extra) || 0, tamanhosPizza.length)
+          extra2Label="Máx. sabores"
+          extra2Placeholder="Ex: 3"
+          formatExtra2={(e) => (Number(e) > 1 ? `até ${e} sabores` : '1 sabor')}
+          onAdd={async (nome, extra, extra2) => {
+            const novo = await criarTamanhoPadraoPizza(supabase, restauranteId, nome, Number(extra) || 0, tamanhosPizza.length, Math.max(1, Number(extra2) || 1))
             setTamanhosPizza((prev) => [...prev, novo])
           }}
-          onUpdate={async (id, nome, extra) => {
-            await atualizarTamanhoPadraoPizza(supabase, id, nome, Number(extra) || 0)
-            setTamanhosPizza((prev) => prev.map((t) => (t.id === id ? { ...t, nome, fatias: Number(extra) || 0 } : t)))
+          onUpdate={async (id, nome, extra, extra2) => {
+            const maxSab = Math.max(1, Number(extra2) || 1)
+            await atualizarTamanhoPadraoPizza(supabase, id, nome, Number(extra) || 0, maxSab)
+            setTamanhosPizza((prev) => prev.map((t) => (t.id === id ? { ...t, nome, fatias: Number(extra) || 0, maxSabores: maxSab } : t)))
           }}
           onRemove={async (id) => {
             if (!confirm('Excluir este tamanho de pizza? Preços de sabores cadastrados pra ele também serão excluídos.')) return
