@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
+import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -526,6 +527,9 @@ export async function removerTamanho(supabase: SupabaseClient, tamanhoId: string
 // ─── Sabores de pizza (item de tipo 'pizza') ──────────────────────────────────
 
 export async function criarSabor(supabase: SupabaseClient, itemId: string, nome: string, posicao: number): Promise<PizzaSabor> {
+  if (nomeTemSeparador(nome)) {
+    throw new Error('O nome do sabor não pode ter " / " (barra com espaços) — é o separador usado em pizza meio a meio.')
+  }
   const { data, error } = await supabase
     .from('pizza_sabores')
     .insert({ item_id: itemId, nome, posicao })
@@ -543,6 +547,9 @@ export interface AtualizarSaborInput {
 }
 
 export async function atualizarSabor(supabase: SupabaseClient, saborId: string, input: AtualizarSaborInput) {
+  if (nomeTemSeparador(input.nome)) {
+    throw new Error('O nome do sabor não pode ter " / " (barra com espaços) — é o separador usado em pizza meio a meio.')
+  }
   const { error } = await supabase
     .from('pizza_sabores')
     .update({ nome: input.nome, descricao: input.descricao, status: input.status, imagem_url: input.imagemUrl })
@@ -800,13 +807,15 @@ export interface RestauranteVitrine {
   /** Canais de venda ligados em Ajustes › Entrega. Ver migration 0049. */
   aceitaEntrega: boolean
   aceitaRetirada: boolean
+  /** Como a loja calcula o preço de pizza com mais de um sabor. */
+  pizzaCalculoPreco: RegraPrecoPizza
 }
 
 export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -844,6 +853,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     // Defaults iguais aos da migration: antes dela a vitrine só vendia entrega.
     aceitaEntrega: data.aceita_entrega ?? true,
     aceitaRetirada: data.aceita_retirada ?? false,
+    pizzaCalculoPreco: (data.pizza_calculo_preco === 'maior' ? 'maior' : 'media') as RegraPrecoPizza,
   }
 }
 

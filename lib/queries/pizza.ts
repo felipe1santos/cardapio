@@ -6,6 +6,8 @@ export interface TamanhoPadraoPizza {
   nome: string
   fatias: number
   posicao: number
+  /** Quantos sabores cabem nesse tamanho. 1 = sem meio a meio. */
+  maxSabores: number
 }
 
 export interface TamanhoPadraoMarmita {
@@ -34,25 +36,46 @@ export interface MassaPizza {
 export async function listarTamanhosPadraoPizza(supabase: ClienteLeitura, restauranteId: string): Promise<TamanhoPadraoPizza[]> {
   const { data, error } = await supabase
     .from('tamanhos_padrao_pizza')
-    .select('id, nome, fatias, posicao')
+    .select('id, nome, fatias, posicao, max_sabores')
     .eq('restaurante_id', restauranteId)
     .order('posicao', { ascending: true })
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map((t) => ({
+    id: t.id,
+    nome: t.nome,
+    fatias: t.fatias,
+    posicao: t.posicao,
+    maxSabores: Math.max(1, Number(t.max_sabores ?? 1)),
+  }))
 }
 
-export async function criarTamanhoPadraoPizza(supabase: SupabaseClient, restauranteId: string, nome: string, fatias: number, posicao: number): Promise<TamanhoPadraoPizza> {
+export async function criarTamanhoPadraoPizza(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  nome: string,
+  fatias: number,
+  posicao: number,
+  maxSabores = 1,
+): Promise<TamanhoPadraoPizza> {
   const { data, error } = await supabase
     .from('tamanhos_padrao_pizza')
-    .insert({ restaurante_id: restauranteId, nome, fatias, posicao })
-    .select('id, nome, fatias, posicao')
+    .insert({ restaurante_id: restauranteId, nome, fatias, posicao, max_sabores: Math.max(1, maxSabores) })
+    .select('id, nome, fatias, posicao, max_sabores')
     .single()
   if (error) throw error
-  return data
+  return { id: data.id, nome: data.nome, fatias: data.fatias, posicao: data.posicao, maxSabores: Math.max(1, Number(data.max_sabores ?? 1)) }
 }
 
-export async function atualizarTamanhoPadraoPizza(supabase: SupabaseClient, id: string, nome: string, fatias: number) {
-  const { error } = await supabase.from('tamanhos_padrao_pizza').update({ nome, fatias }).eq('id', id)
+export async function atualizarTamanhoPadraoPizza(
+  supabase: SupabaseClient,
+  id: string,
+  nome: string,
+  fatias: number,
+  maxSabores?: number,
+) {
+  const patch: { nome: string; fatias: number; max_sabores?: number } = { nome, fatias }
+  if (maxSabores !== undefined) patch.max_sabores = Math.max(1, maxSabores)
+  const { error } = await supabase.from('tamanhos_padrao_pizza').update(patch).eq('id', id)
   if (error) throw error
 }
 
