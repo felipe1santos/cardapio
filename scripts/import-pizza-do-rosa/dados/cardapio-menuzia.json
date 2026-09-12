@@ -1,0 +1,3992 @@
+{
+  "tamanhosPizza": [
+    {
+      "nome": "Pequena",
+      "fatias": 4,
+      "maxSabores": 1,
+      "posicao": 0
+    },
+    {
+      "nome": "Média",
+      "fatias": 6,
+      "maxSabores": 2,
+      "posicao": 1
+    },
+    {
+      "nome": "Grande",
+      "fatias": 8,
+      "maxSabores": 3,
+      "posicao": 2
+    },
+    {
+      "nome": "Gigante",
+      "fatias": 12,
+      "maxSabores": 4,
+      "posicao": 3
+    },
+    {
+      "nome": "Brotinho",
+      "fatias": 4,
+      "maxSabores": 1,
+      "posicao": 4
+    }
+  ],
+  "bordas": [
+    {
+      "nome": "Catupiry",
+      "preco": 19,
+      "posicao": 0
+    },
+    {
+      "nome": "Cheddar",
+      "preco": 19,
+      "posicao": 1
+    },
+    {
+      "nome": "Chocolate Branco",
+      "preco": 19,
+      "posicao": 2
+    },
+    {
+      "nome": "Chocolate Preto",
+      "preco": 19,
+      "posicao": 3
+    },
+    {
+      "nome": "Cream Cheese",
+      "preco": 19,
+      "posicao": 4
+    }
+  ],
+  "presets": [
+    {
+      "nome": "Adicionais de Pizza",
+      "obrigatorio": false,
+      "minEscolhas": 0,
+      "maxEscolhas": 33,
+      "itens": [
+        {
+          "nome": "Abacaxi",
+          "preco": 8,
+          "posicao": 0
+        },
+        {
+          "nome": "Alcatra",
+          "preco": 15,
+          "posicao": 1
+        },
+        {
+          "nome": "Atum",
+          "preco": 9,
+          "posicao": 2
+        },
+        {
+          "nome": "Azeitona Verde",
+          "preco": 3,
+          "posicao": 3
+        },
+        {
+          "nome": "Bacon",
+          "preco": 9,
+          "posicao": 4
+        },
+        {
+          "nome": "Banana",
+          "preco": 6,
+          "posicao": 5
+        },
+        {
+          "nome": "Batata Palha",
+          "preco": 6,
+          "posicao": 6
+        },
+        {
+          "nome": "Brócolis",
+          "preco": 9,
+          "posicao": 7
+        },
+        {
+          "nome": "Calabresa",
+          "preco": 9,
+          "posicao": 8
+        },
+        {
+          "nome": "Calabresa Fatiada",
+          "preco": 9,
+          "posicao": 9
+        },
+        {
+          "nome": "Catupiry",
+          "preco": 9,
+          "posicao": 10
+        },
+        {
+          "nome": "Cebola",
+          "preco": 3,
+          "posicao": 11
+        },
+        {
+          "nome": "Cebola Caramelizada",
+          "preco": 3.5,
+          "posicao": 12
+        },
+        {
+          "nome": "Cheddar",
+          "preco": 9,
+          "posicao": 13
+        },
+        {
+          "nome": "Cream Cheese",
+          "preco": 9,
+          "posicao": 14
+        },
+        {
+          "nome": "Figo",
+          "preco": 9,
+          "posicao": 15
+        },
+        {
+          "nome": "Frango",
+          "preco": 9,
+          "posicao": 16
+        },
+        {
+          "nome": "geleia de abacaxi picante",
+          "preco": 6,
+          "posicao": 17
+        },
+        {
+          "nome": "Gorgonzola",
+          "preco": 8,
+          "posicao": 18
+        },
+        {
+          "nome": "Milho",
+          "preco": 6,
+          "posicao": 19
+        },
+        {
+          "nome": "Milho Verde",
+          "preco": 3,
+          "posicao": 20
+        },
+        {
+          "nome": "molho pesto",
+          "preco": 6,
+          "posicao": 21
+        },
+        {
+          "nome": "Morango",
+          "preco": 8,
+          "posicao": 22
+        },
+        {
+          "nome": "Mussarela",
+          "preco": 10,
+          "posicao": 23
+        },
+        {
+          "nome": "Ovo",
+          "preco": 3,
+          "posicao": 24
+        },
+        {
+          "nome": "Palmito",
+          "preco": 3,
+          "posicao": 25
+        },
+        {
+          "nome": "Parmesão Ralado",
+          "preco": 9,
+          "posicao": 26
+        },
+        {
+          "nome": "Pepperoni",
+          "preco": 9,
+          "posicao": 27
+        },
+        {
+          "nome": "Pimentão",
+          "preco": 5,
+          "posicao": 28
+        },
+        {
+          "nome": "Provolone Fatiado",
+          "preco": 12,
+          "posicao": 29
+        },
+        {
+          "nome": "Rúcula",
+          "preco": 9,
+          "posicao": 30
+        },
+        {
+          "nome": "Tomate",
+          "preco": 3,
+          "posicao": 31
+        },
+        {
+          "nome": "Tomate Picado",
+          "preco": 3,
+          "posicao": 32
+        }
+      ]
+    },
+    {
+      "nome": "Adicionais de Hambúrguer",
+      "obrigatorio": false,
+      "minEscolhas": 0,
+      "maxEscolhas": 22,
+      "itens": [
+        {
+          "nome": "Alface Americana",
+          "preco": 1.5,
+          "posicao": 0
+        },
+        {
+          "nome": "Bacon em Tiras",
+          "preco": 4,
+          "posicao": 1
+        },
+        {
+          "nome": "Bacon Picado",
+          "preco": 4,
+          "posicao": 2
+        },
+        {
+          "nome": "Catupiry",
+          "preco": 3,
+          "posicao": 3
+        },
+        {
+          "nome": "cebola caramelizada",
+          "preco": 2,
+          "posicao": 4
+        },
+        {
+          "nome": "cebola Crispy",
+          "preco": 2,
+          "posicao": 5
+        },
+        {
+          "nome": "cebola roxa",
+          "preco": 2,
+          "posicao": 6
+        },
+        {
+          "nome": "Cheddar cremoso",
+          "preco": 3,
+          "posicao": 7
+        },
+        {
+          "nome": "Cream Cheese",
+          "preco": 3,
+          "posicao": 8
+        },
+        {
+          "nome": "creme de gorgonzola",
+          "preco": 3,
+          "posicao": 9
+        },
+        {
+          "nome": "Geleia de Abacaxi Apimentado",
+          "preco": 3,
+          "posicao": 10
+        },
+        {
+          "nome": "geleia de bacon",
+          "preco": 2,
+          "posicao": 11
+        },
+        {
+          "nome": "hamburguer 80g",
+          "preco": 7,
+          "posicao": 12
+        },
+        {
+          "nome": "Hamburguer Bovino Artesanal 150g",
+          "preco": 11,
+          "posicao": 13
+        },
+        {
+          "nome": "Maionese da Casa",
+          "preco": 2,
+          "posicao": 14
+        },
+        {
+          "nome": "Molho Barbecue",
+          "preco": 2,
+          "posicao": 15
+        },
+        {
+          "nome": "Ovo Frito",
+          "preco": 2,
+          "posicao": 16
+        },
+        {
+          "nome": "Picles",
+          "preco": 1,
+          "posicao": 17
+        },
+        {
+          "nome": "queijo coalho",
+          "preco": 4,
+          "posicao": 18
+        },
+        {
+          "nome": "Queijo mussarela",
+          "preco": 2,
+          "posicao": 19
+        },
+        {
+          "nome": "Rucula",
+          "preco": 2,
+          "posicao": 20
+        },
+        {
+          "nome": "Tomate em fatias",
+          "preco": 1.5,
+          "posicao": 21
+        }
+      ]
+    },
+    {
+      "nome": "Adicionais de Porção",
+      "obrigatorio": false,
+      "minEscolhas": 0,
+      "maxEscolhas": 3,
+      "itens": [
+        {
+          "nome": "Bacon",
+          "preco": 6,
+          "posicao": 0
+        },
+        {
+          "nome": "Cheddar",
+          "preco": 6,
+          "posicao": 1
+        },
+        {
+          "nome": "molho de alho",
+          "preco": 2,
+          "posicao": 2
+        }
+      ]
+    },
+    {
+      "nome": "Adicionais de Massa",
+      "obrigatorio": false,
+      "minEscolhas": 0,
+      "maxEscolhas": 19,
+      "itens": [
+        {
+          "nome": "Alho e oleo",
+          "preco": 2,
+          "posicao": 0
+        },
+        {
+          "nome": "azeitona picada",
+          "preco": 3,
+          "posicao": 1
+        },
+        {
+          "nome": "bacon picado",
+          "preco": 4,
+          "posicao": 2
+        },
+        {
+          "nome": "Brócolis",
+          "preco": 3,
+          "posicao": 3
+        },
+        {
+          "nome": "calabresa",
+          "preco": 4,
+          "posicao": 4
+        },
+        {
+          "nome": "Camarão 100g",
+          "preco": 20,
+          "posicao": 5
+        },
+        {
+          "nome": "carne moida",
+          "preco": 5,
+          "posicao": 6
+        },
+        {
+          "nome": "Cheddar cremoso",
+          "preco": 6,
+          "posicao": 7
+        },
+        {
+          "nome": "frango desfiado",
+          "preco": 4,
+          "posicao": 8
+        },
+        {
+          "nome": "hamburguer picado 150g",
+          "preco": 10,
+          "posicao": 9
+        },
+        {
+          "nome": "milho",
+          "preco": 2,
+          "posicao": 10
+        },
+        {
+          "nome": "molho 4 queijos",
+          "preco": 5.5,
+          "posicao": 11
+        },
+        {
+          "nome": "molho branco",
+          "preco": 3,
+          "posicao": 12
+        },
+        {
+          "nome": "molho tomate",
+          "preco": 3,
+          "posicao": 13
+        },
+        {
+          "nome": "queijo mussarela",
+          "preco": 4,
+          "posicao": 14
+        },
+        {
+          "nome": "Queijo Parmesão",
+          "preco": 4,
+          "posicao": 15
+        },
+        {
+          "nome": "rucula",
+          "preco": 3,
+          "posicao": 16
+        },
+        {
+          "nome": "tomate seco",
+          "preco": 3,
+          "posicao": 17
+        },
+        {
+          "nome": "tomatinho cereja",
+          "preco": 3,
+          "posicao": 18
+        }
+      ]
+    },
+    {
+      "nome": "Adicionais de Salada",
+      "obrigatorio": false,
+      "minEscolhas": 0,
+      "maxEscolhas": 3,
+      "itens": [
+        {
+          "nome": "Frango Desfiado",
+          "preco": 8,
+          "posicao": 0
+        },
+        {
+          "nome": "Hamburguer artesanal bovino 150gr",
+          "preco": 11,
+          "posicao": 1
+        },
+        {
+          "nome": "Hamburguer artesanal bovino 80g",
+          "preco": 7,
+          "posicao": 2
+        }
+      ]
+    }
+  ],
+  "grupos": [
+    {
+      "nome": "Pizzas Salgadas",
+      "posicao": 0,
+      "itens": [
+        {
+          "nome": "Pizza Salgada",
+          "descricao": "",
+          "preco": 0,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/101118/800/Expresso-Delivery_92a334aef542eaeacca503b08b94863d.png",
+          "tipoItem": "pizza",
+          "tag": null,
+          "presets": [
+            "Adicionais de Pizza"
+          ],
+          "sabores": [
+            {
+              "nome": "4 Queijos",
+              "descricao": "Catupiry, Molho de Tomate, Mussarela, Provolone, Queijo Minas",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/101118/800/Expresso-Delivery_92a334aef542eaeacca503b08b94863d.png",
+              "posicao": 0,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "4 Queijos c/ Bacon",
+              "descricao": "Bacon, Catupiry, Molho de Tomate, Mussarela, Parmesão, Queijo Minas",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/290662/800/Expresso-Delivery_7495ff20ca7277119e155b8033bad7c3.png",
+              "posicao": 1,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "5 queijos especial",
+              "descricao": "Gorgonzola, Molho de Tomate, Mussarela, Parmesão Ralado, Provolone, Queijo Prato",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
+              "posicao": 2,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "A Moda da Casa",
+              "descricao": "Bacon, Calabresa, Cheddar, Lombo, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/101969/800/Expresso-Delivery_f914b8e89a910ead734e9bc39b228059.png",
+              "posicao": 3,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "A Moda do Rosa",
+              "descricao": "Bacon, Creme de Leite, Milho, Molho de Tomate, Mussarela, Palmito, Presunto",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/101869/800/Expresso-Delivery_288c1d72dcdaef549b3ab67c6ebb86d6.png",
+              "posicao": 4,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Alcatra",
+              "descricao": "Alcatra, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
+              "posicao": 5,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Alcatra Acebolada",
+              "descricao": "Alcatra, Cebola, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/127830/800/Expresso-Delivery_c5c067b7af7bf5d85e451499223f51b7.png",
+              "posicao": 6,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Alcatra ao alho e óleo",
+              "descricao": "Alcatra, Alho e Oléo, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
+              "posicao": 7,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Alcatra ao Barbecue",
+              "descricao": "Alcatra, Molho Barbecue, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/254949/800/Expresso-Delivery_a9ce1dc7524d9cda89d165176154fae0.png",
+              "posicao": 8,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Alcatra na Mostarda",
+              "descricao": "Alcatra, Molho de Mostarda, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/126392/800/Expresso-Delivery_9e9a2caf94ab6c2fe99dc722516669b5.png",
+              "posicao": 9,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Atum Especial",
+              "descricao": "Atum em pedaços, Catupiry, Cebola Roxa, Molho de Tomate, Palmito",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 10,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Bacon",
+              "descricao": "Bacon, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/101970/800/Expresso-Delivery_2bfe94cc5555ddf3e0e3aca395cc825c.png",
+              "posicao": 11,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Bacon, queijo coalho e melado",
+              "descricao": "Bacon, melado, Molho de Tomate, Mussarela, queijo coalho",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/383563/800/Expresso-Delivery_e23c06175ffd1b71fe86ac87c0cdd3c3.png",
+              "posicao": 12,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Bacon C/ Brócolis",
+              "descricao": "Bacon, Brócolis, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/125184/800/Expresso-Delivery_5ae7a7f35263bb32d9172ca485f0927b.png",
+              "posicao": 13,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Bacon C/ Milho",
+              "descricao": "Bacon, Milho, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/101972/800/Expresso-Delivery_f2400ac6593122d9f8f6b5fcc769e85a.png",
+              "posicao": 14,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Baiana",
+              "descricao": "Calabresa, Cebola, Molho de Pimenta, Molho de Tomate, Mussarela, Ovo, Pimentão",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/121924/800/Expresso-Delivery_1c8b656c65c27304cc83389f4725d472.png",
+              "posicao": 15,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Brócolis",
+              "descricao": "Alho Frito, Bacon, Brócolis, Catupiry, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/105280/800/Expresso-Delivery_fd310047f278376b831cff15d7dc666d.png",
+              "posicao": 16,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Brócolis Cremoso",
+              "descricao": "Brócolis, Catupiry, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/367979/800/Expresso-Delivery_9976728ea42195f05f3258a30185e184.png",
+              "posicao": 17,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa",
+              "descricao": "Calabresa Fatiada, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/107498/800/Expresso-Delivery_38c18d1969dedf01bfd61758ef35161c.png",
+              "posicao": 18,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa Acebolada",
+              "descricao": "Calabresa, Cebola, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/105530/800/Expresso-Delivery_d8a8ba030b54dc136146ad5b8f83b47f.png",
+              "posicao": 19,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa ao alho e óleo",
+              "descricao": "Alho e Oléo, Calabresa, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
+              "posicao": 20,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa c/ Cebola Caramelizada",
+              "descricao": "Calabresa, Cebola Caramelizada, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 21,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa com cream cheese",
+              "descricao": "Calabresa Fatiada, Cream Cheese, Molho de Tomate, Mussarela, Orégano",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/108344/800/Expresso-Delivery_7c5b4018f7825508f23ceb427ff90a99.png",
+              "posicao": 22,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa Especial",
+              "descricao": "Bacon, Calabresa, Catupiry, Cebola, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/109081/800/Expresso-Delivery_77f515e132c5339aa12def4b81bcc4a8.png",
+              "posicao": 23,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Caprese",
+              "descricao": "Cream Cheese, Manjericão Fresco, Molho de Tomate, Mussarela, Orégano, Pesto de azeitona preta, Tomate",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/618612/800/Expresso-Delivery_d278b37b1fa40d9c6dc5954ed073f295.webp",
+              "posicao": 24,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "CatuBacon",
+              "descricao": "Bacon, Catupiry, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410715/800/Expresso-Delivery_289e69a1e34fda8daf6b8f3b9d9e940b.jpg",
+              "posicao": 25,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Costela com catupiry",
+              "descricao": "Catupiry, costela bovina desfiada, Molho de Tomate, Mussarela, Orégano",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/341789/800/Expresso-Delivery_9338f9fd7d8040fc0f180dffe2b7f2c0.png",
+              "posicao": 26,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Entreveiro",
+              "descricao": "Alcatra, Calabresa, Cebola, Molho Barbecue, Molho de Tomate, Mussarela, Pimentão",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/112818/800/Expresso-Delivery_459f58e66f732b0d41a27540fa23d489.png",
+              "posicao": 27,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Filé ao 4 Queijos",
+              "descricao": "Catupiry, Filé de Carne Bovina, Molho de Tomate, Mussarela, Orégano, Queijo Minas, Queijo Prato",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/182563/800/Expresso-Delivery_d606cb7d685b1067948fbc6a34d38e17.png",
+              "posicao": 28,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Filé ao Molho de Gorgonzola",
+              "descricao": "Filé de Carne Bovina, Manjericão Fresco, Molho gorgonzola",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 29,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Filé C/ Fritas",
+              "descricao": "Bacon, Batata Frita, Cheddar, Filé de Carne Bovina, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/123386/800/Expresso-Delivery_7c6567ebe6b7105bc12499e25f005531.png",
+              "posicao": 30,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Frango C/ Catupiry",
+              "descricao": "Catupiry, Frango Desfiado, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/109554/800/Expresso-Delivery_efcdf4c486d378ddc2f3d7676c4cdb67.png",
+              "posicao": 31,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Frango Caipira",
+              "descricao": "Bacon, Catupiry, Frango Desfiado, Milho, Molho de Tomate, Mussarela, Orégano",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/289785/800/Expresso-Delivery_624fbb5055af72efbbf7d68676fd2f17.png",
+              "posicao": 32,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Geléia de abacaxi picante com bacon",
+              "descricao": "Bacon, geleia de abacaxi picante, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/210355/800/Expresso-Delivery_e5796e7d6c3c8600b5e69b93c9efa109.png",
+              "posicao": 33,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Gorgonzola com Figo",
+              "descricao": "Figo, Gorgonzola, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/309813/800/Expresso-Delivery_f179cf10cb56ff7b2460f9a2385aaea1.png",
+              "posicao": 34,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Lombinho C/ Catupiry",
+              "descricao": "Catupiry, Lombinho, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/112814/800/Expresso-Delivery_757becaf73856789bb94655ccbde7d1b.png",
+              "posicao": 35,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "lombinho com abacaxi",
+              "descricao": "Abacaxi, Lombinho, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/182866/800/Expresso-Delivery_78a0037b09f835bffb743da93f4bf035.png",
+              "posicao": 36,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Lombo especial",
+              "descricao": "Cream Cheese, Figo, Lombo Canadense, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/476926/800/Expresso-Delivery_6135ef584195db91b1103b7d8f009506.png",
+              "posicao": 37,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Marguerita",
+              "descricao": "Manjericão, Molho de Tomate, Mussarela, Tomate",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/111367/800/Expresso-Delivery_12e54631b7ca7a74ec40026e15570447.png",
+              "posicao": 38,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Mexicana",
+              "descricao": "Carne Moída, Cheddar, Doritos, Molho de Pimenta, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/109553/800/Expresso-Delivery_82da51b33227701ed66ef18552b83e27.png",
+              "posicao": 39,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Milho na Manteiga",
+              "descricao": "Catupiry, Creme de Leite, Milho Salteado na Manteiga, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/115115/800/Expresso-Delivery_379ddb8de7954e526e996908d76d35d5.png",
+              "posicao": 40,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Milho Verde",
+              "descricao": "Milho, Molho de Tomate, Mussarela, Orégano",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/256029/800/Expresso-Delivery_714c879a231875cb6f49abcf12156217.png",
+              "posicao": 41,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Mussarela",
+              "descricao": "Azeitona, Molho de Tomate, Mussarela, Orégano",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/256408/800/Expresso-Delivery_5a182a4c24b22daaa908278d80a9e6ff.png",
+              "posicao": 42,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Napolitana",
+              "descricao": "Azeitona Verde, Molho de Tomate, Mussarela, Provolone Fatiado, Tomate",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/290387/800/Expresso-Delivery_17d2727478fac27003a21dff9f656640.png",
+              "posicao": 43,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Palmito",
+              "descricao": "Molho de Tomate, Mussarela, Orégano, Palmito",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/257816/800/Expresso-Delivery_225f89e99e786ae25145160773c5ffff.png",
+              "posicao": 44,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Palmito Cremoso",
+              "descricao": "Catupiry, Molho de Tomate, Mussarela, Palmito",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/367979/800/Expresso-Delivery_9976728ea42195f05f3258a30185e184.png",
+              "posicao": 45,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Pepperoni",
+              "descricao": "Molho de Tomate, Mussarela, Pepperoni",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/278713/800/Expresso-Delivery_ed9daa96b3ba6790bc93d3bb6cebbec2.png",
+              "posicao": 46,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Portuguesa",
+              "descricao": "Azeitona, Cebola, Molho de Tomate, Mussarela, Ovo, Presunto",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/112979/800/Expresso-Delivery_c4f7c37dc087b37235dfbdfe1e59e5a2.png",
+              "posicao": 47,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Queijo coalho com geleia de abacaxi",
+              "descricao": "geleia de abacaxi picante, Molho de Tomate, Mussarela, queijo coalho",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410715/800/Expresso-Delivery_289e69a1e34fda8daf6b8f3b9d9e940b.jpg",
+              "posicao": 48,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Saborosa",
+              "descricao": "Azeitona, Bacon, Calabresa, Cebola Roxa, Ervilha, Milho, Molho de Tomate, Mussarela, Ovo",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/114453/800/Expresso-Delivery_7cac6a732abfdd0f7e9105c131dbd679.png",
+              "posicao": 49,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Salpicão de Frango",
+              "descricao": "Molho, Mussarela, salpicão de Frango",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389609/800/Expresso-Delivery_ee153a3f1fa7da7f7ff3db40b8867af9.png",
+              "posicao": 50,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Strogonoff de Carne",
+              "descricao": "Batata Palha, Molho de Tomate, Mussarela, Strogonoff de Carne Bovina",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/183030/800/Expresso-Delivery_10e24e947ce3a1b3e038065655a7181c.png",
+              "posicao": 51,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Strogonoff de carne Invertido",
+              "descricao": "Batata Palha, Estrogonofe de Carne, Molho de Tomate, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 52,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Strogonoff de Frango",
+              "descricao": "Batata Palha, Molho de Tomate, Mussarela, Strogonoff de Frango",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/112815/800/Expresso-Delivery_9bc57f1d08bd7855cdeb4902424b28cf.png",
+              "posicao": 53,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Tomate Cereja ao Molho Pesto",
+              "descricao": "Molho de Tomate, molho pesto, Mussarela, Orégano, tomate cereja",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/204862/800/Expresso-Delivery_a0a98e79aeb4b410e12099cef85b5ac9.png",
+              "posicao": 54,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            },
+            {
+              "nome": "Tomate Seco C/ Rúcula Tradicional",
+              "descricao": "Molho de Tomate, Mussarela, Rúcula, Tomate Seco",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389609/800/Expresso-Delivery_ee153a3f1fa7da7f7ff3db40b8867af9.png",
+              "posicao": 55,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 69
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 99
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Pizzas Doces",
+      "posicao": 1,
+      "itens": [
+        {
+          "nome": "Pizza Doce",
+          "descricao": "",
+          "preco": 0,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
+          "tipoItem": "pizza",
+          "tag": null,
+          "presets": [
+            "Adicionais de Pizza"
+          ],
+          "sabores": [
+            {
+              "nome": "2 AMORES",
+              "descricao": "cobertura de chocolate ao leite, Cobertura de Chocolate branca",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
+              "posicao": 0,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "2 Amores com Morangos",
+              "descricao": "cobertura de chocolate ao leite, Cobertura de Chocolate branca, Creme de Leite, Morango, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 1,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Abacaxi C/ Coco",
+              "descricao": "Abacaxi, coco, Creme de Leite, Leite Condensado, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/105534/800/Expresso-Delivery_d83b3593aa6991b9100e3a1a5f587945.png",
+              "posicao": 2,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Banana Nevada",
+              "descricao": "Açúcar, Banana, Canela, Chocolate Branco, Creme de Leite, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/107512/800/Expresso-Delivery_2acee127900c59ae119037f04be7e185.png",
+              "posicao": 3,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Bombom Morango",
+              "descricao": "Brigadeiro Branco, Chocolate ao Leite, Creme de Leite, Morango, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/254954/800/Expresso-Delivery_916ae53a197b8444d94739b989e104f5.png",
+              "posicao": 4,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Cheesecake de morango",
+              "descricao": "Cobertura de Chocolate branca, Cream Cheese, Creme de Leite, Geleia de morango",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 5,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 109
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 119
+                }
+              ]
+            },
+            {
+              "nome": "Chocolate",
+              "descricao": "Chocolate ao Leite, Creme de Leite, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/254951/800/Expresso-Delivery_23b92712ba08651bc9ed666624b3ae12.png",
+              "posicao": 6,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Chocolate Branco",
+              "descricao": "Chocolate Branco, Creme de Leite, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 7,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 63
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Chocolate Branco C/ Morango",
+              "descricao": "Chocolate Branco, Creme de Leite, Morango, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/256031/800/Expresso-Delivery_d8899bdf161322771f3e17bd3c6cc0d4.png",
+              "posicao": 8,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Chocolate branco com frutas vermelhas",
+              "descricao": "Chocolate Branco, folhas de hortelã, frutas vermelhas",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/398924/800/Expresso-Delivery_e1d0f9a42cd656a2b689f2f0d74ee32f.png",
+              "posicao": 9,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 109
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 119
+                }
+              ]
+            },
+            {
+              "nome": "Chocolate Branco Flambado",
+              "descricao": "Cobertura de Chocolate branca, Creme de Leite, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 10,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Chocolate c/ Confete",
+              "descricao": "Chocolate ao Leite, Confete, Creme de Leite, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/309810/800/Expresso-Delivery_ee918e4fbfe66ba8ccb7d4d20b153ccc.png",
+              "posicao": 11,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Chocolate C/ Morango",
+              "descricao": "Chocolate ao Leite, Creme de Leite, Morango, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/254952/800/Expresso-Delivery_0819555196ae30df94249df66e58b86b.png",
+              "posicao": 12,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Kit Kat",
+              "descricao": "chocolate kit kat, kit kat em pasta de chocolate",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
+              "posicao": 13,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 109
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 119
+                }
+              ]
+            },
+            {
+              "nome": "Leite Ninho C/ Nutella",
+              "descricao": "Brigadeiro de Leite Ninho, Creme de Leite, Mussarela, Nutella",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/126390/800/Expresso-Delivery_0a23695fccfb5f718b5016b5b2d85e64.png",
+              "posicao": 14,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Nutella com morango",
+              "descricao": "Morango, Nutella",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/408488/800/Expresso-Delivery_36b87e4ccda90362a3f2f0837726919a.png",
+              "posicao": 15,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 109
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 119
+                }
+              ]
+            },
+            {
+              "nome": "Perfeição",
+              "descricao": "Chocolate ao Leite, Chocolate Branco, Creme de Leite, Morango, Mussarela, Suspiro",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/259227/800/Expresso-Delivery_0244b5c5b27b6962b01bd64ef6014e6c.png",
+              "posicao": 16,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            },
+            {
+              "nome": "Pistache Premium (Novo)",
+              "descricao": "creme de pistache, pistache",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/595415/800/Expresso-Delivery_620daeaf53efc2cc9c025d33b3e90354.webp",
+              "posicao": 17,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 109
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 119
+                }
+              ]
+            },
+            {
+              "nome": "Prestígio",
+              "descricao": "Chocolate ao Leite, coco, Creme de Leite, Leite Condensado, Mussarela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/258924/800/Expresso-Delivery_2f13555feedd90d5a03bd6edaeae862a.png",
+              "posicao": 18,
+              "precos": [
+                {
+                  "tamanho": "Pequena",
+                  "preco": 79
+                },
+                {
+                  "tamanho": "Média",
+                  "preco": 89
+                },
+                {
+                  "tamanho": "Grande",
+                  "preco": 99
+                },
+                {
+                  "tamanho": "Gigante",
+                  "preco": 109
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Pizza Promocional",
+      "posicao": 2,
+      "itens": [
+        {
+          "nome": "Pizza Promocional",
+          "descricao": "",
+          "preco": 0,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+          "tipoItem": "pizza",
+          "tag": "promocao",
+          "presets": [
+            "Adicionais de Pizza"
+          ],
+          "sabores": [
+            {
+              "nome": "Popular de Bacon",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 0,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Bacon ao Barbecue",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 1,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Calabresa",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 2,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Calabresa acebolada",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 3,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Frango",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 4,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Frango com Milho",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 5,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Lombo Canadense",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 6,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Marguerita",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 7,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Milho",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 8,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Milho com Bacon",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 9,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Mussarela",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 10,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Palmito",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 11,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Palmito com Bacon",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 12,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular de Presunto",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 13,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            },
+            {
+              "nome": "Popular Mineira",
+              "descricao": "",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 14,
+              "precos": [
+                {
+                  "tamanho": "Gigante",
+                  "preco": 79
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Pizza Brotinho",
+      "posicao": 3,
+      "itens": [
+        {
+          "nome": "Pizza Brotinho",
+          "descricao": "",
+          "preco": 0,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+          "tipoItem": "pizza",
+          "tag": null,
+          "presets": [
+            "Adicionais de Pizza"
+          ],
+          "sabores": [
+            {
+              "nome": "2 Amores com morangos",
+              "descricao": "2 Amores com morangos",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 0,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "2 Amores",
+              "descricao": "Cobertura de chocolate Branco e ao leite",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 1,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "chocolate",
+              "descricao": "Chocolate ao Leite",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 2,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "chocolate Branco",
+              "descricao": "chocolate Branco",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 3,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Banana Nevada",
+              "descricao": "Banana Nevada",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 4,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Leite Ninho com nutela",
+              "descricao": "Leite Ninho com nutela",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
+              "posicao": 5,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "4 queijos",
+              "descricao": "Pizza de queijos",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 6,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Alcatra",
+              "descricao": "Molho de tomate, mussarela e tiras de Alcatra",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 7,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 59
+                }
+              ]
+            },
+            {
+              "nome": "Filé ao 4 Queijos",
+              "descricao": "Molho de tomate, mussarela e filé ao 4 queijos",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 8,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 59
+                }
+              ]
+            },
+            {
+              "nome": "Costela com Catupiry",
+              "descricao": "Molho de tomate, mussarela e costela com catupiry",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 9,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 59
+                }
+              ]
+            },
+            {
+              "nome": "Picanha",
+              "descricao": "Molho de tomate, mussarela e tiras de Picanha",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 10,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 69
+                }
+              ]
+            },
+            {
+              "nome": "Bacon",
+              "descricao": "Molho de tomate, mussarela e Bacon",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 11,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Bacon com Milho",
+              "descricao": "Molho de tomate, mussarela e Bacon com Milho",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 12,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa",
+              "descricao": "molho de tomate, mussarela e calabresa",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 13,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa Acebolada",
+              "descricao": "Molho de tomate, mussarela e calabresa acebolada",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 14,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Calabresa com Crean cheese",
+              "descricao": "Molho de tomate, mussarela e calabresa com cream cheese",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 15,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Frango com Catupiry",
+              "descricao": "Molho de tomate, mussarela e Frango com catupiry",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 16,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Marguerita",
+              "descricao": "Molho de tomate, mussarela, tomate em fatias e Manjericão",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 17,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Pepperoni",
+              "descricao": "Molho de tomate, mussarela e Pepperoni",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 18,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            },
+            {
+              "nome": "Lombinho com Catupiry",
+              "descricao": "Molho de tomate, mussarela e Lombinho com catupiry",
+              "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
+              "posicao": 19,
+              "precos": [
+                {
+                  "tamanho": "Brotinho",
+                  "preco": 49
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Hambúrguers",
+      "posicao": 4,
+      "itens": [
+        {
+          "nome": "Burguer Pão Carne e Queijo",
+          "descricao": "Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão Brioche, Queijo mussarela",
+          "preco": 20,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/573945/800/Expresso-Delivery_2ba1eea501873112b6f87c9997b6ee2b.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer Bacon",
+          "descricao": "Bacon em Tiras, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão Brioche, Queijo mussarela",
+          "preco": 24,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574019/800/Expresso-Delivery_a578af8978990d0b1058f3b58c431a90.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer Salada",
+          "descricao": "Alface Americana, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão Brioche, Queijo mussarela, Tomate em fatias",
+          "preco": 24,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574020/800/Expresso-Delivery_32f05f1a300d786a0dc792932ad9f297.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer queijo coalho com geleia de abacaxi",
+          "descricao": "Alface Americana, Bacon em Tiras, Geleia de Abacaxi Apimentado, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão Brioche, queijo coalho",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574027/800/Expresso-Delivery_c89ca20fba39dc8a43ad9f4b86e841aa.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Vulcão Burguer",
+          "descricao": "100g de cheddar cremoso, Bacon Picado, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão, Queijo mussarela",
+          "preco": 32,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/599387/800/Expresso-Delivery_5d6f431f8f408e58d8fc72b44c62123a.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer da Casa",
+          "descricao": "Alface Americana, Bacon em Tiras, Catupiry, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão Brioche, Queijo mussarela, Tomate em fatias",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574021/800/Expresso-Delivery_b177ef151c50cf47ce4d71748d7fc7ce.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer Barbecue",
+          "descricao": "cebola Crispy, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Molho Barbecue, Pão Brioche, Picles, Queijo mussarela",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574297/800/Expresso-Delivery_9f3509e8a337b3eaa8a284f5507895f5.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer do Rosa",
+          "descricao": "Alface Americana, Bacon em Tiras, cebola caramelizada, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Molho Barbecue, Pão Brioche, Queijo mussarela",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577281/800/Expresso-Delivery_8b5bd9d84defe1dc2cf0d2283921c240.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer Especial",
+          "descricao": "Bacon em Tiras, Cream Cheese, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão Brioche, Queijo mussarela, Rucula",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574298/800/Expresso-Delivery_79e618c02583274884722545499af2cd.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer Cheddar Bacon",
+          "descricao": "Bacon em Tiras, cebola caramelizada, Cheddar cremoso, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Pão Brioche",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577280/800/Expresso-Delivery_0883d2a907a0ba3b3d366bfbcdc5a47b.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Big Rosa",
+          "descricao": "Alface Americana, Bacon em Tiras, Hamburguer Bovino Artesanal 150g, Maionese da Casa, Molho Barbecue, Pão Brioche, Picles, Queijo mussarela, Tomate em fatias",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574299/800/Expresso-Delivery_41eff2a04d6d9cf0b0cb123ddad7ba54.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Big Rosa Duplo",
+          "descricao": "2 x hamburguer 120 g, Alface Americana, Bacon em Tiras, Maionese da Casa, Molho Barbecue, Pão Brioche, Picles, Queijo mussarela, Tomate em fatias",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574022/800/Expresso-Delivery_dce2702e40fb636b9cf156d01b574cc4.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Big Rosa Triplo",
+          "descricao": "3 x hamburguer 120g, Alface Americana, Bacon em Tiras, Maionese da Casa, Molho Barbecue, Pão Brioche, Picles, Queijo mussarela, Tomate em fatias",
+          "preco": 40,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574023/800/Expresso-Delivery_2f63930071b15ebe51cc7b241d9a31c9.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer Duplo Salada",
+          "descricao": "+2 fatias queijo mussarela, 2 x hamburguer 120 g, Alface Americana, cebola roxa, Maionese da Casa, Pão Brioche, Picles, Tomate em fatias",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577287/800/Expresso-Delivery_9ce40aee1bf02fa4efbd89ad9b9c2802.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Burguer Duplo",
+          "descricao": "+2 fatias queijo mussarela, 2 x hamburguer 120 g, 2x Bacon em Tiras, Maionese da Casa, Pão Brioche",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574296/800/Expresso-Delivery_d8afd6d16eecb9f6d6254a7a39d03e81.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Pão com Ovo",
+          "descricao": "Maionese da Casa, Pão, Queijo mussarela",
+          "preco": 12,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410576/800/Expresso-Delivery_ece16937211eaca8cf3ed6275bb8433b.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Pizza Burguer",
+      "posicao": 5,
+      "itens": [
+        {
+          "nome": "Pizza burguer cheddar",
+          "descricao": "Bacon Picado, Cheddar cremoso, Hamburguer Bovino Artesanal 150g, massa de pizza, molho de tomate, Queijo mussarela",
+          "preco": 29,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577286/800/Expresso-Delivery_73b48622ef38ecc25dbf9c97ed7e732c.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Pizza Burguer Catupiry",
+          "descricao": "Bacon Picado, Catupiry, Hamburguer Bovino Artesanal 150g, massa de pizza, molho de tomate, ovo cozido picado, Queijo mussarela",
+          "preco": 29,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577286/800/Expresso-Delivery_73b48622ef38ecc25dbf9c97ed7e732c.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        },
+        {
+          "nome": "Pizza Burguer Salada",
+          "descricao": "Cream Cheese, Hamburguer Bovino Artesanal 150g, massa de pizza, molho de tomate, Queijo mussarela, Rucula, Tomate em fatias",
+          "preco": 29,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577286/800/Expresso-Delivery_73b48622ef38ecc25dbf9c97ed7e732c.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Hambúrguer"
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Porções",
+      "posicao": 6,
+      "itens": [
+        {
+          "nome": "Batata C/ Cheddar e Bacon 300g",
+          "descricao": "Bacon, Batata Frita, Cheddar",
+          "preco": 32,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/514379/800/Expresso-Delivery_1bfa1c4b544e8d026234a34685a50470.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Isca de Coxa e Sobre Coxa Frango 500gr",
+          "descricao": "Isca de coxa e sobre coxa frango",
+          "preco": 40,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/233682/800/Expresso-Delivery_5fd954b885287ede24924841397db901.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Empanadinho de Frango 500g",
+          "descricao": "tirinha de frango empanada",
+          "preco": 30,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/327638/800/Expresso-Delivery_54372e858bb60f218d3a0cfa1ab463a2.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Batata Frita 300g",
+          "descricao": "Batata Frita",
+          "preco": 20,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577277/800/Expresso-Delivery_b2a7119d0163e910377789446c4283d6.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Batata Frita ao 4 queijos 300gr",
+          "descricao": "Batata Frita 300g, catupiry 4 queijos, Mussarela, queijo provolone",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/411222/800/Expresso-Delivery_06176bd1e6a1e63889b96c6542b6a85e.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Batata Frita + Isca de Coxa e Sobre Coxa 550gr",
+          "descricao": "Batata Frita, Isca de coxa e sobre coxa frango",
+          "preco": 40,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/233669/800/Expresso-Delivery_55822d6868f930dca7cffb6518d9dbd1.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Batata frita + Empanadinho de frango 550g",
+          "descricao": "Batata Frita, tirinha de frango empanada",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/328071/800/Expresso-Delivery_7d9de6d1c0a3b3a8122f0c76d43c7350.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Porção Batata Frita 120G",
+          "descricao": "Batata Frita",
+          "preco": 8,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/371883/800/Expresso-Delivery_44c9b2c15142fda341b232db93fd7a1a.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Fraldinha Bovina Acebolada 300gr",
+          "descricao": "carne bovina fraldinha, cebola fatiada, fatias de pão tostado na chapa",
+          "preco": 49,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577279/800/Expresso-Delivery_6ec473239be7dad51a7013628a391e3e.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        },
+        {
+          "nome": "Fraldinha bovina Acebolada 600gr",
+          "descricao": "carne bovina fraldinha, cebola fatiada, fatias de pão tostado na chapa",
+          "preco": 90,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/577279/800/Expresso-Delivery_6ec473239be7dad51a7013628a391e3e.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Porção"
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Massas",
+      "posicao": 7,
+      "itens": [
+        {
+          "nome": "Monte seu Espaguete",
+          "descricao": "macarrão espaguete",
+          "preco": 18,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/599199/800/Expresso-Delivery_191998d820ec90f785bc992c896cc202.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Massa"
+          ]
+        },
+        {
+          "nome": "Espaguete a bolonhesa",
+          "descricao": "carne moida, macarrão espaguete, molho branco, molho tomate, queijo mussarela",
+          "preco": 28,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/503855/800/Expresso-Delivery_bb8ec53a0e95d2da6c93a9140e9924eb.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Massa"
+          ]
+        },
+        {
+          "nome": "Espaguete ao 4 queijos",
+          "descricao": "macarrão espaguete, molho 4 queijos, queijo mussarela",
+          "preco": 28,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/503855/800/Expresso-Delivery_bb8ec53a0e95d2da6c93a9140e9924eb.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Massa"
+          ]
+        },
+        {
+          "nome": "Espaguete com Frango desfiado",
+          "descricao": "frango desfiado, macarrão espaguete, molho branco, molho tomate, queijo mussarela",
+          "preco": 28,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/503855/800/Expresso-Delivery_bb8ec53a0e95d2da6c93a9140e9924eb.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Massa"
+          ]
+        },
+        {
+          "nome": "Espaguete tomate seco com rucula",
+          "descricao": "macarrão espaguete, queijo mussarela, rucula, tomate seco",
+          "preco": 28,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/503855/800/Expresso-Delivery_bb8ec53a0e95d2da6c93a9140e9924eb.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Massa"
+          ]
+        },
+        {
+          "nome": "Espaguete com calabresa",
+          "descricao": "calabresa, espaguete, molho tomate, queijo mussarela",
+          "preco": 28,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/503855/800/Expresso-Delivery_bb8ec53a0e95d2da6c93a9140e9924eb.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Massa"
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Saladas",
+      "posicao": 8,
+      "itens": [
+        {
+          "nome": "Salada ao molho pesto",
+          "descricao": "alface americana, ervilha, gergelim, milho, molho pesto, palmito, rúcula, tomate cereja",
+          "preco": 18,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/268678/800/Expresso-Delivery_0b9a835129f2594af28f1451dfd2765c.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": [
+            "Adicionais de Salada"
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Sobremesas",
+      "posicao": 9,
+      "itens": [
+        {
+          "nome": "Salva bordas 150g chocolate Nestle Kit Kat+ Bordas",
+          "descricao": "",
+          "preco": 34,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/600838/800/Expresso-Delivery_e19ebfc16b1ac4b28c91c1a3f1700e06.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Salva bordas 150g chocolate Nestle Galak + Bordas",
+          "descricao": "",
+          "preco": 34,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/600838/800/Expresso-Delivery_e19ebfc16b1ac4b28c91c1a3f1700e06.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Salva bordas 150g cobertura de chocolate + Bordas",
+          "descricao": "",
+          "preco": 26,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/600838/800/Expresso-Delivery_e19ebfc16b1ac4b28c91c1a3f1700e06.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Salva bordas 150g cobertura de chocolate branco + Bordas",
+          "descricao": "",
+          "preco": 26,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/600838/800/Expresso-Delivery_e19ebfc16b1ac4b28c91c1a3f1700e06.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "bombom ouro branco",
+          "descricao": "ouro branco",
+          "preco": 3,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/595903/800/Expresso-Delivery_4648d8ec45172383e1b1f96bcd929b45.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Bombom Sonho de Valsa",
+          "descricao": "Sonho de Valsa",
+          "preco": 3,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/599338/800/Expresso-Delivery_257224d5cc1514de05fc9653516bee68.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "HIT Pistache",
+          "descricao": "HIT Pistache",
+          "preco": 18,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/574010/800/Expresso-Delivery_62e1993f77308764a4ffa429d3110289.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Hit Açai com choc. branco",
+          "descricao": "Hit Açai com choc. branco",
+          "preco": 18,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/453213/800/Expresso-Delivery_7999447228501426be488c5f37c9ef2d.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Hit romance 160gr",
+          "descricao": "Hit romance 160gr",
+          "preco": 18,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/463412/800/Expresso-Delivery_0233b22f09884ffe399fcebd445c83d6.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Hit skimo 160gr",
+          "descricao": "Hit skimo 160gr",
+          "preco": 18,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/463411/800/Expresso-Delivery_18eb0f42f835da747a78977e9b5141ea.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Novo Gmax Mel",
+          "descricao": "Novo Gmax Mel",
+          "preco": 14,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/573784/800/Expresso-Delivery_ca8148d56c6129d4bb22858ec56ba6db.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "GMax cookies e cream",
+          "descricao": "GMax cookies e cream",
+          "preco": 14,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/453212/800/Expresso-Delivery_b8061d5f0290f277410b6070311017b6.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Konne astro",
+          "descricao": "picolé",
+          "preco": 14,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/506236/800/Expresso-Delivery_f3152680a5d099b63c548d1ab2d75b18.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Skimó",
+          "descricao": "Skimó",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/446464/800/Expresso-Delivery_8b9788d716fc6be6809a4737255773a6.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "picole brigadeiro",
+          "descricao": "picole",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/506244/800/Expresso-Delivery_951911a0e51d31f9ce7e142f756ab69f.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "mouse maracujá",
+          "descricao": "picolé",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/506238/800/Expresso-Delivery_b712c134517a17f1e24addee426ecb3a.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Crock + branco",
+          "descricao": "Crock + branco",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/447379/800/Expresso-Delivery_7b5e5fda2f19b1f77087003da560287f.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Picolé de Leitinho trufado",
+          "descricao": "Picolé de Leitinho trufado",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/463413/800/Expresso-Delivery_a5938cfb70a0b8df6eefebc3c229cd7d.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Magnata",
+          "descricao": "Magnata",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/477004/800/Expresso-Delivery_7b2763c11b4bc6f78b59840d2dacdff6.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Picolé beijinho 63gr",
+          "descricao": "Picolé beijinho 63gr",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/470665/800/Expresso-Delivery_638e4ecf18879f4009deae6e75656b09.jpeg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "sorvete napolitano",
+          "descricao": "sorvete napolitano",
+          "preco": 9,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/506247/800/Expresso-Delivery_9c9757ae95413121c1e63110d4692115.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Moreninha",
+          "descricao": "Moreninha",
+          "preco": 9,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/447380/800/Expresso-Delivery_f640ae27ca167f3282fe04ef1d4e329f.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "picole Gbon leitinho",
+          "descricao": "picole Gbon leitinho",
+          "preco": 8,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/573781/800/Expresso-Delivery_8e1c17ef9233750b62e37126be842949.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Açai com leitinho",
+          "descricao": "Açai com leitinho",
+          "preco": 8,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/447378/800/Expresso-Delivery_bec0257a20a7be3aa11d6459327991ce.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Unicórnio",
+          "descricao": "Unicórnio",
+          "preco": 8,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/446466/800/Expresso-Delivery_164d77876d84ad091f550a25f8ddcf06.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Picolé Chiclete Gbon",
+          "descricao": "Picolé Chiclete Gbon",
+          "preco": 8,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/573790/800/Expresso-Delivery_3dba369faf1d78ca7227ca8ad2607ac4.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Girabon",
+          "descricao": "Girabon",
+          "preco": 8,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/446465/800/Expresso-Delivery_1cb9568c9dac62509097d0d5e349b3c2.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "picolé de Uva Gbon",
+          "descricao": "picolé de Uva Gbon",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/573785/800/Expresso-Delivery_d6190b15daf2850dd29e46fe125a8392.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Picolé de Limão Suiço Gbon",
+          "descricao": "Picolé de Limão Suiço Gbon",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/573787/800/Expresso-Delivery_9c1f530a9445786c7f0816ccbb13fefb.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Kinder Ovo para menina",
+          "descricao": "Kinder Ovo",
+          "preco": 15,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/45909/800/Expresso-Delivery_d6ec6c512a972d51ba84928762b78fc9.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "kinder ovo para menino",
+          "descricao": "kinder",
+          "preco": 15,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/45909/800/Expresso-Delivery_d6ec6c512a972d51ba84928762b78fc9.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        }
+      ]
+    },
+    {
+      "nome": "Bebidas",
+      "posicao": 10,
+      "itens": [
+        {
+          "nome": "Coca-Cola 600 ml",
+          "descricao": "Refrigerante Cola",
+          "preco": 9,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410742/800/Expresso-Delivery_1b6fa1c5d7c32df60f9a2dc1fb05e376.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Mini coca 200ml",
+          "descricao": "Mini coca 200ml",
+          "preco": 5,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410563/800/Expresso-Delivery_09c1fd8dba1233eca3c5f3ecf1cfcfef.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Guaraná Zero",
+          "descricao": "Guaraná",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/507350/800/Expresso-Delivery_4ac518755c43e918c56819e79c55ca9e.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Guaraná Antártica Lata 350ml",
+          "descricao": "Guaraná Antártica Lata 350ml",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/59241/800/Expresso-Delivery_606eb3731dd3783876860ea057a9fbe8.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Coca-Cola Zero Lata 350ml",
+          "descricao": "Refrigerante Cola",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/239/800/Expresso-Delivery_b98ed669e594103b2ce61a2254015486.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Coca-Cola Lata 350ml",
+          "descricao": "Refrigerante Cola",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/235/800/Expresso-Delivery_3ca5f8b4ad6d53c62db6d764957ee85a.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Fanta Laranja Lata 350ml",
+          "descricao": "Refrigerante Laranja",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/247/800/Expresso-Delivery_62c91bb61ee73c698d225b6dc1217f1c.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Sprite Lata 350ml",
+          "descricao": "Refrigerante Limão",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/253/800/Expresso-Delivery_07c3e2d482cf94d40ef4814425659867.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Fanta Uva Lata 350ml",
+          "descricao": "Refrigerante Uva",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/45344/800/Expresso-Delivery_05a0f810e5a5c125971dc2090d63a55b.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "FYS limão siciliano ZERO",
+          "descricao": "FYS limão siciliano ZERO",
+          "preco": 12,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/604745/800/Expresso-Delivery_b2214b2512361c4527e00c0c70f2665f.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "FYS limão siciliano",
+          "descricao": "FYS limão siciliano",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/604746/800/Expresso-Delivery_32ccb556935067f8dc62ca8c8cf29119.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "FYS laraja-pera",
+          "descricao": "FYS laraja-pera",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/604747/800/Expresso-Delivery_d72a829ba8f4c6c3335c70d433f9af9b.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "schweppes citrus 350 ML",
+          "descricao": "schweppes citrus 350 ML",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/45542/800/Expresso-Delivery_c1d7a8eb94ffb547b8020caa841ead2e.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Tônica",
+          "descricao": "tonica",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410771/800/Expresso-Delivery_797ef77ac3702ab94b027b0c39185349.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Energetico Monster",
+          "descricao": "Energetico Monster",
+          "preco": 12,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/411113/800/Expresso-Delivery_eb16c2dfed6aef1b0e9b4a59417a5fad.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Sprite Lemon Fresh 510ML",
+          "descricao": "Sprite Lemon Fresh 510ML",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/90834/800/Expresso-Delivery_24b24f7d6a98d648f9b325b77d7f9fc3.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Fanta Laranja 2 Litros",
+          "descricao": "Fanta Laranja 2 Litros",
+          "preco": 15,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/489991/800/Expresso-Delivery_7234e5fe6615b987549bd7655c9696ba.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Guaraná Antártica 2L",
+          "descricao": "Refrigerante 2L",
+          "preco": 15,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/285125/800/Expresso-Delivery_48500121b80b6001b45c3c33c9ed57bd.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Coca-Cola 2L",
+          "descricao": "Refrigerante Cola",
+          "preco": 16,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/234/800/Expresso-Delivery_02d9f7cfa3da2701f91fd3e4b8c871b4.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "COCA 2 LITROS ZERO AÇUCAR",
+          "descricao": "COCA 2 LITROS ZERO AÇUCAR",
+          "preco": 16,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410802/800/Expresso-Delivery_51bed013d1385069fcdad5a46ef82691.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "suco kapo 200ml morango",
+          "descricao": "suco kapo 200ml morango",
+          "preco": 5,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/59239/800/Expresso-Delivery_684a878ca551e86079677d852019b319.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "suco kapo 200ml uva",
+          "descricao": "suco kapo 200ml uva",
+          "preco": 5,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/124367/800/Expresso-Delivery_d5d63b75b76280561f84e9639222e542.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Del Vale uva 290 ML",
+          "descricao": "Del Vale uva 290 ML",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/268253/800/Expresso-Delivery_83c3edb6aec578be9b981fc0964343c2.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Del Vale Pêssego 290 ML",
+          "descricao": "Del Vale Pêssego 290 ML",
+          "preco": 7,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/268252/800/Expresso-Delivery_4d82589cc767d78c4ee74da93cd745bc.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Aguá Mineral 500ml s/gás",
+          "descricao": "Agua mineral 500ml",
+          "preco": 5,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/67911/800/Expresso-Delivery_0d0272b85c088b7d9fab7bb3ee9ff840.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Agua Com Gás 350ml lata",
+          "descricao": "Agua Com Gás 500ML",
+          "preco": 6,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/595904/800/Expresso-Delivery_dc82b816543640a8dbf9d1b0b826e0f4.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        }
+      ]
+    },
+    {
+      "nome": "Cervejas e Vinhos",
+      "posicao": 11,
+      "itens": [
+        {
+          "nome": "heineken ZERO 330",
+          "descricao": "heineken ZERO 330",
+          "preco": 12,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/411145/800/Expresso-Delivery_c20ba13760081727636f84a2737dc410.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "heineken long neck 330ml",
+          "descricao": "heineken long neck 330ml",
+          "preco": 12,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/411156/800/Expresso-Delivery_ea863b4f8b4b6ac8f57263f583a3feac.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Stella Artois PURE GOLD sem gluten",
+          "descricao": "ultra",
+          "preco": 12,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/410499/800/Expresso-Delivery_048445c1fe9e4cd75dc80610eebd53e3.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "SOL",
+          "descricao": "SOL",
+          "preco": 10,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/405646/800/Expresso-Delivery_d8285f576896893c34acc2a5ed69b199.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "lata skol 269ml",
+          "descricao": "lata skol 269ml",
+          "preco": 6,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/411018/800/Expresso-Delivery_c396fbfbc775bbc410a276acdfb64a8b.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Smirnoff ICE",
+          "descricao": "Smirnoff ICE",
+          "preco": 12,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/45580/800/Expresso-Delivery_e3f339c8f0afa9ae7868aa063dcb79cc.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Vinho Alma Negra",
+          "descricao": "Vinho Alma Negra",
+          "preco": 180,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/597952/800/Expresso-Delivery_22b587f4858d0821861a12a4fbbaf82f.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "vinho reservado",
+          "descricao": "vinho reservado",
+          "preco": 70,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/392801/800/Expresso-Delivery_2a01e7b3a075e9bfaf153f1324bde880.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "CORDERO CON PEIL DE LOBO MALBEC",
+          "descricao": "CORDERO CON PEIL DE LOBO",
+          "preco": 80,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/392808/800/Expresso-Delivery_701ac6db6ad93bacbb403112fcfc24b8.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Vinho D.V. CATENA",
+          "descricao": "Vinho D.V. CATENA",
+          "preco": 120,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/392805/800/Expresso-Delivery_ea9a21af3afd8a6e7736ab9f586a5f82.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        }
+      ]
+    },
+    {
+      "nome": "Molhos",
+      "posicao": 12,
+      "itens": [
+        {
+          "nome": "molho de alho 30ml",
+          "descricao": "molho de alho",
+          "preco": 2,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361192/800/Expresso-Delivery_1a2d14758fbb2bff7b9137cf952508ee.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "molho barbecue 30ml",
+          "descricao": "molho barbecue",
+          "preco": 2,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361192/800/Expresso-Delivery_1a2d14758fbb2bff7b9137cf952508ee.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "maionese da casa 30ml",
+          "descricao": "maionese da casa",
+          "preco": 2,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361192/800/Expresso-Delivery_1a2d14758fbb2bff7b9137cf952508ee.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        }
+      ]
+    },
+    {
+      "nome": "Congelados",
+      "posicao": 13,
+      "itens": [
+        {
+          "nome": "7 Esfihas Salgadas (Congeladas)",
+          "descricao": "3 calabresa, 2 frango catupiry, 1 bacon, 1 queijo",
+          "preco": 40,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/441298/800/Expresso-Delivery_442c8550243ebc620d537b29c4e782d5.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "5 esfihas Doces (CONGELADAS)",
+          "descricao": "3 de chocolate / 2 chocolate branco",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/441299/800/Expresso-Delivery_114332e3ec091abdd915b00b801712bc.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        }
+      ]
+    },
+    {
+      "nome": "Loja Virtual",
+      "posicao": 14,
+      "itens": [
+        {
+          "nome": "Boné do Rosa branco e vermelho",
+          "descricao": "Boné do Rosa branco e vermelho",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/315518/800/Expresso-Delivery_cbc266359872c28146eda6ee02968340.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Boné do Rosa rosa",
+          "descricao": "Boné do Rosa rosa",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361192/800/Expresso-Delivery_1a2d14758fbb2bff7b9137cf952508ee.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Boné Arena do Rosa",
+          "descricao": "Boné Arena do Rosa",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/571519/800/Expresso-Delivery_b179e9b006ae284e7d8ee13af142e753.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Boné Cinza Camurça",
+          "descricao": "Boné Preto Camurça",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361192/800/Expresso-Delivery_1a2d14758fbb2bff7b9137cf952508ee.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Boné Azul camurça",
+          "descricao": "Boné Azul",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361192/800/Expresso-Delivery_1a2d14758fbb2bff7b9137cf952508ee.jpg",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Boné Preto",
+          "descricao": "Boné do Rosa preto",
+          "preco": 35,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/437645/800/Expresso-Delivery_25ac1b95415ebf91c657f85aa7c36456.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Chaveiro metal redondo",
+          "descricao": "entrego",
+          "preco": 20,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/556744/800/Expresso-Delivery_ec960e8a76f7ceb8fae851b17fc0794a.png",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Camiseta Brasil Rakka feminina",
+          "descricao": "escolha seu tamanho",
+          "preco": 119,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/606866/800/Expresso-Delivery_4b8640f5dfff6c91427f272a7edc7ea0.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        },
+        {
+          "nome": "Camiseta Brasil Rakka masculina",
+          "descricao": "escolha seu tamanho",
+          "preco": 119,
+          "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/606866/800/Expresso-Delivery_4b8640f5dfff6c91427f272a7edc7ea0.webp",
+          "tipoItem": "simples",
+          "tag": null,
+          "presets": []
+        }
+      ]
+    }
+  ]
+}
