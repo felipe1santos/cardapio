@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
+import type { RegraPrecoPizza } from '@/lib/pizza-preco'
 
 export interface TamanhoPadraoPizza {
   id: string
@@ -29,6 +30,19 @@ export interface MassaPizza {
   nome: string
   preco: number
   posicao: number
+}
+
+// ─── Regra de preço da pizza multi-sabor ────────────────────────────────────
+
+/** Como a loja calcula o preço da pizza com mais de um sabor. 'media' é o padrão. */
+export async function buscarRegraPrecoPizza(supabase: ClienteLeitura, restauranteId: string): Promise<RegraPrecoPizza> {
+  const { data, error } = await supabase
+    .from('restaurantes')
+    .select('pizza_calculo_preco')
+    .eq('id', restauranteId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.pizza_calculo_preco === 'maior' ? 'maior' : 'media'
 }
 
 // ─── Tamanhos padrão de pizza ──────────────────────────────────────────────

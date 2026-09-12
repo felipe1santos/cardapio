@@ -10,9 +10,11 @@ import {
   type GrupoCardapio,
   type GrupoItemComplementos,
   type ItemCardapio,
+  type PizzaSabor,
 } from '@/lib/queries/cardapio'
 import type { MesaComEstado } from '@/lib/queries/comandas'
 import {
+  buscarRegraPrecoPizza,
   listarBordasPizza,
   listarMassasPizza,
   listarTamanhosPadraoPizza,
@@ -21,6 +23,7 @@ import {
   type TamanhoPadraoPizza,
 } from '@/lib/queries/pizza'
 import { type NovoPedidoItemInput, type Pedido } from '@/lib/queries/pedidos'
+import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { Button } from '@/components/ui/button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -121,8 +124,25 @@ function SeletorModal({
   const isPizza = item.tipoItem === 'pizza'
   const hasSimplesTamanhos = !isPizza && item.tamanhos.length > 0
 
+  // Pizza — o tamanho escolhido decide quantos sabores cabem (maxSabores) e quais
+  // sabores têm preço nele (sabor sem preço no tamanho não é vendido — o servidor recusa).
+  const tamanhoPizzaAtual = isPizza ? (tamanhosPizza.find((t) => t.nome === state.tamanhoNome) ?? null) : null
+  const maxSaboresAtual = tamanhoPizzaAtual?.maxSabores ?? 1
+  const saboresDisponiveis = isPizza
+    ? item.sabores.filter(
+        (s) => s.status === 'disponivel' && (s.precos.find((p) => p.tamanhoPadraoId === tamanhoPizzaAtual?.id)?.preco ?? 0) > 0,
+      )
+    : []
+  // Lista já sanitizada (só nomes válidos pro tamanho atual, até o limite dele) —
+  // mesmo no frame logo após trocar de tamanho, nunca reflete uma seleção que o
+  // servidor recusaria. Preço e confirmação usam sempre esta lista, nunca o texto cru.
+  const selectedSabores = separarSabores(state.saborNome)
+    .map((n) => saboresDisponiveis.find((s) => s.nome === n))
+    .filter((s): s is PizzaSabor => !!s)
+    .slice(0, maxSaboresAtual)
+
   // Validate: can confirm?
-  const pizzaReady = isPizza ? state.tamanhoNome !== '' && state.saborNome !== '' : true
+  const pizzaReady = isPizza ? state.tamanhoNome !== '' && selectedSabores.length > 0 : true
   const tamanhosReady = hasSimplesTamanhos ? state.tamanhoNome !== '' : true
   const gruposReady = item.grupos
     .filter((g) => g.obrigatorio)
@@ -137,7 +157,7 @@ function SeletorModal({
   // pra ficar claro por que o item não pode ser adicionado.
   const faltando: string[] = []
   if (isPizza && state.tamanhoNome === '') faltando.push('tamanho')
-  if (isPizza && state.saborNome === '') faltando.push('sabor')
+  if (isPizza && selectedSabores.length === 0) faltando.push('sabor')
   if (hasSimplesTamanhos && state.tamanhoNome === '') faltando.push('tamanho')
   for (const g of item.grupos.filter((x) => x.obrigatorio)) {
     if (g.complementos.length === 0) continue
@@ -167,7 +187,7 @@ function SeletorModal({
     const complementos: string[] = Object.values(state.complementosSelecionados).flat()
     onConfirm({
       tamanhoNome: state.tamanhoNome,
-      saborNome: state.saborNome,
+      saborNome: juntarSabores(selectedSabores.map((s) => s.nome)),
       bordaNome: bordaPizza?.nome ?? '',
       massaNome: massaPizza?.nome ?? '',
       complementos,
@@ -226,20 +246,36 @@ function SeletorModal({
           {/* Pizza — sabor */}
           {isPizza && (
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                Sabor <span className="text-danger">*</span>
-              </p>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                  {maxSaboresAtual > 1 ? `Sabores (até ${maxSaboresAtual})` : 'Sabor'}{' '}
+                  <span className="text-danger">*</span>
+                </p>
+                <span className="text-[11px] font-semibold text-text-subtle">
+                  {selectedSabores.length}/{maxSaboresAtual}
+                </span>
+              </div>
               <div className="flex flex-col gap-1.5">
-                {item.sabores
-                  .filter((s) => s.status === 'disponivel')
-                  .map((s) => (
+                {saboresDisponiveis.map((s) => {
+                  const isSelected = selectedSabores.some((sel) => sel.id === s.id)
+                  const cheio = selectedSabores.length >= maxSaboresAtual
+                  return (
                     <button
                       key={s.id}
                       type="button"
-                      onClick={() => onChange({ saborNome: s.nome })}
+                      disabled={!isSelected && cheio}
+                      onClick={() => {
+                        const atuais = selectedSabores.map((sel) => sel.nome)
+                        let proximos: string[]
+                        if (isSelected) proximos = atuais.filter((n) => n !== s.nome)
+                        else if (maxSaboresAtual === 1) proximos = [s.nome]
+                        else if (atuais.length >= maxSaboresAtual) proximos = atuais
+                        else proximos = [...atuais, s.nome]
+                        onChange({ saborNome: juntarSabores(proximos) })
+                      }}
                       className={[
-                        'rounded-menuzia border-2 px-4 py-3 text-left text-[14px] font-medium transition-colors active:scale-[0.99]',
-                        state.saborNome === s.nome
+                        'rounded-menuzia border-2 px-4 py-3 text-left text-[14px] font-medium transition-colors active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40',
+                        isSelected
                           ? 'border-primary bg-primary/5 text-primary'
                           : 'border-border bg-white text-text-main hover:border-primary/50',
                       ].join(' ')}
@@ -249,9 +285,13 @@ function SeletorModal({
                         <span className="block text-[11px] font-normal text-text-subtle">{s.descricao}</span>
                       )}
                     </button>
-                  ))}
-                {item.sabores.filter((s) => s.status === 'disponivel').length === 0 && (
-                  <p className="text-[12px] text-text-subtle">Nenhum sabor disponível.</p>
+                  )
+                })}
+                {!tamanhoPizzaAtual && (
+                  <p className="text-[12px] text-text-subtle">Selecione o tamanho para ver os sabores.</p>
+                )}
+                {tamanhoPizzaAtual && saboresDisponiveis.length === 0 && (
+                  <p className="text-[12px] text-text-subtle">Nenhum sabor disponível neste tamanho.</p>
                 )}
               </div>
             </div>
@@ -675,6 +715,7 @@ export default function PdvPage() {
   const [tamanhosPizza, setTamanhosPizza] = useState<TamanhoPadraoPizza[]>([])
   const [bordasPizza, setBordasPizza] = useState<BordaPizza[]>([])
   const [massasPizza, setMassasPizza] = useState<MassaPizza[]>([])
+  const [regraPizza, setRegraPizza] = useState<RegraPrecoPizza>('media')
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
 
   // ── Mesa / cliente ─────────────────────────────────────────────────────────
@@ -757,12 +798,13 @@ export default function PdvPage() {
         const rid = await buscarRestauranteIdDoUsuario(supabase)
         if (!rid || cancelled) return
 
-        const [itensData, gruposData, tamanhosData, bordasData, massasData] = await Promise.all([
+        const [itensData, gruposData, tamanhosData, bordasData, massasData, regraPizzaData] = await Promise.all([
           listarItens(supabase, rid),
           listarGrupos(supabase, rid),
           listarTamanhosPadraoPizza(supabase, rid),
           listarBordasPizza(supabase, rid),
           listarMassasPizza(supabase, rid),
+          buscarRegraPrecoPizza(supabase, rid),
         ])
         if (cancelled) return
 
@@ -771,6 +813,7 @@ export default function PdvPage() {
         setTamanhosPizza(tamanhosData)
         setBordasPizza(bordasData)
         setMassasPizza(massasData)
+        setRegraPizza(regraPizzaData)
         setRestauranteId(rid)
         await recarregarMesas()
       } catch {
@@ -1068,14 +1111,30 @@ export default function PdvPage() {
 
   // ── Computed ───────────────────────────────────────────────────────────────
 
+  // Preço de referência de uma linha da comanda. Pizza: sabores pela regra da
+  // loja (média/maior) + borda + massa; demais itens: preço base (ou promo).
+  // O servidor sempre recalcula o real ao lançar — isto é só o que mostramos aqui.
+  function precoLinha(linha: ComandaLinha): number {
+    if (linha.item.tipoItem !== 'pizza') {
+      return (linha.item.promocaoPreco ?? linha.item.preco) * linha.quantidade
+    }
+    const tamPizza = tamanhosPizza.find((t) => t.nome === linha.tamanhoNome)
+    const precoSabores = precoPizzaSabores(
+      separarSabores(linha.saborNome).map(
+        (n) => linha.item.sabores.find((s) => s.nome === n)?.precos.find((p) => p.tamanhoPadraoId === tamPizza?.id)?.preco ?? 0,
+      ),
+      regraPizza,
+    )
+    const precoBorda = bordasPizza.find((b) => b.nome === linha.bordaNome)?.preco ?? 0
+    const precoMassa = massasPizza.find((m) => m.nome === linha.massaNome)?.preco ?? 0
+    return (precoSabores + precoBorda + precoMassa) * linha.quantidade
+  }
+
   const totalConta = pedidosComanda
     .filter((p) => p.status !== 'cancelado')
     .reduce((s, p) => s + p.total, 0)
 
-  const subtotal = comanda.reduce((s, l) => {
-    // Use base price as reference; server recalculates the real total
-    return s + (l.item.promocaoPreco ?? l.item.preco) * l.quantidade
-  }, 0)
+  const subtotal = comanda.reduce((s, l) => s + precoLinha(l), 0)
 
   // ── Loading / error states ─────────────────────────────────────────────────
 
@@ -1681,7 +1740,7 @@ export default function PdvPage() {
                 <ul className="divide-y divide-border">
                   {comanda.map((linha) => {
                     const descricao = linhaDescricao(linha)
-                    const precoRef = (linha.item.promocaoPreco ?? linha.item.preco) * linha.quantidade
+                    const precoRef = precoLinha(linha)
                     return (
                       <li key={linha.uid} className="flex gap-2.5 px-3 py-3">
                         {linha.item.imagemUrl ? (
