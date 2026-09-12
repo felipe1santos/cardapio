@@ -66,7 +66,7 @@ Faixas de preço encontradas na matriz sabor × tamanho:
 - Um doce fora da curva: 63 / 89 / 99 / 109
 
 Pizza Promocional: tamanho único "Pizza Gigante" a **R$ 79,00**, máx. 2 sabores.
-Pizza Brotinho: tamanho único, **R$ 49,00**, 1 sabor.
+Pizza Brotinho: tamanho único, 1 sabor. **Preço varia por sabor:** 16 sabores a R$ 49,00, 3 a R$ 59,00 (Alcatra, Filé ao 4 Queijos, Costela com Catupiry) e 1 a R$ 69,00 (Picanha). Corrigido em 2026-09-12 depois que a Task 9 falhou o teste: a versão anterior deste spec dizia R$ 49,00 fixo, o que teria feito a loja cobrar a menos nos 4 sabores premium.
 
 ### 2.3 Regra de preço com mais de um sabor
 
@@ -135,7 +135,7 @@ Preço por tamanho na origem: P 15 / M 17 / G 19 / GG 22.
 | 1 | Pizzas Salgadas | 1 item pizza, 56 sabores, preços em Pequena/Média/Grande/Gigante | pizza |
 | 2 | Pizzas Doces | 1 item pizza, 19 sabores, preços em Pequena/Média/Grande/Gigante | pizza |
 | 3 | Pizza Promocional | 1 item pizza, 15 sabores, preço só em Gigante (R$ 79), `tag='promocao'` | pizza |
-| 4 | Pizza Brotinho | 1 item pizza, 20 sabores, preço só em Brotinho (R$ 49) | pizza |
+| 4 | Pizza Brotinho | 1 item pizza, 20 sabores, preço só em Brotinho (R$ 49 / 59 / 69 conforme o sabor) | pizza |
 | 5 | Hambúrguers | 16 itens simples | simples |
 | 6 | Pizza Burguer | 3 itens simples (subcategoria própria na origem) | simples |
 | 7 | Porções | 10 itens simples | simples |
