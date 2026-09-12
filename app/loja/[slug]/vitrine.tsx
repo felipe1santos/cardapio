@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
+import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
@@ -1374,9 +1375,67 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [obs, setObs] = useState('')
   const [selectedTamanhoId, setSelectedTamanhoId] = useState<string | null>(null)
   const [selectedTamanhoPizzaId, setSelectedTamanhoPizzaId] = useState<string | null>(null)
-  const [selectedSaborId, setSelectedSaborId] = useState<string | null>(null)
+  // Ordem importa: é a ordem em que o sabor aparece no nome ("Calabresa / Frango").
+  const [selectedSaborIds, setSelectedSaborIds] = useState<string[]>([])
   const [selectedBordaId, setSelectedBordaId] = useState<string | null>(null)
   const [selectedMassaId, setSelectedMassaId] = useState<string | null>(null)
+
+  // ── Derivados da pizza ────────────────────────────────────────────────────
+  // Declarados antes dos handlers de propósito: openProduct/editCartLine e o
+  // efeito de poda abaixo dependem deles.
+
+  /**
+   * Tamanhos que o item realmente vende — os que têm preço em algum sabor dele.
+   * Brotinho e Promocional só têm preço em um tamanho; sem esse filtro a ficha
+   * ofereceria os outros por R$ 0,00 e o servidor recusaria no checkout.
+   * Recebe o item por parâmetro porque os handlers precisam calcular para o item
+   * que estão abrindo, antes de `productSheet` ter sido atualizado.
+   */
+  const tamanhosComPreco = useCallback(
+    (item: ItemCardapio) => {
+      if (item.tipoItem !== 'pizza') return tamanhosPizza
+      const comPreco = tamanhosPizza.filter((t) =>
+        item.sabores.some((s) => (s.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0) > 0),
+      )
+      return comPreco.length > 0 ? comPreco : tamanhosPizza
+    },
+    [tamanhosPizza],
+  )
+
+  const tamanhosDoItem = useMemo(
+    () => (productSheet ? tamanhosComPreco(productSheet) : tamanhosPizza),
+    [productSheet, tamanhosComPreco, tamanhosPizza],
+  )
+  const tamanhoPizzaAtual = tamanhosDoItem.find((t) => t.id === selectedTamanhoPizzaId) ?? null
+  const maxSaboresAtual = tamanhoPizzaAtual?.maxSabores ?? 1
+
+  // Sabor sem preço no tamanho escolhido não é vendido nele (o servidor recusa),
+  // então nem aparece na lista.
+  const saboresDisponiveis = useMemo(() => {
+    if (!productSheet || productSheet.tipoItem !== 'pizza') return []
+    return productSheet.sabores.filter(
+      (s) =>
+        s.status === 'disponivel' &&
+        (s.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0) > 0,
+    )
+  }, [productSheet, selectedTamanhoPizzaId])
+
+  // Preço, nome e validação saem daqui — nunca do estado cru. Assim, mesmo no
+  // frame entre trocar de tamanho e o efeito de poda rodar, a ficha não consegue
+  // montar uma combinação que o servidor recusaria.
+  const selectedSabores = selectedSaborIds
+    .map((id) => saboresDisponiveis.find((s) => s.id === id))
+    .filter((s): s is PizzaSabor => !!s)
+    .slice(0, maxSaboresAtual)
+
+  // Trocar Grande (3 sabores) por Pequena (1 sabor) tem que descartar o excesso,
+  // e sabor sem preço no tamanho novo também sai.
+  useEffect(() => {
+    setSelectedSaborIds((prev) => {
+      const podados = prev.filter((id) => saboresDisponiveis.some((s) => s.id === id)).slice(0, maxSaboresAtual)
+      return podados.length === prev.length ? prev : podados
+    })
+  }, [saboresDisponiveis, maxSaboresAtual])
 
   function openProduct(item: ItemCardapio) {
     setProductSheet(item)
@@ -1386,8 +1445,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     setSelectedAddons(new Set())
     setObs('')
     setSelectedTamanhoId(item.tamanhos[0]?.id ?? null)
-    setSelectedTamanhoPizzaId(tamanhosPizza[0]?.id ?? null)
-    setSelectedSaborId(item.sabores.find((s) => s.status === 'disponivel')?.id ?? null)
+    setSelectedTamanhoPizzaId(tamanhosComPreco(item)[0]?.id ?? null)
+    setSelectedSaborIds([])
     setSelectedBordaId(null)
     setSelectedMassaId(null)
   }
@@ -1433,12 +1492,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     setSelectedAddons(avulsos)
 
     setSelectedTamanhoId(item.tamanhos.find((t) => t.nome === line.tamanhoNome)?.id ?? item.tamanhos[0]?.id ?? null)
+    const tamanhosDaLinha = tamanhosComPreco(item)
     if (item.tipoItem === 'pizza') {
-      setSelectedTamanhoPizzaId(tamanhosPizza.find((t) => t.nome === line.tamanhoNome)?.id ?? tamanhosPizza[0]?.id ?? null)
-      setSelectedSaborId(item.sabores.find((s) => s.nome === line.saborNome)?.id ?? item.sabores.find((s) => s.status === 'disponivel')?.id ?? null)
+      setSelectedTamanhoPizzaId(tamanhosDaLinha.find((t) => t.nome === line.tamanhoNome)?.id ?? tamanhosDaLinha[0]?.id ?? null)
+      // Remonta a seleção na mesma ordem em que os sabores foram gravados no nome.
+      setSelectedSaborIds(
+        separarSabores(line.saborNome)
+          .map((n) => item.sabores.find((s) => s.nome === n)?.id)
+          .filter((id): id is string => !!id),
+      )
     } else {
-      setSelectedTamanhoPizzaId(tamanhosPizza[0]?.id ?? null)
-      setSelectedSaborId(item.sabores.find((s) => s.status === 'disponivel')?.id ?? null)
+      setSelectedTamanhoPizzaId(tamanhosDaLinha[0]?.id ?? null)
+      setSelectedSaborIds([])
     }
     setSelectedBordaId(bordasPizza.find((b) => b.nome === line.bordaNome)?.id ?? null)
     setSelectedMassaId(massasPizza.find((m) => m.nome === line.massaNome)?.id ?? null)
@@ -1446,7 +1511,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // Se o cardápio mudou desde que o item foi adicionado (tamanho renomeado,
     // sabor esgotado…), avisa em vez de trocar a escolha em silêncio.
     const tamanhoSumiu = item.tipoItem !== 'pizza' && !!line.tamanhoNome && item.tamanhos.length > 0 && !item.tamanhos.some((t) => t.nome === line.tamanhoNome)
-    const saborSumiu = item.tipoItem === 'pizza' && !!line.saborNome && !item.sabores.some((s) => s.nome === line.saborNome && s.status === 'disponivel')
+    const nomesAntigos = separarSabores(line.saborNome)
+    const saborSumiu =
+      item.tipoItem === 'pizza' &&
+      nomesAntigos.length > 0 &&
+      !nomesAntigos.every((n) => item.sabores.some((s) => s.nome === n && s.status === 'disponivel'))
     if (tamanhoSumiu || saborSumiu) showToast('O cardápio mudou — confira as opções antes de salvar.')
   }
 
@@ -1490,13 +1559,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const gruposValidos = useMemo(() => {
     if (!productSheet) return true
     if (productSheet.tamanhos.length > 0 && !selectedTamanhoId) return false
-    if (productSheet.tipoItem === 'pizza' && (!selectedTamanhoPizzaId || !selectedSaborId)) return false
+    if (productSheet.tipoItem === 'pizza' && (!tamanhoPizzaAtual || selectedSabores.length === 0)) return false
     return productSheet.grupos.every((g) => {
       if (!g.obrigatorio) return true
       return totalGrupo(groupSelections.get(g.id)) >= g.minEscolhas
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productSheet, groupSelections, selectedTamanhoId, selectedTamanhoPizzaId, selectedSaborId])
+  }, [productSheet, groupSelections, selectedTamanhoId, selectedTamanhoPizzaId, selectedSabores.length, tamanhoPizzaAtual])
 
   const addonsTotal = useMemo(() => {
     if (!productSheet) return 0
@@ -1515,10 +1584,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }, [productSheet, groupSelections, selectedAddons])
 
   const selectedTamanho = productSheet?.tamanhos.find((t) => t.id === selectedTamanhoId) ?? null
-  const selectedSabor = productSheet?.sabores.find((s) => s.id === selectedSaborId) ?? null
   const selectedBorda = bordasPizza.find((b) => b.id === selectedBordaId) ?? null
   const selectedMassa = massasPizza.find((m) => m.id === selectedMassaId) ?? null
-  const precoSaborTamanho = selectedSabor?.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
+  // Meio a meio: a regra da loja (média ou maior) decide o preço dos sabores
+  // escolhidos. A mesma função roda no servidor ao gravar o pedido.
+  const precoSaborTamanho = precoPizzaSabores(
+    selectedSabores.map((s) => s.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0),
+    restaurante?.pizzaCalculoPreco ?? 'media',
+  )
 
   const basePrice = productSheet
     ? productSheet.tipoItem === 'pizza'
@@ -1552,8 +1625,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       unit: unitPrice,
       addons: addonsList,
       obs,
-      tamanhoNome: productSheet.tipoItem === 'pizza' ? (tamanhosPizza.find((t) => t.id === selectedTamanhoPizzaId)?.nome ?? '') : selectedTamanho?.nome ?? '',
-      saborNome: selectedSabor?.nome ?? '',
+      tamanhoNome: productSheet.tipoItem === 'pizza' ? (tamanhoPizzaAtual?.nome ?? '') : selectedTamanho?.nome ?? '',
+      saborNome: juntarSabores(selectedSabores.map((s) => s.nome)),
       bordaNome: selectedBorda?.nome ?? '',
       massaNome: selectedMassa?.nome ?? '',
     }
@@ -3176,7 +3249,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 {productSheet.tipoItem === 'pizza' && (
                   <div className="mt-1">
                     <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoPizzaId ? '1/1' : '0/1'} atendido={!!selectedTamanhoPizzaId} />
-                    {tamanhosPizza.map((tamanho) => {
+                    {tamanhosDoItem.map((tamanho) => {
                       const isSelected = selectedTamanhoPizzaId === tamanho.id
                       return (
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
@@ -3190,24 +3263,59 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     })}
 
                     <div className="mt-5" />
-                    <GrupoHeader titulo="Sabor" regra="Escolha 1" obrigatorio contador={selectedSaborId ? '1/1' : '0/1'} atendido={!!selectedSaborId} />
-                    {productSheet.sabores.filter((s) => s.status === 'disponivel').map((sabor) => {
-                      const isSelected = selectedSaborId === sabor.id
+                    <GrupoHeader
+                      titulo={maxSaboresAtual > 1 ? 'Sabores' : 'Sabor'}
+                      regra={maxSaboresAtual > 1 ? `Escolha até ${maxSaboresAtual}` : 'Escolha 1'}
+                      obrigatorio
+                      contador={`${selectedSabores.length}/${maxSaboresAtual}`}
+                      atendido={selectedSabores.length > 0}
+                    />
+                    {saboresDisponiveis.map((sabor) => {
+                      // A posição vira o número do indicador e a ordem do nome gravado.
+                      const posicao = selectedSabores.findIndex((s) => s.id === sabor.id)
+                      const isSelected = posicao >= 0
+                      const cheio = selectedSabores.length >= maxSaboresAtual
                       const preco = sabor.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
                       return (
-                        <button key={sabor.id} onClick={() => setSelectedSaborId(sabor.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                        <button
+                          key={sabor.id}
+                          disabled={!isSelected && cheio}
+                          onClick={() =>
+                            setSelectedSaborIds((prev) => {
+                              if (prev.includes(sabor.id)) return prev.filter((id) => id !== sabor.id)
+                              // Tamanho de um sabor só: escolher outro troca o anterior.
+                              if (maxSaboresAtual === 1) return [sabor.id]
+                              if (prev.length >= maxSaboresAtual) return prev
+                              return [...prev, sabor.id]
+                            })
+                          }
+                          className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none disabled:opacity-40"
+                        >
                           <FlashSelecao ativo={isSelected} />
                           <div className="relative flex-1">
                             <div className="text-[14.5px] font-semibold leading-snug">{sabor.nome}</div>
                             {sabor.descricao && <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{sabor.descricao}</div>}
                           </div>
                           <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(preco)}</span>
-                          <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
-                            {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                          <span
+                            className={[
+                              'relative flex h-5 w-5 flex-shrink-0 items-center justify-center border-2 text-[11px] font-bold text-white transition-colors',
+                              // Quadrado numerado quando dá pra escolher vários: o número
+                              // mostra a ordem em que o sabor entra no nome da pizza.
+                              maxSaboresAtual > 1 ? 'rounded-menuzia' : 'rounded-full',
+                              isSelected ? 'border-promo bg-promo' : 'border-border',
+                            ].join(' ')}
+                          >
+                            {isSelected && (maxSaboresAtual > 1 ? posicao + 1 : <span className="h-2 w-2 rounded-full bg-white" />)}
                           </span>
                         </button>
                       )
                     })}
+                    {maxSaboresAtual > 1 && selectedSabores.length > 1 && (
+                      <p className="mt-2 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] font-medium leading-relaxed text-alert-text">
+                        {selectedSabores.length} sabores — o preço é {restaurante?.pizzaCalculoPreco === 'maior' ? 'o do sabor mais caro' : 'a média dos sabores escolhidos'}.
+                      </p>
+                    )}
 
                     {bordasPizza.length > 0 && (
                       <>
