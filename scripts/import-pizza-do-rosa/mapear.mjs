@@ -92,10 +92,15 @@ export function mapear(origem) {
   add('Pizzas Doces', [itemPizza('Pizza Doce', pizza.itens.filter((i) => i.subcategoria === 'Doces'), precoPizza)])
 
   // ── Promocional: só Gigante ──────────────────────────────────────────────
+  // Um preço só, no tamanho Gigante (spec 4.2 #3) — a vitrine filtra tamanhos
+  // sem preço (spec 3, decisão #4), então os demais tamanhos da loja somem
+  // sozinhos pra esse item.
   const promo = porLink['pizza-promocional']
   add('Pizza Promocional', [itemPizza('Pizza Promocional', promo.itens, (it) => [{ tamanho: 'Gigante', preco: num(it.preco) }], 'promocao')])
 
   // ── Brotinho: só Brotinho ────────────────────────────────────────────────
+  // Mesma lógica da Promocional acima (spec 4.2 #4 + spec 3, decisão #4),
+  // mas com o tamanho "Brotinho" — que nem existe na origem (ver tamanhos()).
   const brot = porLink['pizza-brotinho']
   add('Pizza Brotinho', [itemPizza('Pizza Brotinho', brot.itens, (it) => [{ tamanho: 'Brotinho', preco: num(it.preco) }])])
 

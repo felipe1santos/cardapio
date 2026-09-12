@@ -11,6 +11,9 @@ async function get(url, comReferer = false) {
   const headers = { 'User-Agent': UA }
   if (cookie) headers['Cookie'] = cookie
   if (comReferer) {
+    // Sem o Referer o endpoint responde 200 com corpo vazio — não dá erro,
+    // não devolve 403, só nada. Sem saber disso parece que a API está fora
+    // do ar ou que o cookie de sessão expirou.
     headers['Referer'] = `${BASE}/cardapio/`
     headers['X-Requested-With'] = 'XMLHttpRequest'
   }
@@ -25,7 +28,11 @@ async function get(url, comReferer = false) {
 
 const dec = (s) => s.replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
 
-/** Lê `var <nome> = [...]` / `{...}` respeitando strings e escapes. */
+/**
+ * Lê `var <nome> = [...]` / `{...}` respeitando strings e escapes.
+ * São literais de JS dentro de um `<script>`, não JSON — um regex ingênuo ou
+ * um `JSON.parse` de um slice quebra na primeira chave/colchete dentro de string.
+ */
 function varJson(html, nome) {
   const i = html.indexOf('var ' + nome + ' =')
   if (i < 0) return null
@@ -71,6 +78,8 @@ function parseItens(html) {
         nome: dec(nome).trim(),
         descricao: dec((p.match(/class='desc-item-menu'>([\s\S]*?)<\/p>/) || [])[1] || '').replace(/<[^>]+>/g, '').trim(),
         preco: (p.match(/itemprop='price' content='([^']+)'/) || [])[1] || d.precoitem || null,
+        // O card sempre traz a miniatura em /180/; /600/ e /800/ também existem
+        // no mesmo host, /1200/ e a original sem tamanho dão 404. /800/ é a maior que funciona.
         imagem: img ? img.replace('/180/', '/800/') : null,
         subcategoria: corte.nome,
       })
@@ -81,9 +90,13 @@ function parseItens(html) {
 
 async function main() {
   fs.mkdirSync(DADOS, { recursive: true })
+  // A API de itens por sessão não responde nada sem esse cookie — precisa
+  // vir de um GET simples na home antes de qualquer chamada à API.
   await get(`${BASE}/?dvc=mobile&ed_mobile_iframe=1`) // pega o cookie de sessão
 
   const cardapioHtml = await get(`${BASE}/cardapio/?dvc=mobile&ed_mobile_iframe=1`)
+  // O JSON das sessões vem com entidades HTML escapadas por estar dentro do
+  // valor de um atributo — por isso o dec() antes do JSON.parse.
   const sessions = JSON.parse(dec(cardapioHtml.match(/id="sessions" value='([\s\S]*?)'>/)[1]))
 
   const sessoes = []
