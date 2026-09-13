@@ -56,7 +56,11 @@ export function SeletorFoco({
     <div>
       <div
         ref={caixaRef}
-        className="relative w-full cursor-crosshair overflow-hidden rounded-menuzia border border-border bg-page select-none"
+        // touch-none: sem isso, o compositor do navegador decide no touchstart
+        // que um arrasto com componente vertical é scroll da página, cancela o
+        // gesto (onPointerCancel) e a mira não se move — setPointerCapture não
+        // evita isso, só reroteia eventos que já estão sendo despachados.
+        className="relative w-full touch-none cursor-crosshair overflow-hidden rounded-menuzia border border-border bg-page select-none"
         onPointerDown={(e) => {
           ;(e.target as Element).setPointerCapture?.(e.pointerId)
           setArrastando(true)
