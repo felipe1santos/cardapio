@@ -758,7 +758,11 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                     src={form.bannerUrl}
                     foco={form.bannerFoco}
                     onChange={(f) => { setForm((prev) => ({ ...prev, bannerFoco: f })); setSaved(false) }}
-                    proporcoes={[{ rotulo: 'Celular', ratio: 2 }, { rotulo: 'Computador', ratio: 3.8 }]}
+                    // Medido na vitrine em produção: 2:1 no celular (aspect
+                    // fixo) e 1214×280 no desktop. O 3,8 que estava aqui vinha
+                    // de contar `lg:h-80` como 320 px — o html da vitrine tem
+                    // base 14 px, então são 280 px e a proporção real é 4,33.
+                    proporcoes={[{ rotulo: 'Celular', ratio: 2 }, { rotulo: 'Computador', ratio: 4.33 }]}
                     titulo="Posição do banner de capa"
                     descricao="A capa aparece em proporções diferentes no celular e no computador. Marque o que não pode ser cortado."
                     disabled={uploadingBanner}
@@ -779,7 +783,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 <img
                   src={form.bannerPromocionalUrl}
                   alt="Banner promocional"
-                  className="aspect-[16/5] w-full rounded-menuzia border border-border object-cover"
+                  className="aspect-[3.65/1] w-full rounded-menuzia border border-border object-cover"
                   style={{ objectPosition: objectPosition(form.bannerPromoFoco) }}
                 />
               )}
@@ -793,11 +797,10 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                     src={form.bannerPromocionalUrl}
                     foco={form.bannerPromoFoco}
                     onChange={(f) => { setForm((prev) => ({ ...prev, bannerPromoFoco: f })); setSaved(false) }}
-                    // 3,2 = a faixa do celular (largura menos as margens sobre
-                    // h-28); 8,4 = a mesma faixa no desktop (1216 px sobre
-                    // h-36). São as duas proporções reais em que a arte é
-                    // cortada na vitrine.
-                    proporcoes={[{ rotulo: 'Celular', ratio: 3.2 }, { rotulo: 'Computador', ratio: 8.4 }]}
+                    // Medido na vitrine em produção: 1224×126 no desktop
+                    // (9,71) e 358×98 num celular de 390 px (3,65). A faixa é
+                    // um talho fino mesmo — é por isso que ela precisa de foco.
+                    proporcoes={[{ rotulo: 'Celular', ratio: 3.65 }, { rotulo: 'Computador', ratio: 9.71 }]}
                     titulo="Posição do banner promocional"
                     descricao="A faixa é bem mais larga que alta e corta bastante da arte. Marque o que não pode sumir."
                     disabled={uploadingBannerPromo}
