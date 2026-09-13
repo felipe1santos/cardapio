@@ -68,7 +68,7 @@ alter table grupos_cardapio
   add column if not exists imagem_foco_y numeric(5,2) not null default 50;
 ```
 
-`layout_cardapio` é `text` livre no banco; o valor `'gaveta'` entra apenas no tipo TypeScript. Não há constraint a alterar.
+**CORRIGIDO em 2026-09-13:** a versão anterior desta linha afirmava que `layout_cardapio` era `text` livre e que não havia constraint a alterar. **Era falso.** A migration `0007_destaques_layout.sql:9` criou `check (layout_cardapio in ('categoria', 'lista'))`, e ela sobrevive em produção (`docs/supabase/schema-public.sql:510`). Sem derrubar e recriar essa constraint, salvar `'gaveta'` é rejeitado pelo Postgres com `23514` — o modo fica 100% inalcançável, e o lojista vê um erro genérico de conexão enquanto perde as outras edições não salvas do mesmo formulário. A `0051` tem que fazer o mesmo `drop constraint if exists` + `add constraint` que a `0044` e a `0050` já fazem.
 
 **Faixa dos valores de foco:** 0 a 100. A UI nunca produz valor fora disso; a leitura satura por segurança (`Math.min(100, Math.max(0, n))`), de modo que um valor corrompido vira uma borda, nunca um layout quebrado.
 
