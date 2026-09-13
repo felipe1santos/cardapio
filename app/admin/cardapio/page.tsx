@@ -88,6 +88,9 @@ import {
   type MassaPizza,
 } from '@/lib/queries/pizza'
 import { BulkUploadModal, type BulkUploadTarget } from './bulk-upload-modal'
+import { SeletorFoco } from '@/components/seletor-foco'
+import { FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
+import { enviarImagemCategoria } from '@/lib/queries/ajustes'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -1940,6 +1943,11 @@ export default function CardapioPage() {
   const [editingGroupName, setEditingGroupName] = useState('')
   const [schedulingGroupId, setSchedulingGroupId] = useState<string | null>(null)
   const [scheduleForm, setScheduleForm] = useState({ ativo: false, inicio: '11:00', fim: '15:00' })
+  // Foto/foco da categoria em edição — preenchidos em startEditCategoria e
+  // zerados ao abrir o drawer de categoria nova, pra não vazar entre categorias.
+  const [catImagemUrl, setCatImagemUrl] = useState<string | null>(null)
+  const [catFoco, setCatFoco] = useState<Foco>(FOCO_PADRAO)
+  const [catEnviando, setCatEnviando] = useState(false)
   const [view, setView] = useState<View>('table')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -2209,19 +2217,34 @@ export default function CardapioPage() {
   function startEditCategoria(group: GrupoCardapio) {
     setEditingGroupId(group.id)
     setEditingGroupName(group.nome)
+    setCatImagemUrl(group.imagemUrl)
+    setCatFoco(group.imagemFoco)
+  }
+
+  /** Abre o drawer de categoria nova — sempre sem foto, pra não herdar a da última categoria editada. */
+  function openCreateCategoria() {
+    setCatImagemUrl(null)
+    setCatFoco(FOCO_PADRAO)
+    setDrawer('categoria')
   }
 
   async function saveEditCategoria() {
     if (!editingGroupId || !editingGroupName.trim()) return
     try {
-      const updated = await atualizarGrupo(supabase, editingGroupId, editingGroupName.trim())
+      // imagem sempre explícita aqui: o valor vem do form (carregado em
+      // startEditCategoria), então renomear sem mexer na foto grava a mesma
+      // foto de volta em vez de apagá-la.
+      const updated = await atualizarGrupo(supabase, editingGroupId, editingGroupName.trim(), undefined, {
+        url: catImagemUrl,
+        foco: catFoco,
+      })
       setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
       if (activeGroup && groups.find((g) => g.id === editingGroupId)?.nome === activeGroup) {
         setActiveGroup(updated.nome)
       }
       setEditingGroupId(null)
     } catch {
-      setError('Não foi possível renomear a categoria.')
+      setError('Não foi possível salvar a categoria.')
     }
   }
 
@@ -2471,7 +2494,7 @@ export default function CardapioPage() {
           <Button variant="primary" className="!bg-[#0688D4] hover:!bg-[#0574B4]" onClick={openNewItem} disabled={!activeGroupId}>
             + Novo item
           </Button>
-          <Button variant="primary" className="!bg-[#0688D4] hover:!bg-[#0574B4]" onClick={() => setDrawer('categoria')}>
+          <Button variant="primary" className="!bg-[#0688D4] hover:!bg-[#0574B4]" onClick={openCreateCategoria}>
             + Categoria
           </Button>
           <div className="flex-1" />
@@ -2524,19 +2547,67 @@ export default function CardapioPage() {
               )}
               {groups.map((group) =>
                 editingGroupId === group.id ? (
-                  <div key={group.id} className="flex items-center gap-1 px-1 py-1">
-                    <input
-                      autoFocus
-                      value={editingGroupName}
-                      onChange={(e) => setEditingGroupName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') saveEditCategoria()
-                        if (e.key === 'Escape') setEditingGroupId(null)
-                      }}
-                      className="flex-1 rounded-menuzia border border-primary px-2 py-1.5 text-sm outline-none"
-                    />
-                    <button onClick={saveEditCategoria} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page">✓</button>
-                    <button onClick={() => setEditingGroupId(null)} title="Cancelar" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-page">✕</button>
+                  <div key={group.id} className="space-y-2 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={editingGroupName}
+                        onChange={(e) => setEditingGroupName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveEditCategoria()
+                          if (e.key === 'Escape') setEditingGroupId(null)
+                        }}
+                        className="flex-1 rounded-menuzia border border-primary px-2 py-1.5 text-sm outline-none"
+                      />
+                      <button onClick={saveEditCategoria} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page">✓</button>
+                      <button onClick={() => setEditingGroupId(null)} title="Cancelar" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-page">✕</button>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                        Foto da categoria
+                      </label>
+                      <p className="mb-1.5 text-[10px] leading-snug text-text-subtle">
+                        Usada no modo de exibição &ldquo;Gaveta&rdquo;, onde o cliente escolhe a categoria antes dos produtos.
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={catEnviando}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          e.target.value = ''
+                          if (!file || !restauranteId) return
+                          setCatEnviando(true)
+                          setError(null)
+                          try {
+                            setCatImagemUrl(await enviarImagemCategoria(supabase, restauranteId, file))
+                          } catch {
+                            setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
+                          } finally {
+                            setCatEnviando(false)
+                          }
+                        }}
+                        className="block w-full text-[11px] text-text-subtle file:mr-2 file:rounded-menuzia file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-wide file:text-white"
+                      />
+                      {catEnviando && <p className="mt-1 text-[11px] text-text-subtle">Enviando…</p>}
+                      {catImagemUrl && (
+                        <div className="mt-2">
+                          <SeletorFoco
+                            src={catImagemUrl}
+                            foco={catFoco}
+                            onChange={setCatFoco}
+                            proporcoes={[{ rotulo: 'Cartão', ratio: 2.2 }]}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
+                            className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-danger"
+                          >
+                            Remover foto
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : schedulingGroupId === group.id ? (
                   <div key={group.id} className="space-y-1.5 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
@@ -2617,7 +2688,7 @@ export default function CardapioPage() {
               )}
             </div>
             <div className="flex gap-1.5 border-t border-border p-2.5">
-              <Button variant="primary" className="flex-1 !bg-[#0688D4] hover:!bg-[#0574B4]" onClick={() => setDrawer('categoria')}>
+              <Button variant="primary" className="flex-1 !bg-[#0688D4] hover:!bg-[#0574B4]" onClick={openCreateCategoria}>
                 + Categoria
               </Button>
             </div>
