@@ -1,0 +1,321 @@
+[apply] loja Pizza do Rosa 97ef0e33-c969-4030-aec1-f887dd17d618
+[apply] tamanho Pequena 4 fatias m├íx 1
+[apply] tamanho M├®dia 6 fatias m├íx 2
+[apply] tamanho Grande 8 fatias m├íx 3
+[apply] tamanho Gigante 12 fatias m├íx 4
+[apply] tamanho Brotinho 4 fatias m├íx 1
+[apply] borda Catupiry 19
+[apply] borda Cheddar 19
+[apply] borda Chocolate Branco 19
+[apply] borda Chocolate Preto 19
+[apply] borda Cream Cheese 19
+[apply] regra de pre├ºo media
+[apply] preset Adicionais de Pizza 33 complementos
+[apply] preset Adicionais de Hamb├║rguer 22 complementos
+[apply] preset Adicionais de Por├º├úo 3 complementos
+[apply] preset Adicionais de Massa 19 complementos
+[apply] preset Adicionais de Salada 3 complementos
+[apply] grupo Pizzas Salgadas 1 item(ns)
+[apply]   item Pizza Salgada pizza 69
+[apply]     preset Adicionais de Pizza
+[apply]     sabor 4 Queijos Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor 4 Queijos c/ Bacon Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor 5 queijos especial Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor A Moda da Casa Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor A Moda do Rosa Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Alcatra Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Alcatra Acebolada Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Alcatra ao alho e ├│leo Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Alcatra ao Barbecue Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Alcatra na Mostarda Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Atum Especial Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Bacon Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Bacon, queijo coalho e melado Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Bacon C/ Br├│colis Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Bacon C/ Milho Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Baiana Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Br├│colis Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Br├│colis Cremoso Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Calabresa Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Calabresa Acebolada Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Calabresa ao alho e ├│leo Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Calabresa c/ Cebola Caramelizada Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Calabresa com cream cheese Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Calabresa Especial Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Caprese Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor CatuBacon Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Costela com catupiry Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Entreveiro Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Fil├® ao 4 Queijos Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Fil├® ao Molho de Gorgonzola Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Fil├® C/ Fritas Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Frango C/ Catupiry Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Frango Caipira Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Gel├®ia de abacaxi picante com bacon Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Gorgonzola com Figo Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Lombinho C/ Catupiry Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor lombinho com abacaxi Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Lombo especial Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Marguerita Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Mexicana Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Milho na Manteiga Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Milho Verde Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Mussarela Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Napolitana Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Palmito Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Palmito Cremoso Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Pepperoni Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Portuguesa Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Queijo coalho com geleia de abacaxi Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Saborosa Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Salpic├úo de Frango Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+node :   ! foto falhou (leitura do corpo) The operation was aborted due to timeout https://static.expressodelivery.com.
+br/imagens/produtos/183030/800/Expresso-Delivery_10e24e947ce3a1b3e038065655a7181c.png
+At line:1 char:1
++ node scripts/import-pizza-do-rosa/importar.mjs --apply 2>&1 | Tee-Obj ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  ! foto falhou...65655a7181c.png:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[apply]     sabor Strogonoff de Carne Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Strogonoff de carne Invertido Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Strogonoff de Frango Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Tomate Cereja ao Molho Pesto Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply]     sabor Tomate Seco C/ R├║cula Tradicional Pequena 69 | M├®dia 79 | Grande 89 | Gigante 99
+[apply] grupo Pizzas Doces 1 item(ns)
+[apply]   item Pizza Doce pizza 63
+[apply]     preset Adicionais de Pizza
+[apply]     sabor 2 AMORES Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor 2 Amores com Morangos Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Abacaxi C/ Coco Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Banana Nevada Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Bombom Morango Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Cheesecake de morango Pequena 89 | M├®dia 99 | Grande 109 | Gigante 119
+[apply]     sabor Chocolate Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Chocolate Branco Pequena 63 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Chocolate Branco C/ Morango Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+  ! foto falhou (leitura do corpo) The operation was aborted due to timeout https://static.expressodelivery.com.br/imag
+ens/produtos/398924/800/Expresso-Delivery_e1d0f9a42cd656a2b689f2f0d74ee32f.png
+[apply]     sabor Chocolate branco com frutas vermelhas Pequena 89 | M├®dia 99 | Grande 109 | Gigante 119
+[apply]     sabor Chocolate Branco Flambado Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Chocolate c/ Confete Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Chocolate C/ Morango Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Kit Kat Pequena 89 | M├®dia 99 | Grande 109 | Gigante 119
+[apply]     sabor Leite Ninho C/ Nutella Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Nutella com morango Pequena 89 | M├®dia 99 | Grande 109 | Gigante 119
+[apply]     sabor Perfei├º├úo Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply]     sabor Pistache Premium (Novo) Pequena 89 | M├®dia 99 | Grande 109 | Gigante 119
+[apply]     sabor Prest├¡gio Pequena 79 | M├®dia 89 | Grande 99 | Gigante 109
+[apply] grupo Pizza Promocional 1 item(ns)
+[apply]   item Pizza Promocional pizza 79
+[apply]     preset Adicionais de Pizza
+[apply]     sabor Popular de Bacon Gigante 79
+[apply]     sabor Popular de Bacon ao Barbecue Gigante 79
+[apply]     sabor Popular de Calabresa Gigante 79
+[apply]     sabor Popular de Calabresa acebolada Gigante 79
+[apply]     sabor Popular de Frango Gigante 79
+[apply]     sabor Popular de Frango com Milho Gigante 79
+[apply]     sabor Popular de Lombo Canadense Gigante 79
+[apply]     sabor Popular de Marguerita Gigante 79
+[apply]     sabor Popular de Milho Gigante 79
+[apply]     sabor Popular de Milho com Bacon Gigante 79
+[apply]     sabor Popular de Mussarela Gigante 79
+[apply]     sabor Popular de Palmito Gigante 79
+[apply]     sabor Popular de Palmito com Bacon Gigante 79
+[apply]     sabor Popular de Presunto Gigante 79
+[apply]     sabor Popular Mineira Gigante 79
+[apply] grupo Pizza Brotinho 1 item(ns)
+[apply]   item Pizza Brotinho pizza 49
+[apply]     preset Adicionais de Pizza
+[apply]     sabor 2 Amores com morangos Brotinho 49
+[apply]     sabor 2 Amores Brotinho 49
+[apply]     sabor chocolate Brotinho 49
+[apply]     sabor chocolate Branco Brotinho 49
+[apply]     sabor Banana Nevada Brotinho 49
+[apply]     sabor Leite Ninho com nutela Brotinho 49
+[apply]     sabor 4 queijos Brotinho 49
+[apply]     sabor Alcatra Brotinho 59
+[apply]     sabor Fil├® ao 4 Queijos Brotinho 59
+[apply]     sabor Costela com Catupiry Brotinho 59
+[apply]     sabor Picanha Brotinho 69
+[apply]     sabor Bacon Brotinho 49
+[apply]     sabor Bacon com Milho Brotinho 49
+[apply]     sabor Calabresa Brotinho 49
+[apply]     sabor Calabresa Acebolada Brotinho 49
+[apply]     sabor Calabresa com Crean cheese Brotinho 49
+[apply]     sabor Frango com Catupiry Brotinho 49
+[apply]     sabor Marguerita Brotinho 49
+[apply]     sabor Pepperoni Brotinho 49
+[apply]     sabor Lombinho com Catupiry Brotinho 49
+[apply] grupo Hamb├║rguers 16 item(ns)
+[apply]   item Burguer P├úo Carne e Queijo simples 20
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer Bacon simples 24
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer Salada simples 24
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer queijo coalho com geleia de abacaxi simples 30
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Vulc├úo Burguer simples 32
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer da Casa simples 30
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer Barbecue simples 30
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer do Rosa simples 30
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer Especial simples 30
+[apply]     preset Adicionais de Hamb├║rguer
+  ! foto falhou (rede) The operation was aborted due to timeout https://static.expressodelivery.com.br/imagens/produtos
+/577280/800/Expresso-Delivery_0883d2a907a0ba3b3d366bfbcdc5a47b.webp
+[apply]   item Burguer Cheddar Bacon simples 30
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Big Rosa simples 30
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Big Rosa Duplo simples 35
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Big Rosa Triplo simples 40
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer Duplo Salada simples 35
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Burguer Duplo simples 35
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item P├úo com Ovo simples 12
+[apply]     preset Adicionais de Hamb├║rguer
+[apply] grupo Pizza Burguer 3 item(ns)
+[apply]   item Pizza burguer cheddar simples 29
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Pizza Burguer Catupiry simples 29
+[apply]     preset Adicionais de Hamb├║rguer
+[apply]   item Pizza Burguer Salada simples 29
+[apply]     preset Adicionais de Hamb├║rguer
+[apply] grupo Por├º├Áes 10 item(ns)
+[apply]   item Batata C/ Cheddar e Bacon 300g simples 32
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Isca de Coxa e Sobre Coxa Frango 500gr simples 40
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Empanadinho de Frango 500g simples 30
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Batata Frita 300g simples 20
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Batata Frita ao 4 queijos 300gr simples 35
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Batata Frita + Isca de Coxa e Sobre Coxa 550gr simples 40
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Batata frita + Empanadinho de frango 550g simples 35
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Por├º├úo Batata Frita 120G simples 8
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Fraldinha Bovina Acebolada 300gr simples 49
+[apply]     preset Adicionais de Por├º├úo
+[apply]   item Fraldinha bovina Acebolada 600gr simples 90
+[apply]     preset Adicionais de Por├º├úo
+[apply] grupo Massas 6 item(ns)
+[apply]   item Monte seu Espaguete simples 18
+[apply]     preset Adicionais de Massa
+[apply]   item Espaguete a bolonhesa simples 28
+[apply]     preset Adicionais de Massa
+[apply]   item Espaguete ao 4 queijos simples 28
+[apply]     preset Adicionais de Massa
+[apply]   item Espaguete com Frango desfiado simples 28
+[apply]     preset Adicionais de Massa
+[apply]   item Espaguete tomate seco com rucula simples 28
+[apply]     preset Adicionais de Massa
+[apply]   item Espaguete com calabresa simples 28
+[apply]     preset Adicionais de Massa
+[apply] grupo Saladas 1 item(ns)
+[apply]   item Salada ao molho pesto simples 18
+[apply]     preset Adicionais de Salada
+[apply] grupo Sobremesas 31 item(ns)
+[apply]   item Salva bordas 150g chocolate Nestle Kit Kat+ Bordas simples 34
+[apply]   item Salva bordas 150g chocolate Nestle Galak + Bordas simples 34
+[apply]   item Salva bordas 150g cobertura de chocolate + Bordas simples 26
+[apply]   item Salva bordas 150g cobertura de chocolate branco + Bordas simples 26
+[apply]   item bombom ouro branco simples 3
+[apply]   item Bombom Sonho de Valsa simples 3
+[apply]   item HIT Pistache simples 18
+[apply]   item Hit A├ºai com choc. branco simples 18
+[apply]   item Hit romance 160gr simples 18
+[apply]   item Hit skimo 160gr simples 18
+[apply]   item Novo Gmax Mel simples 14
+[apply]   item GMax cookies e cream simples 14
+[apply]   item Konne astro simples 14
+[apply]   item Skim├│ simples 10
+[apply]   item picole brigadeiro simples 10
+[apply]   item mouse maracuj├í simples 10
+[apply]   item Crock + branco simples 10
+[apply]   item Picol├® de Leitinho trufado simples 10
+[apply]   item Magnata simples 10
+[apply]   item Picol├® beijinho 63gr simples 10
+[apply]   item sorvete napolitano simples 9
+[apply]   item Moreninha simples 9
+[apply]   item picole Gbon leitinho simples 8
+[apply]   item A├ºai com leitinho simples 8
+[apply]   item Unic├│rnio simples 8
+[apply]   item Picol├® Chiclete Gbon simples 8
+[apply]   item Girabon simples 8
+[apply]   item picol├® de Uva Gbon simples 7
+[apply]   item Picol├® de Lim├úo Sui├ºo Gbon simples 7
+[apply]   item Kinder Ovo para menina simples 15
+[apply]   item kinder ovo para menino simples 15
+[apply] grupo Bebidas 26 item(ns)
+[apply]   item Coca-Cola 600 ml simples 9
+[apply]   item Mini coca 200ml simples 5
+[apply]   item Guaran├í Zero simples 7
+[apply]   item Guaran├í Ant├írtica Lata 350ml simples 7
+[apply]   item Coca-Cola Zero Lata 350ml simples 7
+[apply]   item Coca-Cola Lata 350ml simples 7
+[apply]   item Fanta Laranja Lata 350ml simples 7
+[apply]   item Sprite Lata 350ml simples 7
+[apply]   item Fanta Uva Lata 350ml simples 7
+[apply]   item FYS lim├úo siciliano ZERO simples 12
+[apply]   item FYS lim├úo siciliano simples 7
+[apply]   item FYS laraja-pera simples 7
+[apply]   item schweppes citrus 350 ML simples 7
+[apply]   item T├┤nica simples 7
+[apply]   item Energetico Monster simples 12
+[apply]   item Sprite Lemon Fresh 510ML simples 7
+[apply]   item Fanta Laranja 2 Litros simples 15
+[apply]   item Guaran├í Ant├írtica 2L simples 15
+[apply]   item Coca-Cola 2L simples 16
+[apply]   item COCA 2 LITROS ZERO A├çUCAR simples 16
+[apply]   item suco kapo 200ml morango simples 5
+[apply]   item suco kapo 200ml uva simples 5
+[apply]   item Del Vale uva 290 ML simples 7
+[apply]   item Del Vale P├¬ssego 290 ML simples 7
+[apply]   item Agu├í Mineral 500ml s/g├ís simples 5
+[apply]   item Agua Com G├ís 350ml lata simples 6
+[apply] grupo Cervejas e Vinhos 10 item(ns)
+[apply]   item heineken ZERO 330 simples 12
+[apply]   item heineken long neck 330ml simples 12
+[apply]   item Stella Artois PURE GOLD sem gluten simples 12
+[apply]   item SOL simples 10
+[apply]   item lata skol 269ml simples 6
+[apply]   item Smirnoff ICE simples 12
+[apply]   item Vinho Alma Negra simples 180
+[apply]   item vinho reservado simples 70
+[apply]   item CORDERO CON PEIL DE LOBO MALBEC simples 80
+[apply]   item Vinho D.V. CATENA simples 120
+[apply] grupo Molhos 3 item(ns)
+[apply]   item molho de alho 30ml simples 2
+[apply]   item molho barbecue 30ml simples 2
+[apply]   item maionese da casa 30ml simples 2
+[apply] grupo Congelados 2 item(ns)
+[apply]   item 7 Esfihas Salgadas (Congeladas) simples 40
+[apply]   item 5 esfihas Doces (CONGELADAS) simples 35
+[apply] grupo Loja Virtual 9 item(ns)
+[apply]   item Bon├® do Rosa branco e vermelho simples 35
+[apply]   item Bon├® do Rosa rosa simples 35
+[apply]   item Bon├® Arena do Rosa simples 35
+[apply]   item Bon├® Cinza Camur├ºa simples 35
+[apply]   item Bon├® Azul camur├ºa simples 35
+[apply]   item Bon├® Preto simples 35
+[apply]   item Chaveiro metal redondo simples 20
+[apply]   item Camiseta Brasil Rakka feminina simples 119
+[apply]   item Camiseta Brasil Rakka masculina simples 119
+[apply] fotos 352 URLs verificadas 0 sem extens├úo reconhecida (fallback .jpg)
+[apply] fotos 3 FALHA(S) ÔÇö os alvos abaixo ficaram sem imagem, suba manualmente pelo admin:
+[apply]   ! sem foto: sabor-Strogonoff de Carne ÔÇö https://static.expressodelivery.com.br/imagens/produtos/183030/800/Expresso-Delivery_10e24e947ce3a1b3e038065655a7181c.png
+[apply]   ! sem foto: sabor-Chocolate branco com frutas vermelhas ÔÇö https://static.expressodelivery.com.br/imagens/produtos/398924/800/Expresso-Delivery_e1d0f9a42cd656a2b689f2f0d74ee32f.png
+[apply]   ! sem foto: Hamb├║rguers-Burguer Cheddar Bacon ÔÇö https://static.expressodelivery.com.br/imagens/produtos/577280/800/Expresso-Delivery_0883d2a907a0ba3b3d366bfbcdc5a47b.webp
+[apply] FIM ÔÇö 1413 linhas gravadas
