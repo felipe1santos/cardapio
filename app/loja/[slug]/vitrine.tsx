@@ -2403,7 +2403,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 {/* 2:1 no celular: a capa é o primeiro contato do cliente com a
                     loja, e a tarja de 112px que havia aqui (3,5:1) não cumpria
                     esse papel. O desktop segue na altura fixa de sempre. */}
-                <div className="relative z-0 aspect-[2/1] w-full overflow-hidden lg:aspect-auto lg:h-80 lg:rounded-menuzia">
+                {/* A proporção fixa só vale enquanto a tela é estreita: num
+                    tablet de 768 px o 2:1 daria 384 px de capa e empurraria o
+                    primeiro produto pra fora da tela. De 640 px pra cima a
+                    altura passa a ser fixa. */}
+                <div className="relative z-0 aspect-[2/1] w-full overflow-hidden sm:aspect-auto sm:h-64 lg:h-80 lg:rounded-menuzia">
                   {restaurante.bannerUrl ? (
                     // Capa da loja: é o LCP da vitrine — carrega cedo e com prioridade alta.
                     // eslint-disable-next-line @next/next/no-img-element

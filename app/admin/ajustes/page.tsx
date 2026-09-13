@@ -813,7 +813,10 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
         <Secao titulo="Apresentação do cardápio" descricao="Como os itens aparecem para o cliente na vitrine pública.">
           <Field label="Formato da lista">
-            <div className="grid grid-cols-3 gap-2.5">
+            {/* Três colunas só quando cabem: a 375 px cada cartão fica com ~105 px
+                e a legenda ("Cartão por categoria, com foto") quebra em cinco
+                linhas de uma palavra. Empilhado, cada modo fica legível. */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => setLayout('categoria')}
