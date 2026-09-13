@@ -29,3 +29,28 @@ alter table grupos_cardapio
 
 comment on column grupos_cardapio.imagem_url is
   'Foto do cartão da categoria no modo gaveta. NULL = sem foto.';
+comment on column grupos_cardapio.imagem_foco_x is
+  'Ponto de foco horizontal da foto da categoria, 0-100. 50 = centro (comportamento padrão).';
+comment on column grupos_cardapio.imagem_foco_y is
+  'Ponto de foco vertical da foto da categoria, 0-100. 50 = centro (comportamento padrão).';
+
+-- ----------------------------------------------------------------------------
+-- Terceiro modo de exibição do cardápio: 'gaveta'.
+--
+-- A 0007 criou `check (layout_cardapio in ('categoria','lista'))` e essa
+-- constraint está viva em produção. Sem derrubá-la, salvar 'gaveta' é rejeitado
+-- pelo Postgres com 23514 e o modo fica inalcançável — o lojista veria um erro
+-- genérico de conexão e perderia as outras edições não salvas do formulário,
+-- porque `layout_cardapio` viaja no mesmo `atualizarConfigLoja` que nome,
+-- endereço, horários, banners e taxas.
+--
+-- Mesmo padrão de drop+add já usado na 0044 (status_loja) e na 0050
+-- (pizza_calculo_preco): idempotente e sem janela em que a coluna fica sem
+-- validação de valor.
+-- ----------------------------------------------------------------------------
+alter table restaurantes
+  drop constraint if exists restaurantes_layout_cardapio_check;
+
+alter table restaurantes
+  add constraint restaurantes_layout_cardapio_check
+  check (layout_cardapio in ('categoria', 'lista', 'gaveta'));
