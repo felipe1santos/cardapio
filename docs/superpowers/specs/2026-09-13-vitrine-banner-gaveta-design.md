@@ -140,3 +140,38 @@ Script `scripts/import-pizza-do-rosa/semear-fotos-categoria.mjs`, no mesmo molde
 | Foco gravado fora de 0-100 por dado corrompido | `focoValido` satura na leitura; pior caso é a imagem ancorada numa borda |
 | Loja liga gaveta e depois cria categoria sem foto | Cartão sem imagem na cor do tema + pendência no painel (5.5); nenhum item fica inacessível |
 | Duas fontes aumentam o peso da vitrine | Rubik só na rota da vitrine, via `next/font` (self-host, sem request a terceiro); o painel não baixa Rubik e a vitrine não baixa Inter |
+
+---
+
+## 10. Adendo de 2026-09-13 — banner promocional e mira em modal
+
+Dois pedidos do dono do produto depois de ver a primeira versão no ar:
+
+1. **O banner promocional também precisa de ponto de foco.** Ele é a faixa
+   mais agressiva no recorte do cardápio inteiro — ≈3,2:1 no celular e ≈8,4:1
+   no desktop — então uma arte com o texto em cima ou embaixo perde justamente
+   o que anuncia a promoção. Migration `0052_foco_banner_promocional.sql`
+   acrescenta `restaurantes.banner_promo_foco_x/y`, mesmo contrato da 0051
+   (0-100, default 50/50, nenhuma loja muda de aparência ao aplicar).
+
+2. **A mira sai de baixo do upload e vira um modal.** A versão anterior
+   desenhava uma segunda cópia, em tamanho grande, da mesma imagem que já
+   estava na tela logo acima — em Ajustes isso empurrava o resto do formulário
+   pra fora da dobra e parecia que a foto tinha sido enviada duas vezes. Agora
+   cada imagem tem um botão **"Ajustar posição"** que abre
+   `components/ajustar-foco.tsx` no centro da tela; a miniatura do formulário
+   passa a mostrar o recorte real (a proporção da vitrine + o foco escolhido),
+   servindo de prévia.
+
+   O modal trabalha em rascunho: arrastar não suja o formulário, **Cancelar**
+   descarta e **Aplicar** emite o foco. Quem persiste continua sendo o
+   "Salvar alterações" da tela — confirmar no modal não pode virar um
+   salvamento escondido que atropela as outras edições ainda abertas.
+
+Vale para as **três** imagens com recorte (capa, promocional e foto de
+categoria): manter duas formas diferentes de ajustar a mesma coisa no mesmo
+painel seria a incoerência que a §3 do CLAUDE.md existe pra evitar.
+
+**Efeito colateral deliberado:** enviar uma imagem nova zera o foco pro centro.
+O ponto foi escolhido para o enquadramento da foto anterior; herdá-lo recortaria
+a arte nova num lugar que ninguém escolheu pra ela.

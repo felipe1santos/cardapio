@@ -88,8 +88,8 @@ import {
   type MassaPizza,
 } from '@/lib/queries/pizza'
 import { BulkUploadModal, type BulkUploadTarget } from './bulk-upload-modal'
-import { SeletorFoco } from '@/components/seletor-foco'
-import { FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
+import { AjustarFoco } from '@/components/ajustar-foco'
+import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { enviarImagemCategoria } from '@/lib/queries/ajustes'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -2620,7 +2620,10 @@ export default function CardapioPage() {
                           try {
                             const url = await enviarImagemCategoria(supabase, restauranteId, file)
                             if (grupoDoUpload !== editingGroupIdRef.current || geracao !== uploadGenRef.current) return
+                            // Foto nova, enquadramento novo: o foco da anterior
+                            // recortaria esta num ponto escolhido pra outra imagem.
                             setCatImagemUrl(url)
+                            setCatFoco(FOCO_PADRAO)
                           } catch {
                             if (grupoDoUpload !== editingGroupIdRef.current || geracao !== uploadGenRef.current) return
                             setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
@@ -2633,25 +2636,39 @@ export default function CardapioPage() {
                       {catEnviando && <p className="mt-1 text-[11px] text-text-subtle">Enviando…</p>}
                       {catImagemUrl && (
                         <div className="mt-2">
-                          <SeletorFoco
+                          {/* Miniatura no mesmo 5:2 do cartão da vitrine, já
+                              com o foco aplicado — é a prévia do que o cliente
+                              vai ver, e não uma segunda cópia da foto inteira. */}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
                             src={catImagemUrl}
-                            foco={catFoco}
-                            onChange={setCatFoco}
-                            // 2,5 = o `aspect-[5/2]` que o cartão da gaveta usa
-                            // na vitrine (CategoriasGaveta em
-                            // app/loja/[slug]/vitrine.tsx). Uma moldura só, e
-                            // exata, porque lá a proporção é fixa em toda
-                            // largura de tela — ao contrário da capa da loja,
-                            // que muda de forma e por isso recebe duas.
-                            proporcoes={[{ rotulo: 'Cartão', ratio: 2.5 }]}
+                            alt=""
+                            className="aspect-[5/2] w-full rounded-menuzia border border-border object-cover"
+                            style={{ objectPosition: objectPosition(catFoco) }}
                           />
-                          <button
-                            type="button"
-                            onClick={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
-                            className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-danger"
-                          >
-                            Remover foto
-                          </button>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <AjustarFoco
+                              src={catImagemUrl}
+                              foco={catFoco}
+                              onChange={setCatFoco}
+                              // 2,5 = o `aspect-[5/2]` que o cartão da gaveta usa
+                              // na vitrine (CategoriasGaveta em
+                              // app/loja/[slug]/vitrine.tsx). Uma moldura só, e
+                              // exata, porque lá a proporção é fixa em toda
+                              // largura de tela — ao contrário da capa da loja,
+                              // que muda de forma e por isso recebe duas.
+                              proporcoes={[{ rotulo: 'Cartão', ratio: 2.5 }]}
+                              titulo="Posição da foto da categoria"
+                              descricao="O cartão da categoria é recortado em 5:2. Marque o que não pode ser cortado."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
+                              className="text-[11px] font-semibold uppercase tracking-wide text-danger"
+                            >
+                              Remover foto
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

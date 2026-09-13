@@ -2521,6 +2521,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   loading="lazy"
                   decoding="async"
                   className="h-28 w-full rounded-md border border-border object-cover sm:h-36"
+                  // A faixa é bem mais larga que alta (≈3,2:1 no celular,
+                  // ≈8,4:1 no desktop), então o recorte come muito da arte —
+                  // é onde o ponto de foco escolhido no painel mais importa.
+                  style={{ objectPosition: objectPosition(restaurante.bannerPromoFoco) }}
                 />
               </div>
             )}

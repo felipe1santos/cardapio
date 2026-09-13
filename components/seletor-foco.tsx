@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { objectPosition, type Foco } from '@/lib/foco-imagem'
+import { type Foco } from '@/lib/foco-imagem'
 
 /**
  * Mira arrastável sobre uma imagem: o lojista marca o que NÃO pode ser cortado.
@@ -60,7 +60,12 @@ export function SeletorFoco({
         // que um arrasto com componente vertical é scroll da página, cancela o
         // gesto (onPointerCancel) e a mira não se move — setPointerCapture não
         // evita isso, só reroteia eventos que já estão sendo despachados.
-        className="relative w-full touch-none cursor-crosshair overflow-hidden rounded-menuzia border border-border bg-page select-none"
+        // `w-fit` em vez de `w-full`: a caixa hospeda a mira e as molduras em
+        // percentual, então ela precisa ter exatamente o tamanho da foto. Como
+        // a imagem agora vive dentro de um modal, uma foto em pé é limitada
+        // pela altura; se a caixa continuasse esticada na largura toda, sobraria
+        // fundo dos lados e a mira apontaria pro lugar errado.
+        className="relative mx-auto w-fit max-w-full touch-none cursor-crosshair overflow-hidden rounded-menuzia border border-border bg-page select-none"
         onPointerDown={(e) => {
           ;(e.target as Element).setPointerCapture?.(e.pointerId)
           setArrastando(true)
@@ -74,7 +79,7 @@ export function SeletorFoco({
         <img
           src={src}
           alt=""
-          className="block w-full"
+          className="block max-h-[52dvh] w-auto max-w-full"
           draggable={false}
           onLoad={(e) => {
             const img = e.currentTarget
@@ -104,9 +109,9 @@ export function SeletorFoco({
           style={{ left: `${foco.x}%`, top: `${foco.y}%` }}
         />
       </div>
-      <p className="mt-1.5 text-[11px] text-text-subtle">
+      <p className="mt-1.5 text-center text-[11px] text-text-subtle">
         Arraste a mira até o que não pode ser cortado. Use as setas do teclado para ajuste fino
-        (Shift para passos maiores). Posição atual: {objectPosition(foco)}.
+        (Shift para passos maiores).
       </p>
     </div>
   )

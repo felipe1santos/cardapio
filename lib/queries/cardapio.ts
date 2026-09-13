@@ -814,6 +814,8 @@ export interface RestauranteVitrine {
   bannerPromocionalUrl: string | null
   /** Ponto de foco da capa — ancoragem do object-cover. */
   bannerFoco: Foco
+  /** Ponto de foco do banner promocional. */
+  bannerPromoFoco: Foco
   telefone: string
   endereco: string
   bairro: string | null
@@ -846,7 +848,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -865,6 +867,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     bannerMobileUrl: data.banner_mobile_url ?? null,
     bannerPromocionalUrl: data.banner_promocional_url,
     bannerFoco: focoValido(data.banner_foco_x, data.banner_foco_y),
+    bannerPromoFoco: focoValido(data.banner_promo_foco_x, data.banner_promo_foco_y),
     telefone: data.telefone,
     endereco: data.endereco,
     bairro: data.endereco_bairro,

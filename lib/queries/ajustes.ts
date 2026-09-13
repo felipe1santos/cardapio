@@ -16,6 +16,8 @@ export interface ConfigLoja {
   bannerPromocionalUrl: string | null
   /** Ponto de foco da capa — ancoragem do object-cover. */
   bannerFoco: Foco
+  /** Ponto de foco do banner promocional — mesma ancoragem, outra imagem. */
+  bannerPromoFoco: Foco
   telefone: string
   endereco: string
   enderecoRua: string
@@ -56,6 +58,8 @@ interface ConfigRow {
   banner_promocional_url: string | null
   banner_foco_x: number | string | null
   banner_foco_y: number | string | null
+  banner_promo_foco_x: number | string | null
+  banner_promo_foco_y: number | string | null
   telefone: string
   endereco: string
   endereco_rua: string | null
@@ -83,7 +87,7 @@ interface ConfigRow {
   aceita_retirada: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -95,6 +99,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     bannerMobileUrl: row.banner_mobile_url ?? null,
     bannerPromocionalUrl: row.banner_promocional_url,
     bannerFoco: focoValido(row.banner_foco_x, row.banner_foco_y),
+    bannerPromoFoco: focoValido(row.banner_promo_foco_x, row.banner_promo_foco_y),
     telefone: row.telefone,
     endereco: row.endereco,
     enderecoRua: row.endereco_rua ?? '',
@@ -138,6 +143,7 @@ export interface ConfigLojaPatch {
   bannerMobileUrl?: string | null
   bannerPromocionalUrl?: string | null
   bannerFoco?: Foco
+  bannerPromoFoco?: Foco
   telefone?: string
   endereco?: string
   enderecoRua?: string
@@ -174,6 +180,10 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.bannerFoco !== undefined) {
     row.banner_foco_x = patch.bannerFoco.x
     row.banner_foco_y = patch.bannerFoco.y
+  }
+  if (patch.bannerPromoFoco !== undefined) {
+    row.banner_promo_foco_x = patch.bannerPromoFoco.x
+    row.banner_promo_foco_y = patch.bannerPromoFoco.y
   }
   if (patch.telefone !== undefined) row.telefone = patch.telefone
 

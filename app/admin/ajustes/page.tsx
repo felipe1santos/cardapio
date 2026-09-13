@@ -11,8 +11,8 @@ import { InstalarAppButton } from '@/components/instalar-app-button'
 import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, listarGrupos, type LayoutCardapio } from '@/lib/queries/cardapio'
-import { SeletorFoco } from '@/components/seletor-foco'
-import { FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
+import { AjustarFoco } from '@/components/ajustar-foco'
+import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import {
   buscarConfigLoja,
   atualizarConfigLoja,
@@ -283,6 +283,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     layoutCardapio: 'categoria' as LayoutCardapio,
     imagemGrande: false,
     bannerFoco: FOCO_PADRAO as Foco,
+    bannerPromoFoco: FOCO_PADRAO as Foco,
   })
   const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
   const [categoriasSemFoto, setCategoriasSemFoto] = useState<string[]>([])
@@ -331,6 +332,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         layoutCardapio: c.layoutCardapio,
         imagemGrande: c.imagemGrande,
         bannerFoco: c.bannerFoco,
+        bannerPromoFoco: c.bannerPromoFoco,
       })
       setHorarioDias(horarioSemanaFromConfig(c.horarioFuncionamento))
       setLoaded(true)
@@ -386,8 +388,10 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       // Sobe a capa nas duas larguras; a estreita pode vir null e a vitrine
       // simplesmente não emite o srcset.
       const { url, mobileUrl } = await enviarBannerLoja(supabase, restauranteId, file)
-      set('bannerUrl', url)
-      set('bannerMobileUrl', mobileUrl ?? '')
+      // Imagem nova, enquadramento novo: manter o foco da capa antiga faria a
+      // vitrine recortar a arte nova num ponto que ninguém escolheu pra ela.
+      setForm((prev) => ({ ...prev, bannerUrl: url, bannerMobileUrl: mobileUrl ?? '', bannerFoco: FOCO_PADRAO }))
+      setSaved(false)
     } catch {
       setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
     } finally {
@@ -403,7 +407,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     setError(null)
     try {
       const url = await enviarBannerPromocionalLoja(supabase, restauranteId, file)
-      set('bannerPromocionalUrl', url)
+      setForm((prev) => ({ ...prev, bannerPromocionalUrl: url, bannerPromoFoco: FOCO_PADRAO }))
+      setSaved(false)
     } catch {
       setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
     } finally {
@@ -487,6 +492,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         layoutCardapio: form.layoutCardapio,
         imagemGrande: form.imagemGrande,
         bannerFoco: form.bannerFoco,
+        bannerPromoFoco: form.bannerPromoFoco,
         horarioFuncionamento,
       })
       setConfig(updated)
@@ -731,43 +737,74 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
             <div className="space-y-2.5">
               {form.bannerUrl && (
+                // A miniatura mostra o recorte REAL da vitrine no celular
+                // (2:1 + o ponto de foco escolhido), pra que o lojista veja
+                // aqui mesmo o efeito de "Ajustar posição" sem abrir a loja.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.bannerUrl} alt="Banner de capa" className="h-28 w-full rounded-menuzia border border-border object-cover" />
+                <img
+                  src={form.bannerUrl}
+                  alt="Banner de capa"
+                  className="aspect-[2/1] w-full rounded-menuzia border border-border object-cover"
+                  style={{ objectPosition: objectPosition(form.bannerFoco) }}
+                />
               )}
               <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerPick} />
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <Button variant="outline" type="button" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}>
                   {uploadingBanner ? 'Enviando…' : form.bannerUrl ? 'Trocar imagem' : 'Enviar imagem'}
                 </Button>
                 {form.bannerUrl && (
-                  <button type="button" onClick={() => set('bannerUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                  <AjustarFoco
+                    src={form.bannerUrl}
+                    foco={form.bannerFoco}
+                    onChange={(f) => { setForm((prev) => ({ ...prev, bannerFoco: f })); setSaved(false) }}
+                    proporcoes={[{ rotulo: 'Celular', ratio: 2 }, { rotulo: 'Computador', ratio: 3.8 }]}
+                    titulo="Posição do banner de capa"
+                    descricao="A capa aparece em proporções diferentes no celular e no computador. Marque o que não pode ser cortado."
+                    disabled={uploadingBanner}
+                  />
+                )}
+                {form.bannerUrl && (
+                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, bannerUrl: '', bannerMobileUrl: '', bannerFoco: FOCO_PADRAO })); setSaved(false) }} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
                 )}
               </div>
             </div>
           </Field>
-          {form.bannerUrl && (
-            <Field label="Recorte da capa" hint="A capa aparece em proporções diferentes no celular e no computador. Marque o que não pode ser cortado.">
-              <SeletorFoco
-                src={form.bannerUrl}
-                foco={form.bannerFoco}
-                onChange={(f) => { setForm((prev) => ({ ...prev, bannerFoco: f })); setSaved(false) }}
-                proporcoes={[{ rotulo: 'Celular', ratio: 2 }, { rotulo: 'Computador', ratio: 3.8 }]}
-              />
-            </Field>
-          )}
           <Field label="Banner promocional" hint="Aparece dentro do cardápio, entre a busca e as categorias — use pra destacar uma promoção. Deixe em branco pra não mostrar nada.">
             <div className="space-y-2.5">
               {form.bannerPromocionalUrl && (
+                // Mesma ideia da capa: a miniatura já usa a proporção do
+                // celular (≈3,2:1) e o foco escolhido.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.bannerPromocionalUrl} alt="Banner promocional" className="h-28 w-full rounded-menuzia border border-border object-cover" />
+                <img
+                  src={form.bannerPromocionalUrl}
+                  alt="Banner promocional"
+                  className="aspect-[16/5] w-full rounded-menuzia border border-border object-cover"
+                  style={{ objectPosition: objectPosition(form.bannerPromoFoco) }}
+                />
               )}
               <input ref={bannerPromoInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerPromoPick} />
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <Button variant="outline" type="button" onClick={() => bannerPromoInputRef.current?.click()} disabled={uploadingBannerPromo}>
                   {uploadingBannerPromo ? 'Enviando…' : form.bannerPromocionalUrl ? 'Trocar imagem' : 'Enviar imagem'}
                 </Button>
                 {form.bannerPromocionalUrl && (
-                  <button type="button" onClick={() => set('bannerPromocionalUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                  <AjustarFoco
+                    src={form.bannerPromocionalUrl}
+                    foco={form.bannerPromoFoco}
+                    onChange={(f) => { setForm((prev) => ({ ...prev, bannerPromoFoco: f })); setSaved(false) }}
+                    // 3,2 = a faixa do celular (largura menos as margens sobre
+                    // h-28); 8,4 = a mesma faixa no desktop (1216 px sobre
+                    // h-36). São as duas proporções reais em que a arte é
+                    // cortada na vitrine.
+                    proporcoes={[{ rotulo: 'Celular', ratio: 3.2 }, { rotulo: 'Computador', ratio: 8.4 }]}
+                    titulo="Posição do banner promocional"
+                    descricao="A faixa é bem mais larga que alta e corta bastante da arte. Marque o que não pode sumir."
+                    disabled={uploadingBannerPromo}
+                  />
+                )}
+                {form.bannerPromocionalUrl && (
+                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, bannerPromocionalUrl: '', bannerPromoFoco: FOCO_PADRAO })); setSaved(false) }} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
                 )}
               </div>
             </div>
