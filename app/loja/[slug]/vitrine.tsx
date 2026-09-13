@@ -27,7 +27,7 @@ import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type 
 import { avisoRepeticao, montarRepeticaoPedido } from '@/lib/repetir-pedido'
 import { resolverPaleta } from '@/lib/paletas'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
-import { objectPosition } from '@/lib/foco-imagem'
+import { objectPosition, FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
 import {
   listarTamanhosPadraoPizza,
   listarBordasPizza,
@@ -222,9 +222,25 @@ function EstadoVazio({ emoji, titulo, texto, acao }: { emoji: string; titulo: st
   )
 }
 
-function GrupoHeader({ titulo, regra, obrigatorio, contador, atendido = false }: { titulo: string; regra?: string; obrigatorio: boolean; contador?: string; atendido?: boolean }) {
+/**
+ * Contexto que a ficha de produto recebe quando é aberta pelo modo gaveta.
+ * `capaUrl` só vem preenchido na abertura direta de uma categoria de um item
+ * só — nos outros casos o item tem foto própria e é ela que manda.
+ */
+interface ContextoGaveta {
+  capaUrl: string | null
+  capaFoco: Foco
+}
+
+function GrupoHeader({ titulo, regra, obrigatorio, contador, atendido = false, grudado = false }: { titulo: string; regra?: string; obrigatorio: boolean; contador?: string; atendido?: boolean; grudado?: boolean }) {
   return (
-    <div className="-mx-4.5 mb-2.5 flex items-start justify-between gap-2 border-y border-border bg-[#F9FAFB] px-4.5 py-2.5">
+    <div className={[
+      '-mx-4.5 mb-2.5 flex items-start justify-between gap-2 border-y border-border bg-[#F9FAFB] px-4.5 py-2.5',
+      // Grudado no topo da ficha: a lista de sabores desta loja tem 75 linhas,
+      // e no meio da rolagem o cliente perdia de vista quantos ainda podia
+      // escolher — a informação que decide o próximo toque.
+      grudado ? 'sticky top-0 z-10 shadow-[0_1px_0_rgba(0,0,0,0.04)]' : '',
+    ].join(' ')}>
       <div className="min-w-0">
         <h3 className="text-[15px] font-bold leading-tight text-text-main">{titulo}</h3>
         {regra && <div className="mt-0.5 text-[12px] text-text-subtle">{regra}</div>}
@@ -1428,6 +1444,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Product sheet ─────────────────────────────────────────────────────────
   const [productSheet, setProductSheet] = useState<ItemCardapio | null>(null)
+  // Contexto do modo gaveta para a ficha aberta. `null` = ficha aberta pelos
+  // caminhos de sempre (lista, categorias, promoções, busca, editar linha do
+  // carrinho), que continuam exatamente como eram.
+  const [sheetGaveta, setSheetGaveta] = useState<ContextoGaveta | null>(null)
+  /** Visual da gaveta na ficha: linhas maiores, cabeçalhos grudados, preço por tamanho. */
+  const fichaGaveta = sheetGaveta !== null
+  /**
+   * Linha de opção da ficha (tamanho, sabor, borda, massa, complemento).
+   * No modo gaveta ela cresce de 2.5 pra 3.5 de padding vertical: a ficha ali
+   * é a tela inteira da compra, e o alvo de toque passa a ter altura de dedo.
+   */
+  const linhaOpcao = [
+    'relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 text-left last:border-none',
+    fichaGaveta ? 'py-3.5' : 'py-2.5',
+  ].join(' ')
   // Quando preenchido, o sheet está editando uma linha existente do carrinho.
   const [editingLineKey, setEditingLineKey] = useState<string | null>(null)
   const [qty, setQty] = useState(1)
@@ -1482,6 +1513,26 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     )
   }, [productSheet, selectedTamanhoPizzaId])
 
+  /**
+   * Menor preço de sabor disponível em cada tamanho — o "a partir de" que a
+   * ficha do modo gaveta mostra ao lado de cada tamanho. Sem ele o cliente
+   * escolhe o tamanho no escuro e só descobre a faixa de preço no passo
+   * seguinte. Tamanho sem nenhum sabor com preço fica de fora do mapa e a
+   * linha simplesmente não mostra valor.
+   */
+  const precoMinimoPorTamanho = useMemo(() => {
+    const mapa = new Map<string, number>()
+    if (!productSheet || productSheet.tipoItem !== 'pizza') return mapa
+    for (const t of tamanhosDoItem) {
+      const precos = productSheet.sabores
+        .filter((s) => s.status === 'disponivel')
+        .map((s) => s.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0)
+        .filter((p) => p > 0)
+      if (precos.length > 0) mapa.set(t.id, Math.min(...precos))
+    }
+    return mapa
+  }, [productSheet, tamanhosDoItem])
+
   // Preço, nome e validação saem daqui — nunca do estado cru. Assim, mesmo no
   // frame entre trocar de tamanho e o efeito de poda rodar, a ficha não consegue
   // montar uma combinação que o servidor recusaria.
@@ -1504,7 +1555,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     })
   }, [saboresDisponiveis, maxSaboresAtual])
 
-  function openProduct(item: ItemCardapio) {
+  /**
+   * `contexto` só é passado quando a ficha nasce do modo gaveta. Ele carrega
+   * duas coisas: que esta ficha deve usar o visual da gaveta (congelado na
+   * abertura, pra que digitar na busca no meio da escolha não troque o layout
+   * debaixo do dedo do cliente) e, na abertura direta de categoria de um item
+   * só, a capa da categoria que vira a foto do topo.
+   */
+  function openProduct(item: ItemCardapio, contexto?: ContextoGaveta) {
+    setSheetGaveta(contexto ?? null)
     setProductSheet(item)
     setEditingLineKey(null)
     setQty(1)
@@ -1521,12 +1580,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   function closeProductSheet() {
     setProductSheet(null)
     setEditingLineKey(null)
+    setSheetGaveta(null)
   }
 
   /** Reabre o sheet do produto pré-preenchido com as escolhas de uma linha do carrinho. */
   function editCartLine(line: CartLine) {
     const item = allItems.find((i) => i.id === line.itemId)
     if (!item) { showToast('Esse item não está mais disponível para edição.'); return }
+    // Editar uma linha da sacola vem da sacola, não da gaveta: a ficha volta
+    // ao visual padrão e à foto do próprio item.
+    setSheetGaveta(null)
     setProductSheet(item)
     setEditingLineKey(line.key)
     setQty(line.qty)
@@ -2343,7 +2406,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // Abrir e fechar cartão volta ao topo: quem rolou a grade e tocou no último
   // cartão cairia no meio da lista da categoria nova, parecendo que a tela não
   // trocou.
-  const abrirGaveta = (id: string) => { setCategoriaAberta(id); window.scrollTo({ top: 0 }) }
+  const abrirGaveta = (id: string) => {
+    const g = groups.find((x) => x.id === id)
+    // Categoria de um item só não tem lista pra mostrar. É o caso das pizzas
+    // deste cardápio: a categoria inteira é um produto, e a escolha de verdade
+    // é tamanho + sabor. Uma tela intermediária com um cartão sozinho seria um
+    // toque a mais pro mesmo lugar, então a ficha abre direto — levando a capa
+    // da categoria como foto do topo, que é a imagem que o cliente acabou de
+    // tocar.
+    if (g && g.itens.length === 1) {
+      openProduct(g.itens[0], { capaUrl: g.imagemUrl, capaFoco: g.imagemFoco })
+      return
+    }
+    setCategoriaAberta(id)
+    window.scrollTo({ top: 0 })
+  }
   const fecharGaveta = () => { setCategoriaAberta(null); window.scrollTo({ top: 0 }) }
 
   // Sair da vista de Promoções no modo gaveta. Sem as chips de categoria não
@@ -2695,7 +2772,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
                   <span className="rounded bg-promo px-2 py-0.5 text-[11px] font-bold text-white">{promoItems.length} {promoItems.length === 1 ? 'item' : 'itens'}</span>
                 </div>
-                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
+                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={(i) => openProduct(i, gavetaAtiva ? { capaUrl: null, capaFoco: FOCO_PADRAO } : undefined)} imagemGrande={restaurante.imagemGrande} />
               </div>
             )}
 
@@ -2722,7 +2799,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   {/* `layout="categoria"` fixo: dentro da categoria aberta a
                       grade de cartões é a apresentação certa. 'gaveta' é modo de
                       navegação, não layout de grade de itens. */}
-                  <ItemsGrid items={catGaveta.itens} layout="categoria" onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
+                  {/* Item aberto de dentro de uma categoria da gaveta também
+                      recebe a ficha do modo gaveta — só que com a foto do
+                      próprio item, que aqui o cliente acabou de ver no cartão. */}
+                  <ItemsGrid items={catGaveta.itens} layout="categoria" onSelect={(i) => openProduct(i, { capaUrl: null, capaFoco: FOCO_PADRAO })} imagemGrande={restaurante.imagemGrande} />
                 </div>
               )
             )}
@@ -3438,11 +3518,23 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           <>
             <button onClick={closeProductSheet} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
             <div className="flex-1 overflow-y-auto">
-              {productSheet.imagemUrl
+              {/* Aberta direto do cartão da gaveta, a ficha mantém a foto da
+                  capa da categoria: é a imagem que o cliente acabou de tocar, e
+                  trocá-la por outra no mesmo gesto parece que ele foi parar em
+                  outro lugar. Nos demais caminhos manda a foto do item. */}
+              {(sheetGaveta?.capaUrl ?? productSheet.imagemUrl)
                 // O sheet só é montado depois do clique, então não concorre com o
                 // carregamento inicial — aqui a foto é o conteúdo principal.
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={productSheet.imagemUrl} alt={productSheet.nome} loading="eager" decoding="async" fetchPriority="high" className="h-[42vh] w-full object-cover lg:h-[260px]" />
+                ? <img
+                    src={sheetGaveta?.capaUrl ?? productSheet.imagemUrl!}
+                    alt={productSheet.nome}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                    className="h-[42vh] w-full object-cover lg:h-[260px]"
+                    style={sheetGaveta?.capaUrl ? { objectPosition: objectPosition(sheetGaveta.capaFoco) } : undefined}
+                  />
                 : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><HandPlatter className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
               <div className="p-4.5">
@@ -3454,13 +3546,27 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.tipoItem === 'pizza' && (
                   <div className="mt-1">
-                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoPizzaId ? '1/1' : '0/1'} atendido={!!selectedTamanhoPizzaId} />
+                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoPizzaId ? '1/1' : '0/1'} atendido={!!selectedTamanhoPizzaId} grudado={fichaGaveta} />
                     {tamanhosDoItem.map((tamanho) => {
                       const isSelected = selectedTamanhoPizzaId === tamanho.id
+                      const aPartirDe = precoMinimoPorTamanho.get(tamanho.id)
                       return (
-                        <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                        <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className={['relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 text-left last:border-none', fichaGaveta ? 'py-3.5' : 'py-2.5'].join(' ')}>
                           <FlashSelecao ativo={isSelected} />
-                          <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span></span>
+                          <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span>
+                            {/* Quantos sabores cabem é o que decide o tamanho pra
+                                quem quer meio a meio, e estava escrito só depois,
+                                no cabeçalho da lista de sabores. */}
+                            {fichaGaveta && tamanho.maxSabores > 1 && (
+                              <span className="mt-0.5 block text-[12px] font-normal text-text-subtle">até {tamanho.maxSabores} sabores</span>
+                            )}
+                          </span>
+                          {fichaGaveta && aPartirDe !== undefined && (
+                            <span className="relative flex-shrink-0 text-right text-[11px] leading-tight text-text-subtle">
+                              a partir de<br />
+                              <span className={['text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(aPartirDe)}</span>
+                            </span>
+                          )}
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -3475,6 +3581,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       obrigatorio
                       contador={`${selectedSabores.length}/${maxSaboresAtual}`}
                       atendido={selectedSabores.length > 0}
+                      grudado={fichaGaveta}
                     />
                     {saboresDisponiveis.map((sabor) => {
                       // A posição vira o número do indicador e a ordem do nome gravado.
@@ -3497,7 +3604,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                               return [...prev, sabor.id]
                             })
                           }
-                          className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none disabled:opacity-40"
+                          className={`${linhaOpcao} disabled:opacity-40`}
                         >
                           <FlashSelecao ativo={isSelected} />
                           <div className="relative flex-1">
@@ -3530,8 +3637,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                     {bordasPizza.length > 0 && (
                       <>
-                        <GrupoHeader titulo="Borda" regra="Escolha 1" obrigatorio={false} atendido />
-                        <button onClick={() => setSelectedBordaId(null)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left">
+                        <GrupoHeader titulo="Borda" regra="Escolha 1" obrigatorio={false} atendido grudado={fichaGaveta} />
+                        <button onClick={() => setSelectedBordaId(null)} className={linhaOpcao}>
                           <FlashSelecao ativo={!selectedBordaId} />
                           <span className="relative flex-1 text-[14.5px] font-semibold">Sem borda</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', !selectedBordaId ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
@@ -3541,7 +3648,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         {bordasPizza.map((borda) => {
                           const isSelected = selectedBordaId === borda.id
                           return (
-                            <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                            <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className={linhaOpcao}>
                               <FlashSelecao ativo={isSelected} />
                               <span className="relative flex-1 text-[14.5px] font-semibold">{borda.nome}</span>
                               <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(borda.preco)}</span>
@@ -3556,8 +3663,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                     {massasPizza.length > 0 && (
                       <>
-                        <GrupoHeader titulo="Massa" regra="Escolha 1" obrigatorio={false} atendido />
-                        <button onClick={() => setSelectedMassaId(null)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left">
+                        <GrupoHeader titulo="Massa" regra="Escolha 1" obrigatorio={false} atendido grudado={fichaGaveta} />
+                        <button onClick={() => setSelectedMassaId(null)} className={linhaOpcao}>
                           <FlashSelecao ativo={!selectedMassaId} />
                           <span className="relative flex-1 text-[14.5px] font-semibold">Massa tradicional</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', !selectedMassaId ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
@@ -3567,7 +3674,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         {massasPizza.map((massa) => {
                           const isSelected = selectedMassaId === massa.id
                           return (
-                            <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                            <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className={linhaOpcao}>
                               <FlashSelecao ativo={isSelected} />
                               <span className="relative flex-1 text-[14.5px] font-semibold">{massa.nome}</span>
                               <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(massa.preco)}</span>
@@ -3584,7 +3691,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.tamanhos.length > 0 && (
                   <div className="mt-1">
-                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoId ? '1/1' : '0/1'} atendido={!!selectedTamanhoId} />
+                    <GrupoHeader titulo="Tamanho" regra="Escolha 1" obrigatorio contador={selectedTamanhoId ? '1/1' : '0/1'} atendido={!!selectedTamanhoId} grudado={fichaGaveta} />
                     {productSheet.tamanhos.map((tamanho) => {
                       const isSelected = selectedTamanhoId === tamanho.id
                       return (
@@ -3619,6 +3726,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         obrigatorio={grupo.obrigatorio}
                         contador={grupo.maxEscolhas > 0 ? `${totalSel}/${grupo.maxEscolhas}` : totalSel > 0 ? `${totalSel}` : undefined}
                         atendido={grupo.obrigatorio ? totalSel >= grupo.minEscolhas : totalSel > 0}
+                        grudado={fichaGaveta}
                       />
                       {grupo.complementos.map((comp) => {
                         const qtdSel = sel.get(comp.id) ?? 0
@@ -3651,7 +3759,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           )
                         }
                         return (
-                          <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                          <button key={comp.id} onClick={() => isRadio ? selectRadio(grupo.id, comp.id) : toggleCheckbox(grupo.id, comp.id, grupo.maxEscolhas)} className={linhaOpcao}>
                             <FlashSelecao ativo={isSelected} chave={qtdSel} />
                             {conteudo}
                             {isRadio ? (
@@ -3677,9 +3785,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {productSheet.complementos.length > 0 && (
                   <div className="mt-5">
-                    <GrupoHeader titulo="Adicionais" regra="Quantos quiser" obrigatorio={false} contador={selectedAddons.size > 0 ? `${selectedAddons.size}` : undefined} atendido={selectedAddons.size > 0} />
+                    <GrupoHeader titulo="Adicionais" regra="Quantos quiser" obrigatorio={false} contador={selectedAddons.size > 0 ? `${selectedAddons.size}` : undefined} atendido={selectedAddons.size > 0} grudado={fichaGaveta} />
                     {productSheet.complementos.map((addon) => (
-                      <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 text-left last:border-none">
+                      <button key={addon.id} onClick={() => toggleAddon(addon.nome)} className={linhaOpcao}>
                         <FlashSelecao ativo={selectedAddons.has(addon.nome)} />
                         {addon.imagemUrl && (
                           // eslint-disable-next-line @next/next/no-img-element

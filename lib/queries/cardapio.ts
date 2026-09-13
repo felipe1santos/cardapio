@@ -238,10 +238,30 @@ export async function listarGrupos(supabase: ClienteLeitura, restauranteId: stri
   return (data ?? []).map(mapGrupo)
 }
 
-export async function criarGrupo(supabase: SupabaseClient, restauranteId: string, nome: string, posicao: number) {
+/**
+ * `imagem` é opcional na assinatura, não no produto: o painel exige a foto de
+ * capa ao criar a categoria (é o que o modo gaveta mostra). Fica opcional aqui
+ * porque a coluna é nullable — as categorias criadas antes dessa regra existem
+ * sem foto e continuam válidas — e porque scripts de importação criam categoria
+ * sem passar por esse formulário.
+ */
+export async function criarGrupo(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  nome: string,
+  posicao: number,
+  imagem?: { url: string | null; foco: Foco },
+) {
   const { data, error } = await supabase
     .from('grupos_cardapio')
-    .insert({ restaurante_id: restauranteId, nome, posicao })
+    .insert({
+      restaurante_id: restauranteId,
+      nome,
+      posicao,
+      ...(imagem
+        ? { imagem_url: imagem.url, imagem_foco_x: imagem.foco.x, imagem_foco_y: imagem.foco.y }
+        : {}),
+    })
     .select(GRUPO_SELECT)
     .single()
 

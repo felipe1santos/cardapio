@@ -2215,9 +2215,17 @@ export default function CardapioPage() {
   }
 
   async function createCategoria() {
-    if (!restauranteId || !newGroupName.trim()) return
+    // A foto é obrigatória aqui: é ela que o modo gaveta mostra no cartão da
+    // categoria, e sem ela o lojista só descobre o problema lá em Ajustes, na
+    // hora em que o modo se recusa a ligar. O botão já fica desabilitado sem
+    // foto; esta guarda é a que vale se alguém chamar a função por outro
+    // caminho (Enter no campo do nome, por exemplo).
+    if (!restauranteId || !newGroupName.trim() || !catImagemUrl) return
     try {
-      const group = await criarGrupo(supabase, restauranteId, newGroupName.trim(), groups.length)
+      const group = await criarGrupo(supabase, restauranteId, newGroupName.trim(), groups.length, {
+        url: catImagemUrl,
+        foco: catFoco,
+      })
       setGroups((prev) => [...prev, group])
       setActiveGroup(group.nome)
       setNewGroupName('')
@@ -2248,6 +2256,11 @@ export default function CardapioPage() {
   function openCreateCategoria() {
     setCatImagemUrl(null)
     setCatFoco(FOCO_PADRAO)
+    setCatEnviando(false)
+    // Invalida qualquer upload ainda em voo de uma sessão anterior do drawer
+    // ou do formulário de edição: sem isso, uma foto abandonada poderia
+    // aterrissar no formulário de categoria nova.
+    uploadGenRef.current += 1
     setDrawer('categoria')
   }
 
@@ -2963,10 +2976,93 @@ export default function CardapioPage() {
             placeholder="Ex.: Lanches"
             className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary"
           />
+
+          {/* Foto de capa obrigatória. O modo gaveta mostra a categoria como um
+              cartão com foto; pedir a imagem aqui é o único momento em que o
+              lojista tem o contexto todo na cabeça. Cobrar depois, em Ajustes,
+              vira uma caça às categorias pendentes. */}
+          <div className="mb-2 mt-4 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+            Foto de capa
+            <span className="rounded-menuzia bg-[#FEE2E2] px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wide text-danger">Obrigatória</span>
+          </div>
+          <p className="mb-2 text-[11px] leading-snug text-text-subtle">
+            É a imagem do cartão da categoria na visualização &ldquo;Gaveta&rdquo;. Recortada em 5:2.
+          </p>
+          <input
+            type="file"
+            accept="image/*"
+            disabled={catEnviando}
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file || !restauranteId) return
+              // Sem id de categoria pra conferir (ela ainda não existe), a
+              // geração sozinha resolve: só o upload mais recente escreve.
+              // Fechar e reabrir o drawer avança a geração em openCreateCategoria.
+              const geracao = ++uploadGenRef.current
+              setCatEnviando(true)
+              setError(null)
+              try {
+                const url = await enviarImagemCategoria(supabase, restauranteId, file)
+                if (geracao !== uploadGenRef.current) return
+                setCatImagemUrl(url)
+                setCatFoco(FOCO_PADRAO)
+              } catch {
+                if (geracao !== uploadGenRef.current) return
+                setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
+              } finally {
+                if (geracao === uploadGenRef.current) setCatEnviando(false)
+              }
+            }}
+            className="block w-full text-[11px] text-text-subtle file:mr-2 file:rounded-menuzia file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-wide file:text-white"
+          />
+          {catEnviando && <p className="mt-1 text-[11px] text-text-subtle">Enviando…</p>}
+          {catImagemUrl && (
+            <div className="mt-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={catImagemUrl}
+                alt=""
+                className="aspect-[5/2] w-full rounded-menuzia border border-border object-cover"
+                style={{ objectPosition: objectPosition(catFoco) }}
+              />
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <AjustarFoco
+                  src={catImagemUrl}
+                  foco={catFoco}
+                  onChange={setCatFoco}
+                  proporcoes={[{ rotulo: 'Cartão', ratio: 2.5 }]}
+                  titulo="Posição da foto da categoria"
+                  descricao="O cartão da categoria é recortado em 5:2. Marque o que não pode ser cortado."
+                />
+                <button
+                  type="button"
+                  onClick={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
+                  className="text-[11px] font-semibold uppercase tracking-wide text-danger"
+                >
+                  Remover foto
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="flex gap-2.5 border-t border-border p-4.5">
-          <Button variant="secondary" className="flex-1" onClick={closeDrawer}>Cancelar</Button>
-          <Button variant="primary" className="flex-1" onClick={createCategoria} disabled={!newGroupName.trim()}>Criar categoria</Button>
+        <div className="border-t border-border p-4.5">
+          {!catImagemUrl && (
+            <p className="mb-2.5 text-[11px] leading-snug text-text-subtle">
+              Envie a foto de capa para criar a categoria.
+            </p>
+          )}
+          <div className="flex gap-2.5">
+            <Button variant="secondary" className="flex-1" onClick={closeDrawer}>Cancelar</Button>
+            <Button
+              variant="primary"
+              className="flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={createCategoria}
+              disabled={!newGroupName.trim() || !catImagemUrl || catEnviando}
+            >
+              Criar categoria
+            </Button>
+          </div>
         </div>
       </aside>
 
