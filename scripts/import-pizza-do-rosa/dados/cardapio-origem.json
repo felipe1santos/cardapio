@@ -2596,7 +2596,8 @@
             }
           ]
         }
-      }
+      },
+      "catBackground": "/backgrounds/174/Expresso-Delivery_198906f2c002545631e9c36d0048653c.jpg"
     },
     {
       "sessaoId": "40",
@@ -3015,7 +3016,8 @@
           "subcategoria": "Pizza Brotinho"
         }
       ],
-      "api": null
+      "api": null,
+      "catBackground": "/backgrounds/584422/Expresso-Delivery_efde113939a57640758e14d39adc85d4.png"
     },
     {
       "sessaoId": "18",
@@ -3456,7 +3458,8 @@
             }
           ]
         }
-      }
+      },
+      "catBackground": "/backgrounds/147462/Expresso-Delivery_631bbf020c660c8f0f03269c20a96bfe.png"
     },
     {
       "sessaoId": "10",
@@ -3648,7 +3651,8 @@
             }
           ]
         }
-      }
+      },
+      "catBackground": "/backgrounds/6694/Expresso-Delivery_9d7d6ac002edff85874befd02923135a.png"
     },
     {
       "sessaoId": "34",
@@ -3876,7 +3880,8 @@
             }
           ]
         }
-      }
+      },
+      "catBackground": "/backgrounds/473014/Expresso-Delivery_ac56b81ab7b6da25db48eade974dc2d3.jpg"
     },
     {
       "sessaoId": "19",
@@ -4134,7 +4139,8 @@
           "subcategoria": "Balcão"
         }
       ],
-      "api": null
+      "api": null,
+      "catBackground": "/backgrounds/513389/Expresso-Delivery_4ac059f3ce9d83d7f6a33bf462361011.jpg"
     },
     {
       "sessaoId": "6",
@@ -4432,7 +4438,8 @@
           "subcategoria": "vinho"
         }
       ],
-      "api": null
+      "api": null,
+      "catBackground": "/backgrounds/71972/Expresso-Delivery_9eb08584a31b9e656a94f081c7f36cfb.jpg"
     },
     {
       "sessaoId": "26",
@@ -4489,7 +4496,8 @@
             }
           ]
         }
-      }
+      },
+      "catBackground": "/backgrounds/411056/Expresso-Delivery_415ac9107abe24eeb44b2d28774d26cd.jpg"
     },
     {
       "sessaoId": "24",
@@ -4523,7 +4531,8 @@
           "subcategoria": "Molhos"
         }
       ],
-      "api": null
+      "api": null,
+      "catBackground": "/backgrounds/245638/Expresso-Delivery_3dc56ef8523cb11127fd004255925593.png"
     },
     {
       "sessaoId": "31",
@@ -4549,7 +4558,8 @@
           "subcategoria": "esfihas"
         }
       ],
-      "api": null
+      "api": null,
+      "catBackground": "/backgrounds/389872/Expresso-Delivery_1b801de73c6eeca838f4810af7486fa4.jpg"
     },
     {
       "sessaoId": "25",
@@ -4631,7 +4641,8 @@
           "subcategoria": "camiseta"
         }
       ],
-      "api": null
+      "api": null,
+      "catBackground": "/backgrounds/263903/Expresso-Delivery_d8683cdbf5cf63bc7622ca37ba92c7c9.jpg"
     }
   ],
   "bordas": [
