@@ -1430,9 +1430,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // Trocar Grande (3 sabores) por Pequena (1 sabor) tem que descartar o excesso,
   // e sabor sem preço no tamanho novo também sai.
+  //
+  // Tamanho de um sabor só (o caso de toda loja de pizza que ainda não usa meio
+  // a meio) já abre com o primeiro sabor marcado: sem isso a ficha abriria
+  // dizendo "Adicionar R$ 0,00" com o botão desligado.
   useEffect(() => {
     setSelectedSaborIds((prev) => {
       const podados = prev.filter((id) => saboresDisponiveis.some((s) => s.id === id)).slice(0, maxSaboresAtual)
+      if (maxSaboresAtual === 1 && podados.length === 0 && saboresDisponiveis.length > 0) return [saboresDisponiveis[0].id]
       return podados.length === prev.length ? prev : podados
     })
   }, [saboresDisponiveis, maxSaboresAtual])
@@ -1493,8 +1498,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
     setSelectedTamanhoId(item.tamanhos.find((t) => t.nome === line.tamanhoNome)?.id ?? item.tamanhos[0]?.id ?? null)
     const tamanhosDaLinha = tamanhosComPreco(item)
+    const tamanhoRestauradoId = tamanhosDaLinha.find((t) => t.nome === line.tamanhoNome)?.id ?? tamanhosDaLinha[0]?.id ?? null
     if (item.tipoItem === 'pizza') {
-      setSelectedTamanhoPizzaId(tamanhosDaLinha.find((t) => t.nome === line.tamanhoNome)?.id ?? tamanhosDaLinha[0]?.id ?? null)
+      setSelectedTamanhoPizzaId(tamanhoRestauradoId)
       // Remonta a seleção na mesma ordem em que os sabores foram gravados no nome.
       setSelectedSaborIds(
         separarSabores(line.saborNome)
@@ -1512,10 +1518,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // sabor esgotado…), avisa em vez de trocar a escolha em silêncio.
     const tamanhoSumiu = item.tipoItem !== 'pizza' && !!line.tamanhoNome && item.tamanhos.length > 0 && !item.tamanhos.some((t) => t.nome === line.tamanhoNome)
     const nomesAntigos = separarSabores(line.saborNome)
+    // Sabor que perdeu o PREÇO no tamanho restaurado também some da lista
+    // (`saboresDisponiveis` filtra por preço > 0) — então ele conta como
+    // sumido, senão a escolha cairia em silêncio.
     const saborSumiu =
       item.tipoItem === 'pizza' &&
       nomesAntigos.length > 0 &&
-      !nomesAntigos.every((n) => item.sabores.some((s) => s.nome === n && s.status === 'disponivel'))
+      !nomesAntigos.every((n) =>
+        item.sabores.some(
+          (s) =>
+            s.nome === n &&
+            s.status === 'disponivel' &&
+            (s.precos.find((p) => p.tamanhoPadraoId === tamanhoRestauradoId)?.preco ?? 0) > 0,
+        ),
+      )
     if (tamanhoSumiu || saborSumiu) showToast('O cardápio mudou — confira as opções antes de salvar.')
   }
 
@@ -3282,9 +3298,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           disabled={!isSelected && cheio}
                           onClick={() =>
                             setSelectedSaborIds((prev) => {
-                              if (prev.includes(sabor.id)) return prev.filter((id) => id !== sabor.id)
-                              // Tamanho de um sabor só: escolher outro troca o anterior.
+                              // Tamanho de um sabor só: escolher outro troca o
+                              // anterior e clicar no já marcado não desmarca —
+                              // é um radio, igual ao tamanho logo acima.
                               if (maxSaboresAtual === 1) return [sabor.id]
+                              if (prev.includes(sabor.id)) return prev.filter((id) => id !== sabor.id)
                               if (prev.length >= maxSaboresAtual) return prev
                               return [...prev, sabor.id]
                             })
@@ -3311,6 +3329,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         </button>
                       )
                     })}
+                    {saboresDisponiveis.length === 0 && (
+                      <p className="py-2.5 text-[13px] text-text-subtle">Nenhum sabor disponível neste tamanho.</p>
+                    )}
                     {maxSaboresAtual > 1 && selectedSabores.length > 1 && (
                       <p className="mt-2 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] font-medium leading-relaxed text-alert-text">
                         {selectedSabores.length} sabores — o preço é {restaurante?.pizzaCalculoPreco === 'maior' ? 'o do sabor mais caro' : 'a média dos sabores escolhidos'}.
