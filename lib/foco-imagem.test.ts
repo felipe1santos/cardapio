@@ -20,6 +20,18 @@ describe('focoValido', () => {
     expect(focoValido(NaN, Infinity)).toEqual(FOCO_PADRAO)
   })
 
+  it('cai no centro pra string vazia ou só espaço — Number("") é 0, não NaN', () => {
+    expect(focoValido('', '')).toEqual(FOCO_PADRAO)
+    expect(focoValido('   ', '   ')).toEqual(FOCO_PADRAO)
+    expect(focoValido('', 50)).toEqual(FOCO_PADRAO)
+    expect(focoValido(50, '   ')).toEqual(FOCO_PADRAO)
+  })
+
+  it('descarta o eixo bom quando o outro é inválido, em vez de ancorar num ponto parcial', () => {
+    expect(focoValido(30, 'abc')).toEqual(FOCO_PADRAO)
+    expect(focoValido('abc', 30)).toEqual(FOCO_PADRAO)
+  })
+
   it('o padrão é o centro — o mesmo que object-cover sem object-position', () => {
     expect(FOCO_PADRAO).toEqual({ x: 50, y: 50 })
   })

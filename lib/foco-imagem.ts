@@ -20,6 +20,10 @@ export const FOCO_PADRAO: Foco = { x: 50, y: 50 }
 
 function eixo(v: unknown): number | null {
   // O Postgres devolve `numeric` como string; o formulário devolve string.
+  // String vazia/só espaço vira `''`/`'  '` num campo limpo pelo usuário —
+  // `Number('')` e `Number('   ')` dão 0, não NaN, então precisam ser
+  // barradas antes do Number() ou o campo limpo ancora a imagem no canto.
+  if (typeof v === 'string' && v.trim() === '') return null
   const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN
   if (!Number.isFinite(n)) return null
   return Math.min(100, Math.max(0, n))
@@ -33,6 +37,9 @@ function eixo(v: unknown): number | null {
 export function focoValido(x: unknown, y: unknown): Foco {
   const px = eixo(x)
   const py = eixo(y)
+  // Se só um eixo for inválido, os dois caem no padrão — um foco parcial
+  // (ex.: x bom, y no lixo) ancoraria a imagem num ponto que ninguém
+  // escolheu, o que é pior que simplesmente centralizar.
   if (px === null || py === null) return FOCO_PADRAO
   return { x: px, y: py }
 }
