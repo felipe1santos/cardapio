@@ -1401,6 +1401,8 @@ function ListaCatalogo({
               {extra2Label !== undefined && (
                 <input
                   type="number"
+                  min="1"
+                  step="1"
                   value={editExtra2}
                   onChange={(e) => setEditExtra2(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
@@ -1422,8 +1424,12 @@ function ListaCatalogo({
               ) : (
                 <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">{formatExtra(linha.extra)}</span>
               )}
-              {formatExtra2 && (
-                <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">{formatExtra2(linha.extra2 ?? '')}</span>
+              {/* Mesmo gate dos inputs de extra2: badge e campo aparecem juntos
+                  ou não aparecem. `formatExtra2` é só a formatação. */}
+              {extra2Label !== undefined && (
+                <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">
+                  {formatExtra2 ? formatExtra2(linha.extra2 ?? '') : (linha.extra2 ?? '')}
+                </span>
               )}
               <button onClick={() => startEdit(linha)}
                 className="rounded-menuzia border border-[#1e3a8a]/25 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#1e3a8a] transition-colors hover:bg-[#1e3a8a] hover:text-white">
@@ -1447,7 +1453,7 @@ function ListaCatalogo({
           <input type={extraType} value={newExtra} onChange={(e) => setNewExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
             placeholder={extraPlaceholder} className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
           {extra2Label !== undefined && (
-            <input type="number" value={newExtra2} onChange={(e) => setNewExtra2(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
+            <input type="number" min="1" step="1" value={newExtra2} onChange={(e) => setNewExtra2(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
               placeholder={extra2Placeholder} className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
           )}
           <Button variant="primary" onClick={add} disabled={busy || !newNome.trim()}>+ Adicionar</Button>
