@@ -1955,6 +1955,12 @@ export default function CardapioPage() {
   // atual depois de um await.
   const editingGroupIdRef = useRef<string | null>(null)
   useEffect(() => { editingGroupIdRef.current = editingGroupId }, [editingGroupId])
+  // Conta uploads de foto de categoria. O id sozinho não distingue duas fotos
+  // enviadas em sequência pra MESMA categoria: se a primeira demorar mais que a
+  // segunda, ela resolveria depois e "venceria" por engano, mesmo já superada.
+  // Cada upload trava a geração vigente no início; só quem ainda for a mais
+  // recente no fim tem permissão de escrever o resultado.
+  const uploadGenRef = useRef(0)
   const [view, setView] = useState<View>('table')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -2226,10 +2232,16 @@ export default function CardapioPage() {
     setEditingGroupName(group.nome)
     setCatImagemUrl(group.imagemUrl)
     setCatFoco(group.imagemFoco)
-    // Se um upload de OUTRA categoria ainda estiver em voo, sua resolução vai se
-    // recusar a mexer nesse estado (guarda por id em cima), então "Enviando…"
-    // nunca mais se apagaria sozinho sem esse reset ao entrar numa categoria nova.
+    // Se um upload de OUTRA categoria (ou um upload abandonado desta mesma
+    // categoria, de antes de fechar e reabrir a caixa) ainda estiver em voo, sua
+    // resolução vai se recusar a mexer nesse estado (guardas por id e por geração
+    // em cima), então "Enviando…" nunca mais se apagaria sozinho sem esse reset.
     setCatEnviando(false)
+    // Avança a geração: invalida qualquer upload capturado antes deste ponto,
+    // mesmo que seja da mesma categoria — sem isso, reabrir a caixa e mandar uma
+    // foto nova não bastaria pra livrar o formulário de um upload velho ainda
+    // em voo (o guard por id sozinho não distingue duas fotos da mesma categoria).
+    uploadGenRef.current += 1
   }
 
   /** Abre o drawer de categoria nova — sempre sem foto, pra não herdar a da última categoria editada. */
@@ -2596,19 +2608,24 @@ export default function CardapioPage() {
                           // operador trocar de categoria (ou fechar) antes do upload terminar, a
                           // resposta não pode aterrissar no formulário de outra categoria. group.id
                           // é estável nessa iteração; editingGroupIdRef é conferido só depois do
-                          // await, quando já reflete a categoria realmente aberta na tela.
+                          // await, quando já reflete a categoria realmente aberta na tela. O id
+                          // sozinho não basta pra duas fotos enviadas em sequência pra MESMA
+                          // categoria — se a mais antiga demorar mais, ela venceria por engano
+                          // mesmo já superada — daí a geração: só quem ainda for a mais recente
+                          // no fim tem permissão de escrever o resultado.
                           const grupoDoUpload = group.id
+                          const geracao = ++uploadGenRef.current
                           setCatEnviando(true)
                           setError(null)
                           try {
                             const url = await enviarImagemCategoria(supabase, restauranteId, file)
-                            if (grupoDoUpload !== editingGroupIdRef.current) return
+                            if (grupoDoUpload !== editingGroupIdRef.current || geracao !== uploadGenRef.current) return
                             setCatImagemUrl(url)
                           } catch {
-                            if (grupoDoUpload !== editingGroupIdRef.current) return
+                            if (grupoDoUpload !== editingGroupIdRef.current || geracao !== uploadGenRef.current) return
                             setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
                           } finally {
-                            if (grupoDoUpload === editingGroupIdRef.current) setCatEnviando(false)
+                            if (grupoDoUpload === editingGroupIdRef.current && geracao === uploadGenRef.current) setCatEnviando(false)
                           }
                         }}
                         className="block w-full text-[11px] text-text-subtle file:mr-2 file:rounded-menuzia file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-wide file:text-white"
