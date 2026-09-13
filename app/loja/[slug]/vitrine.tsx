@@ -27,6 +27,7 @@ import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type 
 import { avisoRepeticao, montarRepeticaoPedido } from '@/lib/repetir-pedido'
 import { resolverPaleta } from '@/lib/paletas'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
+import { objectPosition } from '@/lib/foco-imagem'
 import {
   listarTamanhosPadraoPizza,
   listarBordasPizza,
@@ -2308,7 +2309,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <div className="relative">
               <div className="absolute inset-x-0 top-0 hidden h-44 bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)] lg:block" />
               <div className="relative lg:mx-8 lg:mt-10 lg:rounded-menuzia lg:bg-white lg:p-1.5 lg:shadow-md">
-                <div className="relative z-0 h-28 w-full overflow-hidden sm:h-40 lg:h-80 lg:rounded-menuzia">
+                {/* 2:1 no celular: a capa é o primeiro contato do cliente com a
+                    loja, e a tarja de 112px que havia aqui (3,5:1) não cumpria
+                    esse papel. O desktop segue na altura fixa de sempre. */}
+                <div className="relative z-0 aspect-[2/1] w-full overflow-hidden lg:aspect-auto lg:h-80 lg:rounded-menuzia">
                   {restaurante.bannerUrl ? (
                     // Capa da loja: é o LCP da vitrine — carrega cedo e com prioridade alta.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -2322,6 +2326,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       decoding="async"
                       fetchPriority="high"
                       className="h-full w-full object-cover"
+                      style={{ objectPosition: objectPosition(restaurante.bannerFoco) }}
                     />
                   ) : collageImages[0] ? (
                     <ProductImage item={collageImages[0]} className="h-full w-full" prioritaria />
