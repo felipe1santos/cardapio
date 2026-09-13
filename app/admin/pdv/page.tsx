@@ -138,9 +138,22 @@ function SeletorModal({
   const isPizza = item.tipoItem === 'pizza'
   const hasSimplesTamanhos = !isPizza && item.tamanhos.length > 0
 
+  // Tamanhos que o item realmente vende — mesmo filtro da vitrine
+  // (`tamanhosComPreco`): tamanho em que nenhum sabor do item tem preço não é
+  // vendido, e oferecê-lo ao operador só leva a uma lista de sabores vazia.
+  // Brotinho e Promocional têm preço em um tamanho só.
+  const tamanhosDoItem = isPizza
+    ? (() => {
+        const comPreco = tamanhosPizza.filter((t) =>
+          item.sabores.some((s) => (s.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0) > 0),
+        )
+        return comPreco.length > 0 ? comPreco : tamanhosPizza
+      })()
+    : tamanhosPizza
+
   // Pizza — o tamanho escolhido decide quantos sabores cabem (maxSabores) e quais
   // sabores têm preço nele (sabor sem preço no tamanho não é vendido — o servidor recusa).
-  const tamanhoPizzaAtual = isPizza ? (tamanhosPizza.find((t) => t.nome === state.tamanhoNome) ?? null) : null
+  const tamanhoPizzaAtual = isPizza ? (tamanhosDoItem.find((t) => t.nome === state.tamanhoNome) ?? null) : null
   const maxSaboresAtual = tamanhoPizzaAtual?.maxSabores ?? 1
   const saboresDisponiveis = isPizza
     ? item.sabores.filter(
@@ -237,13 +250,13 @@ function SeletorModal({
         {/* Scrollable body */}
         <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
           {/* Pizza — tamanho padrão */}
-          {isPizza && tamanhosPizza.length > 0 && (
+          {isPizza && tamanhosDoItem.length > 0 && (
             <div>
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
                 Tamanho <span className="text-danger">*</span>
               </p>
               <div className="flex flex-wrap gap-2">
-                {tamanhosPizza.map((t) => (
+                {tamanhosDoItem.map((t) => (
                   <button
                     key={t.id}
                     type="button"
@@ -1128,12 +1141,17 @@ export default function PdvPage() {
   // Preço de referência de uma linha da comanda — igual ao que criarPedido calcula
   // no servidor (preco_unitario = base + soma dos complementos, * quantidade):
   // pizza: sabores pela regra da loja (média/maior) + borda + massa + complementos;
+  // item com tamanho escolhido: o preço DAQUELE tamanho (o servidor sobrescreve a
+  // base com `tamanho.preco` e ignora promoção — açaí e marmita têm preço base 0 e
+  // vendem tudo pelo tamanho, então sem isso o rodapé mostraria R$ 0,00);
   // demais itens: preço base (ou promo) + complementos.
   // O servidor sempre recalcula o real ao lançar — isto é só o que mostramos aqui.
   function precoLinha(linha: ComandaLinha): number {
     const precoComplementos = precoComplementosItem(linha.item, linha.complementos)
     if (linha.item.tipoItem !== 'pizza') {
-      return ((linha.item.promocaoPreco ?? linha.item.preco) + precoComplementos) * linha.quantidade
+      const tamanho = linha.tamanhoNome ? linha.item.tamanhos.find((t) => t.nome === linha.tamanhoNome) : undefined
+      const base = tamanho ? tamanho.preco : (linha.item.promocaoPreco ?? linha.item.preco)
+      return (base + precoComplementos) * linha.quantidade
     }
     const tamPizza = tamanhosPizza.find((t) => t.nome === linha.tamanhoNome)
     const precoSabores = precoPizzaSabores(
