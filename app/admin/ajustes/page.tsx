@@ -10,7 +10,9 @@ import { Card } from '@/components/ui/card'
 import { InstalarAppButton } from '@/components/instalar-app-button'
 import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { buscarRestauranteIdDoUsuario, type LayoutCardapio } from '@/lib/queries/cardapio'
+import { buscarRestauranteIdDoUsuario, listarGrupos, type LayoutCardapio } from '@/lib/queries/cardapio'
+import { SeletorFoco } from '@/components/seletor-foco'
+import { FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
 import {
   buscarConfigLoja,
   atualizarConfigLoja,
@@ -280,8 +282,14 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     bannerPromocionalUrl: '',
     layoutCardapio: 'categoria' as LayoutCardapio,
     imagemGrande: false,
+    bannerFoco: FOCO_PADRAO as Foco,
   })
   const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
+  const [categoriasSemFoto, setCategoriasSemFoto] = useState<string[]>([])
+  // Distingue "ainda não conferiu" de "conferiu, nenhuma falta" — sem isso, o
+  // botão da Gaveta ficaria destravado por um instante entre a config carregar
+  // e as categorias chegarem, furando o cadeado (spec: nunca destravar sem checar).
+  const [categoriasCarregadas, setCategoriasCarregadas] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -317,10 +325,15 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromocionalUrl: c.bannerPromocionalUrl ?? '',
         layoutCardapio: c.layoutCardapio,
         imagemGrande: c.imagemGrande,
+        bannerFoco: c.bannerFoco,
       })
       setHorarioDias(horarioSemanaFromConfig(c.horarioFuncionamento))
       setLoaded(true)
     })
+    listarGrupos(supabase, restauranteId)
+      .then((gs) => setCategoriasSemFoto(gs.filter((g) => !g.imagemUrl).map((g) => g.nome)))
+      .catch(() => setCategoriasSemFoto([]))
+      .finally(() => setCategoriasCarregadas(true))
   }, [supabase, restauranteId, loaded])
 
   function set(
@@ -466,6 +479,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromocionalUrl: form.bannerPromocionalUrl.trim() || null,
         layoutCardapio: form.layoutCardapio,
         imagemGrande: form.imagemGrande,
+        bannerFoco: form.bannerFoco,
         horarioFuncionamento,
       })
       setConfig(updated)
@@ -724,6 +738,16 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               </div>
             </div>
           </Field>
+          {form.bannerUrl && (
+            <Field label="Recorte da capa" hint="A capa aparece em proporções diferentes no celular e no computador. Marque o que não pode ser cortado.">
+              <SeletorFoco
+                src={form.bannerUrl}
+                foco={form.bannerFoco}
+                onChange={(f) => { setForm((prev) => ({ ...prev, bannerFoco: f })); setSaved(false) }}
+                proporcoes={[{ rotulo: 'Celular', ratio: 2 }, { rotulo: 'Computador', ratio: 3.8 }]}
+              />
+            </Field>
+          )}
           <Field label="Banner promocional" hint="Aparece dentro do cardápio, entre a busca e as categorias — use pra destacar uma promoção. Deixe em branco pra não mostrar nada.">
             <div className="space-y-2.5">
               {form.bannerPromocionalUrl && (
@@ -745,7 +769,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
         <Secao titulo="Apresentação do cardápio" descricao="Como os itens aparecem para o cliente na vitrine pública.">
           <Field label="Formato da lista">
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => setLayout('categoria')}
@@ -768,7 +792,26 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 <div className="text-[13px] font-semibold text-text-main">Lista</div>
                 <div className="mt-0.5 text-[11px] text-text-subtle">Itens em lista compacta</div>
               </button>
+              <button
+                type="button"
+                disabled={!categoriasCarregadas || categoriasSemFoto.length > 0}
+                onClick={() => setLayout('gaveta')}
+                className={[
+                  'rounded-menuzia border px-3.5 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                  form.layoutCardapio === 'gaveta' ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                ].join(' ')}
+              >
+                <div className="text-[13px] font-semibold text-text-main">Gaveta</div>
+                <div className="mt-0.5 text-[11px] text-text-subtle">Cartão por categoria, com foto</div>
+              </button>
             </div>
+            {categoriasSemFoto.length > 0 && (
+              <p className="mt-2 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] leading-relaxed text-alert-text">
+                O modo Gaveta precisa de uma foto em cada categoria. Faltam{' '}
+                {categoriasSemFoto.length}: {categoriasSemFoto.join(' · ')}.{' '}
+                <a href="/admin/cardapio" className="font-semibold underline">Subir fotos no cardápio</a>.
+              </p>
+            )}
           </Field>
           <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
             <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
