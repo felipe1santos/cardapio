@@ -2036,6 +2036,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // o voltar tem que devolver pra grade de categorias, não jogar o cliente
     // fora do cardápio.
     if (categoriaAberta) { setCategoriaAberta(null); return true }
+    // Promoções no modo gaveta também é uma camada: sem as chips de categoria,
+    // o voltar do celular é o irmão do "‹ Todas as categorias" que a vista
+    // mostra. Fora da gaveta as chips continuam sendo a saída, e o
+    // comportamento de antes fica intacto.
+    if (gavetaAtiva && activeCategory === '__promos__') { setActiveCategory(null); return true }
     return false
   }
   // O listener é recriado a cada render pra enxergar o estado atual das camadas;
@@ -2335,6 +2340,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const abrirGaveta = (id: string) => { setCategoriaAberta(id); window.scrollTo({ top: 0 }) }
   const fecharGaveta = () => { setCategoriaAberta(null); window.scrollTo({ top: 0 }) }
 
+  // Sair da vista de Promoções no modo gaveta. Sem as chips de categoria não
+  // há outro botão que devolva o cliente pra grade, então a vista ganha o
+  // mesmo "voltar" de uma categoria aberta. `null` basta: o efeito que
+  // sincroniza a categoria ativa repõe a primeira do cardápio.
+  const fecharPromos = () => { setActiveCategory(null); window.scrollTo({ top: 0 }) }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
@@ -2558,7 +2569,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {/* Duas colunas no desktop: cardápio à esquerda + sacola fixa à direita */}
             <div className="lg:flex lg:items-start lg:gap-8 lg:px-8">
             <div className="min-w-0 flex-1">
-            {/* Category nav */}
+            {/* Category nav.
+                No modo gaveta as chips de categoria somem: quem escolhe
+                categoria ali é o cartão, e repetir a mesma lista numa barra
+                horizontal em cima duplica a navegação. A chip de Promoções
+                fica — sem ela os itens em promoção não teriam nenhuma porta de
+                entrada nesse modo — e a barra inteira some quando a loja não
+                tem promoção. */}
+            {(!gavetaAtiva || promoItems.length > 0) && (
             <div className="sticky top-0 z-10 mt-2 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-2 [scrollbar-width:none] lg:top-16 lg:px-0">
               {promoItems.length > 0 && (
                 <button
@@ -2568,21 +2586,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   🏷️ Promoções
                 </button>
               )}
-              {groups.map((cat) => (
+              {!gavetaAtiva && groups.map((cat) => (
                 <button
                   key={cat.id}
-                  // No modo gaveta não existe seção na página pra rolar até: a
-                  // chip abre a categoria, senão seria um botão que não faz nada.
                   onClick={() => {
                     setActiveCategory(cat.nome)
-                    if (gavetaAtiva) { abrirGaveta(cat.id); return }
                     document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
                   className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors',
-                    // Na gaveta quem diz "onde estou" é a categoria aberta, não a
-                    // `activeCategory`: na grade de cartões não estamos dentro de
-                    // categoria nenhuma e nenhuma chip pode ficar acesa.
-                    (gavetaAtiva ? categoriaAberta === cat.id : activeCategory === cat.nome)
+                    activeCategory === cat.nome
                       ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white'
                       : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
                 >
@@ -2590,6 +2602,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </button>
               ))}
             </div>
+            )}
 
             {/* Pedido em andamento: enquanto a cozinha trabalha, o cliente
                 acompanha sem sair do cardápio (e volta a pedir sem perder o fio). */}
@@ -2649,6 +2662,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {/* Promo filter view */}
             {activeCategory === '__promos__' && (
               <div className="px-4 pb-1 pt-4 lg:px-0">
+                {gavetaAtiva && (
+                  <button
+                    onClick={fecharPromos}
+                    className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold text-text-subtle"
+                  >
+                    <span aria-hidden>‹</span> Todas as categorias
+                  </button>
+                )}
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
                   <span className="rounded bg-promo px-2 py-0.5 text-[11px] font-bold text-white">{promoItems.length} {promoItems.length === 1 ? 'item' : 'itens'}</span>
