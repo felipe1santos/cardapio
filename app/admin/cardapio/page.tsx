@@ -2604,7 +2604,7 @@ export default function CardapioPage() {
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                        Foto da categoria
+                        Foto de capa
                       </label>
                       <p className="mb-1.5 text-[10px] leading-snug text-text-subtle">
                         Usada no modo de exibição &ldquo;Gaveta&rdquo;, onde o cliente escolhe a categoria antes dos produtos.
@@ -2755,7 +2755,7 @@ export default function CardapioPage() {
                         title="Mover pra baixo (muda a ordem na vitrine)"
                         className="rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
                       >↓</button>
-                      <button onClick={() => startEditCategoria(group)} title="Renomear categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">✎</button>
+                      <button onClick={() => startEditCategoria(group)} title="Editar categoria (nome e foto de capa)" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">✎</button>
                       <button onClick={() => startScheduleCategoria(group)} title="Ativação automática por horário" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">🕐</button>
                       <button onClick={() => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome })} title="Subir fotos em massa" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">📁</button>
                       <button onClick={() => deleteCategoria(group)} title="Excluir categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-danger">🗑</button>
