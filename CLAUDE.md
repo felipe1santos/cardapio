@@ -61,9 +61,11 @@ um contexto mobile-first de vitrine).
 
 > **⚠️ Paleta e fonte oficiais — sempre seguir em qualquer alteração visual.**
 > A paleta de cores abaixo e a fonte **Inter** (a mesma usada no painel de despacho
-> de rotas e em todo o app) são o padrão oficial da Menuzia. Toda mudança de UI em
-> qualquer módulo — incluindo o **PDV** — deve usar exatamente estas cores, a fonte
-> Inter e o radius `3px`. Não introduzir cores ou fontes fora desta paleta.
+> de rotas e em todo o painel administrativo) são o padrão oficial da Menuzia. Toda
+> mudança de UI em qualquer módulo — incluindo o **PDV** — deve usar exatamente estas
+> cores e o radius `3px`; a fonte Inter também, exceto na vitrine do cliente (ver
+> exceção logo abaixo). Não introduzir cores fora desta paleta, nem fontes além das
+> duas já registradas.
 
 ### Paleta de cores
 ```
@@ -92,7 +94,11 @@ um contexto mobile-first de vitrine).
 ```
 
 ### Tipografia e tom visual
-- Fonte: **Inter** (Google Fonts, pesos 400/500/600/700/800), `font-size` base 14px.
+- Fonte: **Inter** (Google Fonts, pesos 400/500/600/700/800), `font-size` base 14px,
+  em todo o painel administrativo. **Exceção: a vitrine do cliente
+  (`app/loja/[slug]/`) usa Rubik**, carregada em `app/loja/[slug]/layout.tsx` e
+  exposta como a família `font-vitrine` do Tailwind — decisão de 2026-09-13,
+  ver `docs/superpowers/specs/2026-09-13-vitrine-banner-gaveta-design.md`.
 - **`--radius-max: 3px`** — cantos quase retos em todos os elementos (cards, botões,
   inputs, badges, thumbnails). Essa "quadratura" é uma marca registrada do visual Menuzia
   — não usar `border-radius` arredondado generoso, exceto em elementos circulares

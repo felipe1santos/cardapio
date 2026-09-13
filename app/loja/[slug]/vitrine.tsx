@@ -2381,7 +2381,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </div>
       </header>
 
-      <div className="relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-24 lg:max-w-[1280px] lg:pb-16">
+      <div className="relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-24 font-vitrine lg:max-w-[1280px] lg:pb-16">
 
         {/* ── HOME header: cover banner + profile + search + category nav ── */}
         {tab === 'home' && (

@@ -79,6 +79,9 @@ const config: Config = {
         // A variável vem do next/font (app/layout.tsx). "Inter" fica como
         // segunda opção para quem já tiver a fonte instalada no sistema.
         sans: ["var(--font-inter)", "Inter", "sans-serif"],
+        // A vitrine do cliente usa Rubik (app/loja/[slug]/layout.tsx); o painel
+        // segue em `sans` (Inter). Exceção registrada no CLAUDE.md §3.
+        vitrine: ["var(--font-rubik)", "Rubik", "sans-serif"],
       },
     },
   },
