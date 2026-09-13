@@ -3,6 +3,7 @@ import type { LayoutCardapio } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { composeEndereco } from '@/lib/endereco'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
+import { focoValido, type Foco } from '@/lib/foco-imagem'
 
 export interface ConfigLoja {
   id: string
@@ -13,6 +14,8 @@ export interface ConfigLoja {
   /** Capa ~800px para telas estreitas (srcset). Null = servir só bannerUrl. */
   bannerMobileUrl: string | null
   bannerPromocionalUrl: string | null
+  /** Ponto de foco da capa — ancoragem do object-cover. */
+  bannerFoco: Foco
   telefone: string
   endereco: string
   enderecoRua: string
@@ -51,6 +54,8 @@ interface ConfigRow {
   banner_url: string | null
   banner_mobile_url: string | null
   banner_promocional_url: string | null
+  banner_foco_x: number | string | null
+  banner_foco_y: number | string | null
   telefone: string
   endereco: string
   endereco_rua: string | null
@@ -78,7 +83,7 @@ interface ConfigRow {
   aceita_retirada: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -89,6 +94,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     bannerUrl: row.banner_url,
     bannerMobileUrl: row.banner_mobile_url ?? null,
     bannerPromocionalUrl: row.banner_promocional_url,
+    bannerFoco: focoValido(row.banner_foco_x, row.banner_foco_y),
     telefone: row.telefone,
     endereco: row.endereco,
     enderecoRua: row.endereco_rua ?? '',
@@ -131,6 +137,7 @@ export interface ConfigLojaPatch {
   bannerUrl?: string | null
   bannerMobileUrl?: string | null
   bannerPromocionalUrl?: string | null
+  bannerFoco?: Foco
   telefone?: string
   endereco?: string
   enderecoRua?: string
@@ -164,6 +171,10 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.bannerUrl !== undefined) row.banner_url = patch.bannerUrl
   if (patch.bannerMobileUrl !== undefined) row.banner_mobile_url = patch.bannerMobileUrl
   if (patch.bannerPromocionalUrl !== undefined) row.banner_promocional_url = patch.bannerPromocionalUrl
+  if (patch.bannerFoco !== undefined) {
+    row.banner_foco_x = patch.bannerFoco.x
+    row.banner_foco_y = patch.bannerFoco.y
+  }
   if (patch.telefone !== undefined) row.telefone = patch.telefone
 
   // Campos estruturados vêm sempre juntos (o form da aba Loja manda os 6 de uma vez) —
@@ -416,4 +427,14 @@ export async function enviarBannerLoja(
 
 export function enviarBannerPromocionalLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
   return enviarImagemPerfil(supabase, restauranteId, file, 'banner-promo', 'banner')
+}
+
+/** Foto do cartão de categoria no modo gaveta — mesma largura de produto (1200px). */
+export async function enviarImagemCategoria(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  file: File,
+): Promise<string> {
+  const otimizada = await otimizarImagem(file, 'produto')
+  return subirPerfil(supabase, restauranteId, 'categoria', otimizada)
 }
