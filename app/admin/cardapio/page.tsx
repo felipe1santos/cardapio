@@ -2637,7 +2637,13 @@ export default function CardapioPage() {
                             src={catImagemUrl}
                             foco={catFoco}
                             onChange={setCatFoco}
-                            proporcoes={[{ rotulo: 'Cartão', ratio: 2.2 }]}
+                            // 2,5 = o `aspect-[5/2]` que o cartão da gaveta usa
+                            // na vitrine (CategoriasGaveta em
+                            // app/loja/[slug]/vitrine.tsx). Uma moldura só, e
+                            // exata, porque lá a proporção é fixa em toda
+                            // largura de tela — ao contrário da capa da loja,
+                            // que muda de forma e por isso recebe duas.
+                            proporcoes={[{ rotulo: 'Cartão', ratio: 2.5 }]}
                           />
                           <button
                             type="button"

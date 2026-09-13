@@ -470,7 +470,16 @@ function CategoriasGaveta({ grupos, onAbrir }: { grupos: GrupoComItens[]; onAbri
         <button
           key={g.id}
           onClick={() => onAbrir(g.id)}
-          className="relative block h-36 w-full overflow-hidden rounded-menuzia border border-border text-left shadow-sm transition-shadow hover:shadow-md active:scale-[0.99] sm:h-44"
+          // Proporção FIXA 5:2 (2,5:1), não altura fixa. Com `h-36 sm:h-44` o
+          // recorte real variava de 1,5:1 (duas colunas no desktop, ~266 px de
+          // largura) a 3,9:1 (uma coluna de 568 px logo antes do `sm`), e o
+          // SeletorFoco do painel não tem como desenhar uma moldura honesta pra
+          // um alvo que muda de forma. 2,5:1 é o recorte que os celulares reais
+          // já tinham (358/144 = 2,49 num iPhone de 390 px), então na tela que
+          // mais importa nada muda — e agora a moldura do painel bate exato em
+          // qualquer largura. Mexer aqui exige mexer no `ratio` do SeletorFoco
+          // em app/admin/cardapio/page.tsx.
+          className="relative block aspect-[5/2] w-full overflow-hidden rounded-menuzia border border-border text-left shadow-sm transition-shadow hover:shadow-md active:scale-[0.99]"
         >
           {g.imagemUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -2612,8 +2621,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               </div>
             )}
 
-            {/* Destaques */}
-            {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && (
+            {/* Destaques. Dentro de uma categoria aberta da gaveta não aparece:
+                ali a tela é daquela categoria, e os destaques ficariam por cima
+                dela como se fossem parte da lista (mesma razão do rodapé). */}
+            {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && catGaveta === null && (
               <div className="px-4 pb-1 pt-3 lg:px-0">
                 <h2 className="mb-2.5 text-[17px] font-bold tracking-tight">Destaques</h2>
                 <div className="flex items-start gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
