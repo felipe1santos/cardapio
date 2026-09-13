@@ -636,51 +636,63 @@ function SaborCard({
   )
   const [uploading, setUploading] = useState(false)
   const [editingPrecos, setEditingPrecos] = useState(false)
+  // Erro do último salvamento. Engolir em silêncio fazia "pausar" e "trocar
+  // foto" parecerem sem efeito quando a query recusava a operação.
+  const [erro, setErro] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function falhou(err: unknown, padrao: string) {
+    setErro(err instanceof Error && err.message ? err.message : padrao)
+  }
 
   async function saveHeader() {
     const trimmed = nome.trim() || sabor.nome
+    setErro(null)
     try {
       await atualizarSabor(supabase, sabor.id, { nome: trimmed, descricao, status: sabor.status, imagemUrl: sabor.imagemUrl })
       setEditingHeader(false)
       await onRefresh()
-    } catch { /* silencioso */ }
+    } catch (err) { falhou(err, 'Não foi possível salvar o sabor.') }
   }
 
   async function cycleStatus() {
     const next = SABOR_STATUS_CYCLE[(SABOR_STATUS_CYCLE.indexOf(sabor.status) + 1) % SABOR_STATUS_CYCLE.length]
+    setErro(null)
     try {
       await atualizarSabor(supabase, sabor.id, { nome: sabor.nome, descricao: sabor.descricao, status: next, imagemUrl: sabor.imagemUrl })
       await onRefresh()
-    } catch { /* silencioso */ }
+    } catch (err) { falhou(err, 'Não foi possível mudar o status do sabor.') }
   }
 
   async function removeSabor() {
     if (!confirm(`Remover o sabor "${sabor.nome}"?`)) return
+    setErro(null)
     try {
       await removerSabor(supabase, sabor.id)
       await onRefresh()
-    } catch { /* silencioso */ }
+    } catch (err) { falhou(err, 'Não foi possível remover o sabor.') }
   }
 
   async function savePreco(tamanhoId: string) {
     const val = Number((precoInputs[tamanhoId] ?? '0').replace(',', '.'))
     const preco = Number.isFinite(val) && val >= 0 ? val : 0
+    setErro(null)
     try {
       await definirPrecoSabor(supabase, sabor.id, tamanhoId, preco)
       await onRefresh()
-    } catch { /* silencioso */ }
+    } catch (err) { falhou(err, 'Não foi possível salvar o preço do sabor.') }
   }
 
   async function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setErro(null)
     try {
       const url = await enviarImagemItem(supabase, restauranteId, file, 'thumb')
       await atualizarSabor(supabase, sabor.id, { nome: sabor.nome, descricao: sabor.descricao, status: sabor.status, imagemUrl: url })
       await onRefresh()
-    } catch { /* silencioso */ }
+    } catch (err) { falhou(err, 'Não foi possível enviar a foto do sabor.') }
     finally { setUploading(false) }
   }
 
@@ -718,6 +730,12 @@ function SaborCard({
         )}
         <button onClick={removeSabor} className="text-[11px] text-text-subtle hover:text-danger">Remover</button>
       </div>
+      {erro && (
+        <div className="flex items-start gap-2 border-b border-border bg-danger-bg px-3 py-2 text-[11.5px] leading-snug text-danger">
+          <span className="flex-1">{erro}</span>
+          <button onClick={() => setErro(null)} className="font-bold">✕</button>
+        </div>
+      )}
       {editingHeader && (
         <div className="border-b border-border px-3 py-2">
           <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição do sabor (opcional)"
@@ -2352,8 +2370,10 @@ export default function CardapioPage() {
       setNewSaborNome('')
       setCreatingSabor(false)
       await refreshItems()
-    } catch {
-      setError('Não foi possível criar o sabor.')
+    } catch (err) {
+      // A mensagem da query diz a regra (ex.: nome não pode ter " / ") — trocar
+      // por um texto genérico deixaria o lojista sem saber o que corrigir.
+      setError(err instanceof Error ? err.message : 'Não foi possível criar o sabor.')
     }
   }
 

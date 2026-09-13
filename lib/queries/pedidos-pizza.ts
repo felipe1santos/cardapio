@@ -33,7 +33,16 @@ function chave(texto: string): string {
  * tenant antes de calcular.
  */
 export function resolverPizza({ itemNome, tamanho, saborTexto, catalogo, regra }: ResolverPizzaArgs): { base: number; saborNome: string } {
-  const pedidos = separarSabores(saborTexto)
+  // Loja que já existia antes do meio a meio pode ter sabor gravado com " / "
+  // no próprio nome ("Frango / Catupiry"). A guarda de cadastro só impede nome
+  // NOVO — o que já está no banco tem que continuar vendendo. Então antes de
+  // separar, tenta casar o texto INTEIRO contra o catálogo: se bater, é um
+  // sabor só e não se separa nada. O nome inteiro tem precedência sobre as
+  // partes, mesmo quando as duas existem no catálogo.
+  const inteiro = saborTexto.trim()
+  const legado = inteiro ? catalogo.find((s) => chave(s.nome) === chave(inteiro)) : undefined
+
+  const pedidos = legado ? [legado.nome] : separarSabores(saborTexto)
   if (pedidos.length === 0) throw new Error(`Selecione o sabor da pizza "${itemNome}"`)
 
   if (pedidos.length > tamanho.maxSabores) {

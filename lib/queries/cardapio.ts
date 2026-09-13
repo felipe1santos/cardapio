@@ -548,7 +548,15 @@ export interface AtualizarSaborInput {
 
 export async function atualizarSabor(supabase: SupabaseClient, saborId: string, input: AtualizarSaborInput) {
   if (nomeTemSeparador(input.nome)) {
-    throw new Error('O nome do sabor não pode ter " / " (barra com espaços) — é o separador usado em pizza meio a meio.')
+    // Só RENOMEAR pra um nome com o separador é proibido. Sabor cadastrado
+    // antes do meio a meio pode já ter " / " no nome, e pausar/esgotar ou
+    // trocar a foto reenvia o nome atual — travar isso deixaria o lojista sem
+    // conseguir mexer no próprio sabor.
+    const { data, error: erroAtual } = await supabase.from('pizza_sabores').select('nome').eq('id', saborId).single()
+    if (erroAtual) throw erroAtual
+    if (data?.nome !== input.nome) {
+      throw new Error('O nome do sabor não pode ter " / " (barra com espaços) — é o separador usado em pizza meio a meio.')
+    }
   }
   const { error } = await supabase
     .from('pizza_sabores')

@@ -68,3 +68,65 @@ describe('resolverPizza', () => {
     expect(r.saborNome).toBe('Calabresa / Portuguesa')
   })
 })
+
+/**
+ * Loja que já existia antes do meio a meio pode ter sabor cadastrado com " / "
+ * no próprio nome ("Frango / Catupiry"). A guarda de cadastro só impede nome
+ * NOVO; o que já está no banco tem que continuar vendendo.
+ */
+describe('resolverPizza — sabor legado com " / " no nome', () => {
+  const legado = sabor('Frango / Catupiry', 99)
+
+  it('casa o texto inteiro contra o catálogo e trata como um sabor só', () => {
+    const r = resolverPizza({
+      itemNome: 'Pizza Salgada',
+      tamanho: TAM_GRANDE,
+      saborTexto: 'Frango / Catupiry',
+      catalogo: [...catalogo, legado],
+      regra: 'media',
+    })
+    expect(r).toEqual({ base: 99, saborNome: 'Frango / Catupiry' })
+  })
+
+  it('vale também em tamanho de 1 sabor, sem estourar o limite', () => {
+    const r = resolverPizza({
+      itemNome: 'Pizza Salgada',
+      tamanho: TAM_PEQUENA,
+      saborTexto: 'frango / catupiry',
+      catalogo: [...catalogo, legado],
+      regra: 'media',
+    })
+    expect(r).toEqual({ base: 79, saborNome: 'Frango / Catupiry' })
+  })
+
+  it('não atrapalha uma escolha de dois sabores de verdade', () => {
+    const r = resolverPizza({
+      itemNome: 'Pizza Salgada',
+      tamanho: TAM_GRANDE,
+      saborTexto: 'Calabresa / Portuguesa',
+      catalogo: [...catalogo, legado],
+      regra: 'media',
+    })
+    expect(r).toEqual({ base: 94, saborNome: 'Calabresa / Portuguesa' })
+  })
+
+  it('o sabor inteiro tem precedência sobre as partes quando as duas existem', () => {
+    // Catálogo com "A / B" legado E "A" e "B" separados: o texto inteiro ganha.
+    const comAmbos: SaborCatalogo[] = [sabor('Frango', 69), sabor('Catupiry', 79), legado]
+    const r = resolverPizza({
+      itemNome: 'Pizza Salgada',
+      tamanho: TAM_GRANDE,
+      saborTexto: 'Frango / Catupiry',
+      catalogo: comAmbos,
+      regra: 'media',
+    })
+    expect(r).toEqual({ base: 99, saborNome: 'Frango / Catupiry' })
+  })
+
+  it('sabor legado pausado continua sendo recusado pelo nome inteiro', () => {
+    const pausado = sabor('Frango / Catupiry', 99, 'pausado')
+    expect(() =>
+      resolverPizza({ itemNome: 'Pizza Salgada', tamanho: TAM_GRANDE, saborTexto: 'Frango / Catupiry', catalogo: [pausado], regra: 'media' }),
+    ).toThrow(/"Frango \/ Catupiry"/)
+  })
+})
