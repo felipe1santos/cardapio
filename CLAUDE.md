@@ -246,13 +246,18 @@ genéricos, hierarquia visual burocrática) que destoa da identidade Menuzia (pa
 ciano + neutros, radius quase reto, tipografia Inter, tom premium e enxuto dos outros
 três painéis).
 
+> **Nota de 2026-09-13:** esta seção é texto histórico de planejamento. A vitrine
+> implementada usa **Rubik**, não Inter — ver a exceção na §3 ("Tipografia e tom
+> visual"). Onde esta seção disser "Inter" para a vitrine, vale a §3.
+
 **Instruções para o redesign** (use a skill de frontend-design já instalada):
 
 - Recriar o cardápio do cliente como uma **vitrine premium de delivery**: a primeira
   impressão deve transmitir qualidade do restaurante, apetite e confiança — não
   "formulário de pedido". Pense em referências de produtos como apps de delivery
   premium e cardápios digitais de restaurantes de alto padrão.
-- Manter a base de **identidade Menuzia** (cores, radius 3px, fonte Inter, tom dos
+- Manter a base de **identidade Menuzia** (cores, radius 3px, fonte Inter — exceto na
+  vitrine, que usa Rubik; ver a exceção na §3 —, tom dos
   preços/badges) mas elevar a execução: fotos reais dos produtos (não emojis),
   composição visual mais editorial (hero da loja, destaques/banners de promoções,
   cards de produto com mais respiro e hierarquia tipográfica refinada), microinterações
