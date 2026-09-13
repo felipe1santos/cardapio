@@ -56,6 +56,12 @@ Sem `--apply` roda em **dry-run**: nenhuma linha é gravada e nenhuma foto é
 enviada, só o log do que seria feito (ids fake, URLs `dry-run://...`). Isso serve
 pra conferir os totais antes de tocar em produção.
 
+Foto que não sobe **não aborta o import** (o item fica sem imagem, o resto entra).
+Por isso o fim do log traz a conta: `fotos N FALHA(S)` seguido do nome de cada
+item/sabor que ficou sem imagem — é por esse número que se confere "todo item
+tem foto", não lendo as 231 linhas de upload. Zero falhas imprime
+`nenhuma falha — todo item e todo sabor ficou com imagem`.
+
 **`--apply` escreve na conta de produção de um cliente real.** Só rodar depois de
 autorização explícita (Task 11 do plano) e com a loja `pizza-do-rosa` ainda vazia
 — o script recusa rodar se já houver itens cadastrados.

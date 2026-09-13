@@ -50,15 +50,21 @@ function saborDeItem(item, precosApi, i) {
 }
 
 function itemPizza(nome, itens, precosPor, tag = null) {
+  const sabores = itens.map((it, i) => saborDeItem(it, precosPor(it), i))
+  // O card da vitrine mostra `item.preco` (não há ramo de pizza em `ProductCard`),
+  // então deixar 0 aqui faria a home anunciar "Pizza Salgada — R$ 0,00". O menor
+  // preço de sabor no tamanho mais barato que o item de fato precifica é o
+  // valor "a partir de".
+  const precos = sabores.flatMap((s) => s.precos.map((p) => p.preco)).filter((p) => p > 0)
   return {
     nome,
     descricao: '',
-    preco: 0,
+    preco: precos.length > 0 ? Math.min(...precos) : 0,
     imagemOrigem: itens[0]?.imagem ?? null,
     tipoItem: 'pizza',
     tag,
     presets: ['Adicionais de Pizza'],
-    sabores: itens.map((it, i) => saborDeItem(it, precosPor(it), i)),
+    sabores,
   }
 }
 

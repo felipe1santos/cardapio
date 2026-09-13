@@ -88,6 +88,17 @@ describe('itens de pizza', () => {
     }
   })
 
+  it('cada item de pizza tem o preço "a partir de" — o menor preço de sabor', () => {
+    // `ProductCard` renderiza `item.preco` sem ramo de pizza; com 0 aqui a home
+    // da loja migrada anunciaria "Pizza Salgada — R$ 0,00".
+    for (const nome of ['Pizzas Salgadas', 'Pizzas Doces', 'Pizza Promocional', 'Pizza Brotinho']) {
+      const item = plano.grupos.find((g) => g.nome === nome).itens[0]
+      const menorSabor = Math.min(...item.sabores.flatMap((s) => s.precos.map((p) => p.preco)))
+      expect(item.preco).toBeGreaterThan(0)
+      expect(item.preco).toBe(menorSabor)
+    }
+  })
+
   it('os 4 itens de pizza recebem o preset de adicionais de pizza', () => {
     for (const nome of ['Pizzas Salgadas', 'Pizzas Doces', 'Pizza Promocional', 'Pizza Brotinho']) {
       expect(plano.grupos.find((g) => g.nome === nome).itens[0].presets).toContain('Adicionais de Pizza')

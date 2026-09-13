@@ -508,7 +508,7 @@
         {
           "nome": "Pizza Salgada",
           "descricao": "",
-          "preco": 0,
+          "preco": 69,
           "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/101118/800/Expresso-Delivery_92a334aef542eaeacca503b08b94863d.png",
           "tipoItem": "pizza",
           "tag": null,
@@ -1871,7 +1871,7 @@
         {
           "nome": "Pizza Doce",
           "descricao": "",
-          "preco": 0,
+          "preco": 63,
           "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/134/800/Expresso-Delivery_7c4e01b23ec688f6db2a3aee2ac4cc88.png",
           "tipoItem": "pizza",
           "tag": null,
@@ -2346,7 +2346,7 @@
         {
           "nome": "Pizza Promocional",
           "descricao": "",
-          "preco": 0,
+          "preco": 79,
           "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/361204/800/Expresso-Delivery_60bf7290d536e6c4fda6562d73d16b01.png",
           "tipoItem": "pizza",
           "tag": "promocao",
@@ -2545,7 +2545,7 @@
         {
           "nome": "Pizza Brotinho",
           "descricao": "",
-          "preco": 0,
+          "preco": 49,
           "imagemOrigem": "https://static.expressodelivery.com.br/imagens/produtos/389611/800/Expresso-Delivery_4f151e8b5925f49efd0130eec23093b8.png",
           "tipoItem": "pizza",
           "tag": null,

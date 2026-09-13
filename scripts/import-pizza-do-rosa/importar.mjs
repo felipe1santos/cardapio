@@ -53,6 +53,11 @@ async function contar(tabela, rid) {
 const EXT_VALIDAS = new Set(['jpg', 'jpeg', 'png', 'webp'])
 let fotosChecadas = 0
 const fotosExtFallback = []
+/** Fotos que não subiram: `{ tipo, alvo }`. Uma foto perdida não aborta o
+ *  import (ver `baixarESubir`), mas precisa sair CONTADA e NOMEADA no fim —
+ *  senão uma rodada com 30 fotos faltando fica igual a uma rodada limpa,
+ *  escondida em 1400+ linhas de log. */
+const fotosFalhas = []
 
 /** Validação puramente local (sem rede) da extensão de uma URL de foto —
  *  roda em dry-run também, pra pegar uma URL sem extensão reconhecível
@@ -104,10 +109,12 @@ async function baixarESubir(url, caminho) {
  *  controller — seria abuso do servidor de terceiro sem necessidade; o
  *  dry-run existe pra conferir contagens e plano, não a saúde das fotos. */
 async function subirImagem(restauranteId, url, nomeBase) {
-  if (!url) return null
+  if (!url) { fotosFalhas.push({ tipo: 'foto', alvo: nomeBase, motivo: 'sem URL na origem' }); return null }
   const caminho = `${restauranteId}/${MARCA}/${slugificar(nomeBase)}-${Date.now()}.${extensaoDe(url)}`
   if (!APPLY) return `dry-run://${caminho}`
-  return baixarESubir(url, caminho)
+  const publica = await baixarESubir(url, caminho)
+  if (!publica) fotosFalhas.push({ tipo: 'foto', alvo: nomeBase, motivo: url })
+  return publica
 }
 
 /** Miniatura de item (sabor não tem coluna de thumb, então não se aplica).
@@ -130,7 +137,9 @@ async function subirThumb(restauranteId, urlFull, nomeBase) {
   if (urlThumb === urlFull) return null // não achou o segmento /800/ pra trocar — sem thumb, cai no fallback imagem_url
   const caminho = `${restauranteId}/${MARCA}/${slugificar(nomeBase)}-thumb-${Date.now()}.${extensaoDe(urlThumb)}`
   if (!APPLY) return `dry-run://${caminho}`
-  return baixarESubir(urlThumb, caminho)
+  const publica = await baixarESubir(urlThumb, caminho)
+  if (!publica) fotosFalhas.push({ tipo: 'thumb', alvo: nomeBase, motivo: urlThumb })
+  return publica
 }
 
 async function main() {
@@ -213,6 +222,12 @@ async function main() {
       }
 
       for (const s of it.sabores ?? []) {
+        // Invariante do meio a meio: " / " é o separador de sabores dentro de
+        // `pedido_itens.sabor_nome` (lib/pizza-preco.ts), e um sabor com ele no
+        // nome sai do cardápio quebrado. Este script grava em `pizza_sabores`
+        // direto, sem passar por `criarSabor`, então a guarda anda junto de
+        // quem escreve a linha — não só no teste do mapeamento.
+        if (s.nome.includes(' / ')) throw new Error(`sabor "${s.nome}" contém " / ", o separador de sabores — corrija o mapeamento antes de importar`)
         const imgSabor = await subirImagem(rid, s.imagemOrigem, `sabor-${s.nome}`)
         const sabor = await ins('pizza_sabores', {
           item_id: item.id, nome: s.nome, descricao: s.descricao, imagem_url: imgSabor, status: 'disponivel', posicao: s.posicao,
@@ -227,6 +242,16 @@ async function main() {
 
   log('fotos', `${fotosChecadas} URLs verificadas`, `${fotosExtFallback.length} sem extensão reconhecida (fallback .jpg)`)
   for (const u of fotosExtFallback) log('  ! ext fallback', u)
+
+  // "Todo item ficou com foto" vira um número, não uma varredura visual de 231
+  // imagens no meio do log.
+  if (fotosFalhas.length === 0) {
+    log('fotos', APPLY ? 'nenhuma falha — todo item e todo sabor ficou com imagem' : 'nenhuma URL de foto faltando no plano')
+  } else {
+    log('fotos', `${fotosFalhas.length} FALHA(S) — os alvos abaixo ficaram sem imagem, suba manualmente pelo admin:`)
+    for (const f of fotosFalhas) log(`  ! sem ${f.tipo}:`, f.alvo, '—', f.motivo)
+  }
+  if (!APPLY) log('fotos', 'dry-run não baixa nada: falha de rede ou de upload só aparece na rodada com --apply')
 
   log('FIM —', criados, 'linhas', APPLY ? 'gravadas' : 'seriam gravadas')
 }
