@@ -69,15 +69,25 @@ ficam sob `<restauranteId>/import-expresso-2026-09/` no bucket `cardapio`.
 `on delete set null` (não `cascade`) — ver `0002_menu_cardapio.sql`. Isso
 quer dizer que apagar `grupos_cardapio` primeiro **não** derruba os itens:
 só desvincula cada item do seu grupo (`grupo_id` vira `null`) e o item, os
-sabores, os preços e os complementos ficam todos órfãos e vivos no banco —
-968 linhas fantasmas (121 itens + 110 sabores + 40 grupos de complemento +
-697 complementos), e a guarda de "loja vazia" do `importar.mjs` passa a
-bloquear pra sempre um novo import, já que `itens_cardapio` nunca esvazia.
+sabores, os preços de sabor e os complementos ficam todos órfãos e vivos
+no banco — 1303 linhas fantasmas (121 itens + 110 sabores + 335 preços de
+sabor + 40 grupos de complemento + 697 complementos), e a guarda de "loja
+vazia" do `importar.mjs` passa a bloquear pra sempre um novo import, já
+que `itens_cardapio` nunca esvazia.
 
 Quem cascateia de verdade é `itens_cardapio` (via `item_id on delete
 cascade` em `pizza_sabores`, `pizza_sabor_precos`, `grupos_item_complementos`
 e `item_complementos`). Por isso `itens_cardapio` tem que ser a **primeira**
 tabela apagada — antes de `grupos_cardapio`, não depois:
+
+**Só rode isto antes da loja receber pedidos de verdade.** `pedido_itens.item_id`
+é `on delete set null` (`0003_pedidos_logistica.sql:89`), não `cascade` — então
+o `delete from itens_cardapio` acima é seguro enquanto não existir nenhum
+`pedido_itens` real apontando pra esses itens (é o caso logo após o import,
+loja ainda sem pedidos). Depois que a loja começar a operar, rodar essa
+reversão vai deixar as linhas de pedido histórico com `item_id = null` —
+o pedido em si continua existindo, mas perde a referência de qual item do
+cardápio foi vendido.
 
 ```sql
 -- Reversão completa do import (rodar como service role, tenant pizza-do-rosa)
@@ -93,6 +103,15 @@ delete from tamanhos_padrao_pizza  where restaurante_id = '<rid>';
 update restaurantes set pizza_calculo_preco = 'media' where id = '<rid>';
 -- e apagar a pasta <rid>/import-expresso-2026-09/ do bucket `cardapio`
 ```
+
+O último `update` acima **não é uma restauração** — é o mesmo valor que o
+import grava (`importar.mjs` seta `pizza_calculo_preco = 'media'`
+incondicionalmente sob `--apply`, e `'media'` também é o default da
+coluna). Pra esta loja, vazia antes do import, isso é inofensivo. Mas se
+um dia este script rodar numa loja que já tivesse escolhido `'maior'`, o
+import trocaria o valor sem avisar e esta reversão não devolveria o que
+era antes — o `update` aqui só está deixando o valor como o import o
+deixou, não restaurando um estado anterior.
 
 (`<rid>` é o id do restaurante `pizza-do-rosa`, impresso pelo `importar.mjs` na
 primeira linha do log.)

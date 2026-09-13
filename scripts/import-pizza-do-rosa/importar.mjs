@@ -116,11 +116,17 @@ async function subirImagem(restauranteId, url, nomeBase) {
  *  Node, e não vale trazer uma lib de imagem só pra este script), reusa o
  *  que a própria origem já serve: o mesmo arquivo nas variantes /180/,
  *  /600/ e /800/. `imagemOrigem` já vem como /800/ (ver extrair.mjs); aqui
- *  troca de volta pra /180/ — 5992 bytes medidos contra 37204 do /800/, a
- *  diferença entre um card de ~6 KB e um de ~37 KB por foto, em 121 itens. */
+ *  troca pra /600/ — não /180/: a coluna documenta um contrato de ~400px
+ *  (`0047_item_imagem_thumb.sql`, `vitrine.tsx:305`), e `urlDeListagem()`
+ *  (`vitrine.tsx:308`) alimenta o `ProductCard`, que renderiza a foto num
+ *  box `aspect-[4/3]` de card inteiro (`vitrine.tsx:385`), não só na
+ *  `ProductThumb` pequena — /180/ ficaria visivelmente mole aí, ainda mais
+ *  em tela retina. /600/ é a variante mais próxima do contrato da coluna
+ *  que a origem oferece: 27006 bytes medidos contra 37204 do /800/ e 5992
+ *  do /180/ — mais leve que a full, sem ficar borrado no card. */
 async function subirThumb(restauranteId, urlFull, nomeBase) {
   if (!urlFull) return null
-  const urlThumb = urlFull.replace('/800/', '/180/')
+  const urlThumb = urlFull.replace('/800/', '/600/')
   if (urlThumb === urlFull) return null // não achou o segmento /800/ pra trocar — sem thumb, cai no fallback imagem_url
   const caminho = `${restauranteId}/${MARCA}/${slugificar(nomeBase)}-thumb-${Date.now()}.${extensaoDe(urlThumb)}`
   if (!APPLY) return `dry-run://${caminho}`
