@@ -10,6 +10,12 @@
  * Só grava em categoria cujo `imagem_url` é NULL. Não cria nem apaga linha.
  * Rodar de novo é no-op.
  *
+ * O relatório final separa dois tipos de pendência: falha técnica (download,
+ * upload ou update deram erro) é retentável — rodar de novo pode resolver.
+ * "sem foto na origem" é permanente — a origem nunca teve fundo pra aquela
+ * sessão, e só um upload manual do lojista no gestor de cardápio destrava o
+ * modo gaveta pra essa categoria.
+ *
  *   node scripts/import-pizza-do-rosa/semear-fotos-categoria.mjs           # dry-run
  *   node scripts/import-pizza-do-rosa/semear-fotos-categoria.mjs --apply
  */
@@ -76,10 +82,12 @@ async function main() {
     origem.sessoes.filter((s) => s.catBackground).map((s) => [s.nome, s.catBackground]),
   )
 
-  // A migration que adiciona `grupos_cardapio.imagem_url` pode ainda não ter
-  // sido aplicada em produção quando isto roda em dry-run — não faz o dry-run
-  // depender dela existir. Sem a coluna, toda categoria é tratada como
-  // pendente (é o que ela será assim que a coluna existir, vazia).
+  // A migration 0051 (que adiciona `grupos_cardapio.imagem_url`) pode ainda não
+  // ter sido aplicada em produção quando isto roda em dry-run — não faz o
+  // dry-run depender dela existir. Sem a coluna, toda categoria é tratada como
+  // pendente (é o que ela será assim que a coluna existir, vazia). Depois que a
+  // 0051 estiver aplicada em produção este bloco de fallback vira código morto
+  // e deve ser apagado — a query normal abaixo passa a bastar sozinha.
   let grupos
   {
     const r = await db.from('grupos_cardapio').select('id, nome, imagem_url').eq('restaurante_id', loja.id).order('posicao')
@@ -100,11 +108,16 @@ async function main() {
   log(`${pendentes.length} categoria(s) sem foto`)
 
   let ok = 0
+  // `falhas`: técnicas, retentáveis (download/upload/update deram problema).
+  // `semFonte`: permanentes — a origem nunca teve foto pra essa sessão, rodar
+  // de novo não muda nada. Misturar as duas faria alguém achar que "rodar de
+  // novo" resolve um caso que só um upload manual do lojista resolve.
   const falhas = []
+  const semFonte = []
   for (const g of pendentes) {
     const sessao = DE_ONDE[g.nome]
     const caminhoOrigem = sessao ? fundoDaSessao.get(sessao) : null
-    if (!caminhoOrigem) { falhas.push({ nome: g.nome, motivo: 'sem imagem correspondente na origem' }); continue }
+    if (!caminhoOrigem) { semFonte.push(g.nome); continue }
     const url = `${BASE_ORIGEM}${caminhoOrigem}`
     const ext = (url.split('.').pop() ?? 'jpg').split('?')[0].toLowerCase()
     const destino = `${loja.id}/${MARCA}/categoria-${slugificar(g.nome)}-${Date.now()}.${['jpg','jpeg','png','webp'].includes(ext) ? ext : 'jpg'}`
@@ -117,8 +130,15 @@ async function main() {
     log('  ✔', g.nome)
   }
 
-  log(`FIM — ${ok} semeada(s), ${falhas.length} falhando`)
-  for (const f of falhas) log(`  ! ${f.nome} — ${f.motivo}`)
+  log(`FIM — ${ok} semeada(s), ${falhas.length} falhando (retentável), ${semFonte.length} sem foto na origem (permanente)`)
+  for (const f of falhas) log(`  ! falha retentável — ${f.nome} — ${f.motivo}`)
+  for (const nome of semFonte) log(`  ! sem foto na origem (permanente) — ${nome} — precisa de upload manual no gestor de cardápio; modo gaveta continua bloqueado até essa categoria ter foto`)
 }
 
-main().catch((e) => { console.error('ERRO:', e.message); if (e.details) console.error(' details:', e.details); console.error(e.stack); process.exit(1) })
+main().catch((e) => {
+  console.error('ERRO:', e.message)
+  if (e.details) console.error(' details:', e.details)
+  if (e.hint) console.error(' hint:', e.hint)
+  console.error(e.stack)
+  process.exit(1)
+})
