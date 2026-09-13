@@ -783,7 +783,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 <img
                   src={form.bannerPromocionalUrl}
                   alt="Banner promocional"
-                  className="aspect-[3.65/1] w-full rounded-menuzia border border-border object-cover"
+                  className="aspect-[2.84/1] w-full rounded-menuzia border border-border object-cover"
                   style={{ objectPosition: objectPosition(form.bannerPromoFoco) }}
                 />
               )}
@@ -797,10 +797,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                     src={form.bannerPromocionalUrl}
                     foco={form.bannerPromoFoco}
                     onChange={(f) => { setForm((prev) => ({ ...prev, bannerPromoFoco: f })); setSaved(false) }}
-                    // Medido na vitrine em produção: 1224×126 no desktop
-                    // (9,71) e 358×98 num celular de 390 px (3,65). A faixa é
-                    // um talho fino mesmo — é por isso que ela precisa de foco.
-                    proporcoes={[{ rotulo: 'Celular', ratio: 3.65 }, { rotulo: 'Computador', ratio: 9.71 }]}
+                    // A faixa cresceu pra h-36/sm:h-44 (126 px no celular,
+                    // 154 px no desktop — o html da vitrine tem base 14 px).
+                    // Daí 358/126 = 2,84 no celular e 1224/154 = 7,95 no
+                    // desktop. Continua um talho largo: é por isso que ela
+                    // precisa de foco.
+                    proporcoes={[{ rotulo: 'Celular', ratio: 2.84 }, { rotulo: 'Computador', ratio: 7.95 }]}
                     titulo="Posição do banner promocional"
                     descricao="A faixa é bem mais larga que alta e corta bastante da arte. Marque o que não pode sumir."
                     disabled={uploadingBannerPromo}

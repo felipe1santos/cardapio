@@ -2524,7 +2524,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   // na hora; quando não está, deixa de concorrer com o LCP.
                   loading="lazy"
                   decoding="async"
-                  className="h-28 w-full rounded-md border border-border object-cover sm:h-36"
+                  // 98 px de altura no celular deixavam a faixa parecendo uma
+                  // tarja de aviso, não um anúncio. 126/154 px dão respiro à
+                  // arte sem empurrar o primeiro produto pra fora da tela.
+                  className="h-36 w-full rounded-md border border-border object-cover sm:h-44"
                   // A faixa é bem mais larga que alta (≈3,2:1 no celular,
                   // ≈8,4:1 no desktop), então o recorte come muito da arte —
                   // é onde o ponto de foco escolhido no painel mais importa.
