@@ -1948,6 +1948,13 @@ export default function CardapioPage() {
   const [catImagemUrl, setCatImagemUrl] = useState<string | null>(null)
   const [catFoco, setCatFoco] = useState<Foco>(FOCO_PADRAO)
   const [catEnviando, setCatEnviando] = useState(false)
+  // Espelha editingGroupId "ao vivo" pro upload de foto da categoria conferir, na
+  // hora que a Promise resolve, se ainda é a mesma categoria em edição. Ler
+  // editingGroupId direto de dentro do onChange (closure) ficaria congelado no
+  // valor de quando o upload começou — a ref é a única forma de pegar o valor
+  // atual depois de um await.
+  const editingGroupIdRef = useRef<string | null>(null)
+  useEffect(() => { editingGroupIdRef.current = editingGroupId }, [editingGroupId])
   const [view, setView] = useState<View>('table')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -2219,6 +2226,10 @@ export default function CardapioPage() {
     setEditingGroupName(group.nome)
     setCatImagemUrl(group.imagemUrl)
     setCatFoco(group.imagemFoco)
+    // Se um upload de OUTRA categoria ainda estiver em voo, sua resolução vai se
+    // recusar a mexer nesse estado (guarda por id em cima), então "Enviando…"
+    // nunca mais se apagaria sozinho sem esse reset ao entrar numa categoria nova.
+    setCatEnviando(false)
   }
 
   /** Abre o drawer de categoria nova — sempre sem foto, pra não herdar a da última categoria editada. */
@@ -2554,12 +2565,16 @@ export default function CardapioPage() {
                         value={editingGroupName}
                         onChange={(e) => setEditingGroupName(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveEditCategoria()
+                          if (e.key === 'Enter' && !catEnviando) saveEditCategoria()
                           if (e.key === 'Escape') setEditingGroupId(null)
                         }}
                         className="flex-1 rounded-menuzia border border-primary px-2 py-1.5 text-sm outline-none"
                       />
-                      <button onClick={saveEditCategoria} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page">✓</button>
+                      {/* Desabilitado durante o upload: salvar nesse instante gravaria a foto de
+                          antes do upload, sem nenhum aviso — o captured-id guard no onChange do
+                          input de arquivo cobre o caso de trocar de categoria, mas aqui o risco é
+                          salvar cedo demais na própria categoria em edição. */}
+                      <button onClick={saveEditCategoria} disabled={catEnviando} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page disabled:opacity-30">✓</button>
                       <button onClick={() => setEditingGroupId(null)} title="Cancelar" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-page">✕</button>
                     </div>
                     <div>
@@ -2577,14 +2592,23 @@ export default function CardapioPage() {
                           const file = e.target.files?.[0]
                           e.target.value = ''
                           if (!file || !restauranteId) return
+                          // catImagemUrl/catFoco são estado da página, não da categoria — se o
+                          // operador trocar de categoria (ou fechar) antes do upload terminar, a
+                          // resposta não pode aterrissar no formulário de outra categoria. group.id
+                          // é estável nessa iteração; editingGroupIdRef é conferido só depois do
+                          // await, quando já reflete a categoria realmente aberta na tela.
+                          const grupoDoUpload = group.id
                           setCatEnviando(true)
                           setError(null)
                           try {
-                            setCatImagemUrl(await enviarImagemCategoria(supabase, restauranteId, file))
+                            const url = await enviarImagemCategoria(supabase, restauranteId, file)
+                            if (grupoDoUpload !== editingGroupIdRef.current) return
+                            setCatImagemUrl(url)
                           } catch {
+                            if (grupoDoUpload !== editingGroupIdRef.current) return
                             setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
                           } finally {
-                            setCatEnviando(false)
+                            if (grupoDoUpload === editingGroupIdRef.current) setCatEnviando(false)
                           }
                         }}
                         className="block w-full text-[11px] text-text-subtle file:mr-2 file:rounded-menuzia file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-wide file:text-white"
