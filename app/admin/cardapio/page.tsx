@@ -187,6 +187,114 @@ function ruleHint(grupo: { obrigatorio: boolean; minEscolhas: number; maxEscolha
   return grupo.maxEscolhas === 1 ? 'Escolha até 1' : `Escolha até ${grupo.maxEscolhas}`
 }
 
+/**
+ * Um campo de foto de categoria: envio, prévia no recorte real e a mira.
+ *
+ * Existe porque a categoria tem DUAS fotos com recortes opostos — o cartão da
+ * grade (5:2, largo e baixo) e o topo da ficha (quase um retrato) — e os dois
+ * campos aparecem em dois lugares cada: no formulário de edição, na coluna de
+ * categorias, e no drawer de categoria nova. Quatro cópias do mesmo bloco é
+ * onde um ajuste passa a valer só em três.
+ *
+ * Não sobe nem grava nada: recebe o arquivo escolhido e devolve pra tela, que
+ * é quem conhece as guardas de upload concorrente.
+ */
+function CampoFotoCategoria({
+  rotulo,
+  obrigatoria = false,
+  explicacao,
+  proporcoes,
+  proporcaoPrevia,
+  tituloModal,
+  descricaoModal,
+  url,
+  foco,
+  enviando,
+  onArquivo,
+  onFoco,
+  onRemover,
+}: {
+  rotulo: string
+  obrigatoria?: boolean
+  explicacao: string
+  proporcoes: { rotulo: string; ratio: number }[]
+  /** Classe `aspect-*` da miniatura — o mesmo recorte que a vitrine faz. */
+  proporcaoPrevia: string
+  tituloModal: string
+  descricaoModal: string
+  url: string | null
+  foco: Foco
+  enviando: boolean
+  onArquivo: (file: File) => void
+  onFoco: (f: Foco) => void
+  onRemover: () => void
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+        {rotulo}
+        <span
+          className={[
+            'rounded-menuzia px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wide',
+            obrigatoria ? 'bg-[#FEE2E2] text-danger' : 'bg-[#F3F4F6] text-text-subtle',
+          ].join(' ')}
+        >
+          {obrigatoria ? 'Obrigatória' : 'Opcional'}
+        </span>
+      </div>
+      <p className="mb-1.5 text-[10px] leading-snug text-text-subtle">{explicacao}</p>
+      <input
+        type="file"
+        accept="image/*"
+        disabled={enviando}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) onArquivo(file)
+        }}
+        className="block w-full text-[11px] text-text-subtle file:mr-2 file:rounded-menuzia file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-wide file:text-white"
+      />
+      {enviando && <p className="mt-1 text-[11px] text-text-subtle">Enviando…</p>}
+      {url && (
+        <div className="mt-2">
+          {/* Miniatura no recorte real da vitrine, com o foco aplicado: é a
+              prévia do que o cliente vai ver, não uma segunda cópia da foto. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt=""
+            className={`${proporcaoPrevia} w-full rounded-menuzia border border-border object-cover`}
+            style={{ objectPosition: objectPosition(foco) }}
+          />
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <AjustarFoco
+              src={url}
+              foco={foco}
+              onChange={onFoco}
+              proporcoes={proporcoes}
+              titulo={tituloModal}
+              descricao={descricaoModal}
+            />
+            <button
+              type="button"
+              onClick={onRemover}
+              className="text-[11px] font-semibold uppercase tracking-wide text-danger"
+            >
+              Remover foto
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Proporções reais em que cada foto de categoria é recortada na vitrine.
+// O cartão é fixo em 5:2 em qualquer largura. A ficha varia: `h-[42vh]` num
+// contêiner de até 600 px dá ≈1,1:1 num celular comum, e o desktop é 520×260.
+const PROPORCOES_CARTAO = [{ rotulo: 'Cartão', ratio: 2.5 }]
+const PROPORCOES_FICHA = [{ rotulo: 'Celular', ratio: 1.1 }, { rotulo: 'Computador', ratio: 2 }]
+
 // ─── Item-level sub-components ───────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: StatusItem }) {
@@ -1948,6 +2056,13 @@ export default function CardapioPage() {
   const [catImagemUrl, setCatImagemUrl] = useState<string | null>(null)
   const [catFoco, setCatFoco] = useState<Foco>(FOCO_PADRAO)
   const [catEnviando, setCatEnviando] = useState(false)
+  // Segunda foto da categoria: a que abre no topo da ficha quando a categoria
+  // tem um item só. Opcional — sem ela a ficha usa a foto do cartão. Estado e
+  // geração próprios, pra que subir uma não atrapalhe o upload da outra.
+  const [catFichaUrl, setCatFichaUrl] = useState<string | null>(null)
+  const [catFichaFoco, setCatFichaFoco] = useState<Foco>(FOCO_PADRAO)
+  const [catFichaEnviando, setCatFichaEnviando] = useState(false)
+  const uploadFichaGenRef = useRef(0)
   // Espelha editingGroupId "ao vivo" pro upload de foto da categoria conferir, na
   // hora que a Promise resolve, se ainda é a mesma categoria em edição. Ler
   // editingGroupId direto de dentro do onChange (closure) ficaria congelado no
@@ -2222,10 +2337,15 @@ export default function CardapioPage() {
     // caminho (Enter no campo do nome, por exemplo).
     if (!restauranteId || !newGroupName.trim() || !catImagemUrl) return
     try {
-      const group = await criarGrupo(supabase, restauranteId, newGroupName.trim(), groups.length, {
-        url: catImagemUrl,
-        foco: catFoco,
-      })
+      const group = await criarGrupo(
+        supabase,
+        restauranteId,
+        newGroupName.trim(),
+        groups.length,
+        { url: catImagemUrl, foco: catFoco },
+        // Opcional: sem foto própria a ficha usa a do cartão.
+        { url: catFichaUrl, foco: catFichaFoco },
+      )
       setGroups((prev) => [...prev, group])
       setActiveGroup(group.nome)
       setNewGroupName('')
@@ -2235,16 +2355,55 @@ export default function CardapioPage() {
     }
   }
 
+  /**
+   * Sobe uma foto de categoria e aterrissa no campo certo do formulário.
+   *
+   * `grupoId` null = drawer de categoria nova, onde não existe categoria pra
+   * conferir. Com id, a resposta só escreve se a categoria em edição ainda for
+   * a mesma: trocar de categoria no meio do upload não pode contaminar o
+   * formulário da outra. A geração cobre o que o id não cobre — duas fotos do
+   * MESMO campo em sequência, em que a primeira poderia demorar mais e vencer
+   * a segunda. Cada campo tem a sua, pra que subir a foto do cartão não
+   * invalide um upload da ficha em voo.
+   */
+  async function enviarFotoCategoria(file: File, grupoId: string | null, campo: 'cartao' | 'ficha') {
+    if (!restauranteId) return
+    const genRef = campo === 'cartao' ? uploadGenRef : uploadFichaGenRef
+    const setEnviando = campo === 'cartao' ? setCatEnviando : setCatFichaEnviando
+    const geracao = ++genRef.current
+    const aindaVale = () =>
+      (grupoId === null || grupoId === editingGroupIdRef.current) && geracao === genRef.current
+    setEnviando(true)
+    setError(null)
+    try {
+      const url = await enviarImagemCategoria(supabase, restauranteId, file)
+      if (!aindaVale()) return
+      // Foto nova, enquadramento novo: o foco anterior foi escolhido pra outra
+      // imagem e recortaria esta num ponto que ninguém pediu.
+      if (campo === 'cartao') { setCatImagemUrl(url); setCatFoco(FOCO_PADRAO) }
+      else { setCatFichaUrl(url); setCatFichaFoco(FOCO_PADRAO) }
+    } catch {
+      if (!aindaVale()) return
+      setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
+    } finally {
+      if (aindaVale()) setEnviando(false)
+    }
+  }
+
   function startEditCategoria(group: GrupoCardapio) {
     setEditingGroupId(group.id)
     setEditingGroupName(group.nome)
     setCatImagemUrl(group.imagemUrl)
     setCatFoco(group.imagemFoco)
+    setCatFichaUrl(group.imagemFichaUrl)
+    setCatFichaFoco(group.imagemFichaFoco)
     // Se um upload de OUTRA categoria (ou um upload abandonado desta mesma
     // categoria, de antes de fechar e reabrir a caixa) ainda estiver em voo, sua
     // resolução vai se recusar a mexer nesse estado (guardas por id e por geração
     // em cima), então "Enviando…" nunca mais se apagaria sozinho sem esse reset.
     setCatEnviando(false)
+    setCatFichaEnviando(false)
+    uploadFichaGenRef.current += 1
     // Avança a geração: invalida qualquer upload capturado antes deste ponto,
     // mesmo que seja da mesma categoria — sem isso, reabrir a caixa e mandar uma
     // foto nova não bastaria pra livrar o formulário de um upload velho ainda
@@ -2257,6 +2416,10 @@ export default function CardapioPage() {
     setCatImagemUrl(null)
     setCatFoco(FOCO_PADRAO)
     setCatEnviando(false)
+    setCatFichaUrl(null)
+    setCatFichaFoco(FOCO_PADRAO)
+    setCatFichaEnviando(false)
+    uploadFichaGenRef.current += 1
     // Invalida qualquer upload ainda em voo de uma sessão anterior do drawer
     // ou do formulário de edição: sem isso, uma foto abandonada poderia
     // aterrissar no formulário de categoria nova.
@@ -2270,10 +2433,14 @@ export default function CardapioPage() {
       // imagem sempre explícita aqui: o valor vem do form (carregado em
       // startEditCategoria), então renomear sem mexer na foto grava a mesma
       // foto de volta em vez de apagá-la.
-      const updated = await atualizarGrupo(supabase, editingGroupId, editingGroupName.trim(), undefined, {
-        url: catImagemUrl,
-        foco: catFoco,
-      })
+      const updated = await atualizarGrupo(
+        supabase,
+        editingGroupId,
+        editingGroupName.trim(),
+        undefined,
+        { url: catImagemUrl, foco: catFoco },
+        { url: catFichaUrl, foco: catFichaFoco },
+      )
       setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
       if (activeGroup && groups.find((g) => g.id === editingGroupId)?.nome === activeGroup) {
         setActiveGroup(updated.nome)
@@ -2590,7 +2757,7 @@ export default function CardapioPage() {
                         value={editingGroupName}
                         onChange={(e) => setEditingGroupName(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !catEnviando) saveEditCategoria()
+                          if (e.key === 'Enter' && !catEnviando && !catFichaEnviando) saveEditCategoria()
                           if (e.key === 'Escape') setEditingGroupId(null)
                         }}
                         className="flex-1 rounded-menuzia border border-primary px-2 py-1.5 text-sm outline-none"
@@ -2599,92 +2766,38 @@ export default function CardapioPage() {
                           antes do upload, sem nenhum aviso — o captured-id guard no onChange do
                           input de arquivo cobre o caso de trocar de categoria, mas aqui o risco é
                           salvar cedo demais na própria categoria em edição. */}
-                      <button onClick={saveEditCategoria} disabled={catEnviando} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page disabled:opacity-30">✓</button>
+                      <button onClick={saveEditCategoria} disabled={catEnviando || catFichaEnviando} title="Salvar" className="rounded-menuzia px-1.5 py-1 text-primary-dark hover:bg-page disabled:opacity-30">✓</button>
                       <button onClick={() => setEditingGroupId(null)} title="Cancelar" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-page">✕</button>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                        Foto de capa
-                      </label>
-                      <p className="mb-1.5 text-[10px] leading-snug text-text-subtle">
-                        Usada no modo de exibição &ldquo;Gaveta&rdquo;, onde o cliente escolhe a categoria antes dos produtos.
-                      </p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        disabled={catEnviando}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0]
-                          e.target.value = ''
-                          if (!file || !restauranteId) return
-                          // catImagemUrl/catFoco são estado da página, não da categoria — se o
-                          // operador trocar de categoria (ou fechar) antes do upload terminar, a
-                          // resposta não pode aterrissar no formulário de outra categoria. group.id
-                          // é estável nessa iteração; editingGroupIdRef é conferido só depois do
-                          // await, quando já reflete a categoria realmente aberta na tela. O id
-                          // sozinho não basta pra duas fotos enviadas em sequência pra MESMA
-                          // categoria — se a mais antiga demorar mais, ela venceria por engano
-                          // mesmo já superada — daí a geração: só quem ainda for a mais recente
-                          // no fim tem permissão de escrever o resultado.
-                          const grupoDoUpload = group.id
-                          const geracao = ++uploadGenRef.current
-                          setCatEnviando(true)
-                          setError(null)
-                          try {
-                            const url = await enviarImagemCategoria(supabase, restauranteId, file)
-                            if (grupoDoUpload !== editingGroupIdRef.current || geracao !== uploadGenRef.current) return
-                            // Foto nova, enquadramento novo: o foco da anterior
-                            // recortaria esta num ponto escolhido pra outra imagem.
-                            setCatImagemUrl(url)
-                            setCatFoco(FOCO_PADRAO)
-                          } catch {
-                            if (grupoDoUpload !== editingGroupIdRef.current || geracao !== uploadGenRef.current) return
-                            setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
-                          } finally {
-                            if (grupoDoUpload === editingGroupIdRef.current && geracao === uploadGenRef.current) setCatEnviando(false)
-                          }
-                        }}
-                        className="block w-full text-[11px] text-text-subtle file:mr-2 file:rounded-menuzia file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-wide file:text-white"
-                      />
-                      {catEnviando && <p className="mt-1 text-[11px] text-text-subtle">Enviando…</p>}
-                      {catImagemUrl && (
-                        <div className="mt-2">
-                          {/* Miniatura no mesmo 5:2 do cartão da vitrine, já
-                              com o foco aplicado — é a prévia do que o cliente
-                              vai ver, e não uma segunda cópia da foto inteira. */}
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={catImagemUrl}
-                            alt=""
-                            className="aspect-[5/2] w-full rounded-menuzia border border-border object-cover"
-                            style={{ objectPosition: objectPosition(catFoco) }}
-                          />
-                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                            <AjustarFoco
-                              src={catImagemUrl}
-                              foco={catFoco}
-                              onChange={setCatFoco}
-                              // 2,5 = o `aspect-[5/2]` que o cartão da gaveta usa
-                              // na vitrine (CategoriasGaveta em
-                              // app/loja/[slug]/vitrine.tsx). Uma moldura só, e
-                              // exata, porque lá a proporção é fixa em toda
-                              // largura de tela — ao contrário da capa da loja,
-                              // que muda de forma e por isso recebe duas.
-                              proporcoes={[{ rotulo: 'Cartão', ratio: 2.5 }]}
-                              titulo="Posição da foto da categoria"
-                              descricao="O cartão da categoria é recortado em 5:2. Marque o que não pode ser cortado."
-                            />
-                            <button
-                              type="button"
-                              onClick={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
-                              className="text-[11px] font-semibold uppercase tracking-wide text-danger"
-                            >
-                              Remover foto
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <CampoFotoCategoria
+                      rotulo="Foto de capa"
+                      obrigatoria
+                      explicacao='Cartão da categoria na visualização “Gaveta”, onde o cliente escolhe a categoria antes dos produtos. Recortada em 5:2.'
+                      proporcoes={PROPORCOES_CARTAO}
+                      proporcaoPrevia="aspect-[5/2]"
+                      tituloModal="Posição da foto do cartão"
+                      descricaoModal="O cartão da categoria é recortado em 5:2. Marque o que não pode ser cortado."
+                      url={catImagemUrl}
+                      foco={catFoco}
+                      enviando={catEnviando}
+                      onArquivo={(file) => enviarFotoCategoria(file, group.id, 'cartao')}
+                      onFoco={setCatFoco}
+                      onRemover={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
+                    />
+                    <CampoFotoCategoria
+                      rotulo="Foto da ficha"
+                      explicacao='Topo da ficha quando a categoria tem um item só e abre direto. Sem ela, a ficha usa a foto do cartão.'
+                      proporcoes={PROPORCOES_FICHA}
+                      proporcaoPrevia="aspect-[1.1/1]"
+                      tituloModal="Posição da foto da ficha"
+                      descricaoModal="O topo da ficha é quase um retrato no celular e mais largo no computador. Marque o que não pode ser cortado."
+                      url={catFichaUrl}
+                      foco={catFichaFoco}
+                      enviando={catFichaEnviando}
+                      onArquivo={(file) => enviarFotoCategoria(file, group.id, 'ficha')}
+                      onFoco={setCatFichaFoco}
+                      onRemover={() => { setCatFichaUrl(null); setCatFichaFoco(FOCO_PADRAO) }}
+                    />
                   </div>
                 ) : schedulingGroupId === group.id ? (
                   <div key={group.id} className="space-y-1.5 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
@@ -2980,71 +3093,39 @@ export default function CardapioPage() {
           {/* Foto de capa obrigatória. O modo gaveta mostra a categoria como um
               cartão com foto; pedir a imagem aqui é o único momento em que o
               lojista tem o contexto todo na cabeça. Cobrar depois, em Ajustes,
-              vira uma caça às categorias pendentes. */}
-          <div className="mb-2 mt-4 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-            Foto de capa
-            <span className="rounded-menuzia bg-[#FEE2E2] px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wide text-danger">Obrigatória</span>
+              vira uma caça às categorias pendentes. A foto da ficha é opcional
+              porque tem queda: sem ela, a ficha usa a do cartão. */}
+          <div className="mt-4 space-y-4">
+            <CampoFotoCategoria
+              rotulo="Foto de capa"
+              obrigatoria
+              explicacao='Cartão da categoria na visualização “Gaveta”. Recortada em 5:2.'
+              proporcoes={PROPORCOES_CARTAO}
+              proporcaoPrevia="aspect-[5/2]"
+              tituloModal="Posição da foto do cartão"
+              descricaoModal="O cartão da categoria é recortado em 5:2. Marque o que não pode ser cortado."
+              url={catImagemUrl}
+              foco={catFoco}
+              enviando={catEnviando}
+              onArquivo={(file) => enviarFotoCategoria(file, null, 'cartao')}
+              onFoco={setCatFoco}
+              onRemover={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
+            />
+            <CampoFotoCategoria
+              rotulo="Foto da ficha"
+              explicacao='Topo da ficha quando a categoria tem um item só e abre direto. Sem ela, a ficha usa a foto do cartão.'
+              proporcoes={PROPORCOES_FICHA}
+              proporcaoPrevia="aspect-[1.1/1]"
+              tituloModal="Posição da foto da ficha"
+              descricaoModal="O topo da ficha é quase um retrato no celular e mais largo no computador. Marque o que não pode ser cortado."
+              url={catFichaUrl}
+              foco={catFichaFoco}
+              enviando={catFichaEnviando}
+              onArquivo={(file) => enviarFotoCategoria(file, null, 'ficha')}
+              onFoco={setCatFichaFoco}
+              onRemover={() => { setCatFichaUrl(null); setCatFichaFoco(FOCO_PADRAO) }}
+            />
           </div>
-          <p className="mb-2 text-[11px] leading-snug text-text-subtle">
-            É a imagem do cartão da categoria na visualização &ldquo;Gaveta&rdquo;. Recortada em 5:2.
-          </p>
-          <input
-            type="file"
-            accept="image/*"
-            disabled={catEnviando}
-            onChange={async (e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (!file || !restauranteId) return
-              // Sem id de categoria pra conferir (ela ainda não existe), a
-              // geração sozinha resolve: só o upload mais recente escreve.
-              // Fechar e reabrir o drawer avança a geração em openCreateCategoria.
-              const geracao = ++uploadGenRef.current
-              setCatEnviando(true)
-              setError(null)
-              try {
-                const url = await enviarImagemCategoria(supabase, restauranteId, file)
-                if (geracao !== uploadGenRef.current) return
-                setCatImagemUrl(url)
-                setCatFoco(FOCO_PADRAO)
-              } catch {
-                if (geracao !== uploadGenRef.current) return
-                setError('Não foi possível enviar a imagem da categoria. Tente novamente.')
-              } finally {
-                if (geracao === uploadGenRef.current) setCatEnviando(false)
-              }
-            }}
-            className="block w-full text-[11px] text-text-subtle file:mr-2 file:rounded-menuzia file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-[10px] file:font-semibold file:uppercase file:tracking-wide file:text-white"
-          />
-          {catEnviando && <p className="mt-1 text-[11px] text-text-subtle">Enviando…</p>}
-          {catImagemUrl && (
-            <div className="mt-2.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={catImagemUrl}
-                alt=""
-                className="aspect-[5/2] w-full rounded-menuzia border border-border object-cover"
-                style={{ objectPosition: objectPosition(catFoco) }}
-              />
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <AjustarFoco
-                  src={catImagemUrl}
-                  foco={catFoco}
-                  onChange={setCatFoco}
-                  proporcoes={[{ rotulo: 'Cartão', ratio: 2.5 }]}
-                  titulo="Posição da foto da categoria"
-                  descricao="O cartão da categoria é recortado em 5:2. Marque o que não pode ser cortado."
-                />
-                <button
-                  type="button"
-                  onClick={() => { setCatImagemUrl(null); setCatFoco(FOCO_PADRAO) }}
-                  className="text-[11px] font-semibold uppercase tracking-wide text-danger"
-                >
-                  Remover foto
-                </button>
-              </div>
-            </div>
-          )}
         </div>
         <div className="border-t border-border p-4.5">
           {!catImagemUrl && (
@@ -3058,7 +3139,7 @@ export default function CardapioPage() {
               variant="primary"
               className="flex-1 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={createCategoria}
-              disabled={!newGroupName.trim() || !catImagemUrl || catEnviando}
+              disabled={!newGroupName.trim() || !catImagemUrl || catEnviando || catFichaEnviando}
             >
               Criar categoria
             </Button>

@@ -30,6 +30,15 @@ export interface GrupoCardapio {
   imagemUrl: string | null
   /** Ponto de foco da foto acima. Centro por padrão. */
   imagemFoco: Foco
+  /**
+   * Foto do topo da ficha quando a categoria abre direto (modo gaveta,
+   * categoria de um item só). NULL = usa a `imagemUrl` do cartão. São duas
+   * porque os recortes são opostos: o cartão é 5:2, a ficha é quase um
+   * retrato.
+   */
+  imagemFichaUrl: string | null
+  /** Ponto de foco da foto da ficha. Centro por padrão. */
+  imagemFichaFoco: Foco
 }
 
 export interface ComplementoItem {
@@ -201,7 +210,7 @@ export async function buscarRestauranteIdDoUsuario(supabase: SupabaseClient): Pr
   return data.restaurante_id as string
 }
 
-const GRUPO_SELECT = 'id, nome, posicao, horario_ativo_inicio, horario_ativo_fim, imagem_url, imagem_foco_x, imagem_foco_y'
+const GRUPO_SELECT = 'id, nome, posicao, horario_ativo_inicio, horario_ativo_fim, imagem_url, imagem_foco_x, imagem_foco_y, imagem_ficha_url, imagem_ficha_foco_x, imagem_ficha_foco_y'
 
 interface GrupoRow {
   id: string
@@ -212,6 +221,9 @@ interface GrupoRow {
   imagem_url: string | null
   imagem_foco_x: number | string | null
   imagem_foco_y: number | string | null
+  imagem_ficha_url: string | null
+  imagem_ficha_foco_x: number | string | null
+  imagem_ficha_foco_y: number | string | null
 }
 
 /** Postgres `time` volta como "HH:MM:SS" — trunca pra "HH:MM" (formato usado em todo o front). */
@@ -224,6 +236,8 @@ function mapGrupo(row: GrupoRow): GrupoCardapio {
     horarioAtivoFim: row.horario_ativo_fim?.slice(0, 5) ?? null,
     imagemUrl: row.imagem_url ?? null,
     imagemFoco: focoValido(row.imagem_foco_x, row.imagem_foco_y),
+    imagemFichaUrl: row.imagem_ficha_url ?? null,
+    imagemFichaFoco: focoValido(row.imagem_ficha_foco_x, row.imagem_ficha_foco_y),
   }
 }
 
@@ -251,6 +265,7 @@ export async function criarGrupo(
   nome: string,
   posicao: number,
   imagem?: { url: string | null; foco: Foco },
+  imagemFicha?: { url: string | null; foco: Foco },
 ) {
   const { data, error } = await supabase
     .from('grupos_cardapio')
@@ -261,6 +276,9 @@ export async function criarGrupo(
       ...(imagem
         ? { imagem_url: imagem.url, imagem_foco_x: imagem.foco.x, imagem_foco_y: imagem.foco.y }
         : {}),
+      ...(imagemFicha
+        ? { imagem_ficha_url: imagemFicha.url, imagem_ficha_foco_x: imagemFicha.foco.x, imagem_ficha_foco_y: imagemFicha.foco.y }
+        : {}),
     })
     .select(GRUPO_SELECT)
     .single()
@@ -270,10 +288,10 @@ export async function criarGrupo(
 }
 
 /**
- * `imagem` é opcional de propósito: quando não vem, `imagem_url` e o foco NÃO
- * entram no payload, então editar o nome ou o horário de uma categoria não
- * apaga a foto que ela já tem. Passar `{ url: null, foco }` é o jeito de
- * limpar a foto.
+ * `imagem` e `imagemFicha` são opcionais de propósito: quando não vêm, as
+ * colunas correspondentes NÃO entram no payload, então editar o nome ou o
+ * horário de uma categoria não apaga as fotos que ela já tem. Passar
+ * `{ url: null, foco }` é o jeito de limpar uma delas.
  */
 export async function atualizarGrupo(
   supabase: SupabaseClient,
@@ -281,6 +299,7 @@ export async function atualizarGrupo(
   nome: string,
   horario?: { horarioAtivoInicio: string | null; horarioAtivoFim: string | null },
   imagem?: { url: string | null; foco: Foco },
+  imagemFicha?: { url: string | null; foco: Foco },
 ) {
   const { data, error } = await supabase
     .from('grupos_cardapio')
@@ -291,6 +310,9 @@ export async function atualizarGrupo(
         : {}),
       ...(imagem
         ? { imagem_url: imagem.url, imagem_foco_x: imagem.foco.x, imagem_foco_y: imagem.foco.y }
+        : {}),
+      ...(imagemFicha
+        ? { imagem_ficha_url: imagemFicha.url, imagem_ficha_foco_x: imagemFicha.foco.x, imagem_ficha_foco_y: imagemFicha.foco.y }
         : {}),
     })
     .eq('id', grupoId)

@@ -2415,7 +2415,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // da categoria como foto do topo, que é a imagem que o cliente acabou de
     // tocar.
     if (g && g.itens.length === 1) {
-      openProduct(g.itens[0], { capaUrl: g.imagemUrl, capaFoco: g.imagemFoco })
+      // A ficha tem foto própria porque o recorte é o oposto do cartão: lá é
+      // 5:2, aqui é quase um retrato. Sem foto própria cai na do cartão, que é
+      // como funcionava antes de existir a segunda.
+      const usaFicha = g.imagemFichaUrl !== null
+      openProduct(g.itens[0], {
+        capaUrl: usaFicha ? g.imagemFichaUrl : g.imagemUrl,
+        capaFoco: usaFicha ? g.imagemFichaFoco : g.imagemFoco,
+      })
       return
     }
     setCategoriaAberta(id)
