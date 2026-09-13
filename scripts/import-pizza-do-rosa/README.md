@@ -64,10 +64,28 @@ autorização explícita (Task 11 do plano) e com a loja `pizza-do-rosa` ainda v
 
 Tudo que o import cria está marcado pelo tenant (`restaurante_id`) e as fotos
 ficam sob `<restauranteId>/import-expresso-2026-09/` no bucket `cardapio`.
-Apagar os grupos derruba itens, sabores, preços e complementos em cascata:
+
+**A ordem importa e não é intuitiva.** `itens_cardapio.grupo_id` é
+`on delete set null` (não `cascade`) — ver `0002_menu_cardapio.sql`. Isso
+quer dizer que apagar `grupos_cardapio` primeiro **não** derruba os itens:
+só desvincula cada item do seu grupo (`grupo_id` vira `null`) e o item, os
+sabores, os preços e os complementos ficam todos órfãos e vivos no banco —
+968 linhas fantasmas (121 itens + 110 sabores + 40 grupos de complemento +
+697 complementos), e a guarda de "loja vazia" do `importar.mjs` passa a
+bloquear pra sempre um novo import, já que `itens_cardapio` nunca esvazia.
+
+Quem cascateia de verdade é `itens_cardapio` (via `item_id on delete
+cascade` em `pizza_sabores`, `pizza_sabor_precos`, `grupos_item_complementos`
+e `item_complementos`). Por isso `itens_cardapio` tem que ser a **primeira**
+tabela apagada — antes de `grupos_cardapio`, não depois:
 
 ```sql
 -- Reversão completa do import (rodar como service role, tenant pizza-do-rosa)
+-- ORDEM IMPORTA: itens_cardapio primeiro — é o único delete que cascateia
+-- (sabores, preços, grupos de complemento, complementos). grupos_cardapio
+-- não cascateia pra itens_cardapio (grupo_id é "on delete set null"), então
+-- apagá-lo antes só deixaria os itens órfãos e vivos.
+delete from itens_cardapio         where restaurante_id = '<rid>';
 delete from grupos_cardapio        where restaurante_id = '<rid>';
 delete from presets_complementos   where restaurante_id = '<rid>';
 delete from bordas_pizza           where restaurante_id = '<rid>';
