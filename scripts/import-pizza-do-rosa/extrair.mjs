@@ -132,6 +132,8 @@ async function main() {
       formaCalculoItem: s.sessao_formacalculoitem,
       itens: parseItens(html),
       api,
+      // Fundo usado pelo card de categoria no modo gaveta da vitrine.
+      catBackground: s.sessao_catbackgroundmobile ?? null,
     })
     console.log(s.sessao_link.padEnd(20), sessoes.at(-1).itens.length, 'itens', api ? '(+api)' : '')
   }
