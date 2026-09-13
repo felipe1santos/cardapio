@@ -47,10 +47,13 @@ html:has(.font-loja) {
   }
 }
 
-/* Vitrine do cliente: fonte Inter (mesma do painel), escopada por segurança */
+/* Vitrine do cliente: fonte Rubik (o painel segue em Inter), escopada por
+   segurança — cobre tanto o wrapper principal quanto a tela de erro, que são
+   duas raízes `.font-loja` independentes. Decisão de 2026-09-13, ver
+   CLAUDE.md §3 e docs/superpowers/specs/2026-09-13-vitrine-banner-gaveta-design.md. */
 .font-loja,
 .font-loja * {
-  font-family: var(--font-inter), 'Inter', sans-serif;
+  font-family: var(--font-rubik), 'Rubik', sans-serif;
 }
 
 /* Card de pedido novo no Kanban: pisca alternando azul/vermelho enquanto
