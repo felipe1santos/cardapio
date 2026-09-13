@@ -2334,6 +2334,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     ? (groups.find((g) => g.id === categoriaAberta) ?? null)
     : null
 
+  // "Dentro" da gaveta: categoria aberta, ou a vista de Promoções. Nessas duas
+  // telas o cliente pediu UMA seção do cardápio, e é só isso que ele vê —
+  // sem capa, sem barra da loja, sem banner de promoção, sem destaques. O topo
+  // inteiro volta quando ele volta pra grade de categorias.
+  const gavetaEmTela = gavetaAtiva && (catGaveta !== null || activeCategory === '__promos__')
+
   // Abrir e fechar cartão volta ao topo: quem rolou a grade e tocou no último
   // cartão cairia no meio da lista da categoria nova, parecendo que a tela não
   // trocou.
@@ -2407,7 +2413,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {tab === 'home' && (
           <>
             {/* Cover banner — no desktop ganha uma faixa colorida (cor do tema da loja) atrás
-                e uma moldura branca ao redor, tipo vitrine premium; no mobile fica como sempre foi. */}
+                e uma moldura branca ao redor, tipo vitrine premium; no mobile fica como sempre foi.
+                No modo gaveta a capa não aparece: a primeira tela ali é a
+                escolha da categoria, e a capa empurrava os cartões pra baixo
+                da dobra sem acrescentar nada à decisão que o cliente precisa
+                tomar. A identidade da loja continua na barra logo abaixo. */}
+            {!gavetaAtiva && (
             <div className="relative">
               <div className="absolute inset-x-0 top-0 hidden h-44 bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)] lg:block" />
               <div className="relative lg:mx-8 lg:mt-10 lg:rounded-menuzia lg:bg-white lg:p-1.5 lg:shadow-md">
@@ -2442,12 +2453,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta) */}
+            {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta).
+                Dentro de uma categoria da gaveta ela some junto com o resto do
+                topo — ali a tela é só os itens daquela seção. */}
+            {!gavetaEmTela && (
             <div className="relative z-10 px-3 sm:px-4 lg:px-8">
               {/* Logo grande e o texto do lado ocupando a mesma altura: nome,
                   status, tempo/nota e endereço somam a altura da logo. */}
-              <div className="-mt-8 flex items-center gap-3 rounded-md border border-border bg-white p-2.5 shadow-md sm:-mt-10 sm:gap-4 sm:p-3.5">
+              {/* A margem negativa existe pra encavalar a barra na capa. Sem
+                  capa (modo gaveta) ela puxaria a barra pra cima de nada. */}
+              <div className={[
+                'flex items-center gap-3 rounded-md border border-border bg-white p-2.5 shadow-md sm:gap-4 sm:p-3.5',
+                gavetaAtiva ? 'mt-3' : '-mt-8 sm:-mt-10',
+              ].join(' ')}>
                 <div className="h-[88px] w-[88px] flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-[96px] sm:w-[96px] lg:h-[108px] lg:w-[108px]">
                   {restaurante.logoUrl ? (
                     // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
@@ -2524,8 +2544,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
               </div>
             </div>
+            )}
 
-            {restaurante.bannerPromocionalUrl && (
+            {restaurante.bannerPromocionalUrl && !gavetaEmTela && (
               <div className="mx-4 mt-3 lg:mx-8">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -2576,7 +2597,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 fica — sem ela os itens em promoção não teriam nenhuma porta de
                 entrada nesse modo — e a barra inteira some quando a loja não
                 tem promoção. */}
-            {(!gavetaAtiva || promoItems.length > 0) && (
+            {(!gavetaAtiva || (promoItems.length > 0 && !gavetaEmTela)) && (
             <div className="sticky top-0 z-10 mt-2 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-2 [scrollbar-width:none] lg:top-16 lg:px-0">
               {promoItems.length > 0 && (
                 <button
@@ -2606,7 +2627,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
             {/* Pedido em andamento: enquanto a cozinha trabalha, o cliente
                 acompanha sem sair do cardápio (e volta a pedir sem perder o fio). */}
-            {pedidoEmAndamento && (
+            {pedidoEmAndamento && !gavetaEmTela && (
               <div className="px-4 pt-3 lg:px-0">
                 <button
                   onClick={() => setPedidoDetalhe(pedidoEmAndamento)}
@@ -2633,7 +2654,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             )}
 
             {/* Banner ÚNICO de resgate: prêmios prontos hoje + cupons públicos da loja */}
-            {bannerResgateTexto && activeCategory !== '__promos__' && !search.trim() && (
+            {bannerResgateTexto && activeCategory !== '__promos__' && !search.trim() && !gavetaEmTela && (
               <div className="px-4 pt-3 lg:px-0">
                 <button
                   onClick={() => setTab('cupons')}
