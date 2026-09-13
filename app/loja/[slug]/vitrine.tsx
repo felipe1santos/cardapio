@@ -476,7 +476,10 @@ function CategoriasGaveta({ grupos, onAbrir }: { grupos: GrupoComItens[]; onAbri
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={g.imagemUrl}
-              alt={g.nome}
+              // Decorativa: o nome da categoria está escrito logo abaixo, no
+              // próprio cartão. Repetir no alt faria o leitor de tela falar
+              // "Lanches Lanches".
+              alt=""
               loading="lazy"
               decoding="async"
               className="h-full w-full object-cover"
@@ -729,13 +732,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (!activeCategory && groups.length > 0) setActiveCategory(groups[0].nome)
   }, [groups, activeCategory])
 
-  // Sair da Home fecha a categoria aberta: voltar da sacola precisa mostrar a
-  // grade de categorias, não a última que o cliente abriu. Num efeito sobre
-  // `tab` em vez de em cada `setTab(...)` da tela — são mais de dez chamadas e
-  // esquecer uma deixaria a gaveta presa aberta.
+  // Sair da Home (ou entrar na aba de promoções) fecha a categoria aberta:
+  // voltar precisa mostrar a grade de categorias, não a última que o cliente
+  // abriu. Num efeito em vez de em cada `setTab(...)` da tela — são mais de dez
+  // chamadas e esquecer uma deixaria a gaveta presa aberta, inclusive como
+  // camada invisível pro botão voltar do celular.
   useEffect(() => {
-    if (tab !== 'home') setCategoriaAberta(null)
-  }, [tab])
+    if (tab !== 'home' || activeCategory === '__promos__') setCategoriaAberta(null)
+  }, [tab, activeCategory])
 
   // ── Cart ──────────────────────────────────────────────────────────────────
   const [cart, setCart] = useState<CartLine[]>([])
@@ -2013,7 +2017,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (freteOpen) { setFreteOpen(false); return true }
     if (contaOpen) { setContaOpen(false); return true }
     if (infoOpen) { setInfoOpen(false); return true }
-    if (searchOpen) { setSearchOpen(false); return true }
+    // Fechar a busca também limpa o termo: a barra só existe enquanto
+    // `searchOpen`, então um termo mantido ficaria invisível e continuaria
+    // filtrando o cardápio (no modo gaveta, trocando a loja inteira de modo)
+    // sem nada na tela explicando o porquê.
+    if (searchOpen) { setSearchOpen(false); setSearch(''); return true }
     if (tab !== 'home') { setTab('home'); return true }
     // Categoria aberta no modo gaveta é uma camada de navegação como as outras:
     // o voltar tem que devolver pra grade de categorias, não jogar o cliente
@@ -2303,6 +2311,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // e precisa varrer o cardápio inteiro.
   const gavetaAtiva = restaurante.layoutCardapio === 'gaveta' && !search.trim()
 
+  // Categoria aberta já resolvida no grupo (null = grade de cartões, ou modo sem
+  // gaveta). Resolver aqui, e não dentro do bloco de render, é o que deixa o
+  // rodapé de fim de cardápio enxergar a mesma resposta. Grupo que não existe
+  // mais (cardápio recarregado, categoria removida no admin) cai em null e a
+  // grade volta — derivado, sem setState durante o render.
+  const catGaveta = gavetaAtiva && categoriaAberta !== null
+    ? (groups.find((g) => g.id === categoriaAberta) ?? null)
+    : null
+
+  // Abrir e fechar cartão volta ao topo: quem rolou a grade e tocou no último
+  // cartão cairia no meio da lista da categoria nova, parecendo que a tela não
+  // trocou.
+  const abrirGaveta = (id: string) => { setCategoriaAberta(id); window.scrollTo({ top: 0 }) }
+  const fecharGaveta = () => { setCategoriaAberta(null); window.scrollTo({ top: 0 }) }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
@@ -2455,7 +2478,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     nome da loja e cortavam o texto. */}
                 <div className="flex flex-shrink-0 flex-col items-center gap-1.5 sm:flex-row sm:gap-2">
                   <button
-                    onClick={() => setSearchOpen((v) => !v)}
+                    // Fechar pelo mesmo botão limpa o termo, igual ao × da barra:
+                    // termo invisível seguiria filtrando o cardápio.
+                    onClick={() => { if (searchOpen) setSearch(''); setSearchOpen(!searchOpen) }}
                     className="flex h-9 w-9 items-center justify-center rounded-md bg-[#F3F4F6] transition-colors hover:bg-border sm:h-10 sm:w-10"
                     aria-label="Buscar no cardápio"
                   >
@@ -2530,10 +2555,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   // chip abre a categoria, senão seria um botão que não faz nada.
                   onClick={() => {
                     setActiveCategory(cat.nome)
-                    if (gavetaAtiva) { setCategoriaAberta(cat.id); return }
+                    if (gavetaAtiva) { abrirGaveta(cat.id); return }
                     document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === cat.nome ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white' : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors',
+                    // Na gaveta quem diz "onde estou" é a categoria aberta, não a
+                    // `activeCategory`: na grade de cartões não estamos dentro de
+                    // categoria nenhuma e nenhuma chip pode ficar acesa.
+                    (gavetaAtiva ? categoriaAberta === cat.id : activeCategory === cat.nome)
+                      ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white'
+                      : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
                 >
                   {cat.nome}
                 </button>
@@ -2612,28 +2643,25 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {/* Modo gaveta: a grade de categorias ocupa o lugar da lista de
                 seções, e abrir um cartão troca a grade pelos itens daquela
                 categoria. */}
-            {!loading && activeCategory !== '__promos__' && gavetaAtiva && (() => {
-              const cat = categoriaAberta === null ? null : groups.find((g) => g.id === categoriaAberta)
-              // Categoria que sumiu no meio do caminho (cardápio recarregado,
-              // categoria removida no admin) cai na grade em vez de deixar a
-              // tela vazia — derivado no render, sem setState durante o render.
-              if (!cat) return <CategoriasGaveta grupos={groups} onAbrir={setCategoriaAberta} />
-              return (
+            {!loading && activeCategory !== '__promos__' && gavetaAtiva && (
+              catGaveta === null ? (
+                <CategoriasGaveta grupos={groups} onAbrir={abrirGaveta} />
+              ) : (
                 <div className="px-4 pb-1 pt-4 lg:px-0">
                   <button
-                    onClick={() => setCategoriaAberta(null)}
+                    onClick={fecharGaveta}
                     className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold text-text-subtle"
                   >
                     <span aria-hidden>‹</span> Todas as categorias
                   </button>
-                  <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
+                  <h2 className="mb-3 text-[17px] font-bold tracking-tight">{catGaveta.nome}</h2>
                   {/* `layout="categoria"` fixo: dentro da categoria aberta a
                       grade de cartões é a apresentação certa. 'gaveta' é modo de
                       navegação, não layout de grade de itens. */}
-                  <ItemsGrid items={cat.itens} layout="categoria" onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
+                  <ItemsGrid items={catGaveta.itens} layout="categoria" onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
                 </div>
               )
-            })()}
+            )}
 
             {/* Regular categories (or search results) */}
             {!loading && activeCategory !== '__promos__' && !gavetaAtiva &&
@@ -2652,8 +2680,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
             {/* Fim do cardápio: sinaliza que a lista acabou (senão o cliente
                 fica rolando achando que carrega mais) sem disputar atenção com
-                os produtos — tudo em cinza, sem cor de marca. */}
-            {!loading && !search.trim() && (
+                os produtos — tudo em cinza, sem cor de marca. Dentro de uma
+                categoria da gaveta não aparece: ali acabou aquela categoria,
+                não o cardápio. */}
+            {!loading && !search.trim() && catGaveta === null && (
               <footer className="mt-6 border-t border-border px-4 py-7 text-center lg:px-0">
                 <p className="text-[12px] font-semibold text-text-subtle">Você chegou ao fim do cardápio</p>
                 <p className="mt-1 text-[11.5px] text-text-subtle/80">
