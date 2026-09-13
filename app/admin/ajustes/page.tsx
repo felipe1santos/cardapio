@@ -286,10 +286,15 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   })
   const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
   const [categoriasSemFoto, setCategoriasSemFoto] = useState<string[]>([])
-  // Distingue "ainda não conferiu" de "conferiu, nenhuma falta" — sem isso, o
-  // botão da Gaveta ficaria destravado por um instante entre a config carregar
-  // e as categorias chegarem, furando o cadeado (spec: nunca destravar sem checar).
+  // Três estados, não dois: "ainda não conferiu" (carregadas=false), "conferiu"
+  // (carregadas=true) e "tentou conferir e falhou" (erroCategorias=true). Sem o
+  // primeiro, o botão da Gaveta ficaria destravado por um instante entre a
+  // config carregar e as categorias chegarem; sem o terceiro, uma falha na
+  // leitura DESTRAVARIA o botão — e a falha mais provável é justamente a coluna
+  // imagem_url ainda não existir, que é o estado em que o cadeado mais importa
+  // (spec: nunca destravar sem checar).
   const [categoriasCarregadas, setCategoriasCarregadas] = useState(false)
+  const [erroCategorias, setErroCategorias] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -331,9 +336,11 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       setLoaded(true)
     })
     listarGrupos(supabase, restauranteId)
-      .then((gs) => setCategoriasSemFoto(gs.filter((g) => !g.imagemUrl).map((g) => g.nome)))
-      .catch(() => setCategoriasSemFoto([]))
-      .finally(() => setCategoriasCarregadas(true))
+      .then((gs) => {
+        setCategoriasSemFoto(gs.filter((g) => !g.imagemUrl).map((g) => g.nome))
+        setCategoriasCarregadas(true)
+      })
+      .catch(() => setErroCategorias(true))
   }, [supabase, restauranteId, loaded])
 
   function set(
@@ -794,7 +801,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               </button>
               <button
                 type="button"
-                disabled={!categoriasCarregadas || categoriasSemFoto.length > 0}
+                disabled={erroCategorias || !categoriasCarregadas || categoriasSemFoto.length > 0}
                 onClick={() => setLayout('gaveta')}
                 className={[
                   'rounded-menuzia border px-3.5 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
@@ -805,7 +812,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 <div className="mt-0.5 text-[11px] text-text-subtle">Cartão por categoria, com foto</div>
               </button>
             </div>
-            {categoriasSemFoto.length > 0 && (
+            {erroCategorias && (
+              <p className="mt-2 rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] leading-relaxed text-danger">
+                Não conseguimos verificar as fotos das categorias. Recarregue a página.
+              </p>
+            )}
+            {!erroCategorias && categoriasSemFoto.length > 0 && (
               <p className="mt-2 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] leading-relaxed text-alert-text">
                 O modo Gaveta precisa de uma foto em cada categoria. Faltam{' '}
                 {categoriasSemFoto.length}: {categoriasSemFoto.join(' · ')}.{' '}
