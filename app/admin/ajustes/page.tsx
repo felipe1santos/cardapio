@@ -819,8 +819,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             )}
             {!erroCategorias && categoriasSemFoto.length > 0 && (
               <p className="mt-2 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] leading-relaxed text-alert-text">
-                O modo Gaveta precisa de uma foto em cada categoria. Faltam{' '}
-                {categoriasSemFoto.length}: {categoriasSemFoto.join(' · ')}.{' '}
+                O modo Gaveta precisa de uma foto em cada categoria.{' '}
+                {categoriasSemFoto.length === 1 ? 'Falta' : 'Faltam'} {categoriasSemFoto.length}:{' '}
+                {categoriasSemFoto.join(' · ')}.{' '}
                 <a href="/admin/cardapio" className="font-semibold underline">Subir fotos no cardápio</a>.
               </p>
             )}

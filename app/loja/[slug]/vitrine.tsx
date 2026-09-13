@@ -499,7 +499,7 @@ function CategoriasGaveta({ grupos, onAbrir }: { grupos: GrupoComItens[]; onAbri
           )}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-10">
             <span className="text-[17px] font-bold uppercase tracking-wide text-white">{g.nome}</span>
-            <span className="ml-2 text-[12px] font-medium text-white/80">{g.itens.length} itens</span>
+            <span className="ml-2 text-[12px] font-medium text-white/80">{g.itens.length} {g.itens.length === 1 ? 'item' : 'itens'}</span>
           </div>
         </button>
       ))}
@@ -2640,7 +2640,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <div className="px-4 pb-1 pt-4 lg:px-0">
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
-                  <span className="rounded bg-promo px-2 py-0.5 text-[11px] font-bold text-white">{promoItems.length} itens</span>
+                  <span className="rounded bg-promo px-2 py-0.5 text-[11px] font-bold text-white">{promoItems.length} {promoItems.length === 1 ? 'item' : 'itens'}</span>
                 </div>
                 <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
               </div>
