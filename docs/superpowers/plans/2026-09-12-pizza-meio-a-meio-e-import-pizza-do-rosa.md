@@ -1930,6 +1930,14 @@ Acrescente ao `scripts/import-pizza-do-rosa/README.md` a seção de reversão. T
 
 ```sql
 -- Reversão completa do import (rodar como service role, tenant pizza-do-rosa)
+--
+-- A ORDEM IMPORTA. itens_cardapio.grupo_id é `on delete set null`, NÃO cascade
+-- (0002_menu_cardapio.sql:18): apagar os grupos primeiro só desassocia os itens e
+-- deixa 968 linhas órfãs (121 itens + 110 sabores + 40 grupos de complemento +
+-- 697 complementos). Apagar os ITENS primeiro é o que cascateia de verdade —
+-- pizza_sabores, pizza_sabor_precos, grupos_item_complementos e item_complementos
+-- todos pendem de item_id com `on delete cascade`.
+delete from itens_cardapio         where restaurante_id = '<rid>';
 delete from grupos_cardapio        where restaurante_id = '<rid>';
 delete from presets_complementos   where restaurante_id = '<rid>';
 delete from bordas_pizza           where restaurante_id = '<rid>';
