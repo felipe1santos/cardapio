@@ -8,9 +8,9 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 /**
  * Calcula o frete para um endereço de cliente. Regra em lib/frete.ts (decidirFrete):
- * bairro cadastrado → faixa de raio → taxa padrão (esta só quando a loja não
- * restringiu área). Bairro fora da lista fechada ou endereço fora do raio
- * retornam entregavel: false.
+ * bairro cadastrado → faixa de raio → taxa padrão. Bairro fora da tabela só cai na
+ * taxa padrão quando a loja não usa raio E ligou `frete_fora_da_lista = 'taxa_padrao'`;
+ * fora do raio, ou sem conseguir localizar o endereço, retorna entregavel: false.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params

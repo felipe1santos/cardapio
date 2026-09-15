@@ -529,12 +529,14 @@ function CategoriasGaveta({ grupos, onAbrir }: { grupos: GrupoComItens[]; onAbri
  * inteira pra quem prefere só tocar e escolher. Em modo estrito (lista
  * fechada) só um bairro da lista vale como válido.
  */
-function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto }: {
+function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto, semMatchTexto }: {
   value: string
   onChange: (v: string) => void
   opcoes: string[]
   estrito: boolean
   compacto?: boolean
+  /** Cabeçalho da lista quando o que foi digitado não casa com nenhum bairro (modo não estrito). */
+  semMatchTexto?: string
 }) {
   const [aberto, setAberto] = useState(false)
   const [mostrarTodos, setMostrarTodos] = useState(false)
@@ -583,7 +585,11 @@ function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto }: {
             {/* Fora do modo estrito a loja também entrega por raio: um bairro que
                 não está na lista continua válido, e chamar isso de "não
                 encontrado" fazia o cliente achar que estava barrado. */}
-            {!semMatch ? 'Bairros atendidos' : estrito ? 'Bairro não encontrado — veja os atendidos' : 'Não está na lista — seguimos pela distância'}
+            {!semMatch
+              ? 'Bairros atendidos'
+              : estrito
+                ? 'Bairro não encontrado — veja os atendidos'
+                : (semMatchTexto ?? 'Não está na lista — seguimos pela distância')}
           </div>
           {lista.map((b) => {
             const selecionado = normalizarBairro(b) === alvo
@@ -880,19 +886,28 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [freteCalc, setFreteCalc] = useState<{ taxa: number; entregavel: boolean; fonte: 'bairro' | 'raio' | 'padrao'; distanciaKm: number | null; motivo?: string } | null>(null)
   const [freteStatus, setFreteStatus] = useState<'idle' | 'calculando' | 'ok' | 'erro'>('idle')
 
+  // Lista fechada: a loja cadastrou bairros, não usa raio e escolheu bloquear quem
+  // está fora da lista. Se ela escolheu cobrar a taxa padrão (Ajustes › Entrega),
+  // o bairro volta a ser campo livre e o frete cai na padrão.
+  const listaFechada = bairros.length > 0 && !temRaio && (restaurante?.freteForaDaLista ?? 'bloquear') === 'bloquear'
+
+  // Bairro fora da lista sem bloqueio: com raio quem decide é a distância; sem raio,
+  // a loja optou por cobrar a taxa padrão — o cliente precisa ler isso, não "distância".
+  const bairroSemMatchTexto = temRaio
+    ? 'Não está na lista — seguimos pela distância'
+    : 'Não está na lista — vale a taxa de entrega padrão'
+
   // Fallback instantâneo por bairro enquanto o servidor responde (ou se ele falhar).
   const feeFallback = useMemo(() => {
     const alvo = normalizarBairro(endereco.bairro)
     const match = bairros.find((b) => normalizarBairro(b.bairro) === alvo)
     if (match) return match.taxa
-    if (bairros.length > 0 && !temRaio) return 0 // lista fechada: fora da lista não há frete
+    if (listaFechada) return 0 // lista fechada: fora da lista não há frete
     return restaurante?.taxaEntregaPadrao ?? 0
-  }, [restaurante, bairros, temRaio, endereco.bairro])
+  }, [restaurante, bairros, listaFechada, endereco.bairro])
 
   const entregavel = freteCalc ? freteCalc.entregavel : true
 
-  // Lista fechada: a loja cadastrou bairros e não usa raio — só entrega nos bairros da lista.
-  const listaFechada = bairros.length > 0 && !temRaio
   const bairroValido =
     !listaFechada || bairros.some((b) => normalizarBairro(b.bairro) === normalizarBairro(endereco.bairro))
 
@@ -4097,6 +4112,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       onChange={(v) => { setEndereco((a) => ({ ...a, bairro: v })); setCepSemBairro(false) }}
                       opcoes={bairros.map((b) => b.bairro)}
                       estrito={listaFechada}
+                      semMatchTexto={bairroSemMatchTexto}
                     />
                   ) : (
                     <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
@@ -4439,6 +4455,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         onChange={(v) => setContaEndereco((a) => ({ ...a, bairro: v }))}
                         opcoes={bairros.map((b) => b.bairro)}
                         estrito={listaFechada}
+                        semMatchTexto={bairroSemMatchTexto}
                         compacto
                       />
                     ) : (

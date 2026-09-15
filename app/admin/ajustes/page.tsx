@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { Copy, Check, QrCode } from 'lucide-react'
-import { normalizarBairro } from '@/lib/frete'
+import { normalizarBairro, type FreteForaDaLista } from '@/lib/frete'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -908,6 +908,10 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   const [savingFreteGratis, setSavingFreteGratis] = useState(false)
   const [savedFreteGratis, setSavedFreteGratis] = useState(false)
   const [bairros, setBairros] = useState<TaxaBairro[]>([])
+  // Bairro sem taxa cadastrada: bloquear (lista fechada) ou aceitar pela taxa padrão.
+  // Começa no modo seguro até a config carregar.
+  const [foraDaLista, setForaDaLista] = useState<FreteForaDaLista>('bloquear')
+  const [savingForaDaLista, setSavingForaDaLista] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedTaxa, setSavedTaxa] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -972,6 +976,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
         setTaxaPadraoSalva(cfg.taxaEntregaPadrao)
         setFreteGratis(cfg.freteGratisAcima === null ? '' : String(cfg.freteGratisAcima))
         setFreteGratisSalvo(cfg.freteGratisAcima)
+        setForaDaLista(cfg.freteForaDaLista)
         setFluxo({ usaLogistica: cfg.usaLogistica, aceitaEntrega: cfg.aceitaEntrega, aceitaRetirada: cfg.aceitaRetirada })
       }
       setBairros(rows)
@@ -1035,6 +1040,22 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
    * reverte se o servidor recusar — são três chaves que mudam o que o cliente vê
    * na vitrine, então ficar "ligado" sem ter salvo seria pior que o clique perdido.
    */
+  async function salvarForaDaLista(aceitar: boolean) {
+    const proximo: FreteForaDaLista = aceitar ? 'taxa_padrao' : 'bloquear'
+    const anterior = foraDaLista
+    setForaDaLista(proximo)
+    setSavingForaDaLista(true)
+    setError(null)
+    try {
+      await atualizarConfigLoja(supabase, restauranteId, { freteForaDaLista: proximo })
+    } catch {
+      setForaDaLista(anterior)
+      setError('Não foi possível salvar a regra de bairro fora da lista.')
+    } finally {
+      setSavingForaDaLista(false)
+    }
+  }
+
   async function salvarFluxo(patch: Partial<typeof fluxo>) {
     const anterior = fluxo
     const proximo = { ...fluxo, ...patch }
@@ -1191,7 +1212,8 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Taxa padrão de entrega</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Aplicada quando o bairro do cliente não constar na tabela abaixo, ou quando nenhuma taxa por bairro estiver cadastrada.
+              Vale para quem não tem taxa específica por bairro. Se você não cadastrou nenhum bairro nem faixa de raio,
+              é essa a taxa de todo pedido de entrega.
             </p>
             <div className="flex items-center gap-3">
               <div className="w-40">
@@ -1207,6 +1229,20 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
               </Button>
             </div>
             {savedTaxa && !taxaChanged && <p className="mt-1.5 text-[12px] font-medium text-status-ready">Taxa padrão salva.</p>}
+
+            <div className="mt-4 border-t border-border pt-1">
+              <ToggleRow
+                label="Aceitar bairro fora da tabela cobrando a taxa padrão"
+                hint={
+                  raios.length > 0
+                    ? 'Sua loja usa raio: ele continua delimitando a área. Fora do raio, ou quando não dá pra localizar o endereço, o pedido segue recusado mesmo com esta opção ligada.'
+                    : 'Desligado: só os bairros da tabela abaixo podem pedir entrega. Ligado: qualquer bairro pede, pagando a taxa padrão acima.'
+                }
+                checked={foraDaLista === 'taxa_padrao'}
+                onChange={salvarForaDaLista}
+                disabled={savingForaDaLista || !loaded}
+              />
+            </div>
           </Card>
 
           {/* Entrega grátis acima de um valor */}
@@ -1240,7 +1276,9 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Taxas por bairro</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Quando o cliente informa o bairro no checkout, o sistema usa a taxa correspondente (ou a padrão acima).
+              Quando o cliente informa o bairro no checkout, o sistema usa a taxa correspondente. Bairro que não está
+              aqui só consegue pedir se a opção “aceitar bairro fora da tabela” estiver ligada acima (ou se ele cair
+              numa faixa de raio).
             </p>
             <div className="overflow-hidden rounded-menuzia border border-border">
               <table className="w-full text-sm">

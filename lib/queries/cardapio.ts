@@ -4,6 +4,7 @@ import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEs
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
+import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -865,6 +866,12 @@ export interface RestauranteVitrine {
   taxaEntregaPadrao: number
   /** Pedidos com subtotal >= este valor têm entrega grátis. Null = desativado. */
   freteGratisAcima: number | null
+  /**
+   * O que fazer com bairro que não está na tabela de taxas (migration 0054).
+   * 'bloquear' = lista fechada; 'taxa_padrao' = aceita cobrando a taxa padrão.
+   * Só muda alguma coisa em loja SEM raio — o raio continua sendo a fronteira.
+   */
+  freteForaDaLista: FreteForaDaLista
   facebookPixelId: string | null
   googleTagId: string | null
   orderBumpMax: number
@@ -890,7 +897,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -916,6 +923,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     cidade: data.endereco_cidade,
     taxaEntregaPadrao: Number(data.taxa_entrega_padrao),
     freteGratisAcima: data.frete_gratis_acima === null || data.frete_gratis_acima === undefined ? null : Number(data.frete_gratis_acima),
+    freteForaDaLista: normalizarForaDaLista(data.frete_fora_da_lista),
     facebookPixelId: data.facebook_pixel_id,
     googleTagId: data.google_tag_id,
     orderBumpMax: Number(data.order_bump_max ?? 4),

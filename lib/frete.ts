@@ -136,8 +136,23 @@ export async function geocodeEndereco(
 // Regra (ver docs/superpowers/specs/2026-07-10-bairro-obrigatorio-lista-fechada-design.md):
 // bairro cadastrado garante a entrega; se o endereço também cair numa faixa de raio
 // MAIS BARATA, o cliente paga o menor dos dois valores. Sem match de bairro, valem
-// as faixas de raio pela distância; a taxa padrão só vale quando a loja não
-// restringiu área (sem bairros e sem raio).
+// as faixas de raio pela distância.
+//
+// Bairro fora da lista: o que acontece depende de `foraDaLista` (coluna
+// restaurantes.frete_fora_da_lista, migration 0054), mas SÓ quando a loja não usa
+// raio. Com raio cadastrado o raio é a fronteira da área: fora da última faixa, ou
+// sem conseguir localizar o endereço, o pedido é recusado nos dois modos — não dá
+// pra provar que o endereço está dentro da área atendida.
+
+/** Modo da loja para bairro sem taxa cadastrada (restaurantes.frete_fora_da_lista). */
+export type FreteForaDaLista = 'bloquear' | 'taxa_padrao'
+
+export const FRETE_FORA_DA_LISTA_PADRAO: FreteForaDaLista = 'bloquear'
+
+/** Lê a coluna crua do banco tolerando NULL/valor desconhecido (cai no modo seguro). */
+export function normalizarForaDaLista(valor: unknown): FreteForaDaLista {
+  return valor === 'taxa_padrao' ? 'taxa_padrao' : 'bloquear'
+}
 
 export interface FreteDecisao {
   entregavel: boolean
@@ -154,6 +169,8 @@ export function decidirFrete(params: {
   taxaPadrao: number
   /** Distância loja→cliente em km; null quando o geocode falhou ou não foi tentado. */
   distanciaKm: number | null
+  /** Default 'bloquear' — preserva a lista fechada para quem não configurou nada. */
+  foraDaLista?: FreteForaDaLista
 }): FreteDecisao {
   const alvo = normalizarBairro(params.bairroCliente)
   const matchBairro = alvo ? params.bairros.find((b) => normalizarBairro(b.bairro) === alvo) : undefined
@@ -193,10 +210,12 @@ export function decidirFrete(params: {
     }
   }
 
-  if (params.bairros.length > 0) {
+  if (params.bairros.length > 0 && (params.foraDaLista ?? FRETE_FORA_DA_LISTA_PADRAO) === 'bloquear') {
     return { entregavel: false, taxa: 0, fonte: 'bairro', distanciaKm: null, motivo: 'A loja não entrega nesse bairro.' }
   }
 
+  // Sem raio para delimitar a área: ou a loja não restringiu nada, ou escolheu
+  // aceitar bairro fora da lista cobrando a taxa padrão.
   return { entregavel: true, taxa: params.taxaPadrao, fonte: 'padrao', distanciaKm: null }
 }
 
@@ -223,7 +242,7 @@ export async function resolverFrete(
   const [{ data: loja }, { data: bairrosDb }, { data: raiosDb }] = await Promise.all([
     admin
       .from('restaurantes')
-      .select('taxa_entrega_padrao, latitude, longitude, cep, endereco')
+      .select('taxa_entrega_padrao, latitude, longitude, cep, endereco, frete_fora_da_lista')
       .eq('id', restauranteId)
       .maybeSingle(),
     admin.from('taxas_entrega_bairro').select('bairro, taxa').eq('restaurante_id', restauranteId),
@@ -232,6 +251,7 @@ export async function resolverFrete(
   const bairros = (bairrosDb ?? []).map((b) => ({ bairro: String(b.bairro), taxa: Number(b.taxa) }))
   const raios = (raiosDb ?? []).map((r) => ({ ateKm: Number(r.ate_km), taxa: Number(r.taxa) }))
   const taxaPadrao = loja ? Number(loja.taxa_entrega_padrao) || 0 : 0
+  const foraDaLista = normalizarForaDaLista(loja?.frete_fora_da_lista)
 
   const alvo = normalizarBairro(endereco.bairro ?? '')
   const taxaBairro = alvo !== '' ? bairros.find((b) => normalizarBairro(b.bairro) === alvo)?.taxa : undefined
@@ -267,7 +287,7 @@ export async function resolverFrete(
     }
   }
 
-  const decisao = decidirFrete({ bairroCliente: endereco.bairro ?? '', bairros, raios, taxaPadrao, distanciaKm })
+  const decisao = decidirFrete({ bairroCliente: endereco.bairro ?? '', bairros, raios, taxaPadrao, distanciaKm, foraDaLista })
   if (!decisao.entregavel && decisao.fonte === 'raio' && decisao.distanciaKm === null && lojaSemCoord) {
     decisao.motivo = 'O cálculo de entrega da loja está indisponível no momento. Fale com a loja para combinar a entrega.'
   }
