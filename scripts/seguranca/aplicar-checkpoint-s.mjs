@@ -59,18 +59,21 @@ if (!DB_URL) {
 const host = new URL(DB_URL.replace(/^postgres(ql)?:/, 'http:')).hostname
 const ehLoopback = host === '127.0.0.1' || host === 'localhost' || host === '::1'
 
+const sqls = ARQUIVOS.map((nome) => ({ nome, sql: readFileSync(join(raiz, 'supabase', 'migrations', nome), 'utf8') }))
+
+// O dry-run não conecta e não escreve: pode rodar contra qualquer alvo, e é
+// justamente contra produção que se quer ler o SQL antes de aplicar.
+if (!aplicar) {
+  console.log(`\n── DRY-RUN — alvo: ${host} ──`)
+  console.log(`   ${sqls.length} arquivo(s), nesta ordem: ${ARQUIVOS.join(', ')}\n`)
+  for (const { nome, sql } of sqls) console.log(`\n═══ ${nome} ═══\n${sql}`)
+  console.log('\nNada foi aplicado e nenhuma conexão foi aberta. Use --aplicar.\n')
+  process.exit(0)
+}
+
 if (!ehLoopback && !confirmouProducao) {
   console.error(`\n❌ DB_URL aponta para "${host}" e --confirmar-producao não foi passado. Abortando.\n`)
   process.exit(1)
-}
-
-const sqls = ARQUIVOS.map((nome) => ({ nome, sql: readFileSync(join(raiz, 'supabase', 'migrations', nome), 'utf8') }))
-
-if (!aplicar) {
-  console.log(`\n── DRY-RUN — alvo: ${host} ──\n`)
-  for (const { nome, sql } of sqls) console.log(`\n═══ ${nome} ═══\n${sql}`)
-  console.log('\nNada foi aplicado. Use --aplicar.\n')
-  process.exit(0)
 }
 
 const ssl = ehLoopback ? undefined : { rejectUnauthorized: false }
