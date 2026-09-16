@@ -13,8 +13,7 @@ create policy mesas_select on public.mesas
     and public.auth_papel() in ('dono', 'gerente', 'garcom')
   );
 
--- Cadastrar mesa e mexer em QR/token é da gestão. Mesa com histórico se arquiva
--- (`ativa = false`), não se apaga: nenhuma policy de DELETE.
+-- Cadastrar mesa e mexer em QR/token é da gestão.
 create policy mesas_insert on public.mesas
   for insert to authenticated
   with check (restaurante_id = public.auth_restaurante_id() and public.auth_e_gestor());
@@ -23,6 +22,14 @@ create policy mesas_update on public.mesas
   for update to authenticated
   using (restaurante_id = public.auth_restaurante_id() and public.auth_e_gestor())
   with check (restaurante_id = public.auth_restaurante_id() and public.auth_e_gestor());
+
+-- DELETE existe só para não quebrar a tela de Ajustes, que oferece excluir mesa desde o
+-- PDV Fase 1. Restrito à gestão. O módulo Mesas e Comandas não usa: lá a mesa com
+-- histórico é arquivada (`ativa = false`), para não deixar comanda e pedido órfãos.
+drop policy if exists mesas_delete on public.mesas;
+create policy mesas_delete on public.mesas
+  for delete to authenticated
+  using (restaurante_id = public.auth_restaurante_id() and public.auth_e_gestor());
 
 -- ── comandas ─────────────────────────────────────────────────────────────────
 drop policy if exists comandas_tenant_rw on public.comandas;

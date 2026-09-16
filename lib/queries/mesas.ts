@@ -1,10 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+export type EstadoMesa = 'livre' | 'ocupada' | 'bloqueada' | 'inativa'
+
 export interface Mesa {
   id: string
   nome: string
   ordem: number
   ativa: boolean
+  setor: string | null
+  capacidade: number | null
+  bloqueada: boolean
+  /** Só sai por caminho autenticado com `mesas.gerenciar`. Nunca vai para o público. */
+  token: string
+  tokenGeradoEm: string
 }
 
 interface MesaRow {
@@ -14,16 +22,72 @@ interface MesaRow {
   ordem: number
   ativa: boolean | null
   criado_em: string
+  setor: string | null
+  capacidade: number | null
+  bloqueada_em: string | null
+  token: string
+  token_gerado_em: string
 }
 
+const MESA_SELECT =
+  'id, restaurante_id, nome, ordem, ativa, criado_em, setor, capacidade, bloqueada_em, token, token_gerado_em'
+
 export function mapMesaRow(row: MesaRow): Mesa {
-  return { id: row.id, nome: row.nome, ordem: row.ordem, ativa: row.ativa ?? true }
+  return {
+    id: row.id,
+    nome: row.nome,
+    ordem: row.ordem,
+    ativa: row.ativa ?? true,
+    setor: row.setor ?? null,
+    capacidade: row.capacidade ?? null,
+    bloqueada: row.bloqueada_em !== null,
+    token: row.token,
+    tokenGeradoEm: row.token_gerado_em,
+  }
+}
+
+/**
+ * Estado que o mapa do salão mostra.
+ *
+ * Ordem de precedência pensada para o operador: cadastro vence operação, e operação
+ * vence movimento. Uma mesa desativada não deve piscar "ocupada" porque sobrou comanda
+ * aberta de ontem — ela sumiu do salão, ponto.
+ */
+export function estadoDaMesa(mesa: Pick<Mesa, 'ativa' | 'bloqueada'>, temComandaAberta: boolean): EstadoMesa {
+  if (!mesa.ativa) return 'inativa'
+  if (mesa.bloqueada) return 'bloqueada'
+  return temComandaAberta ? 'ocupada' : 'livre'
+}
+
+export const ROTULO_ESTADO: Record<EstadoMesa, string> = {
+  livre: 'Livre',
+  ocupada: 'Ocupada',
+  bloqueada: 'Bloqueada',
+  inativa: 'Inativa',
+}
+
+/** Monta a URL pública do QR. O token viaja sozinho: não expõe loja nem id da mesa. */
+export function urlPublicaDaMesa(origem: string, token: string): string {
+  return `${origem.replace(/\/$/, '')}/mesa/${token}`
+}
+
+/**
+ * Nome sugerido para a próxima mesa: continua a numeração quando o padrão é "Mesa NN",
+ * senão cai num contador simples. Regra pura — a tela usa no formulário.
+ */
+export function proximoNomeDeMesa(existentes: Pick<Mesa, 'nome'>[]): string {
+  const numeros = existentes
+    .map((m) => /^mesa\s*0*(\d+)$/i.exec(m.nome.trim())?.[1])
+    .filter((n): n is string => !!n)
+    .map(Number)
+  const proximo = numeros.length ? Math.max(...numeros) + 1 : existentes.length + 1
+  return `Mesa ${String(proximo).padStart(2, '0')}`
 }
 
 export async function listarMesas(supabase: SupabaseClient, restauranteId: string): Promise<Mesa[]> {
   const { data, error } = await supabase
     .from('mesas')
-    .select('id, restaurante_id, nome, ordem, ativa, criado_em')
+    .select(MESA_SELECT)
     .eq('restaurante_id', restauranteId)
     .order('ordem', { ascending: true })
     .order('criado_em', { ascending: true })
@@ -35,15 +99,28 @@ export async function listarMesasAtivas(supabase: SupabaseClient, restauranteId:
   return (await listarMesas(supabase, restauranteId)).filter((m) => m.ativa)
 }
 
+export interface NovaMesaInput {
+  nome: string
+  ordem: number
+  setor?: string | null
+  capacidade?: number | null
+}
+
 export async function criarMesa(
   supabase: SupabaseClient,
   restauranteId: string,
-  input: { nome: string; ordem: number },
+  input: NovaMesaInput,
 ): Promise<Mesa> {
   const { data, error } = await supabase
     .from('mesas')
-    .insert({ restaurante_id: restauranteId, nome: input.nome, ordem: input.ordem })
-    .select('id, restaurante_id, nome, ordem, ativa, criado_em')
+    .insert({
+      restaurante_id: restauranteId,
+      nome: input.nome,
+      ordem: input.ordem,
+      setor: input.setor ?? null,
+      capacidade: input.capacidade ?? null,
+    })
+    .select(MESA_SELECT)
     .single()
   if (error) throw error
   return mapMesaRow(data as MesaRow)
@@ -52,13 +129,90 @@ export async function criarMesa(
 export async function atualizarMesa(
   supabase: SupabaseClient,
   id: string,
-  patch: Partial<{ nome: string; ordem: number; ativa: boolean }>,
+  patch: Partial<{ nome: string; ordem: number; ativa: boolean; setor: string | null; capacidade: number | null }>,
 ): Promise<void> {
   const { error } = await supabase.from('mesas').update(patch).eq('id', id)
   if (error) throw error
 }
 
+/**
+ * Exclusão dura. Existe porque a tela de Ajustes já oferece isso desde o PDV Fase 1.
+ *
+ * O módulo Mesas e Comandas NÃO usa: mesa com histórico se arquiva (`ativa = false`),
+ * para não órfãos de comanda e pedido. A policy da 0062 não concede DELETE ao navegador,
+ * então quem chama isto hoje é a tela antiga, com o client do dono.
+ */
 export async function removerMesa(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from('mesas').delete().eq('id', id)
   if (error) throw error
+}
+
+/** Bloqueia/desbloqueia sem mexer no cadastro — a mesa continua existindo no salão. */
+export async function definirBloqueioMesa(supabase: SupabaseClient, id: string, bloquear: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('mesas')
+    .update({ bloqueada_em: bloquear ? new Date().toISOString() : null })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Revoga o QR antigo e emite um novo, mantendo o id interno da mesa — histórico,
+ * comandas e pedidos continuam ligados a ela. Quem tiver o QR velho recebe 404.
+ */
+export async function regenerarTokenMesa(
+  admin: SupabaseClient,
+  restauranteId: string,
+  id: string,
+): Promise<{ token: string }> {
+  const { data, error } = await admin
+    .from('mesas')
+    .update({ token: crypto.randomUUID(), token_gerado_em: new Date().toISOString() })
+    .eq('id', id)
+    .eq('restaurante_id', restauranteId)
+    .select('token')
+    .single()
+  if (error) throw error
+  return { token: (data as { token: string }).token }
+}
+
+/**
+ * Resolve o token público da URL. Roda SEMPRE com service_role: `anon` não tem grant em
+ * `mesas`. Devolve `null` para token inexistente, mesa inativa, mesa bloqueada ou loja
+ * com o módulo desligado — sem distinguir os casos para quem chama de fora, para não
+ * virar oráculo de enumeração.
+ */
+export async function resolverMesaPorToken(
+  admin: SupabaseClient,
+  token: string,
+): Promise<{ mesaId: string; mesaNome: string; restauranteId: string; slug: string } | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) return null
+
+  const { data, error } = await admin
+    .from('mesas')
+    .select('id, nome, ativa, bloqueada_em, restaurante_id, restaurantes ( slug, modulo_mesas_ativo )')
+    .eq('token', token)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+
+  const row = data as unknown as {
+    id: string
+    nome: string
+    ativa: boolean | null
+    bloqueada_em: string | null
+    restaurante_id: string
+    restaurantes: { slug: string; modulo_mesas_ativo: boolean } | null
+  }
+
+  if ((row.ativa ?? true) === false) return null
+  if (row.bloqueada_em !== null) return null
+  if (!row.restaurantes?.modulo_mesas_ativo) return null
+
+  return {
+    mesaId: row.id,
+    mesaNome: row.nome,
+    restauranteId: row.restaurante_id,
+    slug: row.restaurantes.slug,
+  }
 }
