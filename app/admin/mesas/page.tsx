@@ -1,0 +1,513 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import QRCode from 'qrcode'
+import { Copy, Check, Download, Lock, LockOpen, Pencil, Plus, QrCode, RefreshCw, X } from 'lucide-react'
+import { TopBar } from '@/components/layout/topbar'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { getBrowserSupabase } from '@/lib/supabase/client'
+import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import {
+  listarMesas,
+  criarMesa,
+  atualizarMesa,
+  definirBloqueioMesa,
+  estadoDaMesa,
+  proximoNomeDeMesa,
+  urlPublicaDaMesa,
+  ROTULO_ESTADO,
+  type EstadoMesa,
+  type Mesa,
+} from '@/lib/queries/mesas'
+import { listarMesasComEstado, type MesaComEstado } from '@/lib/queries/comandas'
+
+/** Cor do estado no mapa do salão. Mesma paleta do resto do painel. */
+const TOM_ESTADO: Record<EstadoMesa, { badge: Parameters<typeof Badge>[0]['tone']; borda: string; ponto: string }> = {
+  livre: { badge: 'ok', borda: 'border-border', ponto: 'bg-status-ready' },
+  ocupada: { badge: 'preparing', borda: 'border-status-preparing', ponto: 'bg-status-preparing' },
+  bloqueada: { badge: 'danger', borda: 'border-danger', ponto: 'bg-danger' },
+  inativa: { badge: 'paused', borda: 'border-border', ponto: 'bg-text-subtle' },
+}
+
+const ORDEM_FILTROS: (EstadoMesa | 'todas')[] = ['todas', 'livre', 'ocupada', 'bloqueada', 'inativa']
+
+interface MesaNaTela extends Mesa {
+  estado: EstadoMesa
+  total: number
+  qtdPedidos: number
+}
+
+export default function MesasPage() {
+  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  const [mesas, setMesas] = useState<MesaNaTela[]>([])
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
+  const [filtro, setFiltro] = useState<EstadoMesa | 'todas'>('todas')
+  const [formAberto, setFormAberto] = useState(false)
+  const [emEdicao, setEmEdicao] = useState<Mesa | null>(null)
+  const [qrDaMesa, setQrDaMesa] = useState<Mesa | null>(null)
+
+  const carregar = useCallback(
+    async (id: string) => {
+      try {
+        // `listarMesasComEstado` já resolve a comanda aberta de cada mesa; o estado
+        // visual sai da regra pura, não de um if espalhado na tela.
+        const [lista, comEstado] = await Promise.all([
+          listarMesas(supabase, id),
+          listarMesasComEstado(supabase, id).catch(() => [] as MesaComEstado[]),
+        ])
+        const porId = new Map(comEstado.map((m) => [m.id, m]))
+        setMesas(
+          lista.map((m) => {
+            const estadoComanda = porId.get(m.id)
+            return {
+              ...m,
+              estado: estadoDaMesa(m, !!estadoComanda?.comandaAberta),
+              total: estadoComanda?.total ?? 0,
+              qtdPedidos: estadoComanda?.qtdPedidos ?? 0,
+            }
+          }),
+        )
+        setErro(null)
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : 'Não foi possível carregar as mesas.')
+      } finally {
+        setCarregando(false)
+      }
+    },
+    [supabase],
+  )
+
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      const id = await buscarRestauranteIdDoUsuario(supabase)
+      if (!vivo) return
+      if (!id) {
+        setCarregando(false)
+        setErro('Não foi possível identificar a loja.')
+        return
+      }
+      setRestauranteId(id)
+      await carregar(id)
+    })()
+    return () => {
+      vivo = false
+    }
+  }, [supabase, carregar])
+
+  const visiveis = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    return mesas.filter((m) => {
+      if (filtro !== 'todas' && m.estado !== filtro) return false
+      if (!termo) return true
+      return m.nome.toLowerCase().includes(termo) || (m.setor ?? '').toLowerCase().includes(termo)
+    })
+  }, [mesas, busca, filtro])
+
+  const contagem = useMemo(() => {
+    const base: Record<string, number> = { todas: mesas.length }
+    for (const e of ['livre', 'ocupada', 'bloqueada', 'inativa'] as EstadoMesa[]) {
+      base[e] = mesas.filter((m) => m.estado === e).length
+    }
+    return base
+  }, [mesas])
+
+  async function salvarMesa(dados: { nome: string; setor: string; capacidade: string }) {
+    if (!restauranteId) return
+    const capacidade = dados.capacidade.trim() ? Number(dados.capacidade) : null
+    if (emEdicao) {
+      await atualizarMesa(supabase, emEdicao.id, {
+        nome: dados.nome.trim(),
+        setor: dados.setor.trim() || null,
+        capacidade,
+      })
+    } else {
+      await criarMesa(supabase, restauranteId, {
+        nome: dados.nome.trim(),
+        ordem: mesas.length,
+        setor: dados.setor.trim() || null,
+        capacidade,
+      })
+    }
+    setFormAberto(false)
+    setEmEdicao(null)
+    await carregar(restauranteId)
+  }
+
+  async function alternarBloqueio(mesa: MesaNaTela) {
+    if (!restauranteId) return
+    await definirBloqueioMesa(supabase, mesa.id, !mesa.bloqueada)
+    await carregar(restauranteId)
+  }
+
+  async function alternarAtiva(mesa: MesaNaTela) {
+    if (!restauranteId) return
+    // Mesa com histórico é arquivada, nunca excluída: comanda e pedido continuam ligados.
+    await atualizarMesa(supabase, mesa.id, { ativa: !mesa.ativa })
+    await carregar(restauranteId)
+  }
+
+  return (
+    <>
+      <TopBar
+        title="Mesas e Comandas"
+        breadcrumb="Salão · Mesas"
+        right={
+          <Button
+            onClick={() => {
+              setEmEdicao(null)
+              setFormAberto(true)
+            }}
+          >
+            <Plus className="mr-1.5 inline h-3.5 w-3.5" />
+            Nova mesa
+          </Button>
+        }
+      />
+
+      <div className="flex-1 overflow-y-auto p-5">
+        {/* Busca + filtros por estado */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar mesa ou setor…"
+            className="h-9 w-56 rounded-menuzia border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {ORDEM_FILTROS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setFiltro(f)}
+                className={[
+                  'rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors',
+                  filtro === f
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border bg-main text-text-subtle hover:text-text-main',
+                ].join(' ')}
+              >
+                {f === 'todas' ? 'Todas' : ROTULO_ESTADO[f]}
+                <span className="ml-1.5 opacity-70">{contagem[f] ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {carregando && <p className="text-[13px] text-text-subtle">Carregando mesas…</p>}
+
+        {erro && !carregando && (
+          <div className="rounded-menuzia border border-danger bg-danger-bg px-4 py-3 text-[13px] text-danger">{erro}</div>
+        )}
+
+        {!carregando && !erro && mesas.length === 0 && (
+          <div className="rounded-menuzia border border-border bg-main px-6 py-12 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-bg-page text-2xl">
+              🍽️
+            </div>
+            <p className="text-[14px] font-semibold text-text-main">Nenhuma mesa cadastrada</p>
+            <p className="mx-auto mt-1 max-w-sm text-[12px] text-text-subtle">
+              Cadastre as mesas do salão para gerar o QR Code de cada uma. O cliente escaneia, vê o cardápio e mostra a
+              seleção ao garçom.
+            </p>
+            <Button
+              className="mt-4"
+              onClick={() => {
+                setEmEdicao(null)
+                setFormAberto(true)
+              }}
+            >
+              <Plus className="mr-1.5 inline h-3.5 w-3.5" />
+              Cadastrar a primeira mesa
+            </Button>
+          </div>
+        )}
+
+        {!carregando && !erro && mesas.length > 0 && (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
+            {visiveis.map((mesa) => {
+              const tom = TOM_ESTADO[mesa.estado]
+              return (
+                <div
+                  key={mesa.id}
+                  className={`flex flex-col rounded-menuzia border bg-main p-4 ${tom.borda} ${
+                    mesa.estado === 'inativa' ? 'opacity-60' : ''
+                  }`}
+                >
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${tom.ponto}`} />
+                        <span className="text-[15px] font-bold text-text-main">{mesa.nome}</span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-text-subtle">
+                        {mesa.setor || 'Sem setor'}
+                        {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
+                      </div>
+                    </div>
+                    <Badge tone={tom.badge}>{ROTULO_ESTADO[mesa.estado]}</Badge>
+                  </div>
+
+                  {mesa.estado === 'ocupada' && (
+                    <div className="mb-2 rounded-menuzia bg-bg-page px-2.5 py-1.5 text-[11px] text-text-subtle">
+                      {mesa.qtdPedidos} {mesa.qtdPedidos === 1 ? 'lançamento' : 'lançamentos'} ·{' '}
+                      <span className="font-bold text-price-text">
+                        {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
+                    <Button variant="outline" className="!px-2" onClick={() => setQrDaMesa(mesa)} title="Ver QR Code">
+                      <QrCode className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="!px-2"
+                      onClick={() => {
+                        setEmEdicao(mesa)
+                        setFormAberto(true)
+                      }}
+                      title="Editar"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="!px-2"
+                      onClick={() => alternarBloqueio(mesa)}
+                      title={mesa.bloqueada ? 'Desbloquear' : 'Bloquear'}
+                    >
+                      {mesa.bloqueada ? <LockOpen className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                    </Button>
+                    <Button variant="ghost" className="!px-2 text-[10px]" onClick={() => alternarAtiva(mesa)}>
+                      {mesa.ativa ? 'Desativar' : 'Reativar'}
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+            {visiveis.length === 0 && (
+              <p className="col-span-full py-8 text-center text-[13px] text-text-subtle">
+                Nenhuma mesa nesse filtro.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {formAberto && (
+        <FormMesa
+          mesa={emEdicao}
+          sugestao={proximoNomeDeMesa(mesas)}
+          onCancelar={() => {
+            setFormAberto(false)
+            setEmEdicao(null)
+          }}
+          onSalvar={salvarMesa}
+        />
+      )}
+
+      {qrDaMesa && <DrawerQr mesa={qrDaMesa} onFechar={() => setQrDaMesa(null)} />}
+    </>
+  )
+}
+
+// ── Formulário ──────────────────────────────────────────────────────────────
+
+function FormMesa({
+  mesa,
+  sugestao,
+  onCancelar,
+  onSalvar,
+}: {
+  mesa: Mesa | null
+  sugestao: string
+  onCancelar: () => void
+  onSalvar: (dados: { nome: string; setor: string; capacidade: string }) => Promise<void>
+}) {
+  const [nome, setNome] = useState(mesa?.nome ?? sugestao)
+  const [setor, setSetor] = useState(mesa?.setor ?? '')
+  const [capacidade, setCapacidade] = useState(mesa?.capacidade ? String(mesa.capacidade) : '')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function submeter() {
+    if (!nome.trim()) {
+      setErro('Dê um nome ou número para a mesa.')
+      return
+    }
+    setSalvando(true)
+    setErro(null)
+    try {
+      await onSalvar({ nome, setor, capacidade })
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível salvar.')
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onCancelar}>
+      <aside
+        className="flex h-full w-full max-w-md flex-col bg-main shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
+          <span className="text-[15px] font-semibold text-text-main">{mesa ? 'Editar mesa' : 'Nova mesa'}</span>
+          <button onClick={onCancelar} className="text-text-subtle hover:text-text-main">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          <Campo label="Nome ou número" hint="É o que aparece no QR e na comanda. Ex.: Mesa 01, Varanda 02, Balcão 03.">
+            <input
+              autoFocus
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="h-10 w-full rounded-menuzia border border-border px-3 text-[13px] outline-none focus:border-primary"
+            />
+          </Campo>
+
+          <Campo label="Setor" hint="Opcional. Agrupa as mesas no salão: Varanda, Interno, Mezanino…">
+            <input
+              value={setor}
+              onChange={(e) => setSetor(e.target.value)}
+              placeholder="Sem setor"
+              className="h-10 w-full rounded-menuzia border border-border px-3 text-[13px] outline-none focus:border-primary"
+            />
+          </Campo>
+
+          <Campo label="Capacidade" hint="Opcional. Quantas pessoas sentam.">
+            <input
+              value={capacidade}
+              onChange={(e) => setCapacidade(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              inputMode="numeric"
+              placeholder="—"
+              className="h-10 w-24 rounded-menuzia border border-border px-3 text-[13px] outline-none focus:border-primary"
+            />
+          </Campo>
+
+          {erro && (
+            <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>
+          )}
+        </div>
+
+        <div className="flex flex-shrink-0 gap-2 border-t border-border p-5">
+          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={salvando}>
+            Cancelar
+          </Button>
+          <Button className="flex-1" onClick={submeter} disabled={salvando}>
+            {salvando ? 'Salvando…' : mesa ? 'Salvar' : 'Cadastrar mesa'}
+          </Button>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">{label}</label>
+      {children}
+      {hint && <p className="mt-1 text-[11px] text-text-subtle">{hint}</p>}
+    </div>
+  )
+}
+
+// ── QR da mesa ──────────────────────────────────────────────────────────────
+
+function DrawerQr({ mesa, onFechar }: { mesa: Mesa; onFechar: () => void }) {
+  const [imagem, setImagem] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
+
+  const url = useMemo(
+    () => urlPublicaDaMesa(typeof window === 'undefined' ? '' : window.location.origin, mesa.token),
+    [mesa.token],
+  )
+
+  useEffect(() => {
+    QRCode.toDataURL(url, { width: 1024, margin: 1, errorCorrectionLevel: 'M' })
+      .then(setImagem)
+      .catch(() => setImagem(null))
+  }, [url])
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 1800)
+    } catch {
+      /* clipboard bloqueado: o link continua visível na tela para copiar à mão */
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onFechar}>
+      <aside className="flex h-full w-full max-w-md flex-col bg-main shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
+          <span className="text-[15px] font-semibold text-text-main">QR Code · {mesa.nome}</span>
+          <button onClick={onFechar} className="text-text-subtle hover:text-text-main">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="mx-auto w-full max-w-[260px] rounded-menuzia border border-border p-4 text-center">
+            {imagem ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imagem} alt={`QR Code da ${mesa.nome}`} className="w-full" />
+            ) : (
+              <div className="flex h-[228px] items-center justify-center text-[12px] text-text-subtle">
+                Gerando QR…
+              </div>
+            )}
+            <p className="mt-2 text-[13px] font-bold text-text-main">{mesa.nome}</p>
+            <p className="text-[10px] uppercase tracking-wide text-text-subtle">Aponte a câmera para ver o cardápio</p>
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+              Link da mesa
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                readOnly
+                value={url}
+                className="h-9 flex-1 rounded-menuzia border border-border bg-bg-page px-2.5 text-[11px] text-text-subtle outline-none"
+              />
+              <Button variant="outline" className="!px-2.5" onClick={copiar}>
+                {copiado ? <Check className="h-3.5 w-3.5 text-price-text" /> : <Copy className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+            <p className="mt-1 text-[11px] text-text-subtle">
+              O link não revela a loja nem o número interno da mesa — é um código próprio, que pode ser revogado.
+            </p>
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <a
+              href={imagem ?? '#'}
+              download={`qr-${mesa.nome.toLowerCase().replace(/\s+/g, '-')}.png`}
+              className="flex-1"
+            >
+              <Button variant="outline" className="w-full" disabled={!imagem}>
+                <Download className="mr-1.5 inline h-3.5 w-3.5" />
+                Baixar PNG
+              </Button>
+            </a>
+            <Button variant="outline" className="flex-1" disabled title="Em breve">
+              <RefreshCw className="mr-1.5 inline h-3.5 w-3.5" />
+              Gerar novo
+            </Button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  )
+}

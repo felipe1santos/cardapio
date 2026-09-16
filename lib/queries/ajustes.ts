@@ -49,6 +49,8 @@ export interface ConfigLoja {
   /** Canais de venda oferecidos na vitrine. */
   aceitaEntrega: boolean
   aceitaRetirada: boolean
+  /** Módulo Mesas e Comandas (salão presencial por QR). Default desligado. */
+  moduloMesasAtivo: boolean
 }
 
 interface ConfigRow {
@@ -89,9 +91,10 @@ interface ConfigRow {
   usa_logistica: boolean | null
   aceita_entrega: boolean | null
   aceita_retirada: boolean | null
+  modulo_mesas_ativo: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -132,6 +135,9 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     usaLogistica: row.usa_logistica ?? true,
     aceitaEntrega: row.aceita_entrega ?? true,
     aceitaRetirada: row.aceita_retirada ?? false,
+    // Coluna ausente (migration ainda não aplicada) = módulo desligado. Nenhuma loja
+    // ganha a seção nova por acidente.
+    moduloMesasAtivo: row.modulo_mesas_ativo ?? false,
   }
 }
 

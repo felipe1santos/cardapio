@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/pedidos', label: 'Painel de Pedidos' },
   { href: '/admin/pdv', label: 'PDV' },
+  { href: '/admin/mesas', label: 'Mesas e Comandas', novidade: true },
   { href: '/admin/logistica', label: 'Logística' },
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
@@ -61,6 +62,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // módulo de Logística sai do menu. `true` até a config chegar: esconder e
   // reaparecer o item piscaria o menu a cada carregamento.
   const [usaLogistica, setUsaLogistica] = useState(true)
+  // Módulo Mesas e Comandas. Começa FALSE ao contrário da logística: a seção é nova, e
+  // aparecer por um instante em loja que não a usa seria estranho.
+  const [moduloMesas, setModuloMesas] = useState(false)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // null = nenhum sinal explícito ainda; cai no default por rota.
   const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
@@ -92,6 +96,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!active || !c) return
         setStoreSlug(c.slug)
         setUsaLogistica(c.usaLogistica)
+        setModuloMesas(c.moduloMesasAtivo)
       })
 
       try {
@@ -118,6 +123,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!active || !config) return
         setStoreSlug(config.slug)
         setUsaLogistica(config.usaLogistica)
+        setModuloMesas(config.moduloMesasAtivo)
 
         const lista = avaliarSetup(await carregarDadosSetup(supabase, restauranteId, config))
         if (!active) return
@@ -157,7 +163,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const alertasPorMenu = contarPorMenu(pendencias)
 
-  const items = NAV_ITEMS.filter((item) => item.href !== '/admin/logistica' || usaLogistica).map((item) => {
+  const items = NAV_ITEMS.filter((item) => {
+    if (item.href === '/admin/logistica') return usaLogistica
+    if (item.href === '/admin/mesas') return moduloMesas
+    return true
+  }).map((item) => {
     const alerta = alertasPorMenu[item.href]
     const base = alerta ? { ...item, alerta } : item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
