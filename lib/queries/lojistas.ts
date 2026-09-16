@@ -138,13 +138,16 @@ export function normalizarUsuario(value: string): string | null {
 
 /** Checa se o nome de usuário está livre (case-insensitive). */
 export async function usuarioDisponivel(admin: SupabaseClient, usuario: string): Promise<boolean> {
+  // `.eq` sobre o valor já em minúsculas, e não `.ilike`: no LIKE o `_` é curinga, então
+  // "joao_silva" aparecia ocupado por causa de "joaoxsilva". A unicidade real é o índice
+  // `lower(usuario)` da 0038, e `normalizarUsuario` já grava em minúsculas.
   const { data, error } = await admin
     .from('usuarios')
     .select('id')
-    .ilike('usuario', usuario.trim())
-    .maybeSingle()
+    .eq('usuario', usuario.trim().toLowerCase())
+    .limit(1)
   if (error) throw error
-  return !data
+  return (data ?? []).length === 0
 }
 
 /** Resolve o e-mail de autenticação a partir do nome de usuário (login por usuário). */

@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
   { href: '/admin/fidelidade', label: 'Fidelidade', novidade: true },
   { href: '/admin/integracoes', label: 'Integrações', novidade: true },
+  { href: '/admin/equipe', label: 'Equipe', novidade: true },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ]
 
@@ -44,6 +45,7 @@ const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/campanhas': 'campanhas.gerenciar',
   '/admin/fidelidade': 'fidelidade.gerenciar',
   '/admin/integracoes': 'integracoes.gerenciar',
+  '/admin/equipe': 'equipe.gerenciar',
   '/admin/ajustes': 'ajustes.editar',
 }
 
