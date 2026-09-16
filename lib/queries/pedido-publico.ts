@@ -28,6 +28,8 @@ export const CAMPOS_INTERNOS = [
   'pago',
   'numero',
   'telefoneVerificado',
+  'chaveIdempotencia',
+  'criadoPorNome',
 ] as const
 
 export interface ResultadoWhitelist {

@@ -105,11 +105,71 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
   const [painelAberto, setPainelAberto] = useState(false)
   const [concluida, setConcluida] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
+  // O garçom enviou o pedido e encerrou este ciclo: a lista volta vazia e o cliente é
+  // avisado, em vez de ver os itens sumirem sem explicação.
+  const [cicloEncerrado, setCicloEncerrado] = useState(false)
   const dispositivo = useRef<string>('')
+  // Id do rascunho aberto no servidor. Tinha id e o servidor passou a responder `null` =
+  // o ciclo encerrou.
+  const idSelecao = useRef<string | null>(null)
+  // Enquanto uma gravação está em voo, a leitura periódica não sobrescreve a tela — senão
+  // o item que o cliente acabou de marcar sumiria e voltaria.
+  const gravando = useRef(false)
+  const qtdNaTela = useRef(0)
 
+  const imagemDoItem = useMemo(() => new Map(itens.map((i) => [i.id, i.imagemUrl])), [itens])
+
+  /** Traz a lista deste aparelho do servidor e aplica na tela. */
+  const lerDoServidor = useCallback(async () => {
+    if (!dispositivo.current || gravando.current) return
+    try {
+      const r = await fetch(`/api/mesa/${token}/selecao?dispositivo=${dispositivo.current}`, { cache: 'no-store' })
+      if (!r.ok || gravando.current) return
+      const corpo = (await r.json()) as {
+        id: string | null
+        itens: { itemId: string | null; nome: string; precoUnitario: number; quantidade: number; observacao: string; opcoes: OpcaoEscolhida[] }[]
+      }
+
+      if (idSelecao.current && corpo.id === null && qtdNaTela.current > 0) setCicloEncerrado(true)
+      idSelecao.current = corpo.id
+
+      const linhas: LinhaSelecionada[] = corpo.itens
+        .filter((i) => i.itemId)
+        .map((i, idx) => ({
+          // Posição na chave: duas linhas idênticas (mesmo item, mesmas opções) são
+          // legítimas e não podem colidir como chave do React.
+          chave: `${idx}-${i.itemId}-${i.quantidade}-${i.opcoes.map((o) => o.escolha).join('|')}`,
+          itemId: i.itemId as string,
+          nome: i.nome,
+          imagemUrl: imagemDoItem.get(i.itemId as string) ?? null,
+          precoUnitario: i.precoUnitario,
+          quantidade: i.quantidade,
+          observacao: i.observacao,
+          opcoes: i.opcoes,
+        }))
+      qtdNaTela.current = linhas.length
+      setSelecao(linhas)
+    } catch {
+      // Sem rede: fica o que já está na tela.
+    }
+  }, [token, imagemDoItem])
+
+  // Ao abrir a página (ou recarregar), a seleção volta do servidor — não se perde no F5.
+  // Depois, releitura periódica e ao voltar para a aba: mantém várias abas do mesmo
+  // aparelho iguais e mostra quando o garçom encerrou o ciclo.
   useEffect(() => {
     dispositivo.current = idDoDispositivo()
-  }, [])
+    void lerDoServidor()
+    const t = setInterval(() => void lerDoServidor(), 5000)
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') void lerDoServidor()
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', aoVoltar)
+    }
+  }, [lerDoServidor])
 
   /**
    * Guarda a lista no servidor para o garçom poder consultá-la de outro aparelho.
@@ -118,9 +178,10 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
   const sincronizar = useCallback(
     async (itensAtuais: LinhaSelecionada[]) => {
       if (!dispositivo.current) return
+      gravando.current = true
       setSincronizando(true)
       try {
-        await fetch(`/api/mesa/${token}/selecao`, {
+        const r = await fetch(`/api/mesa/${token}/selecao`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -133,9 +194,14 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
             })),
           }),
         })
+        if (r.ok) {
+          const corpo = (await r.json()) as { id: string | null }
+          idSelecao.current = corpo.id
+        }
       } catch {
         // Sem rede a lista continua na tela — é o que o cliente mostra ao garçom.
       } finally {
+        gravando.current = false
         setSincronizando(false)
       }
     },
@@ -143,6 +209,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
   )
 
   function atualizarSelecao(proxima: LinhaSelecionada[]) {
+    qtdNaTela.current = proxima.length
     setSelecao(proxima)
     void sincronizar(proxima)
   }
@@ -331,6 +398,22 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
       )}
 
       {concluida && <SelecaoSalva onFechar={() => setConcluida(false)} />}
+
+      {cicloEncerrado && (
+        <div className="mesa-modal-fundo" onClick={() => setCicloEncerrado(false)}>
+          <div className="mesa-confirmacao" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-labelledby="ciclo-titulo">
+            <div className="mesa-confirmacao-icone" aria-hidden="true">✓</div>
+            <h2 id="ciclo-titulo">O garçom já anotou seu pedido</h2>
+            <p>
+              Sua seleção anterior foi atendida e saiu da lista. <strong>Se quiser pedir mais alguma coisa, é só
+              selecionar de novo.</strong>
+            </p>
+            <button className="mesa-principal" onClick={() => setCicloEncerrado(false)}>
+              Começar nova seleção
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

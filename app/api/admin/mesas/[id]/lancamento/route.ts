@@ -5,7 +5,7 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { pode } from '@/lib/auth/permissoes'
 import { criarPedido, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
 import { abrirOuObterComanda } from '@/lib/queries/comandas'
-import { abrirOuObterSessao } from '@/lib/queries/mesa-sessao'
+import { abrirOuObterSessao, encerrarSelecoesVistas, sanearSelecoesVistas } from '@/lib/queries/mesa-sessao'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 
@@ -32,7 +32,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Sem permissão para lançar pedido de mesa' }, { status: 403 })
   }
 
-  let corpo: { itens?: unknown; observacao?: unknown; idempotencia?: unknown }
+  let corpo: { itens?: unknown; chaveIdempotencia?: unknown; selecoesVistas?: unknown }
   try {
     corpo = await request.json()
   } catch {
@@ -43,6 +43,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (itens.length === 0) {
     return NextResponse.json({ error: 'Nenhum item no lançamento' }, { status: 400 })
   }
+
+  // A chave é gerada quando o garçom começa a montar o lançamento e só muda depois de um
+  // envio bem-sucedido. Sem ela não há como distinguir "segundo pedido" de "mesmo pedido
+  // reenviado", então é obrigatória.
+  const chave = typeof corpo.chaveIdempotencia === 'string' ? corpo.chaveIdempotencia : ''
+  if (!/^[0-9a-f-]{36}$/i.test(chave)) {
+    return NextResponse.json({ error: 'Chave do lançamento ausente ou inválida' }, { status: 400 })
+  }
+  const selecoesVistas = sanearSelecoesVistas(corpo.selecoesVistas)
 
   const admin = getAdminSupabase()
 
@@ -93,6 +102,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (erros.length > 0) return NextResponse.json({ error: erros[0], erros }, { status: 400 })
   }
 
+  // Reenvio da mesma chave: devolve o pedido que já existe. Nada é criado de novo.
+  const jaExiste = await buscarPedidoPorChave(admin, sessao.restauranteId, chave)
+  if (jaExiste) {
+    return NextResponse.json({ ok: true, idempotente: true, ...jaExiste }, { status: 200 })
+  }
+
   try {
     // A conta nasce aqui, no primeiro lançamento — não quando o cliente abriu o QR.
     const comanda = await abrirOuObterComanda(admin, sessao.restauranteId, mesaId)
@@ -102,7 +117,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await admin.from('sessoes_mesa').update({ comanda_id: comanda.id }).eq('id', sessaoMesa.id)
     }
 
-    const pedido = await criarPedido(admin, sessao.restauranteId, {
+    let pedido: { id: string; numero: number }
+    try {
+      pedido = await criarPedido(admin, sessao.restauranteId, {
       tipo: 'retirada',
       cliente: { nome: mesa.nome, telefone: '' },
       endereco: { rua: '', numero: '', complemento: '', bairro: '', cep: '' },
@@ -115,7 +132,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       comandaId: comanda.id,
       criadoPor: sessao.userId,
       criadoPorNome: sessao.nome,
+      chaveIdempotencia: chave,
     })
+    } catch (err) {
+      // Duas requisições com a mesma chave chegaram juntas: a primeira criou o pedido e
+      // a segunda bateu no índice único. Não é erro — é o mesmo lançamento.
+      if ((err as { code?: string })?.code === '23505') {
+        const vencedor = await buscarPedidoPorChave(admin, sessao.restauranteId, chave)
+        if (vencedor) return NextResponse.json({ ok: true, idempotente: true, ...vencedor }, { status: 200 })
+      }
+      throw err
+    }
+
+    // SÓ AGORA, com o pedido criado, o ciclo da seleção do cliente encerra. Se a criação
+    // tivesse falhado, a execução não chegaria aqui e a seleção ficaria intacta.
+    //
+    // A seleção não foi IMPORTADA: o pedido contém só o que o garçom lançou. Ela encerra
+    // porque aquele ciclo de escolha terminou. Compare-and-set por versão: lista que o
+    // cliente alterou depois que o garçom abriu a tela continua aberta.
+    let selecoesEncerradas = 0
+    try {
+      selecoesEncerradas = await encerrarSelecoesVistas(admin, sessao.restauranteId, mesaId, selecoesVistas)
+    } catch (err) {
+      // O pedido já existe e já está na cozinha: falhar aqui não pode desfazê-lo. A
+      // seleção fica aberta e o garçom vê de novo — incômodo, mas não perde nada.
+      console.error('[mesas] pedido criado, mas a seleção não encerrou', err)
+    }
 
     await registrarAuditoria(admin, {
       restauranteId: sessao.restauranteId,
@@ -124,14 +166,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       acao: 'mesa.enviou_cozinha',
       entidade: 'pedido',
       entidadeId: pedido.id,
-      dados: { mesa: mesa.nome, itens: itens.length, numero: pedido.numero },
+      dados: { mesa: mesa.nome, itens: itens.length, numero: pedido.numero, selecoesEncerradas },
     })
 
     // O pedido entra na fila de impressão pelo caminho de sempre: o Assistente lê
     // `pedidos` com impresso=false. Nada de novo no pipeline da cozinha.
-    return NextResponse.json({ ok: true, pedidoId: pedido.id, numero: pedido.numero }, { status: 201 })
+    return NextResponse.json(
+      { ok: true, idempotente: false, pedidoId: pedido.id, numero: pedido.numero, selecoesEncerradas },
+      { status: 201 },
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Não foi possível lançar o pedido'
     return NextResponse.json({ error: message }, { status: 400 })
   }
+}
+
+async function buscarPedidoPorChave(
+  admin: ReturnType<typeof getAdminSupabase>,
+  restauranteId: string,
+  chave: string,
+): Promise<{ pedidoId: string; numero: number } | null> {
+  const { data } = await admin
+    .from('pedidos')
+    .select('id, numero')
+    .eq('restaurante_id', restauranteId)
+    .eq('chave_idempotencia', chave)
+    .maybeSingle()
+  return data ? { pedidoId: data.id as string, numero: data.numero as number } : null
 }

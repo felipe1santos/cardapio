@@ -39,7 +39,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   if (!ctx) return NextResponse.json({ error: 'Mesa não encontrada' }, { status: 404 })
 
   const selecao = await buscarSelecao(ctx.admin, ctx.sessao.id, dispositivo)
-  return NextResponse.json({ itens: selecao?.itens ?? [], versao: selecao?.versao ?? 0 })
+  // `id: null` = não há rascunho aberto neste aparelho. Se o cliente tinha um e agora não
+  // tem, o garçom enviou o pedido e encerrou o ciclo — a tela avisa e recomeça vazia.
+  return NextResponse.json({ id: selecao?.id ?? null, itens: selecao?.itens ?? [], versao: selecao?.versao ?? 0 })
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -79,5 +81,5 @@ export async function PUT(request: Request, { params }: { params: Promise<{ toke
     itens,
   })
 
-  return NextResponse.json({ ok: true, versao: salva.versao, itens: salva.itens })
+  return NextResponse.json({ ok: true, id: salva.id, versao: salva.versao, itens: salva.itens })
 }

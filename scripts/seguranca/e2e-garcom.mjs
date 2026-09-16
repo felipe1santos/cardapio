@@ -53,7 +53,12 @@ async function lancar(page, mesaId, itemId) {
       const r = await fetch(`/api/admin/mesas/${mesaId}/lancamento`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itens: [{ itemId, quantidade: 1, observacao: '', complementos: [] }] }),
+        // Chave de idempotência obrigatória desde a 0065: sem ela a rota responde 400
+        // antes de chegar às checagens que este teste quer ver (403, 404, 409).
+        body: JSON.stringify({
+          chaveIdempotencia: crypto.randomUUID(),
+          itens: [{ itemId, quantidade: 1, observacao: '', complementos: [] }],
+        }),
       })
       return { status: r.status, corpo: await r.json().catch(() => ({})) }
     },
@@ -139,9 +144,13 @@ ok('a sessão da mesa passou a apontar para a comanda', sessao?.comanda_id === p
 const audit = await q(`select usuario_nome, acao from eventos_auditoria where entidade_id=$1`, [p.id])
 ok('auditoria registrou o envio', audit.some((a) => a.acao === 'mesa.enviou_cozinha' && a.usuario_nome === 'Garçom Demo'))
 
-const selecaoAindaLa = (await q(
-  `select count(*)::int n from selecao_itens i join selecoes_mesa s on s.id=i.selecao_id where s.mesa_id=$1`, [mesa01.id]))[0].n
-ok('a seleção do cliente continua separada (não foi importada nem apagada)', selecaoAindaLa > 0, `${selecaoAindaLa} linha(s)`)
+// Regra corrigida no checkpoint da etapa E: depois do envio a seleção ENCERRA (sai da
+// tela), mas não é apagada — o histórico fica.
+const selecaoEncerrada = (await q(
+  `select count(*)::int n from selecoes_mesa where mesa_id=$1 and encerrada_em is not null`, [mesa01.id]))[0].n
+const selecaoAberta = (await q(
+  `select count(*)::int n from selecoes_mesa where mesa_id=$1 and encerrada_em is null`, [mesa01.id]))[0].n
+ok('a seleção do cliente encerrou com o envio (sem ser apagada)', selecaoEncerrada > 0 && selecaoAberta === 0, `encerradas ${selecaoEncerrada}, abertas ${selecaoAberta}`)
 
 // ── 1b. item com etapas obrigatórias ────────────────────────────────────────
 console.log('\n── item com opções obrigatórias ──')

@@ -890,6 +890,11 @@ export interface NovoPedidoInput {
   /** Snapshot do nome de quem lançou — sobrevive à saída do funcionário. */
   criadoPorNome?: string
   /**
+   * Chave do lançamento (0065). Repetir o envio com a mesma chave bate no índice único e
+   * o insert falha com 23505 — quem chama devolve o pedido que já existe. Só servidor.
+   */
+  chaveIdempotencia?: string
+  /**
    * Código de cupom digitado pelo cliente. Só o código viaja no payload — validação,
    * cálculo de desconto e travas de uso são todos server-side. Exclusivo com `recompensaId`.
    */
@@ -1272,6 +1277,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       comanda_id: input.comandaId ?? null,
       criado_por: input.criadoPor ?? null,
       criado_por_nome: input.criadoPorNome ?? null,
+      chave_idempotencia: input.chaveIdempotencia ?? null,
       cupom_codigo: cupomAplicado?.codigo ?? null,
       recompensa_id: recompensaResgatada,
     })

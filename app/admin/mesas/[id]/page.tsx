@@ -11,6 +11,7 @@ import { buscarRestauranteIdDoUsuario, listarGrupos, listarItens, type ItemCarda
 import { listarMesas, type Mesa } from '@/lib/queries/mesas'
 import { buscarComandaAberta, listarPedidosDaComanda, calcularTotalComanda } from '@/lib/queries/comandas'
 import type { Pedido } from '@/lib/queries/pedidos'
+import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-sessao'
 import { validarOpcoes, minimoDoGrupo, maximoDoGrupo, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 
 /**
@@ -74,6 +75,13 @@ export default function MesaDetalhePage() {
   const [erro, setErro] = useState<string | null>(null)
   const [enviado, setEnviado] = useState<{ numero: number } | null>(null)
   const [configurando, setConfigurando] = useState<ItemCardapio | null>(null)
+  // Versões das seleções do cliente que ESTA tela está mostrando. O envio manda isso, e
+  // o servidor só encerra o que ainda estiver nessa versão — lista que o cliente mudou
+  // depois continua aberta.
+  const [selecoesVistas, setSelecoesVistas] = useState<SelecaoVista[]>([])
+  // Chave do lançamento em montagem. Gerada uma vez e trocada só depois de um envio que
+  // deu certo: clique duplo e reenvio carregam a MESMA chave e não duplicam o pedido.
+  const [chaveLancamento, setChaveLancamento] = useState<string>(() => crypto.randomUUID())
 
   const carregar = useCallback(async () => {
     const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
@@ -99,28 +107,34 @@ export default function MesaDetalhePage() {
     const comanda = await buscarComandaAberta(supabase, restauranteId, params.id).catch(() => null)
     setPedidos(comanda ? await listarPedidosDaComanda(supabase, restauranteId, comanda.id).catch(() => []) : [])
 
-    // Seleção do cliente: referência, nunca importada sozinha.
-    const { data: selecoes } = await supabase
-      .from('selecoes_mesa')
-      .select('id, atualizado_em, selecao_itens ( nome_snapshot, preco_snapshot, quantidade, observacao, opcoes )')
-      .eq('mesa_id', params.id)
-    const linhas: LinhaSelecaoCliente[] = []
-    for (const s of (selecoes ?? []) as unknown as {
-      selecao_itens: { nome_snapshot: string; preco_snapshot: number; quantidade: number; observacao: string | null; opcoes: { grupo: string; escolha: string; preco: number }[] | null }[]
-    }[]) {
-      for (const i of s.selecao_itens ?? []) {
-        linhas.push({
-          nome: i.nome_snapshot,
-          quantidade: i.quantidade,
-          precoUnitario: Number(i.preco_snapshot),
-          observacao: i.observacao ?? '',
-          opcoes: i.opcoes ?? [],
-        })
-      }
-    }
-    setSelecaoCliente(linhas)
+    await recarregarSelecao()
     setCarregando(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, params.id])
+
+  /** Seleção do cliente: referência, nunca importada. Só os ciclos ainda abertos. */
+  const recarregarSelecao = useCallback(async () => {
+    const abertas = await listarSelecoesAbertas(supabase, params.id).catch(() => [])
+    setSelecoesVistas(abertas.map((a) => ({ id: a.id, versao: a.versao })))
+    setSelecaoCliente(
+      abertas.flatMap((a) =>
+        a.itens.map((i) => ({
+          nome: i.nome,
+          quantidade: i.quantidade,
+          precoUnitario: i.precoUnitario,
+          observacao: i.observacao,
+          opcoes: i.opcoes,
+        })),
+      ),
+    )
+  }, [supabase, params.id])
+
+  // O cliente continua marcando itens no celular enquanto o garçom está na mesa: a lista
+  // se atualiza sozinha, sem ele precisar recarregar a página.
+  useEffect(() => {
+    const t = setInterval(() => void recarregarSelecao(), 5000)
+    return () => clearInterval(t)
+  }, [recarregarSelecao])
 
   useEffect(() => {
     void carregar()
@@ -185,6 +199,8 @@ export default function MesaDetalhePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          chaveIdempotencia: chaveLancamento,
+          selecoesVistas,
           itens: lancamento.map((l) => ({
             itemId: l.itemId,
             quantidade: l.quantidade,
@@ -196,6 +212,8 @@ export default function MesaDetalhePage() {
       const corpo = await res.json()
       if (!res.ok) throw new Error(corpo.error ?? 'Não foi possível enviar.')
       setLancamento([])
+      // Só depois do sucesso a chave troca: o próximo lançamento é outro pedido.
+      setChaveLancamento(crypto.randomUUID())
       setEnviado({ numero: corpo.numero })
       await carregar()
     } catch (e) {

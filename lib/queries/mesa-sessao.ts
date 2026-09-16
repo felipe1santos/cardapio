@@ -196,6 +196,8 @@ export async function buscarSelecao(
     .select('id, versao, atualizado_em, selecao_itens ( item_id, nome_snapshot, preco_snapshot, quantidade, observacao, opcoes )')
     .eq('sessao_id', sessaoId)
     .eq('dispositivo', dispositivo)
+    // Só o rascunho ABERTO: o encerrado pertence a um ciclo que o garçom já enviou.
+    .is('encerrada_em', null)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
@@ -245,6 +247,8 @@ export async function salvarSelecao(
     .select('id, versao')
     .eq('sessao_id', entrada.sessaoId)
     .eq('dispositivo', entrada.dispositivo)
+    // Se o ciclo anterior foi encerrado pelo garçom, este aparelho começa um rascunho novo.
+    .is('encerrada_em', null)
     .maybeSingle()
 
   let selecaoId: string
@@ -292,4 +296,99 @@ export async function salvarSelecao(
   }
 
   return { id: selecaoId, versao, atualizadoEm: new Date().toISOString(), itens: entrada.itens }
+}
+
+// ── ciclo ───────────────────────────────────────────────────────────────────
+
+export interface SelecaoVista {
+  id: string
+  versao: number
+}
+
+export interface SelecaoAberta extends SelecaoVista {
+  itens: ItemSelecionado[]
+  atualizadoEm: string
+}
+
+/** Seleções abertas da mesa, de todos os aparelhos — o que o garçom vê como referência. */
+export async function listarSelecoesAbertas(
+  cliente: SupabaseClient,
+  mesaId: string,
+): Promise<SelecaoAberta[]> {
+  const { data, error } = await cliente
+    .from('selecoes_mesa')
+    .select('id, versao, atualizado_em, selecao_itens ( item_id, nome_snapshot, preco_snapshot, quantidade, observacao, opcoes )')
+    .eq('mesa_id', mesaId)
+    .is('encerrada_em', null)
+    .order('atualizado_em', { ascending: true })
+  if (error) throw error
+
+  return ((data ?? []) as unknown as {
+    id: string
+    versao: number
+    atualizado_em: string
+    selecao_itens: { item_id: string | null; nome_snapshot: string; preco_snapshot: number; quantidade: number; observacao: string | null; opcoes: OpcaoSelecionada[] | null }[]
+  }[]).map((s) => ({
+    id: s.id,
+    versao: s.versao,
+    atualizadoEm: s.atualizado_em,
+    itens: (s.selecao_itens ?? []).map((i) => ({
+      itemId: i.item_id,
+      nome: i.nome_snapshot,
+      precoUnitario: Number(i.preco_snapshot),
+      quantidade: i.quantidade,
+      observacao: i.observacao ?? '',
+      opcoes: i.opcoes ?? [],
+    })),
+  }))
+}
+
+/**
+ * Normaliza a lista que o navegador do garçom manda: só ids e versões válidos, sem
+ * repetição. Regra pura.
+ */
+export function sanearSelecoesVistas(bruto: unknown): SelecaoVista[] {
+  if (!Array.isArray(bruto)) return []
+  const vistos = new Map<string, number>()
+  for (const x of bruto.slice(0, 50)) {
+    const o = (x ?? {}) as Record<string, unknown>
+    const id = typeof o.id === 'string' && /^[0-9a-f-]{36}$/i.test(o.id) ? o.id : null
+    const versao = Number.isInteger(o.versao) && (o.versao as number) > 0 ? (o.versao as number) : null
+    if (id && versao !== null && !vistos.has(id)) vistos.set(id, versao)
+  }
+  return [...vistos].map(([id, versao]) => ({ id, versao }))
+}
+
+/**
+ * Encerra o ciclo das seleções que o garçom estava vendo.
+ *
+ * COMPARE-AND-SET: só encerra a linha que ainda está na mesma versão e ainda aberta. Se o
+ * cliente mexeu na lista depois que o garçom abriu a tela, a versão subiu e a lista fica
+ * — é o rascunho seguinte. Se outro garçom já encerrou, a linha não está mais aberta e
+ * nada acontece. Devolve quantas foram encerradas.
+ *
+ * Chamar SÓ depois de o pedido ter sido criado com sucesso.
+ */
+export async function encerrarSelecoesVistas(
+  admin: SupabaseClient,
+  restauranteId: string,
+  mesaId: string,
+  vistas: SelecaoVista[],
+): Promise<number> {
+  let encerradas = 0
+  const agora = new Date().toISOString()
+  for (const v of vistas) {
+    const { data, error } = await admin
+      .from('selecoes_mesa')
+      .update({ encerrada_em: agora })
+      .eq('id', v.id)
+      .eq('restaurante_id', restauranteId)
+      .eq('mesa_id', mesaId)
+      .eq('versao', v.versao)
+      .is('encerrada_em', null)
+      .select('id')
+    if (error) throw error
+    encerradas += (data ?? []).length
+  }
+  return encerradas
 }
