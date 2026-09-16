@@ -15,21 +15,10 @@
  */
 
 import pg from 'pg'
+import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 
-const DB_URL = process.env.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-const API_URL = process.env.API_URL ?? 'http://127.0.0.1:54321'
-const ANON_KEY =
-  process.env.ANON_KEY ??
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-
-// --- trava de segurança: só loopback ---------------------------------------
-for (const [nome, valor] of [['DB_URL', DB_URL], ['API_URL', API_URL]]) {
-  const host = new URL(valor.replace(/^postgresql:/, 'http:')).hostname
-  if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
-    console.error(`\n❌ ${nome} aponta para "${host}". Este script só roda em loopback.\n`)
-    process.exit(1)
-  }
-}
+const { DB_URL, API_URL, ANON_KEY } = chavesLocais()
+exigirLoopback(DB_URL, API_URL)
 
 const cabecalhoAnon = { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` }
 const resultados = []

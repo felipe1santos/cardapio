@@ -9,12 +9,10 @@
  */
 
 import pg from 'pg'
+import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 
-const DB_URL = process.env.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-if (!/@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL)) {
-  console.error('\n❌ DB_URL precisa ser loopback.\n')
-  process.exit(1)
-}
+const { DB_URL } = chavesLocais()
+exigirLoopback(DB_URL)
 
 const db = new pg.Client({ connectionString: DB_URL })
 await db.connect()

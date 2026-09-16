@@ -11,15 +11,10 @@
 
 import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
+import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 
-const DB_URL = process.env.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-const API_URL = process.env.API_URL ?? 'http://127.0.0.1:54321'
-const ANON_KEY = process.env.ANON_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-const SERVICE_KEY = process.env.SERVICE_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
-
-if (!/127\.0\.0\.1|localhost/.test(API_URL) || !/127\.0\.0\.1|localhost/.test(DB_URL)) {
-  console.error('\n❌ Só loopback.\n'); process.exit(1)
-}
+const { DB_URL, API_URL, ANON_KEY, SERVICE_KEY } = chavesLocais()
+exigirLoopback(DB_URL, API_URL)
 
 const res = []
 const ok = (nome, passou, detalhe) => { res.push(passou); console.log(`${passou ? '✅' : '❌'} ${nome}${detalhe ? ` — ${detalhe}` : ''}`) }
