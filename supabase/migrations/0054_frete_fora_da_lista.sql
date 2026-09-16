@@ -16,3 +16,14 @@ alter table public.restaurantes
 alter table public.restaurantes
   add constraint restaurantes_frete_fora_da_lista_check
   check (frete_fora_da_lista in ('bloquear', 'taxa_padrao'));
+
+-- A vitrine lê esta coluna com a chave anônima (buscarRestaurantePorSlug). A
+-- partir da 0055 o SELECT de `restaurantes` para `anon` é concedido coluna a
+-- coluna, então a coluna nova precisa do grant explícito. Sem efeito se a 0055
+-- ainda não rodou (o grant de tabela já cobre), e idempotente nos dois casos.
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'grant select (frete_fora_da_lista) on public.restaurantes to anon';
+  end if;
+end $$;
