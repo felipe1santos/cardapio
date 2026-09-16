@@ -63,7 +63,8 @@ console.log(`   loja ${loja.slice(0, 8)} · pedido delivery e pedido de mesa cri
 // ── usuários, um por papel ──────────────────────────────────────────────────
 const sessoes = {}
 for (const papel of PAPEIS) {
-  const email = `${papel}@local.test`
+  // Domínio próprio: a semente da demonstração usa dono@local.test com outra senha.
+  const email = `${papel}@rls.local.test`
   const { data, error } = await admin.auth.admin.createUser({ email, password: SENHA, email_confirm: true })
   let userId = data?.user?.id
   if (error) {
@@ -204,6 +205,45 @@ console.log('\n── salão ──')
 {
   const { error } = await sessoes.garcom.cli.from('comandas').update({ status: 'fechada' }).eq('id', comanda)
   ok('comanda não se fecha pelo navegador', !!error, error?.message?.slice(0, 55))
+}
+
+// ── tabelas legadas (0066) ──────────────────────────────────────────────────
+// Antes da 0066, um garçom com o próprio JWT alterava preço e fechava a loja pelo
+// console. O que vale é o DADO: UPDATE filtrado pela policy responde sem erro.
+console.log('\n── tabelas legadas: catálogo, loja, marketing ──')
+{
+  const grupoCat = (await db.query(`insert into grupos_cardapio (restaurante_id, nome) values ($1,'Cat RLS') returning id`, [loja])).rows[0].id
+  const itemCat = (await db.query(
+    `insert into itens_cardapio (restaurante_id, grupo_id, nome, preco, status) values ($1,$2,'Item RLS',50,'disponivel') returning id`,
+    [loja, grupoCat])).rows[0].id
+  const preco = async () => Number((await db.query('select preco from itens_cardapio where id=$1', [itemCat])).rows[0].preco)
+  const statusLoja = async () => (await db.query('select status_loja from restaurantes where id=$1', [loja])).rows[0].status_loja
+
+  await sessoes.garcom.cli.from('itens_cardapio').update({ preco: 1 }).eq('id', itemCat)
+  ok('garçom NÃO altera preço do cardápio', (await preco()) === 50, `preço ${await preco()}`)
+  await sessoes.cozinha.cli.from('itens_cardapio').update({ preco: 1 }).eq('id', itemCat)
+  ok('cozinha NÃO altera preço do cardápio', (await preco()) === 50)
+  await sessoes.gerente.cli.from('itens_cardapio').update({ preco: 55 }).eq('id', itemCat)
+  ok('gerente altera preço do cardápio', (await preco()) === 55, `preço ${await preco()}`)
+
+  const { data: cardapioGarcom } = await sessoes.garcom.cli.from('itens_cardapio').select('id').eq('id', itemCat)
+  ok('garçom continua LENDO o cardápio (precisa para lançar)', (cardapioGarcom ?? []).length === 1)
+
+  await db.query(`update restaurantes set status_loja='aberto_manual' where id=$1`, [loja])
+  await sessoes.garcom.cli.from('restaurantes').update({ status_loja: 'fechado_manual' }).eq('id', loja)
+  ok('garçom NÃO fecha a loja', (await statusLoja()) === 'aberto_manual', await statusLoja())
+  await sessoes.atendente.cli.from('restaurantes').update({ status_loja: 'fechado_manual' }).eq('id', loja)
+  ok('atendente do delivery abre/fecha a loja', (await statusLoja()) === 'fechado_manual', await statusLoja())
+  await db.query(`update restaurantes set status_loja='aberto_manual' where id=$1`, [loja])
+
+  await db.query(`insert into campanhas (restaurante_id, nome) values ($1,'Campanha RLS') on conflict do nothing`, [loja]).catch(() => {})
+  for (const tabela of ['campanhas', 'cupons', 'fidelidade_recompensas', 'entregadores', 'impressoras']) {
+    const { data } = await sessoes.garcom.cli.from(tabela).select('id').limit(5)
+    ok(`garçom não lê ${tabela}`, (data ?? []).length === 0, `${data?.length ?? 0} linha(s)`)
+  }
+  const { error: erroCupom } = await sessoes.garcom.cli.from('cupons').insert({ restaurante_id: loja, codigo: 'GARCOM', tipo: 'percentual', valor: 10 })
+  const cupomCriado = (await db.query(`select 1 from cupons where codigo='GARCOM' and restaurante_id=$1`, [loja])).rowCount > 0
+  ok('garçom NÃO cria cupom', !cupomCriado, erroCupom?.message?.slice(0, 50))
 }
 
 // ── isolamento e sessão ─────────────────────────────────────────────────────
