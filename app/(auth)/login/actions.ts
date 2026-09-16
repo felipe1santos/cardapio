@@ -5,6 +5,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 import { acessoValido, buscarEmailPorUsuario, buscarStatusAcesso, registrarLogin } from '@/lib/queries/lojistas'
+import { pode } from '@/lib/auth/permissoes'
 
 export async function signIn(formData: FormData) {
   const login = String(formData.get('email') ?? '').trim()
@@ -46,5 +47,19 @@ export async function signIn(formData: FormData) {
   }
 
   await registrarLogin(admin, data.user.id)
-  redirect('/admin/dashboard')
+  redirect(await telaInicialDo(admin, data.user.id))
+}
+
+/**
+ * Primeira tela depois do login, pelo papel. O Dashboard é faturamento: abrir o garçom
+ * nele seria mandá-lo para uma tela que ele não pode usar. Dono continua indo para o
+ * Dashboard, como sempre.
+ */
+async function telaInicialDo(admin: ReturnType<typeof getAdminSupabase>, userId: string): Promise<string> {
+  const { data } = await admin.from('usuarios').select('papel').eq('id', userId).maybeSingle()
+  const papel = (data?.papel as string | undefined) ?? null
+  if (pode(papel, 'dashboard.faturamento')) return '/admin/dashboard'
+  if (pode(papel, 'mesas.operar')) return '/admin/mesas'
+  if (pode(papel, 'pedidos.delivery.ver')) return '/admin/pedidos'
+  return '/admin/dashboard'
 }

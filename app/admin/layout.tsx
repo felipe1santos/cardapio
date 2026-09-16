@@ -10,6 +10,7 @@ import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { carregarDadosSetup } from '@/lib/queries/setup'
 import { assinaturaPendencias, avaliarSetup, contarPorMenu, type PendenciaSetup } from '@/lib/setup-checklist'
 import { SetupAlerta } from '@/components/admin/setup-alerta'
+import { pode, type Permissao } from '@/lib/auth/permissoes'
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
@@ -25,6 +26,27 @@ const NAV_ITEMS = [
   { href: '/admin/ajustes', label: 'Ajustes' },
 ]
 
+/**
+ * Permissão que cada tela exige para aparecer no menu.
+ *
+ * Isto é COSMÉTICO: esconder o item não protege nada. Quem barra o dado é a RLS
+ * (0061/0062), já verificada por papel. O menu só deixa de oferecer tela que o
+ * funcionário não conseguiria usar.
+ */
+const PERMISSAO_DO_MENU: Record<string, Permissao> = {
+  '/admin/dashboard': 'dashboard.faturamento',
+  '/admin/pedidos': 'pedidos.delivery.ver',
+  '/admin/pdv': 'pedidos.balcao.criar',
+  '/admin/mesas': 'mesas.operar',
+  '/admin/logistica': 'logistica.operar',
+  '/admin/cardapio': 'cardapio.editar',
+  '/admin/clientes': 'clientes.ver',
+  '/admin/campanhas': 'campanhas.gerenciar',
+  '/admin/fidelidade': 'fidelidade.gerenciar',
+  '/admin/integracoes': 'integracoes.gerenciar',
+  '/admin/ajustes': 'ajustes.editar',
+}
+
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
   return `menuzia:setup-ok:${restauranteId}`
@@ -35,7 +57,9 @@ function chaveDispensa(restauranteId: string) {
  * um modal no meio disso atrapalha mais do que ajuda. O marcador no menu
  * continua aparecendo — o alerta abre quando o dono for para outra tela.
  */
-const ROTAS_SEM_INTERRUPCAO = ['/admin/pedidos', '/admin/pdv']
+// `/admin/mesas`: garçom anotando pedido na mesa não pode ter a tela coberta por aviso
+// de taxa de entrega ou telefone da loja — que ele nem tem permissão de resolver.
+const ROTAS_SEM_INTERRUPCAO = ['/admin/pedidos', '/admin/pdv', '/admin/mesas']
 
 /**
  * O modal só interrompe o trabalho quando há pendência CRÍTICA (o que trava o
@@ -65,6 +89,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Módulo Mesas e Comandas. Começa FALSE ao contrário da logística: a seção é nova, e
   // aparecer por um instante em loja que não a usa seria estranho.
   const [moduloMesas, setModuloMesas] = useState(false)
+  // Papel de quem está logado. null = ainda carregando: aí o menu NÃO é filtrado, para
+  // não sumir tudo por um instante na tela do dono (que é quem existe hoje em produção).
+  const [papel, setPapel] = useState<string | null>(null)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // null = nenhum sinal explícito ainda; cai no default por rota.
   const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
@@ -91,6 +118,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ;(async () => {
       const id = await buscarRestauranteIdDoUsuario(supabase)
       if (!active || !id) return
+
+      // Isolado num bloco próprio: se a busca do papel falhar, o menu só fica sem
+      // filtro (comportamento de antes). Não pode derrubar config, badges e checklist.
+      void (async () => {
+        try {
+          const { data } = await supabase.auth.getUser()
+          if (!active || !data.user) return
+          // Só colunas liberadas por grant (0062): select('*') em usuarios é recusado.
+          const { data: u } = await supabase.from('usuarios').select('papel').eq('id', data.user.id).maybeSingle()
+          if (active && u) setPapel(u.papel as string)
+        } catch {
+          /* menu sem filtro por papel; os dados continuam protegidos pela RLS */
+        }
+      })()
 
       buscarConfigLoja(supabase, id).then((c) => {
         if (!active || !c) return
@@ -164,9 +205,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const alertasPorMenu = contarPorMenu(pendencias)
 
   const items = NAV_ITEMS.filter((item) => {
-    if (item.href === '/admin/logistica') return usaLogistica
-    if (item.href === '/admin/mesas') return moduloMesas
-    return true
+    if (item.href === '/admin/logistica' && !usaLogistica) return false
+    if (item.href === '/admin/mesas' && !moduloMesas) return false
+    if (papel === null) return true
+    const exigida = PERMISSAO_DO_MENU[item.href]
+    return exigida ? pode(papel, exigida) : true
   }).map((item) => {
     const alerta = alertasPorMenu[item.href]
     const base = alerta ? { ...item, alerta } : item
@@ -198,7 +241,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           activeHref={pathname}
           storeSlug={storeSlug}
           onSignOut={handleSignOut}
-          pendencias={pendencias.length}
+          // Pendência de configuração é assunto de quem configura a loja. Mostrar "6
+          // pendências" ao garçom seria só ruído — ele não tem acesso a Ajustes.
+          pendencias={papel === null || pode(papel, 'ajustes.editar') ? pendencias.length : 0}
           onAbrirPendencias={() => setAlertaAberto(true)}
         />
       )}
