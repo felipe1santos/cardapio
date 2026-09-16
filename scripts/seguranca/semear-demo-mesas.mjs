@@ -48,16 +48,80 @@ let userId
     [userId, loja, EMAIL, USUARIO])
 }
 
-// ── cardápio mínimo ─────────────────────────────────────────────────────────
-const grupo = (await db.query(
-  `insert into grupos_cardapio (restaurante_id, nome) values ($1, 'Pratos') returning id`, [loja])).rows[0].id
-for (const [nome, preco] of [['Filé à Parmegiana', 68], ['Risoto de Funghi', 54], ['Água com Gás', 7]]) {
-  await db.query(
-    `insert into itens_cardapio (restaurante_id, grupo_id, nome, preco, status)
-     values ($1,$2,$3,$4,'disponivel')`, [loja, grupo, nome, preco])
+// ── cardápio ────────────────────────────────────────────────────────────────
+// Item antes de categoria: apagar a categoria primeiro deixaria itens órfãos
+// (grupo_id nulo), que somem da tela mas continuam no banco.
+await db.query('delete from itens_cardapio where restaurante_id = $1', [loja])
+await db.query('delete from grupos_cardapio where restaurante_id = $1', [loja])
+
+const FOTOS = {
+  'Filé à Parmegiana': 'https://images.unsplash.com/photo-1600891964092-4316c288032e?w=600&q=70',
+  'Risoto de Funghi': 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=70',
+  'Burger da Casa': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=70',
+  'Água com Gás': 'https://images.unsplash.com/photo-1523362628745-0c100150b504?w=600&q=70',
+  'Suco de Laranja': 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=70',
 }
 
+async function criarCategoria(nome, posicao) {
+  const { rows } = await db.query(
+    `insert into grupos_cardapio (restaurante_id, nome, posicao) values ($1,$2,$3) returning id`,
+    [loja, nome, posicao])
+  return rows[0].id
+}
+
+async function criarItem(grupoId, nome, preco, descricao) {
+  const { rows } = await db.query(
+    `insert into itens_cardapio (restaurante_id, grupo_id, nome, preco, descricao, imagem_url, status)
+     values ($1,$2,$3,$4,$5,$6,'disponivel') returning id`,
+    [loja, grupoId, nome, preco, descricao ?? '', FOTOS[nome] ?? null])
+  return rows[0].id
+}
+
+/** Cria um grupo de opções com seus complementos — é o que vira uma etapa do configurador. */
+async function criarEtapa(itemId, nome, { obrigatorio, min, max, posicao }, opcoes) {
+  const { rows } = await db.query(
+    `insert into grupos_item_complementos (item_id, nome, obrigatorio, min_escolhas, max_escolhas, posicao)
+     values ($1,$2,$3,$4,$5,$6) returning id`,
+    [itemId, nome, obrigatorio, min, max, posicao])
+  const grupoId = rows[0].id
+  for (const [i, [nomeOpcao, preco]] of opcoes.entries()) {
+    await db.query(
+      `insert into item_complementos (item_id, grupo_id, nome, preco, posicao) values ($1,$2,$3,$4,$5)`,
+      [itemId, grupoId, nomeOpcao, preco, i])
+  }
+}
+
+const catPratos = await criarCategoria('Pratos', 0)
+const catBurgers = await criarCategoria('Burgers', 1)
+const catBebidas = await criarCategoria('Bebidas', 2)
+
+await criarItem(catPratos, 'Filé à Parmegiana', 68, 'Filé empanado, molho da casa, queijo gratinado e fritas.')
+await criarItem(catPratos, 'Risoto de Funghi', 54, 'Arroz arbóreo, mix de cogumelos frescos e parmesão.')
+
+// Item com as três etapas das referências: ponto, adicionais e bebida.
+const burger = await criarItem(
+  catBurgers, 'Burger da Casa', 42,
+  'Blend de 180 g, queijo, alface, tomate e molho especial no pão brioche.')
+await criarEtapa(burger, 'Escolha o ponto', { obrigatorio: true, min: 1, max: 1, posicao: 0 }, [
+  ['Ao ponto', 0], ['Mal passado', 0], ['Bem passado', 0],
+])
+await criarEtapa(burger, 'Que tal turbinar seu lanche?', { obrigatorio: false, min: 0, max: 4, posicao: 1 }, [
+  ['Adicional de burger', 15], ['Bacon crocante', 8], ['Queijo cheddar', 6], ['Cebola caramelizada', 5],
+])
+await criarEtapa(burger, 'Escolha a bebida', { obrigatorio: true, min: 1, max: 1, posicao: 2 }, [
+  ['Coca-Cola lata', 7], ['Coca-Cola Zero lata', 7], ['Suco de laranja', 12],
+])
+
+await criarItem(catBebidas, 'Água com Gás', 7, 'Garrafa 500 ml gelada.')
+await criarItem(catBebidas, 'Suco de Laranja', 12, 'Laranja espremida na hora, 400 ml.')
+
+await db.query(`update restaurantes set banner_promocional_url = $1 where id = $2`,
+  ['https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=70', loja])
+
 // ── mesas em estados diferentes ─────────────────────────────────────────────
+// Ordem importa: pedido referencia comanda, que referencia mesa.
+await db.query('delete from pedidos where restaurante_id = $1', [loja])
+await db.query('delete from sessoes_mesa where restaurante_id = $1', [loja])
 await db.query('delete from comandas where restaurante_id = $1', [loja])
 await db.query('delete from mesas where restaurante_id = $1', [loja])
 

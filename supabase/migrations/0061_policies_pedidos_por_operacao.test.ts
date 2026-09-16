@@ -100,10 +100,11 @@ describe('0061/0062 — policies por operação', () => {
     expect(select).not.toContain('garcom')
   })
 
-  it('mesa não se apaga e só a gestão configura', () => {
-    expect(salao).not.toMatch(/create policy[^;]*on public\.mesas\s*\n?\s*for delete/i)
+  it('só a gestão configura mesa — inclusive para apagar', () => {
     expect(salao).toMatch(/create policy mesas_insert[\s\S]*?auth_e_gestor\(\)/)
     expect(salao).toMatch(/create policy mesas_update[\s\S]*?auth_e_gestor\(\)/)
+    // O DELETE existe só para a tela de Ajustes, que já oferecia excluir mesa.
+    expect(salao).toMatch(/create policy mesas_delete[\s\S]*?auth_e_gestor\(\)/)
   })
 
   it('comanda só é escrita pelo servidor', () => {

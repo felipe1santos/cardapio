@@ -1,0 +1,949 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+/**
+ * Cardápio presencial da mesa.
+ *
+ * O sistema visual vem das referências em `docs/referencias/autoatendimento/`: cabeçalho
+ * coral, trilho de categorias à esquerda, banner com o título da seção, cards
+ * horizontais com foto, e o configurador em etapas numeradas (etapa atual em coral,
+ * concluídas em azul-marinho, futuras discretas; botão cinza enquanto a escolha
+ * obrigatória não está válida, verde quando está).
+ *
+ * O que esta tela NÃO tem, de propósito: checkout, pagamento, entrega, retirada,
+ * endereço, frete, cupom e fidelidade. O cliente monta uma lista para mostrar ao garçom.
+ * Nenhum botão aqui envia pedido — quem lança é o garçom, manualmente, no painel dele.
+ */
+
+// ── tipos que a página de servidor entrega ──────────────────────────────────
+
+export interface ComplementoDaMesa {
+  id: string
+  nome: string
+  preco: number
+  imagemUrl: string | null
+}
+
+export interface GrupoOpcoes {
+  id: string
+  nome: string
+  obrigatorio: boolean
+  minEscolhas: number
+  maxEscolhas: number
+  complementos: ComplementoDaMesa[]
+}
+
+export interface ItemDaMesa {
+  id: string
+  grupoId: string | null
+  nome: string
+  descricao: string
+  preco: number
+  precoOriginal: number | null
+  imagemUrl: string | null
+  grupos: GrupoOpcoes[]
+  tamanhos: { id: string; nome: string; preco: number }[]
+}
+
+export interface CategoriaDaMesa {
+  id: string
+  nome: string
+  imagemUrl: string | null
+}
+
+interface Props {
+  token: string
+  mesaNome: string
+  sessaoId: string
+  loja: { nome: string; logoUrl: string | null; bannerUrl: string | null }
+  grupos: CategoriaDaMesa[]
+  itens: ItemDaMesa[]
+}
+
+interface OpcaoEscolhida {
+  grupo: string
+  escolha: string
+  preco: number
+}
+
+interface LinhaSelecionada {
+  chave: string
+  itemId: string
+  nome: string
+  imagemUrl: string | null
+  precoUnitario: number
+  quantidade: number
+  observacao: string
+  opcoes: OpcaoEscolhida[]
+}
+
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** Identificador do aparelho. Não identifica pessoa — só separa as listas na mesma mesa. */
+function idDoDispositivo(): string {
+  const chave = 'menuzia:mesa:dispositivo'
+  try {
+    const salvo = localStorage.getItem(chave)
+    if (salvo) return salvo
+    const novo = crypto.randomUUID()
+    localStorage.setItem(chave, novo)
+    return novo
+  } catch {
+    return crypto.randomUUID()
+  }
+}
+
+const totalDaLinha = (l: LinhaSelecionada) =>
+  (l.precoUnitario + l.opcoes.reduce((s, o) => s + o.preco, 0)) * l.quantidade
+
+export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) {
+  const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(grupos[0]?.id ?? null)
+  const [busca, setBusca] = useState('')
+  const [fichaAberta, setFichaAberta] = useState<ItemDaMesa | null>(null)
+  const [selecao, setSelecao] = useState<LinhaSelecionada[]>([])
+  const [painelAberto, setPainelAberto] = useState(false)
+  const [concluida, setConcluida] = useState(false)
+  const [sincronizando, setSincronizando] = useState(false)
+  const dispositivo = useRef<string>('')
+
+  useEffect(() => {
+    dispositivo.current = idDoDispositivo()
+  }, [])
+
+  /**
+   * Guarda a lista no servidor para o garçom poder consultá-la de outro aparelho.
+   * É rascunho: a rota só grava `selecao_itens` e nunca cria pedido.
+   */
+  const sincronizar = useCallback(
+    async (itensAtuais: LinhaSelecionada[]) => {
+      if (!dispositivo.current) return
+      setSincronizando(true)
+      try {
+        await fetch(`/api/mesa/${token}/selecao`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dispositivo: dispositivo.current,
+            itens: itensAtuais.map((l) => ({
+              itemId: l.itemId,
+              quantidade: l.quantidade,
+              observacao: l.observacao,
+              opcoes: l.opcoes,
+            })),
+          }),
+        })
+      } catch {
+        // Sem rede a lista continua na tela — é o que o cliente mostra ao garçom.
+      } finally {
+        setSincronizando(false)
+      }
+    },
+    [token],
+  )
+
+  function atualizarSelecao(proxima: LinhaSelecionada[]) {
+    setSelecao(proxima)
+    void sincronizar(proxima)
+  }
+
+  const visiveis = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    if (termo) {
+      return itens.filter(
+        (i) => i.nome.toLowerCase().includes(termo) || i.descricao.toLowerCase().includes(termo),
+      )
+    }
+    return itens.filter((i) => i.grupoId === categoriaAtiva)
+  }, [itens, categoriaAtiva, busca])
+
+  const categoriaAtual = grupos.find((g) => g.id === categoriaAtiva)
+  const totalSelecao = selecao.reduce((s, l) => s + totalDaLinha(l), 0)
+  const qtdSelecao = selecao.reduce((s, l) => s + l.quantidade, 0)
+
+  return (
+    <div className="mesa-raiz">
+      <style>{TOKENS}</style>
+
+      {/* ── Cabeçalho ───────────────────────────────────────────────────── */}
+      <header className="mesa-cabecalho">
+        <div className="mesa-marca">
+          {loja.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={loja.logoUrl} alt={loja.nome} className="mesa-logo" />
+          ) : (
+            <div className="mesa-logo mesa-logo-vazia">{loja.nome.charAt(0)}</div>
+          )}
+          <span className="mesa-nome-loja">{loja.nome}</span>
+        </div>
+
+        <label className="mesa-busca">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 2a8 8 0 105.3 14l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z" />
+          </svg>
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar no cardápio"
+            aria-label="Buscar no cardápio"
+          />
+        </label>
+
+        <div className="mesa-acoes">
+          <span className="mesa-etiqueta" title="Você está nesta mesa">
+            {mesaNome}
+          </span>
+          <button className="mesa-botao-selecao" onClick={() => setPainelAberto(true)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 4h10l1 3h3v2h-1.2l-1.3 11.1A2 2 0 0 1 16.5 22h-9a2 2 0 0 1-2-1.9L4.2 9H3V7h3l1-3zm2 3h6l-.4-1H9.4L9 7z" />
+            </svg>
+            <span className="mesa-botao-texto">Minha seleção</span>
+            {qtdSelecao > 0 && <span className="mesa-contador">{qtdSelecao}</span>}
+          </button>
+        </div>
+      </header>
+
+      <div className="mesa-corpo">
+        {/* ── Trilho de categorias ──────────────────────────────────────── */}
+        <nav className="mesa-categorias" aria-label="Categorias">
+          {grupos.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => {
+                setCategoriaAtiva(g.id)
+                setBusca('')
+              }}
+              className={`mesa-categoria ${g.id === categoriaAtiva && !busca ? 'ativa' : ''}`}
+            >
+              <span className="mesa-categoria-icone">
+                {g.imagemUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={g.imagemUrl} alt="" />
+                ) : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8.1 2v8.2a2.9 2.9 0 0 1-2 2.8V22H4.5v-9A2.9 2.9 0 0 1 2.5 10.2V2H4v7.4h1.3V2h1.5v7.4H8V2h.1zm7.3 0c-1.9 0-3.4 2.7-3.4 6 0 2.4.8 4.4 2 5.3V22h1.6v-8.7c1.2-.9 2-2.9 2-5.3 0-3.3-1.5-6-2.2-6z" />
+                  </svg>
+                )}
+              </span>
+              <span className="mesa-categoria-nome">{g.nome}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* ── Conteúdo ──────────────────────────────────────────────────── */}
+        <main className="mesa-conteudo">
+          <div className="mesa-banner">
+            {loja.bannerUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={loja.bannerUrl} alt="" className="mesa-banner-foto" />
+            ) : (
+              <div className="mesa-banner-foto mesa-banner-vazio" />
+            )}
+            <div className="mesa-banner-texto">
+              <span className="mesa-banner-titulo">{busca ? 'Resultado da busca' : categoriaAtual?.nome ?? 'Cardápio'}</span>
+              <span className="mesa-banner-sub">
+                Escolha o que quiser e mostre a lista ao garçom
+              </span>
+            </div>
+          </div>
+
+          <div className="mesa-grade">
+            {visiveis.map((item) => (
+              <article key={item.id} className="mesa-card">
+                <div className="mesa-card-texto">
+                  <h3>{item.nome}</h3>
+                  {item.descricao && <p>{item.descricao}</p>}
+                  <div className="mesa-card-rodape">
+                    <div className="mesa-preco">
+                      <span className="mesa-preco-rotulo">A partir de</span>
+                      <span className="mesa-preco-valor">{brl(item.preco)}</span>
+                    </div>
+                    <button className="mesa-botao-add" onClick={() => setFichaAberta(item)}>
+                      Selecionar item
+                    </button>
+                  </div>
+                </div>
+                <div className="mesa-card-foto">
+                  {item.imagemUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.imagemUrl} alt={item.nome} loading="lazy" />
+                  ) : (
+                    <div className="mesa-card-foto-vazia" aria-hidden="true">
+                      🍽️
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+
+            {visiveis.length === 0 && (
+              <p className="mesa-vazio">
+                {busca ? 'Nenhum item encontrado nessa busca.' : 'Nenhum item nesta categoria.'}
+              </p>
+            )}
+          </div>
+
+          <p className="mesa-aviso-rodape">
+            Esta é apenas a sua seleção. Mostre-a ao garçom para realizar o pedido. Nada foi enviado para a cozinha.
+          </p>
+        </main>
+      </div>
+
+      {/* ── Barra fixa (celular) ──────────────────────────────────────────── */}
+      {qtdSelecao > 0 && !painelAberto && !fichaAberta && (
+        <button className="mesa-barra-flutuante" onClick={() => setPainelAberto(true)}>
+          <span className="mesa-barra-qtd">{qtdSelecao}</span>
+          Ver minha seleção
+          <span className="mesa-barra-total">{brl(totalSelecao)}</span>
+        </button>
+      )}
+
+      {fichaAberta && (
+        <Configurador
+          item={fichaAberta}
+          onFechar={() => setFichaAberta(null)}
+          onAdicionar={(linha) => {
+            atualizarSelecao([...selecao, linha])
+            setFichaAberta(null)
+          }}
+        />
+      )}
+
+      {painelAberto && (
+        <PainelSelecao
+          linhas={selecao}
+          total={totalSelecao}
+          sincronizando={sincronizando}
+          onFechar={() => setPainelAberto(false)}
+          onAlterarQtd={(chave, delta) => {
+            const proxima = selecao
+              .map((l) => (l.chave === chave ? { ...l, quantidade: Math.max(0, l.quantidade + delta) } : l))
+              .filter((l) => l.quantidade > 0)
+            atualizarSelecao(proxima)
+          }}
+          onRemover={(chave) => atualizarSelecao(selecao.filter((l) => l.chave !== chave))}
+          onLimpar={() => atualizarSelecao([])}
+          onConcluir={() => {
+            setPainelAberto(false)
+            setConcluida(true)
+          }}
+        />
+      )}
+
+      {concluida && <SelecaoSalva onFechar={() => setConcluida(false)} />}
+    </div>
+  )
+}
+
+// ── Configurador em etapas ──────────────────────────────────────────────────
+
+interface Etapa {
+  id: string
+  titulo: string
+  instrucao: string
+  obrigatorio: boolean
+  min: number
+  max: number
+  opcoes: { id: string; nome: string; preco: number; imagemUrl: string | null }[]
+}
+
+function Configurador({
+  item,
+  onFechar,
+  onAdicionar,
+}: {
+  item: ItemDaMesa
+  onFechar: () => void
+  onAdicionar: (linha: LinhaSelecionada) => void
+}) {
+  /**
+   * As etapas saem do catálogo, nunca de uma lista fixa: tamanho (quando houver), os
+   * grupos de opções do item na ordem cadastrada, e por último quantidade + observação.
+   */
+  const etapas = useMemo<Etapa[]>(() => {
+    const lista: Etapa[] = []
+    if (item.tamanhos.length > 0) {
+      lista.push({
+        id: 'tamanho',
+        titulo: 'Escolha o tamanho',
+        instrucao: 'Você deve escolher 1 item.',
+        obrigatorio: true,
+        min: 1,
+        max: 1,
+        opcoes: item.tamanhos.map((t) => ({ id: t.id, nome: t.nome, preco: t.preco, imagemUrl: null })),
+      })
+    }
+    for (const g of item.grupos) {
+      if (g.complementos.length === 0) continue
+      lista.push({
+        id: g.id,
+        titulo: g.nome,
+        instrucao: g.obrigatorio
+          ? `Você deve escolher ${g.minEscolhas > 1 ? `${g.minEscolhas} itens` : '1 item'}.`
+          : `Opcional. Escolha até ${g.maxEscolhas > 1 ? `${g.maxEscolhas} itens` : '1 item'}.`,
+        obrigatorio: g.obrigatorio,
+        min: g.obrigatorio ? Math.max(1, g.minEscolhas) : 0,
+        max: Math.max(1, g.maxEscolhas),
+        opcoes: g.complementos,
+      })
+    }
+    return lista
+  }, [item])
+
+  const [passo, setPasso] = useState(0)
+  const [escolhas, setEscolhas] = useState<Record<string, string[]>>({})
+  const [quantidade, setQuantidade] = useState(1)
+  const [observacao, setObservacao] = useState('')
+
+  const ehUltima = passo >= etapas.length
+  const etapa = etapas[passo]
+
+  function alternar(etapa: Etapa, opcaoId: string) {
+    setEscolhas((atual) => {
+      const atuais = atual[etapa.id] ?? []
+      if (etapa.max === 1) return { ...atual, [etapa.id]: [opcaoId] }
+      if (atuais.includes(opcaoId)) return { ...atual, [etapa.id]: atuais.filter((x) => x !== opcaoId) }
+      if (atuais.length >= etapa.max) return atual
+      return { ...atual, [etapa.id]: [...atuais, opcaoId] }
+    })
+  }
+
+  const opcoesEscolhidas: OpcaoEscolhida[] = useMemo(() => {
+    const saida: OpcaoEscolhida[] = []
+    for (const e of etapas) {
+      for (const id of escolhas[e.id] ?? []) {
+        const o = e.opcoes.find((x) => x.id === id)
+        if (o) saida.push({ grupo: e.titulo, escolha: o.nome, preco: o.preco })
+      }
+    }
+    return saida
+  }, [etapas, escolhas])
+
+  const subtotal = (item.preco + opcoesEscolhidas.reduce((s, o) => s + o.preco, 0)) * quantidade
+  const etapaValida = !etapa || (escolhas[etapa.id] ?? []).length >= etapa.min
+
+  function avancar() {
+    if (!etapaValida) return
+    if (passo < etapas.length) setPasso(passo + 1)
+  }
+
+  function concluir() {
+    onAdicionar({
+      chave: crypto.randomUUID(),
+      itemId: item.id,
+      nome: item.nome,
+      imagemUrl: item.imagemUrl,
+      precoUnitario: item.preco,
+      quantidade,
+      observacao,
+      opcoes: opcoesEscolhidas,
+    })
+  }
+
+  return (
+    <div className="mesa-modal-fundo" onClick={onFechar}>
+      <div className="mesa-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="mesa-fechar" onClick={onFechar} aria-label="Fechar">
+          ✕
+        </button>
+
+        {/* Coluna da esquerda: produto e trilha de etapas */}
+        <aside className="mesa-modal-lado">
+          <div className="mesa-modal-foto">
+            {item.imagemUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.imagemUrl} alt={item.nome} />
+            ) : (
+              <div className="mesa-card-foto-vazia">🍽️</div>
+            )}
+          </div>
+          <div className="mesa-modal-resumo">
+            <h2>{item.nome}</h2>
+            {item.descricao && <p>{item.descricao}</p>}
+          </div>
+
+          <ol className="mesa-trilha">
+            {etapas.map((e, i) => {
+              const escolhido = (escolhas[e.id] ?? [])
+                .map((id) => e.opcoes.find((o) => o.id === id)?.nome)
+                .filter(Boolean)
+                .join(', ')
+              return (
+                <li key={e.id} className={i === passo ? 'atual' : i < passo ? 'concluida' : ''}>
+                  <span className="mesa-trilha-num">{i + 1}</span>
+                  <span className="mesa-trilha-texto">
+                    <strong>{e.titulo}</strong>
+                    <small>{escolhido || (i < passo ? 'Nenhuma' : 'Selecione')}</small>
+                  </span>
+                </li>
+              )
+            })}
+            <li className={ehUltima ? 'atual' : ''}>
+              <span className="mesa-trilha-num">{etapas.length + 1}</span>
+              <span className="mesa-trilha-texto">
+                <strong>Quantidade</strong>
+                <small>{quantidade}</small>
+              </span>
+            </li>
+          </ol>
+
+          <div className="mesa-subtotal">
+            <span>Subtotal</span>
+            <strong>{brl(subtotal)}</strong>
+          </div>
+        </aside>
+
+        {/* Coluna da direita: etapa atual */}
+        <section className="mesa-modal-etapa">
+          {!ehUltima && etapa ? (
+            <>
+              <header>
+                <h3>{etapa.titulo}</h3>
+                <p>{etapa.instrucao}</p>
+              </header>
+              <div className="mesa-opcoes">
+                {etapa.opcoes.map((o) => {
+                  const marcada = (escolhas[etapa.id] ?? []).includes(o.id)
+                  return (
+                    <button
+                      key={o.id}
+                      className={`mesa-opcao ${marcada ? 'marcada' : ''}`}
+                      onClick={() => alternar(etapa, o.id)}
+                      role={etapa.max === 1 ? 'radio' : 'checkbox'}
+                      aria-checked={marcada}
+                    >
+                      <span className={`mesa-marcador ${etapa.max === 1 ? 'redondo' : ''}`} aria-hidden="true" />
+                      {o.imagemUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={o.imagemUrl} alt="" className="mesa-opcao-foto" />
+                      )}
+                      <span className="mesa-opcao-nome">{o.nome}</span>
+                      {o.preco > 0 && <span className="mesa-opcao-preco">+ {brl(o.preco)}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <header>
+                <h3>Quantidade</h3>
+                <p>Quantos deste item você quer pedir ao garçom?</p>
+              </header>
+              <div className="mesa-qtd">
+                <button onClick={() => setQuantidade((q) => Math.max(1, q - 1))} aria-label="Diminuir">
+                  −
+                </button>
+                <span>{quantidade}</span>
+                <button onClick={() => setQuantidade((q) => Math.min(99, q + 1))} aria-label="Aumentar">
+                  +
+                </button>
+              </div>
+              <label className="mesa-observacao">
+                <span>Observação</span>
+                <textarea
+                  value={observacao}
+                  onChange={(e) => setObservacao(e.target.value.slice(0, 280))}
+                  placeholder="Você pode escrever uma observação"
+                  rows={4}
+                />
+              </label>
+            </>
+          )}
+
+          <footer className="mesa-modal-rodape">
+            <div className="mesa-rodape-subtotal">
+              <span>Subtotal</span>
+              <strong>{brl(subtotal)}</strong>
+            </div>
+            {!ehUltima ? (
+              <button className={`mesa-avancar ${etapaValida ? 'ativo' : ''}`} onClick={avancar} disabled={!etapaValida}>
+                Avançar
+              </button>
+            ) : (
+              <button className="mesa-avancar ativo" onClick={concluir}>
+                Adicionar à seleção
+              </button>
+            )}
+          </footer>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+// ── Painel "Minha seleção" ──────────────────────────────────────────────────
+
+function PainelSelecao({
+  linhas,
+  total,
+  sincronizando,
+  onFechar,
+  onAlterarQtd,
+  onRemover,
+  onLimpar,
+  onConcluir,
+}: {
+  linhas: LinhaSelecionada[]
+  total: number
+  sincronizando: boolean
+  onFechar: () => void
+  onAlterarQtd: (chave: string, delta: number) => void
+  onRemover: (chave: string) => void
+  onLimpar: () => void
+  onConcluir: () => void
+}) {
+  return (
+    <div className="mesa-modal-fundo" onClick={onFechar}>
+      <div className="mesa-painel" onClick={(e) => e.stopPropagation()}>
+        <header className="mesa-painel-topo">
+          <h2>Minha seleção</h2>
+          <button onClick={onFechar} aria-label="Fechar">
+            ✕
+          </button>
+        </header>
+
+        <p className="mesa-painel-aviso">
+          Esta é apenas a sua seleção. Mostre-a ao garçom para realizar o pedido.
+          <strong> Nada foi enviado para a cozinha.</strong>
+        </p>
+
+        <div className="mesa-painel-lista">
+          {linhas.length === 0 && <p className="mesa-vazio">Você ainda não marcou nenhum item.</p>}
+          {linhas.map((l) => (
+            <div key={l.chave} className="mesa-linha">
+              <div className="mesa-linha-foto">
+                {l.imagemUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={l.imagemUrl} alt="" />
+                ) : (
+                  <span aria-hidden="true">🍽️</span>
+                )}
+              </div>
+              <div className="mesa-linha-texto">
+                <strong>{l.nome}</strong>
+                {l.opcoes.length > 0 && <small>{l.opcoes.map((o) => o.escolha).join(' · ')}</small>}
+                {l.observacao && <small className="mesa-linha-obs">“{l.observacao}”</small>}
+                <span className="mesa-linha-preco">{brl(totalDaLinha(l))}</span>
+              </div>
+              <div className="mesa-linha-acoes">
+                <div className="mesa-stepper">
+                  <button onClick={() => onAlterarQtd(l.chave, -1)} aria-label="Diminuir">
+                    −
+                  </button>
+                  <span>{l.quantidade}</span>
+                  <button onClick={() => onAlterarQtd(l.chave, 1)} aria-label="Aumentar">
+                    +
+                  </button>
+                </div>
+                <button className="mesa-remover" onClick={() => onRemover(l.chave)}>
+                  Remover
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <footer className="mesa-painel-rodape">
+          <div className="mesa-painel-total">
+            <span>Total estimado</span>
+            <strong>{brl(total)}</strong>
+          </div>
+          <div className="mesa-painel-botoes">
+            <button className="mesa-secundario" onClick={onFechar}>
+              Continuar escolhendo
+            </button>
+            <button className="mesa-principal" onClick={onConcluir} disabled={linhas.length === 0}>
+              Concluir seleção
+            </button>
+          </div>
+          {linhas.length > 0 && (
+            <button className="mesa-limpar" onClick={onLimpar}>
+              Limpar seleção
+            </button>
+          )}
+          {sincronizando && <span className="mesa-sincronizando">salvando…</span>}
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+function SelecaoSalva({ onFechar }: { onFechar: () => void }) {
+  return (
+    <div className="mesa-modal-fundo" onClick={onFechar}>
+      <div className="mesa-confirmacao" onClick={(e) => e.stopPropagation()}>
+        <div className="mesa-confirmacao-icone" aria-hidden="true">
+          ✓
+        </div>
+        <h2>Seleção salva</h2>
+        <p>
+          Mostre ou confirme estes itens com o garçom. <strong>Nada foi enviado à cozinha.</strong>
+        </p>
+        <button className="mesa-principal" onClick={onFechar}>
+          OK, voltar ao cardápio
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Tokens visuais ──────────────────────────────────────────────────────────
+// Extraídos dos papéis de cor das referências (coral no cabeçalho e na etapa atual,
+// verde na ação positiva, azul-marinho nas etapas concluídas, cinza-azulado nas
+// desabilitadas e divisórias, fundo quase branco). Ficam num lugar só, escopados a esta
+// rota — nada disto vaza para o delivery nem para o painel.
+
+const TOKENS = `
+.mesa-raiz {
+  --coral: #E23744;
+  --coral-escuro: #C42B37;
+  --verde: #2FA84F;
+  --verde-escuro: #268C42;
+  --marinho: #1F2D3D;
+  --fundo: #F2F5F8;
+  --superficie: #FFFFFF;
+  --borda: #E3E8EF;
+  --texto: #1F2937;
+  --suave: #6B7280;
+  --desabilitado: #C2CBD6;
+  --raio: 8px;
+
+  min-height: 100dvh;
+  background: var(--fundo);
+  color: var(--texto);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mesa-raiz * { box-sizing: border-box; }
+.mesa-raiz button { font: inherit; cursor: pointer; }
+
+/* Cabeçalho — no celular vira duas linhas: marca + mesa em cima, busca embaixo.
+   Espremer tudo numa linha só trunca o nome da loja e some com a busca. */
+.mesa-cabecalho {
+  position: sticky; top: 0; z-index: 30;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "marca acoes" "busca busca";
+  align-items: center; gap: 8px 10px;
+  padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  background: var(--coral); color: #fff;
+}
+.mesa-marca { grid-area: marca; }
+.mesa-busca { grid-area: busca; }
+.mesa-acoes { grid-area: acoes; }
+.mesa-marca { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mesa-logo { width: 34px; height: 34px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #fff; }
+.mesa-logo-vazia { display: grid; place-items: center; color: var(--coral); font-weight: 800; }
+.mesa-nome-loja { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mesa-busca { flex: 1; display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.16); border-radius: var(--raio); padding: 0 10px; height: 36px; min-width: 0; }
+.mesa-busca svg { width: 16px; height: 16px; fill: rgba(255,255,255,.85); flex-shrink: 0; }
+.mesa-busca input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: #fff; font-size: 13px; }
+.mesa-busca input::placeholder { color: rgba(255,255,255,.75); }
+.mesa-acoes { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.mesa-etiqueta { background: rgba(0,0,0,.18); border-radius: var(--raio); padding: 6px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.mesa-botao-selecao { display: flex; align-items: center; gap: 6px; background: #fff; color: var(--coral); border: 0; border-radius: var(--raio); padding: 8px 12px; font-size: 12px; font-weight: 800; position: relative; }
+.mesa-botao-selecao svg { width: 16px; height: 16px; fill: currentColor; }
+.mesa-contador { background: var(--coral); color: #fff; border-radius: 999px; min-width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; padding: 0 4px; }
+
+/* Corpo — no celular empilha: faixa de categorias em cima, conteúdo embaixo. */
+.mesa-corpo { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+/* Categorias: faixa horizontal rolável no celular. Um trilho vertical aqui comeria
+   quase um terço da largura de um aparelho de 390px. */
+.mesa-categorias {
+  display: flex; gap: 6px; flex-shrink: 0;
+  background: var(--superficie); border-bottom: 1px solid var(--borda);
+  padding: 8px 12px; overflow-x: auto; scrollbar-width: none;
+  position: sticky; top: 0; z-index: 20;
+}
+.mesa-categorias::-webkit-scrollbar { display: none; }
+.mesa-categoria {
+  display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+  padding: 7px 12px 7px 7px; background: var(--fundo); border: 1px solid var(--borda);
+  border-radius: 999px; color: var(--suave);
+}
+.mesa-categoria.ativa { color: #fff; background: var(--coral); border-color: var(--coral); }
+.mesa-categoria.ativa .mesa-categoria-icone { background: rgba(255,255,255,.22); }
+.mesa-categoria-icone { width: 28px; height: 28px; border-radius: 50%; background: var(--superficie); display: grid; place-items: center; overflow: hidden; flex-shrink: 0; }
+.mesa-categoria-icone img { width: 100%; height: 100%; object-fit: cover; }
+.mesa-categoria-icone svg { width: 15px; height: 15px; fill: currentColor; }
+.mesa-categoria-nome { font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+/* Conteúdo */
+.mesa-conteudo { flex: 1; min-width: 0; padding: 12px; overflow-y: auto; }
+.mesa-banner { position: relative; border-radius: var(--raio); overflow: hidden; height: 132px; margin-bottom: 12px; background: var(--marinho); }
+.mesa-banner-foto { width: 100%; height: 100%; object-fit: cover; opacity: .82; }
+.mesa-banner-vazio { background: linear-gradient(120deg, var(--marinho), #3A4B5F); }
+.mesa-banner-texto { position: absolute; inset: auto 0 0 0; padding: 14px 16px; background: linear-gradient(transparent, rgba(0,0,0,.72)); color: #fff; display: flex; flex-direction: column; gap: 2px; }
+.mesa-banner-titulo { font-size: 20px; font-weight: 800; }
+.mesa-banner-sub { font-size: 12px; opacity: .92; }
+
+.mesa-grade { display: grid; grid-template-columns: 1fr; gap: 10px; }
+/* Card: texto à esquerda, foto à direita. A foto vem depois no HTML de propósito —
+   leitor de tela ouve nome e preço antes de chegar na imagem. */
+.mesa-card { display: grid; grid-template-columns: 1fr 88px; gap: 10px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px; }
+.mesa-card-texto { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mesa-card-texto h3 { margin: 0; font-size: 14px; font-weight: 800; line-height: 1.25; }
+.mesa-card-texto p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mesa-card-rodape { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; }
+.mesa-preco { display: flex; flex-direction: column; min-width: 0; }
+.mesa-preco-rotulo { font-size: 9px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
+.mesa-preco-valor { font-size: 16px; font-weight: 800; color: var(--coral); white-space: nowrap; }
+.mesa-botao-add { background: var(--coral); color: #fff; border: 0; border-radius: var(--raio); padding: 10px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
+.mesa-botao-add:active { background: var(--coral-escuro); }
+.mesa-card-foto { width: 88px; height: 88px; align-self: start; border-radius: var(--raio); overflow: hidden; background: var(--fundo); }
+.mesa-card-foto img { width: 100%; height: 100%; object-fit: cover; }
+.mesa-card-foto-vazia { width: 100%; height: 100%; display: grid; place-items: center; font-size: 28px; }
+.mesa-vazio { grid-column: 1/-1; text-align: center; color: var(--suave); font-size: 13px; padding: 28px 0; }
+.mesa-aviso-rodape { margin: 16px 0 90px; text-align: center; font-size: 12px; color: var(--suave); line-height: 1.5; }
+
+/* Barra fixa */
+.mesa-barra-flutuante {
+  position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 35;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--verde); color: #fff; border: 0; border-radius: var(--raio);
+  padding: 14px 16px; font-size: 14px; font-weight: 800; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.mesa-barra-qtd { background: rgba(255,255,255,.22); border-radius: 999px; min-width: 22px; height: 22px; display: grid; place-items: center; font-size: 12px; }
+.mesa-barra-total { margin-left: auto; }
+
+/* Modal */
+.mesa-modal-fundo { position: fixed; inset: 0; z-index: 50; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 0; }
+.mesa-modal { position: relative; background: var(--superficie); width: 100%; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.mesa-fechar { position: absolute; top: 10px; right: 10px; z-index: 5; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--coral); color: #fff; font-size: 15px; font-weight: 700; }
+.mesa-modal-lado { background: var(--superficie); border-bottom: 1px solid var(--borda); flex-shrink: 0; }
+.mesa-modal-foto { height: 150px; background: var(--fundo); }
+.mesa-modal-foto img { width: 100%; height: 100%; object-fit: cover; }
+.mesa-modal-resumo { padding: 12px 16px 8px; }
+.mesa-modal-resumo h2 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
+.mesa-modal-resumo p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.4; }
+.mesa-trilha { display: none; }
+.mesa-subtotal { display: none; }
+
+.mesa-modal-etapa { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.mesa-modal-etapa > header { padding: 14px 16px 8px; }
+.mesa-modal-etapa h3 { margin: 0 0 2px; font-size: 15px; font-weight: 800; }
+.mesa-modal-etapa header p { margin: 0; font-size: 12px; color: var(--suave); }
+.mesa-opcoes { flex: 1; overflow-y: auto; padding: 4px 16px 12px; display: flex; flex-direction: column; }
+.mesa-opcao { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 4px; background: none; border: 0; border-bottom: 1px solid var(--borda); text-align: left; color: var(--texto); font-size: 13px; }
+.mesa-marcador { width: 18px; height: 18px; border: 2px solid var(--desabilitado); border-radius: 4px; flex-shrink: 0; }
+.mesa-marcador.redondo { border-radius: 50%; }
+.mesa-opcao.marcada .mesa-marcador { border-color: var(--coral); background: var(--coral); box-shadow: inset 0 0 0 3px #fff; }
+.mesa-opcao-foto { width: 32px; height: 32px; object-fit: contain; }
+.mesa-opcao-nome { flex: 1; }
+.mesa-opcao-preco { color: var(--suave); font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+.mesa-qtd { display: flex; align-items: center; gap: 18px; padding: 16px; }
+.mesa-qtd button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--borda); background: var(--superficie); font-size: 20px; color: var(--texto); }
+.mesa-qtd span { min-width: 40px; height: 40px; border-radius: 50%; background: var(--coral); color: #fff; display: grid; place-items: center; font-size: 16px; font-weight: 800; }
+.mesa-observacao { display: block; padding: 0 16px 16px; }
+.mesa-observacao span { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); margin-bottom: 6px; }
+.mesa-observacao textarea { width: 100%; border: 1px solid var(--borda); border-radius: var(--raio); padding: 10px; font-size: 13px; resize: vertical; outline: none; }
+.mesa-observacao textarea:focus { border-color: var(--coral); }
+
+.mesa-modal-rodape { flex-shrink: 0; border-top: 1px solid var(--borda); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 12px; background: var(--superficie); }
+.mesa-rodape-subtotal { display: flex; flex-direction: column; }
+.mesa-rodape-subtotal span { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); }
+.mesa-rodape-subtotal strong { font-size: 16px; }
+.mesa-avancar { flex: 1; background: var(--desabilitado); color: #fff; border: 0; border-radius: var(--raio); padding: 14px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.mesa-avancar.ativo { background: var(--verde); }
+.mesa-avancar.ativo:active { background: var(--verde-escuro); }
+
+/* Painel da seleção */
+.mesa-painel { background: var(--superficie); width: 100%; height: 100dvh; display: flex; flex-direction: column; }
+.mesa-painel-topo { display: flex; align-items: center; justify-content: space-between; background: var(--coral); color: #fff; padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+.mesa-painel-topo h2 { margin: 0; font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.mesa-painel-topo button { background: none; border: 0; color: #fff; font-size: 18px; }
+.mesa-painel-aviso { margin: 0; padding: 12px 16px; background: #FFF7E6; color: #8A5A00; font-size: 12px; line-height: 1.45; border-bottom: 1px solid var(--borda); }
+.mesa-painel-lista { flex: 1; overflow-y: auto; padding: 8px 16px; }
+.mesa-linha { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--borda); }
+.mesa-linha-foto { width: 56px; height: 56px; border-radius: var(--raio); overflow: hidden; background: var(--fundo); display: grid; place-items: center; font-size: 22px; flex-shrink: 0; }
+.mesa-linha-foto img { width: 100%; height: 100%; object-fit: cover; }
+.mesa-linha-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mesa-linha-texto strong { font-size: 13px; }
+.mesa-linha-texto small { font-size: 11px; color: var(--suave); }
+.mesa-linha-obs { font-style: italic; }
+.mesa-linha-preco { font-size: 13px; font-weight: 800; color: var(--coral); margin-top: 2px; }
+.mesa-linha-acoes { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.mesa-stepper { display: flex; align-items: center; gap: 8px; border: 1px solid var(--borda); border-radius: var(--raio); padding: 2px 6px; }
+.mesa-stepper button { background: none; border: 0; font-size: 16px; color: var(--coral); width: 22px; }
+.mesa-stepper span { font-size: 13px; font-weight: 700; min-width: 16px; text-align: center; }
+.mesa-remover { background: none; border: 0; color: var(--suave); font-size: 11px; text-decoration: underline; }
+.mesa-painel-rodape { flex-shrink: 0; border-top: 1px solid var(--borda); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px; }
+.mesa-painel-total { display: flex; align-items: center; justify-content: space-between; }
+.mesa-painel-total span { font-size: 12px; color: var(--suave); }
+.mesa-painel-total strong { font-size: 20px; color: var(--texto); }
+.mesa-painel-botoes { display: flex; gap: 8px; }
+.mesa-secundario { flex: 1; background: var(--superficie); border: 1px solid var(--borda); color: var(--texto); border-radius: var(--raio); padding: 13px; font-size: 12px; font-weight: 800; }
+.mesa-principal { flex: 1; background: var(--verde); border: 0; color: #fff; border-radius: var(--raio); padding: 13px; font-size: 12px; font-weight: 800; }
+.mesa-principal:disabled { background: var(--desabilitado); }
+.mesa-limpar { background: none; border: 0; color: var(--suave); font-size: 11px; text-decoration: underline; align-self: center; }
+.mesa-sincronizando { text-align: center; font-size: 11px; color: var(--suave); }
+
+/* Confirmação */
+.mesa-confirmacao { background: var(--superficie); border-radius: var(--raio); padding: 28px 24px; margin: 16px; max-width: 360px; text-align: center; }
+.mesa-confirmacao-icone { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; border: 3px solid var(--verde); color: var(--verde); display: grid; place-items: center; font-size: 28px; }
+.mesa-confirmacao h2 { margin: 0 0 8px; font-size: 18px; font-weight: 800; }
+.mesa-confirmacao p { margin: 0 0 18px; font-size: 13px; color: var(--suave); line-height: 1.5; }
+
+/* ── Tablet e desktop ──────────────────────────────────────────────────── */
+@media (min-width: 700px) {
+  /* Tablet e desktop: volta o cabeçalho de uma linha e o trilho vertical de
+     categorias, como nas referências. */
+  .mesa-cabecalho { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+  .mesa-busca { flex: 1; }
+  .mesa-corpo { flex-direction: row; }
+  .mesa-categorias {
+    flex-direction: column; width: 132px; gap: 0; padding: 8px 0;
+    border-bottom: 0; border-right: 1px solid var(--borda);
+    overflow-x: visible; overflow-y: auto; position: static;
+  }
+  .mesa-categoria {
+    flex-direction: column; width: 100%; gap: 5px; padding: 12px 6px;
+    background: none; border: 0; border-left: 3px solid transparent; border-radius: 0;
+  }
+  .mesa-categoria.ativa { color: var(--coral); background: #FDF2F3; border-left-color: var(--coral); }
+  .mesa-categoria-icone { width: 38px; height: 38px; background: var(--fundo); }
+  .mesa-categoria.ativa .mesa-categoria-icone { background: #FBE2E4; }
+  .mesa-categoria-icone svg { width: 19px; height: 19px; }
+  .mesa-categoria-nome { font-size: 11px; text-align: center; white-space: normal; line-height: 1.2; }
+  .mesa-conteudo { padding: 16px; }
+  .mesa-banner { height: 180px; }
+  .mesa-banner-titulo { font-size: 26px; }
+  .mesa-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .mesa-card { grid-template-columns: 1fr 116px; }
+  .mesa-card-foto { width: 116px; height: 116px; }
+
+  .mesa-modal-fundo { padding: 24px; }
+  .mesa-modal { height: auto; max-height: 88dvh; max-width: 940px; border-radius: var(--raio); flex-direction: row; }
+  .mesa-modal-lado { width: 300px; flex-shrink: 0; border-bottom: 0; border-right: 1px solid var(--borda); display: flex; flex-direction: column; overflow-y: auto; }
+  .mesa-modal-foto { height: 190px; }
+  .mesa-trilha { display: block; list-style: none; margin: 0; padding: 0 12px 12px; }
+  .mesa-trilha li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--raio); color: var(--suave); }
+  .mesa-trilha li.atual { background: var(--coral); color: #fff; }
+  .mesa-trilha li.concluida { background: var(--marinho); color: #fff; }
+  .mesa-trilha-num { width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.12); display: grid; place-items: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+  .mesa-trilha li.atual .mesa-trilha-num, .mesa-trilha li.concluida .mesa-trilha-num { background: rgba(255,255,255,.22); }
+  .mesa-trilha-texto { display: flex; flex-direction: column; min-width: 0; }
+  .mesa-trilha-texto strong { font-size: 12px; }
+  .mesa-trilha-texto small { font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mesa-subtotal { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--borda); }
+  .mesa-subtotal strong { font-size: 18px; color: var(--coral); }
+
+  .mesa-painel { max-width: 560px; height: auto; max-height: 88dvh; border-radius: var(--raio); overflow: hidden; }
+  .mesa-painel-topo { padding-top: 14px; }
+  .mesa-barra-flutuante { left: auto; right: 24px; width: 320px; }
+}
+
+@media (min-width: 1100px) {
+  .mesa-grade { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mesa-conteudo { padding: 20px 24px; }
+  .mesa-banner { height: 210px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mesa-card, .mesa-opcao, .mesa-botao-add { transition: background-color .15s ease, border-color .15s ease; }
+}
+`
