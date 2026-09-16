@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { proximoStatusKanban } from './pedidos'
+import { proximoStatusKanban, canalDoPedido } from './pedidos'
 
 describe('proximoStatusKanban', () => {
   describe('com o módulo de Logística ligado (comportamento histórico)', () => {
@@ -52,5 +52,27 @@ describe('proximoStatusKanban', () => {
       expect(proximoStatusKanban('entregue', 'entrega', usaLogistica)).toBeNull()
       expect(proximoStatusKanban('cancelado', 'entrega', usaLogistica)).toBeNull()
     }
+  })
+})
+
+describe('canalDoPedido — a fronteira entre salão e delivery', () => {
+  it('pedido de PDV com comanda é de mesa', () => {
+    expect(canalDoPedido({ origem: 'pdv', comandaId: 'c1' })).toBe('mesa')
+  })
+
+  it('pedido de PDV sem comanda é de balcão', () => {
+    expect(canalDoPedido({ origem: 'pdv' })).toBe('balcao')
+  })
+
+  it('o resto é delivery', () => {
+    expect(canalDoPedido({ origem: 'cardapio' })).toBe('delivery')
+    expect(canalDoPedido({})).toBe('delivery')
+    // Comanda sem origem pdv NÃO vira mesa: é o caso do pedido legado/forjado.
+    expect(canalDoPedido({ origem: 'cardapio', comandaId: 'c1' })).toBe('delivery')
+  })
+
+  it('canal explícito vence — é como o painel do garçom lança', () => {
+    expect(canalDoPedido({ origem: 'pdv', canal: 'mesa' })).toBe('mesa')
+    expect(canalDoPedido({ origem: 'cardapio', canal: 'mesa', comandaId: 'c1' })).toBe('mesa')
   })
 })

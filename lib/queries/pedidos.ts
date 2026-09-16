@@ -61,8 +61,12 @@ export interface Pedido {
   preparandoNotificado: boolean
   telefoneVerificado: boolean
   origem: 'cardapio' | 'pdv'
+  /** Canal do pedido — a fronteira que a RLS usa entre salão e delivery. */
+  canal: CanalPedido
   mesa: string | null
   comandaId: string | null
+  /** Quem lançou, quando veio de tela autenticada. Snapshot do nome. */
+  criadoPorNome: string | null
   canceladoMotivo: string | null
   canceladoObservacao: string | null
   canceladoPor: string | null
@@ -113,8 +117,10 @@ interface PedidoRow {
   preparando_notificado: boolean
   telefone_verificado: boolean
   origem: 'cardapio' | 'pdv'
+  canal: string | null
   mesa: string | null
   comanda_id: string | null
+  criado_por_nome: string | null
   cancelado_motivo: string | null
   cancelado_observacao: string | null
   cancelado_por: string | null
@@ -139,7 +145,7 @@ export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
-  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, mesa, comanda_id,
+  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome,
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
@@ -173,7 +179,11 @@ export function mapPedido(row: PedidoRow): Pedido {
     preparandoNotificado: row.preparando_notificado ?? false,
     telefoneVerificado: row.telefone_verificado ?? true,
     origem: (row.origem as 'cardapio' | 'pdv') ?? 'cardapio',
+    // `?? 'delivery'` cobre a janela entre deploy e migration: sem a coluna, o
+    // pedido é tratado como delivery, que é o comportamento antigo.
+    canal: (row.canal ?? 'delivery') as CanalPedido,
     mesa: row.mesa ?? null,
+    criadoPorNome: row.criado_por_nome ?? null,
     comandaId: row.comanda_id ?? null,
     canceladoMotivo: row.cancelado_motivo ?? null,
     canceladoObservacao: row.cancelado_observacao ?? null,
@@ -841,6 +851,21 @@ export interface NovoPedidoItemInput {
   massaNome?: string // pizza: nome da massa escolhida (opcional)
 }
 
+export type CanalPedido = 'delivery' | 'mesa' | 'balcao'
+
+/**
+ * Canal do pedido — o discriminador que a RLS usa para separar salão de delivery.
+ *
+ * Mesma regra do backfill da 0058, num lugar só: pedido de PDV com comanda é de mesa,
+ * sem comanda é de balcão, o resto é delivery. Quem chama pode forçar (`input.canal`),
+ * mas isso só existe para o painel do garçom — a rota pública nem deixa o campo passar.
+ */
+export function canalDoPedido(input: Pick<NovoPedidoInput, 'origem' | 'comandaId' | 'canal'>): CanalPedido {
+  if (input.canal) return input.canal
+  if (input.origem === 'pdv') return input.comandaId ? 'mesa' : 'balcao'
+  return 'delivery'
+}
+
 export interface NovoPedidoInput {
   tipo: TipoPedido
   cliente: { nome: string; telefone: string }
@@ -855,6 +880,15 @@ export interface NovoPedidoInput {
   mesa?: string
   /** Comanda da mesa (PDV Fase 2). Null/ausente = pedido avulso (balcão/vitrine). */
   comandaId?: string
+  /**
+   * Canal explícito. Só caminhos de SERVIDOR preenchem (o painel do garçom). Sem ele,
+   * `canalDoPedido` deriva de origem + comanda.
+   */
+  canal?: CanalPedido
+  /** Quem lançou, quando veio de uma tela autenticada. Vem da sessão, nunca do corpo. */
+  criadoPor?: string
+  /** Snapshot do nome de quem lançou — sobrevive à saída do funcionário. */
+  criadoPorNome?: string
   /**
    * Código de cupom digitado pelo cliente. Só o código viaja no payload — validação,
    * cálculo de desconto e travas de uso são todos server-side. Exclusivo com `recompensaId`.
@@ -1230,8 +1264,14 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       total,
       observacao: '',
       origem: input.origem ?? 'cardapio',
+      // Canal é a fronteira que a RLS usa (0058/0061): ele decide quem enxerga o
+      // pedido. Derivado aqui, no servidor, nunca aceito do navegador — a rota pública
+      // recusa o campo antes de chegar aqui (lib/queries/pedido-publico.ts).
+      canal: canalDoPedido(input),
       mesa: input.origem === 'pdv' ? (input.mesa ?? null) : null,
       comanda_id: input.comandaId ?? null,
+      criado_por: input.criadoPor ?? null,
+      criado_por_nome: input.criadoPorNome ?? null,
       cupom_codigo: cupomAplicado?.codigo ?? null,
       recompensa_id: recompensaResgatada,
     })

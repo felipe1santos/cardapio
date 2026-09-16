@@ -48,6 +48,28 @@ let userId
     [userId, loja, EMAIL, USUARIO])
 }
 
+// ── equipe: um garçom e um atendente do delivery ────────────────────────────
+// O atendente existe para provar a separação por canal: ele não pode lançar em mesa.
+async function criarFuncionario(email, usuario, papel, nome) {
+  let id
+  const { data, error } = await admin.auth.admin.createUser({ email, password: SENHA, email_confirm: true })
+  if (error && !/already/i.test(error.message)) throw error
+  id = data?.user?.id
+  if (!id) {
+    const { data: lista } = await admin.auth.admin.listUsers()
+    id = lista.users.find((u) => u.email === email).id
+    await admin.auth.admin.updateUserById(id, { password: SENHA })
+  }
+  await db.query(`
+    insert into usuarios (id, restaurante_id, papel, nome, email, usuario, autorizado)
+    values ($1, $2, $3::papel_usuario, $4, $5, $6, true)
+    on conflict (id) do update set restaurante_id = excluded.restaurante_id, papel = excluded.papel,
+      autorizado = true, desativado_em = null, usuario = excluded.usuario, nome = excluded.nome`,
+    [id, loja, papel, nome, email, usuario])
+}
+await criarFuncionario('garcom@demo.local', 'garcom.local', 'garcom', 'Garçom Demo')
+await criarFuncionario('atendente@demo.local', 'atendente.local', 'atendente', 'Atendente Demo')
+
 // ── cardápio ────────────────────────────────────────────────────────────────
 // Item antes de categoria: apagar a categoria primeiro deixaria itens órfãos
 // (grupo_id nulo), que somem da tela mas continuam no banco.
@@ -160,9 +182,11 @@ console.log(`
 ✅ Ambiente de demonstração pronto (LOCAL, descartável)
 
    Loja ......... Cantina Demo (slug: cantina-demo), módulo Mesas e Comandas LIGADO
-   Usuário ...... ${USUARIO}
-   Senha ........ ${SENHA}
-   E-mail ....... ${EMAIL}
+   Senha (todos)  ${SENHA}
+
+   Dono ......... ${USUARIO}
+   Garçom ....... garcom.local
+   Atendente .... atendente.local   (delivery — não pode lançar em mesa)
 
    6 mesas: 3 livres, 1 ocupada (2 lançamentos), 1 bloqueada, 1 desativada
 `)
