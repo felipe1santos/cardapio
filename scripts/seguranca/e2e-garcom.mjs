@@ -197,7 +197,28 @@ console.log('\n── o que o garçom enxerga ──')
   }
   ok('menu do garçom tem "Mesas e Comandas"', menu.includes('Mesas e Comandas'))
   ok('garçom não vê contador de pendências de configuração', !(await g2.page.locator('text=/\\d+ pendência/').count()))
-  await g2.page.screenshot({ path: '.shots/garcom-06-menu-do-garcom.png' })
+
+  // O caminho real: do salão até a mesa, clicando — não digitando URL.
+  await g2.page.waitForSelector('text=Mesa 01', { timeout: 15000 })
+  ok('garçom não vê "Nova mesa"', (await g2.page.locator('button', { hasText: 'Nova mesa' }).count()) === 0)
+  ok('garçom não vê "Desativar"', (await g2.page.locator('button', { hasText: 'Desativar' }).count()) === 0)
+  ok('garçom não vê botão de QR', (await g2.page.locator('button[title="Ver QR Code"]').count()) === 0)
+  await g2.page.screenshot({ path: '.shots/garcom-06-salao-do-garcom.png' })
+
+  // Escopo no CARTÃO: um `div` com o texto "Varanda 02" casava também com a grade
+  // inteira, que contém os atalhos de todas as outras mesas.
+  const bloqueadaTemAtalho = await g2.page
+    .locator('div.flex-col.rounded-menuzia', {
+      has: g2.page.locator('span', { hasText: /^Varanda 02$/ }),
+    })
+    .locator('a', { hasText: /Lançar pedido|Abrir mesa/ })
+    .count()
+  ok('mesa bloqueada não oferece atalho de lançamento', bloqueadaTemAtalho === 0)
+
+  await g2.page.locator('a', { hasText: /Abrir mesa|Lançar pedido/ }).first().click()
+  await g2.page.waitForURL(/\/admin\/mesas\/[0-9a-f-]{36}$/, { timeout: 20000 })
+  await g2.page.waitForSelector('text=Lançamento', { timeout: 20000 })
+  ok('garçom chega ao painel da mesa clicando no salão', /\/admin\/mesas\/[0-9a-f-]{36}$/.test(g2.page.url()))
   await g2.ctx.close()
 
   const d = await logar('dono.local')

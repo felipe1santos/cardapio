@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import QRCode from 'qrcode'
 import { Copy, Check, Download, Lock, LockOpen, Pencil, Plus, QrCode, RefreshCw, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
@@ -21,6 +22,7 @@ import {
   type Mesa,
 } from '@/lib/queries/mesas'
 import { listarMesasComEstado, type MesaComEstado } from '@/lib/queries/comandas'
+import { pode } from '@/lib/auth/permissoes'
 
 /** Cor do estado no mapa do salão. Mesma paleta do resto do painel. */
 const TOM_ESTADO: Record<EstadoMesa, { badge: Parameters<typeof Badge>[0]['tone']; borda: string; ponto: string }> = {
@@ -49,6 +51,10 @@ export default function MesasPage() {
   const [formAberto, setFormAberto] = useState(false)
   const [emEdicao, setEmEdicao] = useState<Mesa | null>(null)
   const [qrDaMesa, setQrDaMesa] = useState<Mesa | null>(null)
+  // Papel de quem está logado. Cadastro, QR e bloqueio são da gestão; o garçom só abre a
+  // mesa. Esconder os botões é conforto — quem barra a escrita é a RLS (0062).
+  const [papel, setPapel] = useState<string | null>(null)
+  const gerencia = papel === null || pode(papel, 'mesas.gerenciar')
 
   const carregar = useCallback(
     async (id: string) => {
@@ -92,6 +98,11 @@ export default function MesasPage() {
         return
       }
       setRestauranteId(id)
+      const { data: auth } = await supabase.auth.getUser()
+      if (auth.user) {
+        const { data: u } = await supabase.from('usuarios').select('papel').eq('id', auth.user.id).maybeSingle()
+        if (vivo && u) setPapel(u.papel as string)
+      }
       await carregar(id)
     })()
     return () => {
@@ -157,15 +168,17 @@ export default function MesasPage() {
         title="Mesas e Comandas"
         breadcrumb="Salão · Mesas"
         right={
-          <Button
-            onClick={() => {
-              setEmEdicao(null)
-              setFormAberto(true)
-            }}
-          >
-            <Plus className="mr-1.5 inline h-3.5 w-3.5" />
-            Nova mesa
-          </Button>
+          gerencia ? (
+            <Button
+              onClick={() => {
+                setEmEdicao(null)
+                setFormAberto(true)
+              }}
+            >
+              <Plus className="mr-1.5 inline h-3.5 w-3.5" />
+              Nova mesa
+            </Button>
+          ) : undefined
         }
       />
 
@@ -260,6 +273,18 @@ export default function MesasPage() {
                     </div>
                   )}
 
+                  {/* Abrir a mesa é o que o garçom faz. Mesa inativa ou bloqueada não recebe
+                      lançamento, então não oferece o atalho. */}
+                  {mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (
+                    <Link
+                      href={`/admin/mesas/${mesa.id}`}
+                      className="mb-1 mt-2 block rounded-menuzia bg-primary px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-white hover:bg-primary-dark"
+                    >
+                      {mesa.estado === 'ocupada' ? 'Abrir mesa' : 'Lançar pedido'}
+                    </Link>
+                  )}
+
+                  {gerencia && (
                   <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
                     <Button variant="outline" className="!px-2" onClick={() => setQrDaMesa(mesa)} title="Ver QR Code">
                       <QrCode className="h-3.5 w-3.5" />
@@ -287,6 +312,7 @@ export default function MesasPage() {
                       {mesa.ativa ? 'Desativar' : 'Reativar'}
                     </Button>
                   </div>
+                  )}
                 </div>
               )
             })}
