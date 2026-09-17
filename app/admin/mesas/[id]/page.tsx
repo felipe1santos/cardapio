@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Check, Plus, Send, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Check, Plus, Send, Trash2, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,7 @@ import { buscarComandaAberta, listarPedidosDaComanda, calcularTotalComanda } fro
 import type { Pedido } from '@/lib/queries/pedidos'
 import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-sessao'
 import { validarOpcoes, minimoDoGrupo, maximoDoGrupo, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
+import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaOpcao } from './conta'
 
 /**
  * Painel do garçom para uma mesa.
@@ -63,6 +64,14 @@ export default function MesaDetalhePage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
 
   const [mesa, setMesa] = useState<Mesa | null>(null)
+  const [mesasDaLoja, setMesasDaLoja] = useState<MesaOpcao[]>([])
+  const [aba, setAba] = useState<'lancar' | 'conta' | 'historico'>('lancar')
+  const [avisoPagina, setAvisoPagina] = useState<string | null>(null)
+  const [transferindoMesa, setTransferindoMesa] = useState(false)
+  // Destino ocupado: a troca só vira junção de contas com confirmação explícita.
+  const [confirmarJuntar, setConfirmarJuntar] = useState<MesaOpcao | null>(null)
+  const estadoConta = useConta(params.id)
+  const permissoesConta = estadoConta.dados?.permissoes ?? {}
   const [grupos, setGrupos] = useState<GrupoCardapio[]>([])
   const [itens, setItens] = useState<ItemCardapio[]>([])
   const [selecaoCliente, setSelecaoCliente] = useState<LinhaSelecaoCliente[]>([])
@@ -99,6 +108,7 @@ export default function MesaDetalhePage() {
 
     const alvo = mesas.find((m) => m.id === params.id) ?? null
     setMesa(alvo)
+    setMesasDaLoja(mesas.map((m) => ({ id: m.id, nome: m.nome, ativa: m.ativa, bloqueada: m.bloqueada })))
     setGrupos(gruposDb)
     setItens(itensDb.filter((i) => i.status === 'disponivel'))
     setCategoriaAtiva((atual) => atual ?? gruposDb[0]?.id ?? null)
@@ -223,6 +233,24 @@ export default function MesaDetalhePage() {
     }
   }
 
+  async function transferirMesa(destinoMesaId: string, mesclar: boolean) {
+    const r = await estadoConta.agir('transferir_mesa', { destinoMesaId, mesclar })
+    const destino = mesasDaLoja.find((m) => m.id === destinoMesaId) ?? null
+    if (!r.ok && r.codigo === 'destino_ocupado' && !mesclar) {
+      setTransferindoMesa(false)
+      setConfirmarJuntar(destino)
+      return
+    }
+    setTransferindoMesa(false)
+    setConfirmarJuntar(null)
+    if (!r.ok) {
+      setAvisoPagina(r.error ?? 'Não foi possível transferir a mesa.')
+      return
+    }
+    setAvisoPagina(`Conta ${mesclar ? 'juntada com' : 'transferida para'} a ${destino?.nome ?? 'outra mesa'}.`)
+    router.push(`/admin/mesas/${destinoMesaId}`)
+  }
+
   if (carregando) {
     return (
       <>
@@ -251,15 +279,68 @@ export default function MesaDetalhePage() {
         title={mesa.nome}
         breadcrumb={`Mesas e Comandas · ${mesa.setor || 'Salão'}`}
         right={
-          <Button variant="outline" onClick={() => router.push('/admin/mesas')}>
-            <ArrowLeft className="mr-1.5 inline h-3.5 w-3.5" />
-            Voltar ao salão
-          </Button>
+          <>
+            {permissoesConta.transferir_mesa && estadoConta.dados?.conta && (
+              <Button variant="outline" onClick={() => setTransferindoMesa(true)}>
+                <ArrowRightLeft className="mr-1.5 inline h-3.5 w-3.5" />
+                Trocar de mesa
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => router.push('/admin/mesas')}>
+              <ArrowLeft className="mr-1.5 inline h-3.5 w-3.5" />
+              Voltar ao salão
+            </Button>
+          </>
         }
       />
 
       <div className="flex-1 overflow-y-auto p-5">
-        <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
+        {avisoPagina && (
+          <p className="mb-3 flex items-center justify-between gap-2 rounded-menuzia bg-alert-bg px-4 py-2.5 text-[13px] text-alert-text" role="status">
+            {avisoPagina}
+            <button aria-label="Dispensar aviso" onClick={() => setAvisoPagina(null)}>
+              <X className="h-4 w-4" />
+            </button>
+          </p>
+        )}
+
+        <div className="mb-4 flex gap-1 border-b border-border" role="tablist">
+          {([
+            ['lancar', 'Lançar pedido'],
+            ['conta', estadoConta.dados?.conta ? `Conta · falta ${brl(estadoConta.dados.conta.totais.restante)}` : 'Conta'],
+            ['historico', 'Histórico'],
+          ] as const).map(([id, rotulo]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={aba === id}
+              onClick={() => setAba(id)}
+              className={[
+                '-mb-px border-b-2 px-4 py-2 text-[12px] font-bold uppercase tracking-wide',
+                aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
+              ].join(' ')}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
+
+        {aba === 'conta' && (
+          <PainelConta
+            mesaId={params.id}
+            mesas={mesasDaLoja}
+            estado={estadoConta}
+            onContaFechada={() => {
+              setAvisoPagina(`Conta da ${mesa.nome} fechada. A mesa está livre.`)
+              setAba('lancar')
+              void carregar()
+            }}
+          />
+        )}
+
+        {aba === 'historico' && <Historico eventos={estadoConta.dados?.historico ?? []} />}
+
+        <div className={`grid gap-4 xl:grid-cols-[1fr_380px] ${aba === 'lancar' ? '' : 'hidden'}`}>
           {/* ── Catálogo: o garçom escolhe à mão ─────────────────────────── */}
           <section>
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -473,6 +554,25 @@ export default function MesaDetalhePage() {
             adicionar(configurando, complementos)
             setConfigurando(null)
           }}
+        />
+      )}
+
+      {transferindoMesa && (
+        <ModalDestino
+          titulo={`Trocar a ${mesa.nome} para`}
+          mesas={mesasDaLoja.filter((m) => m.id !== mesa.id)}
+          onCancelar={() => setTransferindoMesa(false)}
+          onConfirmar={(destino) => transferirMesa(destino, false)}
+        />
+      )}
+
+      {confirmarJuntar && (
+        <Confirmacao
+          titulo={`A ${confirmarJuntar.nome} já tem conta aberta`}
+          texto={`Juntar as contas? Os lançamentos e pagamentos da ${mesa.nome} passam para a ${confirmarJuntar.nome}. Nada é apagado e o histórico das duas fica guardado.`}
+          botao="Juntar contas"
+          onCancelar={() => setConfirmarJuntar(null)}
+          onConfirmar={() => transferirMesa(confirmarJuntar.id, true)}
         />
       )}
 
