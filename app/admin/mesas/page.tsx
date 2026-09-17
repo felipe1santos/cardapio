@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
-import { Copy, Check, Download, Lock, LockOpen, Pencil, Plus, QrCode, RefreshCw, X } from 'lucide-react'
+import { Copy, Check, Download, Lock, LockOpen, Pencil, Plus, QrCode, RefreshCw, Settings, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +23,7 @@ import {
 } from '@/lib/queries/mesas'
 import { listarMesasComEstado, type MesaComEstado } from '@/lib/queries/comandas'
 import { pode } from '@/lib/auth/permissoes'
+import { ConfigConta } from './config-conta'
 
 /** Cor do estado no mapa do salão. Mesma paleta do resto do painel. */
 const TOM_ESTADO: Record<EstadoMesa, { badge: Parameters<typeof Badge>[0]['tone']; borda: string; ponto: string }> = {
@@ -51,6 +52,7 @@ export default function MesasPage() {
   const [formAberto, setFormAberto] = useState(false)
   const [emEdicao, setEmEdicao] = useState<Mesa | null>(null)
   const [qrDaMesa, setQrDaMesa] = useState<Mesa | null>(null)
+  const [configAberta, setConfigAberta] = useState(false)
   // Papel de quem está logado. Cadastro, QR e bloqueio são da gestão; o garçom só abre a
   // mesa. Esconder os botões é conforto — quem barra a escrita é a RLS (0062).
   const [papel, setPapel] = useState<string | null>(null)
@@ -169,15 +171,21 @@ export default function MesasPage() {
         breadcrumb="Salão · Mesas"
         right={
           gerencia ? (
-            <Button
-              onClick={() => {
-                setEmEdicao(null)
-                setFormAberto(true)
-              }}
-            >
-              <Plus className="mr-1.5 inline h-3.5 w-3.5" />
-              Nova mesa
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setConfigAberta(true)}>
+                <Settings className="mr-1.5 inline h-3.5 w-3.5" />
+                Conta e pagamentos
+              </Button>
+              <Button
+                onClick={() => {
+                  setEmEdicao(null)
+                  setFormAberto(true)
+                }}
+              >
+                <Plus className="mr-1.5 inline h-3.5 w-3.5" />
+                Nova mesa
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -338,6 +346,8 @@ export default function MesasPage() {
       )}
 
       {qrDaMesa && <DrawerQr mesa={qrDaMesa} onFechar={() => setQrDaMesa(null)} />}
+
+      {configAberta && <ConfigConta onFechar={() => setConfigAberta(false)} />}
     </>
   )
 }
