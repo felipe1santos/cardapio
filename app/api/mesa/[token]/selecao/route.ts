@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { resolverMesaPorToken } from '@/lib/queries/mesas'
-import { abrirOuObterSessao, buscarSelecao, salvarSelecao, sanearSelecao } from '@/lib/queries/mesa-sessao'
+import { abrirOuObterSessao, buscarSelecao, mesaDestinoDaSessaoTransferida, salvarSelecao, sanearSelecao } from '@/lib/queries/mesa-sessao'
 import { listarItens } from '@/lib/queries/cardapio'
 
 /**
@@ -39,9 +39,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   if (!ctx) return NextResponse.json({ error: 'Mesa não encontrada' }, { status: 404 })
 
   const selecao = await buscarSelecao(ctx.admin, ctx.sessao.id, dispositivo)
+
+  // O aparelho diz em que sessão estava. Se ela acabou porque a conta mudou de mesa, a tela
+  // orienta a ler o QR da mesa nova. Só o nome da mesa sai daqui — nada que dê acesso.
+  const anterior = new URL(request.url).searchParams.get('sessao') ?? ''
+  const mesaMudouPara =
+    DISPOSITIVO_VALIDO.test(anterior) && anterior !== ctx.sessao.id
+      ? await mesaDestinoDaSessaoTransferida(ctx.admin, ctx.mesa.restauranteId, ctx.mesa.mesaId, anterior)
+      : null
+
   // `id: null` = não há rascunho aberto neste aparelho. Se o cliente tinha um e agora não
   // tem, o garçom enviou o pedido e encerrou o ciclo — a tela avisa e recomeça vazia.
-  return NextResponse.json({ id: selecao?.id ?? null, itens: selecao?.itens ?? [], versao: selecao?.versao ?? 0 })
+  return NextResponse.json({
+    id: selecao?.id ?? null,
+    itens: selecao?.itens ?? [],
+    versao: selecao?.versao ?? 0,
+    sessao: ctx.sessao.id,
+    mesaMudouPara,
+  })
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ token: string }> }) {

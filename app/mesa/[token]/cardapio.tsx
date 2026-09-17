@@ -108,6 +108,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
   // O garçom enviou o pedido e encerrou este ciclo: a lista volta vazia e o cliente é
   // avisado, em vez de ver os itens sumirem sem explicação.
   const [cicloEncerrado, setCicloEncerrado] = useState(false)
+  // A conta desta mesa foi levada para outra mesa pelo garçom. Guarda só o nome da nova.
+  const [mesaMudouPara, setMesaMudouPara] = useState<string | null>(null)
+  const sessaoConhecida = useRef<string | null>(null)
   const dispositivo = useRef<string>('')
   // Id do rascunho aberto no servidor. Tinha id e o servidor passou a responder `null` =
   // o ciclo encerrou.
@@ -123,14 +126,22 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
   const lerDoServidor = useCallback(async () => {
     if (!dispositivo.current || gravando.current) return
     try {
-      const r = await fetch(`/api/mesa/${token}/selecao?dispositivo=${dispositivo.current}`, { cache: 'no-store' })
+      const sessaoParam = sessaoConhecida.current ? `&sessao=${sessaoConhecida.current}` : ''
+      const r = await fetch(`/api/mesa/${token}/selecao?dispositivo=${dispositivo.current}${sessaoParam}`, { cache: 'no-store' })
       if (!r.ok || gravando.current) return
       const corpo = (await r.json()) as {
         id: string | null
+        sessao?: string
+        mesaMudouPara?: string | null
         itens: { itemId: string | null; nome: string; precoUnitario: number; quantidade: number; observacao: string; opcoes: OpcaoEscolhida[] }[]
       }
 
-      if (idSelecao.current && corpo.id === null && qtdNaTela.current > 0) setCicloEncerrado(true)
+      if (corpo.mesaMudouPara) {
+        setMesaMudouPara(corpo.mesaMudouPara)
+      } else if (idSelecao.current && corpo.id === null && qtdNaTela.current > 0) {
+        setCicloEncerrado(true)
+      }
+      if (corpo.sessao) sessaoConhecida.current = corpo.sessao
       idSelecao.current = corpo.id
 
       const linhas: LinhaSelecionada[] = corpo.itens
@@ -399,7 +410,23 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
 
       {concluida && <SelecaoSalva onFechar={() => setConcluida(false)} />}
 
-      {cicloEncerrado && (
+      {mesaMudouPara && (
+        <div className="mesa-modal-fundo">
+          <div className="mesa-confirmacao" role="alertdialog" aria-labelledby="mesa-mudou-titulo">
+            <div className="mesa-confirmacao-icone" aria-hidden="true">⇄</div>
+            <h2 id="mesa-mudou-titulo">Sua conta mudou para a {mesaMudouPara}</h2>
+            <p>
+              O garçom trocou vocês de mesa. <strong>Leia o QR Code da {mesaMudouPara}</strong> para continuar vendo o
+              cardápio e montando sua lista por lá.
+            </p>
+            <button className="mesa-principal" onClick={() => setMesaMudouPara(null)}>
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
+      {cicloEncerrado && !mesaMudouPara && (
         <div className="mesa-modal-fundo" onClick={() => setCicloEncerrado(false)}>
           <div className="mesa-confirmacao" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-labelledby="ciclo-titulo">
             <div className="mesa-confirmacao-icone" aria-hidden="true">✓</div>

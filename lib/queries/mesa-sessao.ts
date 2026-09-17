@@ -183,6 +183,35 @@ export async function buscarSessaoAberta(
   return data ? mapSessao(data as SessaoRow) : null
 }
 
+/**
+ * A sessão que este aparelho estava usando foi encerrada por troca de mesa? Devolve só o
+ * NOME da mesa nova, para a tela orientar o cliente a ler o QR dela.
+ *
+ * Não devolve token nem id da mesa nova: saber para onde a conta foi não dá acesso a ela.
+ * A sessão precisa ser desta loja e desta mesa — um id de sessão de outra mesa não revela
+ * nada.
+ */
+export async function mesaDestinoDaSessaoTransferida(
+  admin: SupabaseClient,
+  restauranteId: string,
+  mesaId: string,
+  sessaoId: string,
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from('sessoes_mesa')
+    .select('transferida_para_mesa_id, destino:mesas!sessoes_mesa_transferida_para_mesa_id_fkey ( nome )')
+    .eq('id', sessaoId)
+    .eq('restaurante_id', restauranteId)
+    .eq('mesa_id', mesaId)
+    .eq('status', 'encerrada')
+    .not('transferida_para_mesa_id', 'is', null)
+    .maybeSingle()
+  if (error || !data) return null
+  const destino = (data as unknown as { destino: { nome: string } | { nome: string }[] | null }).destino
+  const nome = Array.isArray(destino) ? destino[0]?.nome : destino?.nome
+  return nome ?? null
+}
+
 // ── seleção ─────────────────────────────────────────────────────────────────
 
 /** Lê a seleção daquele aparelho. Sem seleção ainda, devolve lista vazia. */
