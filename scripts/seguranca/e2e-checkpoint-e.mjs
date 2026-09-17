@@ -382,6 +382,13 @@ secao('5. garçom digitando URL proibida')
 // ════════════════════════════════════════════════════════════════════════════
 secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
 {
+  // Reexecução: o funcionário da execução anterior ocupa o login. Banco LOCAL descartável.
+  const anterior = await um(`select id from usuarios where usuario='maria.garcom'`)
+  if (anterior) {
+    await q(`delete from usuarios where id=$1`, [anterior.id])
+    await q(`delete from auth.users where id=$1`, [anterior.id])
+  }
+
   const dono = await logar('dono.local')
   await dono.page.goto(`${BASE}/admin/equipe`, { waitUntil: 'networkidle' })
   await dono.page.waitForSelector('text=Novo funcionário', { timeout: 15000 })

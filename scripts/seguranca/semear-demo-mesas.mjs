@@ -163,13 +163,21 @@ for (const [i, m] of mesas.entries()) {
   ids.push(rows[0])
 }
 
-// Mesa 02 ocupada: comanda aberta com dois lançamentos.
+// Mesa 02 ocupada: comanda aberta com dois lançamentos. Os itens entram de verdade — a
+// conta soma itens (comanda_totais), não o total gravado no pedido.
 const comanda = (await db.query(
   `insert into comandas (restaurante_id, mesa_id) values ($1,$2) returning id`, [loja, ids[1].id])).rows[0].id
-for (const total of [68, 61]) {
-  await db.query(
-    `insert into pedidos (restaurante_id, tipo, status, total, canal, comanda_id, mesa, origem, cliente_nome)
-     values ($1,'retirada','recebido',$2,'mesa',$3,'Mesa 02','pdv','Mesa 02')`, [loja, total, comanda])
+for (const linhas of [[['Filé à Parmegiana', 68, 1]], [['Risoto de Funghi', 54, 1], ['Água com Gás', 7, 1]]]) {
+  const total = linhas.reduce((t, [, preco, qtd]) => t + preco * qtd, 0)
+  const pedido = (await db.query(
+    `insert into pedidos (restaurante_id, tipo, status, subtotal, total, canal, comanda_id, mesa, origem, cliente_nome, impresso)
+     values ($1,'retirada','recebido',$2,$2,'mesa',$3,'Mesa 02','pdv','Mesa 02', true) returning id`, [loja, total, comanda])).rows[0].id
+  for (const [nome, preco, qtd] of linhas) {
+    await db.query(
+      `insert into pedido_itens (pedido_id, item_id, nome, preco_unitario, quantidade)
+       select $1, id, nome, $2, $3 from itens_cardapio where restaurante_id = $4 and nome = $5`,
+      [pedido, preco, qtd, loja, nome])
+  }
 }
 
 // Varanda 02 bloqueada; Balcão 01 desativado.
