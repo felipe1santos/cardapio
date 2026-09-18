@@ -6,6 +6,12 @@ e as transferências vieram na etapa F. Este documento registra **o que faltava 
 decisões tomadas para fechar**, com o porquê de cada uma.
 
 Branch: `feature/mesas-e-comandas`. Migrations novas: **0068, 0069, 0070**.
+
+> **Atualização:** a auditoria final achou lacunas (caixa no salão, flag só no menu, pedido de
+> cancelamento, desconto %, token do QR exposto, entre outras) e as fechou com as migrations
+> **0071 e 0072**. A matriz da §11 e os números da §12 abaixo foram **substituídos** pelos de
+> `2026-09-18-mesas-e-comandas-fechamento.md` — em especial, o garçom **não** recebe mais
+> pagamento por padrão (virou regra da loja) e o atendente passou a ser o caixa do salão.
 Operação (deploy, rollback, rotação de token): `docs/MESAS-E-COMANDAS-OPERACAO.md`.
 
 ---

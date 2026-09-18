@@ -1,12 +1,14 @@
 # Mesas e Comandas — deploy, rollback e operação
 
 Documento operacional do módulo. O desenho e as decisões estão em
-`docs/superpowers/specs/2026-09-16-mesas-e-comandas-etapa-a-design.md` (fundação) e
-`docs/superpowers/specs/2026-09-18-mesas-e-comandas-release-candidate.md` (o resto).
+`docs/superpowers/specs/2026-09-16-mesas-e-comandas-etapa-a-design.md` (fundação),
+`docs/superpowers/specs/2026-09-18-mesas-e-comandas-release-candidate.md` (etapas até G) e
+`docs/superpowers/specs/2026-09-18-mesas-e-comandas-fechamento.md` (caixa, regras por loja,
+pedido de cancelamento, desconto %, flag no servidor, token do QR).
 
 > **Estado em 2026-09-18:** release candidate pronta na branch
 > `feature/mesas-e-comandas`. **Nada foi aplicado em produção.** As migrations
-> 0057–0070 existem só localmente, nenhuma loja tem o módulo ligado, e o merge na
+> 0057–0072 existem só localmente, nenhuma loja tem o módulo ligado, e o merge na
 > `main` depende de autorização.
 
 ---
@@ -34,8 +36,15 @@ node scripts/seguranca/e2e-regressao-release.mjs       # delivery, PDV, gaveta, 
 node scripts/seguranca/e2e-checkpoint-e.mjs            # ciclo do rascunho (pede QRDIR)
 node scripts/seguranca/e2e-etapa-f.mjs                 # conta em detalhe
 node scripts/seguranca/e2e-garcom.mjs                  # menu e permissões do garçom
+node scripts/seguranca/e2e-caixa-e-regras.mjs          # caixa, regras, cancelamento pedido, QR revogado — pela tela
 node scripts/seguranca/verificar-responsivo-mesas.mjs  # 5 viewports
 ```
+
+Cada suíte refaz a semente local no começo. `e2e-checkpoint-e.mjs` precisa de
+`QRDIR` apontando para uma pasta com `jsqr` e `pngjs` instalados (fica fora do
+`package.json` de propósito). Para aplicar uma migration nova só na stack local:
+`node scripts/seguranca/aplicar-local.mjs 0072` (recusa qualquer banco que não seja
+loopback e a 0054).
 
 `servidor-local.mjs` existe porque o `.env.local` deste repositório aponta para o
 **Supabase de produção**, e `next build` inlina as `NEXT_PUBLIC_*` no bundle. Buildar
@@ -44,7 +53,7 @@ pela CLI do Supabase e recusa qualquer alvo que não seja loopback.
 
 ### Passo 1 — migrations em produção
 
-**14 arquivos, 0057 a 0070.** Em ordem, cada um na sua transação. Todos são
+**16 arquivos, 0057 a 0072.** Em ordem, cada um na sua transação. Todos são
 reaplicáveis (provado no `verificar-migrations.mjs`), então um deploy interrompido pode
 ser repetido.
 
@@ -69,6 +78,12 @@ psql "$DATABASE_URL" -c "select version from schema_migrations order by version 
 | 0068 | `chamados_mesa` + funções do chamado | drop da tabela e das funções |
 | 0069 | `itens_cardapio.disponivel_delivery` / `disponivel_salao` | drop das colunas |
 | 0070 | `comanda_cancelar`, `itens_transferir` com quantidade | drop/restaurar as funções |
+| 0071 | `auth_modulo_mesas()`, regras do salão, caixa lê o salão, token do QR fora do navegador, travas de mesa, auditoria com papel/correlação | ver §2 — as policies e o grant por coluna voltam com o SQL da 0062/0063 |
+| 0072 | desconto %, número da comanda, observação/fiado, pedido de cancelamento, transferência com motivo, fechamento encerra chamados | drop das colunas novas, da tabela `solicitacoes_cancelamento` e das funções; restaurar as funções da 0067/0070 |
+
+**Ordem obrigatória: migrations antes do código.** O código desta branch lê colunas da
+0058–0072 (`pedidos.canal`, `comandas.numero` embutido no `PEDIDO_SELECT` etc.).
+Código novo sobre schema velho derruba o Kanban inteiro — a lição de 2026-07-27.
 
 **A 0054 (frete) continua congelada e fora deste deploy.** O DDL dela já está no schema
 de produção sem registro em `schema_migrations`; aplicá-la agora não é assunto desta
@@ -86,6 +101,10 @@ impressão seguem idênticos.
 
 ### Passo 3 — ligar em UMA loja
 
+O próprio dono liga em **Ajustes › Mesas › Módulo Mesas e Comandas › Ligar o módulo**
+(fica auditado como `mesas.ligou_modulo`). Ninguém mais consegue: a rota exige o dono e
+um trigger recusa a coluna vinda do navegador. Alternativa pelo banco, se for preciso:
+
 ```sql
 update restaurantes set modulo_mesas_ativo = true where slug = '<slug-da-loja>';
 ```
@@ -93,9 +112,13 @@ update restaurantes set modulo_mesas_ativo = true where slug = '<slug-da-loja>';
 Depois, com o dono:
 
 1. cadastrar as mesas (nome/número, setor, capacidade) em **Mesas e Comandas**;
-2. conferir **Conta e pagamentos** (taxa de serviço padrão e formas aceitas);
+2. conferir **Conta e pagamentos**: taxa de serviço padrão, formas aceitas (fiado só se
+   a loja trabalha com isso) e **quem pode o quê no salão** — garçom recebe? garçom
+   transfere? caixa dá desconto? Os padrões seguem a matriz: garçom não recebe, caixa
+   recebe e fecha, desconto é da gestão;
 3. imprimir a **Folha de QR** e colar/colocar nas mesas;
-4. cadastrar os garçons em **Equipe** (login e senha individuais);
+4. cadastrar garçons e caixas em **Equipe** (login e senha individuais; o caixa é o
+   papel **atendente**);
 5. rodar um atendimento de teste de ponta a ponta antes do primeiro cliente.
 
 ### Passo 4 — as outras lojas
@@ -124,7 +147,23 @@ O que **não** fica inerte e precisa de atenção se você reverter só o códig
   `canal <> 'mesa' or comanda_id is not null` vale para inserção nova. O código antigo
   não envia `canal`, então cai no default e passa.
 
+### O que a 0071 muda para quem ainda não usa o módulo
+
+Mesmo com o módulo desligado em todas as lojas, a 0071 vale para o PDV e para a aba
+antiga de mesas em Ajustes:
+
+- **mesa com conta aberta não é pausada nem bloqueada** (antes deixava a conta
+  pendurada) e **mesa com histórico de contas não é excluída** (antes a comanda sem
+  pedido sumia em cascata). A tela explica e sugere pausar;
+- taxa de serviço padrão, formas da mesa, regras do salão e a flag **não mudam mais
+  pelo navegador** — só pelas rotas. Nenhuma tela de produção fazia isso pelo navegador.
+
+Revertendo só o código, essas travas continuam (são do banco) e não atrapalham o código
+antigo.
+
 ### Depois de uma loja ligar, mas sem pedido de mesa ainda
+
+O dono desliga em **Ajustes › Mesas** (recusado se houver conta de mesa aberta), ou:
 
 ```sql
 update restaurantes set modulo_mesas_ativo = false where slug = '<slug>';
@@ -152,7 +191,8 @@ A sequência segura:
    ```
 3. desligar a flag.
 
-**Reverter as migrations 0067/0068/0070 com dinheiro registrado apagaria pagamento.**
+**Reverter as migrations 0067/0068/0070/0072 com dinheiro registrado apagaria pagamento
+ou pedido de cancelamento.**
 Não faça. Se o módulo precisar sair de vez depois de ter rodado, a saída é desligar a
 flag e deixar o schema: o histórico financeiro tem de continuar consultável.
 
@@ -240,6 +280,34 @@ impressão), e `restaurantes.impressao_agente_token` é a credencial do agente d
 - **Gerar novo** revoga o QR atual **na hora**: o adesivo que está na mesa para de
   funcionar. Use quando o código vazou (foto na internet, cliente que salvou o link) ou
   quando o material foi reimpresso. Só a gestão faz isso, e fica auditado.
+- **Revogar sem gerar outro**: a mesa fica sem QR válido até a gestão gerar um novo. O
+  salão mostra "QR revogado — gere um novo" e a folha A4 pula a mesa.
+- O link só aparece para a gestão: garçom e caixa não leem o token nem pela tela nem
+  pelo banco.
+
+### Caixa (papel atendente)
+
+Entra em **Mesas e Comandas**, vê as mesas ocupadas com o número da comanda e abre
+**Ver conta**: registra pagamentos (Pix, cartão, dinheiro com troco, vale), divide por
+pessoa ou por item e fecha a conta. Não lança pedido, não atende chamado, não estorna,
+não pendura (fiado) e só dá desconto se o dono ligar a regra.
+
+### Pedido de cancelamento
+
+O garçom não cancela o que já foi para a cozinha: toca o **×** do item (ou "Pedir
+cancelamento" do lançamento), escreve o motivo e a gestão vê o bloco **Pedido de
+cancelamento aguardando** na conta, com **Aprovar** e **Recusar**. Enquanto houver pedido
+pendente a conta **não fecha**.
+
+### Taxa, desconto e fiado
+
+- **Cliente recusou a taxa** e **Restaurar taxa** ficam na própria conta; o fechamento
+  registra se a taxa foi aceita, removida ou alterada.
+- Desconto em **R$** ou **%**; o percentual acompanha a conta se um item for cancelado.
+  Sempre com motivo.
+- **Fiado** só com a gestão e com o nome/contato de quem fica devendo.
+- Nada disso deixa o total abaixo do que já foi pago: nesse caso a tela pede o estorno
+  antes.
 
 ### Quando algo não bate na conta
 
@@ -273,8 +341,8 @@ Criados por `node scripts/seguranca/semear-demo-mesas.mjs`. Senha de todos:
 | Login | Papel | Para quê |
 |---|---|---|
 | `dono.local` | dono | acesso integral |
-| `garcom.local` | garcom | salão, lançamento, conta |
-| `atendente.local` | atendente | delivery — prova que ele NÃO opera mesa |
+| `garcom.local` | garcom | salão, chamados, lançamento, pedido de cancelamento |
+| `atendente.local` | atendente | delivery e caixa do salão — recebe e fecha, não lança |
 | `dono.vizinha` | dono (outra loja) | prova de isolamento entre inquilinos |
 
 Lojas: `cantina-demo` (módulo ligado, 6 mesas) e `vizinha-demo` (existe só para as
