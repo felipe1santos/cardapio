@@ -182,18 +182,30 @@ export async function listarMesasComEstado(
   if (comandasError) throw comandasError
   const comandas = (comandasData ?? []).map((c) => mapComandaRow(c as ComandaRow))
 
-  const estados: MesaComEstado[] = []
-  for (const mesa of mesas) {
-    const comandaAberta = comandas.find((c) => c.mesaId === mesa.id) ?? null
-    let total = 0
-    let qtdPedidos = 0
-    if (comandaAberta) {
-      const pedidos = await listarPedidosDaComanda(admin, restauranteId, comandaAberta.id)
-      const ativos = pedidos.filter((p) => p.status !== 'cancelado')
-      total = calcularTotalComanda(pedidos)
-      qtdPedidos = ativos.length
+  // UMA consulta para todos os pedidos das comandas abertas, e não uma por mesa: o
+  // salão recarrega a cada evento de mesa, e com 13 mesas ocupadas isso eram 13 idas ao
+  // banco por releitura. Aqui só o que a tela mostra (total e contagem) é lido.
+  const idsComandas = comandas.map((c) => c.id)
+  const porComanda = new Map<string, { total: number; qtdPedidos: number }>()
+  if (idsComandas.length > 0) {
+    const { data, error } = await admin
+      .from('pedidos')
+      .select('comanda_id, total, status')
+      .eq('restaurante_id', restauranteId)
+      .in('comanda_id', idsComandas)
+    if (error) throw error
+    for (const p of (data ?? []) as { comanda_id: string; total: number; status: string }[]) {
+      if (p.status === 'cancelado') continue
+      const atual = porComanda.get(p.comanda_id) ?? { total: 0, qtdPedidos: 0 }
+      atual.total += Number(p.total)
+      atual.qtdPedidos += 1
+      porComanda.set(p.comanda_id, atual)
     }
-    estados.push({ ...mesa, comandaAberta, total, qtdPedidos })
   }
-  return estados
+
+  return mesas.map((mesa) => {
+    const comandaAberta = comandas.find((c) => c.mesaId === mesa.id) ?? null
+    const resumo = comandaAberta ? porComanda.get(comandaAberta.id) : undefined
+    return { ...mesa, comandaAberta, total: resumo?.total ?? 0, qtdPedidos: resumo?.qtdPedidos ?? 0 }
+  })
 }

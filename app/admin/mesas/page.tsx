@@ -146,7 +146,14 @@ export default function MesasPage() {
       { tabela: 'chamados_mesa', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
       { tabela: 'pedidos', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
     ],
-    aoEvento: recarregar,
+    // Pedido de delivery não muda nada nesta tela, e recarregar o salão custa uma
+    // consulta por mesa ocupada. Num restaurante com movimento no delivery isso seria
+    // uma releitura completa a cada pedido que entra.
+    aoEvento: (payload) => {
+      const linha = (payload.new ?? payload.old) as { canal?: string } | undefined
+      if (payload.table === 'pedidos' && linha?.canal && linha.canal !== 'mesa') return
+      recarregar()
+    },
     aoSincronizar: recarregar,
   })
 
