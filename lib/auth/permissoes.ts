@@ -107,6 +107,26 @@ export function pode(papel: string | null | undefined, permissao: Permissao): bo
   return (MATRIZ[permissao] as readonly string[]).includes(papel)
 }
 
+/**
+ * Quem pode disparar a notificação de WhatsApp de um pedido, por canal.
+ *
+ * `/api/pedidos/[id]/notificar` nasceu sem autenticação: qualquer um com o UUID de um
+ * pedido mandava mensagem no WhatsApp do cliente da loja, de graça e quantas vezes
+ * quisesse. Os consumidores legítimos são todos telas do painel já autenticadas (Kanban,
+ * Logística e o painel de rotas), que fazem a transição de status pelo PostgREST e depois
+ * avisam o cliente — então exigir sessão não quebra ninguém.
+ *
+ * Allowlist por canal, como o resto da matriz: quem pode MOVER o pedido daquele canal
+ * pode avisar o cliente dele. Papel novo não herda o direito de mandar mensagem.
+ */
+export function podeNotificarCanal(papel: string | null | undefined, canal: string): boolean {
+  if (canal === 'delivery') return pode(papel, 'pedidos.delivery.avancar') || pode(papel, 'logistica.operar')
+  if (canal === 'mesa') return pode(papel, 'pedidos.mesa.ver')
+  if (canal === 'balcao') return pode(papel, 'pedidos.balcao.criar')
+  // Canal desconhecido (dado novo que o código ainda não conhece): ninguém dispara.
+  return false
+}
+
 /** Todas as permissões de um papel — usado pelo menu e pelos testes de paridade. */
 export function permissoesDo(papel: string | null | undefined): Permissao[] {
   if (!papel) return []

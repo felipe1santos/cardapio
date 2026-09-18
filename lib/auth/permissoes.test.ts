@@ -7,6 +7,7 @@ import {
   ehPapel,
   papeisQuePodeGerenciar,
   podeAdministrar,
+  podeNotificarCanal,
   type Papel,
   type Permissao,
 } from './permissoes'
@@ -178,5 +179,42 @@ describe('travas de administração de usuário', () => {
 
   it('desativar quem não é administrador não depende da contagem', () => {
     expect(podeAdministrar(dono, { id: 'g', papel: 'garcom', outrosAdminsAtivos: 0 })).toEqual({ ok: true })
+  })
+})
+
+describe('quem pode notificar o cliente, por canal', () => {
+  // Tabela à mão, de novo de propósito: a regra tem que divergir DESTA lista para falhar.
+  const ESPERADO_NOTIFICAR: Record<string, Papel[]> = {
+    delivery: ['dono', 'gerente', 'atendente', 'logistica'],
+    mesa: ['dono', 'gerente', 'garcom', 'cozinha'],
+    balcao: ['dono', 'gerente', 'atendente'],
+  }
+
+  it('cada canal libera exatamente os papéis da lista', () => {
+    for (const [canal, papeis] of Object.entries(ESPERADO_NOTIFICAR)) {
+      for (const papel of PAPEIS) {
+        expect(podeNotificarCanal(papel, canal), `${papel} x ${canal}`).toBe(papeis.includes(papel))
+      }
+    }
+  })
+
+  it('anônimo não notifica nada — era o furo da rota', () => {
+    for (const canal of ['delivery', 'mesa', 'balcao']) {
+      expect(podeNotificarCanal(null, canal)).toBe(false)
+      expect(podeNotificarCanal(undefined, canal)).toBe(false)
+      expect(podeNotificarCanal('', canal)).toBe(false)
+    }
+  })
+
+  it('garçom não avisa cliente de delivery; atendente não avisa mesa', () => {
+    expect(podeNotificarCanal('garcom', 'delivery')).toBe(false)
+    expect(podeNotificarCanal('atendente', 'mesa')).toBe(false)
+  })
+
+  it('canal desconhecido nega até para o dono: dado novo não abre porta', () => {
+    for (const papel of PAPEIS) {
+      expect(podeNotificarCanal(papel, 'marketplace')).toBe(false)
+      expect(podeNotificarCanal(papel, '')).toBe(false)
+    }
   })
 })

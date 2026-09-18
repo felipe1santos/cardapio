@@ -136,9 +136,10 @@ export async function processarFidelidadePedidoEntregue(admin: SupabaseClient, r
  *
  * Segura contra abuso e chamadas repetidas: a única verificação de autorização é reconsultar o
  * pedido no banco (id + restaurante_id + status='cancelado') antes de fazer qualquer coisa — se
- * não achar, não faz nada. Isso é o que torna essa função segura de chamar a partir de rotas sem
- * autenticação de sessão (ex.: `/api/pedidos/[id]/notificar`, que recebe o pedidoId no body sem
- * validar que quem chamou é dono do pedido).
+ * não achar, não faz nada. Isso é o que torna essa função segura de chamar a partir de rotas cuja
+ * autorização é por token de portal (cozinha, entregador) e não por sessão de usuário.
+ * `/api/pedidos/[id]/notificar` passou a exigir sessão, loja e permissão por canal — esta
+ * reconsulta continua sendo a rede de segurança, não a única trava.
  *
  * Idempotente na prática: rodar 2x não decrementa `usos` 2x porque o delete de `cupom_usos` só
  * decrementa quando de fato apagou uma linha (na 2ª vez não apaga nada, `cupomId` fica vazio).
