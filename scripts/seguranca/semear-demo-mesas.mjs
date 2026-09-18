@@ -29,6 +29,13 @@ const loja = (await db.query(`
   on conflict (slug) do update set modulo_mesas_ativo = true, status_loja = 'aberto_manual'
   returning id`)).rows[0].id
 
+// Conta e pagamentos em um estado conhecido: os E2E conferem totais com taxa de
+// serviço, e um valor deixado por outra execução faz todos eles falharem por 3,75.
+await db.query(
+  `update restaurantes set taxa_servico_padrao = 10,
+          formas_pagamento_mesa = array['dinheiro','pix','credito','debito']
+    where id = $1`, [loja])
+
 // ── dono ────────────────────────────────────────────────────────────────────
 let userId
 {
