@@ -253,6 +253,25 @@ const pc2 = await cliente2.newPage()
   const rascunhos = await um(
     `select count(*)::int as n from selecoes_mesa s where s.mesa_id=$1 and s.encerrada_em is null`, [MESA.id])
   ok('cada aparelho tem o seu rascunho aberto', rascunhos.n === 2, `${rascunhos.n} rascunho(s)`)
+
+  // Cada celular edita a SUA lista, mas os dois VEEM o conjunto da mesa.
+  await pc2.locator('.mesa-botao-selecao').click()
+  await pc2.waitForTimeout(500)
+  const noSegundo = await pc2.locator('.mesa-painel').innerText()
+  ok('o segundo celular vê a própria escolha', noSegundo.includes('Suco de Laranja'))
+  ok('e vê o que o primeiro marcou, em bloco separado', /Também nesta mesa/i.test(noSegundo) && noSegundo.includes('Burger da Casa'))
+  const editaveis = await pc2.locator('.mesa-painel .mesa-linha').count()
+  ok('só a própria linha tem controles de editar', editaveis === 1, `${editaveis} linha(s) editável(is)`)
+  await pc2.screenshot({ path: '.shots/rc-10-cliente-selecao-compartilhada.png' })
+  await pc2.locator('.mesa-painel-topo button').click()
+
+  // O primeiro celular enxerga o que o segundo acabou de marcar (leitura periódica).
+  await pc.waitForTimeout(6000)
+  await pc.locator('.mesa-botao-selecao').click()
+  await pc.waitForTimeout(500)
+  const noPrimeiro = await pc.locator('.mesa-painel').innerText()
+  ok('o primeiro celular vê o item novo do segundo sem recarregar', noPrimeiro.includes('Suco de Laranja'))
+  await pc.locator('.mesa-painel-topo button').click()
 }
 
 passo(9, 'cliente chama o garçom')

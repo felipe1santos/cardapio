@@ -373,6 +373,48 @@ export async function listarSelecoesAbertas(
 }
 
 /**
+ * O que os OUTROS aparelhos da mesma sessão marcaram.
+ *
+ * Cada celular edita o seu próprio rascunho — isso é de propósito: uma lista só,
+ * editada por três pessoas ao mesmo tempo, vira item sumindo da tela alheia. Mas a
+ * mesa precisa VER o conjunto, senão duas pessoas pedem a mesma coisa sem saber.
+ * Então cada tela mostra a sua lista (editável) e a dos outros (só leitura).
+ */
+export async function selecoesDeOutrosAparelhos(
+  admin: SupabaseClient,
+  sessaoId: string,
+  dispositivo: string,
+): Promise<ItemSelecionado[]> {
+  const { data, error } = await admin
+    .from('selecoes_mesa')
+    .select('dispositivo, selecao_itens ( item_id, nome_snapshot, preco_snapshot, quantidade, observacao, opcoes )')
+    .eq('sessao_id', sessaoId)
+    .is('encerrada_em', null)
+    .neq('dispositivo', dispositivo)
+  if (error) throw error
+
+  return ((data ?? []) as unknown as {
+    selecao_itens: {
+      item_id: string | null
+      nome_snapshot: string
+      preco_snapshot: number
+      quantidade: number
+      observacao: string | null
+      opcoes: OpcaoSelecionada[] | null
+    }[]
+  }[]).flatMap((s) =>
+    (s.selecao_itens ?? []).map((i) => ({
+      itemId: i.item_id,
+      nome: i.nome_snapshot,
+      precoUnitario: Number(i.preco_snapshot),
+      quantidade: i.quantidade,
+      observacao: i.observacao ?? '',
+      opcoes: i.opcoes ?? [],
+    })),
+  )
+}
+
+/**
  * Normaliza a lista que o navegador do garçom manda: só ids e versões válidos, sem
  * repetição. Regra pura.
  */

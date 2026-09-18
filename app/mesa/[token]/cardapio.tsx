@@ -68,6 +68,15 @@ interface OpcaoEscolhida {
   preco: number
 }
 
+/** Item marcado em outro celular da mesma mesa. Sem dono identificável. */
+interface LinhaDeOutro {
+  nome: string
+  quantidade: number
+  precoUnitario: number
+  observacao: string
+  opcoes: OpcaoEscolhida[]
+}
+
 interface LinhaSelecionada {
   chave: string
   itemId: string
@@ -111,6 +120,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
   const [cicloEncerrado, setCicloEncerrado] = useState(false)
   // A conta desta mesa foi levada para outra mesa pelo garçom. Guarda só o nome da nova.
   const [mesaMudouPara, setMesaMudouPara] = useState<string | null>(null)
+  // O que os OUTROS celulares da mesa marcaram. Só leitura: cada aparelho edita a sua
+  // lista, mas a mesa precisa ver o conjunto — senão duas pessoas pedem a mesma coisa.
+  const [deOutros, setDeOutros] = useState<LinhaDeOutro[]>([])
   const sessaoConhecida = useRef<string | null>(null)
   const dispositivo = useRef<string>('')
   // Id do rascunho aberto no servidor. Tinha id e o servidor passou a responder `null` =
@@ -135,7 +147,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
         sessao?: string
         mesaMudouPara?: string | null
         itens: { itemId: string | null; nome: string; precoUnitario: number; quantidade: number; observacao: string; opcoes: OpcaoEscolhida[] }[]
+        deOutros?: LinhaDeOutro[]
       }
+      setDeOutros(corpo.deOutros ?? [])
 
       if (corpo.mesaMudouPara) {
         setMesaMudouPara(corpo.mesaMudouPara)
@@ -392,6 +406,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
       {painelAberto && (
         <PainelSelecao
           linhas={selecao}
+          deOutros={deOutros}
           total={totalSelecao}
           sincronizando={sincronizando}
           onFechar={() => setPainelAberto(false)}
@@ -860,6 +875,7 @@ function Configurador({
 
 function PainelSelecao({
   linhas,
+  deOutros,
   total,
   sincronizando,
   onFechar,
@@ -869,6 +885,7 @@ function PainelSelecao({
   onConcluir,
 }: {
   linhas: LinhaSelecionada[]
+  deOutros: LinhaDeOutro[]
   total: number
   sincronizando: boolean
   onFechar: () => void
@@ -926,6 +943,31 @@ function PainelSelecao({
               </div>
             </div>
           ))}
+
+          {/* O que os outros celulares da mesa marcaram. Só leitura: quem tira ou muda
+              cada linha é o aparelho que a marcou — uma lista só, editada por três
+              pessoas ao mesmo tempo, faz item sumir da tela alheia. */}
+          {deOutros.length > 0 && (
+            <div className="mesa-de-outros">
+              <h3>Também nesta mesa</h3>
+              <p>Marcado em outro celular. Mostrem tudo junto ao garçom.</p>
+              <ul>
+                {deOutros.map((l, i) => (
+                  <li key={`${i}-${l.nome}`}>
+                    <span className="mesa-de-outros-qtd">{l.quantidade}×</span>
+                    <span className="mesa-de-outros-nome">
+                      {l.nome}
+                      {l.opcoes.length > 0 && <small>{l.opcoes.map((o) => o.escolha).join(' · ')}</small>}
+                      {l.observacao && <small>“{l.observacao}”</small>}
+                    </span>
+                    <span className="mesa-de-outros-preco">
+                      {brl((l.precoUnitario + l.opcoes.reduce((s, o) => s + o.preco, 0)) * l.quantidade)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <footer className="mesa-painel-rodape">
@@ -1170,6 +1212,18 @@ const TOKENS = `
 .mesa-painel-topo button { background: none; border: 0; color: #fff; font-size: 18px; }
 .mesa-painel-aviso { margin: 0; padding: 12px 16px; background: #FFF7E6; color: #8A5A00; font-size: 12px; line-height: 1.45; border-bottom: 1px solid var(--borda); }
 .mesa-painel-lista { flex: 1; overflow-y: auto; padding: 8px 16px; }
+
+/* "Também nesta mesa": o que os outros celulares marcaram, em bloco separado e sem
+   controles — a distinção entre "minha lista" e "a da mesa" tem de ser visível. */
+.mesa-de-outros { margin: 10px 0 4px; border-top: 1px dashed var(--borda); padding-top: 12px; }
+.mesa-de-outros h3 { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--marinho); }
+.mesa-de-outros > p { margin: 2px 0 8px; font-size: 11px; color: var(--suave); }
+.mesa-de-outros ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mesa-de-outros li { display: flex; align-items: flex-start; gap: 8px; background: var(--fundo); border-radius: var(--raio); padding: 8px 10px; }
+.mesa-de-outros-qtd { font-size: 12px; font-weight: 800; color: var(--marinho); flex-shrink: 0; }
+.mesa-de-outros-nome { flex: 1; min-width: 0; font-size: 13px; display: flex; flex-direction: column; }
+.mesa-de-outros-nome small { font-size: 11px; color: var(--suave); }
+.mesa-de-outros-preco { font-size: 12px; font-weight: 700; color: var(--suave); flex-shrink: 0; }
 .mesa-linha { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--borda); }
 .mesa-linha-foto { width: 56px; height: 56px; border-radius: var(--raio); overflow: hidden; background: var(--fundo); display: grid; place-items: center; font-size: 22px; flex-shrink: 0; }
 .mesa-linha-foto img { width: 100%; height: 100%; object-fit: cover; }
