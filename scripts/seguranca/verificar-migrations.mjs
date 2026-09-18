@@ -159,7 +159,7 @@ await comBanco('menuzia_migr_zero', async (cliente) => {
   // O schema resultante precisa ter o que a feature promete.
   const tabela = async (t) =>
     (await cliente.query(`select to_regclass($1) is not null as existe`, [`public.${t}`])).rows[0].existe
-  for (const t of ['mesas', 'comandas', 'sessoes_mesa', 'selecoes_mesa', 'selecao_itens', 'chamados_mesa', 'pagamentos_comanda', 'eventos_auditoria']) {
+  for (const t of ['mesas', 'comandas', 'sessoes_mesa', 'selecoes_mesa', 'selecao_itens', 'chamados_mesa', 'pagamentos_comanda', 'eventos_auditoria', 'solicitacoes_cancelamento']) {
     ok(`tabela ${t} existe`, await tabela(t))
   }
 
@@ -170,6 +170,10 @@ await comBanco('menuzia_migr_zero', async (cliente) => {
     ['pedidos', 'canal'], ['pedidos', 'chave_idempotencia'], ['itens_cardapio', 'disponivel_salao'],
     ['itens_cardapio', 'disponivel_delivery'], ['restaurantes', 'modulo_mesas_ativo'],
     ['restaurantes', 'taxa_servico_padrao'], ['comandas', 'cancelada_motivo'], ['mesas', 'token'],
+    // 0071 e 0072
+    ['restaurantes', 'salao_garcom_recebe'], ['mesas', 'qr_revogado_em'], ['eventos_auditoria', 'papel'],
+    ['eventos_auditoria', 'correlacao'], ['comandas', 'desconto_tipo'], ['comandas', 'numero'],
+    ['pagamentos_comanda', 'observacao'],
   ]) {
     ok(`coluna ${t}.${c} existe`, await coluna(t, c))
   }
@@ -177,7 +181,8 @@ await comBanco('menuzia_migr_zero', async (cliente) => {
   const funcao = async (f) =>
     (await cliente.query(`select count(*)::int as n from pg_proc where proname = $1`, [f])).rows[0].n > 0
   for (const f of ['comanda_totais', 'comanda_registrar_pagamento', 'comanda_fechar', 'comanda_cancelar',
-    'mesa_transferir', 'itens_transferir', 'item_cancelar', 'chamado_abrir', 'chamado_assumir', 'chamado_concluir']) {
+    'mesa_transferir', 'itens_transferir', 'item_cancelar', 'chamado_abrir', 'chamado_assumir', 'chamado_concluir',
+    'auth_modulo_mesas', 'comanda_ajustar_valores', 'cancelamento_solicitar', 'cancelamento_decidir', 'pedido_mesa_cancelar']) {
     ok(`função ${f} existe`, await funcao(f))
   }
 
@@ -199,11 +204,26 @@ await comBanco('menuzia_migr_zero', async (cliente) => {
      where n.nspname = 'public'
        and p.proname in ('comanda_totais','comanda_registrar_pagamento','comanda_estornar_pagamento',
                          'comanda_fechar','comanda_cancelar','mesa_transferir','itens_transferir',
-                         'item_cancelar','pedido_recalcular','chamado_abrir','chamado_assumir','chamado_concluir')
+                         'item_cancelar','pedido_recalcular','chamado_abrir','chamado_assumir','chamado_concluir',
+                         'comanda_ajustar_valores','cancelamento_solicitar','cancelamento_decidir','pedido_mesa_cancelar',
+                         'comanda_conferir_pago')
        and (has_function_privilege('authenticated', p.oid, 'execute')
             or has_function_privilege('anon', p.oid, 'execute'))`)
   ok('nenhuma função de dinheiro ou chamado executável por anon/authenticated',
     expostas.length === 0, expostas.map((e) => e.proname).join(', '))
+
+  // Uma assinatura só por função: sobrecarga esquecida seria uma segunda porta.
+  const { rows: sobrecargas } = await cliente.query(`
+    select proname, count(*)::int n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+     where ns.nspname='public' and proname in ('mesa_transferir','itens_transferir','comanda_registrar_pagamento')
+     group by proname having count(*) > 1`)
+  ok('transferências e pagamento sem assinatura antiga sobrando', sobrecargas.length === 0, sobrecargas.map((x) => x.proname).join(', '))
+
+  const { rows: colsToken } = await cliente.query(
+    `select has_column_privilege('authenticated', 'public.mesas', 'token', 'select') as ler,
+            has_column_privilege('authenticated', 'public.mesas', 'token', 'update') as escrever,
+            has_column_privilege('authenticated', 'public.mesas', 'nome', 'select') as nome`)
+  ok('authenticated lê as mesas mas não lê nem escreve o token', colsToken[0].nome && !colsToken[0].ler && !colsToken[0].escrever)
 })
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -253,6 +273,18 @@ await comBanco('menuzia_migr_prod', async (cliente) => {
     `insert into pedidos (restaurante_id, tipo, status, subtotal, total, cliente_nome, origem, comanda_id, canal)
      values ($1,'retirada','recebido',10,10,'Mesa Antiga','pdv',$2,'mesa') returning canal`, [loja, comanda])).rows[0]
   ok('pedido de PDV com comanda continua aceito como canal mesa', dePdv.canal === 'mesa')
+
+  // 0071/0072 sobre dado que já existia: nada muda de valor.
+  const regras = (await cliente.query(
+    `select salao_garcom_recebe, salao_garcom_transfere, salao_caixa_desconto, comanda_seq from restaurantes where id=$1`, [loja])).rows[0]
+  ok('loja antiga fica com as regras do salão no padrão da matriz',
+    regras.salao_garcom_recebe === false && regras.salao_garcom_transfere === true && regras.salao_caixa_desconto === false)
+  const antigaDepois = (await cliente.query(`select desconto_tipo, numero from comandas where id=$1`, [comanda])).rows[0]
+  ok('comanda criada antes da feature: desconto continua em reais', antigaDepois.desconto_tipo === 'valor', antigaDepois.desconto_tipo)
+  const nova = (await cliente.query(
+    `insert into comandas (restaurante_id, mesa_id) values ($1,$2) returning numero`,
+    [loja, (await cliente.query(`insert into mesas (restaurante_id, nome, ordem) values ($1,'Mesa Nova',1) returning id`, [loja])).rows[0].id])).rows[0]
+  ok('comanda nova ganha número sequencial', Number.isInteger(nova.numero) && nova.numero >= 1, nova.numero)
 })
 
 const falhas = res.filter((r) => !r).length

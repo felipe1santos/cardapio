@@ -135,15 +135,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       // Isolado num bloco próprio: se a busca do papel falhar, o menu só fica sem
       // filtro (comportamento de antes). Não pode derrubar config, badges e checklist.
+      // Três tentativas: logo depois do login a sessão ainda pode estar sendo gravada, e
+      // um soluço aqui deixava o garçom com o menu inteiro do dono até recarregar.
       void (async () => {
-        try {
-          const { data } = await supabase.auth.getUser()
-          if (!active || !data.user) return
-          // Só colunas liberadas por grant (0062): select('*') em usuarios é recusado.
-          const { data: u } = await supabase.from('usuarios').select('papel').eq('id', data.user.id).maybeSingle()
-          if (active && u) setPapel(u.papel as string)
-        } catch {
-          /* menu sem filtro por papel; os dados continuam protegidos pela RLS */
+        for (let tentativa = 0; tentativa < 3 && active; tentativa++) {
+          try {
+            const { data } = await supabase.auth.getUser()
+            if (!active) return
+            if (data.user) {
+              // Só colunas liberadas por grant (0062): select('*') em usuarios é recusado.
+              const { data: u } = await supabase.from('usuarios').select('papel').eq('id', data.user.id).maybeSingle()
+              if (active && u) {
+                setPapel(u.papel as string)
+                return
+              }
+            }
+          } catch {
+            /* tenta de novo; se não der, o menu fica sem filtro e a RLS continua barrando */
+          }
+          await new Promise((r) => setTimeout(r, 700 * (tentativa + 1)))
         }
       })()
 

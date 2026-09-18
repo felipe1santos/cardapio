@@ -136,12 +136,16 @@ declare
   v_pct numeric;
   v_taxa numeric;
   v_motivo text := nullif(trim(coalesce(p_motivo, '')), '');
+  -- Só mexer na taxa ("cliente recusou") não pode exigir de novo o motivo de um
+  -- desconto que já estava lá: o desconto fica como está, com o motivo que tinha.
+  v_mexe_desconto boolean := p_desconto_tipo is not null or p_desconto_valor is not null or p_desconto_percentual is not null;
 begin
   select status, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo
     into v_antes
     from public.comandas where id = p_comanda and restaurante_id = p_restaurante for update;
   if v_antes.status is null then raise exception 'comanda_inexistente'; end if;
   if v_antes.status <> 'aberta' then raise exception 'comanda_nao_aberta'; end if;
+  if not v_mexe_desconto then v_motivo := v_antes.desconto_motivo; end if;
 
   v_taxa := coalesce(p_taxa, v_antes.taxa_servico_percentual);
   if v_taxa < 0 or v_taxa > 30 then raise exception 'taxa_invalida'; end if;

@@ -91,7 +91,8 @@ console.log('\n── canal do pedido ──')
 const esperaCanais = {
   dono: ['delivery', 'mesa'],
   gerente: ['delivery', 'mesa'],
-  atendente: ['delivery'],
+  // Desde a 0071 o atendente é também o caixa do salão: LÊ os pedidos de mesa.
+  atendente: ['delivery', 'mesa'],
   logistica: ['delivery'],
   garcom: ['mesa'],
   cozinha: ['mesa'],
@@ -199,8 +200,38 @@ console.log('\n── salão ──')
   ok('gestor cadastra mesa', !error, error?.message?.slice(0, 55))
 }
 {
+  // Caixa do salão (0071): enxerga as mesas para cobrar, mas não cadastra, não mexe no
+  // estado e não lê o token do QR.
   const { data } = await sessoes.atendente.cli.from('mesas').select('id')
-  ok('atendente do delivery não enxerga mesas', (data ?? []).length === 0, `${data?.length ?? 0} linha(s)`)
+  ok('atendente/caixa enxerga as mesas', (data ?? []).length > 0, `${data?.length ?? 0} linha(s)`)
+  const { error: ins } = await sessoes.atendente.cli.from('mesas').insert({ restaurante_id: loja, nome: 'Caixa X', ordem: 9 })
+  ok('atendente/caixa NÃO cadastra mesa', !!ins, ins?.message?.slice(0, 55))
+  const { error: tok } = await sessoes.atendente.cli.from('mesas').select('token').limit(1)
+  ok('atendente/caixa NÃO lê o token do QR', !!tok, tok?.message?.slice(0, 55))
+  const { error: tokG } = await sessoes.garcom.cli.from('mesas').select('token').limit(1)
+  ok('garçom NÃO lê o token do QR', !!tokG, tokG?.message?.slice(0, 55))
+  const { error: tokD } = await sessoes.dono.cli.from('mesas').select('token').limit(1)
+  ok('nem o dono lê o token pelo navegador (sai pela rota do QR)', !!tokD, tokD?.message?.slice(0, 55))
+  const { data: pedMesa } = await sessoes.atendente.cli.from('pedidos').select('id').eq('canal', 'mesa')
+  const alvo = (await db.query(
+    `insert into pedidos (restaurante_id, tipo, status, cliente_nome, origem, canal, mesa, comanda_id)
+     values ($1,'retirada','recebido','Mesa RLS','pdv','mesa','Mesa RLS',$2) returning id, status`, [loja, comanda])).rows[0]
+  await sessoes.atendente.cli.from('pedidos').update({ status: 'pronto' }).eq('id', alvo.id)
+  const depois = (await db.query('select status from pedidos where id=$1', [alvo.id])).rows[0].status
+  ok('atendente/caixa LÊ pedido de mesa mas não avança o preparo', (pedMesa ?? []).length > 0 && depois === alvo.status, `${alvo.status} → ${depois}`)
+  for (const papel of ['cozinha', 'logistica']) {
+    const { data: m } = await sessoes[papel].cli.from('mesas').select('id')
+    ok(`${papel} não enxerga mesas`, (m ?? []).length === 0, `${m?.length ?? 0} linha(s)`)
+  }
+}
+{
+  // Colunas do salão em restaurantes: nem o dono muda pelo navegador (só pelas rotas).
+  for (const papel of ['dono', 'atendente']) {
+    const { error } = await sessoes[papel].cli.from('restaurantes').update({ taxa_servico_padrao: 29 }).eq('id', loja)
+    ok(`${papel} não muda a taxa de serviço pelo PostgREST (0071)`, !!error, error?.message?.slice(0, 55))
+  }
+  const { error } = await sessoes.atendente.cli.from('restaurantes').update({ salao_garcom_recebe: true }).eq('id', loja)
+  ok('atendente não muda as regras do salão pelo PostgREST', !!error, error?.message?.slice(0, 55))
 }
 {
   const { error } = await sessoes.garcom.cli.from('comandas').update({ status: 'fechada' }).eq('id', comanda)

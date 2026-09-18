@@ -13,6 +13,7 @@
  *   node scripts/seguranca/e2e-checkpoint-e.mjs
  */
 
+import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import pg from 'pg'
@@ -23,6 +24,9 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
 const { DB_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
+
+// Estado conhecido: cada suíte semeia a própria base (as outras deixam contas abertas).
+execFileSync(process.execPath, ['scripts/seguranca/semear-demo-mesas.mjs'], { stdio: 'ignore' })
 
 // Decodificador de QR instalado FORA do projeto (scratchpad), só para esta prova.
 const QRDIR = process.env.QRDIR

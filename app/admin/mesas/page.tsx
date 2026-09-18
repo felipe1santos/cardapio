@@ -71,7 +71,9 @@ export default function MesasPage() {
   // Papel de quem está logado. Cadastro, QR e bloqueio são da gestão; o garçom só abre a
   // mesa. Esconder os botões é conforto — quem barra a escrita é a RLS (0062).
   const [papel, setPapel] = useState<string | null>(null)
-  const gerencia = papel === null || pode(papel, 'mesas.gerenciar')
+  // Falha fechada: enquanto o papel não é conhecido, nada de gestão aparece. Mostrar
+  // "Nova mesa" ao garçom por um soluço de rede é confuso, mesmo com a API barrando.
+  const gerencia = pode(papel, 'mesas.gerenciar')
   // Quem atende (chamado, lançamento). O caixa entra no salão só para cobrar.
   const atende = papel === null || pode(papel, 'mesas.operar')
 

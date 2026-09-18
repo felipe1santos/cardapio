@@ -11,6 +11,7 @@
  * Só loopback.  node scripts/seguranca/e2e-garcom.mjs
  */
 
+import { execFileSync } from 'node:child_process'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
@@ -19,6 +20,9 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
 const { DB_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
+
+// Estado conhecido: cada suíte semeia a própria base (as outras deixam contas abertas).
+execFileSync(process.execPath, ['scripts/seguranca/semear-demo-mesas.mjs'], { stdio: 'ignore' })
 
 const res = []
 const ok = (nome, passou, detalhe) => {
