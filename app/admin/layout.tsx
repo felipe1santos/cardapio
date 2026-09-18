@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
+import { MenuLateralContext } from '@/components/layout/menu-lateral-contexto'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { contarBadgesNav, type BadgesNav } from '@/lib/queries/pedidos'
@@ -102,6 +103,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Checklist de configuração (lib/setup-checklist.ts).
   const [pendencias, setPendencias] = useState<PendenciaSetup[]>([])
   const [alertaAberto, setAlertaAberto] = useState(false)
+  // Gaveta do menu: só existe abaixo de `lg`, onde a sidebar sai do fluxo.
+  const [menuAberto, setMenuAberto] = useState(false)
+  const valorDoMenu = useMemo(() => ({ abrir: () => setMenuAberto(true) }), [])
+
+  // Navegou: a gaveta fecha. Sem isto, no celular o menu ficaria cobrindo a tela que o
+  // toque acabou de abrir.
+  useEffect(() => {
+    setMenuAberto(false)
+  }, [pathname])
 
   // Modo tela cheia: páginas como Pedidos/PDV escondem a sidebar.
   // O evento pode chegar tarde no load direto (o efeito do filho dispara antes do
@@ -238,6 +248,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
+    <MenuLateralContext.Provider value={valorDoMenu}>
     <div className="flex h-screen overflow-hidden">
       {!focusMode && (
         <Sidebar
@@ -245,13 +256,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           activeHref={pathname}
           storeSlug={storeSlug}
           onSignOut={handleSignOut}
+          aberta={menuAberto}
+          onFechar={() => setMenuAberto(false)}
           // Pendência de configuração é assunto de quem configura a loja. Mostrar "6
           // pendências" ao garçom seria só ruído — ele não tem acesso a Ajustes.
           pendencias={papel === null || pode(papel, 'ajustes.editar') ? pendencias.length : 0}
           onAbrirPendencias={() => setAlertaAberto(true)}
         />
       )}
-      <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
+      {/* `min-w-0`: sem isso o conteúdo largo (tabela, grade de mesas) empurra o flex
+          e reaparece a rolagem horizontal que a gaveta veio resolver. */}
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
       {alertaAberto && (
         <SetupAlerta
           pendencias={pendencias}
@@ -263,5 +278,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         />
       )}
     </div>
+    </MenuLateralContext.Provider>
   )
 }

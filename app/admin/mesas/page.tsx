@@ -266,7 +266,7 @@ export default function MesasPage() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar mesa ou setor…"
-            className="h-9 w-56 rounded-menuzia border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
+            className="h-[44px] w-full rounded-menuzia lg:h-9 lg:w-56 border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
           />
           <div className="flex flex-wrap gap-1.5">
             {ORDEM_FILTROS.map((f) => (
@@ -274,7 +274,7 @@ export default function MesasPage() {
                 key={f}
                 onClick={() => setFiltro(f)}
                 className={[
-                  'rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors',
+                  'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-0',
                   filtro === f
                     ? 'border-primary bg-primary text-white'
                     : 'border-border bg-main text-text-subtle hover:text-text-main',
@@ -367,7 +367,7 @@ export default function MesasPage() {
                   {mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (
                     <Link
                       href={`/admin/mesas/${mesa.id}`}
-                      className="mb-1 mt-2 block rounded-menuzia bg-primary px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-white hover:bg-primary-dark"
+                      className="mb-1 mt-2 block min-h-[40px] rounded-menuzia bg-primary px-3 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide leading-[1.4] text-white hover:bg-primary-dark lg:min-h-0"
                     >
                       {mesa.estado === 'ocupada' ? 'Abrir mesa' : 'Lançar pedido'}
                     </Link>

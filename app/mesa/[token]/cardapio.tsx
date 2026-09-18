@@ -1021,19 +1021,21 @@ const TOKENS = `
 .mesa-logo { width: 34px; height: 34px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #fff; }
 .mesa-logo-vazia { display: grid; place-items: center; color: var(--coral); font-weight: 800; }
 .mesa-nome-loja { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mesa-busca { flex: 1; display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.16); border-radius: var(--raio); padding: 0 10px; height: 36px; min-width: 0; }
+.mesa-busca { flex: 1; display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.16); border-radius: var(--raio); padding: 0 10px; height: 44px; min-width: 0; }
 .mesa-busca svg { width: 16px; height: 16px; fill: rgba(255,255,255,.85); flex-shrink: 0; }
-.mesa-busca input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: #fff; font-size: 13px; }
+/* O input ocupa a altura toda da etiqueta: o alvo de toque é a caixa inteira, não a
+   linha de texto de 20px que o navegador dá por padrão. */
+.mesa-busca input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; color: #fff; font-size: 13px; }
 .mesa-busca input::placeholder { color: rgba(255,255,255,.75); }
 .mesa-acoes { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .mesa-etiqueta { background: rgba(0,0,0,.18); border-radius: var(--raio); padding: 6px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.mesa-botao-selecao { display: flex; align-items: center; gap: 6px; background: #fff; color: var(--coral); border: 0; border-radius: var(--raio); padding: 8px 12px; font-size: 12px; font-weight: 800; position: relative; }
+.mesa-botao-selecao { display: flex; align-items: center; gap: 6px; min-height: 44px; background: #fff; color: var(--coral); border: 0; border-radius: var(--raio); padding: 8px 12px; font-size: 12px; font-weight: 800; position: relative; }
 .mesa-botao-selecao svg { width: 16px; height: 16px; fill: currentColor; }
 .mesa-contador { background: var(--coral); color: #fff; border-radius: 999px; min-width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; padding: 0 4px; }
 
 /* Chamar garçom — 44px de alvo de toque, como os outros botões do cabeçalho. */
 .mesa-botao-chamar {
-  display: flex; align-items: center; gap: 6px; min-height: 36px;
+  display: flex; align-items: center; gap: 6px; min-height: 44px;
   background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.4);
   border-radius: var(--raio); padding: 8px 10px; font-size: 12px; font-weight: 800; white-space: nowrap;
 }
@@ -1099,7 +1101,7 @@ const TOKENS = `
 .mesa-card-texto p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mesa-card-rodape { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; }
 .mesa-preco { display: flex; flex-direction: column; min-width: 0; }
-.mesa-preco-rotulo { font-size: 9px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
+.mesa-preco-rotulo { font-size: 10px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
 .mesa-preco-valor { font-size: 16px; font-weight: 800; color: var(--coral); white-space: nowrap; }
 .mesa-botao-add { background: var(--coral); color: #fff; border: 0; border-radius: var(--raio); padding: 10px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
 .mesa-botao-add:active { background: var(--coral-escuro); }
@@ -1122,7 +1124,7 @@ const TOKENS = `
 /* Modal */
 .mesa-modal-fundo { position: fixed; inset: 0; z-index: 50; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 0; }
 .mesa-modal { position: relative; background: var(--superficie); width: 100%; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-.mesa-fechar { position: absolute; top: 10px; right: 10px; z-index: 5; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--coral); color: #fff; font-size: 15px; font-weight: 700; }
+.mesa-fechar { position: absolute; top: 10px; right: 10px; z-index: 5; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--coral); color: #fff; font-size: 15px; font-weight: 700; }
 .mesa-modal-lado { background: var(--superficie); border-bottom: 1px solid var(--borda); flex-shrink: 0; }
 .mesa-modal-foto { height: 150px; background: var(--fundo); }
 .mesa-modal-foto img { width: 100%; height: 100%; object-fit: cover; }
@@ -1197,16 +1199,20 @@ const TOKENS = `
 .mesa-progresso { border-bottom: 1px solid var(--borda); padding: 10px 16px 8px; flex-shrink: 0; }
 .mesa-progresso-texto { margin: 0 0 7px; font-size: 11px; font-weight: 800; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
 .mesa-progresso-pendente { color: var(--coral); }
-.mesa-progresso-passos { display: flex; align-items: center; gap: 6px; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
+.mesa-progresso-passos { display: flex; align-items: center; gap: 2px; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
 .mesa-progresso-passos li { flex-shrink: 0; }
 .mesa-progresso-passos button {
-  width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--borda);
-  background: var(--fundo); color: var(--suave); font-size: 11px; font-weight: 800;
+  /* 40px de alvo de toque com 26px de desenho: o círculo vem do background-clip, e não
+     de encolher o botão — dedo não acerta bolinha de 26px. */
+  width: 40px; height: 40px; border-radius: 50%; border: 7px solid transparent;
+  background: var(--fundo); background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px var(--borda);
+  color: var(--suave); font-size: 11px; font-weight: 800;
   display: grid; place-items: center; position: relative; padding: 0;
 }
-.mesa-progresso-passos li.atual button { background: var(--coral); border-color: var(--coral); color: #fff; }
-.mesa-progresso-passos li.concluida button { background: var(--marinho); border-color: var(--marinho); color: #fff; }
-.mesa-progresso-passos em { position: absolute; top: -2px; right: 2px; font-size: 12px; color: var(--coral); font-style: normal; }
+.mesa-progresso-passos li.atual button { background: var(--coral); box-shadow: inset 0 0 0 1px var(--coral); color: #fff; }
+.mesa-progresso-passos li.concluida button { background: var(--marinho); box-shadow: inset 0 0 0 1px var(--marinho); color: #fff; }
+.mesa-progresso-passos em { position: absolute; top: 1px; right: 3px; font-size: 12px; color: var(--coral); font-style: normal; }
 
 /* Confirmação */
 .mesa-confirmacao { background: var(--superficie); border-radius: var(--raio); padding: 28px 24px; margin: 16px; max-width: 360px; text-align: center; }

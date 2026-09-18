@@ -104,7 +104,7 @@ export default function AuditoriaPage() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por ação, pessoa ou mesa…"
-            className="h-9 w-64 rounded-menuzia border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
+            className="h-[44px] w-full rounded-menuzia lg:h-9 lg:w-64 border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
           />
           <div className="flex flex-wrap gap-1.5">
             {GRUPOS_EVENTO.map((g) => (
@@ -112,7 +112,7 @@ export default function AuditoriaPage() {
                 key={g.id}
                 onClick={() => setGrupo(g.id)}
                 className={[
-                  'rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide',
+                  'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide lg:min-h-0',
                   grupo === g.id
                     ? 'border-primary bg-primary text-white'
                     : 'border-border bg-main text-text-subtle hover:text-text-main',

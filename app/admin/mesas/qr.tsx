@@ -142,7 +142,7 @@ export function DrawerQrMesa({
               <input
                 readOnly
                 value={url}
-                className="h-9 flex-1 rounded-menuzia border border-border bg-bg-page px-2.5 text-[11px] text-text-subtle outline-none"
+                className="h-[44px] flex-1 rounded-menuzia lg:h-9 border border-border bg-bg-page px-2.5 text-[11px] text-text-subtle outline-none"
               />
               <Button variant="outline" className="!px-2.5" onClick={copiar} title="Copiar link">
                 {copiado ? <Check className="h-3.5 w-3.5 text-price-text" /> : <Copy className="h-3.5 w-3.5" />}

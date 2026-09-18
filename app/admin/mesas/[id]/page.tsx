@@ -366,7 +366,7 @@ export default function MesaDetalhePage() {
               aria-selected={aba === id}
               onClick={() => setAba(id)}
               className={[
-                '-mb-px border-b-2 px-4 py-2 text-[12px] font-bold uppercase tracking-wide',
+                '-mb-px min-h-[40px] border-b-2 px-4 py-2 text-[12px] font-bold uppercase tracking-wide lg:min-h-0',
                 aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
               ].join(' ')}
             >
@@ -398,7 +398,7 @@ export default function MesaDetalhePage() {
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar item…"
-                className="h-9 w-52 rounded-menuzia border border-border bg-main px-3 text-[13px] outline-none focus:border-primary"
+                className="h-[44px] w-full rounded-menuzia lg:h-9 lg:w-52 border border-border bg-main px-3 text-[13px] outline-none focus:border-primary"
               />
               <div className="flex flex-wrap gap-1.5">
                 {grupos.map((g) => (
@@ -409,7 +409,7 @@ export default function MesaDetalhePage() {
                       setBusca('')
                     }}
                     className={[
-                      'rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors',
+                      'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-0',
                       g.id === categoriaAtiva && !busca
                         ? 'border-primary bg-primary text-white'
                         : 'border-border bg-main text-text-subtle hover:text-text-main',

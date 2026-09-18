@@ -17,6 +17,13 @@ export interface SidebarProps {
   /** Total de pendências de configuração — mostra o atalho pra reabrir o alerta. */
   pendencias?: number
   onAbrirPendencias?: () => void
+  /**
+   * Abaixo de `lg` a sidebar sai do fluxo e vira gaveta. O garçom trabalha com o celular
+   * na mão: com 240px fixos de menu, num aparelho de 360px sobravam 120px de conteúdo.
+   * A partir de `lg` nada muda — é a mesma coluna fixa de sempre.
+   */
+  aberta?: boolean
+  onFechar?: () => void
 }
 
 const NAV_ICONS: Record<string, string> = {
@@ -36,11 +43,36 @@ const NAV_ICONS: Record<string, string> = {
   '/admin/ajustes': 'M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z',
 }
 
-export function Sidebar({ items, activeHref, storeSlug, onSignOut, pendencias = 0, onAbrirPendencias }: SidebarProps) {
+export function Sidebar({
+  items,
+  activeHref,
+  storeSlug,
+  onSignOut,
+  pendencias = 0,
+  onAbrirPendencias,
+  aberta = false,
+  onFechar,
+}: SidebarProps) {
   return (
-    <aside className="flex h-screen w-[240px] flex-shrink-0 flex-col bg-sidebar-bg shadow-lg">
-      <div className="flex h-[60px] items-center rounded-br-[18px] bg-primary px-4 text-white">
+    <>
+      {/* Véu da gaveta: existe só abaixo de lg, e só com ela aberta. */}
+      {aberta && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={onFechar} aria-hidden="true" />}
+      <aside
+        className={[
+          'z-40 flex h-screen w-[240px] flex-shrink-0 flex-col bg-sidebar-bg shadow-lg',
+          'fixed inset-y-0 left-0 transition-transform duration-200 lg:static lg:translate-x-0',
+          // `invisible` e não só `-translate-x-full`: deslocada, ela continuaria no
+          // caminho do Tab e do leitor de tela. `lg:visible` devolve a coluna fixa.
+          aberta ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible',
+        ].join(' ')}
+      >
+      <div className="flex h-[60px] flex-shrink-0 items-center justify-between rounded-br-[18px] bg-primary px-4 text-white lg:justify-start">
         <span className="text-lg font-bold lowercase tracking-wide">menuzia</span>
+        <button className="-mr-2 p-2.5 lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
+          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+          </svg>
+        </button>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-2.5">
         {items.map((item) => {
@@ -77,7 +109,7 @@ export function Sidebar({ items, activeHref, storeSlug, onSignOut, pendencias = 
                 </span>
               )}
               {item.novidade && (
-                <span className="flex-shrink-0 rounded px-1.5 py-[2px] text-[8px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#FCD34D', color: '#78350F' }}>
+                <span className="flex-shrink-0 rounded px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#FCD34D', color: '#78350F' }}>
                   Novidade
                 </span>
               )}
@@ -127,6 +159,7 @@ export function Sidebar({ items, activeHref, storeSlug, onSignOut, pendencias = 
           Ver cardápio
         </a>
       )}
-    </aside>
+      </aside>
+    </>
   )
 }

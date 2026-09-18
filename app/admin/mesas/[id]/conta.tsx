@@ -203,7 +203,7 @@ export function PainelConta({
                         <input
                           type="checkbox"
                           aria-label={`Selecionar ${i.nome}`}
-                          className="mt-1"
+                          className="mt-1 h-[20px] w-[20px] flex-shrink-0 accent-primary"
                           checked={selecionados.has(i.id)}
                           onChange={(e) => {
                             const prox = new Set(selecionados)
@@ -256,7 +256,7 @@ export function PainelConta({
                       <span className="text-[12px] font-semibold text-text-main">{brl(i.precoUnitario * i.quantidade)}</span>
                       {podeFazer('cancelar_item') && !i.cancelado && !cancelado && (
                         <button
-                          className="text-text-subtle hover:text-danger"
+                          className="-m-2 flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center text-text-subtle hover:text-danger lg:m-0 lg:h-[28px] lg:w-[28px]"
                           title={`Cancelar ${i.nome}`}
                           aria-label={`Cancelar ${i.nome}`}
                           onClick={() => setMotivoPara({
@@ -483,7 +483,7 @@ function Linha({ rotulo, valor, forte }: { rotulo: string; valor: string; forte?
   )
 }
 
-const INPUT = 'h-9 w-full rounded-menuzia border border-border px-2.5 text-[13px] outline-none focus:border-primary'
+const INPUT = 'h-[44px] w-full lg:h-9 rounded-menuzia border border-border px-2.5 text-[13px] outline-none focus:border-primary'
 
 function DadosDaMesa({
   conta,
@@ -561,7 +561,7 @@ function AjusteValores({
 
   if (!aberto) {
     return (
-      <button className="mt-3 text-[11px] font-semibold text-primary underline" onClick={() => setAberto(true)}>
+      <button className="mt-3 min-h-[40px] text-left text-[11px] font-semibold text-primary underline" onClick={() => setAberto(true)}>
         Ajustar taxa de serviço ou desconto
       </button>
     )
@@ -630,7 +630,7 @@ function FormPagamento({
             role="radio"
             aria-checked={forma === f}
             onClick={() => setForma(f)}
-            className={`rounded-menuzia border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide ${forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-main text-text-subtle'}`}
+            className={`min-h-[40px] rounded-menuzia border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide lg:min-h-0 ${forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-main text-text-subtle'}`}
           >
             {ROTULO_FORMA[f]}
           </button>
@@ -642,17 +642,17 @@ function FormPagamento({
         <input value={valor} inputMode="decimal" onChange={(e) => setValor(e.target.value)} className={INPUT} placeholder="0,00" aria-label="Valor do pagamento" />
       </label>
       <div className="flex flex-wrap gap-1.5">
-        <button className="rounded-menuzia border border-border px-2 py-1 text-[11px]" onClick={() => setValor(restante.toFixed(2))}>
+        <button className="min-h-[40px] rounded-menuzia border border-border px-2 py-1 text-[11px] lg:min-h-0" onClick={() => setValor(restante.toFixed(2))}>
           Tudo ({brl(restante)})
         </button>
         {porPessoa && (
-          <button className="rounded-menuzia border border-border px-2 py-1 text-[11px]" onClick={() => setValor(porPessoa.toFixed(2))}>
+          <button className="min-h-[40px] rounded-menuzia border border-border px-2 py-1 text-[11px] lg:min-h-0" onClick={() => setValor(porPessoa.toFixed(2))}>
             1 pessoa ({brl(porPessoa)})
           </button>
         )}
         {porItens !== null && porItens > 0 && (
           <button
-            className="rounded-menuzia border border-primary px-2 py-1 text-[11px] font-semibold text-primary"
+            className="min-h-[40px] rounded-menuzia border border-primary px-2 py-1 text-[11px] font-semibold text-primary lg:min-h-0"
             onClick={() => setValor(porItens.toFixed(2))}
           >
             Itens marcados ({brl(porItens)})

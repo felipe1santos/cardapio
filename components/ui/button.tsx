@@ -19,6 +19,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = 'primary', className = '', ...props }, ref) => {
     const classes = [
       'inline-flex items-center justify-center gap-1.5',
+      // Altura: o botão da Menuzia é baixo de propósito (11px, caixa alta). Num celular
+      // isso dava um alvo de ~29px, abaixo do que o dedo acerta — então abaixo de `lg`
+      // ele ganha 40px de altura mínima, e volta ao natural no desktop.
+      'min-h-[40px] lg:min-h-0',
       'rounded-menuzia px-3 py-1.5',
       'text-[11px] font-semibold uppercase tracking-wide',
       'transition-colors duration-150',
