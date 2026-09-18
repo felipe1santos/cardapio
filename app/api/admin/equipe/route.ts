@@ -50,7 +50,8 @@ export async function POST(request: Request) {
   const erros = validarNovoFuncionario(entrada, sessao.papel)
   if (erros.length > 0) return NextResponse.json({ error: erros[0], erros }, { status: 400 })
 
-  const admin = getAdminSupabase()
+  // Correlação: os eventos desta requisição saem ligados na auditoria.
+  const admin = getAdminSupabase({ correlacao: crypto.randomUUID() })
   const resultado = await criarFuncionario(admin, {
     // Loja e autor vêm da sessão. O corpo não decide nenhum dos dois.
     restauranteId: sessao.restauranteId,

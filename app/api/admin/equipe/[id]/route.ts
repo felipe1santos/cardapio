@@ -22,7 +22,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }
 
-  const admin = getAdminSupabase()
+  // Correlação: os eventos desta requisição saem ligados na auditoria.
+  const admin = getAdminSupabase({ correlacao: crypto.randomUUID() })
   // Só enxerga funcionário da PRÓPRIA loja: id de outra loja cai aqui como inexistente.
   const alvo = await buscarFuncionario(admin, sessao.restauranteId, id)
   if (!alvo) return NextResponse.json({ error: 'Funcionário não encontrado' }, { status: 404 })
@@ -65,7 +66,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       acao,
       entidade: 'usuario',
       entidadeId: id,
-      dados: { alvo: alvo.nome, login: alvo.usuario, ...(patch.papel ? { papelNovo: patch.papel } : {}) },
+      // Antes e depois do que mudou; nunca senha nem e-mail técnico.
+      dados: {
+        alvo: alvo.nome,
+        login: alvo.usuario,
+        ...(acao === 'equipe.editou'
+          ? {
+              antes: { nome: alvo.nome, papel: alvo.papel },
+              depois: { nome: patch.nome ?? alvo.nome, papel: patch.papel ?? alvo.papel },
+            }
+          : { de: alvo.ativo ? 'ativo' : 'desativado', para: acao === 'equipe.reativou' ? 'ativo' : 'desativado' }),
+      },
     })
   }
 

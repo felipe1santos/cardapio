@@ -25,7 +25,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const erros = validarSenha(senha)
   if (erros.length > 0) return NextResponse.json({ error: erros[0] }, { status: 400 })
 
-  const admin = getAdminSupabase()
+  // Correlação: os eventos desta requisição saem ligados na auditoria.
+  const admin = getAdminSupabase({ correlacao: crypto.randomUUID() })
   const alvo = await buscarFuncionario(admin, sessao.restauranteId, id)
   if (!alvo) return NextResponse.json({ error: 'Funcionário não encontrado' }, { status: 404 })
 
