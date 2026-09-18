@@ -46,6 +46,9 @@ function EtiquetaCard({
   logoUrl?: string | null
 }) {
   const e = ESTILO_MODELO[modelo.id] ?? ESTILO_MODELO.adesivo
+  // Etiqueta com QR próprio (mesa) manda; sem ele, vale o da loja (cardápio).
+  const qr = etiqueta.qrDataUrl ?? qrDataUrl
+  const link = etiqueta.url ?? url
   return (
     <div
       className="flex h-full w-full flex-col items-center justify-center overflow-hidden border border-dashed border-[#D1D5DB] text-center"
@@ -76,10 +79,10 @@ function EtiquetaCard({
         )}
       </div>
 
-      {qrDataUrl ? (
+      {qr ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={qrDataUrl}
+          src={qr}
           alt={`QR Code do cardápio${etiqueta.mesa ? ` — ${rotuloMesa(etiqueta.mesa)}` : ''}`}
           style={{ width: `${modelo.qrMm}mm`, height: `${modelo.qrMm}mm` }}
         />
@@ -97,7 +100,7 @@ function EtiquetaCard({
           {frase}
         </span>
         <span className="leading-snug text-[#6B7280]" style={{ fontSize: `${e.url}pt` }}>
-          {url}
+          {link}
         </span>
       </div>
     </div>

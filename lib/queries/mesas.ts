@@ -147,15 +147,6 @@ export async function removerMesa(supabase: SupabaseClient, id: string): Promise
   if (error) throw error
 }
 
-/** Bloqueia/desbloqueia sem mexer no cadastro — a mesa continua existindo no salão. */
-export async function definirBloqueioMesa(supabase: SupabaseClient, id: string, bloquear: boolean): Promise<void> {
-  const { error } = await supabase
-    .from('mesas')
-    .update({ bloqueada_em: bloquear ? new Date().toISOString() : null })
-    .eq('id', id)
-  if (error) throw error
-}
-
 /**
  * Revoga o QR antigo e emite um novo, mantendo o id interno da mesa — histórico,
  * comandas e pedidos continuam ligados a ela. Quem tiver o QR velho recebe 404.

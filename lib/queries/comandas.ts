@@ -2,10 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { PEDIDO_SELECT, mapPedido, type Pedido } from './pedidos'
 import { listarMesasAtivas, type Mesa } from './mesas'
 
+export type StatusComanda = 'aberta' | 'fechada' | 'transferida' | 'cancelada'
+
 export interface Comanda {
   id: string
   mesaId: string
-  status: 'aberta' | 'fechada'
+  status: StatusComanda
   abertaEm: string
   fechadaEm: string | null
 }
@@ -31,7 +33,11 @@ export function mapComandaRow(row: ComandaRow): Comanda {
   return {
     id: row.id,
     mesaId: row.mesa_id,
-    status: row.status === 'fechada' ? 'fechada' : 'aberta',
+    // Nunca "arruma" um status desconhecido para 'aberta': comanda transferida (0067) ou
+    // cancelada (0070) passando por aberta reabriria mesa que a operação já encerrou.
+    status: (['aberta', 'fechada', 'transferida', 'cancelada'] as const).includes(row.status as StatusComanda)
+      ? (row.status as StatusComanda)
+      : 'fechada',
     abertaEm: row.aberta_em,
     fechadaEm: row.fechada_em ?? null,
   }

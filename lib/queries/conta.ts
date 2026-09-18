@@ -219,10 +219,23 @@ export const transferirMesa = (
 
 export const transferirItens = (
   admin: SupabaseClient,
-  a: { restauranteId: string; itemIds: string[]; destinoMesaId: string; atorId: string; atorNome: string },
+  a: {
+    restauranteId: string; itemIds: string[]; destinoMesaId: string; atorId: string; atorNome: string
+    /** Quanto de cada linha vai (mesma ordem de `itemIds`). Ausente = a linha inteira. */
+    quantidades?: number[] | null
+  },
 ) =>
   rpc<{ comanda: string; itens: number }>(admin, 'itens_transferir', {
-    p_restaurante: a.restauranteId, p_itens: a.itemIds, p_destino: a.destinoMesaId, p_ator: a.atorId, p_ator_nome: a.atorNome,
+    p_restaurante: a.restauranteId, p_itens: a.itemIds, p_destino: a.destinoMesaId, p_ator: a.atorId,
+    p_ator_nome: a.atorNome, p_quantidades: a.quantidades ?? null,
+  })
+
+export const cancelarComanda = (
+  admin: SupabaseClient,
+  a: { restauranteId: string; comandaId: string; motivo: string; atorId: string; atorNome: string },
+) =>
+  rpc<{ comanda: string; lancamentos_cancelados: number }>(admin, 'comanda_cancelar', {
+    p_restaurante: a.restauranteId, p_comanda: a.comandaId, p_motivo: a.motivo, p_ator: a.atorId, p_ator_nome: a.atorNome,
   })
 
 export const cancelarItem = (admin: SupabaseClient, a: { restauranteId: string; itemId: string; motivo: string; atorNome: string }) =>
@@ -249,6 +262,7 @@ const ROTULO_ACAO: Record<string, string> = {
   'conta.ajustou': 'Ajustou a conta',
   'conta.cancelou_item': 'Cancelou item',
   'conta.cancelou_pedido': 'Cancelou lançamento',
+  'conta.cancelou_comanda': 'Cancelou a conta',
   'conta.reimprimiu': 'Pediu reimpressão',
 }
 

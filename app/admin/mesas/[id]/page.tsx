@@ -15,6 +15,9 @@ import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-ses
 import { validarOpcoes, minimoDoGrupo, maximoDoGrupo, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { itemDisponivelHoje } from '@/lib/timezone'
+import { listarChamadosAbertos, type Chamado } from '@/lib/queries/chamados'
+import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { PainelChamados, useRelogio } from '../chamados'
 import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaOpcao } from './conta'
 
 /**
@@ -92,12 +95,16 @@ export default function MesaDetalhePage() {
   // o servidor só encerra o que ainda estiver nessa versão — lista que o cliente mudou
   // depois continua aberta.
   const [selecoesVistas, setSelecoesVistas] = useState<SelecaoVista[]>([])
+  const [chamados, setChamados] = useState<Chamado[]>([])
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  const agora = useRelogio()
   // Chave do lançamento em montagem. Gerada uma vez e trocada só depois de um envio que
   // deu certo: clique duplo e reenvio carregam a MESMA chave e não duplicam o pedido.
   const [chaveLancamento, setChaveLancamento] = useState<string>(() => crypto.randomUUID())
 
   const carregar = useCallback(async () => {
     const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
+    setRestauranteId(restauranteId)
     if (!restauranteId) {
       setErro('Não foi possível identificar a loja.')
       setCarregando(false)
@@ -109,6 +116,9 @@ export default function MesaDetalhePage() {
       listarGrupos(supabase, restauranteId),
       listarItens(supabase, restauranteId),
     ])
+
+    // Só os chamados DESTA mesa: o painel do salão mostra os outros.
+    setChamados((await listarChamadosAbertos(supabase, restauranteId).catch(() => [])).filter((c) => c.mesaId === params.id))
 
     const alvo = mesas.find((m) => m.id === params.id) ?? null
     setMesa(alvo)
@@ -148,6 +158,22 @@ export default function MesaDetalhePage() {
       ),
     )
   }, [supabase, params.id])
+
+  // Chamado da mesa em tempo real, com o polling como rede de segurança. O cliente pode
+  // chamar enquanto o garçom já está na tela dela.
+  const { intervaloMs } = useRealtimeComFallback({
+    supabase,
+    canal: restauranteId ? `mesa-${params.id}` : null,
+    tabelas: [{ tabela: 'chamados_mesa', filtro: restauranteId ? `mesa_id=eq.${params.id}` : undefined }],
+    aoEvento: () => void carregar(),
+    aoSincronizar: () => void carregar(),
+  })
+
+  useEffect(() => {
+    if (!restauranteId) return
+    const t = setInterval(() => void carregar(), intervaloMs)
+    return () => clearInterval(t)
+  }, [restauranteId, intervaloMs, carregar])
 
   // O cliente continua marcando itens no celular enquanto o garçom está na mesa: a lista
   // se atualiza sozinha, sem ele precisar recarregar a página.
@@ -317,6 +343,8 @@ export default function MesaDetalhePage() {
       />
 
       <div className="flex-1 overflow-y-auto p-5">
+        <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />
+
         {avisoPagina && (
           <p className="mb-3 flex items-center justify-between gap-2 rounded-menuzia bg-alert-bg px-4 py-2.5 text-[13px] text-alert-text" role="status">
             {avisoPagina}

@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import QRCode from 'qrcode'
-import { Copy, Check, Download, Lock, LockOpen, Pencil, Plus, QrCode, RefreshCw, Settings, X } from 'lucide-react'
+import { BellRing, Lock, LockOpen, Pencil, Plus, Printer, QrCode, Settings, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,17 +12,20 @@ import {
   listarMesas,
   criarMesa,
   atualizarMesa,
-  definirBloqueioMesa,
   estadoDaMesa,
   proximoNomeDeMesa,
-  urlPublicaDaMesa,
   ROTULO_ESTADO,
   type EstadoMesa,
   type Mesa,
 } from '@/lib/queries/mesas'
 import { listarMesasComEstado, type MesaComEstado } from '@/lib/queries/comandas'
+import { listarChamadosAbertos, type Chamado } from '@/lib/queries/chamados'
+import { esperaTexto } from '@/lib/chamados'
 import { pode } from '@/lib/auth/permissoes'
+import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { ConfigConta } from './config-conta'
+import { DrawerFolhaMesas, DrawerQrMesa } from './qr'
+import { PainelChamados, useRelogio } from './chamados'
 
 /** Cor do estado no mapa do salão. Mesma paleta do resto do painel. */
 const TOM_ESTADO: Record<EstadoMesa, { badge: Parameters<typeof Badge>[0]['tone']; borda: string; ponto: string }> = {
@@ -39,6 +41,8 @@ interface MesaNaTela extends Mesa {
   estado: EstadoMesa
   total: number
   qtdPedidos: number
+  /** Abertura da conta — o salão precisa ver há quanto tempo a mesa está ocupada. */
+  abertaEm: string | null
 }
 
 export default function MesasPage() {
@@ -52,7 +56,15 @@ export default function MesasPage() {
   const [formAberto, setFormAberto] = useState(false)
   const [emEdicao, setEmEdicao] = useState<Mesa | null>(null)
   const [qrDaMesa, setQrDaMesa] = useState<Mesa | null>(null)
+  const [folhaAberta, setFolhaAberta] = useState(false)
   const [configAberta, setConfigAberta] = useState(false)
+  const [chamados, setChamados] = useState<Chamado[]>([])
+  const [avisoAcao, setAvisoAcao] = useState<string | null>(null)
+  const [nomeLoja, setNomeLoja] = useState('')
+  const [logoLoja, setLogoLoja] = useState<string | null>(null)
+  // Um relógio para a tela inteira: os "há X min" dos chamados e das mesas avançam
+  // juntos, sem um timer por linha.
+  const agora = useRelogio()
   // Papel de quem está logado. Cadastro, QR e bloqueio são da gestão; o garçom só abre a
   // mesa. Esconder os botões é conforto — quem barra a escrita é a RLS (0062).
   const [papel, setPapel] = useState<string | null>(null)
@@ -63,10 +75,12 @@ export default function MesasPage() {
       try {
         // `listarMesasComEstado` já resolve a comanda aberta de cada mesa; o estado
         // visual sai da regra pura, não de um if espalhado na tela.
-        const [lista, comEstado] = await Promise.all([
+        const [lista, comEstado, chamadosDb] = await Promise.all([
           listarMesas(supabase, id),
           listarMesasComEstado(supabase, id).catch(() => [] as MesaComEstado[]),
+          listarChamadosAbertos(supabase, id).catch(() => [] as Chamado[]),
         ])
+        setChamados(chamadosDb)
         const porId = new Map(comEstado.map((m) => [m.id, m]))
         setMesas(
           lista.map((m) => {
@@ -76,6 +90,7 @@ export default function MesasPage() {
               estado: estadoDaMesa(m, !!estadoComanda?.comandaAberta),
               total: estadoComanda?.total ?? 0,
               qtdPedidos: estadoComanda?.qtdPedidos ?? 0,
+              abertaEm: estadoComanda?.comandaAberta?.abertaEm ?? null,
             }
           }),
         )
@@ -105,12 +120,41 @@ export default function MesasPage() {
         const { data: u } = await supabase.from('usuarios').select('papel').eq('id', auth.user.id).maybeSingle()
         if (vivo && u) setPapel(u.papel as string)
       }
+      // Nome e logo só para a folha de QR impressa.
+      const { data: loja } = await supabase.from('restaurantes').select('nome, logo_url').eq('id', id).maybeSingle()
+      if (vivo && loja) {
+        setNomeLoja((loja.nome as string) ?? '')
+        setLogoLoja((loja.logo_url as string | null) ?? null)
+      }
       await carregar(id)
     })()
     return () => {
       vivo = false
     }
   }, [supabase, carregar])
+
+  // Tempo real com rede de segurança: o chamado tem que aparecer sem ninguém dar F5, e
+  // se o canal cair o polling volta ao ritmo agressivo (lib/realtime-fallback.ts).
+  const recarregar = useCallback(() => {
+    if (restauranteId) void carregar(restauranteId)
+  }, [restauranteId, carregar])
+
+  const { intervaloMs } = useRealtimeComFallback({
+    supabase,
+    canal: restauranteId ? `salao-${restauranteId}` : null,
+    tabelas: [
+      { tabela: 'chamados_mesa', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
+      { tabela: 'pedidos', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
+    ],
+    aoEvento: recarregar,
+    aoSincronizar: recarregar,
+  })
+
+  useEffect(() => {
+    if (!restauranteId) return
+    const t = setInterval(recarregar, intervaloMs)
+    return () => clearInterval(t)
+  }, [restauranteId, intervaloMs, recarregar])
 
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase()
@@ -151,17 +195,30 @@ export default function MesasPage() {
     await carregar(restauranteId)
   }
 
-  async function alternarBloqueio(mesa: MesaNaTela) {
-    if (!restauranteId) return
-    await definirBloqueioMesa(supabase, mesa.id, !mesa.bloqueada)
-    await carregar(restauranteId)
-  }
-
-  async function alternarAtiva(mesa: MesaNaTela) {
-    if (!restauranteId) return
-    // Mesa com histórico é arquivada, nunca excluída: comanda e pedido continuam ligados.
-    await atualizarMesa(supabase, mesa.id, { ativa: !mesa.ativa })
-    await carregar(restauranteId)
+  /**
+   * Tirar a mesa de operação (bloquear, desativar) passa pelo servidor, nunca por update
+   * direto: a rota confere se existe conta aberta antes, grava auditoria com estado
+   * anterior e novo, e exige `mesas.gerenciar`. Mesa com histórico é arquivada
+   * (`ativa = false`), nunca excluída — comanda e pedido continuam ligados a ela.
+   */
+  async function acaoDeEstado(mesa: MesaNaTela, acao: 'bloquear' | 'desbloquear' | 'desativar' | 'reativar') {
+    setAvisoAcao(null)
+    try {
+      const r = await fetch(`/api/admin/mesas/${mesa.id}/estado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao }),
+      })
+      const corpo = (await r.json()) as { error?: string }
+      if (!r.ok) {
+        setAvisoAcao(corpo.error ?? 'Não foi possível alterar a mesa.')
+        return
+      }
+    } catch {
+      setAvisoAcao('Sem conexão com o servidor.')
+      return
+    }
+    recarregar()
   }
 
   return (
@@ -172,6 +229,10 @@ export default function MesasPage() {
         right={
           gerencia ? (
             <>
+              <Button variant="outline" onClick={() => setFolhaAberta(true)} disabled={mesas.length === 0}>
+                <Printer className="mr-1.5 inline h-3.5 w-3.5" />
+                Folha de QR
+              </Button>
               <Button variant="outline" onClick={() => setConfigAberta(true)}>
                 <Settings className="mr-1.5 inline h-3.5 w-3.5" />
                 Conta e pagamentos
@@ -191,6 +252,14 @@ export default function MesasPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-5">
+        <PainelChamados chamados={chamados} agora={agora} onMudou={recarregar} />
+
+        {avisoAcao && (
+          <p className="mb-4 rounded-menuzia border border-danger bg-danger-bg px-4 py-2.5 text-[13px] text-danger">
+            {avisoAcao}
+          </p>
+        )}
+
         {/* Busca + filtros por estado */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <input
@@ -251,6 +320,7 @@ export default function MesasPage() {
           <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
             {visiveis.map((mesa) => {
               const tom = TOM_ESTADO[mesa.estado]
+              const chamadoDaMesa = chamados.find((c) => c.mesaId === mesa.id) ?? null
               return (
                 <div
                   key={mesa.id}
@@ -272,12 +342,23 @@ export default function MesasPage() {
                     <Badge tone={tom.badge}>{ROTULO_ESTADO[mesa.estado]}</Badge>
                   </div>
 
+                  {chamadoDaMesa && (
+                    <div className="mb-2 flex items-center gap-1.5 rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[11px] font-bold text-text-main">
+                      <BellRing className="h-3 w-3 flex-shrink-0 text-status-pending" />
+                      {chamadoDaMesa.status === 'assumido' ? 'Alguém já vai' : 'Chamando'} ·{' '}
+                      {esperaTexto(chamadoDaMesa.criadoEm, agora)}
+                    </div>
+                  )}
+
                   {mesa.estado === 'ocupada' && (
                     <div className="mb-2 rounded-menuzia bg-bg-page px-2.5 py-1.5 text-[11px] text-text-subtle">
                       {mesa.qtdPedidos} {mesa.qtdPedidos === 1 ? 'lançamento' : 'lançamentos'} ·{' '}
                       <span className="font-bold text-price-text">
                         {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
+                      {mesa.abertaEm && (
+                        <span className="mt-0.5 block">Aberta {esperaTexto(mesa.abertaEm, agora)}</span>
+                      )}
                     </div>
                   )}
 
@@ -311,12 +392,16 @@ export default function MesasPage() {
                     <Button
                       variant="outline"
                       className="!px-2"
-                      onClick={() => alternarBloqueio(mesa)}
+                      onClick={() => acaoDeEstado(mesa, mesa.bloqueada ? 'desbloquear' : 'bloquear')}
                       title={mesa.bloqueada ? 'Desbloquear' : 'Bloquear'}
                     >
                       {mesa.bloqueada ? <LockOpen className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
                     </Button>
-                    <Button variant="ghost" className="!px-2 text-[10px]" onClick={() => alternarAtiva(mesa)}>
+                    <Button
+                      variant="ghost"
+                      className="!px-2 text-[10px]"
+                      onClick={() => acaoDeEstado(mesa, mesa.ativa ? 'desativar' : 'reativar')}
+                    >
                       {mesa.ativa ? 'Desativar' : 'Reativar'}
                     </Button>
                   </div>
@@ -345,7 +430,27 @@ export default function MesasPage() {
         />
       )}
 
-      {qrDaMesa && <DrawerQr mesa={qrDaMesa} onFechar={() => setQrDaMesa(null)} />}
+      {qrDaMesa && (
+        <DrawerQrMesa
+          mesa={qrDaMesa}
+          podeGerenciar={gerencia}
+          onFechar={() => setQrDaMesa(null)}
+          onTokenRodado={(token) => {
+            // A tela reflete o token novo na hora: o QR na tela já é o válido.
+            setQrDaMesa((atual) => (atual ? { ...atual, token } : atual))
+            setMesas((atual) => atual.map((m) => (m.id === qrDaMesa.id ? { ...m, token } : m)))
+          }}
+        />
+      )}
+
+      {folhaAberta && (
+        <DrawerFolhaMesas
+          mesas={mesas.filter((m) => m.ativa)}
+          nomeLoja={nomeLoja}
+          logoUrl={logoLoja}
+          onFechar={() => setFolhaAberta(false)}
+        />
+      )}
 
       {configAberta && <ConfigConta onFechar={() => setConfigAberta(false)} />}
     </>
@@ -452,98 +557,6 @@ function Campo({ label, hint, children }: { label: string; hint?: string; childr
       <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">{label}</label>
       {children}
       {hint && <p className="mt-1 text-[11px] text-text-subtle">{hint}</p>}
-    </div>
-  )
-}
-
-// ── QR da mesa ──────────────────────────────────────────────────────────────
-
-function DrawerQr({ mesa, onFechar }: { mesa: Mesa; onFechar: () => void }) {
-  const [imagem, setImagem] = useState<string | null>(null)
-  const [copiado, setCopiado] = useState(false)
-
-  const url = useMemo(
-    () => urlPublicaDaMesa(typeof window === 'undefined' ? '' : window.location.origin, mesa.token),
-    [mesa.token],
-  )
-
-  useEffect(() => {
-    QRCode.toDataURL(url, { width: 1024, margin: 1, errorCorrectionLevel: 'M' })
-      .then(setImagem)
-      .catch(() => setImagem(null))
-  }, [url])
-
-  async function copiar() {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopiado(true)
-      setTimeout(() => setCopiado(false), 1800)
-    } catch {
-      /* clipboard bloqueado: o link continua visível na tela para copiar à mão */
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onFechar}>
-      <aside className="flex h-full w-full max-w-md flex-col bg-main shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
-          <span className="text-[15px] font-semibold text-text-main">QR Code · {mesa.nome}</span>
-          <button onClick={onFechar} className="text-text-subtle hover:text-text-main">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5">
-          <div className="mx-auto w-full max-w-[260px] rounded-menuzia border border-border p-4 text-center">
-            {imagem ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imagem} alt={`QR Code da ${mesa.nome}`} className="w-full" />
-            ) : (
-              <div className="flex h-[228px] items-center justify-center text-[12px] text-text-subtle">
-                Gerando QR…
-              </div>
-            )}
-            <p className="mt-2 text-[13px] font-bold text-text-main">{mesa.nome}</p>
-            <p className="text-[10px] uppercase tracking-wide text-text-subtle">Aponte a câmera para ver o cardápio</p>
-          </div>
-
-          <div className="mt-4">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-              Link da mesa
-            </label>
-            <div className="flex gap-1.5">
-              <input
-                readOnly
-                value={url}
-                className="h-9 flex-1 rounded-menuzia border border-border bg-bg-page px-2.5 text-[11px] text-text-subtle outline-none"
-              />
-              <Button variant="outline" className="!px-2.5" onClick={copiar}>
-                {copiado ? <Check className="h-3.5 w-3.5 text-price-text" /> : <Copy className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
-            <p className="mt-1 text-[11px] text-text-subtle">
-              O link não revela a loja nem o número interno da mesa — é um código próprio, que pode ser revogado.
-            </p>
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <a
-              href={imagem ?? '#'}
-              download={`qr-${mesa.nome.toLowerCase().replace(/\s+/g, '-')}.png`}
-              className="flex-1"
-            >
-              <Button variant="outline" className="w-full" disabled={!imagem}>
-                <Download className="mr-1.5 inline h-3.5 w-3.5" />
-                Baixar PNG
-              </Button>
-            </a>
-            <Button variant="outline" className="flex-1" disabled title="Em breve">
-              <RefreshCw className="mr-1.5 inline h-3.5 w-3.5" />
-              Gerar novo
-            </Button>
-          </div>
-        </div>
-      </aside>
     </div>
   )
 }

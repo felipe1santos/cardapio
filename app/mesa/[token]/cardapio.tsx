@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MOTIVOS_CHAMADO, type MotivoChamado } from '@/lib/chamados'
 
 /**
  * Cardápio presencial da mesa.
@@ -271,6 +272,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
           <span className="mesa-etiqueta" title="Você está nesta mesa">
             {mesaNome}
           </span>
+          <ChamarGarcom token={token} />
           <button className="mesa-botao-selecao" onClick={() => setPainelAberto(true)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7 4h10l1 3h3v2h-1.2l-1.3 11.1A2 2 0 0 1 16.5 22h-9a2 2 0 0 1-2-1.9L4.2 9H3V7h3l1-3zm2 3h6l-.4-1H9.4L9 7z" />
@@ -445,6 +447,142 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
   )
 }
 
+// ── Chamar garçom ───────────────────────────────────────────────────────────
+
+/**
+ * Botão de verdade, não decorativo: grava um chamado ligado à mesa e à sessão, que
+ * aparece no painel do salão em tempo real.
+ *
+ * Nada de pedido aqui. O anti-spam mora no banco (0068) — um chamado aberto por
+ * mesa+motivo, carência entre chamados, expiração do abandonado. Esta tela só mostra o
+ * que aconteceu: "avisamos", "o garçom está vindo" ou "aguarde X segundos".
+ */
+function ChamarGarcom({ token }: { token: string }) {
+  const [aberto, setAberto] = useState(false)
+  const [enviando, setEnviando] = useState<MotivoChamado | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const [ativos, setAtivos] = useState<{ motivo: string; status: string }[]>([])
+
+  const ler = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/mesa/${token}/chamado`, { cache: 'no-store' })
+      if (!r.ok) return
+      const corpo = (await r.json()) as { chamados: { motivo: string; status: string }[] }
+      setAtivos(corpo.chamados ?? [])
+    } catch {
+      // Sem rede: mantém o que já está na tela. O chamado já gravado não se perde.
+    }
+  }, [token])
+
+  useEffect(() => {
+    void ler()
+    const t = setInterval(() => void ler(), 10000)
+    return () => clearInterval(t)
+  }, [ler])
+
+  const assumido = ativos.some((c) => c.status === 'assumido')
+  const emEspera = ativos.length > 0
+
+  async function chamar(motivo: MotivoChamado) {
+    if (enviando) return
+    setEnviando(motivo)
+    setAviso(null)
+    try {
+      const r = await fetch(`/api/mesa/${token}/chamado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo }),
+      })
+      const corpo = (await r.json()) as { ok?: boolean; jaExistia?: boolean; error?: string }
+      if (!r.ok) {
+        setAviso(corpo.error ?? 'Não foi possível chamar agora. Tente de novo em instantes.')
+        return
+      }
+      setAviso(
+        corpo.jaExistia
+          ? 'Já avisamos — o garçom está vindo até a sua mesa.'
+          : 'Avisamos o garçom. Ele vem até a sua mesa.',
+      )
+      await ler()
+    } catch {
+      setAviso('Sem conexão agora. Tente de novo em instantes.')
+    } finally {
+      setEnviando(null)
+    }
+  }
+
+  return (
+    <>
+      <button
+        className={`mesa-botao-chamar ${emEspera ? 'chamado' : ''}`}
+        onClick={() => {
+          setAviso(null)
+          setAberto(true)
+        }}
+        aria-label={emEspera ? 'Garçom já chamado' : 'Chamar o garçom'}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2a2 2 0 0 1 2 2v.3a7 7 0 0 1 5 6.7v4l1.7 2.3A1 1 0 0 1 19.9 19H4.1a1 1 0 0 1-.8-1.7L5 15v-4a7 7 0 0 1 5-6.7V4a2 2 0 0 1 2-2zm0 20a2.8 2.8 0 0 1-2.7-2h5.4A2.8 2.8 0 0 1 12 22z" />
+        </svg>
+        <span className="mesa-botao-texto">{emEspera ? (assumido ? 'Já vem' : 'Chamado') : 'Garçom'}</span>
+      </button>
+
+      {aberto && (
+        <div className="mesa-modal-fundo" onClick={() => setAberto(false)}>
+          <div
+            className="mesa-chamar-folha"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="chamar-titulo"
+          >
+            <header>
+              <h2 id="chamar-titulo">Chamar o garçom</h2>
+              <p>Isso não envia pedido nenhum para a cozinha — só avisa a equipe.</p>
+            </header>
+
+            {emEspera && (
+              <p className="mesa-chamar-estado">
+                {assumido
+                  ? 'Um garçom já assumiu o seu chamado e está vindo.'
+                  : 'Seu chamado está na fila da equipe.'}
+              </p>
+            )}
+
+            <div className="mesa-chamar-opcoes">
+              {MOTIVOS_CHAMADO.map((m) => {
+                const jaAberto = ativos.some((c) => c.motivo === m.id)
+                return (
+                  <button
+                    key={m.id}
+                    className={`mesa-chamar-opcao ${jaAberto ? 'aberta' : ''}`}
+                    onClick={() => chamar(m.id)}
+                    disabled={enviando !== null || jaAberto}
+                  >
+                    <span className="mesa-chamar-rotulo">{m.rotulo}</span>
+                    <span className="mesa-chamar-descricao">
+                      {jaAberto ? 'Já avisamos a equipe' : m.descricao}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {aviso && (
+              <p className="mesa-chamar-aviso" role="status">
+                {aviso}
+              </p>
+            )}
+
+            <button className="mesa-secundario" onClick={() => setAberto(false)}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Configurador em etapas ──────────────────────────────────────────────────
 
 interface Etapa {
@@ -605,6 +743,42 @@ function Configurador({
 
         {/* Coluna da direita: etapa atual */}
         <section className="mesa-modal-etapa">
+          {/* No celular a trilha lateral não cabe (ela só aparece a partir de 700px), e
+              sem ela o cliente não sabia em que passo estava nem quantos faltavam. Esta
+              é a mesma informação em faixa: passo atual, concluídos, e quais dos que
+              faltam são obrigatórios. Pular para uma etapa já vista é permitido; pular
+              para a frente, não — a obrigatória seria burlada. */}
+          <nav className="mesa-progresso" aria-label="Etapas da escolha">
+            <p className="mesa-progresso-texto">
+              Etapa {Math.min(passo + 1, etapas.length + 1)} de {etapas.length + 1}
+              {!ehUltima && etapa?.obrigatorio && !etapaValida && (
+                <span className="mesa-progresso-pendente"> · escolha obrigatória</span>
+              )}
+            </p>
+            <ol className="mesa-progresso-passos">
+              {[...etapas.map((e) => ({ id: e.id, titulo: e.titulo, obrigatorio: e.obrigatorio })),
+                { id: '__qtd', titulo: 'Quantidade', obrigatorio: false }].map((e, i) => {
+                const estado = i === passo ? 'atual' : i < passo ? 'concluida' : 'futura'
+                return (
+                  <li key={e.id} className={estado}>
+                    <button
+                      type="button"
+                      onClick={() => i < passo && setPasso(i)}
+                      disabled={i >= passo}
+                      aria-current={estado === 'atual' ? 'step' : undefined}
+                      aria-label={`Etapa ${i + 1}: ${e.titulo}${
+                        estado === 'concluida' ? ' (concluída)' : estado === 'atual' ? ' (atual)' : ''
+                      }${e.obrigatorio && estado === 'futura' ? ' — obrigatória' : ''}`}
+                    >
+                      {estado === 'concluida' ? '✓' : i + 1}
+                      {e.obrigatorio && estado === 'futura' && <em aria-hidden="true">*</em>}
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </nav>
+
           {!ehUltima && etapa ? (
             <>
               <header>
@@ -857,6 +1031,32 @@ const TOKENS = `
 .mesa-botao-selecao svg { width: 16px; height: 16px; fill: currentColor; }
 .mesa-contador { background: var(--coral); color: #fff; border-radius: 999px; min-width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; padding: 0 4px; }
 
+/* Chamar garçom — 44px de alvo de toque, como os outros botões do cabeçalho. */
+.mesa-botao-chamar {
+  display: flex; align-items: center; gap: 6px; min-height: 36px;
+  background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.4);
+  border-radius: var(--raio); padding: 8px 10px; font-size: 12px; font-weight: 800; white-space: nowrap;
+}
+.mesa-botao-chamar svg { width: 16px; height: 16px; fill: currentColor; }
+.mesa-botao-chamar.chamado { background: #fff; color: var(--coral); border-color: #fff; }
+.mesa-chamar-folha {
+  background: var(--superficie); border-radius: var(--raio); padding: 22px 20px; margin: 16px;
+  width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 14px;
+}
+.mesa-chamar-folha header h2 { margin: 0 0 4px; font-size: 17px; font-weight: 800; }
+.mesa-chamar-folha header p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.45; }
+.mesa-chamar-estado { margin: 0; background: #E4EFF3; color: var(--marinho); border-radius: var(--raio); padding: 10px 12px; font-size: 12px; font-weight: 700; }
+.mesa-chamar-opcoes { display: flex; flex-direction: column; gap: 8px; }
+.mesa-chamar-opcao {
+  text-align: left; background: var(--fundo); border: 1px solid var(--borda); color: var(--texto);
+  border-radius: var(--raio); padding: 12px 14px; min-height: 48px;
+}
+.mesa-chamar-opcao:disabled { opacity: .6; cursor: default; }
+.mesa-chamar-opcao.aberta { border-color: var(--verde); background: #F0FDF4; }
+.mesa-chamar-rotulo { display: block; font-size: 13px; font-weight: 800; }
+.mesa-chamar-descricao { display: block; font-size: 11px; color: var(--suave); margin-top: 1px; }
+.mesa-chamar-aviso { margin: 0; font-size: 12px; font-weight: 700; color: var(--marinho); }
+
 /* Corpo — no celular empilha: faixa de categorias em cima, conteúdo embaixo. */
 .mesa-corpo { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
@@ -992,6 +1192,22 @@ const TOKENS = `
 .mesa-limpar { background: none; border: 0; color: var(--suave); font-size: 11px; text-decoration: underline; align-self: center; }
 .mesa-sincronizando { text-align: center; font-size: 11px; color: var(--suave); }
 
+/* Progresso das etapas no celular. A trilha lateral só existe a partir de 700px; sem
+   isto o cliente não sabia em que passo estava nem quantos faltavam. */
+.mesa-progresso { border-bottom: 1px solid var(--borda); padding: 10px 16px 8px; flex-shrink: 0; }
+.mesa-progresso-texto { margin: 0 0 7px; font-size: 11px; font-weight: 800; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
+.mesa-progresso-pendente { color: var(--coral); }
+.mesa-progresso-passos { display: flex; align-items: center; gap: 6px; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
+.mesa-progresso-passos li { flex-shrink: 0; }
+.mesa-progresso-passos button {
+  width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--borda);
+  background: var(--fundo); color: var(--suave); font-size: 11px; font-weight: 800;
+  display: grid; place-items: center; position: relative; padding: 0;
+}
+.mesa-progresso-passos li.atual button { background: var(--coral); border-color: var(--coral); color: #fff; }
+.mesa-progresso-passos li.concluida button { background: var(--marinho); border-color: var(--marinho); color: #fff; }
+.mesa-progresso-passos em { position: absolute; top: -2px; right: 2px; font-size: 12px; color: var(--coral); font-style: normal; }
+
 /* Confirmação */
 .mesa-confirmacao { background: var(--superficie); border-radius: var(--raio); padding: 28px 24px; margin: 16px; max-width: 360px; text-align: center; }
 .mesa-confirmacao-icone { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; border: 3px solid var(--verde); color: var(--verde); display: grid; place-items: center; font-size: 28px; }
@@ -1030,6 +1246,9 @@ const TOKENS = `
   .mesa-modal { height: auto; max-height: 88dvh; max-width: 940px; border-radius: var(--raio); flex-direction: row; }
   .mesa-modal-lado { width: 300px; flex-shrink: 0; border-bottom: 0; border-right: 1px solid var(--borda); display: flex; flex-direction: column; overflow-y: auto; }
   .mesa-modal-foto { height: 190px; }
+  /* Com a trilha lateral na tela, a faixa de progresso seria a mesma informação duas
+     vezes — e roubaria altura da lista de opções. */
+  .mesa-progresso { display: none; }
   .mesa-trilha { display: block; list-style: none; margin: 0; padding: 0 12px 12px; }
   .mesa-trilha li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--raio); color: var(--suave); }
   .mesa-trilha li.atual { background: var(--coral); color: #fff; }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowRightLeft, Ban, Printer, RotateCcw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { dividirPorPessoas, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
+import { centavos, dividirPorPessoas, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
 import type { ContaDaMesa, EventoHistorico } from '@/lib/queries/conta'
 
 /**
@@ -91,6 +91,8 @@ export function PainelConta({
   const [motivoPara, setMotivoPara] = useState<null | { titulo: string; acao: (motivo: string) => Promise<void> }>(null)
   const [transferindoItens, setTransferindoItens] = useState(false)
   const [confirmarFechar, setConfirmarFechar] = useState(false)
+  // Quanto de cada linha selecionada vai na transferência. Chave ausente = linha inteira.
+  const [parcelas, setParcelas] = useState<Record<string, number>>({})
 
   const conta = dados?.conta ?? null
   const podeFazer = (acao: string) => !!dados?.permissoes?.[acao]
@@ -114,6 +116,18 @@ export function PainelConta({
 
   const pessoas = conta.pessoas ?? 0
   const porPessoa = pessoas > 1 ? dividirPorPessoas(conta.totais.restante, pessoas) : []
+
+  // Dividir por ITEM: soma o que foi marcado para cobrar de quem pediu aquilo. É só a
+  // organização do pagamento da MESMA comanda — não duplica item nem cria pedido novo.
+  const itensMarcados = conta.lancamentos
+    .flatMap((l) => l.itens.map((i) => ({ ...i, lancamentoCancelado: l.status === 'cancelado' })))
+    .filter((i) => selecionados.has(i.id) && !i.cancelado && !i.lancamentoCancelado)
+  const totalMarcado = centavos(
+    itensMarcados.reduce((soma, i) => soma + i.precoUnitario * Math.min(parcelas[i.id] ?? i.quantidade, i.quantidade), 0),
+  )
+  // A taxa de serviço incide sobre o consumo, então a parte de quem paga por item também
+  // a carrega — senão a soma das partes nunca fecha o total.
+  const totalMarcadoComTaxa = centavos(totalMarcado * (1 + conta.taxaServicoPercentual / 100))
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_400px]">
@@ -212,6 +226,33 @@ export function PainelConta({
                           </span>
                         )}
                       </span>
+                      {selecionados.has(i.id) && i.quantidade > 1 && !i.cancelado && !cancelado && (
+                        <span className="flex flex-shrink-0 items-center gap-1 rounded-menuzia border border-border px-1">
+                          <button
+                            className="px-1 text-[14px] text-primary disabled:text-text-subtle"
+                            aria-label={`Transferir menos de ${i.nome}`}
+                            disabled={(parcelas[i.id] ?? i.quantidade) <= 1}
+                            onClick={() =>
+                              setParcelas((a) => ({ ...a, [i.id]: Math.max(1, (a[i.id] ?? i.quantidade) - 1) }))
+                            }
+                          >
+                            −
+                          </button>
+                          <span className="min-w-[26px] text-center text-[11px] font-bold" title="Quantidade a transferir ou cobrar">
+                            {parcelas[i.id] ?? i.quantidade}/{i.quantidade}
+                          </span>
+                          <button
+                            className="px-1 text-[14px] text-primary disabled:text-text-subtle"
+                            aria-label={`Transferir mais de ${i.nome}`}
+                            disabled={(parcelas[i.id] ?? i.quantidade) >= i.quantidade}
+                            onClick={() =>
+                              setParcelas((a) => ({ ...a, [i.id]: Math.min(i.quantidade, (a[i.id] ?? i.quantidade) + 1) }))
+                            }
+                          >
+                            +
+                          </button>
+                        </span>
+                      )}
                       <span className="text-[12px] font-semibold text-text-main">{brl(i.precoUnitario * i.quantidade)}</span>
                       {podeFazer('cancelar_item') && !i.cancelado && !cancelado && (
                         <button
@@ -271,6 +312,20 @@ export function PainelConta({
             </div>
           )}
 
+          {itensMarcados.length > 0 && conta.totais.restante > 0 && (
+            <div className="mt-3 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] text-alert-text">
+              <span className="font-semibold">
+                {itensMarcados.length} {itensMarcados.length === 1 ? 'item marcado' : 'itens marcados'}:{' '}
+                {brl(totalMarcadoComTaxa)}
+              </span>
+              <span className="mt-0.5 block text-[11px]">
+                Consumo {brl(totalMarcado)}
+                {conta.taxaServicoPercentual > 0 ? ` + ${conta.taxaServicoPercentual}% de serviço` : ''}. Use no
+                pagamento para cobrar de quem pediu esses itens.
+              </span>
+            </div>
+          )}
+
           {podeFazer('ajustar_valores') && <AjusteValores conta={conta} executar={executar} />}
         </div>
 
@@ -278,6 +333,7 @@ export function PainelConta({
           <FormPagamento
             restante={conta.totais.restante}
             porPessoa={porPessoa[0] ?? null}
+            porItens={itensMarcados.length > 0 ? Math.min(totalMarcadoComTaxa, conta.totais.restante) : null}
             formas={dados.formasPagamento}
             executar={executar}
           />
@@ -334,6 +390,33 @@ export function PainelConta({
         {conta.totais.restante > 0 && podeFazer('fechar') && (
           <p className="text-center text-[11px] text-text-subtle">A conta só fecha quando não falta nada a receber.</p>
         )}
+
+        {podeFazer('cancelar_comanda') && (
+          <div className="rounded-menuzia border border-border bg-main p-4">
+            <h3 className="text-[13px] font-bold text-text-main">Cancelar a conta</h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-text-subtle">
+              Para mesa aberta por engano ou cliente que desistiu antes de consumir. Derruba os lançamentos, libera a
+              mesa e <strong>fica no histórico</strong> com motivo e autor. Conta que já recebeu dinheiro precisa do
+              estorno primeiro.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-3 w-full !text-danger"
+              onClick={() =>
+                setMotivoPara({
+                  titulo: 'Cancelar a conta desta mesa',
+                  acao: async (motivo) => {
+                    const r = await executar('cancelar_comanda', { motivo }, 'Conta cancelada.')
+                    if (r.ok) onContaFechada()
+                  },
+                })
+              }
+            >
+              <Ban className="mr-1.5 inline h-3.5 w-3.5" />
+              Cancelar a conta
+            </Button>
+          </div>
+        )}
       </aside>
 
       {motivoPara && (
@@ -353,8 +436,22 @@ export function PainelConta({
           mesas={mesas.filter((m) => m.id !== mesaId)}
           onCancelar={() => setTransferindoItens(false)}
           onConfirmar={async (destinoMesaId) => {
-            const r = await executar('transferir_itens', { itemIds: [...selecionados], destinoMesaId }, 'Itens transferidos.')
-            if (r.ok) setSelecionados(new Set())
+            const itemIds = [...selecionados]
+            const quantidadeDaLinha = new Map(itensMarcados.map((i) => [i.id, i.quantidade]))
+            const r = await executar(
+              'transferir_itens',
+              {
+                itemIds,
+                destinoMesaId,
+                // Quantidade por item, na mesma ordem. Stepper não tocado = a linha inteira.
+                quantidades: itemIds.map((id) => parcelas[id] ?? quantidadeDaLinha.get(id) ?? 1),
+              },
+              'Itens transferidos.',
+            )
+            if (r.ok) {
+              setSelecionados(new Set())
+              setParcelas({})
+            }
             setTransferindoItens(false)
           }}
         />
@@ -501,11 +598,14 @@ function AjusteValores({
 function FormPagamento({
   restante,
   porPessoa,
+  porItens,
   formas,
   executar,
 }: {
   restante: number
   porPessoa: number | null
+  /** Soma dos itens marcados na lista, quando o pagamento é dividido por item. */
+  porItens: number | null
   formas: FormaPagamento[]
   executar: (acao: string, corpo: Record<string, unknown>, sucesso: string) => Promise<{ ok: boolean } & Record<string, unknown>>
 }) {
@@ -548,6 +648,14 @@ function FormPagamento({
         {porPessoa && (
           <button className="rounded-menuzia border border-border px-2 py-1 text-[11px]" onClick={() => setValor(porPessoa.toFixed(2))}>
             1 pessoa ({brl(porPessoa)})
+          </button>
+        )}
+        {porItens !== null && porItens > 0 && (
+          <button
+            className="rounded-menuzia border border-primary px-2 py-1 text-[11px] font-semibold text-primary"
+            onClick={() => setValor(porItens.toFixed(2))}
+          >
+            Itens marcados ({brl(porItens)})
           </button>
         )}
       </div>

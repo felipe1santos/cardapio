@@ -60,6 +60,13 @@ export interface Etiqueta {
   id: string
   /** Nome da mesa impresso na etiqueta, ou null quando a folha é genérica. */
   mesa: string | null
+  /**
+   * QR e link DESTA etiqueta. O QR do cardápio é um só para a loja inteira, então essas
+   * duas ficam vazias e a folha usa o valor compartilhado. O QR de MESA é diferente em
+   * cada mesa (token próprio, revogável) — aí cada etiqueta traz o seu.
+   */
+  qrDataUrl?: string | null
+  url?: string
 }
 
 export interface EntradaEtiquetas {

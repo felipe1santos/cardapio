@@ -7,6 +7,7 @@ import { ehForma, formatarResumoPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 import {
   buscarConta,
+  cancelarComanda,
   cancelarItem,
   estornarPagamento,
   fecharConta,
@@ -37,6 +38,9 @@ const PERMISSAO_DA_ACAO: Record<string, Permissao> = {
   transferir_itens: 'comanda.transferir',
   cancelar_item: 'pedidos.mesa.cancelar',
   cancelar_pedido: 'pedidos.mesa.cancelar',
+  // Derrubar a conta inteira é mais grave que derrubar um lançamento, mas é a mesma
+  // natureza de decisão (e o banco recusa se já entrou dinheiro).
+  cancelar_comanda: 'pedidos.mesa.cancelar',
   reimprimir: 'mesas.operar',
 }
 
@@ -229,12 +233,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const itemIds = Array.isArray(corpo.itemIds) ? (corpo.itemIds as unknown[]).filter((x): x is string => typeof x === 'string' && UUID.test(x)) : []
       if (!UUID.test(destino)) return NextResponse.json({ error: 'Mesa de destino inválida.' }, { status: 400 })
       if (itemIds.length === 0) return NextResponse.json({ error: 'Selecione pelo menos um item.' }, { status: 400 })
+
+      // Quantidade parcial: um número por item, na mesma ordem. Corpo sem isto (ou com
+      // tamanho errado) transfere a linha inteira — o banco também trata `null`.
+      const brutas = Array.isArray(corpo.quantidades) ? (corpo.quantidades as unknown[]) : null
+      let quantidades: number[] | null = null
+      if (brutas && brutas.length === itemIds.length) {
+        quantidades = brutas.map((q) => Math.floor(Number(q)))
+        if (quantidades.some((q) => !Number.isFinite(q) || q < 1)) {
+          return NextResponse.json({ error: 'Quantidade a transferir inválida.' }, { status: 400 })
+        }
+      }
       // Só itens da conta DESTA mesa: id de item de outra mesa não é transferido daqui.
       const daConta = new Set(conta?.lancamentos.flatMap((l) => l.itens.map((i) => i.id)) ?? [])
       if (!itemIds.every((i) => daConta.has(i))) {
         return NextResponse.json({ error: 'Há itens que não pertencem a esta mesa.' }, { status: 400 })
       }
-      const r = await transferirItens(admin, { restauranteId: sessao.restauranteId, itemIds, destinoMesaId: destino, atorId: sessao.userId, atorNome: sessao.nome })
+      const r = await transferirItens(admin, {
+        restauranteId: sessao.restauranteId, itemIds, destinoMesaId: destino, atorId: sessao.userId,
+        atorNome: sessao.nome, quantidades,
+      })
+      if (!r.ok) return falhou(r)
+      return NextResponse.json({ ok: true, ...r.valor })
+    }
+
+    case 'cancelar_comanda': {
+      const motivo = typeof corpo.motivo === 'string' ? corpo.motivo.trim().slice(0, 200) : ''
+      if (!motivo) return NextResponse.json({ error: 'Informe o motivo.' }, { status: 400 })
+      // A função do banco audita por dentro, na mesma transação do cancelamento.
+      const r = await cancelarComanda(admin, {
+        restauranteId: sessao.restauranteId, comandaId: conta!.comandaId, motivo,
+        atorId: sessao.userId, atorNome: sessao.nome,
+      })
       if (!r.ok) return falhou(r)
       return NextResponse.json({ ok: true, ...r.valor })
     }

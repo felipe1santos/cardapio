@@ -61,9 +61,15 @@ export function trocoPara(valor: number, recebido: number): number {
  * para uma frase que o garçom entende. Código desconhecido não vaza para a tela.
  */
 export function mensagemDeErroConta(bruto: string | null | undefined): string {
-  const texto = bruto ?? ''
-  const [codigo, detalhe] = texto.replace(/^[\s\S]*?(\w+)(:[\d.]+)?$/, '$1$2').split(':')
-  const reais = detalhe ? Number(detalhe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : ''
+  const texto = (bruto ?? '').trim()
+  // As funções do banco levantam `codigo` ou `codigo:detalhe`, e o detalhe não é sempre
+  // um número (`ja_assumido:Maria`). Por isso o código é lido como snake_case e o valor
+  // em reais só é formatado quando o detalhe realmente é numérico.
+  const casado = /([a-z][a-z_]*)(?::(.*))?$/.exec(texto)
+  const codigo = casado?.[1] ?? ''
+  const detalhe = casado?.[2] ?? ''
+  const numerico = detalhe !== '' && Number.isFinite(Number(detalhe))
+  const reais = numerico ? Number(detalhe).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : ''
 
   const mapa: Record<string, string> = {
     saldo_restante: `Ainda falta receber ${reais}. Registre os pagamentos antes de fechar.`,
@@ -84,6 +90,17 @@ export function mensagemDeErroConta(bruto: string | null | undefined): string {
     nenhum_item: 'Selecione pelo menos um item.',
     nenhum_item_transferivel: 'Nenhum dos itens selecionados pode ser transferido.',
     item_inexistente: 'Item não encontrado ou já cancelado.',
+    comanda_com_pagamento: `Esta conta já recebeu ${reais}. Estorne o pagamento antes de cancelar.`,
+    quantidade_invalida: 'Informe uma quantidade de 1 até o total da linha.',
+    quantidades_incompativeis: 'Quantidades não correspondem aos itens selecionados.',
+    // Chamados (0068).
+    mesa_inexistente: 'Mesa não encontrada.',
+    mesa_indisponivel: 'Esta mesa está bloqueada ou desativada.',
+    motivo_invalido: 'Tipo de chamado inválido.',
+    muito_rapido: `Aguarde ${detalhe || 'alguns'} segundos para chamar de novo.`,
+    chamado_inexistente: 'Chamado não encontrado.',
+    ja_assumido: `Outro atendente já assumiu este chamado${detalhe ? ` (${detalhe})` : ''}.`,
+    chamado_encerrado: 'Este chamado já foi encerrado.',
   }
   return mapa[codigo] ?? 'Não foi possível concluir a operação.'
 }
