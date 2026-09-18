@@ -43,6 +43,8 @@ interface MesaNaTela extends Mesa {
   qtdPedidos: number
   /** Abertura da conta — o salão precisa ver há quanto tempo a mesa está ocupada. */
   abertaEm: string | null
+  /** Número da comanda aberta (0072), para o garçom e o caixa falarem da mesma conta. */
+  comandaNumero: number | null
 }
 
 export default function MesasPage() {
@@ -53,6 +55,7 @@ export default function MesasPage() {
   const [erro, setErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<EstadoMesa | 'todas'>('todas')
+  const [setorFiltro, setSetorFiltro] = useState<string | null>(null)
   const [formAberto, setFormAberto] = useState(false)
   const [emEdicao, setEmEdicao] = useState<Mesa | null>(null)
   const [qrDaMesa, setQrDaMesa] = useState<Mesa | null>(null)
@@ -69,6 +72,8 @@ export default function MesasPage() {
   // mesa. Esconder os botões é conforto — quem barra a escrita é a RLS (0062).
   const [papel, setPapel] = useState<string | null>(null)
   const gerencia = papel === null || pode(papel, 'mesas.gerenciar')
+  // Quem atende (chamado, lançamento). O caixa entra no salão só para cobrar.
+  const atende = papel === null || pode(papel, 'mesas.operar')
 
   const carregar = useCallback(
     async (id: string) => {
@@ -91,6 +96,7 @@ export default function MesasPage() {
               total: estadoComanda?.total ?? 0,
               qtdPedidos: estadoComanda?.qtdPedidos ?? 0,
               abertaEm: estadoComanda?.comandaAberta?.abertaEm ?? null,
+              comandaNumero: estadoComanda?.comandaAberta?.numero ?? null,
             }
           }),
         )
@@ -167,10 +173,14 @@ export default function MesasPage() {
     const termo = busca.trim().toLowerCase()
     return mesas.filter((m) => {
       if (filtro !== 'todas' && m.estado !== filtro) return false
+      if (setorFiltro !== null && (m.setor || 'Sem setor') !== setorFiltro) return false
       if (!termo) return true
       return m.nome.toLowerCase().includes(termo) || (m.setor ?? '').toLowerCase().includes(termo)
     })
-  }, [mesas, busca, filtro])
+  }, [mesas, busca, filtro, setorFiltro])
+
+  // Setores cadastrados, na ordem em que aparecem no salão. Só vira filtro com 2 ou mais.
+  const setores = useMemo(() => [...new Set(mesas.map((m) => m.setor || 'Sem setor'))], [mesas])
 
   const contagem = useMemo(() => {
     const base: Record<string, number> = { todas: mesas.length }
@@ -259,7 +269,7 @@ export default function MesasPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-5">
-        <PainelChamados chamados={chamados} agora={agora} onMudou={recarregar} />
+        {atende && <PainelChamados chamados={chamados} agora={agora} onMudou={recarregar} />}
 
         {avisoAcao && (
           <p className="mb-4 rounded-menuzia border border-danger bg-danger-bg px-4 py-2.5 text-[13px] text-danger">
@@ -292,6 +302,25 @@ export default function MesasPage() {
               </button>
             ))}
           </div>
+          {setores.length > 1 && (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por setor">
+              {[null, ...setores].map((s) => (
+                <button
+                  key={s ?? 'todos'}
+                  onClick={() => setSetorFiltro(s)}
+                  aria-pressed={setorFiltro === s}
+                  className={[
+                    'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold transition-colors lg:min-h-0',
+                    setorFiltro === s
+                      ? 'border-text-main bg-text-main text-white'
+                      : 'border-border bg-main text-text-subtle hover:text-text-main',
+                  ].join(' ')}
+                >
+                  {s ?? 'Todos os setores'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {carregando && <p className="text-[13px] text-text-subtle">Carregando mesas…</p>}
@@ -310,16 +339,18 @@ export default function MesasPage() {
               Cadastre as mesas do salão para gerar o QR Code de cada uma. O cliente escaneia, vê o cardápio e mostra a
               seleção ao garçom.
             </p>
-            <Button
-              className="mt-4"
-              onClick={() => {
-                setEmEdicao(null)
-                setFormAberto(true)
-              }}
-            >
-              <Plus className="mr-1.5 inline h-3.5 w-3.5" />
-              Cadastrar a primeira mesa
-            </Button>
+            {gerencia && (
+              <Button
+                className="mt-4"
+                onClick={() => {
+                  setEmEdicao(null)
+                  setFormAberto(true)
+                }}
+              >
+                <Plus className="mr-1.5 inline h-3.5 w-3.5" />
+                Cadastrar a primeira mesa
+              </Button>
+            )}
           </div>
         )}
 
@@ -349,6 +380,12 @@ export default function MesasPage() {
                     <Badge tone={tom.badge}>{ROTULO_ESTADO[mesa.estado]}</Badge>
                   </div>
 
+                  {gerencia && mesa.qrRevogado && mesa.estado !== 'inativa' && (
+                    <div className="mb-2 rounded-menuzia bg-danger-bg px-2.5 py-1.5 text-[11px] font-semibold text-danger">
+                      QR revogado — gere um novo
+                    </div>
+                  )}
+
                   {chamadoDaMesa && (
                     <div className="mb-2 flex items-center gap-1.5 rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[11px] font-bold text-text-main">
                       <BellRing className="h-3 w-3 flex-shrink-0 text-status-pending" />
@@ -359,6 +396,7 @@ export default function MesasPage() {
 
                   {mesa.estado === 'ocupada' && (
                     <div className="mb-2 rounded-menuzia bg-bg-page px-2.5 py-1.5 text-[11px] text-text-subtle">
+                      {mesa.comandaNumero ? <strong className="text-text-main">Comanda #{mesa.comandaNumero} · </strong> : null}
                       {mesa.qtdPedidos} {mesa.qtdPedidos === 1 ? 'lançamento' : 'lançamentos'} ·{' '}
                       <span className="font-bold text-price-text">
                         {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -371,12 +409,12 @@ export default function MesasPage() {
 
                   {/* Abrir a mesa é o que o garçom faz. Mesa inativa ou bloqueada não recebe
                       lançamento, então não oferece o atalho. */}
-                  {mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (
+                  {mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || mesa.estado === 'ocupada') && (
                     <Link
                       href={`/admin/mesas/${mesa.id}`}
                       className="mb-1 mt-2 block min-h-[40px] rounded-menuzia bg-primary px-3 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide leading-[1.4] text-white hover:bg-primary-dark lg:min-h-0"
                     >
-                      {mesa.estado === 'ocupada' ? 'Abrir mesa' : 'Lançar pedido'}
+                      {!atende ? 'Ver conta' : mesa.estado === 'ocupada' ? 'Abrir mesa' : 'Lançar pedido'}
                     </Link>
                   )}
 
@@ -442,10 +480,9 @@ export default function MesasPage() {
           mesa={qrDaMesa}
           podeGerenciar={gerencia}
           onFechar={() => setQrDaMesa(null)}
-          onTokenRodado={(token) => {
-            // A tela reflete o token novo na hora: o QR na tela já é o válido.
-            setQrDaMesa((atual) => (atual ? { ...atual, token } : atual))
-            setMesas((atual) => atual.map((m) => (m.id === qrDaMesa.id ? { ...m, token } : m)))
+          onTokenRodado={(revogado) => {
+            // O drawer já buscou o link novo; aqui só o selo "QR revogado" do salão.
+            setMesas((atual) => atual.map((m) => (m.id === qrDaMesa.id ? { ...m, qrRevogado: revogado } : m)))
           }}
         />
       )}

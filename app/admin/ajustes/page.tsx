@@ -53,6 +53,7 @@ import {
 import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao, removerEstacao, type Estacao } from '@/lib/queries/estacoes'
 import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
+import { CardModuloMesas } from '@/components/admin/modulo-mesas'
 
 type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'impressao' | 'conta' | 'aparencia' | 'cozinha'
 
@@ -2504,8 +2505,11 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
     try {
       await atualizarMesa(supabase, m.id, { ativa: !m.ativa })
       setMesas((prev) => prev.map((x) => (x.id === m.id ? { ...x, ativa: !m.ativa } : x)))
-    } catch {
-      setError('Não foi possível atualizar a mesa.')
+    } catch (e) {
+      // O banco (0071) recusa pausar mesa com conta aberta, venha de onde vier.
+      setError(/comanda_aberta/.test(String((e as { message?: string })?.message))
+        ? 'Esta mesa tem conta aberta. Feche ou transfira a conta antes de pausar.'
+        : 'Não foi possível atualizar a mesa.')
     }
   }
 
@@ -2516,8 +2520,11 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
       await removerMesa(supabase, m.id)
       setMesas((prev) => prev.filter((x) => x.id !== m.id))
       setNomes((prev) => { const n = { ...prev }; delete n[m.id]; return n })
-    } catch {
-      setError('Não foi possível remover a mesa.')
+    } catch (e) {
+      // Mesa com histórico de contas não some (0071): pausar em vez de excluir.
+      setError(/mesa_com_historico/.test(String((e as { message?: string })?.message))
+        ? 'Esta mesa tem histórico de contas e não pode ser excluída. Pause-a em vez disso.'
+        : 'Não foi possível remover a mesa.')
     }
   }
 
@@ -2525,6 +2532,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="max-w-xl space-y-6">
+          <CardModuloMesas />
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Mesas</h3>
             <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">

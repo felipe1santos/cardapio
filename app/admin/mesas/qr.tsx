@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import QRCode from 'qrcode'
-import { Check, Copy, Download, Printer, RefreshCw, X } from 'lucide-react'
+import { Ban, Check, Copy, Download, Printer, RefreshCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FolhaQr } from '@/components/admin/qr-cardapio-folha'
 import { modeloEtiqueta, paginarEtiquetas, rotuloMesa, type Etiqueta, type ModeloEtiqueta } from '@/lib/qr-cardapio'
@@ -19,7 +19,24 @@ import { urlPublicaDaMesa, type Mesa } from '@/lib/queries/mesas'
  * Rodar o token é destrutivo para quem está com o papel antigo na mão, por isso passa
  * por confirmação explícita e por `/api/admin/mesas/[id]/estado`, que exige
  * `mesas.gerenciar` e grava auditoria. A tela nunca faz o update direto.
+ *
+ * O token não vem junto com a lista de mesas (desde a 0071 o navegador não lê a coluna):
+ * os dois drawers buscam o link em `/api/admin/mesas/qr`, que só responde à gestão.
  */
+
+interface TokenQr {
+  id: string
+  nome: string
+  token: string | null
+  qrRevogado: boolean
+}
+
+async function buscarTokens(mesaId?: string): Promise<TokenQr[]> {
+  const r = await fetch(`/api/admin/mesas/qr${mesaId ? `?mesa=${mesaId}` : ''}`, { cache: 'no-store' })
+  const corpo = (await r.json().catch(() => ({}))) as { mesas?: TokenQr[]; error?: string }
+  if (!r.ok) throw new Error(corpo.error ?? 'Não foi possível carregar o QR.')
+  return corpo.mesas ?? []
+}
 
 /** Enquanto a folha está montada, o print esconde o resto do painel (ver globals.css). */
 const CLASSE_PRINT = 'imprimindo-qr'
@@ -68,16 +85,37 @@ export function DrawerQrMesa({
   mesa: Mesa
   podeGerenciar: boolean
   onFechar: () => void
-  onTokenRodado: (token: string) => void
+  /** Avisa o salão que o estado do QR mudou (novo ou revogado). */
+  onTokenRodado: (revogado: boolean) => void
 }) {
   const [copiado, setCopiado] = useState(false)
-  const [confirmando, setConfirmando] = useState(false)
+  const [confirmando, setConfirmando] = useState<null | 'rodar_qr' | 'revogar_qr'>(null)
   const [rodando, setRodando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [revogado, setRevogado] = useState(mesa.qrRevogado)
+  const [carregando, setCarregando] = useState(true)
+
+  const recarregarToken = useCallback(async () => {
+    setCarregando(true)
+    try {
+      const [t] = await buscarTokens(mesa.id)
+      setToken(t?.token ?? null)
+      setRevogado(t?.qrRevogado ?? false)
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível carregar o QR.')
+    } finally {
+      setCarregando(false)
+    }
+  }, [mesa.id])
+
+  useEffect(() => {
+    void recarregarToken()
+  }, [recarregarToken])
 
   const url = useMemo(
-    () => urlPublicaDaMesa(typeof window === 'undefined' ? '' : window.location.origin, mesa.token),
-    [mesa.token],
+    () => (token ? urlPublicaDaMesa(typeof window === 'undefined' ? '' : window.location.origin, token) : ''),
+    [token],
   )
   const imagem = useQrDaUrl(url)
 
@@ -91,22 +129,23 @@ export function DrawerQrMesa({
     }
   }
 
-  async function rodar() {
+  async function rodar(acao: 'rodar_qr' | 'revogar_qr') {
     setRodando(true)
     setErro(null)
     try {
       const r = await fetch(`/api/admin/mesas/${mesa.id}/estado`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ acao: 'rodar_qr' }),
+        body: JSON.stringify({ acao }),
       })
-      const corpo = (await r.json()) as { token?: string; error?: string }
-      if (!r.ok || !corpo.token) {
-        setErro(corpo.error ?? 'Não foi possível gerar um QR novo.')
+      const corpo = (await r.json().catch(() => ({}))) as { error?: string }
+      if (!r.ok) {
+        setErro(corpo.error ?? 'Não foi possível alterar o QR.')
         return
       }
-      onTokenRodado(corpo.token)
-      setConfirmando(false)
+      await recarregarToken()
+      onTokenRodado(acao === 'revogar_qr')
+      setConfirmando(null)
     } catch {
       setErro('Sem conexão com o servidor.')
     } finally {
@@ -126,7 +165,12 @@ export function DrawerQrMesa({
 
         <div className="flex-1 overflow-y-auto p-5">
           <div className="mx-auto w-full max-w-[260px] rounded-menuzia border border-border p-4 text-center">
-            {imagem ? (
+            {revogado && !carregando ? (
+              <div className="flex h-[228px] flex-col items-center justify-center gap-2 text-center text-[12px] text-danger" role="status">
+                <Ban className="h-8 w-8" />
+                QR revogado. Nenhum link abre esta mesa até você gerar um novo.
+              </div>
+            ) : imagem ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={imagem} alt={`QR Code da ${mesa.nome}`} className="w-full" />
             ) : (
@@ -141,10 +185,11 @@ export function DrawerQrMesa({
             <div className="flex gap-1.5">
               <input
                 readOnly
-                value={url}
+                aria-label="Link da mesa"
+                value={revogado ? 'QR revogado' : url}
                 className="h-[44px] flex-1 rounded-menuzia lg:h-9 border border-border bg-bg-page px-2.5 text-[11px] text-text-subtle outline-none"
               />
-              <Button variant="outline" className="!px-2.5" onClick={copiar} title="Copiar link">
+              <Button variant="outline" className="!px-2.5" onClick={copiar} title="Copiar link" aria-label="Copiar link" disabled={!url || revogado}>
                 {copiado ? <Check className="h-3.5 w-3.5 text-price-text" /> : <Copy className="h-3.5 w-3.5" />}
               </Button>
             </div>
@@ -155,7 +200,7 @@ export function DrawerQrMesa({
 
           <div className="mt-4 flex gap-2">
             <a href={imagem ?? '#'} download={`qr-${mesa.nome.toLowerCase().replace(/\s+/g, '-')}.png`} className="flex-1">
-              <Button variant="outline" className="w-full" disabled={!imagem}>
+              <Button variant="outline" className="w-full" disabled={!imagem || revogado}>
                 <Download className="mr-1.5 inline h-3.5 w-3.5" />
                 Baixar PNG
               </Button>
@@ -165,12 +210,20 @@ export function DrawerQrMesa({
               className="flex-1"
               disabled={!podeGerenciar}
               title={podeGerenciar ? 'Revoga o QR atual e emite um novo' : 'Só a gestão pode gerar um QR novo'}
-              onClick={() => setConfirmando(true)}
+              onClick={() => setConfirmando('rodar_qr')}
             >
               <RefreshCw className="mr-1.5 inline h-3.5 w-3.5" />
               Gerar novo
             </Button>
           </div>
+          {podeGerenciar && !revogado && (
+            <button
+              className="mt-2 min-h-[40px] text-[11px] font-semibold text-danger underline"
+              onClick={() => setConfirmando('revogar_qr')}
+            >
+              Revogar sem gerar outro
+            </button>
+          )}
 
           {erro && (
             <p className="mt-3 rounded-menuzia border border-danger bg-danger-bg px-3 py-2 text-[12px] text-danger">{erro}</p>
@@ -178,17 +231,22 @@ export function DrawerQrMesa({
 
           {confirmando && (
             <div className="mt-4 rounded-menuzia border border-warn bg-warn-bg p-4">
-              <p className="text-[13px] font-bold text-text-main">Revogar o QR desta mesa?</p>
+              <p className="text-[13px] font-bold text-text-main">
+                {confirmando === 'rodar_qr' ? 'Revogar o QR desta mesa e gerar outro?' : 'Revogar o QR desta mesa sem gerar outro?'}
+              </p>
               <p className="mt-1 text-[12px] leading-relaxed text-text-main">
-                O adesivo e o cartão que já estão na mesa <strong>param de funcionar na hora</strong>. Quem estiver com o
-                cardápio aberto precisará ler o QR novo. A mesa, as contas e o histórico continuam os mesmos.
+                O adesivo e o cartão que já estão na mesa <strong>param de funcionar na hora</strong>.{' '}
+                {confirmando === 'rodar_qr'
+                  ? 'Quem estiver com o cardápio aberto precisará ler o QR novo.'
+                  : 'A mesa fica sem QR até você gerar um novo aqui.'}{' '}
+                A mesa, as contas e o histórico continuam os mesmos.
               </p>
               <div className="mt-3 flex gap-2">
-                <Button variant="secondary" className="flex-1" onClick={() => setConfirmando(false)} disabled={rodando}>
+                <Button variant="secondary" className="flex-1" onClick={() => setConfirmando(null)} disabled={rodando}>
                   Cancelar
                 </Button>
-                <Button className="flex-1" onClick={rodar} disabled={rodando}>
-                  {rodando ? 'Gerando…' : 'Revogar e gerar novo'}
+                <Button className="flex-1" onClick={() => rodar(confirmando)} disabled={rodando}>
+                  {rodando ? 'Aplicando…' : confirmando === 'rodar_qr' ? 'Revogar e gerar novo' : 'Revogar'}
                 </Button>
               </div>
             </div>
@@ -216,30 +274,35 @@ export function DrawerFolhaMesas({
   const [selecionadas, setSelecionadas] = useState<string[]>(() => mesas.map((m) => m.id))
   const [usarLogo, setUsarLogo] = useState(true)
   const [qrPorMesa, setQrPorMesa] = useState<Record<string, string>>({})
+  const [urlPorMesa, setUrlPorMesa] = useState<Record<string, string>>({})
   const [gerando, setGerando] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
 
   const origem = typeof window === 'undefined' ? '' : window.location.origin
   const info = modeloEtiqueta(modelo)
+  const revogadas = useMemo(() => mesas.filter((m) => m.qrRevogado), [mesas])
 
   // Um QR por mesa, gerado uma vez. São imagens grandes (1024px): regenerar a cada
-  // troca de modelo travaria a tela com 30 mesas.
+  // troca de modelo travaria a tela com 30 mesas. Os links vêm da rota protegida.
   useEffect(() => {
     let vivo = true
     setGerando(true)
-    Promise.all(
-      mesas.map(async (m) => {
-        const dado = await QRCode.toDataURL(urlPublicaDaMesa(origem, m.token), {
-          width: 1024,
-          margin: 1,
-          errorCorrectionLevel: 'M',
-        }).catch(() => '')
-        return [m.id, dado] as const
-      }),
-    ).then((pares) => {
-      if (!vivo) return
-      setQrPorMesa(Object.fromEntries(pares.filter(([, d]) => d)))
-      setGerando(false)
-    })
+    buscarTokens()
+      .then(async (tokens) => {
+        const validos = tokens.filter((t) => t.token && mesas.some((m) => m.id === t.id))
+        const urls = Object.fromEntries(validos.map((t) => [t.id, urlPublicaDaMesa(origem, t.token as string)]))
+        const pares = await Promise.all(
+          validos.map(async (t) => {
+            const dado = await QRCode.toDataURL(urls[t.id]!, { width: 1024, margin: 1, errorCorrectionLevel: 'M' }).catch(() => '')
+            return [t.id, dado] as const
+          }),
+        )
+        if (!vivo) return
+        setUrlPorMesa(urls)
+        setQrPorMesa(Object.fromEntries(pares.filter(([, d]) => d)))
+      })
+      .catch((e) => vivo && setErro(e instanceof Error ? e.message : 'Não foi possível carregar os QR Codes.'))
+      .finally(() => vivo && setGerando(false))
     return () => {
       vivo = false
     }
@@ -248,14 +311,14 @@ export function DrawerFolhaMesas({
   const etiquetas: Etiqueta[] = useMemo(
     () =>
       mesas
-        .filter((m) => selecionadas.includes(m.id))
+        .filter((m) => selecionadas.includes(m.id) && urlPorMesa[m.id])
         .map((m) => ({
           id: m.id,
           mesa: m.nome,
           qrDataUrl: qrPorMesa[m.id] ?? null,
-          url: urlPublicaDaMesa(origem, m.token),
+          url: urlPorMesa[m.id]!,
         })),
-    [mesas, selecionadas, qrPorMesa, origem],
+    [mesas, selecionadas, qrPorMesa, urlPorMesa],
   )
 
   const paginas = useMemo(() => paginarEtiquetas(etiquetas, info.porPagina), [etiquetas, info.porPagina])
@@ -339,6 +402,15 @@ export function DrawerFolhaMesas({
               Cada etiqueta sai com o QR <strong>daquela</strong> mesa — os links são diferentes. Corte pelas linhas
               tracejadas.
             </p>
+            {revogadas.length > 0 && (
+              <p className="rounded-menuzia bg-warn-bg px-3 py-2 text-[11px] text-text-main" role="status">
+                {revogadas.length === 1 ? 'A mesa' : 'As mesas'} {revogadas.map((m) => m.nome).join(', ')}{' '}
+                {revogadas.length === 1 ? 'está' : 'estão'} com QR revogado e não {revogadas.length === 1 ? 'sai' : 'saem'} na folha.
+              </p>
+            )}
+            {erro && (
+              <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[11px] text-danger" role="alert">{erro}</p>
+            )}
           </div>
 
           <div className="flex min-w-0 flex-1 justify-center">

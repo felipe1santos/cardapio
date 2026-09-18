@@ -79,6 +79,12 @@ export default function MesaDetalhePage() {
   const [confirmarJuntar, setConfirmarJuntar] = useState<MesaOpcao | null>(null)
   const estadoConta = useConta(params.id)
   const permissoesConta = estadoConta.dados?.permissoes ?? {}
+  // O caixa vê e cobra a conta, mas não lança nem atende chamado. Enquanto as permissões
+  // não chegam, a aba de lançar fica (é a do garçom, o caso mais comum).
+  const permissoesCarregadas = !!estadoConta.dados
+  const podeLancar = !permissoesCarregadas || permissoesConta.lancar === true
+  // Motivo digitado na troca de mesa, guardado para a confirmação de "juntar contas".
+  const [motivoTroca, setMotivoTroca] = useState('')
   const [grupos, setGrupos] = useState<GrupoCardapio[]>([])
   const [itens, setItens] = useState<ItemCardapio[]>([])
   const [selecaoCliente, setSelecaoCliente] = useState<LinhaSelecaoCliente[]>([])
@@ -281,11 +287,12 @@ export default function MesaDetalhePage() {
     }
   }
 
-  async function transferirMesa(destinoMesaId: string, mesclar: boolean) {
-    const r = await estadoConta.agir('transferir_mesa', { destinoMesaId, mesclar })
+  async function transferirMesa(destinoMesaId: string, mesclar: boolean, motivo: string) {
+    const r = await estadoConta.agir('transferir_mesa', { destinoMesaId, mesclar, motivo })
     const destino = mesasDaLoja.find((m) => m.id === destinoMesaId) ?? null
     if (!r.ok && r.codigo === 'destino_ocupado' && !mesclar) {
       setTransferindoMesa(false)
+      setMotivoTroca(motivo)
       setConfirmarJuntar(destino)
       return
     }
@@ -298,6 +305,11 @@ export default function MesaDetalhePage() {
     setAvisoPagina(`Conta ${mesclar ? 'juntada com' : 'transferida para'} a ${destino?.nome ?? 'outra mesa'}.`)
     router.push(`/admin/mesas/${destinoMesaId}`)
   }
+
+  // Caixa não tem aba de lançar: abre direto na conta.
+  useEffect(() => {
+    if (!podeLancar && aba === 'lancar') setAba('conta')
+  }, [podeLancar, aba])
 
   if (carregando) {
     return (
@@ -343,7 +355,7 @@ export default function MesaDetalhePage() {
       />
 
       <div className="flex-1 overflow-y-auto p-5">
-        <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />
+        {podeLancar && <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />}
 
         {avisoPagina && (
           <p className="mb-3 flex items-center justify-between gap-2 rounded-menuzia bg-alert-bg px-4 py-2.5 text-[13px] text-alert-text" role="status">
@@ -359,7 +371,7 @@ export default function MesaDetalhePage() {
             ['lancar', 'Lançar pedido'],
             ['conta', estadoConta.dados?.conta ? `Conta · falta ${brl(estadoConta.dados.conta.totais.restante)}` : 'Conta'],
             ['historico', 'Histórico'],
-          ] as const).map(([id, rotulo]) => (
+          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo]) => (
             <button
               key={id}
               role="tab"
@@ -382,7 +394,7 @@ export default function MesaDetalhePage() {
             estado={estadoConta}
             onContaFechada={() => {
               setAvisoPagina(`Conta da ${mesa.nome} fechada. A mesa está livre.`)
-              setAba('lancar')
+              setAba(podeLancar ? 'lancar' : 'conta')
               void carregar()
             }}
           />
@@ -390,7 +402,7 @@ export default function MesaDetalhePage() {
 
         {aba === 'historico' && <Historico eventos={estadoConta.dados?.historico ?? []} />}
 
-        <div className={`grid gap-4 xl:grid-cols-[1fr_380px] ${aba === 'lancar' ? '' : 'hidden'}`}>
+        <div className={`grid gap-4 xl:grid-cols-[1fr_380px] ${aba === 'lancar' && podeLancar ? '' : 'hidden'}`}>
           {/* ── Catálogo: o garçom escolhe à mão ─────────────────────────── */}
           <section>
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -620,7 +632,7 @@ export default function MesaDetalhePage() {
           titulo={`Trocar a ${mesa.nome} para`}
           mesas={mesasDaLoja.filter((m) => m.id !== mesa.id)}
           onCancelar={() => setTransferindoMesa(false)}
-          onConfirmar={(destino) => transferirMesa(destino, false)}
+          onConfirmar={(destino, motivo) => transferirMesa(destino, false, motivo)}
         />
       )}
 
@@ -630,7 +642,7 @@ export default function MesaDetalhePage() {
           texto={`Juntar as contas? Os lançamentos e pagamentos da ${mesa.nome} passam para a ${confirmarJuntar.nome}. Nada é apagado e o histórico das duas fica guardado.`}
           botao="Juntar contas"
           onCancelar={() => setConfirmarJuntar(null)}
-          onConfirmar={() => transferirMesa(confirmarJuntar.id, true)}
+          onConfirmar={() => transferirMesa(confirmarJuntar.id, true, motivoTroca)}
         />
       )}
 
