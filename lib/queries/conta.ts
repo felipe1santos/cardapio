@@ -161,28 +161,28 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
   const tot = ((t as unknown[] | null) ?? [])[0] as Record<string, string | number> | undefined
 
   const lancamentos = ((peds ?? []) as unknown as {
-      id: string; numero: number; status: string; total: number; criado_em: string; criado_por_nome: string | null; impresso: boolean
-      pedido_itens: { id: string; nome: string; quantidade: number; preco_unitario: number; complementos: { nome: string }[] | null; observacao: string | null; cancelado_em: string | null; cancelado_motivo: string | null; cancelado_por_nome: string | null }[]
-    }[]).map((p) => ({
-      id: p.id,
-      numero: p.numero,
-      status: p.status,
-      total: Number(p.total),
-      criadoEm: p.criado_em,
-      criadoPorNome: p.criado_por_nome,
-      impresso: p.impresso,
-      itens: (p.pedido_itens ?? []).map((i) => ({
-        id: i.id,
-        nome: i.nome,
-        quantidade: i.quantidade,
-        precoUnitario: Number(i.preco_unitario),
-        complementos: (i.complementos ?? []).map((x) => x.nome),
-        observacao: i.observacao,
-        cancelado: i.cancelado_em !== null,
-        canceladoMotivo: i.cancelado_motivo,
-        canceladoPor: i.cancelado_por_nome,
-      })),
-    }))
+    id: string; numero: number; status: string; total: number; criado_em: string; criado_por_nome: string | null; impresso: boolean
+    pedido_itens: { id: string; nome: string; quantidade: number; preco_unitario: number; complementos: { nome: string }[] | null; observacao: string | null; cancelado_em: string | null; cancelado_motivo: string | null; cancelado_por_nome: string | null }[]
+  }[]).map((p) => ({
+    id: p.id,
+    numero: p.numero,
+    status: p.status,
+    total: Number(p.total),
+    criadoEm: p.criado_em,
+    criadoPorNome: p.criado_por_nome,
+    impresso: p.impresso,
+    itens: (p.pedido_itens ?? []).map((i) => ({
+      id: i.id,
+      nome: i.nome,
+      quantidade: i.quantidade,
+      precoUnitario: Number(i.preco_unitario),
+      complementos: (i.complementos ?? []).map((x) => x.nome),
+      observacao: i.observacao,
+      cancelado: i.cancelado_em !== null,
+      canceladoMotivo: i.cancelado_motivo,
+      canceladoPor: i.cancelado_por_nome,
+    })),
+  }))
 
   const descreverAlvo = (pedidoId: string, itemId: string | null): string => {
     const lanc = lancamentos.find((l) => l.id === pedidoId)
