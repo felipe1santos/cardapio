@@ -29,6 +29,7 @@ export const PERMISSOES = [
   'pedidos.mesa.criar',
   'pedidos.mesa.enviar_cozinha',
   'pedidos.mesa.cancelar',
+  'pedidos.mesa.solicitar_cancelamento',
   // Balcão (PDV)
   'pedidos.balcao.criar',
   // Cozinha
@@ -37,9 +38,12 @@ export const PERMISSOES = [
   // Salão
   'mesas.operar',
   'mesas.gerenciar',
+  'comanda.ver',
   'comanda.fechar',
   'comanda.transferir',
   'comanda.desconto',
+  'comanda.estornar',
+  'comanda.fiado',
   // Retaguarda
   'clientes.ver',
   'dashboard.faturamento',
@@ -74,6 +78,9 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
   'pedidos.mesa.enviar_cozinha': ['dono', 'gerente', 'garcom'],
   // Cancelar lançamento já enviado mexe em conta e histórico: fica com a gestão.
   'pedidos.mesa.cancelar': ['dono', 'gerente'],
+  // O garçom não cancela o que já foi para a cozinha: ele PEDE, com motivo, e a gestão
+  // decide. Assim o salão tem um caminho que não depende de achar o gerente no corredor.
+  'pedidos.mesa.solicitar_cancelamento': ['dono', 'gerente', 'garcom'],
 
   // Garçom NÃO opera o balcão: o PDV é outro posto de trabalho.
   'pedidos.balcao.criar': ['dono', 'gerente', 'atendente'],
@@ -82,11 +89,21 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
   'cozinha.pedidos.ver': ['dono', 'gerente', 'cozinha'],
   'cozinha.pedidos.atualizar_status': ['dono', 'gerente', 'cozinha'],
 
+  // Operar = atender chamado e lançar. O caixa não faz nenhum dos dois.
   'mesas.operar': ['dono', 'gerente', 'garcom'],
   'mesas.gerenciar': ['dono', 'gerente'],
-  'comanda.fechar': ['dono', 'gerente', 'garcom'],
+  // Ver o salão e a conta: quem atende e quem cobra.
+  'comanda.ver': ['dono', 'gerente', 'garcom', 'atendente'],
+  // Receber e fechar é trabalho de caixa. O garçom só recebe se a loja ligar a regra
+  // (`salao_garcom_recebe`, ver `podeNoSalao`).
+  'comanda.fechar': ['dono', 'gerente', 'atendente'],
+  // A loja pode tirar do garçom (`salao_garcom_transfere`).
   'comanda.transferir': ['dono', 'gerente', 'garcom'],
+  // Taxa e desconto. O caixa só se a loja ligar (`salao_caixa_desconto`).
   'comanda.desconto': ['dono', 'gerente'],
+  // Devolver dinheiro e deixar conta pendurada são decisões da gestão.
+  'comanda.estornar': ['dono', 'gerente'],
+  'comanda.fiado': ['dono', 'gerente'],
 
   // Base de clientes é do delivery: telefone e endereço não são assunto do salão.
   'clientes.ver': ['dono', 'gerente', 'atendente'],
@@ -125,6 +142,41 @@ export function podeNotificarCanal(papel: string | null | undefined, canal: stri
   if (canal === 'balcao') return pode(papel, 'pedidos.balcao.criar')
   // Canal desconhecido (dado novo que o código ainda não conhece): ninguém dispara.
   return false
+}
+
+/**
+ * Regras do salão que a loja escolhe (0071). Mexem só em três células da matriz e só
+ * para o lado que a loja pediu — nunca dão ao papel algo fora do salão.
+ */
+export interface RegrasSalao {
+  /** Garçom registra pagamento e fecha a conta. */
+  garcomRecebe: boolean
+  /** Garçom transfere mesa e itens. */
+  garcomTransfere: boolean
+  /** Atendente/caixa ajusta taxa de serviço e desconto. */
+  caixaDesconto: boolean
+}
+
+/** O que vale para loja sem configuração: exatamente a matriz. */
+export const REGRAS_SALAO_PADRAO: RegrasSalao = {
+  garcomRecebe: false,
+  garcomTransfere: true,
+  caixaDesconto: false,
+}
+
+/**
+ * `pode` com as regras da loja aplicadas. Toda decisão do salão passa por aqui — rota,
+ * tela e teste —, então a regra liga e desliga no mesmo lugar para todo mundo.
+ */
+export function podeNoSalao(
+  papel: string | null | undefined,
+  permissao: Permissao,
+  regras: RegrasSalao = REGRAS_SALAO_PADRAO,
+): boolean {
+  if (papel === 'garcom' && permissao === 'comanda.fechar') return regras.garcomRecebe
+  if (papel === 'garcom' && permissao === 'comanda.transferir') return regras.garcomTransfere
+  if (papel === 'atendente' && permissao === 'comanda.desconto') return regras.caixaDesconto
+  return pode(papel, permissao)
 }
 
 /** Todas as permissões de um papel — usado pelo menu e pelos testes de paridade. */

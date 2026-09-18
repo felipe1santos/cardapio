@@ -8,6 +8,8 @@ import {
   papeisQuePodeGerenciar,
   podeAdministrar,
   podeNotificarCanal,
+  podeNoSalao,
+  REGRAS_SALAO_PADRAO,
   type Papel,
   type Permissao,
 } from './permissoes'
@@ -25,14 +27,18 @@ const ESPERADO: Record<Permissao, Papel[]> = {
   'pedidos.mesa.criar': ['dono', 'gerente', 'garcom'],
   'pedidos.mesa.enviar_cozinha': ['dono', 'gerente', 'garcom'],
   'pedidos.mesa.cancelar': ['dono', 'gerente'],
+  'pedidos.mesa.solicitar_cancelamento': ['dono', 'gerente', 'garcom'],
   'pedidos.balcao.criar': ['dono', 'gerente', 'atendente'],
   'cozinha.pedidos.ver': ['dono', 'gerente', 'cozinha'],
   'cozinha.pedidos.atualizar_status': ['dono', 'gerente', 'cozinha'],
   'mesas.operar': ['dono', 'gerente', 'garcom'],
   'mesas.gerenciar': ['dono', 'gerente'],
-  'comanda.fechar': ['dono', 'gerente', 'garcom'],
+  'comanda.ver': ['dono', 'gerente', 'garcom', 'atendente'],
+  'comanda.fechar': ['dono', 'gerente', 'atendente'],
   'comanda.transferir': ['dono', 'gerente', 'garcom'],
   'comanda.desconto': ['dono', 'gerente'],
+  'comanda.estornar': ['dono', 'gerente'],
+  'comanda.fiado': ['dono', 'gerente'],
   'clientes.ver': ['dono', 'gerente', 'atendente'],
   'dashboard.faturamento': ['dono', 'gerente'],
   'cardapio.editar': ['dono', 'gerente'],
@@ -46,7 +52,7 @@ const ESPERADO: Record<Permissao, Papel[]> = {
 }
 
 describe('matriz de permissões — célula a célula', () => {
-  // 7 papéis × 26 permissões: nenhuma célula fica implícita.
+  // 7 papéis × 31 permissões: nenhuma célula fica implícita.
   for (const permissao of PERMISSOES) {
     for (const papel of PAPEIS) {
       const deveria = ESPERADO[permissao].includes(papel)
@@ -89,9 +95,15 @@ describe('separação por canal', () => {
     expect(PERMISSOES.some((p) => /entregar|entrega\b/.test(p) && p.startsWith('pedidos.mesa'))).toBe(false)
   })
 
-  it('atendente do delivery não opera mesa', () => {
-    for (const p of PERMISSOES.filter((x) => x.startsWith('pedidos.mesa.') || x.startsWith('mesas.') || x.startsWith('comanda.'))) {
-      expect(pode('atendente', p)).toBe(false)
+  it('atendente/caixa vê e cobra a conta, mas não lança, não atende chamado nem mexe na mesa', () => {
+    const doSalao = PERMISSOES.filter((x) => x.startsWith('pedidos.mesa.') || x.startsWith('mesas.') || x.startsWith('comanda.'))
+    const doCaixa = ['comanda.ver', 'comanda.fechar']
+    for (const p of doSalao) expect(pode('atendente', p), p).toBe(doCaixa.includes(p))
+  })
+
+  it('garçom não recebe, não estorna nem pendura conta por padrão', () => {
+    for (const p of ['comanda.fechar', 'comanda.estornar', 'comanda.fiado', 'comanda.desconto'] as Permissao[]) {
+      expect(pode('garcom', p), p).toBe(false)
     }
   })
 
@@ -216,5 +228,43 @@ describe('quem pode notificar o cliente, por canal', () => {
       expect(podeNotificarCanal(papel, 'marketplace')).toBe(false)
       expect(podeNotificarCanal(papel, '')).toBe(false)
     }
+  })
+})
+
+describe('regras do salão por loja', () => {
+  it('sem configuração vale exatamente a matriz', () => {
+    for (const permissao of PERMISSOES) {
+      for (const papel of PAPEIS) {
+        expect(podeNoSalao(papel, permissao), `${papel} ${permissao}`).toBe(pode(papel, permissao))
+      }
+    }
+    expect(REGRAS_SALAO_PADRAO).toEqual({ garcomRecebe: false, garcomTransfere: true, caixaDesconto: false })
+  })
+
+  it('"garçom recebe" libera pagamento e fechamento ao garçom — e só isso', () => {
+    const regras = { ...REGRAS_SALAO_PADRAO, garcomRecebe: true }
+    expect(podeNoSalao('garcom', 'comanda.fechar', regras)).toBe(true)
+    for (const p of ['comanda.estornar', 'comanda.fiado', 'comanda.desconto', 'dashboard.faturamento'] as Permissao[]) {
+      expect(podeNoSalao('garcom', p, regras), p).toBe(false)
+    }
+  })
+
+  it('"garçom transfere" desligado tira a transferência do garçom, não da gestão', () => {
+    const regras = { ...REGRAS_SALAO_PADRAO, garcomTransfere: false }
+    expect(podeNoSalao('garcom', 'comanda.transferir', regras)).toBe(false)
+    expect(podeNoSalao('gerente', 'comanda.transferir', regras)).toBe(true)
+    expect(podeNoSalao('dono', 'comanda.transferir', regras)).toBe(true)
+  })
+
+  it('"caixa dá desconto" libera taxa e desconto ao atendente, nunca estorno', () => {
+    const regras = { ...REGRAS_SALAO_PADRAO, caixaDesconto: true }
+    expect(podeNoSalao('atendente', 'comanda.desconto', regras)).toBe(true)
+    expect(podeNoSalao('atendente', 'comanda.estornar', regras)).toBe(false)
+    expect(podeNoSalao('garcom', 'comanda.desconto', regras)).toBe(false)
+  })
+
+  it('regra nenhuma dá nada a papel desconhecido', () => {
+    const tudo = { garcomRecebe: true, garcomTransfere: true, caixaDesconto: true }
+    for (const p of PERMISSOES) expect(podeNoSalao('sommelier', p, tudo)).toBe(false)
   })
 })

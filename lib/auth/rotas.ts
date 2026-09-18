@@ -16,7 +16,8 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/dashboard', 'dashboard.faturamento'],
   ['/admin/pedidos', 'pedidos.delivery.ver'],
   ['/admin/pdv', 'pedidos.balcao.criar'],
-  ['/admin/mesas', 'mesas.operar'],
+  // Ver o salão e a conta: garçom e caixa. Cada ação confere a sua permissão por dentro.
+  ['/admin/mesas', 'comanda.ver'],
   ['/admin/equipe', 'equipe.gerenciar'],
   ['/admin/auditoria', 'auditoria.ver'],
   ['/admin/logistica', 'logistica.operar'],
@@ -33,9 +34,12 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
  * busca pega o PRIMEIRO que casar.
  */
 const APIS: [prefixo: string, permissao: Permissao][] = [
-  // A rota de lançamento confere `pedidos.mesa.enviar_cozinha` por dentro, mais fina.
-  ['/api/admin/mesas', 'mesas.operar'],
+  // Cada rota do salão confere a sua permissão por dentro, mais fina (lançar, chamado,
+  // pagamento, QR). Aqui só a porta: ver o salão.
+  ['/api/admin/mesas', 'comanda.ver'],
   ['/api/admin/equipe', 'equipe.gerenciar'],
+  // Ligar e desligar módulo é decisão comercial do dono.
+  ['/api/admin/modulos', 'ajustes.editar'],
   ['/api/admin/pdv', 'pedidos.balcao.criar'],
   ['/api/admin/pedidos', 'pedidos.delivery.cancelar'],
   ['/api/admin/campanhas', 'campanhas.gerenciar'],
@@ -74,10 +78,20 @@ export function permissaoDaRota(pathname: string): Permissao | null {
   return achada ? achada[1] : PERMISSAO_PADRAO
 }
 
-/** Primeira tela do papel — para onde vai quem tentou entrar onde não pode. */
-export function telaInicialDoPapel(papel: string | null | undefined): string {
+/** As superfícies do módulo Mesas e Comandas — governadas pela feature flag da loja. */
+export function ehRotaDoModuloMesas(pathname: string): boolean {
+  return casaPrefixo(pathname, '/admin/mesas') || casaPrefixo(pathname, '/api/admin/mesas')
+}
+
+/**
+ * Primeira tela do papel — para onde vai quem tentou entrar onde não pode.
+ *
+ * Com o módulo desligado o salão não é destino: sem isto o garçom seria mandado para
+ * `/admin/mesas`, barrado lá pela flag, e mandado de volta — laço infinito.
+ */
+export function telaInicialDoPapel(papel: string | null | undefined, moduloMesas = true): string {
   if (pode(papel, 'dashboard.faturamento')) return '/admin/dashboard'
-  if (pode(papel, 'mesas.operar')) return '/admin/mesas'
+  if (moduloMesas && pode(papel, 'mesas.operar')) return '/admin/mesas'
   if (pode(papel, 'pedidos.delivery.ver')) return '/admin/pedidos'
   if (pode(papel, 'logistica.operar')) return '/admin/logistica'
   return '/login'
@@ -86,13 +100,17 @@ export function telaInicialDoPapel(papel: string | null | undefined): string {
 export type Decisao =
   | { tipo: 'seguir' }
   | { tipo: 'redirecionar'; para: string }
-  | { tipo: 'negar'; status: 401 | 403 }
+  | { tipo: 'negar'; status: 401 | 403 | 404 }
 
 /**
- * A decisão inteira, sem rede nem cookie: dado o caminho e o papel que o banco devolveu
- * (null = sem sessão, usuário desativado ou loja inválida), segue, redireciona ou nega.
+ * A decisão inteira, sem rede nem cookie: dado o caminho, o papel que o banco devolveu
+ * (null = sem sessão, usuário desativado ou loja inválida) e a flag do módulo de mesas da
+ * loja, segue, redireciona ou nega.
+ *
+ * Flag desligada: a página do salão manda para a tela inicial e a API responde 404 —
+ * para quem está de fora, o módulo simplesmente não existe naquela loja.
  */
-export function decidirAcesso(pathname: string, papel: string | null): Decisao {
+export function decidirAcesso(pathname: string, papel: string | null, moduloMesas = true): Decisao {
   const onde = superficie(pathname)
   if (onde === 'fora') return { tipo: 'seguir' }
 
@@ -100,12 +118,18 @@ export function decidirAcesso(pathname: string, papel: string | null): Decisao {
     return onde === 'api' ? { tipo: 'negar', status: 401 } : { tipo: 'redirecionar', para: '/login' }
   }
 
+  const inicial = telaInicialDoPapel(papel, moduloMesas)
+
   if (onde === 'pagina' && (pathname === '/admin' || pathname === '/admin/')) {
-    return { tipo: 'redirecionar', para: telaInicialDoPapel(papel) }
+    return { tipo: 'redirecionar', para: inicial }
+  }
+
+  if (!moduloMesas && ehRotaDoModuloMesas(pathname)) {
+    return onde === 'api' ? { tipo: 'negar', status: 404 } : { tipo: 'redirecionar', para: inicial }
   }
 
   const exigida = permissaoDaRota(pathname)
   if (!exigida || pode(papel, exigida)) return { tipo: 'seguir' }
 
-  return onde === 'api' ? { tipo: 'negar', status: 403 } : { tipo: 'redirecionar', para: telaInicialDoPapel(papel) }
+  return onde === 'api' ? { tipo: 'negar', status: 403 } : { tipo: 'redirecionar', para: inicial }
 }

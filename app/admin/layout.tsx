@@ -40,7 +40,7 @@ const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/dashboard': 'dashboard.faturamento',
   '/admin/pedidos': 'pedidos.delivery.ver',
   '/admin/pdv': 'pedidos.balcao.criar',
-  '/admin/mesas': 'mesas.operar',
+  '/admin/mesas': 'comanda.ver',
   '/admin/logistica': 'logistica.operar',
   '/admin/cardapio': 'cardapio.editar',
   '/admin/clientes': 'clientes.ver',

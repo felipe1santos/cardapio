@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { decidirAcesso, permissaoDaRota, superficie, telaInicialDoPapel, PERMISSAO_PADRAO } from './rotas'
+import { decidirAcesso, permissaoDaRota, superficie, telaInicialDoPapel, PERMISSAO_PADRAO, ehRotaDoModuloMesas } from './rotas'
 
 describe('superficie', () => {
   it('separa página, API e o resto', () => {
@@ -92,9 +92,17 @@ describe('regras gerais', () => {
     expect(permissaoDaRota('/api/admin/nexta/despachar')).toBe('logistica.operar')
   })
 
-  it('atendente do delivery não entra em mesas', () => {
-    expect(decidirAcesso('/admin/mesas', 'atendente')).toEqual({ tipo: 'redirecionar', para: '/admin/pedidos' })
-    expect(decidirAcesso('/api/admin/mesas/1/lancamento', 'atendente')).toEqual({ tipo: 'negar', status: 403 })
+  it('atendente/caixa entra no salão para cobrar — cada ação confere a sua permissão por dentro', () => {
+    expect(decidirAcesso('/admin/mesas', 'atendente')).toEqual({ tipo: 'seguir' })
+    expect(decidirAcesso('/admin/mesas/1', 'atendente')).toEqual({ tipo: 'seguir' })
+    expect(decidirAcesso('/api/admin/mesas/1/conta', 'atendente')).toEqual({ tipo: 'seguir' })
+    expect(permissaoDaRota('/api/admin/mesas/1/lancamento')).toBe('comanda.ver')
+  })
+
+  it('cozinha, logística e entregador não entram no salão pelo painel', () => {
+    for (const papel of ['cozinha', 'logistica', 'entregador']) {
+      expect(decidirAcesso('/api/admin/mesas/1/conta', papel)).toEqual({ tipo: 'negar', status: 403 })
+    }
   })
 
   it('papel desconhecido não entra em nada', () => {
@@ -110,5 +118,37 @@ describe('telaInicialDoPapel', () => {
     expect(telaInicialDoPapel('atendente')).toBe('/admin/pedidos')
     expect(telaInicialDoPapel('logistica')).toBe('/admin/pedidos')
     expect(telaInicialDoPapel(null)).toBe('/login')
+  })
+})
+
+describe('feature flag do módulo de mesas', () => {
+  it('desligada: API do salão é 404 para todo mundo, inclusive o dono', () => {
+    for (const papel of ['dono', 'gerente', 'garcom', 'atendente']) {
+      for (const rota of ['/api/admin/mesas/1/conta', '/api/admin/mesas/1/lancamento', '/api/admin/mesas/chamados', '/api/admin/mesas/configuracao']) {
+        expect(decidirAcesso(rota, papel, false), `${papel} ${rota}`).toEqual({ tipo: 'negar', status: 404 })
+      }
+    }
+  })
+
+  it('desligada: página do salão manda para a tela inicial, sem laço', () => {
+    expect(decidirAcesso('/admin/mesas', 'dono', false)).toEqual({ tipo: 'redirecionar', para: '/admin/dashboard' })
+    expect(decidirAcesso('/admin/mesas/1', 'atendente', false)).toEqual({ tipo: 'redirecionar', para: '/admin/pedidos' })
+    // O garçom não tem tela fora do salão: vai para o login, que não passa pelo porteiro.
+    expect(decidirAcesso('/admin/mesas', 'garcom', false)).toEqual({ tipo: 'redirecionar', para: '/login' })
+    expect(decidirAcesso('/admin', 'garcom', false)).toEqual({ tipo: 'redirecionar', para: '/login' })
+  })
+
+  it('desligada: o resto do painel não muda', () => {
+    expect(decidirAcesso('/admin/pedidos', 'atendente', false)).toEqual({ tipo: 'seguir' })
+    expect(decidirAcesso('/admin/pdv', 'dono', false)).toEqual({ tipo: 'seguir' })
+    expect(decidirAcesso('/api/admin/pdv/comanda', 'dono', false)).toEqual({ tipo: 'seguir' })
+    expect(decidirAcesso('/admin/equipe', 'dono', false)).toEqual({ tipo: 'seguir' })
+  })
+
+  it('não confunde prefixo parecido', () => {
+    expect(ehRotaDoModuloMesas('/admin/mesas')).toBe(true)
+    expect(ehRotaDoModuloMesas('/api/admin/mesas/x')).toBe(true)
+    expect(ehRotaDoModuloMesas('/admin/mesasx')).toBe(false)
+    expect(ehRotaDoModuloMesas('/admin/pdv')).toBe(false)
   })
 })

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { decidirAcesso } from '@/lib/auth/rotas'
+import { decidirAcesso, ehRotaDoModuloMesas } from '@/lib/auth/rotas'
 
 /**
  * Porteiro do painel. Esconder item do menu não protege nada: quem digita a URL entra.
@@ -57,13 +57,32 @@ export async function middleware(request: NextRequest) {
     papel = (data?.papel as string | undefined) ?? null
   }
 
-  const decisao = decidirAcesso(pathname, papel)
+  let decisao = decidirAcesso(pathname, papel)
+
+  // Feature flag do módulo de mesas. Só custa uma consulta quando a decisão envolve o
+  // salão: a rota é do módulo, ou o destino do redirecionamento seria ele.
+  const envolveSalao =
+    ehRotaDoModuloMesas(pathname) || (decisao.tipo === 'redirecionar' && ehRotaDoModuloMesas(decisao.para))
+  if (papel && envolveSalao) {
+    const { data: ligado, error } = await supabase.rpc('auth_modulo_mesas')
+    // Aqui falha FECHADO: na dúvida, o módulo não existe. O dono perde o salão por um
+    // soluço de conexão; o contrário abriria o módulo numa loja que não o contratou.
+    if (error) console.error('[middleware] não consegui ler a flag de mesas', error.message)
+    decisao = decidirAcesso(pathname, papel, !error && ligado === true)
+  }
 
   if (decisao.tipo === 'seguir') return response
 
   if (decisao.tipo === 'negar') {
     return NextResponse.json(
-      { error: decisao.status === 401 ? 'Não autenticado' : 'Sem permissão para esta operação' },
+      {
+        error:
+          decisao.status === 401
+            ? 'Não autenticado'
+            : decisao.status === 404
+              ? 'Não encontrado'
+              : 'Sem permissão para esta operação',
+      },
       { status: decisao.status },
     )
   }
