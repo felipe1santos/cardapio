@@ -93,6 +93,18 @@ export function mensagemDeErroConta(bruto: string | null | undefined): string {
     comanda_com_pagamento: `Esta conta já recebeu ${reais}. Estorne o pagamento antes de cancelar.`,
     quantidade_invalida: 'Informe uma quantidade de 1 até o total da linha.',
     quantidades_incompativeis: 'Quantidades não correspondem aos itens selecionados.',
+    // Conta (0072).
+    fiado_sem_observacao: 'No fiado, informe de quem é a conta (nome e contato).',
+    pagamento_excede_total: `A conta já recebeu ${reais}, mais do que ficaria valendo. Estorne um pagamento antes.`,
+    cancelamento_pendente: 'Há pedido de cancelamento aguardando decisão da gestão. Aprove ou recuse antes de fechar.',
+    taxa_invalida: 'Taxa de serviço entre 0% e 30%.',
+    desconto_invalido: 'Desconto inválido: em reais, maior ou igual a zero; em %, de 0 a 100.',
+    solicitacao_inexistente: 'Pedido de cancelamento não encontrado.',
+    solicitacao_decidida: 'Este pedido de cancelamento já foi decidido.',
+    ja_cancelado: 'Este lançamento já foi cancelado.',
+    // Mesa (0071).
+    comanda_aberta: 'Esta mesa tem conta aberta. Feche, transfira ou cancele a conta antes.',
+    mesa_com_historico: 'Esta mesa tem histórico de contas e não pode ser excluída. Desative-a.',
     // Chamados (0068).
     mesa_inexistente: 'Mesa não encontrada.',
     mesa_indisponivel: 'Esta mesa está bloqueada ou desativada.',

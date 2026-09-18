@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { getCurrentSession } from '@/lib/auth/session'
-import { pode } from '@/lib/auth/permissoes'
+import { contextoSalao } from '@/lib/auth/salao'
 import { criarPedido, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
 import { abrirOuObterComanda } from '@/lib/queries/comandas'
 import { abrirOuObterSessao, encerrarSelecoesVistas, sanearSelecoesVistas } from '@/lib/queries/mesa-sessao'
@@ -26,13 +24,10 @@ import { itemDisponivelHoje } from '@/lib/timezone'
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: mesaId } = await params
 
-  const supabase = await getServerSupabase()
-  const sessao = await getCurrentSession(supabase)
-  if (!sessao) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-
-  if (!pode(sessao.papel, 'pedidos.mesa.enviar_cozinha')) {
-    return NextResponse.json({ error: 'Sem permissão para lançar pedido de mesa' }, { status: 403 })
-  }
+  // Sessão, módulo ligado na loja e permissão de lançar — conferidos do banco.
+  const ctx = await contextoSalao('pedidos.mesa.enviar_cozinha')
+  if ('erro' in ctx) return ctx.erro
+  const { sessao, admin } = ctx
 
   let corpo: { itens?: unknown; chaveIdempotencia?: unknown; selecoesVistas?: unknown }
   try {
@@ -54,8 +49,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Chave do lançamento ausente ou inválida' }, { status: 400 })
   }
   const selecoesVistas = sanearSelecoesVistas(corpo.selecoesVistas)
-
-  const admin = getAdminSupabase()
 
   // A mesa tem que ser desta loja. Sem isso, um id de mesa vizinha lançaria pedido lá.
   const { data: mesa, error: erroMesa } = await admin
@@ -162,7 +155,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         acao: 'mesa.abriu',
         entidade: 'comanda',
         entidadeId: comanda.id,
-        dados: { mesa: mesa.nome, de: 'livre', para: 'ocupada' },
+        dados: { mesa: mesa.nome, de: 'livre', para: 'ocupada', numero: comanda.numero ?? null },
       })
     }
 

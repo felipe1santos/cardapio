@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server'
-import { getServerSupabase } from '@/lib/supabase/server'
-import { getAdminSupabase } from '@/lib/supabase/admin'
-import { getCurrentSession } from '@/lib/auth/session'
-import { pode, type Permissao } from '@/lib/auth/permissoes'
+import type { Permissao } from '@/lib/auth/permissoes'
+import { contextoSalao, type ContextoSalao } from '@/lib/auth/salao'
 import { ehForma, formatarResumoPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 import {
+  ajustarValores,
   buscarConta,
   cancelarComanda,
   cancelarItem,
+  cancelarPedido,
+  decidirCancelamento,
   estornarPagamento,
   fecharConta,
   historicoDaConta,
   registrarPagamento,
+  solicitarCancelamento,
   transferirItens,
   transferirMesa,
 } from '@/lib/queries/conta'
@@ -21,17 +23,18 @@ import {
  * Conta da mesa: resumo (GET) e todas as operações (POST com `acao`).
  *
  * Uma rota com ação discriminada, e não dez arquivos, para a tabela de permissões ficar
- * num lugar só e ser lida de uma vez. O middleware já exige `mesas.operar` em
- * `/api/admin/mesas`; cada ação exige a SUA permissão por cima, conferida aqui.
+ * num lugar só e ser lida de uma vez. `contextoSalao` confere sessão, flag do módulo e a
+ * permissão de VER a conta; cada ação exige a SUA permissão por cima, com as regras da
+ * loja aplicadas (`podeNoSalao`: garçom recebe? caixa dá desconto?).
  *
  * Loja, mesa e autor vêm da sessão e da URL — nunca do corpo. Valores e totais vêm das
- * funções do banco (0067), que travam a comanda enquanto mexem nela.
+ * funções do banco (0067/0072), que travam a comanda enquanto mexem nela.
  */
 
 const PERMISSAO_DA_ACAO: Record<string, Permissao> = {
   pagamento: 'comanda.fechar',
-  estorno: 'comanda.desconto',
-  ajustar_mesa: 'mesas.operar',
+  estorno: 'comanda.estornar',
+  ajustar_mesa: 'comanda.ver',
   ajustar_valores: 'comanda.desconto',
   fechar: 'comanda.fechar',
   transferir_mesa: 'comanda.transferir',
@@ -41,28 +44,39 @@ const PERMISSAO_DA_ACAO: Record<string, Permissao> = {
   // Derrubar a conta inteira é mais grave que derrubar um lançamento, mas é a mesma
   // natureza de decisão (e o banco recusa se já entrou dinheiro).
   cancelar_comanda: 'pedidos.mesa.cancelar',
+  solicitar_cancelamento: 'pedidos.mesa.solicitar_cancelamento',
+  decidir_cancelamento: 'pedidos.mesa.cancelar',
   reimprimir: 'mesas.operar',
+}
+
+/** O que a tela usa para esconder botões. O POST confere de novo, ação por ação. */
+function permissoesDaTela(ctx: ContextoSalao) {
+  return {
+    ...Object.fromEntries(Object.entries(PERMISSAO_DA_ACAO).map(([acao, p]) => [acao, ctx.pode(p)])),
+    // Pessoas e observação: quem atende e quem divide a conta.
+    ajustar_mesa: ctx.pode('mesas.operar') || ctx.pode('comanda.fechar'),
+    fiado: ctx.pode('comanda.fiado'),
+    lancar: ctx.pode('pedidos.mesa.enviar_cozinha'),
+  }
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const texto = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
 async function contexto(mesaId: string) {
-  const sessao = await getCurrentSession(await getServerSupabase())
-  if (!sessao) return { erro: NextResponse.json({ error: 'Não autenticado' }, { status: 401 }) } as const
-  if (!pode(sessao.papel, 'mesas.operar')) {
-    return { erro: NextResponse.json({ error: 'Sem permissão' }, { status: 403 }) } as const
-  }
+  const ctx = await contextoSalao('comanda.ver')
+  if ('erro' in ctx) return ctx
   if (!UUID.test(mesaId)) return { erro: NextResponse.json({ error: 'Mesa inválida' }, { status: 400 }) } as const
 
-  const admin = getAdminSupabase()
-  const { data: mesa } = await admin
+  const { data: mesa } = await ctx.admin
     .from('mesas')
     .select('id, nome')
     .eq('id', mesaId)
-    .eq('restaurante_id', sessao.restauranteId)
+    .eq('restaurante_id', ctx.sessao.restauranteId)
     .maybeSingle()
   if (!mesa) return { erro: NextResponse.json({ error: 'Mesa não encontrada nesta loja' }, { status: 404 }) } as const
-  return { sessao, admin, mesa: mesa as { id: string; nome: string } } as const
+  return { ...ctx, mesa: mesa as { id: string; nome: string } } as const
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -73,7 +87,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const conta = await buscarConta(ctx.admin, ctx.sessao.restauranteId, id)
   const { data: loja } = await ctx.admin
     .from('restaurantes')
-    .select('formas_pagamento_mesa')
+    .select('formas_pagamento_mesa, taxa_servico_padrao')
     .eq('id', ctx.sessao.restauranteId)
     .maybeSingle()
 
@@ -81,8 +95,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     conta,
     historico: conta ? await historicoDaConta(ctx.admin, ctx.sessao.restauranteId, conta) : [],
     formasPagamento: (loja?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito'],
-    // A tela esconde o que o papel não pode fazer; o POST confere de novo.
-    permissoes: Object.fromEntries(Object.entries(PERMISSAO_DA_ACAO).map(([acao, p]) => [acao, pode(ctx.sessao.papel, p)])),
+    taxaServicoPadrao: Number(loja?.taxa_servico_padrao ?? 0),
+    permissoes: permissoesDaTela(ctx),
   })
 }
 
@@ -102,7 +116,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const acao = typeof corpo.acao === 'string' ? corpo.acao : ''
   const exigida = PERMISSAO_DA_ACAO[acao]
   if (!exigida) return NextResponse.json({ error: 'Ação desconhecida' }, { status: 400 })
-  if (!pode(sessao.papel, exigida)) return NextResponse.json({ error: 'Sem permissão para esta ação' }, { status: 403 })
+  const permitido = acao === 'ajustar_mesa' ? permissoesDaTela(ctx).ajustar_mesa : ctx.pode(exigida)
+  if (!permitido) return NextResponse.json({ error: 'Sem permissão para esta ação' }, { status: 403 })
 
   const conta = await buscarConta(admin, sessao.restauranteId, id)
   const precisaConta = acao !== 'transferir_itens'
@@ -119,8 +134,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       dados: { mesa: mesa.nome, ...dados },
     })
 
+  const STATUS_CONFLITO = new Set(['destino_ocupado', 'cancelamento_pendente', 'pagamento_excede_total', 'solicitacao_decidida', 'ja_cancelado'])
   const falhou = (r: { erro: string; codigo: string }) =>
-    NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.codigo === 'destino_ocupado' ? 409 : 400 })
+    NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: STATUS_CONFLITO.has(r.codigo) ? 409 : 400 })
 
   switch (acao) {
     case 'pagamento': {
@@ -128,101 +144,127 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const valor = Number(corpo.valor)
       const recebido = corpo.recebido === null || corpo.recebido === undefined || corpo.recebido === '' ? null : Number(corpo.recebido)
       const chave = typeof corpo.chave === 'string' ? corpo.chave : ''
+      const observacao = texto(corpo.observacao) || null
       if (!ehForma(forma)) return NextResponse.json({ error: 'Forma de pagamento inválida.' }, { status: 400 })
       // A loja escolhe o que aceita na mesa; esconder o botão na tela não basta.
       const { data: loja } = await admin.from('restaurantes').select('formas_pagamento_mesa').eq('id', sessao.restauranteId).maybeSingle()
       const aceitas = (loja?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito']
       if (!aceitas.includes(forma)) return NextResponse.json({ error: 'A loja não aceita esta forma de pagamento na mesa.' }, { status: 400 })
+      // Pendurar a conta é decisão da gestão, mesmo que o caixa possa receber.
+      if (forma === 'fiado' && !ctx.pode('comanda.fiado')) {
+        return NextResponse.json({ error: 'Só a gestão autoriza fiado.' }, { status: 403 })
+      }
       if (!UUID.test(chave)) return NextResponse.json({ error: 'Chave do pagamento ausente.' }, { status: 400 })
       if (!Number.isFinite(valor) || valor <= 0) return NextResponse.json({ error: 'Informe um valor maior que zero.' }, { status: 400 })
       if (recebido !== null && !Number.isFinite(recebido)) return NextResponse.json({ error: 'Valor recebido inválido.' }, { status: 400 })
 
       const r = await registrarPagamento(admin, {
         restauranteId: sessao.restauranteId, comandaId: conta!.comandaId, forma, valor, recebido, chave,
-        atorId: sessao.userId, atorNome: sessao.nome,
+        atorId: sessao.userId, atorNome: sessao.nome, observacao,
       })
       if (!r.ok) return falhou(r)
       if (!r.valor.idempotente) {
-        await auditar('conta.pagamento', conta!.comandaId, { resumo: formatarResumoPagamento(forma, valor, r.valor.troco ?? 0) })
+        await auditar('conta.pagamento', conta!.comandaId, {
+          resumo: formatarResumoPagamento(forma, valor, r.valor.troco ?? 0) + (forma === 'fiado' && observacao ? ` · ${observacao}` : ''),
+          pagamento_id: r.valor.id,
+        })
       }
       return NextResponse.json({ ok: true, ...r.valor })
     }
 
     case 'estorno': {
       const pagamentoId = typeof corpo.pagamentoId === 'string' ? corpo.pagamentoId : ''
-      const motivo = typeof corpo.motivo === 'string' ? corpo.motivo.trim().slice(0, 200) : ''
+      const motivo = texto(corpo.motivo)
       if (!UUID.test(pagamentoId)) return NextResponse.json({ error: 'Pagamento inválido.' }, { status: 400 })
       // O pagamento tem que ser DESTA conta — id de outra mesa não serve.
-      if (!conta!.pagamentos.some((p) => p.id === pagamentoId)) {
-        return NextResponse.json({ error: 'Pagamento não pertence a esta conta.' }, { status: 404 })
-      }
+      const pag = conta!.pagamentos.find((p) => p.id === pagamentoId)
+      if (!pag) return NextResponse.json({ error: 'Pagamento não pertence a esta conta.' }, { status: 404 })
       const r = await estornarPagamento(admin, { restauranteId: sessao.restauranteId, pagamentoId, motivo, atorNome: sessao.nome })
       if (!r.ok) return falhou(r)
-      await auditar('conta.estorno', conta!.comandaId, { resumo: motivo })
+      await auditar('conta.estorno', conta!.comandaId, {
+        resumo: formatarResumoPagamento(pag.forma, pag.valor, 0), motivo, pagamento_id: pagamentoId,
+      })
       return NextResponse.json({ ok: true })
     }
 
     case 'ajustar_mesa': {
       const patch: Record<string, unknown> = {}
+      const antes: Record<string, unknown> = {}
       if (corpo.pessoas !== undefined) {
         const p = corpo.pessoas === null || corpo.pessoas === '' ? null : Math.floor(Number(corpo.pessoas))
         if (p !== null && (!Number.isFinite(p) || p < 1 || p > 99)) {
           return NextResponse.json({ error: 'Número de pessoas inválido.' }, { status: 400 })
         }
         patch.pessoas = p
+        antes.pessoas = conta!.pessoas
       }
-      if (typeof corpo.observacoes === 'string') patch.observacoes = corpo.observacoes.trim().slice(0, 300) || null
-      if (corpo.assumir === true) {
+      if (typeof corpo.observacoes === 'string') {
+        patch.observacoes = corpo.observacoes.trim().slice(0, 300) || null
+        antes.observacoes = conta!.observacoes
+      }
+      // Assumir a mesa é de quem atende, não do caixa.
+      if (corpo.assumir === true && ctx.pode('mesas.operar')) {
         patch.responsavel_id = sessao.userId
         patch.responsavel_nome = sessao.nome
-      }
-      if (Object.keys(patch).length === 0) return NextResponse.json({ ok: true })
-      const { error } = await admin.from('comandas').update(patch).eq('id', conta!.comandaId).eq('status', 'aberta')
-      if (error) return NextResponse.json({ error: 'Não foi possível salvar.' }, { status: 500 })
-      await auditar('conta.ajustou', conta!.comandaId, { resumo: Object.keys(patch).join(', ') })
-      return NextResponse.json({ ok: true })
-    }
-
-    case 'ajustar_valores': {
-      const patch: Record<string, unknown> = {}
-      if (corpo.taxaServico !== undefined) {
-        const t = Number(corpo.taxaServico)
-        if (!Number.isFinite(t) || t < 0 || t > 30) return NextResponse.json({ error: 'Taxa de serviço entre 0% e 30%.' }, { status: 400 })
-        patch.taxa_servico_percentual = Math.round(t * 100) / 100
-      }
-      if (corpo.desconto !== undefined) {
-        const d = Number(corpo.desconto)
-        if (!Number.isFinite(d) || d < 0) return NextResponse.json({ error: 'Desconto inválido.' }, { status: 400 })
-        const motivo = typeof corpo.descontoMotivo === 'string' ? corpo.descontoMotivo.trim().slice(0, 200) : ''
-        if (d > 0 && !motivo) return NextResponse.json({ error: 'Informe o motivo do desconto.' }, { status: 400 })
-        patch.desconto_valor = Math.round(d * 100) / 100
-        patch.desconto_motivo = d > 0 ? motivo : null
+        antes.responsavel = conta!.responsavelNome
       }
       if (Object.keys(patch).length === 0) return NextResponse.json({ ok: true })
       const { error } = await admin.from('comandas').update(patch).eq('id', conta!.comandaId).eq('status', 'aberta')
       if (error) return NextResponse.json({ error: 'Não foi possível salvar.' }, { status: 500 })
       await auditar('conta.ajustou', conta!.comandaId, {
-        resumo: [
-          patch.taxa_servico_percentual !== undefined ? `taxa ${patch.taxa_servico_percentual}%` : null,
-          patch.desconto_valor !== undefined ? `desconto R$ ${patch.desconto_valor}` : null,
-        ].filter(Boolean).join(' · '),
+        resumo: Object.keys(patch).filter((k) => k !== 'responsavel_id').join(', '),
+        antes,
+        depois: { pessoas: patch.pessoas, observacoes: patch.observacoes, responsavel: patch.responsavel_nome },
       })
       return NextResponse.json({ ok: true })
+    }
+
+    case 'ajustar_valores': {
+      const num = (v: unknown) => (v === undefined || v === null || v === '' ? null : Number(v))
+      const taxa = num(corpo.taxaServico)
+      const tipo = corpo.descontoTipo === 'percentual' ? 'percentual' : corpo.descontoTipo === 'valor' ? 'valor' : null
+      // Compatibilidade: `desconto` sem tipo é desconto em reais, como antes da 0072.
+      const valor = num(corpo.descontoValor ?? corpo.desconto)
+      const pct = num(corpo.descontoPercentual)
+      for (const n of [taxa, valor, pct]) {
+        if (n !== null && !Number.isFinite(n)) return NextResponse.json({ error: 'Valor inválido.' }, { status: 400 })
+      }
+      const r = await ajustarValores(admin, {
+        restauranteId: sessao.restauranteId, comandaId: conta!.comandaId, taxa,
+        descontoTipo: tipo ?? (valor !== null ? 'valor' : null),
+        descontoValor: valor, descontoPercentual: pct,
+        motivo: texto(corpo.descontoMotivo ?? corpo.motivo) || null,
+        atorId: sessao.userId, atorNome: sessao.nome,
+      })
+      if (!r.ok) return falhou(r)
+      // A função do banco já auditou taxa e desconto com antes, depois e motivo.
+      return NextResponse.json({ ok: true, totais: r.valor })
     }
 
     case 'fechar': {
       const r = await fecharConta(admin, { restauranteId: sessao.restauranteId, comandaId: conta!.comandaId, atorId: sessao.userId, atorNome: sessao.nome })
       if (!r.ok) return falhou(r)
-      await auditar('conta.fechou', conta!.comandaId, { resumo: `total R$ ${r.valor.total}` })
-      return NextResponse.json({ ok: true, ...r.valor })
+      const v = r.valor
+      const situacaoTaxa =
+        v.taxa_situacao === 'removida' ? 'taxa de serviço removida'
+          : v.taxa_situacao === 'alterada' ? `taxa de serviço alterada para ${v.taxa_percentual}% (padrão ${v.taxa_padrao}%)`
+            : v.taxa_situacao === 'aceita' ? `taxa de serviço de ${v.taxa_percentual}% aceita`
+              : 'sem taxa de serviço'
+      await auditar('conta.fechou', conta!.comandaId, {
+        resumo: `total R$ ${Number(v.total).toFixed(2)} · ${situacaoTaxa}`,
+        de: 'aberta', para: 'fechada', taxa_situacao: v.taxa_situacao, numero: conta!.numero,
+      })
+      return NextResponse.json({ ok: true, ...v })
     }
 
     case 'transferir_mesa': {
       const destino = typeof corpo.destinoMesaId === 'string' ? corpo.destinoMesaId : ''
+      const motivo = texto(corpo.motivo)
       if (!UUID.test(destino)) return NextResponse.json({ error: 'Mesa de destino inválida.' }, { status: 400 })
+      if (!motivo) return NextResponse.json({ error: 'Informe o motivo da transferência.', codigo: 'motivo_obrigatorio' }, { status: 400 })
       const r = await transferirMesa(admin, {
         restauranteId: sessao.restauranteId, origemMesaId: id, destinoMesaId: destino, mesclar: corpo.mesclar === true,
-        atorId: sessao.userId, atorNome: sessao.nome,
+        atorId: sessao.userId, atorNome: sessao.nome, motivo,
       })
       if (!r.ok) return falhou(r)
       return NextResponse.json({ ok: true, ...r.valor })
@@ -230,9 +272,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     case 'transferir_itens': {
       const destino = typeof corpo.destinoMesaId === 'string' ? corpo.destinoMesaId : ''
+      const motivo = texto(corpo.motivo)
       const itemIds = Array.isArray(corpo.itemIds) ? (corpo.itemIds as unknown[]).filter((x): x is string => typeof x === 'string' && UUID.test(x)) : []
       if (!UUID.test(destino)) return NextResponse.json({ error: 'Mesa de destino inválida.' }, { status: 400 })
       if (itemIds.length === 0) return NextResponse.json({ error: 'Selecione pelo menos um item.' }, { status: 400 })
+      if (!motivo) return NextResponse.json({ error: 'Informe o motivo da transferência.', codigo: 'motivo_obrigatorio' }, { status: 400 })
 
       // Quantidade parcial: um número por item, na mesma ordem. Corpo sem isto (ou com
       // tamanho errado) transfere a linha inteira — o banco também trata `null`.
@@ -251,14 +295,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
       const r = await transferirItens(admin, {
         restauranteId: sessao.restauranteId, itemIds, destinoMesaId: destino, atorId: sessao.userId,
-        atorNome: sessao.nome, quantidades,
+        atorNome: sessao.nome, quantidades, motivo,
       })
       if (!r.ok) return falhou(r)
       return NextResponse.json({ ok: true, ...r.valor })
     }
 
     case 'cancelar_comanda': {
-      const motivo = typeof corpo.motivo === 'string' ? corpo.motivo.trim().slice(0, 200) : ''
+      const motivo = texto(corpo.motivo)
       if (!motivo) return NextResponse.json({ error: 'Informe o motivo.' }, { status: 400 })
       // A função do banco audita por dentro, na mesma transação do cancelamento.
       const r = await cancelarComanda(admin, {
@@ -271,39 +315,58 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     case 'cancelar_item': {
       const itemId = typeof corpo.itemId === 'string' ? corpo.itemId : ''
-      const motivo = typeof corpo.motivo === 'string' ? corpo.motivo.trim().slice(0, 200) : ''
-      if (!conta!.lancamentos.some((l) => l.itens.some((i) => i.id === itemId))) {
-        return NextResponse.json({ error: 'Item não pertence a esta conta.' }, { status: 404 })
-      }
+      const motivo = texto(corpo.motivo)
+      const item = conta!.lancamentos.flatMap((l) => l.itens).find((i) => i.id === itemId)
+      if (!item) return NextResponse.json({ error: 'Item não pertence a esta conta.' }, { status: 404 })
       const r = await cancelarItem(admin, { restauranteId: sessao.restauranteId, itemId, motivo, atorNome: sessao.nome })
       if (!r.ok) return falhou(r)
-      const item = conta!.lancamentos.flatMap((l) => l.itens).find((i) => i.id === itemId)
-      await auditar('conta.cancelou_item', conta!.comandaId, { resumo: `${item?.quantidade}× ${item?.nome} — ${motivo}` })
+      await auditar('conta.cancelou_item', conta!.comandaId, {
+        resumo: `${item.quantidade}× ${item.nome}`, motivo, item_id: itemId, de: 'ativo', para: 'cancelado',
+      })
       return NextResponse.json({ ok: true, ...r.valor })
     }
 
     case 'cancelar_pedido': {
       const pedidoId = typeof corpo.pedidoId === 'string' ? corpo.pedidoId : ''
-      const motivo = typeof corpo.motivo === 'string' ? corpo.motivo.trim().slice(0, 200) : ''
+      const motivo = texto(corpo.motivo)
+      if (!motivo) return NextResponse.json({ error: 'Informe o motivo.' }, { status: 400 })
+      if (!conta!.lancamentos.some((l) => l.id === pedidoId)) {
+        return NextResponse.json({ error: 'Lançamento não pertence a esta conta.' }, { status: 404 })
+      }
+      // Função do banco: trava a comanda, confere o que já foi pago e audita.
+      const r = await cancelarPedido(admin, { restauranteId: sessao.restauranteId, pedidoId, motivo, atorId: sessao.userId, atorNome: sessao.nome })
+      if (!r.ok) return falhou(r)
+      return NextResponse.json({ ok: true })
+    }
+
+    case 'solicitar_cancelamento': {
+      const pedidoId = typeof corpo.pedidoId === 'string' ? corpo.pedidoId : ''
+      const itemId = typeof corpo.itemId === 'string' && corpo.itemId ? corpo.itemId : null
+      const motivo = texto(corpo.motivo)
       if (!motivo) return NextResponse.json({ error: 'Informe o motivo.' }, { status: 400 })
       const lanc = conta!.lancamentos.find((l) => l.id === pedidoId)
-      if (!lanc) return NextResponse.json({ error: 'Lançamento não pertence a esta conta.' }, { status: 404 })
-      // Mesma gravação do cancelamento do Kanban: status + motivo, nada apagado, e
-      // `reimprimir = false` para uma reimpressão pendente não sair depois de cancelado.
-      const { data, error } = await admin
-        .from('pedidos')
-        .update({
-          status: 'cancelado', cancelado_motivo: 'outro', cancelado_observacao: motivo,
-          cancelado_por: sessao.nome, cancelado_em: new Date().toISOString(), reimprimir: false,
-        })
-        .eq('id', pedidoId)
-        .eq('restaurante_id', sessao.restauranteId)
-        .not('status', 'in', '(entregue,cancelado)')
-        .select('id')
-      if (error) return NextResponse.json({ error: 'Erro ao cancelar.' }, { status: 500 })
-      if (!data?.length) return NextResponse.json({ error: 'Lançamento já cancelado.' }, { status: 409 })
-      await auditar('conta.cancelou_pedido', conta!.comandaId, { resumo: `#${lanc.numero} — ${motivo}` })
-      return NextResponse.json({ ok: true })
+      if (!lanc || (itemId && !lanc.itens.some((i) => i.id === itemId))) {
+        return NextResponse.json({ error: 'Item não pertence a esta conta.' }, { status: 404 })
+      }
+      const r = await solicitarCancelamento(admin, {
+        restauranteId: sessao.restauranteId, pedidoId, itemId, motivo, atorId: sessao.userId, atorNome: sessao.nome,
+      })
+      if (!r.ok) return falhou(r)
+      return NextResponse.json({ ok: true, ...r.valor }, { status: r.valor.jaExistia ? 200 : 201 })
+    }
+
+    case 'decidir_cancelamento': {
+      const solicitacaoId = typeof corpo.solicitacaoId === 'string' ? corpo.solicitacaoId : ''
+      if (!conta!.solicitacoes.some((s) => s.id === solicitacaoId)) {
+        return NextResponse.json({ error: 'Pedido de cancelamento não pertence a esta conta.' }, { status: 404 })
+      }
+      if (typeof corpo.aprovar !== 'boolean') return NextResponse.json({ error: 'Informe se aprova ou recusa.' }, { status: 400 })
+      const r = await decidirCancelamento(admin, {
+        restauranteId: sessao.restauranteId, solicitacaoId, aprovar: corpo.aprovar, observacao: texto(corpo.observacao) || null,
+        atorId: sessao.userId, atorNome: sessao.nome,
+      })
+      if (!r.ok) return falhou(r)
+      return NextResponse.json({ ok: true, ...r.valor })
     }
 
     case 'reimprimir': {
@@ -322,4 +385,3 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   return NextResponse.json({ error: 'Ação desconhecida' }, { status: 400 })
 }
-

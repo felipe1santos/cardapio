@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server'
-import { getServerSupabase } from '@/lib/supabase/server'
-import { getAdminSupabase } from '@/lib/supabase/admin'
-import { getCurrentSession } from '@/lib/auth/session'
-import { pode } from '@/lib/auth/permissoes'
+import { contextoSalao } from '@/lib/auth/salao'
 import { assumirChamado, concluirChamado, listarChamadosAbertos } from '@/lib/queries/chamados'
 
 /**
  * Chamados abertos do salão (GET) e as duas ações do garçom (POST).
  *
- * O middleware já exige `mesas.operar` em `/api/admin/mesas`; a sessão é reconferida aqui
- * porque esconder o botão não é autorização.
+ * `contextoSalao` reconfere sessão, módulo ligado e `mesas.operar` — o caixa não atende
+ * chamado, e esconder o botão não é autorização.
  *
  * Assumir e concluir são funções do banco (0068): dois garçons tocam "assumir" no mesmo
  * chamado e só um ganha — o outro recebe o nome de quem pegou, em vez de sobrescrever.
@@ -18,14 +15,7 @@ import { assumirChamado, concluirChamado, listarChamadosAbertos } from '@/lib/qu
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function contexto() {
-  const sessao = await getCurrentSession(await getServerSupabase())
-  if (!sessao) return { erro: NextResponse.json({ error: 'Não autenticado' }, { status: 401 }) } as const
-  if (!pode(sessao.papel, 'mesas.operar')) {
-    return { erro: NextResponse.json({ error: 'Sem permissão' }, { status: 403 }) } as const
-  }
-  return { sessao, admin: getAdminSupabase() } as const
-}
+const contexto = () => contextoSalao('mesas.operar')
 
 export async function GET() {
   const ctx = await contexto()

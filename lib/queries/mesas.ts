@@ -10,9 +10,23 @@ export interface Mesa {
   setor: string | null
   capacidade: number | null
   bloqueada: boolean
-  /** Só sai por caminho autenticado com `mesas.gerenciar`. Nunca vai para o público. */
-  token: string
   tokenGeradoEm: string
+  /** QR revogado sem substituto (0071): o link não abre até a gestão gerar outro. */
+  qrRevogado: boolean
+}
+
+/**
+ * O token do QR NÃO faz parte de `Mesa`. Desde a 0071 o navegador não lê a coluna, e as
+ * listas de mesas (salão, PDV, Ajustes) não têm por que carregá-lo. Ele sai só por
+ * `listarTokensDasMesas`, chamada pela rota do QR com `mesas.gerenciar`.
+ */
+export interface TokenDaMesa {
+  id: string
+  nome: string
+  setor: string | null
+  ativa: boolean
+  token: string
+  qrRevogado: boolean
 }
 
 interface MesaRow {
@@ -25,12 +39,12 @@ interface MesaRow {
   setor: string | null
   capacidade: number | null
   bloqueada_em: string | null
-  token: string
   token_gerado_em: string
+  qr_revogado_em: string | null
 }
 
 const MESA_SELECT =
-  'id, restaurante_id, nome, ordem, ativa, criado_em, setor, capacidade, bloqueada_em, token, token_gerado_em'
+  'id, restaurante_id, nome, ordem, ativa, criado_em, setor, capacidade, bloqueada_em, token_gerado_em, qr_revogado_em'
 
 export function mapMesaRow(row: MesaRow): Mesa {
   return {
@@ -41,8 +55,8 @@ export function mapMesaRow(row: MesaRow): Mesa {
     setor: row.setor ?? null,
     capacidade: row.capacidade ?? null,
     bloqueada: row.bloqueada_em !== null,
-    token: row.token,
     tokenGeradoEm: row.token_gerado_em,
+    qrRevogado: (row.qr_revogado_em ?? null) !== null,
   }
 }
 
@@ -147,6 +161,39 @@ export async function removerMesa(supabase: SupabaseClient, id: string): Promise
   if (error) throw error
 }
 
+/** Tokens do QR, só com service_role e só para a rota do QR (`mesas.gerenciar`). */
+export async function listarTokensDasMesas(
+  admin: SupabaseClient,
+  restauranteId: string,
+  mesaId?: string,
+): Promise<TokenDaMesa[]> {
+  let q = admin
+    .from('mesas')
+    .select('id, nome, setor, ativa, token, qr_revogado_em')
+    .eq('restaurante_id', restauranteId)
+    .order('ordem', { ascending: true })
+    .order('criado_em', { ascending: true })
+  if (mesaId) q = q.eq('id', mesaId)
+  const { data, error } = await q
+  if (error) throw error
+  return ((data ?? []) as { id: string; nome: string; setor: string | null; ativa: boolean | null; token: string; qr_revogado_em: string | null }[]).map(
+    (r) => ({ id: r.id, nome: r.nome, setor: r.setor, ativa: r.ativa ?? true, token: r.token, qrRevogado: r.qr_revogado_em !== null }),
+  )
+}
+
+/**
+ * Revoga o QR SEM emitir outro: o token é trocado por um valor que ninguém conhece (o
+ * antigo morre na hora) e a mesa fica marcada como sem QR até a gestão gerar um novo.
+ */
+export async function revogarQrMesa(admin: SupabaseClient, restauranteId: string, id: string): Promise<void> {
+  const { error } = await admin
+    .from('mesas')
+    .update({ token: crypto.randomUUID(), qr_revogado_em: new Date().toISOString() })
+    .eq('id', id)
+    .eq('restaurante_id', restauranteId)
+  if (error) throw error
+}
+
 /**
  * Revoga o QR antigo e emite um novo, mantendo o id interno da mesa — histórico,
  * comandas e pedidos continuam ligados a ela. Quem tiver o QR velho recebe 404.
@@ -158,7 +205,7 @@ export async function regenerarTokenMesa(
 ): Promise<{ token: string }> {
   const { data, error } = await admin
     .from('mesas')
-    .update({ token: crypto.randomUUID(), token_gerado_em: new Date().toISOString() })
+    .update({ token: crypto.randomUUID(), token_gerado_em: new Date().toISOString(), qr_revogado_em: null })
     .eq('id', id)
     .eq('restaurante_id', restauranteId)
     .select('token')
@@ -169,8 +216,8 @@ export async function regenerarTokenMesa(
 
 /**
  * Resolve o token público da URL. Roda SEMPRE com service_role: `anon` não tem grant em
- * `mesas`. Devolve `null` para token inexistente, mesa inativa, mesa bloqueada ou loja
- * com o módulo desligado — sem distinguir os casos para quem chama de fora, para não
+ * `mesas`. Devolve `null` para token inexistente, mesa inativa, mesa bloqueada, QR revogado
+ * ou loja com o módulo desligado — sem distinguir os casos para quem chama de fora, para não
  * virar oráculo de enumeração.
  */
 export async function resolverMesaPorToken(
@@ -181,7 +228,7 @@ export async function resolverMesaPorToken(
 
   const { data, error } = await admin
     .from('mesas')
-    .select('id, nome, ativa, bloqueada_em, restaurante_id, restaurantes ( slug, modulo_mesas_ativo )')
+    .select('id, nome, ativa, bloqueada_em, qr_revogado_em, restaurante_id, restaurantes ( slug, modulo_mesas_ativo )')
     .eq('token', token)
     .maybeSingle()
   if (error) throw error
@@ -192,12 +239,14 @@ export async function resolverMesaPorToken(
     nome: string
     ativa: boolean | null
     bloqueada_em: string | null
+    qr_revogado_em: string | null
     restaurante_id: string
     restaurantes: { slug: string; modulo_mesas_ativo: boolean } | null
   }
 
   if ((row.ativa ?? true) === false) return null
   if (row.bloqueada_em !== null) return null
+  if ((row.qr_revogado_em ?? null) !== null) return null
   if (!row.restaurantes?.modulo_mesas_ativo) return null
 
   return {

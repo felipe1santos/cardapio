@@ -11,8 +11,8 @@ const LINHA = {
   setor: 'Varanda',
   capacidade: 4,
   bloqueada_em: null,
-  token: '11111111-1111-4111-8111-111111111111',
   token_gerado_em: 'y',
+  qr_revogado_em: null,
 }
 
 describe('mapMesaRow', () => {
@@ -25,9 +25,17 @@ describe('mapMesaRow', () => {
       setor: 'Varanda',
       capacidade: 4,
       bloqueada: false,
-      token: '11111111-1111-4111-8111-111111111111',
       tokenGeradoEm: 'y',
+      qrRevogado: false,
     })
+  })
+
+  it('a Mesa nunca carrega o token do QR (0071)', () => {
+    expect(Object.keys(mapMesaRow(LINHA))).not.toContain('token')
+  })
+
+  it('QR revogado é derivado do carimbo', () => {
+    expect(mapMesaRow({ ...LINHA, qr_revogado_em: '2026-09-18T10:00:00Z' }).qrRevogado).toBe(true)
   })
 
   it('trata ativa ausente como true', () => {
@@ -137,6 +145,11 @@ describe('resolverMesaPorToken', () => {
   it('recusa mesa bloqueada', async () => {
     const bloqueada = { ...MESA_OK, bloqueada_em: '2026-09-16T10:00:00Z' }
     await expect(resolverMesaPorToken(supabaseComMesa(bloqueada), TOKEN)).resolves.toBeNull()
+  })
+
+  it('recusa QR revogado sem substituto (0071)', async () => {
+    const revogada = { ...MESA_OK, qr_revogado_em: '2026-09-18T10:00:00Z' }
+    await expect(resolverMesaPorToken(supabaseComMesa(revogada), TOKEN)).resolves.toBeNull()
   })
 
   it('recusa loja com o módulo desligado — a flag vale também na rota pública', async () => {

@@ -1,30 +1,23 @@
 import { NextResponse } from 'next/server'
-import { getServerSupabase } from '@/lib/supabase/server'
-import { getAdminSupabase } from '@/lib/supabase/admin'
-import { getCurrentSession } from '@/lib/auth/session'
 import { pode } from '@/lib/auth/permissoes'
+import { contextoSalao } from '@/lib/auth/salao'
 import { FORMAS_PAGAMENTO, ehForma } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 
 /**
- * Configuração da conta das mesas: taxa de serviço padrão e formas de pagamento aceitas.
+ * Configuração da conta das mesas: taxa de serviço padrão, formas de pagamento aceitas e
+ * as regras do salão por papel (garçom recebe? garçom transfere? caixa dá desconto?).
  *
- * Só quem gerencia mesas altera. Loja vem da sessão, nunca do corpo. A taxa padrão vale
- * para contas abertas DEPOIS da mudança — conta aberta mantém a taxa com que nasceu, e
- * quem ajusta essa é o gerente, na própria conta.
+ * Taxa e formas: quem gerencia mesas. Regras por papel: só o DONO — elas decidem o que o
+ * gerente, o garçom e o caixa podem fazer com dinheiro, então não ficam com quem elas
+ * mesmas regulam. Loja vem da sessão, nunca do corpo. A taxa padrão vale para contas
+ * abertas DEPOIS da mudança — conta aberta mantém a taxa com que nasceu.
  */
 
-async function sessaoGestora() {
-  const sessao = await getCurrentSession(await getServerSupabase())
-  if (!sessao) return { erro: NextResponse.json({ error: 'Não autenticado' }, { status: 401 }) } as const
-  if (!pode(sessao.papel, 'mesas.gerenciar')) return { erro: NextResponse.json({ error: 'Sem permissão' }, { status: 403 }) } as const
-  return { sessao } as const
-}
-
 export async function GET() {
-  const ctx = await sessaoGestora()
+  const ctx = await contextoSalao('mesas.gerenciar')
   if ('erro' in ctx) return ctx.erro
-  const { data } = await getAdminSupabase()
+  const { data } = await ctx.admin
     .from('restaurantes')
     .select('taxa_servico_padrao, formas_pagamento_mesa')
     .eq('id', ctx.sessao.restauranteId)
@@ -33,14 +26,16 @@ export async function GET() {
     taxaServicoPadrao: Number(data?.taxa_servico_padrao ?? 0),
     formasPagamento: (data?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito'],
     formasDisponiveis: FORMAS_PAGAMENTO,
+    regras: ctx.regras,
+    podeEditarRegras: pode(ctx.sessao.papel, 'ajustes.editar'),
   })
 }
 
 export async function PUT(request: Request) {
-  const ctx = await sessaoGestora()
+  const ctx = await contextoSalao('mesas.gerenciar')
   if ('erro' in ctx) return ctx.erro
 
-  let corpo: { taxaServicoPadrao?: unknown; formasPagamento?: unknown }
+  let corpo: { taxaServicoPadrao?: unknown; formasPagamento?: unknown; regras?: unknown }
   try {
     corpo = await request.json()
   } catch {
@@ -58,21 +53,55 @@ export async function PUT(request: Request) {
   // Ordem estável (a da lista oficial), para os botões não trocarem de lugar.
   const ordenadas = FORMAS_PAGAMENTO.filter((f) => formas.includes(f))
 
-  const admin = getAdminSupabase()
-  const { error } = await admin
+  const patch: Record<string, unknown> = {
+    taxa_servico_padrao: Math.round(taxa * 100) / 100,
+    formas_pagamento_mesa: ordenadas,
+  }
+
+  // Regras: allowlist de três booleanos. Qualquer outra chave do corpo é ignorada.
+  let regrasNovas = ctx.regras
+  if (corpo.regras !== undefined) {
+    if (!pode(ctx.sessao.papel, 'ajustes.editar')) {
+      return NextResponse.json({ error: 'Só o dono altera as regras do salão.' }, { status: 403 })
+    }
+    const r = corpo.regras as Record<string, unknown>
+    if (!r || typeof r !== 'object') return NextResponse.json({ error: 'Regras inválidas.' }, { status: 400 })
+    const bool = (v: unknown, atual: boolean) => (typeof v === 'boolean' ? v : atual)
+    regrasNovas = {
+      garcomRecebe: bool(r.garcomRecebe, ctx.regras.garcomRecebe),
+      garcomTransfere: bool(r.garcomTransfere, ctx.regras.garcomTransfere),
+      caixaDesconto: bool(r.caixaDesconto, ctx.regras.caixaDesconto),
+    }
+    patch.salao_garcom_recebe = regrasNovas.garcomRecebe
+    patch.salao_garcom_transfere = regrasNovas.garcomTransfere
+    patch.salao_caixa_desconto = regrasNovas.caixaDesconto
+  }
+
+  const { data: antes } = await ctx.admin
     .from('restaurantes')
-    .update({ taxa_servico_padrao: Math.round(taxa * 100) / 100, formas_pagamento_mesa: ordenadas })
+    .select('taxa_servico_padrao, formas_pagamento_mesa')
     .eq('id', ctx.sessao.restauranteId)
+    .maybeSingle()
+
+  const { error } = await ctx.admin.from('restaurantes').update(patch).eq('id', ctx.sessao.restauranteId)
   if (error) return NextResponse.json({ error: 'Não foi possível salvar.' }, { status: 500 })
 
-  await registrarAuditoria(admin, {
+  await registrarAuditoria(ctx.admin, {
     restauranteId: ctx.sessao.restauranteId,
     usuarioId: ctx.sessao.userId,
     usuarioNome: ctx.sessao.nome,
     acao: 'mesas.configurou_conta',
     entidade: 'restaurante',
     entidadeId: ctx.sessao.restauranteId,
-    dados: { resumo: `taxa ${taxa}% · ${ordenadas.join(', ')}` },
+    dados: {
+      resumo: `taxa ${taxa}% · ${ordenadas.join(', ')}`,
+      antes: {
+        taxa: Number(antes?.taxa_servico_padrao ?? 0),
+        formas: ((antes?.formas_pagamento_mesa as string[] | null) ?? []).join(', '),
+        ...ctx.regras,
+      },
+      depois: { taxa, formas: ordenadas.join(', '), ...regrasNovas },
+    },
   })
-  return NextResponse.json({ ok: true, taxaServicoPadrao: taxa, formasPagamento: ordenadas })
+  return NextResponse.json({ ok: true, taxaServicoPadrao: taxa, formasPagamento: ordenadas, regras: regrasNovas })
 }

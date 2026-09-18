@@ -18,7 +18,12 @@ describe('mapComandaRow', () => {
       status: 'aberta',
       abertaEm: '2026-06-27T10:00:00Z',
       fechadaEm: null,
+      numero: null,
     })
+  })
+
+  it('carrega o número da comanda quando existe (0072)', () => {
+    expect(mapComandaRow({ id: 'c1', restaurante_id: 'r1', mesa_id: 'm1', status: 'aberta', aberta_em: 'x', fechada_em: null, numero: 12 }).numero).toBe(12)
   })
 })
 
