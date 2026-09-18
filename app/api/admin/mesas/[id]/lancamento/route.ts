@@ -8,7 +8,7 @@ import { abrirOuObterSessao, encerrarSelecoesVistas, sanearSelecoesVistas } from
 import { registrarAuditoria } from '@/lib/auditoria'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { itemDisponivelNoCanal, motivoIndisponivel } from '@/lib/canais-item'
-import { itemDisponivelHoje } from '@/lib/timezone'
+import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 
 /**
  * **Enviar para a cozinha.** É a única porta que transforma itens em pedido oficial de
@@ -234,15 +234,15 @@ async function conferirDisponibilidade(
   admin: ReturnType<typeof getAdminSupabase>,
   restauranteId: string,
   idsItens: string[],
-): Promise<{ itemId: string; nome: string; motivo: string; tipo: 'inexistente' | 'status' | 'dia' | 'canal' }[]> {
+): Promise<{ itemId: string; nome: string; motivo: string; tipo: 'inexistente' | 'status' | 'dia' | 'horario' | 'canal' }[]> {
   const { data } = await admin
     .from('itens_cardapio')
-    .select('id, nome, status, dias_disponiveis, disponivel_salao')
+    .select('id, nome, status, dias_disponiveis, disponivel_salao, grupos_cardapio ( horario_ativo_inicio, horario_ativo_fim )')
     .eq('restaurante_id', restauranteId)
     .in('id', idsItens)
 
   const porId = new Map((data ?? []).map((i) => [i.id as string, i]))
-  const problemas: { itemId: string; nome: string; motivo: string; tipo: 'inexistente' | 'status' | 'dia' | 'canal' }[] = []
+  const problemas: { itemId: string; nome: string; motivo: string; tipo: 'inexistente' | 'status' | 'dia' | 'horario' | 'canal' }[] = []
 
   for (const id of idsItens) {
     const item = porId.get(id)
@@ -255,6 +255,8 @@ async function conferirDisponibilidade(
       problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('status', nome), tipo: 'status' })
     } else if (!itemDisponivelHoje((item.dias_disponiveis as number[] | null) ?? [])) {
       problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('dia', nome), tipo: 'dia' })
+    } else if (!categoriaAtiva(item.grupos_cardapio)) {
+      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('horario', nome), tipo: 'horario' })
     } else if (
       !itemDisponivelNoCanal({ disponivelDelivery: true, disponivelSalao: (item.disponivel_salao as boolean | null) ?? true }, 'mesa')
     ) {
@@ -262,6 +264,19 @@ async function conferirDisponibilidade(
     }
   }
   return problemas
+}
+
+/** Horário da categoria, com a mesma regra da vitrine. Sem categoria = sem janela. */
+function categoriaAtiva(categoria: unknown): boolean {
+  const g = (Array.isArray(categoria) ? categoria[0] : categoria) as
+    | { horario_ativo_inicio: string | null; horario_ativo_fim: string | null }
+    | null
+    | undefined
+  if (!g) return true
+  return grupoEstaAtivoAgora({
+    horarioAtivoInicio: g.horario_ativo_inicio?.slice(0, 5) ?? null,
+    horarioAtivoFim: g.horario_ativo_fim?.slice(0, 5) ?? null,
+  })
 }
 
 async function buscarPedidoPorChave(

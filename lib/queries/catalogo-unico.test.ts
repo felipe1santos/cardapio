@@ -53,6 +53,15 @@ describe('catálogo único entre delivery, mesa e balcão', () => {
     expect(ler('lib/queries/cardapio.ts')).toMatch(/itemDisponivelNoCanal\(item, 'delivery'\)/)
   })
 
+  it('as superfícies do salão respeitam o horário da categoria, como a vitrine', () => {
+    for (const arquivo of ['app/mesa/[token]/page.tsx', 'app/admin/mesas/[id]/page.tsx', 'app/api/mesa/[token]/selecao/route.ts']) {
+      expect(ler(arquivo), arquivo).toMatch(/categoriaNoHorario\(/)
+    }
+    // O servidor recusa no envio: aba aberta antes da troca de horário não fura a regra.
+    expect(ler('app/api/admin/mesas/[id]/lancamento/route.ts')).toMatch(/motivoIndisponivel\('horario'/)
+    expect(ler('lib/queries/cardapio.ts')).toMatch(/grupoEstaAtivoAgora\(grupo\)/)
+  })
+
   it('o preço oficial é recalculado no servidor no lançamento — a mesa não grava preço do navegador', () => {
     const lancamento = ler('app/api/admin/mesas/[id]/lancamento/route.ts')
     // Quem repreço é `criarPedido`, que lê `itens_cardapio` de novo.

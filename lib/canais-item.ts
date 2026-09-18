@@ -28,6 +28,22 @@ export function itemDisponivelNoCanal(item: ItemComCanais, canal: CanalVenda): b
   return item.disponivelSalao
 }
 
+/**
+ * A categoria do item está no horário agora? Mesma regra da vitrine
+ * (`listarCardapioPublico` → `grupoEstaAtivoAgora`): categoria com janela de horário
+ * (almoço, noite) só vende dentro dela, em QUALQUER canal. Item sem categoria não tem
+ * janela. `categorias` precisa trazer os horários (`GrupoCardapio`).
+ */
+export function categoriaNoHorario(
+  item: { grupoId: string | null },
+  categorias: { id: string; horarioAtivoInicio: string | null; horarioAtivoFim: string | null }[],
+  estaAtiva: (g: { horarioAtivoInicio: string | null; horarioAtivoFim: string | null }) => boolean,
+): boolean {
+  if (!item.grupoId) return true
+  const categoria = categorias.find((g) => g.id === item.grupoId)
+  return categoria ? estaAtiva(categoria) : true
+}
+
 export const ROTULO_CANAL: Record<CanalVenda, string> = {
   delivery: 'Delivery',
   mesa: 'Salão',
@@ -47,9 +63,10 @@ export function resumoCanais(item: ItemComCanais): string {
  * Mensagem que o garçom lê quando o item saiu do ar entre o cliente marcar e ele lançar.
  * Fica aqui junto da regra para o texto não ser inventado de novo em cada tela.
  */
-export function motivoIndisponivel(motivo: 'inexistente' | 'status' | 'dia' | 'canal', nome: string): string {
+export function motivoIndisponivel(motivo: 'inexistente' | 'status' | 'dia' | 'horario' | 'canal', nome: string): string {
   if (motivo === 'inexistente') return `"${nome}" não está mais no cardápio.`
   if (motivo === 'status') return `"${nome}" está pausado ou esgotado.`
   if (motivo === 'dia') return `"${nome}" não é servido hoje.`
+  if (motivo === 'horario') return `"${nome}" é de uma categoria fora do horário agora.`
   return `"${nome}" não é vendido no salão.`
 }

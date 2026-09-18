@@ -13,8 +13,8 @@ import { buscarComandaAberta, listarPedidosDaComanda, calcularTotalComanda } fro
 import type { Pedido } from '@/lib/queries/pedidos'
 import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-sessao'
 import { validarOpcoes, minimoDoGrupo, maximoDoGrupo, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
-import { itemDisponivelNoCanal } from '@/lib/canais-item'
-import { itemDisponivelHoje } from '@/lib/timezone'
+import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
+import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import { listarChamadosAbertos, type Chamado } from '@/lib/queries/chamados'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { PainelChamados, useRelogio } from '../chamados'
@@ -134,7 +134,11 @@ export default function MesaDetalhePage() {
      // servidor confere de novo no envio: aba aberta antes da mudança não fura a regra.
     setItens(
       itensDb.filter(
-        (i) => i.status === 'disponivel' && itemDisponivelNoCanal(i, 'mesa') && itemDisponivelHoje(i.diasDisponiveis),
+        (i) =>
+          i.status === 'disponivel' &&
+          itemDisponivelNoCanal(i, 'mesa') &&
+          itemDisponivelHoje(i.diasDisponiveis) &&
+          categoriaNoHorario(i, gruposDb, grupoEstaAtivoAgora),
       ),
     )
     setCategoriaAtiva((atual) => atual ?? gruposDb[0]?.id ?? null)
