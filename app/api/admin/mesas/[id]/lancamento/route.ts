@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { contextoSalao } from '@/lib/auth/salao'
-import { criarPedido, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
+import { criarPedido } from '@/lib/queries/pedidos'
+import { sanearItensLancamento } from '@/lib/lancamento-mesa'
 import { abrirOuObterComanda } from '@/lib/queries/comandas'
 import { abrirOuObterSessao, encerrarSelecoesVistas, sanearSelecoesVistas } from '@/lib/queries/mesa-sessao'
 import { registrarAuditoria } from '@/lib/auditoria'
@@ -36,10 +37,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }
 
-  const itens = Array.isArray(corpo.itens) ? (corpo.itens as NovoPedidoItemInput[]) : []
-  if (itens.length === 0) {
-    return NextResponse.json({ error: 'Nenhum item no lançamento' }, { status: 400 })
-  }
+  // Allowlist: preço, canal, loja, comanda e autor nunca vêm do corpo.
+  const saneado = sanearItensLancamento(corpo.itens)
+  if (!saneado.ok) return NextResponse.json({ error: saneado.erro }, { status: 400 })
+  const itens = saneado.itens
 
   // A chave é gerada quando o garçom começa a montar o lançamento e só muda depois de um
   // envio bem-sucedido. Sem ela não há como distinguir "segundo pedido" de "mesmo pedido
