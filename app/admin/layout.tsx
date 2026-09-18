@@ -11,46 +11,8 @@ import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { carregarDadosSetup } from '@/lib/queries/setup'
 import { assinaturaPendencias, avaliarSetup, contarPorMenu, type PendenciaSetup } from '@/lib/setup-checklist'
 import { SetupAlerta } from '@/components/admin/setup-alerta'
-import { pode, type Permissao } from '@/lib/auth/permissoes'
-
-const NAV_ITEMS = [
-  { href: '/admin/dashboard', label: 'Dashboard' },
-  { href: '/admin/pedidos', label: 'Painel de Pedidos' },
-  { href: '/admin/pdv', label: 'PDV' },
-  { href: '/admin/mesas', label: 'Mesas e Comandas', novidade: true },
-  { href: '/admin/logistica', label: 'Logística' },
-  { href: '/admin/cardapio', label: 'Cardápio' },
-  { href: '/admin/clientes', label: 'Clientes' },
-  { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
-  { href: '/admin/fidelidade', label: 'Fidelidade', novidade: true },
-  { href: '/admin/integracoes', label: 'Integrações', novidade: true },
-  { href: '/admin/equipe', label: 'Equipe', novidade: true },
-  { href: '/admin/auditoria', label: 'Auditoria', novidade: true },
-  { href: '/admin/ajustes', label: 'Ajustes' },
-]
-
-/**
- * Permissão que cada tela exige para aparecer no menu.
- *
- * Isto é COSMÉTICO: esconder o item não protege nada. Quem barra o dado é a RLS
- * (0061/0062), já verificada por papel. O menu só deixa de oferecer tela que o
- * funcionário não conseguiria usar.
- */
-const PERMISSAO_DO_MENU: Record<string, Permissao> = {
-  '/admin/dashboard': 'dashboard.faturamento',
-  '/admin/pedidos': 'pedidos.delivery.ver',
-  '/admin/pdv': 'pedidos.balcao.criar',
-  '/admin/mesas': 'comanda.ver',
-  '/admin/logistica': 'logistica.operar',
-  '/admin/cardapio': 'cardapio.editar',
-  '/admin/clientes': 'clientes.ver',
-  '/admin/campanhas': 'campanhas.gerenciar',
-  '/admin/fidelidade': 'fidelidade.gerenciar',
-  '/admin/integracoes': 'integracoes.gerenciar',
-  '/admin/equipe': 'equipe.gerenciar',
-  '/admin/auditoria': 'auditoria.ver',
-  '/admin/ajustes': 'ajustes.editar',
-}
+import { pode } from '@/lib/auth/permissoes'
+import { itensDoMenu } from '@/lib/menu-lateral'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -157,12 +119,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
       })()
 
-      buscarConfigLoja(supabase, id).then((c) => {
-        if (!active || !c) return
-        setStoreSlug(c.slug)
-        setUsaLogistica(c.usaLogistica)
-        setModuloMesas(c.moduloMesasAtivo)
-      })
+      buscarConfigLoja(supabase, id)
+        .then((c) => {
+          if (!active || !c) return
+          setStoreSlug(c.slug)
+          setUsaLogistica(c.usaLogistica)
+        })
+        .catch(() => {
+          /* slug e logística ficam com o padrão; a flag de mesas tem leitura própria */
+        })
 
       try {
         const b = await contarBadgesNav(supabase, id)
@@ -177,6 +142,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [supabase])
 
+  // Flag do módulo de mesas: a MESMA pergunta que o middleware faz ao servidor
+  // (`auth_modulo_mesas()`, 0071), e não um campo do select grande de configuração da loja.
+  // Antes, qualquer falha naquele select (coluna nova, soluço de rede) escondia o item
+  // "Mesas e Comandas" do menu mesmo com o módulo ligado. Relida a cada troca de rota,
+  // para o menu aparecer assim que o dono liga o módulo em Ajustes, sem recarregar.
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      for (let tentativa = 0; tentativa < 3 && active; tentativa++) {
+        const { data, error } = await supabase.rpc('auth_modulo_mesas')
+        if (!active) return
+        if (!error) {
+          setModuloMesas(data === true)
+          return
+        }
+        await new Promise((r) => setTimeout(r, 700 * (tentativa + 1)))
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [supabase, pathname])
+
   // Checklist de configuração: recarregado a cada troca de rota, que é quando o
   // dono acabou de mexer em Ajustes/Cardápio. Corrigiu, o marcador some sozinho.
   useEffect(() => {
@@ -188,7 +176,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!active || !config) return
         setStoreSlug(config.slug)
         setUsaLogistica(config.usaLogistica)
-        setModuloMesas(config.moduloMesasAtivo)
 
         const lista = avaliarSetup(await carregarDadosSetup(supabase, restauranteId, config))
         if (!active) return
@@ -228,13 +215,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const alertasPorMenu = contarPorMenu(pendencias)
 
-  const items = NAV_ITEMS.filter((item) => {
-    if (item.href === '/admin/logistica' && !usaLogistica) return false
-    if (item.href === '/admin/mesas' && !moduloMesas) return false
-    if (papel === null) return true
-    const exigida = PERMISSAO_DO_MENU[item.href]
-    return exigida ? pode(papel, exigida) : true
-  }).map((item) => {
+  // Regra do menu (papel × flag de mesas × logística) em lib/menu-lateral.ts, testada.
+  const items = itensDoMenu({ papel, moduloMesas, usaLogistica }).map((item) => {
     const alerta = alertasPorMenu[item.href]
     const base = alerta ? { ...item, alerta } : item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }

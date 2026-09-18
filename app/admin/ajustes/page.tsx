@@ -54,6 +54,7 @@ import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao,
 import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
 import { CardModuloMesas } from '@/components/admin/modulo-mesas'
+import { ConfigConta } from '@/app/admin/mesas/config-conta'
 
 type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'impressao' | 'conta' | 'aparencia' | 'cozinha'
 
@@ -2454,6 +2455,9 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
   const [novaMesa, setNovaMesa] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Com o módulo ligado, esta aba é só configuração: cadastro e operação das mesas vão
+  // para "Mesas e Comandas". Desligado, o cadastro simples continua aqui para o PDV.
+  const [moduloAtivo, setModuloAtivo] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (!active) return
@@ -2532,7 +2536,24 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="max-w-xl space-y-6">
-          <CardModuloMesas />
+          <CardModuloMesas onEstado={setModuloAtivo} />
+
+          {moduloAtivo === true && (
+            <>
+              <ConfigConta embutida />
+              <Card>
+                <h3 className="mb-1 text-[13px] font-bold text-text-main">Cadastro das mesas</h3>
+                <p className="text-[12px] leading-relaxed text-text-subtle">
+                  Com o módulo ligado, cadastrar, editar, bloquear e gerar o QR de cada mesa é feito em{' '}
+                  <strong className="text-text-main">Mesas e Comandas</strong>, no menu lateral — junto do salão, das
+                  contas e dos chamados.
+                </p>
+              </Card>
+            </>
+          )}
+
+          {moduloAtivo === false && (
+          <>
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Mesas</h3>
             <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
@@ -2589,6 +2610,8 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
                 </div>
               )}
             </Card>
+          )}
+          </>
           )}
 
           {error && (

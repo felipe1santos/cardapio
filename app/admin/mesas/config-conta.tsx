@@ -9,6 +9,9 @@ import type { RegrasSalao } from '@/lib/auth/permissoes'
 /**
  * Taxa de serviço padrão, formas de pagamento aceitas nas mesas e as regras do salão
  * por papel. Taxa e formas: quem gerencia mesas. Regras: só o dono. A rota confere de novo.
+ *
+ * O lugar dela é **Ajustes › Mesas** (`embutida`). O salão mantém o mesmo formulário num
+ * modal para o gerente, que gerencia mesas mas não entra em Ajustes.
  */
 
 const REGRAS: { chave: keyof RegrasSalao; titulo: string; ajuda: string }[] = [
@@ -29,7 +32,7 @@ const REGRAS: { chave: keyof RegrasSalao; titulo: string; ajuda: string }[] = [
   },
 ]
 
-export function ConfigConta({ onFechar }: { onFechar: () => void }) {
+export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => void; embutida?: boolean }) {
   const [taxa, setTaxa] = useState('')
   const [formas, setFormas] = useState<FormaPagamento[]>([])
   const [disponiveis, setDisponiveis] = useState<FormaPagamento[]>([])
@@ -74,14 +77,15 @@ export function ConfigConta({ onFechar }: { onFechar: () => void }) {
     else setSalvo(true)
   }
 
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/40 p-4" onClick={onFechar}>
-      <div className="w-full max-w-md rounded-menuzia bg-main p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Conta e pagamentos">
+  const conteudo = (
+    <>
         <div className="flex items-center justify-between">
           <h2 className="text-[15px] font-bold text-text-main">Conta e pagamentos</h2>
-          <button onClick={onFechar} aria-label="Fechar" className="-mr-2 grid h-[40px] w-[40px] place-items-center text-text-subtle hover:text-text-main">
-            <X className="h-4 w-4" />
-          </button>
+          {!embutida && (
+            <button onClick={onFechar} aria-label="Fechar" className="-mr-2 grid h-[40px] w-[40px] place-items-center text-text-subtle hover:text-text-main">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <label className="mt-4 block">
@@ -147,11 +151,20 @@ export function ConfigConta({ onFechar }: { onFechar: () => void }) {
         {salvo && <p className="mt-3 rounded-menuzia bg-price-bg px-3 py-2 text-[12px] text-price-text" role="status">Configuração salva.</p>}
 
         <div className="mt-4 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onFechar}>Fechar</Button>
+          {!embutida && <Button variant="outline" className="flex-1" onClick={onFechar}>Fechar</Button>}
           <Button className="flex-1" disabled={salvando || formas.length === 0} onClick={salvar}>
             {salvando ? 'Salvando…' : 'Salvar'}
           </Button>
         </div>
+    </>
+  )
+
+  if (embutida) return <div className="rounded-menuzia border border-border bg-main p-5">{conteudo}</div>
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/40 p-4" onClick={onFechar}>
+      <div className="w-full max-w-md rounded-menuzia bg-main p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Conta e pagamentos">
+        {conteudo}
       </div>
     </div>
   )

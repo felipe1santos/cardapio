@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -10,8 +9,11 @@ import { Button } from '@/components/ui/button'
  *
  * Ligar é o passo 1 do atendimento na mesa; desligar com conta de mesa aberta é recusado
  * pelo servidor. Depois de mudar, a página recarrega para o menu lateral refletir.
+ *
+ * Aqui é CONFIGURAÇÃO. A operação (salão, mesas, contas, QR) fica no item "Mesas e
+ * Comandas" do menu lateral — este cartão não oferece atalho para trabalhar nas mesas.
  */
-export function CardModuloMesas() {
+export function CardModuloMesas({ onEstado }: { onEstado?: (ativo: boolean) => void } = {}) {
   const [ativo, setAtivo] = useState<boolean | null>(null)
   const [contasAbertas, setContasAbertas] = useState(0)
   const [salvando, setSalvando] = useState(false)
@@ -27,8 +29,11 @@ export function CardModuloMesas() {
         return
       }
       setAtivo(corpo.ativo === true)
+      onEstado?.(corpo.ativo === true)
       setContasAbertas(Number(corpo.contasAbertas ?? 0))
     })()
+    // Lê uma vez ao montar; `onEstado` é só o aviso para a aba, não muda a leitura.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function mudar(novo: boolean) {
@@ -82,10 +87,10 @@ export function CardModuloMesas() {
       )}
 
       {ativo === true && !confirmando && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Link href="/admin/mesas">
-            <Button variant="outline">Abrir o salão</Button>
-          </Link>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <p className="text-[12px] text-text-subtle">
+            O atendimento fica em <strong className="text-text-main">Mesas e Comandas</strong>, no menu lateral.
+          </p>
           <Button variant="ghost" onClick={() => setConfirmando(true)} disabled={salvando}>
             Desligar
           </Button>
