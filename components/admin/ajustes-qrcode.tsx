@@ -10,6 +10,7 @@ import { FolhaQr } from '@/components/admin/qr-cardapio-folha'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { listarMesas, type Mesa } from '@/lib/queries/mesas'
+import { QrDasMesas } from '@/components/admin/qr-mesas-lista'
 import {
   MAX_ETIQUETAS,
   MODELOS_ETIQUETA,
@@ -56,6 +57,10 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [erro, setErro] = useState<string | null>(null)
+  // Com Mesas e Comandas ligado, a mesa tem QR próprio (`/mesa/<token>`, cardápio de
+  // autoatendimento). O QR desta aba continua sendo o do delivery (`/loja/<slug>`) e
+  // deixa de oferecer "nome da mesa na etiqueta" — senão a mesa sairia com o QR errado.
+  const [moduloMesas, setModuloMesas] = useState(false)
 
   const [modelo, setModelo] = useState<ModeloEtiqueta>('cartao')
   const [titulo, setTitulo] = useState('')
@@ -85,6 +90,8 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
         if (config) {
           setSlug(config.slug)
           setNomeLoja(config.nome)
+          setModuloMesas(config.moduloMesasAtivo)
+          if (config.moduloMesasAtivo) setMesasSelecionadas([])
           setLogoUrl(config.logoUrl)
           const prefs = lerPreferencias(restauranteId)
           setTitulo(prefs.titulo ?? config.nome)
@@ -195,11 +202,25 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
         <div className="flex flex-wrap items-start gap-6">
           {/* ── Configuração ── */}
           <div className="w-full max-w-xl space-y-6">
+            {moduloMesas && loaded && <QrDasMesas mesas={mesas} nomeLoja={nomeLoja} logoUrl={logoUrl} />}
+
             <Card>
-              <h3 className="mb-1 text-[13px] font-bold text-text-main">QR Code do cardápio</h3>
+              <h3 className="mb-1 text-[13px] font-bold text-text-main">
+                {moduloMesas ? 'QR Code do delivery (vitrine)' : 'QR Code do cardápio'}
+              </h3>
               <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
-                Gere as etiquetas para imprimir e colar nas mesas. O cliente aponta a câmera e cai direto no seu
-                cardápio digital.
+                {moduloMesas ? (
+                  <>
+                    Abre a <strong className="text-text-main">vitrine de delivery</strong>, onde o cliente pede para
+                    entregar ou retirar. Use para divulgação, balcão e redes sociais. <strong className="text-text-main">
+                    Para as mesas, use o QR de cada mesa acima.</strong>
+                  </>
+                ) : (
+                  <>
+                    Gere as etiquetas para imprimir e colar nas mesas. O cliente aponta a câmera e cai direto no seu
+                    cardápio digital.
+                  </>
+                )}
               </p>
 
               <div className="mb-4 flex min-w-0 items-center gap-2 overflow-hidden rounded-menuzia border border-border bg-page px-3 py-2">
@@ -301,6 +322,7 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
               )}
             </Card>
 
+            {!moduloMesas && (
             <Card className="space-y-4">
               <div>
                 <h4 className="text-[13px] font-bold text-text-main">Mesas</h4>
@@ -379,6 +401,7 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
                 </p>
               </div>
             </Card>
+            )}
 
             {erro && (
               <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">
