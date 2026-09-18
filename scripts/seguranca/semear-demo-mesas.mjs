@@ -55,7 +55,7 @@ let userId
     [userId, loja, EMAIL, USUARIO])
 }
 
-// ── equipe: um garçom e um atendente do delivery ────────────────────────────
+// ── equipe: um garçom e um atendente (delivery e caixa do salão) ────────────────────────────────────────
 // O atendente existe para provar a separação por canal: ele não pode lançar em mesa.
 async function criarFuncionario(email, usuario, papel, nome) {
   let id
@@ -240,7 +240,7 @@ console.log(`
 
    Dono ......... ${USUARIO}
    Garçom ....... garcom.local
-   Atendente .... atendente.local   (delivery — não pode lançar em mesa)
+   Atendente .... atendente.local   (delivery e caixa do salão — não lança em mesa)
 
    6 mesas: 3 livres, 1 ocupada (2 lançamentos), 1 bloqueada, 1 desativada
 

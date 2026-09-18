@@ -17,7 +17,10 @@
  *   7. cancelar a conta inteira, com motivo e sem apagar;
  *   8. divisão por itens e pagamento parcial em formas diferentes;
  *   9. concorrência: dois pagamentos, duas transferências, fechamento simultâneo;
- *  10. isolamento entre lojas em toda superfície nova.
+ *  10. isolamento entre lojas em toda superfície nova;
+ *  11. caixa (atendente) recebe e fecha; garçom só com a regra da loja ligada;
+ *  12. pedido de cancelamento do garçom, decidido pela gestão;
+ *  13. desconto percentual, motivo nas transferências, QR revogado sem substituto.
  *
  * Refaz a semente no começo (estado conhecido). Só loopback.
  *   node scripts/seguranca/servidor-local.mjs build
@@ -55,6 +58,8 @@ const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 
 const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
+// Eventos de execuções anteriores (inclusive de antes da 0071) não entram nas contas.
+const INICIO = (await um('select now() as agora')).agora
 const vizinha = (await um(`select id from restaurantes where slug='vizinha-demo'`)).id
 const mesaPor = (nome, r = loja) => um(`select id, token, nome from mesas where restaurante_id=$1 and nome=$2`, [r, nome])
 const itemPor = (nome) => um(`select id, nome, preco from itens_cardapio where restaurante_id=$1 and nome=$2`, [loja, nome])
@@ -123,16 +128,42 @@ async function marcar(page, categoria, item) {
 
 const dono = await logar('dono.local')
 const garcom = await logar('garcom.local')
+// Atendente/caixa: vê o salão e cobra a conta; não lança, não atende chamado.
+const caixa = await logar('atendente.local')
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Cenário completo: do módulo desligado até a mesa voltar a livre')
 
 passo(1, 'dono ativa o módulo')
 {
-  // A flag nasce false por loja. A semente já a liga; aqui se prova que ela GOVERNA:
-  // desligada, a rota pública não existe.
-  await q(`update restaurantes set modulo_mesas_ativo = false where id = $1`, [loja])
+  // A flag nasce false por loja. Aqui ela é desligada e religada PELO DONO, pela rota que
+  // a tela de Ajustes usa — e se prova que ela GOVERNA painel, API e rota pública.
   const m = await mesaPor('Mesa 01')
+  // A semente deixa a Mesa 02 com conta aberta: desligar agora deixaria dinheiro a
+  // receber numa tela que some, e a rota recusa.
+  const bloqueado = await api(dono.page, '/api/admin/modulos/mesas', 'PUT', { ativo: false })
+  ok('desligar o módulo com conta de mesa aberta é recusado', bloqueado.status === 409 && bloqueado.json?.codigo === 'comanda_aberta', bloqueado.json?.error)
+  // Para simular a loja que ainda não contratou, a flag cai direto no banco (conexão de
+  // operação, que o trigger da 0071 deixa passar). A conta da semente fica intacta.
+  await q(`update restaurantes set modulo_mesas_ativo = false where id = $1`, [loja])
+  const doGarcom = await api(garcom.page, '/api/admin/modulos/mesas', 'PUT', { ativo: true })
+  ok('garçom não liga módulo', doGarcom.status === 403, `HTTP ${doGarcom.status}`)
+  const doCaixa = await api(caixa.page, '/api/admin/modulos/mesas', 'PUT', { ativo: true })
+  ok('atendente não liga módulo', doCaixa.status === 403, `HTTP ${doCaixa.status}`)
+
+  // Nem pelo console: o trigger da 0071 recusa a coluna vinda do JWT do usuário.
+  const cliAtendente = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
+  await cliAtendente.auth.signInWithPassword({ email: 'atendente@demo.local', password: SENHA })
+  const { error: pelaConsole } = await cliAtendente.from('restaurantes').update({ modulo_mesas_ativo: true }).eq('id', loja)
+  const aindaDesligado = await um(`select modulo_mesas_ativo from restaurantes where id=$1`, [loja])
+  ok('atendente não liga o módulo direto pelo PostgREST', !!pelaConsole && aindaDesligado.modulo_mesas_ativo === false, pelaConsole?.message?.slice(0, 50))
+
+  const api404 = await api(dono.page, `/api/admin/mesas/${m.id}/conta`)
+  ok('módulo desligado: a API do salão responde 404 até para o dono', api404.status === 404, `HTTP ${api404.status}`)
+  await dono.page.goto(`${BASE}/admin/mesas`, { waitUntil: 'domcontentloaded' })
+  ok('módulo desligado: a página do salão manda o dono para o painel', new URL(dono.page.url()).pathname === '/admin/dashboard', new URL(dono.page.url()).pathname)
+  const garcomSemModulo = await api(garcom.page, '/api/admin/mesas/chamados')
+  ok('módulo desligado: garçom também recebe 404', garcomSemModulo.status === 404, `HTTP ${garcomSemModulo.status}`)
   const r = await (await browser.newContext()).newPage().then(async (p) => {
     const resp = await p.goto(`${BASE}/mesa/${m.token}`, { waitUntil: 'domcontentloaded' })
     const status = resp?.status() ?? 0
@@ -140,7 +171,10 @@ passo(1, 'dono ativa o módulo')
     return status
   })
   ok('com o módulo desligado, o QR da mesa é 404', r === 404, `HTTP ${r}`)
-  await q(`update restaurantes set modulo_mesas_ativo = true where id = $1`, [loja])
+  const ligou = await api(dono.page, '/api/admin/modulos/mesas', 'PUT', { ativo: true })
+  ok('dono liga o módulo', ligou.status === 200 && ligou.json?.ativo === true, `HTTP ${ligou.status}`)
+  const ev = await um(`select papel, correlacao from eventos_auditoria where restaurante_id=$1 and acao='mesas.ligou_modulo' order by criado_em desc limit 1`, [loja])
+  ok('ligar o módulo é auditado com o papel e a correlação', ev?.papel === 'dono' && !!ev?.correlacao, JSON.stringify(ev))
 }
 
 passo(2, 'dono cadastra um garçom')
@@ -457,9 +491,14 @@ passo(21, 'um item é transferido e outro é cancelado, com motivo')
   const linhaAgua = c.json.conta.lancamentos.flatMap((l) => l.itens).find((i) => i.nome === 'Água com Gás')
   const destino = await mesaPor('Mesa 03')
 
-  // Transferência PARCIAL: 1 das 3 águas vai para a Mesa 03.
+  // Transferência PARCIAL: 1 das 3 águas vai para a Mesa 03. Sem motivo, recusa.
+  const semMotivoT = await agir(garcom.page, MESA.id, {
+    acao: 'transferir_itens', destinoMesaId: destino.id, itemIds: [linhaAgua.id], quantidades: [1],
+  })
+  ok('transferir sem motivo é recusado', semMotivoT.status === 400 && semMotivoT.json?.codigo === 'motivo_obrigatorio', semMotivoT.json?.error)
   const t = await agir(garcom.page, MESA.id, {
     acao: 'transferir_itens', destinoMesaId: destino.id, itemIds: [linhaAgua.id], quantidades: [1],
+    motivo: 'amigo sentou na Mesa 03',
   })
   ok('garçom transfere 1 das 3 águas', t.status === 200 && t.json?.itens === 1, `HTTP ${t.status}`)
   const naOrigem = await um(`select quantidade from pedido_itens where id=$1`, [linhaAgua.id])
@@ -476,10 +515,32 @@ passo(21, 'um item é transferido e outro é cancelado, com motivo')
   ok('cancelar sem motivo é recusado', semMotivo.status === 400, semMotivo.json?.error)
   const doGarcom = await agir(garcom.page, MESA.id, { acao: 'cancelar_item', itemId: linhaRisoto.id, motivo: 'queimou' })
   ok('garçom não cancela item lançado', doGarcom.status === 403, `HTTP ${doGarcom.status}`)
-  const r = await agir(dono.page, MESA.id, { acao: 'cancelar_item', itemId: linhaRisoto.id, motivo: 'queimou na cozinha' })
-  ok('dono cancela com motivo', r.status === 200)
+
+  // O caminho do garçom: PEDIR, com motivo. A gestão decide.
+  const pedido = await agir(garcom.page, MESA.id, {
+    acao: 'solicitar_cancelamento', pedidoId: pedido1, itemId: linhaRisoto.id, motivo: 'queimou na cozinha',
+  })
+  ok('garçom pede o cancelamento do risoto', pedido.status === 201 && pedido.json?.jaExistia === false, `HTTP ${pedido.status}`)
+  const repetido = await agir(garcom.page, MESA.id, {
+    acao: 'solicitar_cancelamento', pedidoId: pedido1, itemId: linhaRisoto.id, motivo: 'queimou na cozinha',
+  })
+  ok('pedir de novo não cria outro pedido', repetido.status === 200 && repetido.json?.jaExistia === true)
+  const doCaixa = await agir(caixa.page, MESA.id, { acao: 'solicitar_cancelamento', pedidoId: pedido1, motivo: 'x' })
+  ok('caixa não pede cancelamento de prato', doCaixa.status === 403, `HTTP ${doCaixa.status}`)
+  const pendente = (await conta(dono.page, MESA.id)).json.conta.solicitacoes
+  ok('a gestão vê o pedido pendente na conta', pendente.length === 1 && /Risoto/.test(pendente[0].descricao), pendente[0]?.descricao)
+  const garcomDecide = await agir(garcom.page, MESA.id, { acao: 'decidir_cancelamento', solicitacaoId: pendente[0].id, aprovar: true })
+  ok('garçom não aprova o próprio pedido', garcomDecide.status === 403, `HTTP ${garcomDecide.status}`)
+  const r = await agir(dono.page, MESA.id, { acao: 'decidir_cancelamento', solicitacaoId: pendente[0].id, aprovar: true })
+  ok('dono aprova o cancelamento', r.status === 200, `HTTP ${r.status} ${r.json?.error ?? ''}`)
+  const denovo = await agir(dono.page, MESA.id, { acao: 'decidir_cancelamento', solicitacaoId: pendente[0].id, aprovar: false })
+  ok('decisão tomada não é tomada de novo', denovo.status === 404 || denovo.status === 409, `HTTP ${denovo.status}`)
   const item = await um(`select cancelado_em, cancelado_motivo, cancelado_por_nome from pedido_itens where id=$1`, [linhaRisoto.id])
-  ok('o item continua no banco, marcado', !!item.cancelado_em && item.cancelado_motivo === 'queimou na cozinha' && item.cancelado_por_nome === 'Dono Demo')
+  ok('o item continua no banco, marcado, com quem pediu e quem aprovou',
+    !!item.cancelado_em && /^queimou na cozinha/.test(item.cancelado_motivo) && /Garçom/i.test(item.cancelado_motivo) && item.cancelado_por_nome === 'Dono Demo',
+    item.cancelado_motivo)
+  const sol = await um(`select status, decidido_por_nome from solicitacoes_cancelamento where id=$1`, [pendente[0].id])
+  ok('a solicitação fica aprovada com o nome de quem decidiu', sol.status === 'aprovada' && sol.decidido_por_nome === 'Dono Demo')
 }
 
 passo(22, 'a comanda recebe a taxa de serviço')
@@ -493,6 +554,8 @@ passo(22, 'a comanda recebe a taxa de serviço')
 
   const doGarcom = await agir(garcom.page, MESA.id, { acao: 'ajustar_valores', taxaServico: 0 })
   ok('garçom não altera a taxa', doGarcom.status === 403, `HTTP ${doGarcom.status}`)
+  const doCaixa = await agir(caixa.page, MESA.id, { acao: 'ajustar_valores', taxaServico: 0 })
+  ok('caixa não altera a taxa sem a regra da loja', doCaixa.status === 403, `HTTP ${doCaixa.status}`)
   const acima = await agir(dono.page, MESA.id, { acao: 'ajustar_valores', taxaServico: 40 })
   ok('taxa acima de 30% é recusada', acima.status === 400, acima.json?.error)
 
@@ -505,7 +568,19 @@ passo(22, 'a comanda recebe a taxa de serviço')
 
   const absurdo = await agir(dono.page, MESA.id, { acao: 'ajustar_valores', desconto: 9999, descontoMotivo: 'teste' })
   ok('desconto maior que a conta não gera total negativo', absurdo.status === 200 && (await conta(dono.page, MESA.id)).json.conta.totais.total === 0)
-  await agir(dono.page, MESA.id, { acao: 'ajustar_valores', desconto: 15, descontoMotivo: 'cortesia pela demora' })
+
+  // Percentual: 10% do consumo (150) = 15. Fica percentual, e acompanha a conta.
+  const pct = await agir(dono.page, MESA.id, {
+    acao: 'ajustar_valores', descontoTipo: 'percentual', descontoPercentual: 10, descontoMotivo: 'cortesia pela demora',
+  })
+  ok('dono aplica 10% de desconto', pct.status === 200, `HTTP ${pct.status} ${pct.json?.error ?? ''}`)
+  const comPct = (await conta(dono.page, MESA.id)).json.conta
+  ok('desconto percentual: 10% de 150 = 15', comPct.descontoTipo === 'percentual' && comPct.totais.desconto === 15 && comPct.totais.total === 150,
+    `${comPct.descontoTipo} ${comPct.totais.desconto}`)
+  const pctAbsurdo = await agir(dono.page, MESA.id, { acao: 'ajustar_valores', descontoTipo: 'percentual', descontoPercentual: 150, descontoMotivo: 'x' })
+  ok('percentual acima de 100% é recusado', pctAbsurdo.status === 400, pctAbsurdo.json?.error)
+  const evDesc = await um(`select dados from eventos_auditoria where restaurante_id=$1 and acao='conta.desconto' order by criado_em desc limit 1`, [loja])
+  ok('desconto auditado com antes, depois e motivo', evDesc?.dados?.para === '10.00%' && evDesc?.dados?.motivo === 'cortesia pela demora', JSON.stringify(evDesc?.dados))
 }
 
 passo(23, 'a conta é dividida')
@@ -523,27 +598,36 @@ passo(23, 'a conta é dividida')
 
 passo(24, 'pagamento parcial em uma forma')
 {
-  const r = await agir(dono.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: 50, chave: uuid() })
-  ok('Pix de 50 registrado', r.status === 200, `HTTP ${r.status}`)
+  const doGarcom = await agir(garcom.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: 50, chave: uuid() })
+  ok('garçom não recebe pagamento sem a regra da loja', doGarcom.status === 403, `HTTP ${doGarcom.status}`)
+  const fiadoCaixa = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: 1, chave: uuid(), observacao: '' })
+  ok('(controle) o caixa tem acesso à conta', fiadoCaixa.status === 200, `HTTP ${fiadoCaixa.status}`)
+  await agir(dono.page, MESA.id, { acao: 'estorno', pagamentoId: fiadoCaixa.json.id, motivo: 'teste de acesso' })
+  const caixaEstorna = await agir(caixa.page, MESA.id, { acao: 'estorno', pagamentoId: fiadoCaixa.json.id, motivo: 'x' })
+  ok('caixa não estorna (é da gestão)', caixaEstorna.status === 403, `HTTP ${caixaEstorna.status}`)
+  const r = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: 50, chave: uuid() })
+  ok('caixa registra Pix de 50', r.status === 200, `HTTP ${r.status}`)
   const t = (await conta(dono.page, MESA.id)).json.conta.totais
   ok('pago 50, falta 100', t.pago === 50 && t.restante === 100, `pago ${t.pago} / falta ${t.restante}`)
 
-  const negativo = await agir(dono.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: -10, chave: uuid() })
+  const negativo = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: -10, chave: uuid() })
   ok('pagamento negativo é recusado', negativo.status === 400, negativo.json?.error)
-  const acima = await agir(dono.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: 500, chave: uuid() })
+  const acima = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: 500, chave: uuid() })
   ok('pagamento acima do que falta é recusado', acima.status === 400, acima.json?.error)
-  const inventada = await agir(dono.page, MESA.id, { acao: 'pagamento', forma: 'bitcoin', valor: 10, chave: uuid() })
+  const inventada = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'bitcoin', valor: 10, chave: uuid() })
   ok('forma inventada pelo navegador é recusada', inventada.status === 400, inventada.json?.error)
+  const fiado = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'fiado', valor: 10, chave: uuid(), observacao: 'João' })
+  ok('caixa não pendura a conta (fiado é da gestão)', fiado.status === 400 || fiado.status === 403, `HTTP ${fiado.status}`)
 }
 
 passo(25, 'restante em outra forma, com troco')
 {
   const chave = uuid()
-  const r = await agir(dono.page, MESA.id, { acao: 'pagamento', forma: 'dinheiro', valor: 100, recebido: 150, chave })
+  const r = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'dinheiro', valor: 100, recebido: 150, chave })
   ok('dinheiro de 100 com 150 recebido devolve 50 de troco', r.status === 200 && r.json?.troco === 50, `troco ${r.json?.troco}`)
-  const repetido = await agir(dono.page, MESA.id, { acao: 'pagamento', forma: 'dinheiro', valor: 100, recebido: 150, chave })
+  const repetido = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'dinheiro', valor: 100, recebido: 150, chave })
   ok('a mesma chave não cobra duas vezes', repetido.status === 200 && repetido.json?.idempotente === true)
-  const pags = await q(`select forma, valor, troco from pagamentos_comanda where comanda_id = (select id from comandas where mesa_id=$1 and status='aberta') order by criado_em`, [MESA.id])
+  const pags = await q(`select forma, valor, troco from pagamentos_comanda where comanda_id = (select id from comandas where mesa_id=$1 and status='aberta') and estornado_em is null order by criado_em`, [MESA.id])
   ok('dois pagamentos, de formas diferentes', pags.length === 2 && pags[0].forma === 'pix' && pags[1].forma === 'dinheiro')
   ok('o troco ficou registrado', Number(pags[1].troco) === 50, pags[1].troco)
 }
@@ -557,7 +641,9 @@ passo(26, 'o saldo chega a zero')
 passo(27, 'a comanda é finalizada')
 {
   const doGarcomAntes = await agir(garcom.page, MESA.id, { acao: 'fechar' })
-  ok('garçom pode fechar (tem comanda.fechar)', doGarcomAntes.status === 200, `HTTP ${doGarcomAntes.status}`)
+  ok('garçom não fecha a conta sem a regra da loja', doGarcomAntes.status === 403, `HTTP ${doGarcomAntes.status}`)
+  const fechou = await agir(caixa.page, MESA.id, { acao: 'fechar' })
+  ok('caixa fecha a conta', fechou.status === 200 && fechou.json?.taxa_situacao === 'aceita', `HTTP ${fechou.status} ${fechou.json?.taxa_situacao ?? ''}`)
   const comanda = await um(`select status, total_final, fechada_por_nome, fechada_em from comandas where mesa_id=$1 order by aberta_em desc limit 1`, [MESA.id])
   ok('comanda fechada com total final e autor', comanda.status === 'fechada' && Number(comanda.total_final) === 150 && !!comanda.fechada_por_nome)
   const pedidos = await q(`select pago from pedidos where comanda_id = (select id from comandas where mesa_id=$1 order by aberta_em desc limit 1)`, [MESA.id])
@@ -600,11 +686,20 @@ passo(30, 'histórico e auditoria continuam completos')
   const acoes = new Set(eventos.map((e) => e.acao))
   for (const esperada of [
     'equipe.criou', 'mesa.abriu', 'mesa.enviou_cozinha', 'chamado.criou', 'chamado.assumiu', 'chamado.concluiu',
-    'mesa.transferiu_itens', 'conta.cancelou_item', 'conta.ajustou', 'conta.pagamento', 'conta.fechou',
-    'conta.reimprimiu', 'conta.cancelou_comanda',
+    'mesa.transferiu_itens', 'conta.ajustou', 'conta.pagamento', 'conta.fechou',
+    'conta.reimprimiu', 'conta.cancelou_comanda', 'conta.desconto', 'conta.estorno',
+    'conta.solicitou_cancelamento', 'conta.aprovou_cancelamento', 'mesas.ligou_modulo',
   ]) {
     ok(`auditoria tem ${esperada}`, acoes.has(esperada))
   }
+  const semPapel = await q(
+    `select acao from eventos_auditoria where restaurante_id=$1 and usuario_id is not null and papel is null and criado_em >= $2`, [loja, INICIO])
+  ok('todo evento de usuário registra o papel com que ele agiu', semPapel.length === 0, semPapel.map((e) => e.acao).join(', '))
+  const pagCaixa = await um(
+    `select papel, correlacao from eventos_auditoria where restaurante_id=$1 and acao='conta.pagamento' order by criado_em desc limit 1`, [loja])
+  ok('pagamento auditado com papel atendente e correlação', pagCaixa?.papel === 'atendente' && !!pagCaixa?.correlacao, JSON.stringify(pagCaixa))
+  const transf = await um(`select dados from eventos_auditoria where restaurante_id=$1 and acao='mesa.transferiu_itens' and criado_em >= $2 order by criado_em limit 1`, [loja, INICIO])
+  ok('transferência auditada com o motivo e o nome da mesa', transf?.dados?.motivo === 'amigo sentou na Mesa 03' && transf?.dados?.para === 'Mesa 03', JSON.stringify(transf?.dados))
   const comSenha = await q(
     `select id from eventos_auditoria where restaurante_id=$1 and dados::text ~* '(senha|password|token|@equipe\\.menuzia)'`, [loja])
   ok('nenhum evento guarda senha, token ou e-mail técnico', comSenha.length === 0, `${comSenha.length} suspeito(s)`)
@@ -779,8 +874,24 @@ secao('QR revogável')
   ok('garçom não roda o QR', doGarcom.status === 403, `HTTP ${doGarcom.status}`)
 
   const r = await api(dono.page, `/api/admin/mesas/${M.id}/estado`, 'POST', { acao: 'rodar_qr' })
-  ok('dono roda o QR e recebe o token novo', r.status === 200 && /^[0-9a-f-]{36}$/i.test(r.json?.token ?? ''), `HTTP ${r.status}`)
+  ok('dono roda o QR', r.status === 200, `HTTP ${r.status}`)
+  ok('a resposta da rotação não carrega o token', !JSON.stringify(r.json ?? {}).match(/[0-9a-f]{8}-[0-9a-f]{4}-/i))
+  const qrDono = await api(dono.page, `/api/admin/mesas/qr?mesa=${M.id}`)
+  r.json.token = qrDono.json?.mesas?.[0]?.token
+  ok('o link novo sai só pela rota do QR, para a gestão', qrDono.status === 200 && /^[0-9a-f-]{36}$/i.test(r.json.token ?? ''), `HTTP ${qrDono.status}`)
   ok('o token mudou', r.json.token !== antigo)
+  const qrGarcom = await api(garcom.page, `/api/admin/mesas/qr?mesa=${M.id}`)
+  const qrCaixa = await api(caixa.page, '/api/admin/mesas/qr')
+  ok('garçom e caixa não leem o token do QR', qrGarcom.status === 403 && qrCaixa.status === 403, `${qrGarcom.status}/${qrCaixa.status}`)
+  const cliGarcom = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
+  await cliGarcom.auth.signInWithPassword({ email: 'garcom@demo.local', password: SENHA })
+  const { data: mesasGarcom } = await cliGarcom.from('mesas').select('id, nome')
+  const { error: erroToken } = await cliGarcom.from('mesas').select('token').limit(1)
+  ok('pelo PostgREST o garçom vê as mesas, mas não a coluna token', (mesasGarcom ?? []).length > 0 && !!erroToken, erroToken?.message?.slice(0, 50))
+  const cliDono = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
+  await cliDono.auth.signInWithPassword({ email: 'dono@local.test', password: SENHA })
+  const { error: escolheToken } = await cliDono.from('mesas').update({ token: '00000000-0000-4000-8000-000000000000' }).eq('id', M.id)
+  ok('nem o dono escolhe o token pelo navegador', !!escolheToken, escolheToken?.message?.slice(0, 50))
 
   const p = await (await browser.newContext()).newPage()
   const velho = await p.goto(`${BASE}/mesa/${antigo}`, { waitUntil: 'domcontentloaded' })
@@ -800,6 +911,24 @@ secao('QR revogável')
   const deOutraLoja = await mesaPor('Mesa V1', vizinha)
   const cruzado = await api(dono.page, `/api/admin/mesas/${deOutraLoja.id}/estado`, 'POST', { acao: 'rodar_qr' })
   ok('não se roda o QR de mesa de outra loja', cruzado.status === 404, `HTTP ${cruzado.status}`)
+  const qrCruzado = await api(dono.page, `/api/admin/mesas/qr?mesa=${deOutraLoja.id}`)
+  ok('não se lê o QR de mesa de outra loja', qrCruzado.status === 404, `HTTP ${qrCruzado.status}`)
+
+  // Revogar sem substituto: nenhum link abre a mesa até a gestão gerar outro.
+  const tokenAtual = r.json.token
+  const rev = await api(dono.page, `/api/admin/mesas/${M.id}/estado`, 'POST', { acao: 'revogar_qr' })
+  ok('dono revoga o QR sem gerar outro', rev.status === 200, `HTTP ${rev.status}`)
+  const pr = await (await browser.newContext()).newPage()
+  const morto = await pr.goto(`${BASE}/mesa/${tokenAtual}`, { waitUntil: 'domcontentloaded' })
+  ok('o link revogado para de abrir', (morto?.status() ?? 0) === 404, `HTTP ${morto?.status()}`)
+  const semLink = await api(dono.page, `/api/admin/mesas/qr?mesa=${M.id}`)
+  ok('a rota do QR não devolve link para mesa revogada', semLink.json?.mesas?.[0]?.qrRevogado === true && semLink.json?.mesas?.[0]?.token === null)
+  const regen = await api(dono.page, `/api/admin/mesas/${M.id}/estado`, 'POST', { acao: 'rodar_qr' })
+  const tokenNovo = (await api(dono.page, `/api/admin/mesas/qr?mesa=${M.id}`)).json?.mesas?.[0]?.token
+  const vivo = await pr.goto(`${BASE}/mesa/${tokenNovo}`, { waitUntil: 'domcontentloaded' })
+  ok('gerar de novo devolve a mesa à operação', regen.status === 200 && (vivo?.status() ?? 0) === 200, `HTTP ${vivo?.status()}`)
+  await pr.context().close()
+  ok('a revogação é auditada', !!(await um(`select id from eventos_auditoria where restaurante_id=$1 and acao='mesa.revogou_qr'`, [loja])))
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -873,7 +1002,7 @@ secao('Concorrência de verdade')
   // Dois pagamentos simultâneos do MESMO restante: só um pode passar.
   const [p1, p2] = await Promise.all([
     agir(dono.page, M.id, { acao: 'pagamento', forma: 'pix', valor: restante, chave: uuid() }),
-    agir(garcom.page, M.id, { acao: 'pagamento', forma: 'credito', valor: restante, chave: uuid() }),
+    agir(caixa.page, M.id, { acao: 'pagamento', forma: 'credito', valor: restante, chave: uuid() }),
   ])
   const aceitos = [p1, p2].filter((r) => r.status === 200).length
   ok('dois pagamentos do restante em paralelo: só um passa', aceitos === 1, `${aceitos} aceito(s)`)
@@ -883,7 +1012,7 @@ secao('Concorrência de verdade')
   // Dois fechamentos simultâneos: um fecha, o outro vê a conta já fechada.
   const [f1, f2] = await Promise.all([
     agir(dono.page, M.id, { acao: 'fechar' }),
-    agir(garcom.page, M.id, { acao: 'fechar' }),
+    agir(caixa.page, M.id, { acao: 'fechar' }),
   ])
   ok('dois fechamentos em paralelo: um só fecha', [f1, f2].filter((r) => r.status === 200).length === 1)
   const fechadas = await q(`select id from comandas where mesa_id=$1 and status='fechada'`, [M.id])
@@ -904,8 +1033,8 @@ secao('Concorrência de verdade')
   const linha = cc.json.conta.lancamentos.flatMap((l) => l.itens)[0]
   const d1 = await mesaPor('Varanda 01')
   const [t1, t2] = await Promise.all([
-    agir(dono.page, MesaNova.id, { acao: 'transferir_itens', destinoMesaId: d1.id, itemIds: [linha.id] }),
-    agir(garcom.page, MesaNova.id, { acao: 'transferir_itens', destinoMesaId: d1.id, itemIds: [linha.id] }),
+    agir(dono.page, MesaNova.id, { acao: 'transferir_itens', destinoMesaId: d1.id, itemIds: [linha.id], motivo: 'teste' }),
+    agir(garcom.page, MesaNova.id, { acao: 'transferir_itens', destinoMesaId: d1.id, itemIds: [linha.id], motivo: 'teste' }),
   ])
   const aceitas = [t1, t2].filter((r) => r.status === 200).length
   ok('transferência simultânea do mesmo item: uma passa, a outra não acha mais', aceitas === 1, `${t1.status}/${t2.status}`)
