@@ -84,6 +84,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // e o prato pode ter esgotado nesse meio-tempo.
   const indisponiveis = await conferirDisponibilidade(admin, sessao.restauranteId, idsItens)
   if (indisponiveis.length > 0) {
+    // 400 quando o id nem existe nesta loja (corpo inválido: o navegador mandou algo que
+    // nunca foi cardápio). 409 quando o item existe mas saiu do ar entre o cliente marcar
+    // e o garçom enviar — aí é conflito de estado, e a tela oferece trocar ou remover.
+    const soInexistente = indisponiveis.every((i) => i.tipo === 'inexistente')
     return NextResponse.json(
       {
         error:
@@ -92,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             : `${indisponiveis.length} itens saíram do cardápio. Remova ou substitua antes de enviar.`,
         itensIndisponiveis: indisponiveis,
       },
-      { status: 409 },
+      { status: soInexistente ? 400 : 409 },
     )
   }
 
@@ -236,7 +240,7 @@ async function conferirDisponibilidade(
   admin: ReturnType<typeof getAdminSupabase>,
   restauranteId: string,
   idsItens: string[],
-): Promise<{ itemId: string; nome: string; motivo: string }[]> {
+): Promise<{ itemId: string; nome: string; motivo: string; tipo: 'inexistente' | 'status' | 'dia' | 'canal' }[]> {
   const { data } = await admin
     .from('itens_cardapio')
     .select('id, nome, status, dias_disponiveis, disponivel_salao')
@@ -244,23 +248,23 @@ async function conferirDisponibilidade(
     .in('id', idsItens)
 
   const porId = new Map((data ?? []).map((i) => [i.id as string, i]))
-  const problemas: { itemId: string; nome: string; motivo: string }[] = []
+  const problemas: { itemId: string; nome: string; motivo: string; tipo: 'inexistente' | 'status' | 'dia' | 'canal' }[] = []
 
   for (const id of idsItens) {
     const item = porId.get(id)
     if (!item) {
-      problemas.push({ itemId: id, nome: 'Item removido', motivo: motivoIndisponivel('inexistente', 'O item') })
+      problemas.push({ itemId: id, nome: 'Item removido', motivo: motivoIndisponivel('inexistente', 'O item'), tipo: 'inexistente' })
       continue
     }
     const nome = item.nome as string
     if (item.status !== 'disponivel') {
-      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('status', nome) })
+      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('status', nome), tipo: 'status' })
     } else if (!itemDisponivelHoje((item.dias_disponiveis as number[] | null) ?? [])) {
-      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('dia', nome) })
+      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('dia', nome), tipo: 'dia' })
     } else if (
       !itemDisponivelNoCanal({ disponivelDelivery: true, disponivelSalao: (item.disponivel_salao as boolean | null) ?? true }, 'mesa')
     ) {
-      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('canal', nome) })
+      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('canal', nome), tipo: 'canal' })
     }
   }
   return problemas

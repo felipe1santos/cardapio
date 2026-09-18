@@ -184,6 +184,45 @@ for (const linhas of [[['Filé à Parmegiana', 68, 1]], [['Risoto de Funghi', 54
 await db.query('update mesas set bloqueada_em = now() where id = $1', [ids[4].id])
 await db.query('update mesas set ativa = false where id = $1', [ids[5].id])
 
+// ── segunda loja: a prova de isolamento entre inquilinos ────────────────────
+// Existe só para os testes tentarem alcançá-la e falharem. Uma mesa, um dono, nada mais.
+const lojaVizinha = (await db.query(`
+  insert into restaurantes (nome, slug, status_loja, modulo_mesas_ativo, aceita_retirada, cor_tema)
+  values ('Vizinha Demo', 'vizinha-demo', 'aberto_manual', true, true, 'ciano')
+  on conflict (slug) do update set modulo_mesas_ativo = true, status_loja = 'aberto_manual'
+  returning id`)).rows[0].id
+{
+  const email = 'dono@vizinha.local'
+  let id
+  const { data, error } = await admin.auth.admin.createUser({ email, password: SENHA, email_confirm: true })
+  if (error && !/already/i.test(error.message)) throw error
+  id = data?.user?.id
+  if (!id) {
+    const { data: lista } = await admin.auth.admin.listUsers()
+    id = lista.users.find((u) => u.email === email).id
+    await admin.auth.admin.updateUserById(id, { password: SENHA })
+  }
+  await db.query(`
+    insert into usuarios (id, restaurante_id, papel, nome, email, usuario, autorizado)
+    values ($1, $2, 'dono', 'Dono Vizinha', $3, 'dono.vizinha', true)
+    on conflict (id) do update set restaurante_id = excluded.restaurante_id, papel = 'dono',
+      autorizado = true, desativado_em = null, usuario = excluded.usuario`,
+    [id, lojaVizinha, email])
+}
+await db.query('delete from pedidos where restaurante_id = $1', [lojaVizinha])
+await db.query('delete from sessoes_mesa where restaurante_id = $1', [lojaVizinha])
+await db.query('delete from comandas where restaurante_id = $1', [lojaVizinha])
+await db.query('delete from mesas where restaurante_id = $1', [lojaVizinha])
+await db.query('delete from itens_cardapio where restaurante_id = $1', [lojaVizinha])
+await db.query('delete from grupos_cardapio where restaurante_id = $1', [lojaVizinha])
+const grupoVizinho = (await db.query(
+  `insert into grupos_cardapio (restaurante_id, nome, posicao) values ($1,'Pratos',0) returning id`, [lojaVizinha])).rows[0].id
+await db.query(
+  `insert into itens_cardapio (restaurante_id, grupo_id, nome, preco, descricao, status)
+   values ($1,$2,'Prato da Vizinha',33,'','disponivel')`, [lojaVizinha, grupoVizinho])
+await db.query(
+  `insert into mesas (restaurante_id, nome, ordem, setor, capacidade) values ($1,'Mesa V1',0,'Salão',2)`, [lojaVizinha])
+
 await db.end()
 
 console.log(`
@@ -197,4 +236,7 @@ console.log(`
    Atendente .... atendente.local   (delivery — não pode lançar em mesa)
 
    6 mesas: 3 livres, 1 ocupada (2 lançamentos), 1 bloqueada, 1 desativada
+
+   Loja vizinha . Vizinha Demo (slug: vizinha-demo) — existe só para os testes de
+                  isolamento entre inquilinos. Dono: dono.vizinha
 `)

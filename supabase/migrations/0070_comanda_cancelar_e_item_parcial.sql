@@ -98,11 +98,19 @@ declare
   v_destino_ativa boolean;
   v_destino_bloqueada timestamptz;
   v_destino_nome text;
+  -- O plano do que mover vive em arrays paralelos, e não em tabela temporária: o banco
+  -- roda com a trava que exige WHERE em DELETE (supautils), então limpar a temp entre
+  -- chamadas com `delete from _mov` é recusado em tempo de execução. Array não precisa
+  -- de limpeza e não depende de search_path.
+  v_item uuid[] := '{}';
+  v_pedido uuid[] := '{}';
+  v_qtd_mover int[] := '{}';
+  v_inteiro boolean[] := '{}';
   r record;
-  v_novo uuid;
   v_movidos int := 0;
   v_ativos int;
   v_inteiros int;
+  v_do_pedido int;
   v_pedido_destino uuid;
   i int;
   v_qtd int;
@@ -129,12 +137,10 @@ begin
   end if;
 
   -- Quanto vai de cada linha, resolvido antes de mexer em nada: linha inexistente,
-  -- cancelada, paga (comanda fechada) ou de outra loja simplesmente não entra.
-  create temp table if not exists _mov (item_id uuid primary key, pedido_id uuid, qtd int, inteiro boolean)
-    on commit drop;
-  delete from _mov;
-
+  -- cancelada, paga (comanda fechada), repetida ou de outra loja simplesmente não entra.
   for i in 1 .. array_length(p_itens, 1) loop
+    if p_itens[i] = any(v_item) then continue; end if;
+
     select it.id, it.pedido_id, it.quantidade, p.comanda_id
       into v_linha
       from public.pedido_itens it
@@ -155,17 +161,25 @@ begin
       raise exception 'quantidade_invalida';
     end if;
 
-    insert into _mov (item_id, pedido_id, qtd, inteiro)
-    values (v_linha.id, v_linha.pedido_id, v_qtd, v_qtd = v_linha.quantidade)
-    on conflict (item_id) do nothing;
+    v_item := v_item || v_linha.id;
+    v_pedido := v_pedido || v_linha.pedido_id;
+    v_qtd_mover := v_qtd_mover || v_qtd;
+    v_inteiro := v_inteiro || (v_qtd = v_linha.quantidade);
   end loop;
 
-  for r in select distinct pedido_id from _mov order by pedido_id loop
-    perform 1 from public.pedidos where id = r.pedido_id for update;
+  -- Ordem fixa por id de pedido: dois garçons transferindo entre as mesmas mesas em
+  -- sentidos opostos não entram em deadlock.
+  for r in select distinct pid from unnest(v_pedido) as pid order by pid loop
+    perform 1 from public.pedidos where id = r.pid for update;
 
     select count(*) into v_ativos from public.pedido_itens
-     where pedido_id = r.pedido_id and cancelado_em is null;
-    select count(*) into v_inteiros from _mov where pedido_id = r.pedido_id and inteiro;
+     where pedido_id = r.pid and cancelado_em is null;
+    select count(*) into v_inteiros
+      from unnest(v_pedido, v_inteiro) as t(pid, inteiro)
+     where t.pid = r.pid and t.inteiro;
+    select coalesce(sum(t.qtd), 0) into v_do_pedido
+      from unnest(v_pedido, v_qtd_mover) as t(pid, qtd)
+     where t.pid = r.pid;
 
     if v_inteiros = v_ativos then
       -- Tudo do lançamento vai junto: o pedido muda de comanda e de mesa. O nome da mesa
@@ -174,9 +188,8 @@ begin
          set comanda_id = v_comanda_destino,
              cliente_nome = case when cliente_nome = mesa then v_destino_nome else cliente_nome end,
              mesa = v_destino_nome
-       where id = r.pedido_id;
-      select coalesce(sum(qtd), 0) into v_qtd from _mov where pedido_id = r.pedido_id;
-      v_movidos := v_movidos + v_qtd;
+       where id = r.pid;
+      v_movidos := v_movidos + v_do_pedido;
       continue;
     end if;
 
@@ -185,19 +198,23 @@ begin
        comanda_id, impresso, criado_por, criado_por_nome)
     select p.restaurante_id, p.tipo, p.status, v_destino_nome, p.forma_pagamento, 0, 0, p.origem, 'mesa',
            v_destino_nome, v_comanda_destino, true, p_ator, p_ator_nome
-      from public.pedidos p where p.id = r.pedido_id
+      from public.pedidos p where p.id = r.pid
     returning id into v_pedido_destino;
 
     -- Linha inteira: muda de pedido, preservando preço, complementos e observação.
     update public.pedido_itens set pedido_id = v_pedido_destino
-     where pedido_id = r.pedido_id
-       and id in (select item_id from _mov where pedido_id = r.pedido_id and inteiro);
+     where pedido_id = r.pid
+       and id in (
+         select t.it_id from unnest(v_item, v_pedido, v_inteiro) as t(it_id, pid, inteiro)
+          where t.pid = r.pid and t.inteiro
+       );
 
     -- Linha parcial: a de origem diminui e nasce uma cópia no destino.
     for v_linha in
-      select it.*, m.qtd as mover
-        from public.pedido_itens it join _mov m on m.item_id = it.id
-       where m.pedido_id = r.pedido_id and not m.inteiro
+      select it.*, t.qtd as mover
+        from unnest(v_item, v_pedido, v_qtd_mover, v_inteiro) as t(it_id, pid, qtd, inteiro)
+        join public.pedido_itens it on it.id = t.it_id
+       where t.pid = r.pid and not t.inteiro
     loop
       update public.pedido_itens set quantidade = quantidade - v_linha.mover where id = v_linha.id;
       insert into public.pedido_itens
@@ -209,10 +226,9 @@ begin
          v_linha.borda_nome, v_linha.massa_nome);
     end loop;
 
-    perform public.pedido_recalcular(r.pedido_id);
+    perform public.pedido_recalcular(r.pid);
     perform public.pedido_recalcular(v_pedido_destino);
-    select coalesce(sum(qtd), 0) into v_qtd from _mov where pedido_id = r.pedido_id;
-    v_movidos := v_movidos + v_qtd;
+    v_movidos := v_movidos + v_do_pedido;
   end loop;
 
   if v_movidos = 0 then raise exception 'nenhum_item_transferivel'; end if;

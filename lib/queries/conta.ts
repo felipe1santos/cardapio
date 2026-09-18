@@ -77,7 +77,12 @@ function codigoDo(message: string | undefined): string {
 
 async function rpc<T>(admin: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<ResultadoOp<T>> {
   const { data, error } = await admin.rpc(fn, args)
-  if (error) return { ok: false, erro: mensagemDeErroConta(error.message), codigo: codigoDo(error.message) }
+  if (error) {
+    // A tela recebe uma frase tratada; o log fica com a mensagem crua. Sem isto, falha
+    // inesperada da função virava "Não foi possível concluir a operação." sem rastro.
+    console.error(`[conta] ${fn} falhou:`, error.message)
+    return { ok: false, erro: mensagemDeErroConta(error.message), codigo: codigoDo(error.message) }
+  }
   return { ok: true, valor: data as T }
 }
 
