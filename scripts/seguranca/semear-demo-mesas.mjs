@@ -33,7 +33,9 @@ const loja = (await db.query(`
 // serviço, e um valor deixado por outra execução faz todos eles falharem por 3,75.
 await db.query(
   `update restaurantes set taxa_servico_padrao = 10,
-          formas_pagamento_mesa = array['dinheiro','pix','credito','debito']
+          formas_pagamento_mesa = array['dinheiro','pix','credito','debito'],
+          -- Regras do salão no padrão da matriz: cada E2E liga o que precisa.
+          salao_garcom_recebe = false, salao_garcom_transfere = true, salao_caixa_desconto = false
     where id = $1`, [loja])
 
 // ── dono ────────────────────────────────────────────────────────────────────

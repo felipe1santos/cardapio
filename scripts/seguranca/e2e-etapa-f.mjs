@@ -102,12 +102,31 @@ const lancar = (page, mesaId, itens) =>
     itens: itens.map(([itemId, quantidade]) => ({ itemId, quantidade, observacao: '', complementos: [] })),
   })
 const conta = async (page, mesaId) => (await api(page, `/api/admin/mesas/${mesaId}/conta`)).json
-const agir = (page, mesaId, acao, corpo = {}) => api(page, `/api/admin/mesas/${mesaId}/conta`, 'POST', { acao, ...corpo })
+// Transferência exige motivo desde a 0072; os casos daqui testam outra coisa, então o
+// helper preenche um quando o teste não disse nada.
+const agir = (page, mesaId, acao, corpo = {}) =>
+  api(page, `/api/admin/mesas/${mesaId}/conta`, 'POST', {
+    acao,
+    ...(acao.startsWith('transferir') && corpo.motivo === undefined ? { motivo: 'teste da etapa F' } : {}),
+    ...corpo,
+  })
 const totais = async (page, mesaId) => (await conta(page, mesaId))?.conta?.totais
 
 const dono = await logar('dono.local')
 const garcom = await logar('garcom.local')
 const atendente = await logar('atendente.local')
+
+// Esta suíte exercita o garçom recebendo na mesa, que é a regra "garçom recebe" da loja
+// (desligada por padrão). O dono liga pela mesma rota da tela de configuração.
+{
+  const semRegra = await api(garcom.page, `/api/admin/mesas/${(await um(`select id from mesas where restaurante_id=$1 and nome='Mesa 02'`, [loja])).id}/conta`, 'POST',
+    { acao: 'pagamento', forma: 'pix', valor: 1, chave: uuid() })
+  ok('sem a regra, o garçom não recebe (403)', semRegra.status === 403, semRegra.status)
+  const regra = await api(dono.page, '/api/admin/mesas/configuracao', 'PUT', {
+    taxaServicoPadrao: 10, formasPagamento: ['dinheiro', 'pix', 'credito', 'debito'], regras: { garcomRecebe: true },
+  })
+  ok('dono liga "garçom recebe"', regra.status === 200 && regra.json?.regras?.garcomRecebe === true, regra.status)
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('1. conta: totais vindos do banco')
@@ -372,7 +391,7 @@ secao('7. trocar de mesa')
   ok('Varanda 01 mostra os 28,60', (await totais(garcom.page, V01.id))?.total === 28.6)
   const sessaoAntiga = await um(`select id from sessoes_mesa where mesa_id=$1 and status='encerrada' and transferida_para_mesa_id=$2`, [M03.id, V01.id])
   ok('sessão antiga encerrada apontando a mesa nova', !!sessaoAntiga)
-  ok('histórico da conta mantém "Transferiu a mesa"', (await conta(garcom.page, V01.id)).historico.some((e) => /Transferiu a mesa/.test(e.oQue)))
+  ok('histórico da conta mantém "Transferiu a mesa"', (await conta(garcom.page, V01.id)).historico.some((e) => /Transferiu a (conta de )?mesa/.test(e.oQue)))
 
   // O celular faz a leitura periódica (5 s) e descobre a troca.
   await cp.getByText(/Sua conta mudou para a Varanda 01/).waitFor({ timeout: 15000 }).catch(() => {})
@@ -408,6 +427,8 @@ secao('7. trocar de mesa')
   await p.goto(`${BASE}/admin/mesas/${M02.id}`, { waitUntil: 'networkidle' })
   await p.getByRole('button', { name: 'Trocar de mesa' }).click()
   await p.getByLabel('Mesa de destino').selectOption(V01.id)
+  ok('a troca de mesa pede motivo antes de transferir', await p.getByRole('dialog').getByRole('button', { name: 'Transferir' }).isDisabled())
+  await p.getByRole('dialog').getByPlaceholder(/varanda/).fill('grupo aumentou')
   await p.getByRole('dialog').getByRole('button', { name: 'Transferir' }).click()
   await p.getByRole('alertdialog').waitFor({ timeout: 15000 })
   ok('tela pede confirmação: "A Varanda 01 já tem conta aberta"', (await p.getByText('A Varanda 01 já tem conta aberta').count()) === 1)
@@ -433,10 +454,18 @@ secao('7. trocar de mesa')
 // ════════════════════════════════════════════════════════════════════════════
 secao('8. permissões na API e no banco')
 {
+  // Desde a 0071 o atendente é o caixa do salão: lê a conta e recebe, sem lançar.
   const at = await api(atendente.page, `/api/admin/mesas/${V01.id}/conta`)
-  ok('atendente (delivery) não lê a conta da mesa', at.status === 403 || at.status === 401, at.status)
+  ok('atendente/caixa lê a conta da mesa', at.status === 200 && at.json?.permissoes?.lancar === false, at.status)
   const atp = await api(atendente.page, `/api/admin/mesas/${V01.id}/conta`, 'POST', { acao: 'pagamento', forma: 'pix', valor: 1, chave: uuid() })
-  ok('atendente não registra pagamento', atp.status === 403 || atp.status === 401, atp.status)
+  ok('atendente/caixa registra pagamento', atp.status === 200, atp.status)
+  await agir(dono.page, V01.id, 'estorno', { pagamentoId: atp.json?.id, motivo: 'teste do caixa' })
+  const atl = await api(atendente.page, `/api/admin/mesas/${V01.id}/lancamento`, 'POST', {
+    chaveIdempotencia: uuid(), selecoesVistas: [], itens: [{ itemId: SUCO, quantidade: 1, observacao: '', complementos: [] }],
+  })
+  ok('atendente/caixa NÃO lança pedido de mesa', atl.status === 403, atl.status)
+  const atc = await api(atendente.page, '/api/admin/mesas/chamados')
+  ok('atendente/caixa NÃO atende chamado', atc.status === 403, atc.status)
 
   const anon = await browser.newContext()
   const ap = await anon.newPage()
@@ -462,13 +491,15 @@ secao('8. permissões na API e no banco')
   const lerG = await sg.from('pagamentos_comanda').select('id')
   ok('garçom lê pagamentos da loja', !lerG.error && lerG.data.length > 0, lerG.error?.message ?? `${lerG.data.length} linhas`)
   const lerA = await sa.from('pagamentos_comanda').select('id')
-  ok('atendente NÃO lê pagamentos', (lerA.data ?? []).length === 0, lerA.error?.message ?? `${lerA.data?.length} linhas`)
+  ok('atendente/caixa lê pagamentos da loja (0071), mas só lê', !lerA.error && lerA.data.length > 0, lerA.error?.message ?? `${lerA.data?.length} linhas`)
+  const insA = await sa.from('pagamentos_comanda').insert({ restaurante_id: loja, comanda_id: comandaGenerica(), forma: 'pix', valor: 1, criado_por_nome: 'x' })
+  ok('caixa não insere pagamento direto na tabela', !!insA.error, insA.error?.message)
   const ins = await sd.from('pagamentos_comanda').insert({ restaurante_id: loja, comanda_id: comandaGenerica(), forma: 'pix', valor: 1, criado_por_nome: 'x' })
   ok('nem o dono insere pagamento direto na tabela', !!ins.error, ins.error?.message)
   const upd = await sd.from('pagamentos_comanda').update({ valor: 0.01 }).eq('restaurante_id', loja).select('id')
   ok('nem o dono altera pagamento direto na tabela', !!upd.error || (upd.data ?? []).length === 0, upd.error?.message ?? `${upd.data?.length} linhas`)
   for (const [fn, args] of [
-    ['comanda_registrar_pagamento', { p_restaurante: loja, p_comanda: comandaGenerica(), p_forma: 'pix', p_valor: 1, p_recebido: null, p_chave: uuid(), p_ator: null, p_ator_nome: 'x' }],
+    ['comanda_registrar_pagamento', { p_restaurante: loja, p_comanda: comandaGenerica(), p_forma: 'pix', p_valor: 1, p_recebido: null, p_chave: uuid(), p_ator: null, p_ator_nome: 'x', p_observacao: null }],
     ['comanda_fechar', { p_restaurante: loja, p_comanda: comandaGenerica(), p_ator: null, p_ator_nome: 'x' }],
     ['mesa_transferir', { p_restaurante: loja, p_origem: V01.id, p_destino: M01.id, p_mesclar: true, p_ator: null, p_ator_nome: 'x' }],
     ['item_cancelar', { p_restaurante: loja, p_item: uuid(), p_motivo: 'x', p_ator_nome: 'x' }],
