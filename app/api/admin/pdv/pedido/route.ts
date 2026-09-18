@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     // Mesa selecionada → agrupa numa comanda (find-or-create). Balcão fica avulso.
     let comandaId: string | undefined
     if (mesaId) {
-      const comanda = await abrirOuObterComanda(admin, restauranteId, mesaId)
+      const { comanda } = await abrirOuObterComanda(admin, restauranteId, mesaId)
       comandaId = comanda.id
     }
 

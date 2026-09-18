@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { ChefHat, Clock, GripVertical, Map as MapIcon, PackageCheck } from 'lucide-react'
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
+import { rotuloOrigemPedido } from '@/lib/pedido-origem'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +141,7 @@ interface PrepModalProps {
 }
 
 function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepModalProps) {
+  const origem = rotuloOrigemPedido(pedido)
   const [busy, setBusy] = useState<'devolver' | 'concluir' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmandoDevolver, setConfirmandoDevolver] = useState(false)
@@ -242,9 +244,14 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
               <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                 {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
               </span>
-              {pedido.origem === 'pdv' && (
-                <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-alert-text">
-                  PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
+              {origem.texto && (
+                <span
+                  className={`rounded-menuzia px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                    origem.tom === 'salao' ? 'bg-status-ready text-white' : 'bg-alert-bg text-alert-text'
+                  }`}
+                >
+                  {origem.texto}
+                  {origem.responsavel ? ` · ${origem.responsavel}` : ''}
                 </span>
               )}
               {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
@@ -351,6 +358,7 @@ interface DisponiveisCardProps {
 }
 
 function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
+  const origem = rotuloOrigemPedido(pedido)
   const isBusy = busy === pedido.id
   // Pedido que já foi pego e devolvido (não é novo) — sinalizado por preparando_notificado.
   const devolvido = pedido.preparandoNotificado
@@ -379,9 +387,14 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
-          {pedido.origem === 'pdv' && (
-            <span className="rounded-menuzia bg-alert-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-alert-text">
-              PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
+          {origem.texto && (
+            <span
+              className={`rounded-menuzia px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                origem.tom === 'salao' ? 'bg-status-ready text-white' : 'bg-alert-bg text-alert-text'
+              }`}
+            >
+              {origem.texto}
+              {origem.responsavel ? ` · ${origem.responsavel}` : ''}
             </span>
           )}
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
@@ -704,6 +717,7 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; onClick: (p: Pedido) => void }) {
+  const origem = rotuloOrigemPedido(pedido)
   const devolvido = pedido.preparandoNotificado
   return (
     <button
@@ -732,9 +746,14 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
-          {pedido.origem === 'pdv' && (
-            <span className="rounded-menuzia bg-alert-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-alert-text">
-              PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
+          {origem.texto && (
+            <span
+              className={`rounded-menuzia px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                origem.tom === 'salao' ? 'bg-status-ready text-white' : 'bg-alert-bg text-alert-text'
+              }`}
+            >
+              {origem.texto}
+              {origem.responsavel ? ` · ${origem.responsavel}` : ''}
             </span>
           )}
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
@@ -782,6 +801,7 @@ function ConfirmarPreparoModal({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const origem = rotuloOrigemPedido(pedido)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
       <div
@@ -796,9 +816,14 @@ function ConfirmarPreparoModal({
               <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                 {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
               </span>
-              {pedido.origem === 'pdv' && (
-                <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-alert-text">
-                  PDV · {pedido.mesa ? `Mesa ${pedido.mesa}` : 'Balcão'}
+              {origem.texto && (
+                <span
+                  className={`rounded-menuzia px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                    origem.tom === 'salao' ? 'bg-status-ready text-white' : 'bg-alert-bg text-alert-text'
+                  }`}
+                >
+                  {origem.texto}
+                  {origem.responsavel ? ` · ${origem.responsavel}` : ''}
                 </span>
               )}
             </div>

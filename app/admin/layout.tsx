@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: '/admin/fidelidade', label: 'Fidelidade', novidade: true },
   { href: '/admin/integracoes', label: 'Integrações', novidade: true },
   { href: '/admin/equipe', label: 'Equipe', novidade: true },
+  { href: '/admin/auditoria', label: 'Auditoria', novidade: true },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ]
 
@@ -46,6 +47,7 @@ const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/fidelidade': 'fidelidade.gerenciar',
   '/admin/integracoes': 'integracoes.gerenciar',
   '/admin/equipe': 'equipe.gerenciar',
+  '/admin/auditoria': 'auditoria.ver',
   '/admin/ajustes': 'ajustes.editar',
 }
 

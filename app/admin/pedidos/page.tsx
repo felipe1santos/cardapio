@@ -33,6 +33,7 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
+import { rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
@@ -960,7 +961,10 @@ export default function PedidosPage() {
                           <div className="flex items-center gap-1.5">
                             <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
                             {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
-                            {order.origem === 'pdv' && <Badge tone="alert">PDV</Badge>}
+                            {/* Salão e balcão não são a mesma coisa: quem lê o card precisa
+                                saber se o prato vai para uma mesa ou para o balcão. */}
+                            {origemDoCard(order).tom === 'salao' && <Badge tone="ready">Salão</Badge>}
+                            {origemDoCard(order).tom === 'balcao' && <Badge tone="alert">PDV</Badge>}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold tabular-nums ${timerTone(tempo.mins)}`}>{tempo.label}</span>
@@ -997,9 +1001,10 @@ export default function PedidosPage() {
                           <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1.5">
                             {/* slot para tags futuras (ex.: agendado, atrasado) */}
                             <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
-                              {order.origem === 'pdv' ? (
+                              {origemDoCard(order).texto ? (
                                 <span className="text-[11px] font-semibold normal-case tracking-normal text-text-subtle">
-                                  {order.mesa ? `Mesa ${order.mesa}` : 'Balcão'} · conta aberta
+                                  {origemDoCard(order).texto}
+                                  {origemDoCard(order).responsavel ? ` · ${origemDoCard(order).responsavel}` : ''}
                                 </span>
                               ) : (
                                 PAY_LABEL[order.formaPagamento]

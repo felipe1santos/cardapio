@@ -18,6 +18,7 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/pdv', 'pedidos.balcao.criar'],
   ['/admin/mesas', 'mesas.operar'],
   ['/admin/equipe', 'equipe.gerenciar'],
+  ['/admin/auditoria', 'auditoria.ver'],
   ['/admin/logistica', 'logistica.operar'],
   ['/admin/cardapio', 'cardapio.editar'],
   ['/admin/clientes', 'clientes.ver'],

@@ -134,11 +134,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     // A conta nasce aqui, no primeiro lançamento — não quando o cliente abriu o QR.
-    const comanda = await abrirOuObterComanda(admin, sessao.restauranteId, mesaId)
+    const { comanda, nasceuAgora } = await abrirOuObterComanda(admin, sessao.restauranteId, mesaId)
     const sessaoMesa = await abrirOuObterSessao(admin, sessao.restauranteId, mesaId)
 
     if (!sessaoMesa.comandaId) {
       await admin.from('sessoes_mesa').update({ comanda_id: comanda.id }).eq('id', sessaoMesa.id)
+    }
+
+    // "Mesa aberta" é um evento próprio: é o marco de quando aquela mesa entrou em
+    // operação e por quem. Só na comanda que nasceu agora — quem perdeu a corrida do
+    // find-or-create não abriu nada.
+    if (nasceuAgora) {
+      // Quem enviou o primeiro lançamento é o responsável operacional da mesa.
+      await admin
+        .from('comandas')
+        .update({ responsavel_id: sessao.userId, responsavel_nome: sessao.nome })
+        .eq('id', comanda.id)
+        .is('responsavel_id', null)
+      await registrarAuditoria(admin, {
+        restauranteId: sessao.restauranteId,
+        usuarioId: sessao.userId,
+        usuarioNome: sessao.nome,
+        acao: 'mesa.abriu',
+        entidade: 'comanda',
+        entidadeId: comanda.id,
+        dados: { mesa: mesa.nome, de: 'livre', para: 'ocupada' },
+      })
     }
 
     let pedido: { id: string; numero: number }

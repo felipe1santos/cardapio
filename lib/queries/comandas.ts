@@ -75,7 +75,7 @@ export async function abrirOuObterComanda(
   admin: SupabaseClient,
   restauranteId: string,
   mesaId: string,
-): Promise<Comanda> {
+): Promise<{ comanda: Comanda; nasceuAgora: boolean }> {
   const { data: mesaRow, error: mesaErr } = await admin
     .from('mesas')
     .select('id')
@@ -86,7 +86,7 @@ export async function abrirOuObterComanda(
   if (!mesaRow) throw new Error('Mesa não encontrada nesta loja')
 
   const existente = await buscarComandaAberta(admin, restauranteId, mesaId)
-  if (existente) return existente
+  if (existente) return { comanda: existente, nasceuAgora: false }
 
   const { data, error } = await admin
     .from('comandas')
@@ -98,11 +98,12 @@ export async function abrirOuObterComanda(
     // Corrida: outra requisição criou a comanda entre o select e o insert.
     if (error.code === '23505') {
       const recuperada = await buscarComandaAberta(admin, restauranteId, mesaId)
-      if (recuperada) return recuperada
+      // Quem perdeu a corrida não "abriu" a mesa — quem auditar tem que saber disso.
+      if (recuperada) return { comanda: recuperada, nasceuAgora: false }
     }
     throw error
   }
-  return mapComandaRow(data as ComandaRow)
+  return { comanda: mapComandaRow(data as ComandaRow), nasceuAgora: true }
 }
 
 export async function listarPedidosDaComanda(

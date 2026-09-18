@@ -252,6 +252,7 @@ export interface EventoHistorico {
 }
 
 const ROTULO_ACAO: Record<string, string> = {
+  'mesa.abriu': 'Abriu a mesa',
   'mesa.enviou_cozinha': 'Enviou lançamento para a cozinha',
   'mesa.transferiu': 'Transferiu a mesa',
   'mesa.mesclou': 'Juntou a conta com outra mesa',
