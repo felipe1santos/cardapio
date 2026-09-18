@@ -158,7 +158,7 @@ export function DrawerQrMesa({
       <aside className="flex h-full w-full max-w-md flex-col bg-main shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
           <span className="text-[15px] font-semibold text-text-main">QR Code · {mesa.nome}</span>
-          <button onClick={onFechar} className="text-text-subtle hover:text-text-main" aria-label="Fechar">
+          <button onClick={onFechar} className="-mr-2 grid h-[40px] w-[40px] place-items-center text-text-subtle hover:text-text-main" aria-label="Fechar">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -333,7 +333,7 @@ export function DrawerFolhaMesas({
       <aside className="flex h-full w-full max-w-4xl flex-col bg-main shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
           <span className="text-[15px] font-semibold text-text-main">Folha de QR Codes das mesas</span>
-          <button onClick={onFechar} className="text-text-subtle hover:text-text-main" aria-label="Fechar">
+          <button onClick={onFechar} className="-mr-2 grid h-[40px] w-[40px] place-items-center text-text-subtle hover:text-text-main" aria-label="Fechar">
             <X className="h-5 w-5" />
           </button>
         </div>

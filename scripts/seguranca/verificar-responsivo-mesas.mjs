@@ -41,6 +41,18 @@ const loja = (await um(`select id from restaurantes where slug='cantina-demo'`))
 const mesaLivre = await um(`select id, token, nome from mesas where restaurante_id=$1 and nome='Mesa 01'`, [loja])
 const mesaOcupada = await um(`select id, nome from mesas where restaurante_id=$1 and nome='Mesa 02'`, [loja])
 
+// Um pedido de cancelamento aberto na Mesa 02, para a conta mostrar o bloco de decisão
+// (é o estado mais "cheio" da tela). Pela função do banco, como a rota faria.
+{
+  const alvo = await um(
+    `select p.id as pedido, i.id as item from pedidos p join pedido_itens i on i.pedido_id = p.id
+       join comandas c on c.id = p.comanda_id where c.mesa_id=$1 and c.status='aberta' and i.cancelado_em is null limit 1`,
+    [mesaOcupada.id])
+  if (alvo) {
+    await db.query('select public.cancelamento_solicitar($1,$2,$3,$4,null,$5)', [loja, alvo.pedido, alvo.item, 'cliente trocou de ideia', 'Garçom Demo'])
+  }
+}
+
 const VIEWPORTS = [
   { nome: '360x800', width: 360, height: 800, mobile: true },
   { nome: '390x844', width: 390, height: 844, mobile: true },
@@ -271,12 +283,50 @@ for (const vp of VIEWPORTS) {
     await page.screenshot({ path: `.shots/resp-${vp.nome}-garcom-conta.png` })
     await conferir('garçom/conta', page, vp)
 
+    // Conta com o formulário de taxa e desconto (R$/%) aberto.
+    await page.locator('button', { hasText: 'Ajustar taxa de serviço ou desconto' }).click()
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: `.shots/resp-${vp.nome}-conta-ajuste.png`, fullPage: true })
+    await conferir('conta/ajuste de valores', page, vp)
+
+    // QR de uma mesa (link vem da rota protegida).
+    await page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(1000)
+    await dispensarChecklist()
+    await page.locator('button[title="Ver QR Code"]').first().click()
+    await page.locator('img[alt^="QR Code da"]').waitFor({ timeout: 15000 }).catch(() => {})
+    await page.screenshot({ path: `.shots/resp-${vp.nome}-qr-mesa.png` })
+    await conferir('QR da mesa', page, vp)
+
     await page.goto(`${BASE}/admin/auditoria`, { waitUntil: 'networkidle' })
     await page.waitForTimeout(1500)
     await dispensarChecklist()
     await page.screenshot({ path: `.shots/resp-${vp.nome}-auditoria.png` })
     await conferir('auditoria', page, vp)
 
+    await ctx.close()
+  }
+
+  // ── caixa (atendente): salão e conta, sem lançar ─────────────────────────
+  {
+    const ctx = await browser.newContext({
+      viewport: { width: vp.width, height: vp.height },
+      isMobile: vp.mobile,
+      hasTouch: vp.mobile,
+      locale: 'pt-BR',
+    })
+    const page = await logar(ctx, 'atendente.local')
+    await page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(1200)
+    await page.screenshot({ path: `.shots/resp-${vp.nome}-caixa-salao.png` })
+    await conferir('caixa/salão', page, vp)
+    await page.goto(`${BASE}/admin/mesas/${mesaOcupada.id}`, { waitUntil: 'networkidle' })
+    await page.locator('[data-testid="restante"]').waitFor({ timeout: 15000 }).catch(() => {})
+    await page.screenshot({ path: `.shots/resp-${vp.nome}-caixa-conta.png`, fullPage: true })
+    await conferir('caixa/conta', page, vp)
+    ok(`${vp.nome} caixa abre a mesa direto na conta, sem aba de lançar`,
+      (await page.locator('[role="tab"]', { hasText: 'Lançar pedido' }).count()) === 0 &&
+        (await page.locator('[data-testid="restante"]').count()) === 1)
     await ctx.close()
   }
 }

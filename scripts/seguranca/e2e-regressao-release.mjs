@@ -340,6 +340,14 @@ secao('Kanban e cozinha: salão e balcão distinguíveis, delivery intocado')
   // A etiqueta da cozinha é caixa alta por CSS, e innerText devolve o texto renderizado.
   ok('a cozinha identifica o pedido de salão com a mesa', /sal[ãa]o ·/i.test(textoCozinha),
     textoCozinha.split('\n').slice(0, 16).join(' | '))
+  ok('a cozinha vê o número da comanda do salão', /comanda \d+/i.test(textoCozinha), textoCozinha.match(/comanda \d+/i)?.[0])
+  // O portal lê pela rota do token; a mesma resposta traz o garçom que lançou.
+  const apiCozinha = await fetch(`${BASE}/api/cozinha/${token}`).then((r) => r.json())
+  // O da semente foi inserido direto no banco, sem garçom; o lançado pela tela tem.
+  const deSalao = (apiCozinha.pedidos ?? []).find((x) => x.canal === 'mesa' && x.criadoPorNome)
+  ok('o pedido de salão chega à cozinha com mesa, comanda e garçom',
+    !!deSalao?.mesa && Number.isInteger(deSalao?.comandaNumero) && !!deSalao?.criadoPorNome,
+    JSON.stringify({ mesa: deSalao?.mesa, comanda: deSalao?.comandaNumero, por: deSalao?.criadoPorNome }))
   await cozinha.screenshot({ path: '.shots/rc-09-cozinha-salao.png' })
   await cozinha.context().close()
 }

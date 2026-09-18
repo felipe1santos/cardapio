@@ -56,6 +56,8 @@ function permissoesDaTela(ctx: ContextoSalao) {
     // Pessoas e observação: quem atende e quem divide a conta.
     ajustar_mesa: ctx.pode('mesas.operar') || ctx.pode('comanda.fechar'),
     fiado: ctx.pode('comanda.fiado'),
+    // Assumir a mesa é de quem atende; o caixa ajusta pessoas e observação, não o responsável.
+    assumir: ctx.pode('mesas.operar'),
     lancar: ctx.pode('pedidos.mesa.enviar_cozinha'),
   }
 }

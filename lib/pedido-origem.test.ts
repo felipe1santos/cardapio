@@ -33,6 +33,13 @@ describe('rótulo de origem do pedido', () => {
     expect(rotuloOrigemPedido({ canal: 'marketplace', mesa: '3' }).texto).toBeNull()
   })
 
+  it('pedido de salão mostra o número da comanda quando existe', () => {
+    expect(rotuloOrigemPedido({ canal: 'mesa', mesa: '4', comandaNumero: 12 }).texto).toBe('Salão · Mesa 4 · Comanda 12')
+    expect(rotuloOrigemPedido({ canal: 'mesa', mesa: '4', comandaNumero: null }).texto).toBe('Salão · Mesa 4')
+    // Delivery e balcão nunca ganham comanda na etiqueta.
+    expect(rotuloOrigemPedido({ canal: 'balcao', comandaNumero: 3 }).texto).toBe('PDV · Balcão')
+  })
+
   it('nome só numérico ganha o prefixo; nome com texto fica como está', () => {
     expect(rotuloDaMesa('4')).toBe('Mesa 4')
     expect(rotuloDaMesa('07')).toBe('Mesa 07')

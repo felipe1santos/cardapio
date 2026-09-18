@@ -17,6 +17,8 @@ export interface PedidoParaRotulo {
   mesa?: string | null
   /** Funcionário que lançou (garçom, no salão). */
   criadoPorNome?: string | null
+  /** Número da comanda (0072): a cozinha e o caixa falam da mesma conta mesmo depois de transferir. */
+  comandaNumero?: number | null
 }
 
 export type TomOrigem = 'salao' | 'balcao' | 'delivery'
@@ -36,7 +38,7 @@ export function rotuloOrigemPedido(pedido: PedidoParaRotulo): RotuloOrigem {
 
   if (canal === 'mesa') {
     return {
-      texto: `Salão · ${rotuloDaMesa(pedido.mesa)}`,
+      texto: `Salão · ${rotuloDaMesa(pedido.mesa)}${pedido.comandaNumero ? ` · Comanda ${pedido.comandaNumero}` : ''}`,
       responsavel: pedido.criadoPorNome?.trim() || null,
       tom: 'salao',
     }

@@ -147,7 +147,7 @@ export function PainelConta({
         )}
 
         {/* ── Dados da mesa ─────────────────────────────────────────────── */}
-        <DadosDaMesa conta={conta} podeAjustar={podeFazer('ajustar_mesa')} executar={executar} />
+        <DadosDaMesa conta={conta} podeAjustar={podeFazer('ajustar_mesa')} podeAssumir={podeFazer('assumir')} executar={executar} />
 
         {/* ── Pedidos de cancelamento do garçom ─────────────────────────── */}
         {conta.solicitacoes.length > 0 && (
@@ -580,10 +580,12 @@ const INPUT = 'h-[44px] w-full lg:h-9 rounded-menuzia border border-border px-2.
 function DadosDaMesa({
   conta,
   podeAjustar,
+  podeAssumir,
   executar,
 }: {
   conta: ContaDaMesa
   podeAjustar: boolean
+  podeAssumir: boolean
   executar: (acao: string, corpo: Record<string, unknown>, sucesso: string) => Promise<unknown>
 }) {
   const [pessoas, setPessoas] = useState(conta.pessoas ? String(conta.pessoas) : '')
@@ -625,7 +627,7 @@ function DadosDaMesa({
         <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Responsável</span>
         <div className="flex h-9 items-center gap-2 text-[13px]">
           <span className="text-text-main">{conta.responsavelNome ?? '—'}</span>
-          {podeAjustar && (
+          {podeAssumir && (
             <Button variant="outline" className="!px-2 text-[10px]" onClick={() => executar('ajustar_mesa', { assumir: true }, 'Você assumiu a mesa.')}>
               Assumir
             </Button>
@@ -708,7 +710,7 @@ function AjusteValores({
                   role="radio"
                   aria-checked={tipo === t}
                   onClick={() => setTipo(t)}
-                  className={`min-h-[28px] px-2 text-[10px] font-bold ${tipo === t ? 'bg-primary text-white' : 'bg-main text-text-subtle'}`}
+                  className={`min-h-[40px] min-w-[40px] px-2 text-[10px] font-bold lg:min-h-[28px] lg:min-w-0 ${tipo === t ? 'bg-primary text-white' : 'bg-main text-text-subtle'}`}
                 >
                   {t === 'valor' ? 'R$' : '%'}
                 </button>

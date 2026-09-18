@@ -719,7 +719,7 @@ function ConfiguradorGarcom({
       <aside className="flex h-full w-full max-w-md flex-col bg-main shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
           <span className="text-[15px] font-semibold text-text-main">{item.nome}</span>
-          <button onClick={onCancelar} className="text-text-subtle hover:text-text-main" aria-label="Fechar">
+          <button onClick={onCancelar} className="-mr-2 grid h-[40px] w-[40px] place-items-center text-text-subtle hover:text-text-main" aria-label="Fechar">
             <X className="h-5 w-5" />
           </button>
         </div>
