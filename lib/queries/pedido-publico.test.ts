@@ -23,7 +23,7 @@ describe('montarPedidoPublico', () => {
 
   it('não copia taxaEntrega para dentro da entrada', () => {
     const r = montarPedidoPublico(CORPO_HONESTO)
-    expect((r.input as Record<string, unknown>).taxaEntrega).toBeUndefined()
+    expect((r.input as unknown as Record<string, unknown>).taxaEntrega).toBeUndefined()
   })
 
   it('recusa TODOS os campos internos, um a um', () => {

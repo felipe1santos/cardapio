@@ -23,11 +23,11 @@ describe('Menuzia Tailwind theme tokens', () => {
   })
 
   it('defines the near-square Menuzia border radius', () => {
-    expect(config.theme?.extend?.borderRadius?.menuzia).toBe('3px')
+    expect((config.theme?.extend?.borderRadius as Record<string, string>)?.menuzia).toBe('3px')
   })
 
   it('uses Inter as the sans font family', () => {
-    const sans = config.theme?.extend?.fontFamily?.sans as string[] | undefined
+    const sans = (config.theme?.extend?.fontFamily as Record<string, string[]>)?.sans
     // A Inter passou a vir do next/font (app/layout.tsx), que auto-hospeda os
     // arquivos e publica a família nesta variável. O nome literal fica logo
     // atrás, para quem já tem a fonte instalada no sistema.
