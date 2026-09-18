@@ -5,6 +5,8 @@ import { resolverMesaPorToken } from '@/lib/queries/mesas'
 import { abrirOuObterSessao } from '@/lib/queries/mesa-sessao'
 import { listarGrupos, listarItens } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
+import { itemDisponivelNoCanal } from '@/lib/canais-item'
+import { itemDisponivelHoje } from '@/lib/timezone'
 import { CardapioDaMesa } from './cardapio'
 
 /**
@@ -60,7 +62,11 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
 
   if (!loja) notFound()
 
-  const disponiveis = itens.filter((i) => i.status === 'disponivel')
+  // Catálogo é um só: as mesmas linhas que a vitrine lê, filtradas pelo canal do salão
+  // (0069) e pelo dia da semana. Nada de cadastro paralelo para mesa.
+  const disponiveis = itens.filter(
+    (i) => i.status === 'disponivel' && itemDisponivelNoCanal(i, 'mesa') && itemDisponivelHoje(i.diasDisponiveis),
+  )
   const gruposComItem = grupos.filter((g) => disponiveis.some((i) => i.grupoId === g.id))
 
   return (

@@ -6,6 +6,8 @@ function supabaseFake() {
   const single = vi.fn().mockResolvedValue({ data: { id: 'g1' }, error: null })
   const select = vi.fn(() => ({ single }))
   const eq = vi.fn(() => ({ select }))
+  // O parâmetro existe só para tipar `update.mock.calls[0][0]`; não é lido aqui.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const update = vi.fn((_payload: Record<string, unknown>) => ({ eq }))
   const from = vi.fn(() => ({ update }))
   return { client: { from } as never, update }

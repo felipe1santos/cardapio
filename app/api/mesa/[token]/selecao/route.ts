@@ -3,6 +3,8 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { resolverMesaPorToken } from '@/lib/queries/mesas'
 import { abrirOuObterSessao, buscarSelecao, mesaDestinoDaSessaoTransferida, salvarSelecao, sanearSelecao } from '@/lib/queries/mesa-sessao'
 import { listarItens } from '@/lib/queries/cardapio'
+import { itemDisponivelNoCanal } from '@/lib/canais-item'
+import { itemDisponivelHoje } from '@/lib/timezone'
 
 /**
  * Rascunho do cliente na mesa. **Não cria pedido.**
@@ -83,7 +85,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ toke
   const itensDaLoja = await listarItens(ctx.admin, ctx.mesa.restauranteId)
   const catalogo = new Map(
     itensDaLoja
-      .filter((i) => i.status === 'disponivel')
+      .filter((i) => i.status === 'disponivel' && itemDisponivelNoCanal(i, 'mesa') && itemDisponivelHoje(i.diasDisponiveis))
       .map((i) => [i.id, { nome: i.nome, preco: i.promocaoPreco ?? i.preco }]),
   )
 

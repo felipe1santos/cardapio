@@ -5,6 +5,7 @@ import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilI
 import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
 import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
+import { itemDisponivelNoCanal } from '@/lib/canais-item'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -101,6 +102,12 @@ export interface ItemCardapio {
   /** Etiqueta de destaque exibida na vitrine (ex.: 'mais_pedido'). Null = sem tag. */
   tag: TagItem | null
   tipoItem: TipoItem
+  /**
+   * Canais em que o item aparece. O catálogo é um só: estas duas colunas moram no próprio
+   * item (0069) e nascem `true`, então nada muda para quem já estava cadastrado.
+   */
+  disponivelDelivery: boolean
+  disponivelSalao: boolean
   grupos: GrupoItemComplementos[]
   complementos: ComplementoItem[]
   tamanhos: TamanhoItem[]
@@ -131,6 +138,8 @@ interface ItemRow {
   mais_vendido: boolean
   tag: TagItem | null
   tipo_item: TipoItem
+  disponivel_delivery: boolean | null
+  disponivel_salao: boolean | null
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null; pausado: boolean }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number; permite_quantidade: boolean }[]
   tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
@@ -175,6 +184,10 @@ function mapItem(row: ItemRow): ItemCardapio {
     maisVendido: row.mais_vendido,
     tag: row.tag ?? null,
     tipoItem: row.tipo_item ?? 'simples',
+    // `?? true`: linha lida antes da 0069 (ou por um select que não trouxe a coluna)
+    // continua valendo nos dois canais, como sempre valeu.
+    disponivelDelivery: row.disponivel_delivery ?? true,
+    disponivelSalao: row.disponivel_salao ?? true,
     grupos,
     complementos: (row.item_complementos ?? [])
       .filter((c) => !c.grupo_id)
@@ -344,6 +357,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
+  disponivel_delivery, disponivel_salao,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
   tamanhos_item ( id, nome, preco, posicao ),
@@ -374,6 +388,9 @@ export interface NovoItemInput {
   tipoItem: TipoItem
   imagemUrl?: string | null
   imagemThumbUrl?: string | null
+  /** Ausente = nos dois canais, que é o default da coluna (0069). */
+  disponivelDelivery?: boolean
+  disponivelSalao?: boolean
 }
 
 export async function criarItem(supabase: SupabaseClient, restauranteId: string, input: NovoItemInput): Promise<ItemCardapio> {
@@ -393,6 +410,8 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       tipo_item: input.tipoItem,
       imagem_url: input.imagemUrl ?? null,
       imagem_thumb_url: input.imagemThumbUrl ?? null,
+      disponivel_delivery: input.disponivelDelivery ?? true,
+      disponivel_salao: input.disponivelSalao ?? true,
     })
     .select(ITEM_SELECT)
     .single()
@@ -414,6 +433,9 @@ export interface AtualizarItemInput {
   maisVendido: boolean
   tag: TagItem | null
   tipoItem: TipoItem
+  /** Ausente = não mexe no canal que o item já tem. */
+  disponivelDelivery?: boolean
+  disponivelSalao?: boolean
 }
 
 export async function atualizarItem(supabase: SupabaseClient, itemId: string, input: AtualizarItemInput): Promise<ItemCardapio> {
@@ -434,6 +456,9 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
       mais_vendido: input.maisVendido,
       tag: input.tag,
       tipo_item: input.tipoItem,
+      // Mesmo cuidado da thumb: edição que não fala de canal não muda o canal.
+      ...('disponivelDelivery' in input ? { disponivel_delivery: input.disponivelDelivery } : {}),
+      ...('disponivelSalao' in input ? { disponivel_salao: input.disponivelSalao } : {}),
     })
     .eq('id', itemId)
     .select(ITEM_SELECT)
@@ -978,7 +1003,14 @@ export async function listarCardapioPublico(supabase: ClienteLeitura, restaurant
     .map((grupo) => ({
       ...grupo,
       itens: itens
-        .filter((item) => item.grupoId === grupo.id && item.status === 'disponivel' && itemDisponivelHoje(item.diasDisponiveis))
+        // `disponivelDelivery`: mesmo catálogo do salão, filtrado pelo canal (0069).
+        .filter(
+          (item) =>
+            item.grupoId === grupo.id &&
+            item.status === 'disponivel' &&
+            itemDisponivelNoCanal(item, 'delivery') &&
+            itemDisponivelHoje(item.diasDisponiveis),
+        )
         // Complemento pausado some da vitrine (mas continua cadastrado no admin).
         // Grupo de complementos sem opções não pode aparecer na vitrine: um grupo
         // obrigatório vazio deixaria o item impossível de pedir.

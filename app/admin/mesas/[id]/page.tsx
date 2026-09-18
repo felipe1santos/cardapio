@@ -13,6 +13,8 @@ import { buscarComandaAberta, listarPedidosDaComanda, calcularTotalComanda } fro
 import type { Pedido } from '@/lib/queries/pedidos'
 import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-sessao'
 import { validarOpcoes, minimoDoGrupo, maximoDoGrupo, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
+import { itemDisponivelNoCanal } from '@/lib/canais-item'
+import { itemDisponivelHoje } from '@/lib/timezone'
 import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaOpcao } from './conta'
 
 /**
@@ -47,6 +49,8 @@ interface LinhaLancamento {
   quantidade: number
   observacao: string
   complementos: { nome: string; preco: number }[]
+  /** Motivo pelo qual o servidor recusou esta linha no último envio. Null = tudo certo. */
+  indisponivel?: string | null
 }
 
 /** Grupos do item com pelo menos uma opção disponível — são os que viram etapa. */
@@ -110,7 +114,13 @@ export default function MesaDetalhePage() {
     setMesa(alvo)
     setMesasDaLoja(mesas.map((m) => ({ id: m.id, nome: m.nome, ativa: m.ativa, bloqueada: m.bloqueada })))
     setGrupos(gruposDb)
-    setItens(itensDb.filter((i) => i.status === 'disponivel'))
+    // Mesmo catálogo do delivery, filtrado pelo canal do salão e pelo dia (0069). O
+     // servidor confere de novo no envio: aba aberta antes da mudança não fura a regra.
+    setItens(
+      itensDb.filter(
+        (i) => i.status === 'disponivel' && itemDisponivelNoCanal(i, 'mesa') && itemDisponivelHoje(i.diasDisponiveis),
+      ),
+    )
     setCategoriaAtiva((atual) => atual ?? gruposDb[0]?.id ?? null)
 
     // Pedidos já lançados nesta mesa.
@@ -220,7 +230,19 @@ export default function MesaDetalhePage() {
         }),
       })
       const corpo = await res.json()
-      if (!res.ok) throw new Error(corpo.error ?? 'Não foi possível enviar.')
+      if (!res.ok) {
+        // Item que saiu do cardápio entre o cliente marcar e o garçom lançar: o servidor
+        // diz QUAIS linhas travaram. A tela marca essas e não mexe no resto do
+        // lançamento — o garçom troca ou remove e reenvia, sem remontar tudo.
+        const travados = Array.isArray(corpo.itensIndisponiveis)
+          ? (corpo.itensIndisponiveis as { itemId: string; motivo: string }[])
+          : []
+        if (travados.length > 0) {
+          const motivoPorItem = new Map(travados.map((t) => [t.itemId, t.motivo]))
+          setLancamento((atual) => atual.map((l) => ({ ...l, indisponivel: motivoPorItem.get(l.itemId) ?? null })))
+        }
+        throw new Error(corpo.error ?? 'Não foi possível enviar.')
+      }
       setLancamento([])
       // Só depois do sucesso a chave troca: o próximo lançamento é outro pedido.
       setChaveLancamento(crypto.randomUUID())
@@ -439,9 +461,17 @@ export default function MesaDetalhePage() {
                   </p>
                 )}
                 {lancamento.map((l) => (
-                  <div key={l.chave} className="flex items-start gap-2 border-b border-border px-4 py-2.5">
+                  <div
+                    key={l.chave}
+                    className={`flex items-start gap-2 border-b px-4 py-2.5 ${
+                      l.indisponivel ? 'border-danger bg-danger-bg' : 'border-border'
+                    }`}
+                  >
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-semibold text-text-main">{l.nome}</div>
+                      {l.indisponivel && (
+                        <div className="text-[11px] font-semibold text-danger">{l.indisponivel}</div>
+                      )}
                       {l.complementos.length > 0 && (
                         <div className="text-[11px] text-text-subtle">{l.complementos.map((c) => c.nome).join(' · ')}</div>
                       )}

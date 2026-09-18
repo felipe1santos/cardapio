@@ -4,6 +4,7 @@ import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTI
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
 import { itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
+import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 import { resolverPizza, type SaborCatalogo, type TamanhoCatalogo } from './pedidos-pizza'
 import type { RegraPrecoPizza } from '@/lib/pizza-preco'
@@ -942,7 +943,17 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     .eq('id', restauranteId)
     .single()
   if (lojaError) throw lojaError
-  if (!lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })) {
+
+  const canal = canalDoPedido(input)
+
+  // Horário de funcionamento é regra de VITRINE: é o que impede o cliente de pedir de
+  // casa às 4h. Mesa é atendimento presencial lançado por funcionário autenticado que
+  // está dentro da loja — se a loja pausou o delivery, o salão continua servindo.
+  // O balcão (PDV) fica como sempre esteve, para não mudar o comportamento de quem já usa.
+  if (
+    canal !== 'mesa' &&
+    !lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })
+  ) {
     throw new Error('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
   }
   // Canal server-authoritative: a vitrine já esconde o que a loja desligou, mas
@@ -962,6 +973,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     .from('itens_cardapio')
     .select(`
       id, nome, preco, promocao_preco, status, tipo_item, dias_disponiveis,
+      disponivel_delivery, disponivel_salao,
       item_complementos ( nome, preco ),
       tamanhos_item ( nome, preco ),
       pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
@@ -997,6 +1009,16 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     if (!item) throw new Error(`Item ${linha.itemId} não encontrado nesta loja`)
     if (item.status !== 'disponivel') throw new Error(`Item "${item.nome}" não está disponível`)
     if (!itemDisponivelHoje(item.dias_disponiveis ?? [])) throw new Error(`Item "${item.nome}" não está disponível hoje`)
+    // Canal conferido no servidor: a tela já filtra, mas aba aberta antes da mudança e
+    // POST direto não podem furar a regra (0069). Item sem a coluna vale nos dois.
+    if (
+      !itemDisponivelNoCanal(
+        { disponivelDelivery: item.disponivel_delivery ?? true, disponivelSalao: item.disponivel_salao ?? true },
+        canal,
+      )
+    ) {
+      throw new Error(`Item "${item.nome}" não é vendido neste canal`)
+    }
 
     let base = item.promocao_preco === null || item.promocao_preco === undefined ? Number(item.preco) : Number(item.promocao_preco)
     let tamanhoNome = ''
@@ -1272,7 +1294,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       // Canal é a fronteira que a RLS usa (0058/0061): ele decide quem enxerga o
       // pedido. Derivado aqui, no servidor, nunca aceito do navegador — a rota pública
       // recusa o campo antes de chegar aqui (lib/queries/pedido-publico.ts).
-      canal: canalDoPedido(input),
+      canal,
       mesa: input.origem === 'pdv' ? (input.mesa ?? null) : null,
       comanda_id: input.comandaId ?? null,
       criado_por: input.criadoPor ?? null,

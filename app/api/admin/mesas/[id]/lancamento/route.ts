@@ -8,6 +8,8 @@ import { abrirOuObterComanda } from '@/lib/queries/comandas'
 import { abrirOuObterSessao, encerrarSelecoesVistas, sanearSelecoesVistas } from '@/lib/queries/mesa-sessao'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
+import { itemDisponivelNoCanal, motivoIndisponivel } from '@/lib/canais-item'
+import { itemDisponivelHoje } from '@/lib/timezone'
 
 /**
  * **Enviar para a cozinha.** É a única porta que transforma itens em pedido oficial de
@@ -71,10 +73,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Mesa bloqueada' }, { status: 409 })
   }
 
+  const idsItens = [...new Set(itens.map((i) => i.itemId))]
+
+  // Disponibilidade conferida ANTES de criar nada, e devolvida item por item.
+  //
+  // `criarPedido` já recusa item indisponível, mas estourando um `Error` com o nome no
+  // texto: o garçom leria "Item X não está disponível" e não saberia qual linha tirar
+  // nem o que aconteceu. Aqui a resposta diz exatamente quais linhas travaram, para a
+  // tela marcá-las e deixar o resto do lançamento intacto — o cliente marcou no celular
+  // e o prato pode ter esgotado nesse meio-tempo.
+  const indisponiveis = await conferirDisponibilidade(admin, sessao.restauranteId, idsItens)
+  if (indisponiveis.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          indisponiveis.length === 1
+            ? indisponiveis[0]!.motivo
+            : `${indisponiveis.length} itens saíram do cardápio. Remova ou substitua antes de enviar.`,
+        itensIndisponiveis: indisponiveis,
+      },
+      { status: 409 },
+    )
+  }
+
   // Grupos obrigatórios conferidos no SERVIDOR: `criarPedido` reprecifica cada opção pelo
   // nome, mas não verifica se "Escolha o ponto" foi respondido. Sem isto a cozinha
   // receberia um burger sem ponto. Ver lib/opcoes-item.ts.
-  const idsItens = [...new Set(itens.map((i) => i.itemId))]
   const { data: gruposDb, error: erroGrupos } = await admin
     .from('grupos_item_complementos')
     .select('item_id, nome, obrigatorio, min_escolhas, max_escolhas, item_complementos ( nome, pausado )')
@@ -179,6 +203,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const message = err instanceof Error ? err.message : 'Não foi possível lançar o pedido'
     return NextResponse.json({ error: message }, { status: 400 })
   }
+}
+
+/**
+ * Quais dos itens pedidos não podem ir para a cozinha agora, e por quê.
+ *
+ * Mesmas quatro regras que `criarPedido` aplica (existir na loja, status, dia da semana,
+ * canal), só que reunidas num relatório em vez de na primeira exceção.
+ */
+async function conferirDisponibilidade(
+  admin: ReturnType<typeof getAdminSupabase>,
+  restauranteId: string,
+  idsItens: string[],
+): Promise<{ itemId: string; nome: string; motivo: string }[]> {
+  const { data } = await admin
+    .from('itens_cardapio')
+    .select('id, nome, status, dias_disponiveis, disponivel_salao')
+    .eq('restaurante_id', restauranteId)
+    .in('id', idsItens)
+
+  const porId = new Map((data ?? []).map((i) => [i.id as string, i]))
+  const problemas: { itemId: string; nome: string; motivo: string }[] = []
+
+  for (const id of idsItens) {
+    const item = porId.get(id)
+    if (!item) {
+      problemas.push({ itemId: id, nome: 'Item removido', motivo: motivoIndisponivel('inexistente', 'O item') })
+      continue
+    }
+    const nome = item.nome as string
+    if (item.status !== 'disponivel') {
+      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('status', nome) })
+    } else if (!itemDisponivelHoje((item.dias_disponiveis as number[] | null) ?? [])) {
+      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('dia', nome) })
+    } else if (
+      !itemDisponivelNoCanal({ disponivelDelivery: true, disponivelSalao: (item.disponivel_salao as boolean | null) ?? true }, 'mesa')
+    ) {
+      problemas.push({ itemId: id, nome, motivo: motivoIndisponivel('canal', nome) })
+    }
+  }
+  return problemas
 }
 
 async function buscarPedidoPorChave(

@@ -18,6 +18,8 @@ function item(over: Partial<ItemCardapio> = {}): ItemCardapio {
     maisVendido: false,
     tag: null,
     tipoItem: 'simples',
+    disponivelDelivery: true,
+    disponivelSalao: true,
     grupos: [],
     complementos: [],
     tamanhos: [],

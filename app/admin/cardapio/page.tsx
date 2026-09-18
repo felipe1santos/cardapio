@@ -123,6 +123,8 @@ interface ItemFormState {
   maisVendido: boolean
   tag: TagItem | null
   tipoItem: TipoItem
+  disponivelDelivery: boolean
+  disponivelSalao: boolean
 }
 
 const TIPO_ITEM_OPTIONS: { value: TipoItem; label: string }[] = [
@@ -137,6 +139,8 @@ function blankForm(grupoId: string | null): ItemFormState {
   return {
     id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null, imagemThumbUrl: null,
     promocaoPreco: '', maisVendido: false, tag: null, tipoItem: 'simples',
+    // Item novo nasce nos dois canais: é o comportamento de sempre e o default da 0069.
+    disponivelDelivery: true, disponivelSalao: true,
   }
 }
 
@@ -155,6 +159,8 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     maisVendido: item.maisVendido,
     tag: item.tag,
     tipoItem: item.tipoItem,
+    disponivelDelivery: item.disponivelDelivery,
+    disponivelSalao: item.disponivelSalao,
   }
 }
 
@@ -2242,6 +2248,8 @@ export default function CardapioPage() {
         maisVendido: form.maisVendido,
         tag: form.tag,
         tipoItem: form.tipoItem,
+        disponivelDelivery: form.disponivelDelivery,
+        disponivelSalao: form.disponivelSalao,
       }
       if (form.id) {
         const updated = await atualizarItem(supabase, form.id, { ...payload, imagemUrl: form.imagemUrl, imagemThumbUrl: form.imagemThumbUrl })
@@ -3489,6 +3497,45 @@ export default function CardapioPage() {
             <div className="flex-1">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Disponibilidade</div>
               <DayToggles days={form.diasDisponiveis} onChange={(days) => setForm((prev) => ({ ...prev, diasDisponiveis: days }))} />
+            </div>
+          </div>
+
+          {/* Onde o item é vendido. O cadastro é ESTE — não existe cardápio separado para
+              o salão: a mesma foto, descrição, preço, promoção e complementos valem nos
+              dois canais, e aqui só se escolhe onde aparecem. */}
+          <div className="mt-4">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Onde vender</div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { chave: 'disponivelDelivery' as const, rotulo: 'Delivery e retirada', dica: 'Aparece na vitrine do cliente' },
+                { chave: 'disponivelSalao' as const, rotulo: 'Salão e balcão', dica: 'Aparece na mesa (QR), no painel do garçom e no PDV' },
+              ]).map(({ chave, rotulo, dica }) => {
+                const marcado = form[chave]
+                // O banco recusa item fora dos dois canais (CHECK da 0069): desmarcar o
+                // último é bloqueado aqui, com o motivo, em vez de estourar ao salvar.
+                const ultimo = marcado && !form[chave === 'disponivelDelivery' ? 'disponivelSalao' : 'disponivelDelivery']
+                return (
+                  <label
+                    key={chave}
+                    title={ultimo ? 'O item precisa ser vendido em pelo menos um canal.' : dica}
+                    className={`flex flex-1 min-w-[180px] cursor-pointer items-start gap-2 rounded-menuzia border px-3 py-2 ${
+                      marcado ? 'border-primary bg-alert-bg' : 'border-border bg-white'
+                    } ${ultimo ? 'cursor-not-allowed opacity-80' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={marcado}
+                      disabled={ultimo}
+                      onChange={(e) => setForm((prev) => ({ ...prev, [chave]: e.target.checked }))}
+                      className="mt-0.5 h-3.5 w-3.5 accent-primary"
+                    />
+                    <span>
+                      <span className="block text-[13px] font-semibold text-text-main">{rotulo}</span>
+                      <span className="block text-[11px] text-text-subtle">{dica}</span>
+                    </span>
+                  </label>
+                )
+              })}
             </div>
           </div>
           </>)}
