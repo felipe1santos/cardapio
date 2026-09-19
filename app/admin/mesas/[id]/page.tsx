@@ -594,7 +594,7 @@ export default function MesaDetalhePage() {
 
             {categorias.length > 0 && !buscando && (
               // Único ponto com rolagem lateral da tela: os chips das categorias.
-              <div className="-mx-3 overflow-x-auto px-3 sm:-mx-5 sm:px-5 xl:mx-0 xl:px-0" role="tablist" aria-label="Categorias">
+              <div className="-mx-3 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 xl:mx-0 xl:px-0 [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Categorias">
                 <div className="flex w-max gap-1.5 pb-0.5 xl:w-auto xl:flex-wrap">
                   {categorias.map((g) => (
                     <button
@@ -713,12 +713,12 @@ export default function MesaDetalhePage() {
             className="flex max-h-full min-h-[min(60dvh,100%)] w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex min-h-[52px] flex-shrink-0 items-center justify-between border-b border-border px-4">
-              <div>
-                <h3 className="text-[14px] font-bold text-text-main">Lançamento · {mesa.nome}</h3>
-                <p className="text-[11px] text-text-subtle">Confira antes de enviar. Depois vai direto pra cozinha.</p>
+            <div className="flex min-h-[56px] flex-shrink-0 items-center justify-between gap-2 border-b border-border py-2 pl-4 pr-2">
+              <div className="min-w-0">
+                <h3 className="truncate text-[15px] font-bold text-text-main">Lançamento · {mesa.nome}</h3>
+                <p className="truncate text-[11px] text-text-subtle">Confira antes de enviar para a cozinha.</p>
               </div>
-              <button onClick={() => setFolhaAberta(false)} className="-mr-2 grid h-[44px] w-[44px] place-items-center text-text-subtle" aria-label="Fechar o lançamento">
+              <button onClick={() => setFolhaAberta(false)} className="grid h-[44px] w-[44px] flex-shrink-0 place-items-center text-text-subtle" aria-label="Fechar o lançamento">
                 <X className="h-5 w-5" />
               </button>
             </div>

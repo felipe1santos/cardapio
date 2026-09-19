@@ -289,7 +289,7 @@ export default function MesasPage() {
             placeholder="Buscar mesa ou setor…"
             className="h-[44px] w-full rounded-menuzia lg:h-9 lg:w-56 border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
           />
-          <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0">
+          <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0">
             {ORDEM_FILTROS.map((f) => (
               <button
                 key={f}
@@ -307,7 +307,7 @@ export default function MesasPage() {
             ))}
           </div>
           {setores.length > 1 && (
-            <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0" role="group" aria-label="Filtrar por setor">
+            <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0" role="group" aria-label="Filtrar por setor">
               {[null, ...setores].map((s) => (
                 <button
                   key={s ?? 'todos'}
