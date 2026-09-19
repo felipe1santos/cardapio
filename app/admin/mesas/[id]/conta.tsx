@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowRightLeft, Ban, Check, Clock, Printer, RotateCcw, X } from 'lucide-react'
+import { ArrowRightLeft, Ban, Check, ChevronDown, Clock, Printer, RotateCcw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { centavos, dividirPorPessoas, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
-import type { ContaDaMesa, EventoHistorico } from '@/lib/queries/conta'
+import type { ContaDaMesa, EventoHistorico, ItemDaConta, LancamentoDaConta } from '@/lib/queries/conta'
 
 /**
  * Conta da mesa: o que foi lançado, o que foi pago, o que falta — e as operações sobre
@@ -15,6 +15,27 @@ import type { ContaDaMesa, EventoHistorico } from '@/lib/queries/conta'
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+/** "Grande · Calabresa / Mussarela · Borda Catupiry · Bacon" — o que acompanha o nome. */
+function variacaoDoItem(i: ItemDaConta): string {
+  return [
+    i.tamanhoNome,
+    i.saborNome,
+    i.bordaNome ? `Borda ${i.bordaNome}` : null,
+    i.massaNome ? `Massa ${i.massaNome}` : null,
+    ...i.complementos,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+const STATUS_LANCAMENTO: Record<string, { rotulo: string; tom: 'pending' | 'preparing' | 'ready' | 'ok' | 'danger' | 'alert' }> = {
+  recebido: { rotulo: 'Recebido', tom: 'pending' },
+  preparando: { rotulo: 'Preparando', tom: 'preparing' },
+  pronto: { rotulo: 'Pronto', tom: 'ready' },
+  entregue: { rotulo: 'Entregue', tom: 'ok' },
+  cancelado: { rotulo: 'Cancelado', tom: 'danger' },
+}
 
 type Permissoes = Record<string, boolean>
 
@@ -280,7 +301,8 @@ export function PainelConta({
                         <span className={i.cancelado ? 'line-through' : ''}>
                           <strong>{i.quantidade}×</strong> {i.nome}
                         </span>
-                        {i.complementos.length > 0 && <span className="block text-[11px] text-text-subtle">{i.complementos.join(' · ')}</span>}
+                        {variacaoDoItem(i) && <span className="block text-[11px] text-text-subtle">{variacaoDoItem(i)}</span>}
+                        {i.observacao && <span className="block text-[11px] italic text-text-subtle">Obs.: {i.observacao}</span>}
                         {i.cancelado && (
                           <span className="block text-[11px] text-danger">
                             Cancelado{i.canceladoPor ? ` por ${i.canceladoPor}` : ''}: {i.canceladoMotivo}
@@ -1001,19 +1023,95 @@ export function Confirmacao({
   )
 }
 
-export function Historico({ eventos }: { eventos: EventoHistorico[] }) {
+/**
+ * Linha do tempo da conta. Cada envio à cozinha abre o que foi lançado naquele envio:
+ * itens, quantidades, tamanho/sabor, adicionais, observação e o que foi cancelado depois.
+ */
+export function Historico({ eventos, lancamentos }: { eventos: EventoHistorico[]; lancamentos: LancamentoDaConta[] }) {
+  const [aberto, setAberto] = useState<string | null>(null)
   if (eventos.length === 0) return <p className="text-[13px] text-text-subtle">Nada registrado ainda nesta conta.</p>
+  const porId = new Map(lancamentos.map((l) => [l.id, l]))
   return (
     <ol className="rounded-menuzia border border-border bg-main">
-      {eventos.map((e, i) => (
-        <li key={i} className="flex gap-3 border-b border-border px-4 py-2.5 last:border-0">
-          <span className="w-12 flex-shrink-0 text-[12px] font-semibold text-text-subtle">{hora(e.quando)}</span>
-          <span className="text-[13px] text-text-main">
-            {e.oQue}
-            <span className="block text-[11px] text-text-subtle">{e.quem}</span>
-          </span>
-        </li>
-      ))}
+      {eventos.map((e, n) => {
+        const lanc = e.pedidoId ? porId.get(e.pedidoId) : undefined
+        const chave = `${n}:${e.quando}`
+        const expandido = aberto === chave
+        const cabecalho = (
+          <>
+            <span className="w-11 flex-shrink-0 pt-px text-[12px] font-semibold text-text-subtle">{hora(e.quando)}</span>
+            <span className="min-w-0 flex-1 text-[13px] text-text-main">
+              {e.oQue}
+              <span className="block text-[11px] text-text-subtle">
+                {e.quem}
+                {lanc && (
+                  <>
+                    {' · '}
+                    {lanc.itens.filter((i) => !i.cancelado).reduce((s, i) => s + i.quantidade, 0)} itens · {brl(lanc.total)}
+                  </>
+                )}
+              </span>
+            </span>
+          </>
+        )
+        if (!lanc) {
+          return (
+            <li key={chave} className="flex gap-2.5 border-b border-border px-3 py-2.5 last:border-0 sm:px-4">
+              {cabecalho}
+            </li>
+          )
+        }
+        const status = STATUS_LANCAMENTO[lanc.status] ?? { rotulo: lanc.status, tom: 'alert' as const }
+        return (
+          <li key={chave} className="border-b border-border last:border-0">
+            <button
+              onClick={() => setAberto(expandido ? null : chave)}
+              aria-expanded={expandido}
+              className="flex min-h-[48px] w-full items-start gap-2.5 px-3 py-2.5 text-left hover:bg-page sm:px-4"
+            >
+              {cabecalho}
+              <span className="flex flex-shrink-0 items-center gap-1 pt-px text-[11px] font-bold uppercase text-primary">
+                {expandido ? 'Fechar' : 'Ver itens'}
+                <ChevronDown className={`h-4 w-4 transition-transform ${expandido ? 'rotate-180' : ''}`} />
+              </span>
+            </button>
+            {expandido && (
+              <div className="mx-3 mb-3 rounded-menuzia border border-border bg-page sm:mx-4" data-itens-lancamento>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3 py-2 text-[11px] text-text-subtle">
+                  <strong className="text-[12px] text-text-main">Lançamento #{lanc.numero}</strong>
+                  <Badge tone={status.tom}>{status.rotulo}</Badge>
+                  <span>{lanc.impresso ? 'Impresso na cozinha' : 'Aguardando impressão'}</span>
+                </div>
+                <ul className="divide-y divide-border">
+                  {lanc.itens.map((i) => (
+                    <li key={i.id} className="flex items-start gap-2 px-3 py-2">
+                      <span className={`min-w-0 flex-1 text-[13px] ${i.cancelado ? 'text-text-subtle' : 'text-text-main'}`}>
+                        <span className={i.cancelado ? 'line-through' : ''}>
+                          <strong>{i.quantidade}×</strong> {i.nome}
+                        </span>
+                        {variacaoDoItem(i) && <span className="block text-[11px] text-text-subtle">{variacaoDoItem(i)}</span>}
+                        {i.observacao && <span className="block text-[11px] italic text-text-subtle">Obs.: {i.observacao}</span>}
+                        {i.cancelado && (
+                          <span className="block text-[11px] text-danger">
+                            Cancelado{i.canceladoPor ? ` por ${i.canceladoPor}` : ''}{i.canceladoMotivo ? `: ${i.canceladoMotivo}` : ''}
+                          </span>
+                        )}
+                      </span>
+                      <span className={`flex-shrink-0 text-[12px] font-semibold ${i.cancelado ? 'text-text-subtle line-through' : 'text-price-text'}`}>
+                        {brl(i.precoUnitario * i.quantidade)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex items-center justify-between border-t border-border px-3 py-2 text-[12px]">
+                  <span className="text-text-subtle">Total do lançamento</span>
+                  <strong className="text-price-text">{brl(lanc.total)}</strong>
+                </div>
+              </div>
+            )}
+          </li>
+        )
+      })}
     </ol>
   )
 }

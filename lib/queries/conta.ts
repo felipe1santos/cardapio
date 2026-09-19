@@ -26,6 +26,11 @@ export interface ItemDaConta {
   quantidade: number
   precoUnitario: number
   complementos: string[]
+  /** Tamanho, sabor(es), borda e massa — o que a cozinha recebeu além do nome. */
+  tamanhoNome: string | null
+  saborNome: string | null
+  bordaNome: string | null
+  massaNome: string | null
   observacao: string | null
   cancelado: boolean
   canceladoMotivo: string | null
@@ -141,7 +146,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     admin.rpc('comanda_totais', { p_comanda: comanda.id }),
     admin
       .from('pedidos')
-      .select('id, numero, status, total, criado_em, criado_por_nome, impresso, pedido_itens ( id, nome, quantidade, preco_unitario, complementos, observacao, cancelado_em, cancelado_motivo, cancelado_por_nome )')
+      .select('id, numero, status, total, criado_em, criado_por_nome, impresso, pedido_itens ( id, nome, quantidade, preco_unitario, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, observacao, cancelado_em, cancelado_motivo, cancelado_por_nome )')
       .eq('comanda_id', comanda.id)
       .order('criado_em', { ascending: true }),
     admin
@@ -162,7 +167,11 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
 
   const lancamentos = ((peds ?? []) as unknown as {
     id: string; numero: number; status: string; total: number; criado_em: string; criado_por_nome: string | null; impresso: boolean
-    pedido_itens: { id: string; nome: string; quantidade: number; preco_unitario: number; complementos: { nome: string }[] | null; observacao: string | null; cancelado_em: string | null; cancelado_motivo: string | null; cancelado_por_nome: string | null }[]
+    pedido_itens: {
+      id: string; nome: string; quantidade: number; preco_unitario: number; complementos: { nome: string }[] | null
+      tamanho_nome: string | null; sabor_nome: string | null; borda_nome: string | null; massa_nome: string | null
+      observacao: string | null; cancelado_em: string | null; cancelado_motivo: string | null; cancelado_por_nome: string | null
+    }[]
   }[]).map((p) => ({
     id: p.id,
     numero: p.numero,
@@ -177,6 +186,10 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
       quantidade: i.quantidade,
       precoUnitario: Number(i.preco_unitario),
       complementos: (i.complementos ?? []).map((x) => x.nome),
+      tamanhoNome: i.tamanho_nome || null,
+      saborNome: i.sabor_nome || null,
+      bordaNome: i.borda_nome || null,
+      massaNome: i.massa_nome || null,
       observacao: i.observacao,
       cancelado: i.cancelado_em !== null,
       canceladoMotivo: i.cancelado_motivo,
@@ -377,6 +390,11 @@ export interface EventoHistorico {
   quando: string
   quem: string
   oQue: string
+  /**
+   * Lançamento (pedido) a que o evento se refere, quando é um. A tela usa para abrir o
+   * que foi enviado à cozinha naquele lançamento (itens de `conta.lancamentos`).
+   */
+  pedidoId: string | null
 }
 
 /** Linha do tempo da conta aberta: eventos auditados da comanda e dos lançamentos dela. */
@@ -391,15 +409,46 @@ export async function historicoDaConta(admin: SupabaseClient, restauranteId: str
   const ids = [conta.comandaId, ...((absorvidas ?? []) as { id: string }[]).map((c) => c.id), ...conta.lancamentos.map((l) => l.id)]
   const { data } = await admin
     .from('eventos_auditoria')
-    .select('acao, usuario_nome, criado_em, dados')
+    .select('acao, usuario_nome, criado_em, dados, entidade_id')
     .eq('restaurante_id', restauranteId)
     .in('entidade_id', ids)
     .order('criado_em', { ascending: false })
     .limit(100)
 
-  return ((data ?? []) as { acao: string; usuario_nome: string; criado_em: string; dados: Record<string, unknown> | null }[]).map((e) => {
-    return { quando: e.criado_em, quem: e.usuario_nome, oQue: `${ROTULO_EVENTO[e.acao] ?? e.acao}${detalheDoEvento(e.dados)}` }
+  const linhas = (data ?? []) as {
+    acao: string; usuario_nome: string; criado_em: string; dados: Record<string, unknown> | null; entidade_id: string | null
+  }[]
+  return montarHistorico(linhas, conta.lancamentos)
+}
+
+/**
+ * Junta os eventos auditados com os lançamentos da conta.
+ *
+ * Todo lançamento aparece como "enviado para a cozinha" e abre os itens: pelo evento
+ * `mesa.enviou_cozinha` quando existe, ou por uma linha montada do próprio pedido quando
+ * ele é anterior ao histórico (lançamento do PDV, conta de antes do módulo).
+ */
+export function montarHistorico(
+  linhas: { acao: string; usuario_nome: string; criado_em: string; dados: Record<string, unknown> | null; entidade_id: string | null }[],
+  lancamentos: Pick<LancamentoDaConta, 'id' | 'numero' | 'criadoEm' | 'criadoPorNome'>[],
+): EventoHistorico[] {
+  const idsLancamento = new Set(lancamentos.map((l) => l.id))
+  const eventos: EventoHistorico[] = linhas.map((e) => {
+    const pedidoId = e.entidade_id && idsLancamento.has(e.entidade_id) ? e.entidade_id : null
+    const numero = e.dados?.numero ?? lancamentos.find((l) => l.id === pedidoId)?.numero
+    const oQue =
+      e.acao === 'mesa.enviou_cozinha' && numero !== undefined
+        ? `Enviou o lançamento #${String(numero)} para a cozinha`
+        : `${ROTULO_EVENTO[e.acao] ?? e.acao}${detalheDoEvento(e.dados)}`
+    return { quando: e.criado_em, quem: e.usuario_nome, oQue, pedidoId }
   })
+
+  const comEnvio = new Set(linhas.filter((e) => e.acao === 'mesa.enviou_cozinha').map((e) => e.entidade_id))
+  for (const l of lancamentos) {
+    if (comEnvio.has(l.id)) continue
+    eventos.push({ quando: l.criadoEm, quem: l.criadoPorNome ?? '—', oQue: `Lançamento #${l.numero} enviado para a cozinha`, pedidoId: l.id })
+  }
+  return eventos.sort((a, b) => b.quando.localeCompare(a.quando))
 }
 
 /**

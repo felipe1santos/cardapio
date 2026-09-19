@@ -564,7 +564,7 @@ export default function MesaDetalhePage() {
           />
         )}
 
-        {aba === 'historico' && <Historico eventos={estadoConta.dados?.historico ?? []} />}
+        {aba === 'historico' && <Historico eventos={estadoConta.dados?.historico ?? []} lancamentos={estadoConta.dados?.conta?.lancamentos ?? []} />}
 
         <div className={`grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start ${naAbaLancar ? '' : 'hidden'}`}>
           {/* ── Catálogo: o garçom escolhe à mão ─────────────────────────── */}
