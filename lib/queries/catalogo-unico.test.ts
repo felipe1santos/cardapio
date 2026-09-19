@@ -47,14 +47,16 @@ describe('catálogo único entre delivery, mesa e balcão', () => {
   })
 
   it('as superfícies do salão filtram pelo canal, e não por cadastro separado', () => {
-    for (const arquivo of ['app/mesa/[token]/page.tsx', 'app/api/mesa/[token]/selecao/route.ts', 'app/admin/mesas/[id]/page.tsx']) {
+    // O painel do garçom delega a regra para lib/garcom-catalogo.ts (e usa essa lib).
+    expect(ler('app/admin/mesas/[id]/page.tsx')).toMatch(/itensLancaveis\(/)
+    for (const arquivo of ['app/mesa/[token]/page.tsx', 'app/api/mesa/[token]/selecao/route.ts', 'lib/garcom-catalogo.ts']) {
       expect(ler(arquivo), arquivo).toMatch(/itemDisponivelNoCanal\([\s\S]{0,40}'mesa'\)/)
     }
     expect(ler('lib/queries/cardapio.ts')).toMatch(/itemDisponivelNoCanal\(item, 'delivery'\)/)
   })
 
   it('as superfícies do salão respeitam o horário da categoria, como a vitrine', () => {
-    for (const arquivo of ['app/mesa/[token]/page.tsx', 'app/admin/mesas/[id]/page.tsx', 'app/api/mesa/[token]/selecao/route.ts']) {
+    for (const arquivo of ['app/mesa/[token]/page.tsx', 'lib/garcom-catalogo.ts', 'app/api/mesa/[token]/selecao/route.ts']) {
       expect(ler(arquivo), arquivo).toMatch(/categoriaNoHorario\(/)
     }
     // O servidor recusa no envio: aba aberta antes da troca de horário não fura a regra.
