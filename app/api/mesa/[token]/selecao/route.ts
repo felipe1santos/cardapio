@@ -100,6 +100,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ toke
   const ctx = await contexto(token)
   if (!ctx) return NextResponse.json({ error: 'Mesa não encontrada' }, { status: 404 })
 
+  // Cardápio em "somente visualização" (0075): o cliente não monta seleção.
+  const { data: modo } = await ctx.admin
+    .from('restaurantes')
+    .select('mesa_somente_visualizacao')
+    .eq('id', ctx.mesa.restauranteId)
+    .maybeSingle()
+  if ((modo as { mesa_somente_visualizacao?: boolean } | null)?.mesa_somente_visualizacao === true) {
+    return NextResponse.json({ error: 'Este cardápio é só para visualização.' }, { status: 403 })
+  }
+
   // Preço e nome vêm do catálogo, nunca do navegador — e item que não é desta loja é
   // descartado. A seleção é só uma lista, mas ainda assim não pode exibir preço
   // inventado para o garçom.

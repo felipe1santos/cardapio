@@ -19,6 +19,7 @@ import { MESA_CARROSSEL_MAX, MESA_MENSAGEM_MAX, ordenarParaMesa } from '@/lib/me
  */
 
 interface Estado {
+  somenteVisualizacao: boolean
   carrossel: string[]
   mensagem: string | null
   mensagemPadrao: string
@@ -95,6 +96,7 @@ export function CardapioDaMesaConfig() {
 
   return (
     <div className="space-y-6">
+      <SecaoModo inicial={estado.somenteVisualizacao} onSalvo={(v) => setEstado({ ...estado, somenteVisualizacao: v })} />
       <SecaoCarrossel
         inicial={estado.carrossel}
         restauranteId={restauranteId}
@@ -108,6 +110,67 @@ export function CardapioDaMesaConfig() {
       />
       <SecaoOrdem grupos={grupos} itens={itens} posicoes={estado.posicoes} onSalvo={(posicoes) => setEstado({ ...estado, posicoes })} />
     </div>
+  )
+}
+
+// ── 0. modo do cardápio ─────────────────────────────────────────────────────
+
+/**
+ * "Somente visualização": o cliente só vê o cardápio (itens, fotos, descrições e os
+ * sabores da pizza) — não seleciona, não monta lista, não escolhe tamanho nem adicional.
+ * Desligado, tudo funciona como antes.
+ */
+function SecaoModo({ inicial, onSalvo }: { inicial: boolean; onSalvo: (v: boolean) => void }) {
+  const [ligado, setLigado] = useState(inicial)
+  const [salvando, setSalvando] = useState(false)
+  const [aviso, setAviso] = useState<Aviso>(null)
+
+  async function alternar() {
+    const novo = !ligado
+    setSalvando(true)
+    setAviso(null)
+    const e = await salvar({ somenteVisualizacao: novo })
+    setSalvando(false)
+    if (e) return setAviso({ tipo: 'erro', texto: e })
+    setLigado(novo)
+    onSalvo(novo)
+    setAviso({
+      tipo: 'ok',
+      texto: novo
+        ? 'Ligado: o cardápio da mesa agora é só para ver.'
+        : 'Desligado: o cliente volta a montar a seleção para mostrar ao garçom.',
+    })
+  }
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="mb-1 text-[13px] font-bold text-text-main">Somente visualização (cardápio da mesa)</h3>
+          <p className="text-[12px] leading-relaxed text-text-subtle">
+            Ligado, o cliente só <strong className="text-text-main">vê</strong> o cardápio do QR: itens, fotos,
+            descrições e os sabores da pizza. Ele não escolhe tamanho nem adicional e não monta a lista. Tocando num item,
+            abre a foto inteira com a descrição. Desligado, tudo funciona como hoje.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={ligado}
+          aria-label="Somente visualização"
+          onClick={alternar}
+          disabled={salvando}
+          className={`relative mt-0.5 h-7 w-12 flex-shrink-0 rounded-full transition-colors disabled:opacity-60 ${ligado ? 'bg-status-ready' : 'bg-border'}`}
+          data-modo-visualizacao
+        >
+          <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${ligado ? 'left-[22px]' : 'left-0.5'}`} />
+        </button>
+      </div>
+      <p className={`mt-2 text-[11px] font-bold uppercase tracking-wide ${ligado ? 'text-status-ready' : 'text-text-subtle'}`}>
+        {ligado ? 'Ligado — só visualização' : 'Desligado — cliente monta a seleção'}
+      </p>
+      <Retorno aviso={aviso} />
+    </Card>
   )
 }
 

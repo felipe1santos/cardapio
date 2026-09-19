@@ -70,11 +70,12 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
   // select do cardápio; se a leitura falhar, fica o comportamento de sempre (banner,
   // texto padrão, ordem das categorias do delivery).
   const [{ data: vitrine }, { data: posicoes }] = await Promise.all([
-    admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao').eq('id', mesa.restauranteId).maybeSingle(),
+    admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao, mesa_somente_visualizacao').eq('id', mesa.restauranteId).maybeSingle(),
     admin.from('grupos_cardapio').select('id, posicao_mesa').eq('restaurante_id', mesa.restauranteId),
   ])
   const carrossel = ((vitrine?.mesa_carrossel_urls as string[] | null) ?? []).filter(Boolean)
   const mensagem = ((vitrine?.mesa_mensagem_selecao as string | null) ?? '').trim() || MESA_MENSAGEM_PADRAO
+  const somenteVisualizacao = (vitrine as { mesa_somente_visualizacao?: boolean } | null)?.mesa_somente_visualizacao === true
   const posicaoCategoria = new Map(((posicoes ?? []) as { id: string; posicao_mesa: number | null }[]).map((x) => [x.id, x.posicao_mesa]))
 
   // Catálogo é um só: as mesmas linhas que a vitrine lê, com os MESMOS filtros — status,
@@ -101,6 +102,7 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
       pizza={pizza}
       carrossel={carrossel}
       mensagem={mensagem}
+      somenteVisualizacao={somenteVisualizacao}
       itens={disponiveis.map((i) => ({
         id: i.id,
         grupoId: i.grupoId,

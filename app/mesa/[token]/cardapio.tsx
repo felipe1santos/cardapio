@@ -72,6 +72,12 @@ interface Props {
   carrossel: string[]
   /** Aviso da seleção — texto da loja ou o padrão. */
   mensagem: string
+  /**
+   * Modo "somente visualização" (0075): o cliente só vê o cardápio. Sem seleção, sem
+   * sacola, sem tamanho/adicionais — tocar num item abre a foto inteira e a descrição
+   * (e os sabores, na pizza).
+   */
+  somenteVisualizacao: boolean
 }
 
 type OpcaoEscolhida = OpcaoDaLinha
@@ -122,7 +128,7 @@ function idDoDispositivo(): string {
 const totalDaLinha = (l: LinhaSelecionada) =>
   (l.precoUnitario + l.opcoes.reduce((s, o) => s + o.preco, 0)) * l.quantidade
 
-export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, carrossel, mensagem }: Props) {
+export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, carrossel, mensagem, somenteVisualizacao }: Props) {
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(grupos[0]?.id ?? null)
   const [busca, setBusca] = useState('')
   const [fichaAberta, setFichaAberta] = useState<ItemDaMesa | null>(null)
@@ -199,6 +205,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
   // Depois, releitura periódica e ao voltar para a aba: mantém várias abas do mesmo
   // aparelho iguais e mostra quando o garçom encerrou o ciclo.
   useEffect(() => {
+    if (somenteVisualizacao) return
     dispositivo.current = idDoDispositivo()
     void lerDoServidor()
     const t = setInterval(() => void lerDoServidor(), 5000)
@@ -210,7 +217,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
       clearInterval(t)
       document.removeEventListener('visibilitychange', aoVoltar)
     }
-  }, [lerDoServidor])
+  }, [lerDoServidor, somenteVisualizacao])
 
   /**
    * Guarda a lista no servidor para o garçom poder consultá-la de outro aparelho.
@@ -302,6 +309,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
             {mesaNome}
           </span>
           <ChamarGarcom token={token} />
+          {!somenteVisualizacao && (
           <button className="mesa-botao-selecao" onClick={() => setPainelAberto(true)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7 4h10l1 3h3v2h-1.2l-1.3 11.1A2 2 0 0 1 16.5 22h-9a2 2 0 0 1-2-1.9L4.2 9H3V7h3l1-3zm2 3h6l-.4-1H9.4L9 7z" />
@@ -309,6 +317,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
             <span className="mesa-botao-texto">Minha seleção</span>
             {qtdSelecao > 0 && <span className="mesa-contador">{qtdSelecao}</span>}
           </button>
+          )}
         </div>
       </header>
 
@@ -366,7 +375,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
                 key={item.id}
                 className="mesa-card"
                 onClick={() => setFichaAberta(item)}
-                aria-label={`Escolher ${item.nome}`}
+                aria-label={somenteVisualizacao ? `Ver ${item.nome}` : `Escolher ${item.nome}`}
               >
                 <div className="mesa-card-texto">
                   <h3>{item.nome}</h3>
@@ -387,7 +396,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
                       🍽️
                     </div>
                   )}
-                  <span className="mesa-card-mais" aria-hidden="true">+</span>
+                  {!somenteVisualizacao && <span className="mesa-card-mais" aria-hidden="true">+</span>}
                 </div>
               </button>
             ))}
@@ -399,10 +408,12 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
             )}
           </div>
 
-          <div className="mesa-aviso-rodape" role="note">
-            <span className="mesa-aviso-icone" aria-hidden="true">i</span>
-            <p>{mensagem}</p>
-          </div>
+          {!somenteVisualizacao && (
+            <div className="mesa-aviso-rodape" role="note">
+              <span className="mesa-aviso-icone" aria-hidden="true">i</span>
+              <p>{mensagem}</p>
+            </div>
+          )}
 
           {/* Marca d'água da Menuzia: discreta, no fim do cardápio, sem roubar a cena da loja. */}
           <div className="mesa-marca-dagua" aria-label="Cardápio feito com Menuzia">
@@ -414,7 +425,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
       </div>
 
       {/* ── Barra fixa (celular) ──────────────────────────────────────────── */}
-      {qtdSelecao > 0 && !painelAberto && !fichaAberta && (
+      {!somenteVisualizacao && qtdSelecao > 0 && !painelAberto && !fichaAberta && (
         <button className="mesa-barra-flutuante" onClick={() => setPainelAberto(true)}>
           <span className="mesa-barra-qtd">{qtdSelecao}</span>
           Ver minha seleção
@@ -422,7 +433,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
         </button>
       )}
 
-      {fichaAberta && (
+      {fichaAberta && somenteVisualizacao && <FichaVisualizacao item={fichaAberta} onFechar={() => setFichaAberta(null)} />}
+
+      {fichaAberta && !somenteVisualizacao && (
         <Configurador
           item={fichaAberta}
           pizza={pizza}
@@ -434,7 +447,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
         />
       )}
 
-      {painelAberto && (
+      {painelAberto && !somenteVisualizacao && (
         <PainelSelecao
           mensagem={mensagem}
           linhas={selecao}
@@ -753,6 +766,57 @@ export function Carrossel({ imagens }: { imagens: string[] }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Ficha do modo "somente visualização" ─────────────────────────────────────
+
+/**
+ * Item em destaque, sem nenhuma ação: foto inteira (sem corte), nome e descrição. Na
+ * pizza, também a lista de sabores com os ingredientes. Fecha no X, no fundo ou no Esc.
+ */
+function FichaVisualizacao({ item, onFechar }: { item: ItemDaMesa; onFechar: () => void }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar()
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onFechar])
+  const ehPizza = item.tipoItem === 'pizza'
+  return (
+    <div className="mesa-modal-fundo mesa-ver-fundo" onClick={onFechar}>
+      <div className="mesa-ver" role="dialog" aria-modal="true" aria-label={item.nome} onClick={(e) => e.stopPropagation()} data-ficha-visualizacao>
+        <button className="mesa-fechar" onClick={onFechar} aria-label="Fechar">
+          ✕
+        </button>
+        <div className="mesa-ver-foto">
+          {item.imagemUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.imagemUrl} alt={item.nome} />
+          ) : (
+            <div className="mesa-card-foto-vazia" aria-hidden="true">
+              🍽️
+            </div>
+          )}
+        </div>
+        <div className="mesa-ver-texto">
+          <h2>{item.nome}</h2>
+          {item.descricao && <p>{item.descricao}</p>}
+          {ehPizza && item.sabores.length > 0 && (
+            <div className="mesa-ver-sabores">
+              <h3>Sabores</h3>
+              <ul>
+                {item.sabores.map((sb) => (
+                  <li key={sb.nome}>
+                    <strong>{sb.nome}</strong>
+                    {sb.descricao && <span>{sb.descricao}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1450,6 +1514,20 @@ const TOKENS = `
 .mesa-marca-dagua { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 4px 0 96px; opacity: .45; user-select: none; pointer-events: none; }
 .mesa-marca-dagua img { width: 22px; height: 22px; filter: grayscale(1); opacity: .7; }
 .mesa-marca-dagua span { font-size: 13px; font-weight: 800; letter-spacing: .04em; color: var(--desabilitado); text-transform: lowercase; }
+.mesa-ver-fundo { padding: 12px; }
+.mesa-ver { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 640px; max-height: calc(100dvh - 24px); background: var(--superficie); border-radius: var(--raio); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+.mesa-ver-foto { flex-shrink: 0; background: #F2F5F8; display: grid; place-items: center; max-height: 55dvh; min-height: 140px; }
+.mesa-ver-foto img { display: block; width: 100%; height: 100%; max-height: 55dvh; object-fit: contain; }
+.mesa-ver-foto .mesa-card-foto-vazia { height: 180px; font-size: 48px; }
+.mesa-ver-texto { padding: 16px 18px 20px; overflow-y: auto; }
+.mesa-ver-texto h2 { margin: 0 44px 6px 0; font-size: 20px; font-weight: 800; line-height: 1.25; }
+.mesa-ver-texto > p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--suave); white-space: pre-line; }
+.mesa-ver-sabores { margin-top: 16px; }
+.mesa-ver-sabores h3 { margin: 0 0 8px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--coral); }
+.mesa-ver-sabores ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.mesa-ver-sabores li { padding: 9px 0; border-top: 1px solid var(--borda); display: flex; flex-direction: column; gap: 2px; }
+.mesa-ver-sabores li strong { font-size: 14px; font-weight: 700; }
+.mesa-ver-sabores li span { font-size: 12px; color: var(--suave); line-height: 1.4; }
 .mesa-aviso-rodape { display: flex; align-items: flex-start; gap: 10px; margin: 18px 0 12px; padding: 12px 14px; background: var(--superficie); border: 1px solid var(--borda); border-left: 4px solid var(--coral); border-radius: var(--raio); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 .mesa-aviso-rodape p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto); }
 .mesa-aviso-icone { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 13px; font-weight: 800; font-style: italic; font-family: Georgia, serif; }

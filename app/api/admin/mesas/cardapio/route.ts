@@ -22,7 +22,7 @@ export async function GET() {
   const loja = ctx.sessao.restauranteId
 
   const [{ data: r, error: e1 }, { data: categorias, error: e2 }] = await Promise.all([
-    ctx.admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao').eq('id', loja).maybeSingle(),
+    ctx.admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao, mesa_somente_visualizacao').eq('id', loja).maybeSingle(),
     ctx.admin.from('grupos_cardapio').select('id, posicao_mesa').eq('restaurante_id', loja),
   ])
   if (e1 || e2) return NextResponse.json({ error: 'Não foi possível carregar.' }, { status: 500 })
@@ -31,6 +31,7 @@ export async function GET() {
     carrossel: (r?.mesa_carrossel_urls as string[] | null) ?? [],
     mensagem: (r?.mesa_mensagem_selecao as string | null) ?? null,
     mensagemPadrao: MESA_MENSAGEM_PADRAO,
+    somenteVisualizacao: (r?.mesa_somente_visualizacao as boolean | null) === true,
     // Posição de cada CATEGORIA no cardápio da mesa.
     posicoes: Object.fromEntries(((categorias ?? []) as { id: string; posicao_mesa: number | null }[]).map((i) => [i.id, i.posicao_mesa])),
   })
@@ -41,7 +42,7 @@ export async function PUT(request: Request) {
   if ('erro' in ctx) return ctx.erro
   const loja = ctx.sessao.restauranteId
 
-  let corpo: { carrossel?: unknown; mensagem?: unknown; ordem?: unknown }
+  let corpo: { carrossel?: unknown; mensagem?: unknown; ordem?: unknown; somenteVisualizacao?: unknown }
   try {
     corpo = await request.json()
   } catch {
@@ -63,6 +64,12 @@ export async function PUT(request: Request) {
     if (!m.ok) return NextResponse.json({ error: m.erro }, { status: 400 })
     patch.mesa_mensagem_selecao = m.texto
     resumo.push(m.texto ? 'mensagem personalizada' : 'mensagem padrão')
+  }
+
+  if (corpo.somenteVisualizacao !== undefined) {
+    if (typeof corpo.somenteVisualizacao !== 'boolean') return NextResponse.json({ error: 'Modo inválido.' }, { status: 400 })
+    patch.mesa_somente_visualizacao = corpo.somenteVisualizacao
+    resumo.push(corpo.somenteVisualizacao ? 'modo somente visualização ligado' : 'modo somente visualização desligado')
   }
 
   if (Object.keys(patch).length > 0) {

@@ -1,0 +1,81 @@
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { CardapioDaMesa, type ItemDaMesa } from './cardapio'
+
+const base: Pick<ItemDaMesa, 'grupoId' | 'precoOriginal' | 'imagemUrl' | 'grupos' | 'tamanhos'> = {
+  grupoId: 'g1', precoOriginal: null, imagemUrl: 'https://x/foto.webp', grupos: [], tamanhos: [],
+}
+
+const PIZZA: ItemDaMesa = {
+  ...base, id: 'p', nome: 'Pizza Salgada', descricao: 'Massa artesanal', preco: 69, tipoItem: 'pizza', precoAPartirDe: 69,
+  sabores: [
+    { nome: 'Calabresa', descricao: 'Calabresa, cebola', precos: { m: 69 } },
+    { nome: 'Portuguesa', descricao: 'Presunto, ovo', precos: { m: 75 } },
+  ],
+  grupos: [{ id: 'ga', nome: 'Adicionais de Pizza', obrigatorio: false, minEscolhas: 0, maxEscolhas: 3, complementos: [{ id: 'c', nome: 'Bacon', preco: 6, imagemUrl: null }] }],
+}
+const SUCO: ItemDaMesa = {
+  ...base, id: 's', nome: 'Suco de laranja', descricao: 'Natural, 500 ml', preco: 12, tipoItem: 'simples', precoAPartirDe: 12, sabores: [],
+}
+
+function renderizar(somenteVisualizacao: boolean) {
+  return render(
+    <CardapioDaMesa
+      token="t"
+      mesaNome="Mesa 1"
+      sessaoId="s"
+      loja={{ nome: 'Loja', logoUrl: null, bannerUrl: null }}
+      grupos={[{ id: 'g1', nome: 'Tudo', imagemUrl: null }]}
+      itens={[PIZZA, SUCO]}
+      pizza={{ tamanhos: [{ id: 'm', nome: 'Média', maxSabores: 2 }], bordas: [], massas: [], regra: 'media' }}
+      carrossel={[]}
+      mensagem="Aviso da seleção"
+      somenteVisualizacao={somenteVisualizacao}
+    />,
+  )
+}
+
+beforeEach(() => {
+  globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ id: null, itens: [], deOutros: [] }))) as typeof fetch
+})
+
+describe('cardápio da mesa — somente visualização', () => {
+  it('sem "Minha seleção", sem aviso da seleção e sem ler/gravar seleção', () => {
+    renderizar(true)
+    expect(screen.queryByText('Minha seleção')).toBeNull()
+    expect(screen.queryByText('Aviso da seleção')).toBeNull()
+    const chamadas = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))
+    expect(chamadas.filter((u) => u.includes('/selecao'))).toEqual([])
+  })
+
+  it('pizza abre a ficha com foto, descrição e sabores — sem tamanho, adicional nem botão de adicionar', () => {
+    renderizar(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Pizza Salgada' }))
+    const ficha = screen.getByRole('dialog', { name: 'Pizza Salgada' })
+    expect(within(ficha).getByText('Massa artesanal')).toBeInTheDocument()
+    expect(within(ficha).getByText('Calabresa')).toBeInTheDocument()
+    expect(within(ficha).getByText('Presunto, ovo')).toBeInTheDocument()
+    expect(within(ficha).queryByText(/tamanho/i)).toBeNull()
+    expect(within(ficha).queryByText('Bacon')).toBeNull()
+    expect(within(ficha).queryByText(/Adicionar|Avançar/i)).toBeNull()
+    // Único botão da ficha: fechar.
+    expect(within(ficha).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Fechar'])
+    expect(within(ficha).getByRole('img', { name: 'Pizza Salgada' })).toBeInTheDocument()
+  })
+
+  it('outro item: só foto, nome e descrição', () => {
+    renderizar(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver Suco de laranja' }))
+    const ficha = screen.getByRole('dialog', { name: 'Suco de laranja' })
+    expect(within(ficha).getByText('Natural, 500 ml')).toBeInTheDocument()
+    expect(within(ficha).queryByText('Sabores')).toBeNull()
+    fireEvent.click(within(ficha).getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('desligado: continua como antes (Minha seleção e configurador)', () => {
+    renderizar(false)
+    expect(screen.getByText('Minha seleção')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Escolher Pizza Salgada' }))
+    expect(screen.getAllByText('Escolha o tamanho').length).toBeGreaterThan(0)
+  })
+})
