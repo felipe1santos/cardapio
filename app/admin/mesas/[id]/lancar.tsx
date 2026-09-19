@@ -131,91 +131,90 @@ export function SelecaoDoCliente({
   onAdicionarTodas: () => void
 }) {
   const pendentes = linhas.filter((l) => !adicionadas.has(l.chave) && resolucoes.get(l.chave)?.tipo !== 'indisponivel')
+  const qtd = linhas.reduce((s, l) => s + l.quantidade, 0)
+
+  // Sem nada marcado: só uma linha fina, sem abrir/fechar.
+  if (linhas.length === 0) {
+    return (
+      <div className="flex min-h-[36px] items-center gap-2 rounded-menuzia border border-warn/60 bg-warn-bg px-2.5 py-1.5">
+        <Badge tone="pending">Não lançado</Badge>
+        <span className="min-w-0 truncate text-[12px] text-text-subtle">O cliente ainda não marcou nada no celular.</span>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-menuzia border border-warn bg-warn-bg">
-      <button
-        onClick={onAlternar}
-        aria-expanded={aberto}
-        className="flex min-h-[44px] w-full items-center gap-2 px-3 py-2 text-left sm:px-4"
-      >
+      {/* Faixa de uma linha: é o que ocupa a tela no celular enquanto recolhida. */}
+      <button onClick={onAlternar} aria-expanded={aberto} className="flex min-h-[40px] w-full items-center gap-2 px-2.5 py-1.5 text-left">
         <Badge tone="pending">Não lançado</Badge>
-        <h3 className="min-w-0 flex-1 text-[13px] font-bold leading-tight text-text-main">Seleção do cliente no celular</h3>
-        {linhas.length > 0 && (
-          <span className="flex-shrink-0 text-[11px] font-semibold text-text-subtle">
-            {linhas.length} {linhas.length === 1 ? 'item' : 'itens'}
-          </span>
-        )}
-        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-text-subtle transition-transform ${aberto ? 'rotate-180' : ''}`} />
+        <span className="min-w-0 flex-1 truncate text-[12px] font-bold text-text-main">
+          Cliente marcou {qtd} {qtd === 1 ? 'item' : 'itens'}
+          {pendentes.length > 0 && pendentes.length < linhas.length && (
+            <span className="font-semibold text-text-subtle"> · {pendentes.length} a adicionar</span>
+          )}
+        </span>
+        <span className="flex flex-shrink-0 items-center gap-0.5 text-[11px] font-bold uppercase text-primary">
+          {aberto ? 'Fechar' : 'Ver'}
+          <ChevronDown className={`h-4 w-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+        </span>
       </button>
 
       {aberto && (
-        <div className="border-t border-warn/40 px-3 pb-3 pt-2 sm:px-4">
-          {linhas.length === 0 ? (
-            <p className="text-[12px] text-text-subtle">O cliente ainda não marcou nada no cardápio da mesa.</p>
-          ) : (
-            <>
-              <ul className="divide-y divide-warn/30">
-                {linhas.map((l) => {
-                  const r = resolucoes.get(l.chave)
-                  const ja = adicionadas.has(l.chave)
-                  const unit = l.precoUnitario + l.opcoes.reduce((s, o) => s + (Number.isFinite(o.preco) ? o.preco : 0), 0)
-                  return (
-                    <li key={l.chave} className="flex items-start gap-2 py-2">
-                      <div className="min-w-0 flex-1 text-[12px] text-text-main">
-                        <div>
-                          <span className="font-bold">{l.quantidade}×</span> {l.nome}
-                          <span className="ml-1 text-text-subtle">{brl(unit)}</span>
-                        </div>
-                        {l.opcoes.length > 0 && (
-                          <div className="text-[11px] text-text-subtle">{l.opcoes.map((o) => o.escolha).join(' · ')}</div>
-                        )}
-                        {l.observacao && <div className="text-[11px] italic text-text-subtle">“{l.observacao}”</div>}
-                        {!ja && r?.tipo === 'indisponivel' && <div className="text-[11px] font-semibold text-danger">{r.motivo}</div>}
-                        {!ja && r?.tipo === 'configurar' && <div className="text-[11px] font-semibold text-status-pending">{r.motivo}</div>}
-                        {!ja && r?.tipo === 'pronto' && r.precoMudou && (
-                          <div className="text-[11px] font-semibold text-status-pending">
-                            Preço atualizado: {brl(r.linha.preco)} cada
-                          </div>
-                        )}
-                      </div>
-                      {ja ? (
-                        <span className="flex min-h-[36px] flex-shrink-0 items-center gap-1 text-[11px] font-bold uppercase text-status-ready">
-                          <Check className="h-3.5 w-3.5" /> Adicionado
-                        </span>
-                      ) : r?.tipo === 'indisponivel' ? (
-                        <span className="flex min-h-[36px] flex-shrink-0 items-center text-[11px] font-bold uppercase text-danger">
-                          Indisponível
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => onAdicionar(l.chave)}
-                          className="flex min-h-[36px] flex-shrink-0 items-center gap-1 rounded-menuzia border border-primary bg-main px-2.5 text-[11px] font-bold uppercase tracking-wide text-primary hover:bg-primary hover:text-white"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          {r?.tipo === 'configurar' ? 'Configurar' : 'Adicionar'}
-                        </button>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-              {pendentes.length > 1 && (
-                <Button variant="outline" className="mt-2 w-full" onClick={onAdicionarTodas}>
-                  <Plus className="h-3.5 w-3.5" />
-                  Adicionar seleção ao lançamento
-                </Button>
-              )}
-              {aviso && (
-                <p className="mt-2 rounded-menuzia bg-main px-2.5 py-2 text-[11px] font-semibold text-text-main" role="status">
-                  {aviso}
-                </p>
-              )}
-              <p className="mt-2 text-[11px] text-text-subtle">
-                É só o que o cliente marcou para te mostrar. <strong>Não foi lançado nem enviado à cozinha.</strong>{' '}
-                Confirme com ele: o que você adicionar vai para o lançamento, com o preço de agora.
-              </p>
-            </>
+        <div className="border-t border-warn/40 px-2.5 pb-2 pt-1">
+          <ul className="divide-y divide-warn/30">
+            {linhas.map((l) => {
+              const r = resolucoes.get(l.chave)
+              const ja = adicionadas.has(l.chave)
+              const unit = l.precoUnitario + l.opcoes.reduce((s, o) => s + (Number.isFinite(o.preco) ? o.preco : 0), 0)
+              const detalhe = [...l.opcoes.map((o) => o.escolha), l.observacao ? `“${l.observacao}”` : ''].filter(Boolean).join(' · ')
+              return (
+                <li key={l.chave} className="flex items-center gap-2 py-1.5">
+                  <div className="min-w-0 flex-1 text-[12px] leading-snug text-text-main">
+                    <div className="truncate">
+                      <span className="font-bold">{l.quantidade}×</span> {l.nome}
+                      <span className="ml-1 text-text-subtle">{brl(unit)}</span>
+                    </div>
+                    {detalhe && <div className="truncate text-[11px] text-text-subtle">{detalhe}</div>}
+                    {!ja && r?.tipo === 'indisponivel' && <div className="text-[11px] font-semibold text-danger">{r.motivo}</div>}
+                    {!ja && r?.tipo === 'configurar' && <div className="text-[11px] font-semibold text-status-pending">{r.motivo}</div>}
+                    {!ja && r?.tipo === 'pronto' && r.precoMudou && (
+                      <div className="text-[11px] font-semibold text-status-pending">Preço atual: {brl(r.linha.preco)} cada</div>
+                    )}
+                  </div>
+                  {ja ? (
+                    <span className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-bold uppercase text-status-ready">
+                      <Check className="h-3.5 w-3.5" /> Adicionado
+                    </span>
+                  ) : r?.tipo === 'indisponivel' ? (
+                    <span className="flex-shrink-0 whitespace-nowrap text-[11px] font-bold uppercase text-danger">Indisponível</span>
+                  ) : (
+                    <button
+                      onClick={() => onAdicionar(l.chave)}
+                      className="flex min-h-[36px] flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-menuzia border border-primary bg-main px-2 text-[11px] font-bold uppercase tracking-wide text-primary hover:bg-primary hover:text-white"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {r?.tipo === 'configurar' ? 'Configurar' : 'Adicionar'}
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {pendentes.length > 1 && (
+            <Button variant="outline" className="mt-1.5 w-full whitespace-nowrap" onClick={onAdicionarTodas}>
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar todos
+            </Button>
           )}
+          {aviso && (
+            <p className="mt-1.5 rounded-menuzia bg-main px-2 py-1.5 text-[11px] font-semibold text-text-main" role="status">
+              {aviso}
+            </p>
+          )}
+          <p className="mt-1.5 text-[11px] leading-snug text-text-subtle">
+            Não foi enviado à cozinha. Confirme com o cliente antes de adicionar.
+          </p>
         </div>
       )}
     </div>
@@ -247,7 +246,7 @@ export function PainelLancamento({
 }) {
   const { itens, total } = totalDoLancamento(linhas)
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className={`min-h-0 overflow-y-auto ${classeLista}`}>
         {linhas.length === 0 && (
           <p className="px-4 py-8 text-center text-[12px] text-text-subtle">Toque nos itens do cardápio para montar o pedido.</p>
@@ -499,12 +498,12 @@ export function ConfiguradorGarcom({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end bg-black/40 sm:items-stretch sm:justify-end" onClick={onCancelar}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:items-stretch sm:justify-end sm:p-0" onClick={onCancelar}>
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={item.nome}
-        className="flex max-h-[92dvh] w-full flex-col rounded-t-xl bg-main shadow-xl sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none"
+        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-2xl sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex min-h-[56px] flex-shrink-0 items-center justify-between gap-2 border-b border-border px-4">
@@ -606,7 +605,7 @@ export function ConfiguradorGarcom({
           </label>
         </div>
 
-        <div className="flex-shrink-0 space-y-2 border-t border-border p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
+        <div className="flex-shrink-0 space-y-2 border-t border-border p-3 sm:p-4 sm:pb-[max(env(safe-area-inset-bottom),1rem)]">
           {pendencias.length > 0 && <p className="text-[12px] font-semibold text-danger">{pendencias[0]}</p>}
           <div className="flex items-center gap-2">
             <div className="flex flex-shrink-0 items-center rounded-menuzia border border-border">

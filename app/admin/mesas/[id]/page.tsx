@@ -96,7 +96,7 @@ export default function MesaDetalhePage() {
   const [todos, setTodos] = useState<ItemCardapio[]>([])
   const [pizza, setPizza] = useState<DadosPizza>({ tamanhos: [], bordas: [], massas: [], regra: 'media' })
   const [selecaoCliente, setSelecaoCliente] = useState<LinhaSelecao[]>([])
-  const [selecaoAberta, setSelecaoAberta] = useState(true)
+  const [selecaoAberta, setSelecaoAberta] = useState(false)
   const [avisoSelecao, setAvisoSelecao] = useState<string | null>(null)
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [lancamento, setLancamento] = useState<LinhaLancamento[]>([])
@@ -269,10 +269,12 @@ export default function MesaDetalhePage() {
     [lancamento],
   )
 
-  // Abre a seleção quando o cliente marca algo novo; o garçom pode recolher depois.
+  // Desktop abre a seleção quando o cliente marca algo; no celular ela fica recolhida numa
+  // faixa de uma linha (com a contagem) para não empurrar o cardápio para baixo.
   const qtdSelecao = selecaoCliente.length
   useEffect(() => {
-    if (qtdSelecao > 0) setSelecaoAberta(true)
+    const largo = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches
+    if (largo && qtdSelecao > 0) setSelecaoAberta(true)
   }, [qtdSelecao])
 
   /** Adiciona uma linha da seleção. Devolve o que aconteceu, para o aviso agrupado. */
@@ -521,23 +523,30 @@ export default function MesaDetalhePage() {
         )}
 
         <div className="mb-3 flex border-b border-border sm:mb-4 sm:gap-1" role="tablist">
+          {/* Uma linha só no celular: rótulo curto ("Lançar") e o valor da conta ao lado. */}
           {([
-            ['lancar', 'Lançar pedido', null],
-            ['conta', 'Conta', estadoConta.dados?.conta ? `falta ${brl(estadoConta.dados.conta.totais.restante)}` : null],
-            ['historico', 'Histórico', null],
-          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo, detalhe]) => (
+            ['lancar', 'Lançar', ' pedido', null],
+            ['conta', 'Conta', '', estadoConta.dados?.conta ? brl(estadoConta.dados.conta.totais.restante) : null],
+            ['historico', 'Histórico', '', null],
+          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo, resto, detalhe]) => (
             <button
               key={id}
               role="tab"
               aria-selected={aba === id}
               onClick={() => setAba(id)}
+              title={detalhe ? `Falta ${detalhe}` : undefined}
               className={[
-                '-mb-px min-h-[44px] flex-1 border-b-2 px-2 py-1.5 text-center text-[11px] font-bold uppercase tracking-wide sm:flex-none sm:px-4 sm:text-[12px] lg:min-h-[40px]',
+                '-mb-px flex min-h-[44px] flex-auto items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 text-[11px] font-bold uppercase tracking-wide sm:flex-none sm:px-4 sm:text-[12px] lg:min-h-[40px]',
                 aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
               ].join(' ')}
             >
               {rotulo}
-              {detalhe && <span className="block text-[10px] font-semibold normal-case tracking-normal sm:ml-1 sm:inline">· {detalhe}</span>}
+              {resto && <span className="hidden sm:inline">{resto}</span>}
+              {detalhe && (
+                <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-bold normal-case tracking-normal text-text-main">
+                  {detalhe}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -691,13 +700,17 @@ export default function MesaDetalhePage() {
         </div>
       )}
 
+      {/* Conferência antes de enviar: janela grande no centro da tela, não folha no rodapé. */}
       {folhaAberta && naAbaLancar && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/40 xl:hidden" onClick={() => setFolhaAberta(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(env(safe-area-inset-bottom),0.75rem)] xl:hidden"
+          onClick={() => setFolhaAberta(false)}
+        >
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Lançamento"
-            className="flex max-h-[88dvh] w-full flex-col rounded-t-xl bg-main pb-[env(safe-area-inset-bottom)] shadow-xl sm:mx-auto sm:max-w-lg"
+            className="flex max-h-full min-h-[min(60dvh,100%)] w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex min-h-[52px] flex-shrink-0 items-center justify-between border-b border-border px-4">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { BellRing, Lock, LockOpen, Pencil, Plus, Printer, QrCode, Settings, X } from 'lucide-react'
+import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Settings, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -248,29 +248,31 @@ export default function MesasPage() {
         right={
           gerencia ? (
             <>
-              <Button variant="outline" onClick={() => setFolhaAberta(true)} disabled={mesas.length === 0}>
-                <Printer className="mr-1.5 inline h-3.5 w-3.5" />
-                Folha de QR
+              <Button variant="outline" onClick={() => setFolhaAberta(true)} disabled={mesas.length === 0} aria-label="Folha de QR" title="Folha de QR">
+                <Printer className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Folha de QR</span>
               </Button>
-              <Button variant="outline" onClick={() => setConfigAberta(true)}>
-                <Settings className="mr-1.5 inline h-3.5 w-3.5" />
-                Conta e pagamentos
+              <Button variant="outline" onClick={() => setConfigAberta(true)} aria-label="Conta e pagamentos" title="Conta e pagamentos">
+                <Settings className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Conta e pagamentos</span>
               </Button>
               <Button
                 onClick={() => {
                   setEmEdicao(null)
                   setFormAberto(true)
                 }}
+                aria-label="Nova mesa"
+                title="Nova mesa"
               >
-                <Plus className="mr-1.5 inline h-3.5 w-3.5" />
-                Nova mesa
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Nova mesa</span>
               </Button>
             </>
           ) : undefined
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {atende && <PainelChamados chamados={chamados} agora={agora} onMudou={recarregar} />}
 
         {avisoAcao && (
@@ -280,20 +282,20 @@ export default function MesasPage() {
         )}
 
         {/* Busca + filtros por estado */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="mb-3 flex flex-col gap-2 sm:mb-4 lg:flex-row lg:flex-wrap lg:items-center">
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar mesa ou setor…"
             className="h-[44px] w-full rounded-menuzia lg:h-9 lg:w-56 border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
           />
-          <div className="flex flex-wrap gap-1.5">
+          <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0">
             {ORDEM_FILTROS.map((f) => (
               <button
                 key={f}
                 onClick={() => setFiltro(f)}
                 className={[
-                  'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-0',
+                  'min-h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-0',
                   filtro === f
                     ? 'border-primary bg-primary text-white'
                     : 'border-border bg-main text-text-subtle hover:text-text-main',
@@ -305,14 +307,14 @@ export default function MesasPage() {
             ))}
           </div>
           {setores.length > 1 && (
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por setor">
+            <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0" role="group" aria-label="Filtrar por setor">
               {[null, ...setores].map((s) => (
                 <button
                   key={s ?? 'todos'}
                   onClick={() => setSetorFiltro(s)}
                   aria-pressed={setorFiltro === s}
                   className={[
-                    'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold transition-colors lg:min-h-0',
+                    'min-h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold transition-colors lg:min-h-0',
                     setorFiltro === s
                       ? 'border-text-main bg-text-main text-white'
                       : 'border-border bg-main text-text-subtle hover:text-text-main',
@@ -357,22 +359,22 @@ export default function MesasPage() {
         )}
 
         {!carregando && !erro && mesas.length > 0 && (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] sm:gap-3">
             {visiveis.map((mesa) => {
               const tom = TOM_ESTADO[mesa.estado]
               const chamadoDaMesa = chamados.find((c) => c.mesaId === mesa.id) ?? null
               return (
                 <div
                   key={mesa.id}
-                  className={`flex flex-col rounded-menuzia border bg-main p-4 ${tom.borda} ${
+                  className={`flex min-w-0 flex-col rounded-menuzia border bg-main p-2.5 sm:p-4 ${tom.borda} ${
                     mesa.estado === 'inativa' ? 'opacity-60' : ''
                   }`}
                 >
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <div>
+                  <div className="mb-2 flex items-start justify-between gap-1.5">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className={`h-2 w-2 flex-shrink-0 rounded-full ${tom.ponto}`} />
-                        <span className="text-[15px] font-bold text-text-main">{mesa.nome}</span>
+                        <span className="truncate text-[15px] font-bold text-text-main">{mesa.nome}</span>
                       </div>
                       <div className="mt-0.5 text-[11px] text-text-subtle">
                         {mesa.setor || 'Sem setor'}
@@ -414,14 +416,14 @@ export default function MesasPage() {
                   {mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || mesa.estado === 'ocupada') && (
                     <Link
                       href={`/admin/mesas/${mesa.id}`}
-                      className="mb-1 mt-2 block min-h-[40px] rounded-menuzia bg-primary px-3 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide leading-[1.4] text-white hover:bg-primary-dark lg:min-h-0"
+                      className="mb-1 mt-auto block min-h-[40px] whitespace-nowrap rounded-menuzia bg-primary px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide leading-[1.4] text-white hover:bg-primary-dark lg:min-h-0"
                     >
                       {!atende ? 'Ver conta' : mesa.estado === 'ocupada' ? 'Abrir mesa' : 'Lançar pedido'}
                     </Link>
                   )}
 
                   {gerencia && (
-                  <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
+                  <div className="mt-auto grid grid-cols-4 gap-1 pt-2 sm:flex sm:flex-wrap sm:gap-1.5">
                     <Button variant="outline" className="!px-2" onClick={() => setQrDaMesa(mesa)} title="Ver QR Code">
                       <QrCode className="h-3.5 w-3.5" />
                     </Button>
@@ -448,8 +450,11 @@ export default function MesasPage() {
                       variant="ghost"
                       className="!px-2 text-[10px]"
                       onClick={() => acaoDeEstado(mesa, mesa.ativa ? 'desativar' : 'reativar')}
+                      aria-label={mesa.ativa ? 'Desativar' : 'Reativar'}
+                      title={mesa.ativa ? 'Desativar' : 'Reativar'}
                     >
-                      {mesa.ativa ? 'Desativar' : 'Reativar'}
+                      <Power className="h-3.5 w-3.5 sm:hidden" />
+                      <span className="hidden sm:inline">{mesa.ativa ? 'Desativar' : 'Reativar'}</span>
                     </Button>
                   </div>
                   )}
