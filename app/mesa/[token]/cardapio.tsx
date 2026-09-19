@@ -354,7 +354,14 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: 
 
           <div className="mesa-grade">
             {visiveis.map((item) => (
-              <article key={item.id} className="mesa-card">
+              // O cartão inteiro abre o item: um toque, sem botão separado.
+              <button
+                type="button"
+                key={item.id}
+                className="mesa-card"
+                onClick={() => setFichaAberta(item)}
+                aria-label={`Escolher ${item.nome}`}
+              >
                 <div className="mesa-card-texto">
                   <h3>{item.nome}</h3>
                   {item.descricao && <p>{item.descricao}</p>}
@@ -363,9 +370,6 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: 
                       <span className="mesa-preco-rotulo">A partir de</span>
                       <span className="mesa-preco-valor">{brl(item.precoAPartirDe)}</span>
                     </div>
-                    <button className="mesa-botao-add" onClick={() => setFichaAberta(item)}>
-                      Selecionar item
-                    </button>
                   </div>
                 </div>
                 <div className="mesa-card-foto">
@@ -377,8 +381,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: 
                       🍽️
                     </div>
                   )}
+                  <span className="mesa-card-mais" aria-hidden="true">+</span>
                 </div>
-              </article>
+              </button>
             ))}
 
             {visiveis.length === 0 && (
@@ -1277,7 +1282,11 @@ const TOKENS = `
 .mesa-grade { display: grid; grid-template-columns: 1fr; gap: 10px; }
 /* Card: texto à esquerda, foto à direita. A foto vem depois no HTML de propósito —
    leitor de tela ouve nome e preço antes de chegar na imagem. */
-.mesa-card { display: grid; grid-template-columns: 1fr 88px; gap: 10px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px; }
+.mesa-card { display: grid; grid-template-columns: 1fr 88px; gap: 10px; width: 100%; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px; font: inherit; color: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.mesa-card:hover { border-color: var(--coral); }
+.mesa-card:active { transform: scale(.99); }
+.mesa-card:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.mesa-card-mais { position: absolute; right: 6px; bottom: 6px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 18px; font-weight: 700; line-height: 1; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .mesa-card-texto { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .mesa-card-texto h3 { margin: 0; font-size: 14px; font-weight: 800; line-height: 1.25; }
 .mesa-card-texto p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -1285,9 +1294,7 @@ const TOKENS = `
 .mesa-preco { display: flex; flex-direction: column; min-width: 0; }
 .mesa-preco-rotulo { font-size: 10px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
 .mesa-preco-valor { font-size: 16px; font-weight: 800; color: var(--coral); white-space: nowrap; }
-.mesa-botao-add { background: var(--coral); color: #fff; border: 0; border-radius: var(--raio); padding: 10px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
-.mesa-botao-add:active { background: var(--coral-escuro); }
-.mesa-card-foto { width: 88px; height: 88px; align-self: start; border-radius: var(--raio); overflow: hidden; background: var(--fundo); }
+.mesa-card-foto { position: relative; width: 88px; height: 88px; align-self: start; border-radius: var(--raio); overflow: hidden; background: var(--fundo); }
 .mesa-card-foto img { width: 100%; height: 100%; object-fit: cover; }
 .mesa-card-foto-vazia { width: 100%; height: 100%; display: grid; place-items: center; font-size: 28px; }
 .mesa-vazio { grid-column: 1/-1; text-align: center; color: var(--suave); font-size: 13px; padding: 28px 0; }
@@ -1474,6 +1481,6 @@ const TOKENS = `
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .mesa-card, .mesa-opcao, .mesa-botao-add { transition: background-color .15s ease, border-color .15s ease; }
+  .mesa-card, .mesa-opcao { transition: transform .1s ease, background-color .15s ease, border-color .15s ease; }
 }
 `
