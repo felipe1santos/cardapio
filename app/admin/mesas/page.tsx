@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Settings, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import {
@@ -27,12 +26,15 @@ import { ConfigConta } from './config-conta'
 import { DrawerFolhaMesas, DrawerQrMesa } from './qr'
 import { PainelChamados, useRelogio } from './chamados'
 
-/** Cor do estado no mapa do salão. Mesma paleta do resto do painel. */
-const TOM_ESTADO: Record<EstadoMesa, { badge: Parameters<typeof Badge>[0]['tone']; borda: string; ponto: string }> = {
-  livre: { badge: 'ok', borda: 'border-border', ponto: 'bg-status-ready' },
-  ocupada: { badge: 'preparing', borda: 'border-status-preparing', ponto: 'bg-status-preparing' },
-  bloqueada: { badge: 'danger', borda: 'border-danger', ponto: 'bg-danger' },
-  inativa: { badge: 'paused', borda: 'border-border', ponto: 'bg-text-subtle' },
+/**
+ * Cor do estado no mapa do salão — blocos cheios, como no PDV: verde livre, azul ocupada.
+ * Bloqueada fica escura e inativa cinza. Chamado aberto ganha selo vermelho pulsando.
+ */
+const TOM_ESTADO: Record<EstadoMesa, { bloco: string; texto: string; ponto: string }> = {
+  livre: { bloco: 'bg-status-ready', texto: 'text-white', ponto: 'bg-status-ready' },
+  ocupada: { bloco: 'bg-primary', texto: 'text-white', ponto: 'bg-primary' },
+  bloqueada: { bloco: 'bg-sidebar-bg', texto: 'text-white', ponto: 'bg-sidebar-bg' },
+  inativa: { bloco: 'bg-border', texto: 'text-text-subtle', ponto: 'bg-text-subtle' },
 }
 
 const ORDEM_FILTROS: (EstadoMesa | 'todas')[] = ['todas', 'livre', 'ocupada', 'bloqueada', 'inativa']
@@ -301,6 +303,9 @@ export default function MesasPage() {
                     : 'border-border bg-main text-text-subtle hover:text-text-main',
                 ].join(' ')}
               >
+                {f !== 'todas' && (
+                  <span className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${TOM_ESTADO[f].ponto} ${filtro === f ? 'ring-1 ring-white' : ''}`} />
+                )}
                 {f === 'todas' ? 'Todas' : ROTULO_ESTADO[f]}
                 <span className="ml-1.5 opacity-70">{contagem[f] ?? 0}</span>
               </button>
@@ -359,104 +364,103 @@ export default function MesasPage() {
         )}
 
         {!carregando && !erro && mesas.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {visiveis.map((mesa) => {
               const tom = TOM_ESTADO[mesa.estado]
               const chamadoDaMesa = chamados.find((c) => c.mesaId === mesa.id) ?? null
-              return (
-                <div
-                  key={mesa.id}
-                  className={`flex min-w-0 flex-col rounded-menuzia border bg-main p-2.5 sm:p-4 ${tom.borda} ${
-                    mesa.estado === 'inativa' ? 'opacity-60' : ''
-                  }`}
-                >
-                  <div className="mb-2 flex items-start justify-between gap-1.5">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${tom.ponto}`} />
-                        <span className="truncate text-[15px] font-bold text-text-main">{mesa.nome}</span>
-                      </div>
-                      <div className="mt-0.5 text-[11px] text-text-subtle">
-                        {mesa.setor || 'Sem setor'}
-                        {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
-                      </div>
-                    </div>
-                    <Badge tone={tom.badge}>{ROTULO_ESTADO[mesa.estado]}</Badge>
+              // Abrir a mesa é o que o garçom faz. Mesa inativa ou bloqueada não recebe
+              // lançamento, então o bloco não vira atalho.
+              const abre = mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || mesa.estado === 'ocupada')
+              const acao = !atende ? 'Ver conta' : mesa.estado === 'ocupada' ? 'Toque p/ abrir' : 'Toque p/ lançar'
+              const conteudo = (
+                <>
+                  <div className="flex items-start justify-between gap-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wide opacity-85">
+                      {mesa.bloqueada && <Lock className="mr-0.5 inline h-3 w-3 align-[-2px]" />}
+                      {ROTULO_ESTADO[mesa.estado]}
+                    </span>
+                    {mesa.estado === 'ocupada' && mesa.abertaEm && (
+                      <span className="text-[10px] font-medium opacity-80">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')}</span>
+                    )}
                   </div>
-
-                  {gerencia && mesa.qrRevogado && mesa.estado !== 'inativa' && (
-                    <div className="mb-2 rounded-menuzia bg-danger-bg px-2.5 py-1.5 text-[11px] font-semibold text-danger">
-                      QR revogado — gere um novo
-                    </div>
-                  )}
-
                   {chamadoDaMesa && (
-                    <div className="mb-2 flex items-center gap-1.5 rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[11px] font-bold text-text-main">
-                      <BellRing className="h-3 w-3 flex-shrink-0 text-status-pending" />
-                      {chamadoDaMesa.status === 'assumido' ? 'Alguém já vai' : 'Chamando'} ·{' '}
-                      {esperaTexto(chamadoDaMesa.criadoEm, agora)}
-                    </div>
+                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-menuzia bg-danger px-1.5 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm motion-safe:animate-pulse">
+                      <BellRing className="h-3 w-3" />
+                      {chamadoDaMesa.status === 'assumido' ? 'Alguém já vai' : 'Chamando'}
+                    </span>
                   )}
-
-                  {mesa.estado === 'ocupada' && (
-                    <div className="mb-2 rounded-menuzia bg-bg-page px-2.5 py-1.5 text-[11px] text-text-subtle">
-                      {mesa.comandaNumero ? <strong className="text-text-main">Comanda #{mesa.comandaNumero} · </strong> : null}
-                      {mesa.qtdPedidos} {mesa.qtdPedidos === 1 ? 'lançamento' : 'lançamentos'} ·{' '}
-                      <span className="font-bold text-price-text">
-                        {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <div className="mt-auto min-w-0">
+                    <span className="block truncate text-[24px] font-extrabold leading-none">{mesa.nome}</span>
+                    <span className="mt-1 block truncate text-[10px] opacity-80">
+                      {mesa.setor || 'Sem setor'}
+                      {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
+                    </span>
+                    {mesa.estado === 'ocupada' ? (
+                      <span className="mt-1 block truncate text-[13px] font-bold">
+                        {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · {mesa.qtdPedidos} lanç.
                       </span>
-                      {mesa.abertaEm && (
-                        <span className="mt-0.5 block">Aberta {esperaTexto(mesa.abertaEm, agora)}</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Abrir a mesa é o que o garçom faz. Mesa inativa ou bloqueada não recebe
-                      lançamento, então não oferece o atalho. */}
-                  {mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || mesa.estado === 'ocupada') && (
-                    <Link
-                      href={`/admin/mesas/${mesa.id}`}
-                      className="mb-1 mt-auto block min-h-[40px] whitespace-nowrap rounded-menuzia bg-primary px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide leading-[1.4] text-white hover:bg-primary-dark lg:min-h-0"
-                    >
-                      {!atende ? 'Ver conta' : mesa.estado === 'ocupada' ? 'Abrir mesa' : 'Lançar pedido'}
+                    ) : (
+                      abre && <span className="mt-1 block text-[11px] opacity-80">{acao}</span>
+                    )}
+                    {gerencia && mesa.qrRevogado && mesa.estado !== 'inativa' && (
+                      <span className="mt-1 block text-[10px] font-bold uppercase">QR revogado</span>
+                    )}
+                  </div>
+                </>
+              )
+              const classeBloco = [
+                'flex aspect-square min-w-0 flex-col rounded-menuzia p-3 text-left shadow-sm transition-all',
+                tom.bloco,
+                tom.texto,
+                abre ? 'hover:brightness-105 active:scale-[0.97]' : '',
+                chamadoDaMesa ? 'ring-2 ring-danger ring-offset-2 ring-offset-page' : '',
+              ].join(' ')
+              return (
+                <div key={mesa.id} className="flex min-w-0 flex-col gap-1">
+                  {abre ? (
+                    <Link href={`/admin/mesas/${mesa.id}`} className={classeBloco} aria-label={`${mesa.nome} — ${ROTULO_ESTADO[mesa.estado]}`}>
+                      {conteudo}
                     </Link>
+                  ) : (
+                    <div className={classeBloco}>{conteudo}</div>
                   )}
 
                   {gerencia && (
-                  <div className="mt-auto grid grid-cols-4 gap-1 pt-2 sm:flex sm:flex-wrap sm:gap-1.5">
-                    <Button variant="outline" className="!px-2" onClick={() => setQrDaMesa(mesa)} title="Ver QR Code">
-                      <QrCode className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="!px-2"
-                      onClick={() => {
-                        setEmEdicao(mesa)
-                        setFormAberto(true)
-                      }}
-                      title="Editar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="!px-2"
-                      onClick={() => acaoDeEstado(mesa, mesa.bloqueada ? 'desbloquear' : 'bloquear')}
-                      title={mesa.bloqueada ? 'Desbloquear' : 'Bloquear'}
-                    >
-                      {mesa.bloqueada ? <LockOpen className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="!px-2 text-[10px]"
-                      onClick={() => acaoDeEstado(mesa, mesa.ativa ? 'desativar' : 'reativar')}
-                      aria-label={mesa.ativa ? 'Desativar' : 'Reativar'}
-                      title={mesa.ativa ? 'Desativar' : 'Reativar'}
-                    >
-                      <Power className="h-3.5 w-3.5 sm:hidden" />
-                      <span className="hidden sm:inline">{mesa.ativa ? 'Desativar' : 'Reativar'}</span>
-                    </Button>
-                  </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      <Button variant="outline" className="!px-0" onClick={() => setQrDaMesa(mesa)} title="Ver QR Code" aria-label={`QR Code da ${mesa.nome}`}>
+                        <QrCode className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="!px-0"
+                        onClick={() => {
+                          setEmEdicao(mesa)
+                          setFormAberto(true)
+                        }}
+                        title="Editar"
+                        aria-label={`Editar ${mesa.nome}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="!px-0"
+                        onClick={() => acaoDeEstado(mesa, mesa.bloqueada ? 'desbloquear' : 'bloquear')}
+                        title={mesa.bloqueada ? 'Desbloquear' : 'Bloquear'}
+                        aria-label={mesa.bloqueada ? 'Desbloquear' : 'Bloquear'}
+                      >
+                        {mesa.bloqueada ? <LockOpen className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="!px-0"
+                        onClick={() => acaoDeEstado(mesa, mesa.ativa ? 'desativar' : 'reativar')}
+                        aria-label={mesa.ativa ? 'Desativar' : 'Reativar'}
+                        title={mesa.ativa ? 'Desativar' : 'Reativar'}
+                      >
+                        <Power className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               )

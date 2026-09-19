@@ -35,7 +35,9 @@ export function esperaTexto(criadoEm: string, agora: number = Date.now()): strin
   if (minutos === 1) return 'há 1 min'
   if (minutos < 60) return `há ${minutos} min`
   const horas = Math.floor(minutos / 60)
-  return horas === 1 ? 'há 1 h' : `há ${horas} h`
+  if (horas < 48) return horas === 1 ? 'há 1 h' : `há ${horas} h`
+  // Conta esquecida aberta há semanas: "há 82 dias" em vez de "há 1981 h".
+  return `há ${Math.floor(horas / 24)} dias`
 }
 
 /** Espera longa fica em destaque: mesa esquecida é reclamação na porta. */
