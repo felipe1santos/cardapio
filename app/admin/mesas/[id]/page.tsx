@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRightLeft, Check, Search, ShoppingBag, X } from 'lucide-react'
+import { ArrowRightLeft, Check, History, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
+import { esperaTexto } from '@/lib/chamados'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -494,19 +495,14 @@ export default function MesaDetalhePage() {
       <TopBar
         title={mesa.nome}
         breadcrumb={`Mesas e Comandas · ${mesa.setor || 'Salão'}`}
+        voltar={{ rotulo: 'Salão', onClick: () => router.push('/admin/mesas') }}
         right={
-          <>
-            {permissoesConta.transferir_mesa && estadoConta.dados?.conta && (
-              <Button variant="outline" onClick={() => setTransferindoMesa(true)} aria-label="Trocar de mesa" title="Trocar de mesa">
-                <ArrowRightLeft className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Trocar de mesa</span>
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => router.push('/admin/mesas')} aria-label="Voltar ao salão" title="Voltar ao salão">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Voltar ao salão</span>
+          permissoesConta.transferir_mesa && estadoConta.dados?.conta ? (
+            <Button variant="outline" onClick={() => setTransferindoMesa(true)} aria-label="Trocar de mesa" title="Trocar de mesa">
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Trocar de mesa</span>
             </Button>
-          </>
+          ) : undefined
         }
       />
 
@@ -522,31 +518,61 @@ export default function MesaDetalhePage() {
           </p>
         )}
 
-        <div className="mb-3 flex border-b border-border sm:mb-4 sm:gap-1" role="tablist">
-          {/* Uma linha só no celular: rótulo curto ("Lançar") e o valor da conta ao lado. */}
+        {/* ── Resumo da mesa: o estado de relance, na cor do salão ─────────── */}
+        {(() => {
+          const conta = estadoConta.dados?.conta ?? null
+          const bloqueada = mesa.bloqueada
+          const cor = bloqueada ? 'bg-sidebar-bg' : conta ? 'bg-primary' : 'bg-status-ready'
+          const estadoTexto = bloqueada ? 'Bloqueada' : conta ? 'Ocupada' : 'Livre'
+          return (
+            <div className={`mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-menuzia px-4 py-3 text-white shadow-sm sm:mb-4 ${cor}`} data-resumo-mesa>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-white/20">
+                  <Utensils className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">{estadoTexto}</div>
+                  <div className="truncate text-[18px] font-extrabold leading-tight">
+                    {mesa.nome}
+                    {conta?.numero ? <span className="ml-2 text-[13px] font-semibold opacity-85">Comanda #{conta.numero}</span> : null}
+                  </div>
+                  {conta && <div className="text-[11px] opacity-85">Aberta {esperaTexto(conta.abertaEm, agora)}</div>}
+                </div>
+              </div>
+              {conta && (
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="rounded-menuzia bg-white/15 px-3 py-1.5 text-right">
+                    <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">Total</div>
+                    <div className="text-[15px] font-extrabold">{brl(conta.totais.total)}</div>
+                  </div>
+                  <div className={`rounded-menuzia px-3 py-1.5 text-right ${conta.totais.restante > 0 ? 'bg-white text-text-main' : 'bg-white/15'}`}>
+                    <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">Falta pagar</div>
+                    <div className={`text-[15px] font-extrabold ${conta.totais.restante > 0 ? 'text-danger' : ''}`}>{brl(conta.totais.restante)}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        <div className="mb-3 grid grid-flow-col auto-cols-fr gap-1.5 rounded-menuzia bg-main p-1 shadow-sm sm:mb-4 sm:inline-grid" role="tablist">
           {([
-            ['lancar', 'Lançar', ' pedido', null],
-            ['conta', 'Conta', '', estadoConta.dados?.conta ? brl(estadoConta.dados.conta.totais.restante) : null],
-            ['historico', 'Histórico', '', null],
-          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo, resto, detalhe]) => (
+            ['lancar', 'Lançar', ShoppingBag, 'bg-primary'],
+            ['conta', 'Conta', Receipt, 'bg-status-ready'],
+            ['historico', 'Histórico', History, 'bg-purple'],
+          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo, Icone, cor]) => (
             <button
               key={id}
               role="tab"
               aria-selected={aba === id}
               onClick={() => setAba(id)}
-              title={detalhe ? `Falta ${detalhe}` : undefined}
               className={[
-                '-mb-px flex min-h-[44px] flex-auto items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 text-[11px] font-bold uppercase tracking-wide sm:flex-none sm:px-4 sm:text-[12px] lg:min-h-[40px]',
-                aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
+                'flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-menuzia px-3 text-[12px] font-bold uppercase tracking-wide transition-colors sm:px-5 lg:min-h-[40px]',
+                aba === id ? `${cor} text-white shadow-sm` : 'text-text-subtle hover:bg-page hover:text-text-main',
               ].join(' ')}
             >
+              <Icone className="h-4 w-4" />
               {rotulo}
-              {resto && <span className="hidden sm:inline">{resto}</span>}
-              {detalhe && (
-                <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-bold normal-case tracking-normal text-text-main">
-                  {detalhe}
-                </span>
-              )}
             </button>
           ))}
         </div>

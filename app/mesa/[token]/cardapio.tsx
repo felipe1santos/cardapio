@@ -670,7 +670,7 @@ function Carrossel({ imagens }: { imagens: string[] }) {
           src={url}
           alt=""
           className={`mesa-banner-foto mesa-carrossel-slide ${i === atual ? 'ativo' : ''}`}
-          loading={i === 0 ? 'eager' : 'lazy'}
+          loading="eager"
           aria-hidden={i !== atual}
         />
       ))}

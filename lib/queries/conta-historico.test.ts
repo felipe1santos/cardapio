@@ -10,7 +10,7 @@ describe('histórico da conta: cada envio à cozinha abre o lançamento', () => 
       [{ acao: 'mesa.enviou_cozinha', usuario_nome: 'Garçom A', criado_em: L1.criadoEm, dados: { numero: 101, itens: 2 }, entidade_id: 'p1' }],
       [L1],
     )
-    expect(h).toEqual([{ quando: L1.criadoEm, quem: 'Garçom A', oQue: 'Enviou o lançamento #101 para a cozinha', pedidoId: 'p1' }])
+    expect(h).toEqual([{ quando: L1.criadoEm, quem: 'Garçom A', oQue: 'Enviou o lançamento #101 para a cozinha', pedidoId: 'p1', acao: 'mesa.enviou_cozinha' }])
   })
 
   it('lançamento sem evento (anterior ao histórico) ganha uma linha própria, sem duplicar os que têm', () => {
@@ -19,7 +19,7 @@ describe('histórico da conta: cada envio à cozinha abre o lançamento', () => 
       [L1, L2],
     )
     expect(h.map((e) => e.pedidoId)).toEqual(['p2', 'p1'])
-    expect(h[1]).toEqual({ quando: L1.criadoEm, quem: 'Garçom A', oQue: 'Lançamento #101 enviado para a cozinha', pedidoId: 'p1' })
+    expect(h[1]).toEqual({ quando: L1.criadoEm, quem: 'Garçom A', oQue: 'Lançamento #101 enviado para a cozinha', pedidoId: 'p1', acao: 'mesa.enviou_cozinha' })
   })
 
   it('evento da comanda (pagamento etc.) não vira lançamento clicável', () => {

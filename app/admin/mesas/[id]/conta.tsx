@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowRightLeft, Ban, Check, ChevronDown, Clock, Printer, RotateCcw, X } from 'lucide-react'
+import { ArrowRightLeft, Ban, Check, ChevronRight, Clock, CreditCard, Minus, Plus, Printer, RotateCcw, Send, Settings2, UserCheck, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { centavos, dividirPorPessoas, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
@@ -27,6 +27,15 @@ function variacaoDoItem(i: ItemDaConta): string {
   ]
     .filter(Boolean)
     .join(' · ')
+}
+
+/** Barra colorida à esquerda de cada lançamento, na cor do preparo. */
+const BARRA_STATUS: Record<string, string> = {
+  recebido: 'border-l-status-pending',
+  preparando: 'border-l-status-preparing',
+  pronto: 'border-l-status-ready',
+  entregue: 'border-l-status-ready',
+  cancelado: 'border-l-danger',
 }
 
 const STATUS_LANCAMENTO: Record<string, { rotulo: string; tom: 'pending' | 'preparing' | 'ready' | 'ok' | 'danger' | 'alert' }> = {
@@ -116,6 +125,8 @@ export function PainelConta({
   const [confirmarFechar, setConfirmarFechar] = useState(false)
   // Quanto de cada linha selecionada vai na transferência. Chave ausente = linha inteira.
   const [parcelas, setParcelas] = useState<Record<string, number>>({})
+  // Só para a conta de cabeça: em quantos dividir o que falta. Não grava na mesa.
+  const [dividirPor, setDividirPor] = useState<number | null>(null)
 
   const conta = dados?.conta ?? null
   const podeFazer = (acao: string) => !!dados?.permissoes?.[acao]
@@ -140,7 +151,7 @@ export function PainelConta({
   // Alvos com pedido de cancelamento aberto: "pedido:item" (item) ou "pedido:" (lançamento).
   const pendentes = new Set(conta.solicitacoes.map((s) => `${s.pedidoId}:${s.itemId ?? ''}`))
 
-  const pessoas = conta.pessoas ?? 0
+  const pessoas = dividirPor ?? conta.pessoas ?? 1
   const porPessoa = pessoas > 1 ? dividirPorPessoas(conta.totais.restante, pessoas) : []
 
   // Dividir por ITEM: soma o que foi marcado para cobrar de quem pediu aquilo. É só a
@@ -167,8 +178,6 @@ export function PainelConta({
           </p>
         )}
 
-        {/* ── Dados da mesa ─────────────────────────────────────────────── */}
-        <DadosDaMesa conta={conta} podeAjustar={podeFazer('ajustar_mesa')} podeAssumir={podeFazer('assumir')} executar={executar} />
 
         {/* ── Pedidos de cancelamento do garçom ─────────────────────────── */}
         {conta.solicitacoes.length > 0 && (
@@ -234,7 +243,10 @@ export function PainelConta({
           {conta.lancamentos.map((l) => {
             const cancelado = l.status === 'cancelado'
             return (
-              <div key={l.id} className={`border-b border-border last:border-0 ${cancelado ? 'opacity-60' : ''}`}>
+              <div
+                key={l.id}
+                className={`border-b border-l-4 border-b-border last:border-b-0 ${BARRA_STATUS[l.status] ?? 'border-l-border'} ${cancelado ? 'opacity-60' : ''}`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2 bg-page px-4 py-2">
                   <span className="text-[12px]">
                     <strong className="text-text-main">#{l.numero}</strong>
@@ -408,10 +420,33 @@ export function PainelConta({
             </p>
           )}
 
-          {porPessoa.length > 0 && conta.totais.restante > 0 && (
-            <div className="mt-3 text-[12px] text-text-subtle">
-              <span className="font-semibold text-text-main">Dividir o que falta por {pessoas}:</span>{' '}
-              {porPessoa.every((v) => v === porPessoa[0]) ? `${brl(porPessoa[0])} cada` : porPessoa.map(brl).join(' · ')}
+          {conta.totais.restante > 0 && (
+            <div className="mt-3 rounded-menuzia border border-border px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-[12px] font-semibold text-text-main">
+                  <Users className="h-4 w-4 text-primary" /> Dividir por
+                </span>
+                <span className="flex items-center rounded-menuzia border border-border">
+                  <button type="button" aria-label="Menos pessoas" onClick={() => setDividirPor(Math.max(1, pessoas - 1))} className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30" disabled={pessoas <= 1}>
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="min-w-[24px] text-center text-[13px] font-bold">{pessoas}</span>
+                  <button type="button" aria-label="Mais pessoas" onClick={() => setDividirPor(Math.min(30, pessoas + 1))} className="grid h-9 w-9 place-items-center text-primary">
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+              </div>
+              {porPessoa.length > 0 && (
+                <p className="mt-1.5 text-[12px] text-text-subtle">
+                  {porPessoa.every((v) => v === porPessoa[0]) ? (
+                    <>
+                      <strong className="text-[14px] text-text-main">{brl(porPessoa[0]!)}</strong> para cada um
+                    </>
+                  ) : (
+                    porPessoa.map(brl).join(' · ')
+                  )}
+                </p>
+              )}
             </div>
           )}
 
@@ -598,71 +633,6 @@ function Linha({ rotulo, valor, forte }: { rotulo: string; valor: string; forte?
 }
 
 const INPUT = 'h-[44px] w-full lg:h-9 rounded-menuzia border border-border px-2.5 text-[13px] outline-none focus:border-primary'
-
-function DadosDaMesa({
-  conta,
-  podeAjustar,
-  podeAssumir,
-  executar,
-}: {
-  conta: ContaDaMesa
-  podeAjustar: boolean
-  podeAssumir: boolean
-  executar: (acao: string, corpo: Record<string, unknown>, sucesso: string) => Promise<unknown>
-}) {
-  const [pessoas, setPessoas] = useState(conta.pessoas ? String(conta.pessoas) : '')
-  const [obs, setObs] = useState(conta.observacoes ?? '')
-
-  useEffect(() => {
-    setPessoas(conta.pessoas ? String(conta.pessoas) : '')
-    setObs(conta.observacoes ?? '')
-    // Só quando a conta muda de verdade, não a cada releitura.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conta.comandaId])
-
-  return (
-    <div className="grid gap-3 rounded-menuzia border border-border bg-main p-4 sm:grid-cols-[110px_1fr_auto]">
-      <label className="block">
-        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Pessoas</span>
-        <input
-          value={pessoas}
-          inputMode="numeric"
-          disabled={!podeAjustar}
-          onChange={(e) => setPessoas(e.target.value.replace(/\D/g, '').slice(0, 2))}
-          onBlur={() => podeAjustar && executar('ajustar_mesa', { pessoas: pessoas || null }, 'Pessoas atualizadas.')}
-          className={INPUT}
-          placeholder="—"
-        />
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Observações</span>
-        <input
-          value={obs}
-          disabled={!podeAjustar}
-          onChange={(e) => setObs(e.target.value)}
-          onBlur={() => podeAjustar && obs !== (conta.observacoes ?? '') && executar('ajustar_mesa', { observacoes: obs }, 'Observações salvas.')}
-          className={INPUT}
-          placeholder="Ex.: aniversário, cadeira de bebê…"
-        />
-      </label>
-      <div>
-        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Responsável</span>
-        <div className="flex h-9 items-center gap-2 text-[13px]">
-          <span className="text-text-main">{conta.responsavelNome ?? '—'}</span>
-          {podeAssumir && (
-            <Button variant="outline" className="!px-2 text-[10px]" onClick={() => executar('ajustar_mesa', { assumir: true }, 'Você assumiu a mesa.')}>
-              Assumir
-            </Button>
-          )}
-        </div>
-      </div>
-      <p className="text-[11px] text-text-subtle sm:col-span-3">
-        {conta.numero ? <strong className="text-text-main">Comanda #{conta.numero} · </strong> : null}
-        Conta aberta às {hora(conta.abertaEm)}.
-      </p>
-    </div>
-  )
-}
 
 function AjusteValores({
   conta,
@@ -1023,95 +993,158 @@ export function Confirmacao({
   )
 }
 
+/** Ícone e cor por tipo de evento — o garçom lê a linha do tempo pela cor. */
+function estiloDoEvento(acao: string): { Icone: typeof Send; cor: string } {
+  if (acao === 'mesa.enviou_cozinha') return { Icone: Send, cor: 'bg-primary' }
+  if (acao === 'mesa.abriu') return { Icone: UserCheck, cor: 'bg-status-ready' }
+  if (acao === 'conta.pagamento' || acao === 'conta.fechou') return { Icone: CreditCard, cor: 'bg-status-ready' }
+  if (/cancel|estorno|recusou/.test(acao)) return { Icone: Ban, cor: 'bg-danger' }
+  if (/transferiu|mesclou/.test(acao)) return { Icone: ArrowRightLeft, cor: 'bg-purple' }
+  if (acao === 'conta.reimprimiu') return { Icone: Printer, cor: 'bg-sidebar-bg' }
+  return { Icone: Settings2, cor: 'bg-status-pending' }
+}
+
 /**
- * Linha do tempo da conta. Cada envio à cozinha abre o que foi lançado naquele envio:
- * itens, quantidades, tamanho/sabor, adicionais, observação e o que foi cancelado depois.
+ * Linha do tempo da conta. Cada envio à cozinha é um cartão: tocando nele abre, no centro
+ * da tela, o que foi pedido naquele lançamento (itens, tamanho/sabor, adicionais,
+ * observação, cancelados, status e total).
  */
 export function Historico({ eventos, lancamentos }: { eventos: EventoHistorico[]; lancamentos: LancamentoDaConta[] }) {
-  const [aberto, setAberto] = useState<string | null>(null)
-  if (eventos.length === 0) return <p className="text-[13px] text-text-subtle">Nada registrado ainda nesta conta.</p>
+  const [aberto, setAberto] = useState<LancamentoDaConta | null>(null)
+  if (eventos.length === 0) {
+    return (
+      <div className="rounded-menuzia border border-dashed border-border bg-main px-6 py-10 text-center">
+        <p className="text-[14px] font-semibold text-text-main">Nada registrado ainda nesta conta</p>
+        <p className="mt-1 text-[12px] text-text-subtle">Os envios à cozinha, pagamentos e mudanças aparecem aqui.</p>
+      </div>
+    )
+  }
   const porId = new Map(lancamentos.map((l) => [l.id, l]))
   return (
-    <ol className="rounded-menuzia border border-border bg-main">
-      {eventos.map((e, n) => {
-        const lanc = e.pedidoId ? porId.get(e.pedidoId) : undefined
-        const chave = `${n}:${e.quando}`
-        const expandido = aberto === chave
-        const cabecalho = (
-          <>
-            <span className="w-11 flex-shrink-0 pt-px text-[12px] font-semibold text-text-subtle">{hora(e.quando)}</span>
-            <span className="min-w-0 flex-1 text-[13px] text-text-main">
-              {e.oQue}
-              <span className="block text-[11px] text-text-subtle">
-                {e.quem}
-                {lanc && (
-                  <>
-                    {' · '}
-                    {lanc.itens.filter((i) => !i.cancelado).reduce((s, i) => s + i.quantidade, 0)} itens · {brl(lanc.total)}
-                  </>
-                )}
+    <>
+      <ol className="space-y-2">
+        {eventos.map((e, n) => {
+          const lanc = e.pedidoId ? porId.get(e.pedidoId) : undefined
+          const { Icone, cor } = estiloDoEvento(e.acao)
+          const conteudo = (
+            <>
+              <span className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-white ${cor}`}>
+                <Icone className="h-4 w-4" />
               </span>
-            </span>
-          </>
-        )
-        if (!lanc) {
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold leading-snug text-text-main">{e.oQue}</span>
+                <span className="block text-[11px] text-text-subtle">
+                  {hora(e.quando)} · {e.quem}
+                  {lanc && (
+                    <>
+                      {' · '}
+                      {lanc.itens.filter((i) => !i.cancelado).reduce((s, i) => s + i.quantidade, 0)} itens ·{' '}
+                      <strong className="text-price-text">{brl(lanc.total)}</strong>
+                    </>
+                  )}
+                </span>
+              </span>
+            </>
+          )
           return (
-            <li key={chave} className="flex gap-2.5 border-b border-border px-3 py-2.5 last:border-0 sm:px-4">
-              {cabecalho}
+            <li key={`${n}:${e.quando}`}>
+              {lanc ? (
+                <button
+                  type="button"
+                  onClick={() => setAberto(lanc)}
+                  className="flex min-h-[56px] w-full items-center gap-3 rounded-menuzia border border-border bg-main px-3 py-2.5 text-left shadow-sm transition-colors hover:border-primary active:scale-[0.99]"
+                  aria-label={`Ver o que foi pedido no lançamento #${lanc.numero}`}
+                >
+                  {conteudo}
+                  <span className="flex flex-shrink-0 items-center gap-0.5 text-[11px] font-bold uppercase text-primary">
+                    Ver
+                    <ChevronRight className="h-4 w-4" />
+                  </span>
+                </button>
+              ) : (
+                <div className="flex min-h-[56px] items-center gap-3 rounded-menuzia border border-border bg-main px-3 py-2.5">{conteudo}</div>
+              )}
             </li>
           )
-        }
-        const status = STATUS_LANCAMENTO[lanc.status] ?? { rotulo: lanc.status, tom: 'alert' as const }
-        return (
-          <li key={chave} className="border-b border-border last:border-0">
-            <button
-              onClick={() => setAberto(expandido ? null : chave)}
-              aria-expanded={expandido}
-              className="flex min-h-[48px] w-full items-start gap-2.5 px-3 py-2.5 text-left hover:bg-page sm:px-4"
-            >
-              {cabecalho}
-              <span className="flex flex-shrink-0 items-center gap-1 pt-px text-[11px] font-bold uppercase text-primary">
-                {expandido ? 'Fechar' : 'Ver itens'}
-                <ChevronDown className={`h-4 w-4 transition-transform ${expandido ? 'rotate-180' : ''}`} />
+        })}
+      </ol>
+
+      {aberto && <JanelaDoLancamento lanc={aberto} onFechar={() => setAberto(null)} />}
+    </>
+  )
+}
+
+/** O lançamento inteiro, grande, no centro da tela. */
+function JanelaDoLancamento({ lanc, onFechar }: { lanc: LancamentoDaConta; onFechar: () => void }) {
+  const status = STATUS_LANCAMENTO[lanc.status] ?? { rotulo: lanc.status, tom: 'alert' as const }
+  const qtd = lanc.itens.filter((i) => !i.cancelado).reduce((s, i) => s + i.quantidade, 0)
+  useEffect(() => {
+    const esc = (ev: KeyboardEvent) => ev.key === 'Escape' && onFechar()
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onFechar])
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+      onClick={onFechar}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Lançamento #${lanc.numero}`}
+        className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        data-janela-lancamento
+      >
+        <div className="flex items-start justify-between gap-2 bg-primary px-4 py-3 text-white">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">Enviado à cozinha às {hora(lanc.criadoEm)}</div>
+            <div className="text-[18px] font-extrabold leading-tight">Lançamento #{lanc.numero}</div>
+            <div className="text-[11px] opacity-85">{lanc.criadoPorNome ? `por ${lanc.criadoPorNome}` : ''}</div>
+          </div>
+          <button onClick={onFechar} aria-label="Fechar" className="-mr-1 grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-menuzia hover:bg-white/15">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-text-subtle">
+          <Badge tone={status.tom}>{status.rotulo}</Badge>
+          <span className={`flex items-center gap-1 font-semibold ${lanc.impresso ? 'text-status-ready' : 'text-status-pending'}`}>
+            <Printer className="h-3.5 w-3.5" />
+            {lanc.impresso ? 'Impresso na cozinha' : 'Aguardando impressão'}
+          </span>
+        </div>
+
+        <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
+          {lanc.itens.map((i) => (
+            <li key={i.id} className={`flex items-start gap-3 px-4 py-3 ${i.cancelado ? 'bg-danger-bg/40' : ''}`}>
+              <span className={`grid h-8 min-w-[32px] flex-shrink-0 place-items-center rounded-menuzia px-1 text-[13px] font-extrabold ${i.cancelado ? 'bg-border text-text-subtle' : 'bg-primary/10 text-primary'}`}>
+                {i.quantidade}×
               </span>
-            </button>
-            {expandido && (
-              <div className="mx-3 mb-3 rounded-menuzia border border-border bg-page sm:mx-4" data-itens-lancamento>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3 py-2 text-[11px] text-text-subtle">
-                  <strong className="text-[12px] text-text-main">Lançamento #{lanc.numero}</strong>
-                  <Badge tone={status.tom}>{status.rotulo}</Badge>
-                  <span>{lanc.impresso ? 'Impresso na cozinha' : 'Aguardando impressão'}</span>
-                </div>
-                <ul className="divide-y divide-border">
-                  {lanc.itens.map((i) => (
-                    <li key={i.id} className="flex items-start gap-2 px-3 py-2">
-                      <span className={`min-w-0 flex-1 text-[13px] ${i.cancelado ? 'text-text-subtle' : 'text-text-main'}`}>
-                        <span className={i.cancelado ? 'line-through' : ''}>
-                          <strong>{i.quantidade}×</strong> {i.nome}
-                        </span>
-                        {variacaoDoItem(i) && <span className="block text-[11px] text-text-subtle">{variacaoDoItem(i)}</span>}
-                        {i.observacao && <span className="block text-[11px] italic text-text-subtle">Obs.: {i.observacao}</span>}
-                        {i.cancelado && (
-                          <span className="block text-[11px] text-danger">
-                            Cancelado{i.canceladoPor ? ` por ${i.canceladoPor}` : ''}{i.canceladoMotivo ? `: ${i.canceladoMotivo}` : ''}
-                          </span>
-                        )}
-                      </span>
-                      <span className={`flex-shrink-0 text-[12px] font-semibold ${i.cancelado ? 'text-text-subtle line-through' : 'text-price-text'}`}>
-                        {brl(i.precoUnitario * i.quantidade)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex items-center justify-between border-t border-border px-3 py-2 text-[12px]">
-                  <span className="text-text-subtle">Total do lançamento</span>
-                  <strong className="text-price-text">{brl(lanc.total)}</strong>
-                </div>
-              </div>
-            )}
-          </li>
-        )
-      })}
-    </ol>
+              <span className="min-w-0 flex-1">
+                <span className={`block text-[14px] font-semibold ${i.cancelado ? 'text-text-subtle line-through' : 'text-text-main'}`}>{i.nome}</span>
+                {variacaoDoItem(i) && <span className="block text-[12px] text-text-subtle">{variacaoDoItem(i)}</span>}
+                {i.observacao && (
+                  <span className="mt-1 inline-block rounded-menuzia bg-warn-bg px-1.5 py-0.5 text-[11px] font-semibold text-text-main">Obs.: {i.observacao}</span>
+                )}
+                {i.cancelado && (
+                  <span className="block text-[11px] font-semibold text-danger">
+                    Cancelado{i.canceladoPor ? ` por ${i.canceladoPor}` : ''}{i.canceladoMotivo ? `: ${i.canceladoMotivo}` : ''}
+                  </span>
+                )}
+              </span>
+              <span className={`flex-shrink-0 text-[13px] font-bold ${i.cancelado ? 'text-text-subtle line-through' : 'text-price-text'}`}>
+                {brl(i.precoUnitario * i.quantidade)}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex items-center justify-between border-t border-border bg-page px-4 py-3">
+          <span className="text-[12px] text-text-subtle">{qtd} {qtd === 1 ? 'item' : 'itens'}</span>
+          <span className="text-[16px] font-extrabold text-price-text">{brl(lanc.total)}</span>
+        </div>
+      </div>
+    </div>
   )
 }

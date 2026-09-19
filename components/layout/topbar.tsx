@@ -1,15 +1,18 @@
 'use client'
 
 import { useContext } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { MenuLateralContext } from './menu-lateral-contexto'
 
 export interface TopBarProps {
   title: string
   breadcrumb: string
   right?: React.ReactNode
+  /** Botão de voltar no canto superior esquerdo (telas de detalhe). */
+  voltar?: { rotulo: string; onClick: () => void }
 }
 
-export function TopBar({ title, breadcrumb, right }: TopBarProps) {
+export function TopBar({ title, breadcrumb, right, voltar }: TopBarProps) {
   // Abaixo de `lg` a sidebar é gaveta, e é a barra de topo que a abre. O contexto evita
   // passar a função por todas as telas do painel só para chegar aqui.
   const menu = useContext(MenuLateralContext)
@@ -19,6 +22,17 @@ export function TopBar({ title, breadcrumb, right }: TopBarProps) {
   return (
     <header className="flex min-h-[60px] flex-shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-b border-border bg-main px-3 py-2 sm:h-[60px] sm:flex-nowrap sm:py-0 sm:px-5">
       <div className="flex min-w-0 items-center gap-2">
+        {voltar && (
+          <button
+            onClick={voltar.onClick}
+            aria-label={voltar.rotulo}
+            title={voltar.rotulo}
+            className="-ml-1 flex h-[44px] flex-shrink-0 items-center gap-1 rounded-menuzia px-2 text-primary hover:bg-primary/10"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span className="hidden text-[12px] font-bold uppercase tracking-wide sm:inline">{voltar.rotulo}</span>
+          </button>
+        )}
         {menu && (
           <button
             className="-ml-1 flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-menuzia text-text-subtle hover:bg-page hover:text-text-main lg:hidden"

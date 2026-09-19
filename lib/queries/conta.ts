@@ -395,6 +395,8 @@ export interface EventoHistorico {
    * que foi enviado à cozinha naquele lançamento (itens de `conta.lancamentos`).
    */
   pedidoId: string | null
+  /** Código da ação (`mesa.enviou_cozinha`, `conta.pagamento`…) — a tela usa para cor e ícone. */
+  acao: string
 }
 
 /** Linha do tempo da conta aberta: eventos auditados da comanda e dos lançamentos dela. */
@@ -440,13 +442,13 @@ export function montarHistorico(
       e.acao === 'mesa.enviou_cozinha' && numero !== undefined
         ? `Enviou o lançamento #${String(numero)} para a cozinha`
         : `${ROTULO_EVENTO[e.acao] ?? e.acao}${detalheDoEvento(e.dados)}`
-    return { quando: e.criado_em, quem: e.usuario_nome, oQue, pedidoId }
+    return { quando: e.criado_em, quem: e.usuario_nome, oQue, pedidoId, acao: e.acao }
   })
 
   const comEnvio = new Set(linhas.filter((e) => e.acao === 'mesa.enviou_cozinha').map((e) => e.entidade_id))
   for (const l of lancamentos) {
     if (comEnvio.has(l.id)) continue
-    eventos.push({ quando: l.criadoEm, quem: l.criadoPorNome ?? '—', oQue: `Lançamento #${l.numero} enviado para a cozinha`, pedidoId: l.id })
+    eventos.push({ quando: l.criadoEm, quem: l.criadoPorNome ?? '—', oQue: `Lançamento #${l.numero} enviado para a cozinha`, pedidoId: l.id, acao: 'mesa.enviou_cozinha' })
   }
   return eventos.sort((a, b) => b.quando.localeCompare(a.quando))
 }
