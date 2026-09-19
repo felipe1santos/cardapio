@@ -1515,11 +1515,13 @@ const TOKENS = `
 .mesa-marca-dagua img { width: 22px; height: 22px; filter: grayscale(1); opacity: .7; }
 .mesa-marca-dagua span { font-size: 13px; font-weight: 800; letter-spacing: .04em; color: var(--desabilitado); text-transform: lowercase; }
 .mesa-ver-fundo { padding: 12px; }
-.mesa-ver { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 640px; max-height: calc(100dvh - 24px); background: var(--superficie); border-radius: var(--raio); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
-.mesa-ver-foto { flex-shrink: 0; background: #F2F5F8; display: grid; place-items: center; max-height: 55dvh; min-height: 140px; }
-.mesa-ver-foto img { display: block; width: 100%; height: 100%; max-height: 55dvh; object-fit: contain; }
-.mesa-ver-foto .mesa-card-foto-vazia { height: 180px; font-size: 48px; }
-.mesa-ver-texto { padding: 16px 18px 20px; overflow-y: auto; }
+/* Ficha do modo visualização: foto à esquerda (inteira, sem corte) e, à direita, nome,
+   descrição e sabores — a coluna da direita rola sozinha quando a lista é longa. */
+.mesa-ver { position: relative; display: flex; flex-direction: row; align-items: stretch; width: 100%; max-width: 960px; max-height: min(88dvh, 720px); background: var(--superficie); border-radius: var(--raio); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+.mesa-ver-foto { flex: 0 0 46%; min-width: 0; background: #F2F5F8; display: flex; align-items: center; justify-content: center; }
+.mesa-ver-foto img { display: block; width: 100%; height: 100%; max-height: min(88dvh, 720px); object-fit: contain; }
+.mesa-ver-foto .mesa-card-foto-vazia { height: 100%; min-height: 180px; font-size: 48px; }
+.mesa-ver-texto { flex: 1 1 auto; min-width: 0; min-height: 0; padding: 16px 16px 20px; overflow-y: auto; }
 .mesa-ver-texto h2 { margin: 0 44px 6px 0; font-size: 20px; font-weight: 800; line-height: 1.25; }
 .mesa-ver-texto > p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--suave); white-space: pre-line; }
 .mesa-ver-sabores { margin-top: 16px; }
@@ -1528,6 +1530,11 @@ const TOKENS = `
 .mesa-ver-sabores li { padding: 9px 0; border-top: 1px solid var(--borda); display: flex; flex-direction: column; gap: 2px; }
 .mesa-ver-sabores li strong { font-size: 14px; font-weight: 700; }
 .mesa-ver-sabores li span { font-size: 12px; color: var(--suave); line-height: 1.4; }
+@media (max-width: 480px) {
+  .mesa-ver-foto { flex-basis: 42%; }
+  .mesa-ver-texto { padding: 12px 12px 16px; }
+  .mesa-ver-texto h2 { font-size: 17px; }
+}
 .mesa-aviso-rodape { display: flex; align-items: flex-start; gap: 10px; margin: 18px 0 12px; padding: 12px 14px; background: var(--superficie); border: 1px solid var(--borda); border-left: 4px solid var(--coral); border-radius: var(--raio); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 .mesa-aviso-rodape p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto); }
 .mesa-aviso-icone { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 13px; font-weight: 800; font-style: italic; font-family: Georgia, serif; }
