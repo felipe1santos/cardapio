@@ -6,21 +6,22 @@ import { pode, type Permissao } from '@/lib/auth/permissoes'
  * "Mesas e Comandas" é item PRÓPRIO do menu principal, junto das áreas de operação
  * (Painel de Pedidos, PDV) — é por ele que se trabalha nas mesas. Ajustes › Mesas é só
  * configuração do módulo.
+ *
+ * Auditoria não tem item no menu: a tela continua em /admin/auditoria para quem tem
+ * permissão (link direto), só não ocupa espaço na barra. Nenhum item leva selo "novidade".
  */
 export const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/pedidos', label: 'Painel de Pedidos' },
   { href: '/admin/pdv', label: 'PDV' },
-  // Sem selo "novidade": com ele o nome truncava ("Mesas e Coma…") na barra de 240px.
   { href: '/admin/mesas', label: 'Mesas e Comandas' },
   { href: '/admin/logistica', label: 'Logística' },
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
-  { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
-  { href: '/admin/fidelidade', label: 'Fidelidade', novidade: true },
-  { href: '/admin/integracoes', label: 'Integrações', novidade: true },
-  { href: '/admin/equipe', label: 'Equipe', novidade: true },
-  { href: '/admin/auditoria', label: 'Auditoria', novidade: true },
+  { href: '/admin/campanhas', label: 'Campanhas' },
+  { href: '/admin/fidelidade', label: 'Fidelidade' },
+  { href: '/admin/integracoes', label: 'Integrações' },
+  { href: '/admin/equipe', label: 'Equipe' },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ] as const
 
@@ -44,7 +45,6 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/fidelidade': 'fidelidade.gerenciar',
   '/admin/integracoes': 'integracoes.gerenciar',
   '/admin/equipe': 'equipe.gerenciar',
-  '/admin/auditoria': 'auditoria.ver',
   '/admin/ajustes': 'ajustes.editar',
 }
 

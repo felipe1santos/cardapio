@@ -2,23 +2,41 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRightLeft, Check, Plus, Send, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Check, Search, ShoppingBag, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, listarGrupos, listarItens, type ItemCardapio, type GrupoCardapio } from '@/lib/queries/cardapio'
 import { listarMesas, type Mesa } from '@/lib/queries/mesas'
 import { buscarComandaAberta, listarPedidosDaComanda, calcularTotalComanda } from '@/lib/queries/comandas'
 import type { Pedido } from '@/lib/queries/pedidos'
 import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-sessao'
-import { validarOpcoes, minimoDoGrupo, maximoDoGrupo, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
-import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
+import { buscarRegraPrecoPizza, listarBordasPizza, listarMassasPizza, listarTamanhosPadraoPizza } from '@/lib/queries/pizza'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
+import {
+  TEXTO_MOTIVO,
+  adicionarAoLancamento,
+  bloqueioDoEnvio,
+  buscarItens,
+  categoriaAtivaValida,
+  categoriasComItens,
+  itemSimples,
+  itensLancaveis,
+  motivoIndisponivel,
+  precoEstimado,
+  resolverDaSelecao,
+  resumoIndisponibilidade,
+  totalDoLancamento,
+  type EscolhaItem,
+  type LinhaLancamento,
+  type LinhaSelecao,
+  type Relogio,
+} from '@/lib/garcom-catalogo'
 import { listarChamadosAbertos, type Chamado } from '@/lib/queries/chamados'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { PainelChamados, useRelogio } from '../chamados'
 import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaOpcao } from './conta'
+import { CardProduto, ConfiguradorGarcom, PainelLancamento, SelecaoDoCliente, SemItens, brl, type DadosPizza } from './lancar'
 
 /**
  * Painel do garçom para uma mesa.
@@ -26,44 +44,31 @@ import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaO
  * Três blocos que não se misturam, de propósito:
  *
  * 1. **Seleção do cliente** — o que ele marcou no celular pelo QR. Fica em bloco
- *    separado, marcado como NÃO lançado, e é só referência: nada aqui importa itens
- *    automaticamente para a comanda.
- * 2. **Lançamento** — o que o garçom monta à mão, escolhendo do catálogo.
+ *    separado, marcado como NÃO lançado. Nada entra sozinho: o garçom toca em
+ *    "Adicionar" item a item (ou na seleção toda), e mesmo assim o item passa pela
+ *    disponibilidade e pelo preço de agora.
+ * 2. **Lançamento** — o que vai para a cozinha no próximo envio, montado à mão.
  * 3. **Já lançado** — os pedidos oficiais que a cozinha recebeu.
+ *
+ * O catálogo é o mesmo do delivery (`itens_cardapio`); `lib/garcom-catalogo.ts` decide o
+ * que pode ser lançado agora e quais categorias aparecem. A tela abre na primeira
+ * categoria que TEM item — antes abria na primeira cadastrada, mesmo fora do horário, e
+ * mostrava "Nenhum item aqui" com Bebidas disponível ao lado.
  *
  * O garçom lança e envia. Ele não avança o preparo (isso é da cozinha) e não confirma
  * entrega — ele serve a mesa e pronto.
  */
 
-interface LinhaSelecaoCliente {
-  nome: string
-  quantidade: number
-  precoUnitario: number
-  observacao: string
-  opcoes: { grupo: string; escolha: string; preco: number }[]
-}
+const RELOGIO: Relogio = { disponivelHoje: itemDisponivelHoje, categoriaAtiva: grupoEstaAtivoAgora }
 
-interface LinhaLancamento {
-  chave: string
-  itemId: string
-  nome: string
-  /** Preço unitário JÁ somado com as opções — só para exibir; o servidor reprecifica. */
-  preco: number
-  quantidade: number
-  observacao: string
-  complementos: { nome: string; preco: number }[]
-  /** Motivo pelo qual o servidor recusou esta linha no último envio. Null = tudo certo. */
-  indisponivel?: string | null
+interface Configurando {
+  item: ItemCardapio
+  inicial?: Partial<EscolhaItem>
+  aviso?: string | null
+  /** Chave da linha em edição. Sem ela, o configurador adiciona uma linha nova. */
+  editar?: string
+  origemSelecao?: string
 }
-
-/** Grupos do item com pelo menos uma opção disponível — são os que viram etapa. */
-function gruposComOpcao(item: ItemCardapio) {
-  return item.grupos
-    .map((g) => ({ ...g, complementos: g.complementos.filter((c) => !c.pausado) }))
-    .filter((g) => g.complementos.length > 0)
-}
-
-const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export default function MesaDetalhePage() {
   const params = useParams<{ id: string }>()
@@ -86,8 +91,13 @@ export default function MesaDetalhePage() {
   // Motivo digitado na troca de mesa, guardado para a confirmação de "juntar contas".
   const [motivoTroca, setMotivoTroca] = useState('')
   const [grupos, setGrupos] = useState<GrupoCardapio[]>([])
-  const [itens, setItens] = useState<ItemCardapio[]>([])
-  const [selecaoCliente, setSelecaoCliente] = useState<LinhaSelecaoCliente[]>([])
+  // O cardápio INTEIRO da loja; o que pode ser lançado agora é derivado (e recalculado
+  // a cada minuto, para uma categoria que abre ou fecha com a tela aberta).
+  const [todos, setTodos] = useState<ItemCardapio[]>([])
+  const [pizza, setPizza] = useState<DadosPizza>({ tamanhos: [], bordas: [], massas: [], regra: 'media' })
+  const [selecaoCliente, setSelecaoCliente] = useState<LinhaSelecao[]>([])
+  const [selecaoAberta, setSelecaoAberta] = useState(true)
+  const [avisoSelecao, setAvisoSelecao] = useState<string | null>(null)
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [lancamento, setLancamento] = useState<LinhaLancamento[]>([])
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null)
@@ -96,7 +106,9 @@ export default function MesaDetalhePage() {
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [enviado, setEnviado] = useState<{ numero: number } | null>(null)
-  const [configurando, setConfigurando] = useState<ItemCardapio | null>(null)
+  const [configurando, setConfigurando] = useState<Configurando | null>(null)
+  // Celular/tablet: o lançamento abre numa folha por cima do cardápio.
+  const [folhaAberta, setFolhaAberta] = useState(false)
   // Versões das seleções do cliente que ESTA tela está mostrando. O envio manda isso, e
   // o servidor só encerra o que ainda estiver nessa versão — lista que o cliente mudou
   // depois continua aberta.
@@ -130,18 +142,7 @@ export default function MesaDetalhePage() {
     setMesa(alvo)
     setMesasDaLoja(mesas.map((m) => ({ id: m.id, nome: m.nome, ativa: m.ativa, bloqueada: m.bloqueada })))
     setGrupos(gruposDb)
-    // Mesmo catálogo do delivery, filtrado pelo canal do salão e pelo dia (0069). O
-     // servidor confere de novo no envio: aba aberta antes da mudança não fura a regra.
-    setItens(
-      itensDb.filter(
-        (i) =>
-          i.status === 'disponivel' &&
-          itemDisponivelNoCanal(i, 'mesa') &&
-          itemDisponivelHoje(i.diasDisponiveis) &&
-          categoriaNoHorario(i, gruposDb, grupoEstaAtivoAgora),
-      ),
-    )
-    setCategoriaAtiva((atual) => atual ?? gruposDb[0]?.id ?? null)
+    setTodos(itensDb)
 
     // Pedidos já lançados nesta mesa.
     const comanda = await buscarComandaAberta(supabase, restauranteId, params.id).catch(() => null)
@@ -152,13 +153,17 @@ export default function MesaDetalhePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, params.id])
 
-  /** Seleção do cliente: referência, nunca importada. Só os ciclos ainda abertos. */
+  /** Seleção do cliente: referência. Só entra no lançamento por ação do garçom. */
   const recarregarSelecao = useCallback(async () => {
     const abertas = await listarSelecoesAbertas(supabase, params.id).catch(() => [])
     setSelecoesVistas(abertas.map((a) => ({ id: a.id, versao: a.versao })))
     setSelecaoCliente(
       abertas.flatMap((a) =>
-        a.itens.map((i) => ({
+        a.itens.map((i, n) => ({
+          // Versão na chave: se o cliente mexe na lista, o "adicionado" da versão
+          // anterior não gruda numa linha que agora é outra.
+          chave: `${a.id}:${a.versao}:${n}`,
+          itemId: i.itemId,
           nome: i.nome,
           quantidade: i.quantidade,
           precoUnitario: i.precoUnitario,
@@ -168,6 +173,21 @@ export default function MesaDetalhePage() {
       ),
     )
   }, [supabase, params.id])
+
+  // Tamanhos, bordas e massas de pizza: mudam pouco, carregam uma vez. Loja sem pizza
+  // devolve listas vazias; erro de leitura só deixa o configurador sem essas opções.
+  useEffect(() => {
+    if (!restauranteId) return
+    void (async () => {
+      const [tamanhos, bordas, massas, regra] = await Promise.all([
+        listarTamanhosPadraoPizza(supabase, restauranteId).catch(() => []),
+        listarBordasPizza(supabase, restauranteId).catch(() => []),
+        listarMassasPizza(supabase, restauranteId).catch(() => []),
+        buscarRegraPrecoPizza(supabase, restauranteId).catch(() => 'media' as const),
+      ])
+      setPizza({ tamanhos, bordas, massas, regra })
+    })()
+  }, [supabase, restauranteId])
 
   // Chamado da mesa em tempo real, com o polling como rede de segurança. O cliente pode
   // chamar enquanto o garçom já está na tela dela.
@@ -196,58 +216,166 @@ export default function MesaDetalhePage() {
     void carregar()
   }, [carregar])
 
-  const visiveis = useMemo(() => {
-    const termo = busca.trim().toLowerCase()
-    if (termo) return itens.filter((i) => i.nome.toLowerCase().includes(termo))
-    return itens.filter((i) => i.grupoId === categoriaAtiva)
-  }, [itens, categoriaAtiva, busca])
+  // ── catálogo derivado ─────────────────────────────────────────────────────
+  // `agora` entra nas dependências para recalcular quando uma categoria abre ou fecha.
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const lancaveis = useMemo(() => itensLancaveis(todos, grupos, RELOGIO), [todos, grupos, agora])
+  const resumo = useMemo(() => resumoIndisponibilidade(todos, grupos, RELOGIO), [todos, grupos, agora])
+  const foraDoHorario = useMemo(
+    () => grupos.filter((g) => !grupoEstaAtivoAgora(g) && todos.some((i) => i.grupoId === g.id && i.status === 'disponivel')),
+    [grupos, todos, agora],
+  )
+  /* eslint-enable react-hooks/exhaustive-deps */
+  const categorias = useMemo(() => categoriasComItens(grupos, lancaveis), [grupos, lancaveis])
+  // A categoria aberta é sempre uma que tem item: a escolhida, se ainda vale; senão a
+  // primeira disponível. Cobre a abertura da tela e a categoria que fecha com ela aberta.
+  const categoriaAberta = categoriaAtivaValida(categoriaAtiva, categorias)
+  const nomeCategoria = useMemo(() => new Map(grupos.map((g) => [g.id, g.nome])), [grupos])
+  const buscando = busca.trim().length > 0
+  const visiveis = useMemo(
+    () => (buscando ? buscarItens(lancaveis, busca) : lancaveis.filter((i) => i.grupoId === categoriaAberta)),
+    [lancaveis, busca, buscando, categoriaAberta],
+  )
 
-  const totalLancamento = lancamento.reduce((s, l) => s + l.preco * l.quantidade, 0)
+  // Linha cujo item saiu do ar depois de entrar no lançamento: marcada, e o envio trava.
+  const linhas = useMemo(
+    () =>
+      lancamento.map((l) => {
+        if (l.indisponivel) return l
+        const m = motivoIndisponivel(todos.find((i) => i.id === l.itemId), grupos, RELOGIO)
+        return m ? { ...l, indisponivel: `Indisponível agora: ${TEXTO_MOTIVO[m]}.` } : l
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lancamento, todos, grupos, agora],
+  )
+  const bloqueio = bloqueioDoEnvio(linhas, enviando)
+  const resumoLancamento = totalDoLancamento(linhas)
   const totalComanda = calcularTotalComanda(pedidos)
+  const qtdNoLancamento = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const l of lancamento) m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.quantidade)
+    return m
+  }, [lancamento])
 
-  /** Toque no item: se tem opções, abre o configurador; senão entra direto. */
-  function tocarItem(item: ItemCardapio) {
-    if (gruposComOpcao(item).length > 0) {
-      setConfigurando(item)
-      return
+  // ── seleção do cliente → lançamento ───────────────────────────────────────
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const resolucoes = useMemo(
+    () => new Map(selecaoCliente.map((s) => [s.chave, resolverDaSelecao(s, todos, grupos, RELOGIO)])),
+    [selecaoCliente, todos, grupos, agora],
+  )
+  /* eslint-enable react-hooks/exhaustive-deps */
+  const adicionadas = useMemo(
+    () => new Set(lancamento.map((l) => l.origemSelecao).filter((x): x is string => !!x)),
+    [lancamento],
+  )
+
+  // Abre a seleção quando o cliente marca algo novo; o garçom pode recolher depois.
+  const qtdSelecao = selecaoCliente.length
+  useEffect(() => {
+    if (qtdSelecao > 0) setSelecaoAberta(true)
+  }, [qtdSelecao])
+
+  /** Adiciona uma linha da seleção. Devolve o que aconteceu, para o aviso agrupado. */
+  function adicionarDaSelecao(chave: string, abrirConfigurador: boolean): 'ok' | 'preco' | 'configurar' | 'indisponivel' {
+    const sel = selecaoCliente.find((s) => s.chave === chave)
+    if (!sel || adicionadas.has(chave)) return 'indisponivel'
+    const r = resolverDaSelecao(sel, todos, grupos, RELOGIO)
+    if (r.tipo === 'indisponivel') return 'indisponivel'
+    if (r.tipo === 'configurar') {
+      if (abrirConfigurador) setConfigurando({ item: r.item, inicial: r.preescolha, aviso: r.motivo, origemSelecao: chave })
+      return 'configurar'
     }
-    adicionar(item, [])
+    setLancamento((atual) => adicionarAoLancamento(atual, r.linha))
+    return r.precoMudou ? 'preco' : 'ok'
   }
 
-  function adicionar(item: ItemCardapio, complementos: { nome: string; preco: number }[]) {
-    const assinatura = complementos.map((c) => c.nome).sort().join('|')
-    const precoBase = item.promocaoPreco ?? item.preco
-    setLancamento((atual) => {
-      // Mesmo item, mesmas opções e sem observação junta na linha existente: o garçom
-      // toca três vezes no mesmo prato e não quer ver três linhas iguais. Opções
-      // diferentes (um ao ponto, outro bem passado) ficam separadas — a cozinha precisa
-      // ver a diferença.
-      const existente = atual.find(
-        (l) =>
-          l.itemId === item.id &&
-          !l.observacao &&
-          l.complementos.map((c) => c.nome).sort().join('|') === assinatura,
+  function adicionarUmaDaSelecao(chave: string) {
+    const r = adicionarDaSelecao(chave, true)
+    const sel = selecaoCliente.find((s) => s.chave === chave)
+    const res = resolucoes.get(chave)
+    if (r === 'preco' && sel && res?.tipo === 'pronto') {
+      setAvisoSelecao(`"${sel.nome}" entrou com o preço atual: ${brl(res.linha.preco)} cada.`)
+    } else if (r === 'ok') {
+      setAvisoSelecao(null)
+    }
+  }
+
+  function adicionarSelecaoToda() {
+    let ok = 0
+    let preco = 0
+    const configurar: string[] = []
+    for (const s of selecaoCliente) {
+      if (adicionadas.has(s.chave)) continue
+      const r = adicionarDaSelecao(s.chave, false)
+      if (r === 'ok') ok++
+      else if (r === 'preco') { ok++; preco++ }
+      else if (r === 'configurar') configurar.push(s.chave)
+    }
+    const partes = [`${ok} ${ok === 1 ? 'item adicionado' : 'itens adicionados'}.`]
+    if (preco > 0) partes.push(`${preco} com preço atualizado.`)
+    if (configurar.length > 0) partes.push(`${configurar.length} ${configurar.length === 1 ? 'precisa' : 'precisam'} de escolha: toque em "Configurar".`)
+    setAvisoSelecao(partes.join(' '))
+    // Um item só a configurar: já abre, é o próximo passo óbvio.
+    if (configurar.length === 1) adicionarDaSelecao(configurar[0]!, true)
+  }
+
+  // ── lançamento ────────────────────────────────────────────────────────────
+
+  /** Toque no item: simples entra direto com 1; com escolha, abre o configurador. */
+  function tocarItem(item: ItemCardapio) {
+    if (!itemSimples(item)) {
+      setConfigurando({ item })
+      return
+    }
+    setLancamento((atual) =>
+      adicionarAoLancamento(atual, {
+        chave: crypto.randomUUID(),
+        itemId: item.id,
+        nome: item.nome,
+        preco: precoEstimado(item, { complementos: [] }),
+        quantidade: 1,
+        observacao: '',
+        complementos: [],
+      }),
+    )
+  }
+
+  function confirmarConfigurador(escolha: EscolhaItem, preco: number) {
+    if (!configurando) return
+    const { item, editar, origemSelecao } = configurando
+    if (editar) {
+      setLancamento((atual) =>
+        atual.map((l) => (l.chave === editar ? { ...l, ...escolha, preco, indisponivel: null } : l)),
       )
-      if (existente) {
-        return atual.map((l) => (l === existente ? { ...l, quantidade: Math.min(99, l.quantidade + 1) } : l))
-      }
-      return [
-        ...atual,
-        {
-          chave: crypto.randomUUID(),
-          itemId: item.id,
-          nome: item.nome,
-          preco: precoBase + complementos.reduce((s, c) => s + c.preco, 0),
-          quantidade: 1,
-          observacao: '',
-          complementos,
-        },
-      ]
-    })
+    } else {
+      setLancamento((atual) =>
+        adicionarAoLancamento(atual, { chave: crypto.randomUUID(), itemId: item.id, nome: item.nome, preco, origemSelecao, ...escolha }),
+      )
+    }
+    setConfigurando(null)
+  }
+
+  function editarLinha(chave: string) {
+    const l = lancamento.find((x) => x.chave === chave)
+    const item = l ? todos.find((i) => i.id === l.itemId) : undefined
+    if (!l || !item) return
+    setConfigurando({ item, inicial: l, editar: chave })
+  }
+
+  function mudarQuantidade(chave: string, delta: number) {
+    setLancamento((atual) =>
+      atual
+        .map((x) => (x.chave === chave ? { ...x, quantidade: Math.min(99, x.quantidade + delta) } : x))
+        .filter((x) => x.quantidade > 0),
+    )
+  }
+
+  function removerLinha(chave: string) {
+    setLancamento((atual) => atual.filter((x) => x.chave !== chave))
   }
 
   async function enviarParaCozinha() {
-    if (lancamento.length === 0 || enviando) return
+    if (bloqueioDoEnvio(linhas, enviando)) return
     setEnviando(true)
     setErro(null)
     try {
@@ -257,11 +385,16 @@ export default function MesaDetalhePage() {
         body: JSON.stringify({
           chaveIdempotencia: chaveLancamento,
           selecoesVistas,
-          itens: lancamento.map((l) => ({
+          // Só o bloco Lançamento. A seleção do cliente nunca vai junto.
+          itens: linhas.map((l) => ({
             itemId: l.itemId,
             quantidade: l.quantidade,
             observacao: l.observacao,
             complementos: l.complementos.map((c) => c.nome),
+            ...(l.tamanhoNome ? { tamanhoNome: l.tamanhoNome } : {}),
+            ...(l.saborNome ? { saborNome: l.saborNome } : {}),
+            ...(l.bordaNome ? { bordaNome: l.bordaNome } : {}),
+            ...(l.massaNome ? { massaNome: l.massaNome } : {}),
           })),
         }),
       })
@@ -280,6 +413,8 @@ export default function MesaDetalhePage() {
         throw new Error(corpo.error ?? 'Não foi possível enviar.')
       }
       setLancamento([])
+      setAvisoSelecao(null)
+      setFolhaAberta(false)
       // Só depois do sucesso a chave troca: o próximo lançamento é outro pedido.
       setChaveLancamento(crypto.randomUUID())
       setEnviado({ numero: corpo.numero })
@@ -337,6 +472,21 @@ export default function MesaDetalhePage() {
     )
   }
 
+  const naAbaLancar = aba === 'lancar' && podeLancar
+  const painel = (classeLista: string) => (
+    <PainelLancamento
+      linhas={linhas}
+      erro={erro}
+      bloqueio={bloqueio}
+      enviando={enviando}
+      classeLista={classeLista}
+      onQuantidade={mudarQuantidade}
+      onEditar={editarLinha}
+      onRemover={removerLinha}
+      onEnviar={enviarParaCozinha}
+    />
+  )
+
   return (
     <>
       <TopBar
@@ -345,20 +495,20 @@ export default function MesaDetalhePage() {
         right={
           <>
             {permissoesConta.transferir_mesa && estadoConta.dados?.conta && (
-              <Button variant="outline" onClick={() => setTransferindoMesa(true)}>
-                <ArrowRightLeft className="mr-1.5 inline h-3.5 w-3.5" />
-                Trocar de mesa
+              <Button variant="outline" onClick={() => setTransferindoMesa(true)} aria-label="Trocar de mesa" title="Trocar de mesa">
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Trocar de mesa</span>
               </Button>
             )}
-            <Button variant="outline" onClick={() => router.push('/admin/mesas')}>
-              <ArrowLeft className="mr-1.5 inline h-3.5 w-3.5" />
-              Voltar ao salão
+            <Button variant="outline" onClick={() => router.push('/admin/mesas')} aria-label="Voltar ao salão" title="Voltar ao salão">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Voltar ao salão</span>
             </Button>
           </>
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {podeLancar && <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />}
 
         {avisoPagina && (
@@ -370,23 +520,24 @@ export default function MesaDetalhePage() {
           </p>
         )}
 
-        <div className="mb-4 flex gap-1 border-b border-border" role="tablist">
+        <div className="mb-3 flex border-b border-border sm:mb-4 sm:gap-1" role="tablist">
           {([
-            ['lancar', 'Lançar pedido'],
-            ['conta', estadoConta.dados?.conta ? `Conta · falta ${brl(estadoConta.dados.conta.totais.restante)}` : 'Conta'],
-            ['historico', 'Histórico'],
-          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo]) => (
+            ['lancar', 'Lançar pedido', null],
+            ['conta', 'Conta', estadoConta.dados?.conta ? `falta ${brl(estadoConta.dados.conta.totais.restante)}` : null],
+            ['historico', 'Histórico', null],
+          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo, detalhe]) => (
             <button
               key={id}
               role="tab"
               aria-selected={aba === id}
               onClick={() => setAba(id)}
               className={[
-                '-mb-px min-h-[40px] border-b-2 px-4 py-2 text-[12px] font-bold uppercase tracking-wide lg:min-h-0',
+                '-mb-px min-h-[44px] flex-1 border-b-2 px-2 py-1.5 text-center text-[11px] font-bold uppercase tracking-wide sm:flex-none sm:px-4 sm:text-[12px] lg:min-h-[40px]',
                 aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
               ].join(' ')}
             >
               {rotulo}
+              {detalhe && <span className="block text-[10px] font-semibold normal-case tracking-normal sm:ml-1 sm:inline">· {detalhe}</span>}
             </button>
           ))}
         </div>
@@ -406,187 +557,86 @@ export default function MesaDetalhePage() {
 
         {aba === 'historico' && <Historico eventos={estadoConta.dados?.historico ?? []} />}
 
-        <div className={`grid gap-4 xl:grid-cols-[1fr_380px] ${aba === 'lancar' && podeLancar ? '' : 'hidden'}`}>
+        <div className={`grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start ${naAbaLancar ? '' : 'hidden'}`}>
           {/* ── Catálogo: o garçom escolhe à mão ─────────────────────────── */}
-          <section>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+          <section className="min-w-0 space-y-3">
+            <SelecaoDoCliente
+              linhas={selecaoCliente}
+              resolucoes={resolucoes}
+              adicionadas={adicionadas}
+              aberto={selecaoAberta}
+              aviso={avisoSelecao}
+              onAlternar={() => setSelecaoAberta((a) => !a)}
+              onAdicionar={adicionarUmaDaSelecao}
+              onAdicionarTodas={adicionarSelecaoToda}
+            />
+
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" aria-hidden />
               <input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar item…"
-                className="h-[44px] w-full rounded-menuzia lg:h-9 lg:w-52 border border-border bg-main px-3 text-[13px] outline-none focus:border-primary"
+                placeholder="Buscar em todo o cardápio…"
+                aria-label="Buscar item"
+                type="search"
+                className="h-[44px] w-full rounded-menuzia border border-border bg-main pl-9 pr-3 text-[13px] outline-none focus:border-primary lg:h-[38px]"
               />
-              <div className="flex flex-wrap gap-1.5">
-                {grupos.map((g) => (
-                  <button
-                    key={g.id}
-                    onClick={() => {
-                      setCategoriaAtiva(g.id)
-                      setBusca('')
-                    }}
-                    className={[
-                      'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-0',
-                      g.id === categoriaAtiva && !busca
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-border bg-main text-text-subtle hover:text-text-main',
-                    ].join(' ')}
-                  >
-                    {g.nome}
-                  </button>
+            </label>
+
+            {categorias.length > 0 && !buscando && (
+              // Único ponto com rolagem lateral da tela: os chips das categorias.
+              <div className="-mx-3 overflow-x-auto px-3 sm:-mx-5 sm:px-5 xl:mx-0 xl:px-0" role="tablist" aria-label="Categorias">
+                <div className="flex w-max gap-1.5 pb-0.5 xl:w-auto xl:flex-wrap">
+                  {categorias.map((g) => (
+                    <button
+                      key={g.id}
+                      role="tab"
+                      aria-selected={g.id === categoriaAberta}
+                      onClick={() => setCategoriaAtiva(g.id)}
+                      className={[
+                        'min-h-[40px] whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-[34px]',
+                        g.id === categoriaAberta
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-border bg-main text-text-subtle hover:text-text-main',
+                      ].join(' ')}
+                    >
+                      {g.nome}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {lancaveis.length === 0 ? (
+              <SemItens resumo={resumo} foraDoHorario={foraDoHorario} />
+            ) : (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+                {visiveis.map((item) => (
+                  <CardProduto
+                    key={item.id}
+                    item={item}
+                    categoria={buscando ? nomeCategoria.get(item.grupoId ?? '') : undefined}
+                    noLancamento={qtdNoLancamento.get(item.id) ?? 0}
+                    onTocar={() => tocarItem(item)}
+                  />
                 ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-2.5">
-              {visiveis.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => tocarItem(item)}
-                  className="flex items-center justify-between gap-2 rounded-menuzia border border-border bg-main p-3 text-left transition-colors hover:border-primary"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-[13px] font-semibold text-text-main">{item.nome}</span>
-                    <span className="text-[12px] font-bold text-price-text">
-                      {brl(item.promocaoPreco ?? item.preco)}
-                    </span>
-                  </span>
-                  <Plus className="h-4 w-4 flex-shrink-0 text-primary" />
-                </button>
-              ))}
-              {visiveis.length === 0 && (
-                <p className="col-span-full py-6 text-center text-[13px] text-text-subtle">Nenhum item aqui.</p>
-              )}
-            </div>
-
-            {/* ── Seleção do cliente: referência, não lançamento ──────────── */}
-            <div className="mt-5 rounded-menuzia border border-warn bg-warn-bg p-4">
-              <div className="mb-2 flex items-center gap-2">
-                <Badge tone="pending">Não lançado</Badge>
-                <h3 className="text-[13px] font-bold text-text-main">Seleção do cliente no celular</h3>
-              </div>
-              {selecaoCliente.length === 0 ? (
-                <p className="text-[12px] text-text-subtle">
-                  O cliente ainda não marcou nada no cardápio da mesa.
-                </p>
-              ) : (
-                <>
-                  <ul className="space-y-1.5">
-                    {selecaoCliente.map((l, i) => (
-                      <li key={i} className="text-[12px] text-text-main">
-                        <span className="font-bold">{l.quantidade}×</span> {l.nome}
-                        {l.opcoes.length > 0 && (
-                          <span className="text-text-subtle"> · {l.opcoes.map((o) => o.escolha).join(', ')}</span>
-                        )}
-                        {l.observacao && <span className="text-text-subtle"> · “{l.observacao}”</span>}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-2.5 text-[11px] text-text-subtle">
-                    Isto é só o que o cliente marcou para te mostrar. <strong>Não foi lançado nem enviado à
-                    cozinha.</strong> Confirme com ele e monte o lançamento ao lado.
+                {visiveis.length === 0 && (
+                  <p className="col-span-full py-6 text-center text-[13px] text-text-subtle">
+                    {buscando ? `Nenhum item disponível com “${busca.trim()}”.` : 'Nenhum item nesta categoria agora.'}
                   </p>
-                </>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </section>
 
-          {/* ── Lançamento + comanda ─────────────────────────────────────── */}
-          <aside className="space-y-4">
-            <div className="rounded-menuzia border border-border bg-main">
+          {/* ── Lançamento (desktop) + já lançado ────────────────────────── */}
+          <aside className="space-y-4 xl:sticky xl:top-0">
+            <div className="hidden rounded-menuzia border border-border bg-main xl:block">
               <div className="border-b border-border px-4 py-3">
                 <h3 className="text-[13px] font-bold text-text-main">Lançamento</h3>
                 <p className="text-[11px] text-text-subtle">Confira antes de enviar. Depois vai direto pra cozinha.</p>
               </div>
-
-              <div className="max-h-[38vh] overflow-y-auto">
-                {lancamento.length === 0 && (
-                  <p className="px-4 py-8 text-center text-[12px] text-text-subtle">
-                    Toque nos itens ao lado para montar o pedido.
-                  </p>
-                )}
-                {lancamento.map((l) => (
-                  <div
-                    key={l.chave}
-                    className={`flex items-start gap-2 border-b px-4 py-2.5 ${
-                      l.indisponivel ? 'border-danger bg-danger-bg' : 'border-border'
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-semibold text-text-main">{l.nome}</div>
-                      {l.indisponivel && (
-                        <div className="text-[11px] font-semibold text-danger">{l.indisponivel}</div>
-                      )}
-                      {l.complementos.length > 0 && (
-                        <div className="text-[11px] text-text-subtle">{l.complementos.map((c) => c.nome).join(' · ')}</div>
-                      )}
-                      <div className="text-[12px] text-price-text">{brl(l.preco * l.quantidade)}</div>
-                      <input
-                        value={l.observacao}
-                        onChange={(e) =>
-                          setLancamento((atual) =>
-                            atual.map((x) => (x.chave === l.chave ? { ...x, observacao: e.target.value.slice(0, 200) } : x)),
-                          )
-                        }
-                        placeholder="Observação (ex.: sem cebola)"
-                        className="mt-1 h-7 w-full rounded-menuzia border border-border px-2 text-[11px] outline-none focus:border-primary"
-                      />
-                    </div>
-                    <div className="flex flex-shrink-0 flex-col items-end gap-1">
-                      <div className="flex items-center gap-1.5 rounded-menuzia border border-border px-1.5">
-                        <button
-                          className="px-1 text-[15px] text-primary"
-                          onClick={() =>
-                            setLancamento((atual) =>
-                              atual
-                                .map((x) => (x.chave === l.chave ? { ...x, quantidade: x.quantidade - 1 } : x))
-                                .filter((x) => x.quantidade > 0),
-                            )
-                          }
-                        >
-                          −
-                        </button>
-                        <span className="min-w-[14px] text-center text-[12px] font-bold">{l.quantidade}</span>
-                        <button
-                          className="px-1 text-[15px] text-primary"
-                          onClick={() =>
-                            setLancamento((atual) =>
-                              atual.map((x) => (x.chave === l.chave ? { ...x, quantidade: Math.min(99, x.quantidade + 1) } : x)),
-                            )
-                          }
-                        >
-                          +
-                        </button>
-                      </div>
-                      <button
-                        className="text-[10px] text-text-subtle underline"
-                        onClick={() => setLancamento((atual) => atual.filter((x) => x.chave !== l.chave))}
-                      >
-                        <Trash2 className="mr-0.5 inline h-3 w-3" />
-                        remover
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2.5 border-t border-border p-4">
-                {erro && (
-                  <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>
-                )}
-                <div className="flex items-center justify-between text-[14px]">
-                  <span className="text-text-subtle">Total do lançamento</span>
-                  <strong className="text-price-text">{brl(totalLancamento)}</strong>
-                </div>
-                <Button
-                  variant="success"
-                  className="w-full"
-                  disabled={lancamento.length === 0 || enviando}
-                  onClick={enviarParaCozinha}
-                >
-                  <Send className="mr-1.5 inline h-3.5 w-3.5" />
-                  {enviando ? 'Enviando…' : 'Enviar para a cozinha'}
-                </Button>
-              </div>
+              {painel('max-h-[46vh]')}
             </div>
 
             <div className="rounded-menuzia border border-border bg-main">
@@ -620,14 +670,60 @@ export default function MesaDetalhePage() {
         </div>
       </div>
 
+      {/* ── Barra do lançamento (celular/tablet) ───────────────────────────── */}
+      {naAbaLancar && (
+        <div
+          data-barra-lancamento
+          className="flex flex-shrink-0 items-center gap-3 border-t border-border bg-main px-3 pt-2.5 pb-[max(env(safe-area-inset-bottom),0.625rem)] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] xl:hidden"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] text-text-subtle">
+              {resumoLancamento.itens === 0
+                ? 'Lançamento vazio'
+                : `${resumoLancamento.itens} ${resumoLancamento.itens === 1 ? 'item' : 'itens'} no lançamento`}
+            </div>
+            <div className="text-[15px] font-bold text-price-text">{brl(resumoLancamento.total)}</div>
+          </div>
+          <Button className="min-h-[44px]" onClick={() => setFolhaAberta(true)}>
+            <ShoppingBag className="h-4 w-4" />
+            Ver lançamento
+          </Button>
+        </div>
+      )}
+
+      {folhaAberta && naAbaLancar && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40 xl:hidden" onClick={() => setFolhaAberta(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Lançamento"
+            className="flex max-h-[88dvh] w-full flex-col rounded-t-xl bg-main pb-[env(safe-area-inset-bottom)] shadow-xl sm:mx-auto sm:max-w-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex min-h-[52px] flex-shrink-0 items-center justify-between border-b border-border px-4">
+              <div>
+                <h3 className="text-[14px] font-bold text-text-main">Lançamento · {mesa.nome}</h3>
+                <p className="text-[11px] text-text-subtle">Confira antes de enviar. Depois vai direto pra cozinha.</p>
+              </div>
+              <button onClick={() => setFolhaAberta(false)} className="-mr-2 grid h-[44px] w-[44px] place-items-center text-text-subtle" aria-label="Fechar o lançamento">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {painel('flex-1')}
+          </div>
+        </div>
+      )}
+
       {configurando && (
         <ConfiguradorGarcom
-          item={configurando}
+          key={configurando.editar ?? configurando.item.id}
+          item={configurando.item}
+          pizza={pizza}
+          inicial={configurando.inicial}
+          aviso={configurando.aviso}
+          modo={configurando.editar ? 'editar' : 'adicionar'}
           onCancelar={() => setConfigurando(null)}
-          onConfirmar={(complementos) => {
-            adicionar(configurando, complementos)
-            setConfigurando(null)
-          }}
+          onConfirmar={confirmarConfigurador}
         />
       )}
 
@@ -661,123 +757,12 @@ export default function MesaDetalhePage() {
               A cozinha recebeu e o pedido entrou na comanda da {mesa.nome}.
             </p>
             <Button className="mt-4 w-full" onClick={() => setEnviado(null)}>
-              <X className="mr-1.5 inline h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" />
               Fechar
             </Button>
           </div>
         </div>
       )}
     </>
-  )
-}
-
-// ── Configurador de opções do garçom ────────────────────────────────────────
-
-/**
- * Escolha das opções de um item antes de entrar no lançamento.
- *
- * Mesma regra que o servidor aplica (`validarOpcoes`), para o garçom ver o erro na hora
- * em vez de descobrir no "Enviar para a cozinha". O servidor confere de novo — esta tela
- * só evita a viagem perdida.
- */
-function ConfiguradorGarcom({
-  item,
-  onCancelar,
-  onConfirmar,
-}: {
-  item: ItemCardapio
-  onCancelar: () => void
-  onConfirmar: (complementos: { nome: string; preco: number }[]) => void
-}) {
-  const grupos = useMemo(() => gruposComOpcao(item), [item])
-  const [escolhidas, setEscolhidas] = useState<Record<string, string[]>>({})
-
-  const regras: GrupoOpcoesRegra[] = grupos.map((g) => ({
-    nome: g.nome,
-    obrigatorio: g.obrigatorio,
-    minEscolhas: g.minEscolhas,
-    maxEscolhas: g.maxEscolhas,
-    opcoes: g.complementos.map((c) => c.nome),
-  }))
-  const todas = Object.values(escolhidas).flat()
-  const erros = validarOpcoes(regras, todas)
-
-  function alternar(grupoId: string, nome: string, max: number) {
-    setEscolhidas((atual) => {
-      const doGrupo = atual[grupoId] ?? []
-      if (max === 1) return { ...atual, [grupoId]: doGrupo[0] === nome ? [] : [nome] }
-      if (doGrupo.includes(nome)) return { ...atual, [grupoId]: doGrupo.filter((n) => n !== nome) }
-      if (doGrupo.length >= max) return atual
-      return { ...atual, [grupoId]: [...doGrupo, nome] }
-    })
-  }
-
-  const precoBase = item.promocaoPreco ?? item.preco
-  const complementos = grupos.flatMap((g) =>
-    g.complementos.filter((c) => (escolhidas[g.id] ?? []).includes(c.nome)).map((c) => ({ nome: c.nome, preco: c.preco })),
-  )
-  const total = precoBase + complementos.reduce((s, c) => s + c.preco, 0)
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onCancelar}>
-      <aside className="flex h-full w-full max-w-md flex-col bg-main shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
-          <span className="text-[15px] font-semibold text-text-main">{item.nome}</span>
-          <button onClick={onCancelar} className="-mr-2 grid h-[40px] w-[40px] place-items-center text-text-subtle hover:text-text-main" aria-label="Fechar">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-5 overflow-y-auto p-5">
-          {grupos.map((g) => {
-            const max = maximoDoGrupo({ maxEscolhas: g.maxEscolhas, opcoes: g.complementos.map((c) => c.nome) })
-            const min = minimoDoGrupo(g)
-            const doGrupo = escolhidas[g.id] ?? []
-            return (
-              <div key={g.id}>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-bold text-text-main">{g.nome}</span>
-                  {min > 0 ? (
-                    <Badge tone={doGrupo.length >= min ? 'ok' : 'danger'}>Obrigatório</Badge>
-                  ) : (
-                    <span className="text-[11px] text-text-subtle">até {max}</span>
-                  )}
-                </div>
-                <div className="divide-y divide-border rounded-menuzia border border-border">
-                  {g.complementos.map((c) => {
-                    const marcada = doGrupo.includes(c.nome)
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => alternar(g.id, c.nome, max)}
-                        role={max === 1 ? 'radio' : 'checkbox'}
-                        aria-checked={marcada}
-                        className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] ${marcada ? 'bg-alert-bg' : ''}`}
-                      >
-                        <span
-                          className={`h-4 w-4 flex-shrink-0 border-2 ${max === 1 ? 'rounded-full' : 'rounded-menuzia'} ${
-                            marcada ? 'border-primary bg-primary' : 'border-border'
-                          }`}
-                        />
-                        <span className="flex-1 text-text-main">{c.nome}</span>
-                        {c.preco > 0 && <span className="text-[12px] font-semibold text-text-subtle">+ {brl(c.preco)}</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="space-y-2 border-t border-border p-5">
-          {erros.length > 0 && <p className="text-[12px] font-semibold text-danger">{erros[0]}</p>}
-          <Button className="w-full" disabled={erros.length > 0} onClick={() => onConfirmar(complementos)}>
-            <Plus className="mr-1.5 inline h-3.5 w-3.5" />
-            Adicionar ao lançamento · {brl(total)}
-          </Button>
-        </div>
-      </aside>
-    </div>
   )
 }

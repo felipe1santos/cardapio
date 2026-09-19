@@ -40,3 +40,14 @@ describe('menu lateral: "Mesas e Comandas"', () => {
     expect(com.filter((h) => h !== '/admin/mesas')).toEqual(sem)
   })
 })
+
+describe('menu lateral: limpeza', () => {
+  it('Auditoria não tem item no menu (a tela continua acessível pelo endereço)', () => {
+    expect(NAV_ITEMS.some((i) => (i.href as string) === '/admin/auditoria')).toBe(false)
+    expect(itensDoMenu({ papel: 'dono', moduloMesas: true, usaLogistica: true }).some((i) => (i.label as string) === 'Auditoria')).toBe(false)
+  })
+
+  it('nenhum item leva o selo "novidade"', () => {
+    expect(NAV_ITEMS.some((i) => 'novidade' in i)).toBe(false)
+  })
+})
