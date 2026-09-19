@@ -396,6 +396,13 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: 
           <p className="mesa-aviso-rodape">
             Esta é apenas a sua seleção. Mostre-a ao garçom para realizar o pedido. Nada foi enviado para a cozinha.
           </p>
+
+          {/* Marca d'água da Menuzia: discreta, no fim do cardápio, sem roubar a cena da loja. */}
+          <div className="mesa-marca-dagua" aria-label="Cardápio feito com Menuzia">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon-192.png" alt="" width={22} height={22} />
+            <span>menuzia</span>
+          </div>
         </main>
       </div>
 
@@ -1298,7 +1305,10 @@ const TOKENS = `
 .mesa-card-foto img { width: 100%; height: 100%; object-fit: cover; }
 .mesa-card-foto-vazia { width: 100%; height: 100%; display: grid; place-items: center; font-size: 28px; }
 .mesa-vazio { grid-column: 1/-1; text-align: center; color: var(--suave); font-size: 13px; padding: 28px 0; }
-.mesa-aviso-rodape { margin: 16px 0 90px; text-align: center; font-size: 12px; color: var(--suave); line-height: 1.5; }
+.mesa-marca-dagua { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 4px 0 96px; opacity: .45; user-select: none; pointer-events: none; }
+.mesa-marca-dagua img { width: 22px; height: 22px; filter: grayscale(1); opacity: .7; }
+.mesa-marca-dagua span { font-size: 13px; font-weight: 800; letter-spacing: .04em; color: var(--desabilitado); text-transform: lowercase; }
+.mesa-aviso-rodape { margin: 16px 0 12px; text-align: center; font-size: 12px; color: var(--suave); line-height: 1.5; }
 
 /* Barra fixa */
 .mesa-barra-flutuante {
