@@ -9,6 +9,7 @@ import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import { carregarPizzaDaLoja, itemPrecificavel } from '@/lib/queries/mesa-catalogo'
 import { precoAPartirDe } from '@/lib/selecao-preco'
+import { MESA_MENSAGEM_PADRAO, ordenarParaMesa } from '@/lib/mesa-vitrine'
 import { CardapioDaMesa } from './cardapio'
 
 /**
@@ -65,10 +66,21 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
 
   if (!loja) notFound()
 
+  // Personalização da mesa (0073): carrossel, aviso e ordem dos itens. Lidas à parte do
+  // select do cardápio; se a leitura falhar, fica o comportamento de sempre (banner,
+  // texto padrão, ordem padrão).
+  const [{ data: vitrine }, { data: posicoes }] = await Promise.all([
+    admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao').eq('id', mesa.restauranteId).maybeSingle(),
+    admin.from('itens_cardapio').select('id, posicao_mesa').eq('restaurante_id', mesa.restauranteId),
+  ])
+  const carrossel = ((vitrine?.mesa_carrossel_urls as string[] | null) ?? []).filter(Boolean)
+  const mensagem = ((vitrine?.mesa_mensagem_selecao as string | null) ?? '').trim() || MESA_MENSAGEM_PADRAO
+  const posicaoMesa = new Map(((posicoes ?? []) as { id: string; posicao_mesa: number | null }[]).map((x) => [x.id, x.posicao_mesa]))
+
   // Catálogo é um só: as mesmas linhas que a vitrine lê, com os MESMOS filtros — status,
   // dia da semana, horário da categoria — mais o canal do salão (0069). Nada de cadastro
   // paralelo para mesa.
-  const disponiveis = itens.filter(
+  const disponiveis = ordenarParaMesa(itens, posicaoMesa).filter(
     (i) =>
       i.status === 'disponivel' &&
       itemDisponivelNoCanal(i, 'mesa') &&
@@ -85,6 +97,8 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
       loja={{ nome: loja.nome, logoUrl: loja.logoUrl, bannerUrl: loja.bannerPromocionalUrl ?? loja.bannerUrl }}
       grupos={gruposComItem.map((g) => ({ id: g.id, nome: g.nome, imagemUrl: g.imagemUrl }))}
       pizza={pizza}
+      carrossel={carrossel}
+      mensagem={mensagem}
       itens={disponiveis.map((i) => ({
         id: i.id,
         grupoId: i.grupoId,

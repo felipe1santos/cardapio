@@ -34,6 +34,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'mesa.rodou_qr': 'Gerou um QR Code novo para a mesa',
   'mesa.revogou_qr': 'Revogou o QR Code da mesa',
   'mesas.configurou_conta': 'Alterou a configuração de conta e pagamentos',
+  'mesas.configurou_cardapio': 'Personalizou o cardápio da mesa (QR)',
   'mesas.ligou_modulo': 'Ligou o módulo Mesas e Comandas',
   'mesas.desligou_modulo': 'Desligou o módulo Mesas e Comandas',
   'conta.pagamento': 'Registrou pagamento',

@@ -68,6 +68,10 @@ interface Props {
   grupos: CategoriaDaMesa[]
   itens: ItemDaMesa[]
   pizza: PizzaDaLoja
+  /** Imagens do carrossel do topo (0073). Vazio = banner da loja. */
+  carrossel: string[]
+  /** Aviso da seleção — texto da loja ou o padrão. */
+  mensagem: string
 }
 
 type OpcaoEscolhida = OpcaoDaLinha
@@ -118,7 +122,7 @@ function idDoDispositivo(): string {
 const totalDaLinha = (l: LinhaSelecionada) =>
   (l.precoUnitario + l.opcoes.reduce((s, o) => s + o.preco, 0)) * l.quantidade
 
-export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: Props) {
+export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, carrossel, mensagem }: Props) {
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(grupos[0]?.id ?? null)
   const [busca, setBusca] = useState('')
   const [fichaAberta, setFichaAberta] = useState<ItemDaMesa | null>(null)
@@ -338,7 +342,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: 
         {/* ── Conteúdo ──────────────────────────────────────────────────── */}
         <main className="mesa-conteudo">
           <div className="mesa-banner">
-            {loja.bannerUrl ? (
+            {carrossel.length > 0 ? (
+              <Carrossel imagens={carrossel} />
+            ) : loja.bannerUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={loja.bannerUrl} alt="" className="mesa-banner-foto" />
             ) : (
@@ -393,9 +399,10 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: 
             )}
           </div>
 
-          <p className="mesa-aviso-rodape">
-            Esta é apenas a sua seleção. Mostre-a ao garçom para realizar o pedido. Nada foi enviado para a cozinha.
-          </p>
+          <div className="mesa-aviso-rodape" role="note">
+            <span className="mesa-aviso-icone" aria-hidden="true">i</span>
+            <p>{mensagem}</p>
+          </div>
 
           {/* Marca d'água da Menuzia: discreta, no fim do cardápio, sem roubar a cena da loja. */}
           <div className="mesa-marca-dagua" aria-label="Cardápio feito com Menuzia">
@@ -429,6 +436,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: 
 
       {painelAberto && (
         <PainelSelecao
+          mensagem={mensagem}
           linhas={selecao}
           deOutros={deOutros}
           total={totalSelecao}
@@ -619,6 +627,68 @@ function ChamarGarcom({ token }: { token: string }) {
         </div>
       )}
     </>
+  )
+}
+
+// ── Carrossel do topo ───────────────────────────────────────────────────────
+
+/**
+ * Passa sozinho, devagar, com troca em fade. Para quando a aba não está visível e quando
+ * o sistema pede menos movimento; o dedo também troca (deslizar) e os pontos levam direto.
+ */
+function Carrossel({ imagens }: { imagens: string[] }) {
+  const [atual, setAtual] = useState(0)
+  const toqueX = useRef<number | null>(null)
+  const total = imagens.length
+
+  useEffect(() => {
+    if (total < 2) return
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') setAtual((i) => (i + 1) % total)
+    }, 4500)
+    return () => clearInterval(t)
+  }, [total, atual])
+
+  return (
+    <div
+      className="mesa-carrossel"
+      onTouchStart={(e) => (toqueX.current = e.touches[0]?.clientX ?? null)}
+      onTouchEnd={(e) => {
+        const inicio = toqueX.current
+        const fim = e.changedTouches[0]?.clientX
+        toqueX.current = null
+        if (inicio === null || fim === undefined || Math.abs(fim - inicio) < 40) return
+        setAtual((i) => (fim < inicio ? (i + 1) % total : (i - 1 + total) % total))
+      }}
+      aria-roledescription="carrossel"
+    >
+      {imagens.map((url, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={url}
+          src={url}
+          alt=""
+          className={`mesa-banner-foto mesa-carrossel-slide ${i === atual ? 'ativo' : ''}`}
+          loading={i === 0 ? 'eager' : 'lazy'}
+          aria-hidden={i !== atual}
+        />
+      ))}
+      {total > 1 && (
+        <div className="mesa-carrossel-pontos">
+          {imagens.map((url, i) => (
+            <button
+              key={url}
+              type="button"
+              className={i === atual ? 'ativo' : ''}
+              onClick={() => setAtual(i)}
+              aria-label={`Imagem ${i + 1} de ${total}`}
+              aria-current={i === atual}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1026,6 +1096,7 @@ function Configurador({
 // ── Painel "Minha seleção" ──────────────────────────────────────────────────
 
 function PainelSelecao({
+  mensagem,
   linhas,
   deOutros,
   total,
@@ -1036,6 +1107,7 @@ function PainelSelecao({
   onLimpar,
   onConcluir,
 }: {
+  mensagem: string
   linhas: LinhaSelecionada[]
   deOutros: LinhaDeOutro[]
   total: number
@@ -1056,10 +1128,7 @@ function PainelSelecao({
           </button>
         </header>
 
-        <p className="mesa-painel-aviso">
-          Esta é apenas a sua seleção. Mostre-a ao garçom para realizar o pedido.
-          <strong> Nada foi enviado para a cozinha.</strong>
-        </p>
+        <p className="mesa-painel-aviso">{mensagem}</p>
 
         <div className="mesa-painel-lista">
           {linhas.length === 0 && <p className="mesa-vazio">Você ainda não marcou nenhum item.</p>}
@@ -1279,7 +1348,14 @@ const TOKENS = `
 
 /* Conteúdo */
 .mesa-conteudo { flex: 1; min-width: 0; padding: 12px; overflow-y: auto; }
-.mesa-banner { position: relative; border-radius: var(--raio); overflow: hidden; height: 132px; margin-bottom: 12px; background: var(--marinho); }
+.mesa-banner { position: relative; border-radius: var(--raio); overflow: hidden; height: 176px; margin-bottom: 12px; background: var(--marinho); }
+.mesa-carrossel { position: absolute; inset: 0; }
+.mesa-carrossel-slide { position: absolute; inset: 0; opacity: 0; transform: scale(1.03); transition: opacity .9s ease, transform 5s ease; }
+.mesa-carrossel-slide.ativo { opacity: .9; transform: scale(1); }
+.mesa-carrossel-pontos { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 2; }
+.mesa-carrossel-pontos button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.55); cursor: pointer; transition: width .3s ease, background-color .3s ease; }
+.mesa-carrossel-pontos button.ativo { width: 18px; border-radius: 4px; background: #fff; }
+.mesa-banner-texto { z-index: 1; }
 .mesa-banner-foto { width: 100%; height: 100%; object-fit: cover; opacity: .82; }
 .mesa-banner-vazio { background: linear-gradient(120deg, var(--marinho), #3A4B5F); }
 .mesa-banner-texto { position: absolute; inset: auto 0 0 0; padding: 14px 16px; background: linear-gradient(transparent, rgba(0,0,0,.72)); color: #fff; display: flex; flex-direction: column; gap: 2px; }
@@ -1308,7 +1384,9 @@ const TOKENS = `
 .mesa-marca-dagua { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 4px 0 96px; opacity: .45; user-select: none; pointer-events: none; }
 .mesa-marca-dagua img { width: 22px; height: 22px; filter: grayscale(1); opacity: .7; }
 .mesa-marca-dagua span { font-size: 13px; font-weight: 800; letter-spacing: .04em; color: var(--desabilitado); text-transform: lowercase; }
-.mesa-aviso-rodape { margin: 16px 0 12px; text-align: center; font-size: 12px; color: var(--suave); line-height: 1.5; }
+.mesa-aviso-rodape { display: flex; align-items: flex-start; gap: 10px; margin: 18px 0 12px; padding: 12px 14px; background: var(--superficie); border: 1px solid var(--borda); border-left: 4px solid var(--coral); border-radius: var(--raio); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.mesa-aviso-rodape p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto); }
+.mesa-aviso-icone { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 13px; font-weight: 800; font-style: italic; font-family: Georgia, serif; }
 
 /* Barra fixa */
 .mesa-barra-flutuante {
@@ -1454,7 +1532,7 @@ const TOKENS = `
   .mesa-categoria-icone svg { width: 19px; height: 19px; }
   .mesa-categoria-nome { font-size: 11px; text-align: center; white-space: normal; line-height: 1.2; }
   .mesa-conteudo { padding: 16px; }
-  .mesa-banner { height: 180px; }
+  .mesa-banner { height: 240px; }
   .mesa-banner-titulo { font-size: 26px; }
   .mesa-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .mesa-card { grid-template-columns: 1fr 116px; }
@@ -1487,7 +1565,7 @@ const TOKENS = `
 @media (min-width: 1100px) {
   .mesa-grade { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .mesa-conteudo { padding: 20px 24px; }
-  .mesa-banner { height: 210px; }
+  .mesa-banner { height: 280px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

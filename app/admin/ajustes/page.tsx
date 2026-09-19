@@ -54,6 +54,7 @@ import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao,
 import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
 import { CardModuloMesas } from '@/components/admin/modulo-mesas'
+import { CardapioDaMesaConfig } from '@/app/admin/mesas/cardapio-mesa'
 import { ConfigConta } from '@/app/admin/mesas/config-conta'
 
 type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'impressao' | 'conta' | 'aparencia' | 'cozinha'
@@ -2541,6 +2542,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
           {moduloAtivo === true && (
             <>
               <ConfigConta embutida />
+              <CardapioDaMesaConfig />
               <Card>
                 <h3 className="mb-1 text-[13px] font-bold text-text-main">Cadastro das mesas</h3>
                 <p className="text-[12px] leading-relaxed text-text-subtle">

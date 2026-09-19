@@ -448,6 +448,11 @@ export async function enviarBannerLoja(
   }
 }
 
+/** Imagem do carrossel do cardápio da mesa (QR) — mesmo tratamento do banner. */
+export function enviarImagemCarrosselMesa(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
+  return enviarImagemPerfil(supabase, restauranteId, file, 'mesa-carrossel', 'banner')
+}
+
 export function enviarBannerPromocionalLoja(supabase: SupabaseClient, restauranteId: string, file: File): Promise<string> {
   return enviarImagemPerfil(supabase, restauranteId, file, 'banner-promo', 'banner')
 }

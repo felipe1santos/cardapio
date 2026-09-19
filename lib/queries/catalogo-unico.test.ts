@@ -42,7 +42,10 @@ describe('catálogo único entre delivery, mesa e balcão', () => {
 
   it('só o catálogo canônico consulta itens_cardapio — nenhuma tela faz o seu próprio SELECT', () => {
     for (const arquivo of SUPERFICIES) {
-      expect(ler(arquivo), arquivo).not.toMatch(/from\('itens_cardapio'\)/)
+      // Exceção única: a mesa lê só a ORDEM dos itens (0073) — id e posição, nada de
+      // catálogo. Qualquer outro select de itens_cardapio numa tela continua proibido.
+      const fonte = ler(arquivo).replace(/from\('itens_cardapio'\)\.select\('id, posicao_mesa'\)/g, '')
+      expect(fonte, arquivo).not.toMatch(/from\('itens_cardapio'\)/)
     }
   })
 
