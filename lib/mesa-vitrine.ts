@@ -48,7 +48,7 @@ export function ordemValida(bruto: unknown, idsDaLoja: Set<string>): { ok: true;
   const vistos = new Set<string>()
   const posicoes: { id: string; posicao: number }[] = []
   for (const id of bruto) {
-    if (typeof id !== 'string' || !idsDaLoja.has(id)) return { ok: false, erro: 'Item fora desta loja na ordem.' }
+    if (typeof id !== 'string' || !idsDaLoja.has(id)) return { ok: false, erro: 'Categoria fora desta loja na ordem.' }
     if (vistos.has(id)) continue
     vistos.add(id)
     posicoes.push({ id, posicao: posicoes.length + 1 })
