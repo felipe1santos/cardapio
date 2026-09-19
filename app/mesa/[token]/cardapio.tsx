@@ -632,48 +632,113 @@ function ChamarGarcom({ token }: { token: string }) {
 
 // ── Carrossel do topo ───────────────────────────────────────────────────────
 
+/** Tempo que cada imagem fica parada antes de deslizar para a próxima. */
+const CARROSSEL_INTERVALO_MS = 4000
+
 /**
- * Passa sozinho, devagar, com troca em fade. Para quando a aba não está visível e quando
- * o sistema pede menos movimento; o dedo também troca (deslizar) e os pontos levam direto.
+ * Carrossel do topo: as imagens ficam lado a lado numa faixa que desliza sozinha para a
+ * esquerda. Depois da última vem de novo a primeira, sem voltar rebobinando (a faixa tem
+ * uma cópia da primeira no fim e salta para o início sem animação).
+ *
+ * Pausa com a aba escondida e enquanto o dedo está na imagem; deslizar com o dedo e os
+ * pontos trocam na hora. Com "reduzir movimento" no aparelho a troca continua, só que
+ * sem o deslize.
  */
-function Carrossel({ imagens }: { imagens: string[] }) {
-  const [atual, setAtual] = useState(0)
-  const toqueX = useRef<number | null>(null)
+export function Carrossel({ imagens }: { imagens: string[] }) {
   const total = imagens.length
+  // 0..total — `total` é a cópia da primeira, para a volta sem rebobinar.
+  const [pos, setPos] = useState(0)
+  const [animar, setAnimar] = useState(true)
+  const [reduzir, setReduzir] = useState(false)
+  const toqueX = useRef<number | null>(null)
+  const segurando = useRef(false)
+  // Rearma a espera quando a troca foi adiada (aba escondida, dedo na imagem).
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
+    setReduzir(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  }, [])
+
+  // Avança sozinho. O intervalo recomeça a cada troca, para o toque/ponto não encurtar a
+  // próxima espera.
+  useEffect(() => {
     if (total < 2) return
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const t = setInterval(() => {
-      if (document.visibilityState === 'visible') setAtual((i) => (i + 1) % total)
-    }, 4500)
-    return () => clearInterval(t)
-  }, [total, atual])
+    const t = setTimeout(() => {
+      if (document.visibilityState !== 'visible' || segurando.current) {
+        setTick((n) => n + 1)
+        return
+      }
+      setAnimar(true)
+      setPos((p) => (p >= total ? 1 : p + 1))
+    }, CARROSSEL_INTERVALO_MS)
+    return () => clearTimeout(t)
+  }, [pos, total, tick])
+
+  // Chegou na cópia da primeira: salta para a primeira de verdade sem animação.
+  useEffect(() => {
+    if (pos !== total || total < 2) return
+    if (reduzir) {
+      setAnimar(false)
+      setPos(0)
+      return
+    }
+    const t = setTimeout(() => {
+      setAnimar(false)
+      setPos(0)
+    }, 820)
+    return () => clearTimeout(t)
+  }, [pos, total, reduzir])
+
+  // Religa a animação depois do salto (dois quadros: o salto precisa ser pintado antes).
+  useEffect(() => {
+    if (animar) return
+    let b = 0
+    const a = requestAnimationFrame(() => {
+      b = requestAnimationFrame(() => setAnimar(true))
+    })
+    return () => {
+      cancelAnimationFrame(a)
+      cancelAnimationFrame(b)
+    }
+  }, [animar])
+
+  const atual = total > 0 ? pos % total : 0
+  const faixa = total > 1 ? [...imagens, imagens[0]!] : imagens
+  const irPara = (i: number) => {
+    setAnimar(true)
+    setPos(i)
+  }
 
   return (
     <div
       className="mesa-carrossel"
-      onTouchStart={(e) => (toqueX.current = e.touches[0]?.clientX ?? null)}
+      onTouchStart={(e) => {
+        toqueX.current = e.touches[0]?.clientX ?? null
+        segurando.current = true
+      }}
       onTouchEnd={(e) => {
+        segurando.current = false
         const inicio = toqueX.current
         const fim = e.changedTouches[0]?.clientX
         toqueX.current = null
-        if (inicio === null || fim === undefined || Math.abs(fim - inicio) < 40) return
-        setAtual((i) => (fim < inicio ? (i + 1) % total : (i - 1 + total) % total))
+        if (inicio === null || fim === undefined || Math.abs(fim - inicio) < 40 || total < 2) return
+        irPara(fim < inicio ? (atual + 1) % total : (atual - 1 + total) % total)
       }}
       aria-roledescription="carrossel"
+      data-carrossel-pos={atual}
     >
-      {imagens.map((url, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={url}
-          src={url}
-          alt=""
-          className={`mesa-banner-foto mesa-carrossel-slide ${i === atual ? 'ativo' : ''}`}
-          loading="eager"
-          aria-hidden={i !== atual}
-        />
-      ))}
+      <div
+        className="mesa-carrossel-trilho"
+        style={{
+          transform: `translate3d(-${pos * 100}%, 0, 0)`,
+          transition: animar && !reduzir ? 'transform .8s cubic-bezier(.4, 0, .2, 1)' : 'none',
+        }}
+      >
+        {faixa.map((url, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={`${url}-${i}`} src={url} alt="" className="mesa-carrossel-slide" loading="eager" aria-hidden={i !== pos} draggable={false} />
+        ))}
+      </div>
       {total > 1 && (
         <div className="mesa-carrossel-pontos">
           {imagens.map((url, i) => (
@@ -681,7 +746,7 @@ function Carrossel({ imagens }: { imagens: string[] }) {
               key={url}
               type="button"
               className={i === atual ? 'ativo' : ''}
-              onClick={() => setAtual(i)}
+              onClick={() => irPara(i)}
               aria-label={`Imagem ${i + 1} de ${total}`}
               aria-current={i === atual}
             />
@@ -1349,9 +1414,10 @@ const TOKENS = `
 /* Conteúdo */
 .mesa-conteudo { flex: 1; min-width: 0; padding: 12px; overflow-y: auto; }
 .mesa-banner { position: relative; border-radius: var(--raio); overflow: hidden; height: 176px; margin-bottom: 12px; background: var(--marinho); }
-.mesa-carrossel { position: absolute; inset: 0; }
-.mesa-carrossel-slide { position: absolute; inset: 0; opacity: 0; transform: scale(1.03); transition: opacity .9s ease, transform 5s ease; }
-.mesa-carrossel-slide.ativo { opacity: .9; transform: scale(1); }
+/* Carrossel: faixa com as imagens lado a lado, deslizando (ver Carrossel). */
+.mesa-carrossel { position: absolute; inset: 0; overflow: hidden; touch-action: pan-y; }
+.mesa-carrossel-trilho { display: flex; width: 100%; height: 100%; will-change: transform; }
+.mesa-carrossel .mesa-carrossel-slide { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; opacity: .92; user-select: none; -webkit-user-drag: none; }
 .mesa-carrossel-pontos { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 2; }
 .mesa-carrossel-pontos button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.55); cursor: pointer; transition: width .3s ease, background-color .3s ease; }
 .mesa-carrossel-pontos button.ativo { width: 18px; border-radius: 4px; background: #fff; }
