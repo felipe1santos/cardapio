@@ -29,7 +29,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   // Mesa é celular na mão do cliente: a barra do navegador acompanha o cabeçalho.
-  themeColor: '#E23744',
+  themeColor: '#CB000F',
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {

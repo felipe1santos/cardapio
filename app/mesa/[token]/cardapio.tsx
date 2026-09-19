@@ -1167,8 +1167,8 @@ function SelecaoSalva({ onFechar }: { onFechar: () => void }) {
 
 const TOKENS = `
 .mesa-raiz {
-  --coral: #E23744;
-  --coral-escuro: #C42B37;
+  --coral: #CB000F;
+  --coral-escuro: #A3000C;
   --verde: #2FA84F;
   --verde-escuro: #268C42;
   --marinho: #1F2D3D;
