@@ -7,6 +7,8 @@ import { listarGrupos, listarItens } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
+import { carregarPizzaDaLoja, itemPrecificavel } from '@/lib/queries/mesa-catalogo'
+import { precoAPartirDe } from '@/lib/selecao-preco'
 import { CardapioDaMesa } from './cardapio'
 
 /**
@@ -51,13 +53,14 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
   const mesa = await resolverMesaPorToken(admin, token)
   if (!mesa) notFound()
 
-  const [loja, grupos, itens, sessao] = await Promise.all([
+  const [loja, grupos, itens, sessao, pizza] = await Promise.all([
     buscarConfigLoja(admin, mesa.restauranteId),
     listarGrupos(admin, mesa.restauranteId),
     listarItens(admin, mesa.restauranteId),
     // Abrir sessão é registrar que tem gente sentada. NÃO abre conta, não cria comanda
     // e não conta como venda.
     abrirOuObterSessao(admin, mesa.restauranteId, mesa.mesaId),
+    carregarPizzaDaLoja(admin, mesa.restauranteId),
   ])
 
   if (!loja) notFound()
@@ -81,6 +84,7 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
       sessaoId={sessao.id}
       loja={{ nome: loja.nome, logoUrl: loja.logoUrl, bannerUrl: loja.bannerPromocionalUrl ?? loja.bannerUrl }}
       grupos={gruposComItem.map((g) => ({ id: g.id, nome: g.nome, imagemUrl: g.imagemUrl }))}
+      pizza={pizza}
       itens={disponiveis.map((i) => ({
         id: i.id,
         grupoId: i.grupoId,
@@ -99,7 +103,18 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
             .filter((c) => !c.pausado)
             .map((c) => ({ id: c.id, nome: c.nome, preco: c.preco, imagemUrl: c.imagemUrl })),
         })),
-        tamanhos: i.tamanhos.map((t) => ({ id: t.id, nome: t.nome, preco: t.preco })),
+        tamanhos: [...i.tamanhos].sort((a, b) => a.posicao - b.posicao).map((t) => ({ id: t.id, nome: t.nome, preco: t.preco })),
+        // Pizza: sabores disponíveis com o preço em cada tamanho padrão da loja.
+        tipoItem: i.tipoItem,
+        sabores: i.sabores
+          .filter((s) => s.status === 'disponivel')
+          .sort((a, b) => a.posicao - b.posicao)
+          .map((s) => ({
+            nome: s.nome,
+            descricao: s.descricao,
+            precos: Object.fromEntries(s.precos.map((x) => [x.tamanhoPadraoId, x.preco])),
+          })),
+        precoAPartirDe: precoAPartirDe(itemPrecificavel(i), pizza),
       }))}
     />
   )

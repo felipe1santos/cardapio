@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MOTIVOS_CHAMADO, type MotivoChamado } from '@/lib/chamados'
+import { precificarLinha, type ItemPrecificavel, type OpcaoDaLinha, type PizzaDaLoja, type TipoOpcao } from '@/lib/selecao-preco'
 
 /**
  * Cardápio presencial da mesa.
@@ -45,6 +46,12 @@ export interface ItemDaMesa {
   imagemUrl: string | null
   grupos: GrupoOpcoes[]
   tamanhos: { id: string; nome: string; preco: number }[]
+  /** 'pizza' = monta por tamanho padrão + sabor(es) + borda/massa. */
+  tipoItem: string
+  /** Sabores disponíveis. `precos` = id do tamanho padrão → preço da pizza inteira. */
+  sabores: { nome: string; descricao: string; precos: Record<string, number> }[]
+  /** Menor preço possível (tamanho/sabor mais barato) — o "a partir de" do cartão. */
+  precoAPartirDe: number
 }
 
 export interface CategoriaDaMesa {
@@ -60,12 +67,16 @@ interface Props {
   loja: { nome: string; logoUrl: string | null; bannerUrl: string | null }
   grupos: CategoriaDaMesa[]
   itens: ItemDaMesa[]
+  pizza: PizzaDaLoja
 }
 
-interface OpcaoEscolhida {
-  grupo: string
-  escolha: string
-  preco: number
+type OpcaoEscolhida = OpcaoDaLinha
+
+/** Texto da opção na lista: "Borda Catupiry", "Massa Integral", o resto como veio. */
+function rotuloOpcao(o: OpcaoEscolhida): string {
+  if (o.tipo === 'borda') return `Borda ${o.escolha}`
+  if (o.tipo === 'massa') return `Massa ${o.escolha}`
+  return o.escolha
 }
 
 /** Item marcado em outro celular da mesma mesa. Sem dono identificável. */
@@ -107,7 +118,7 @@ function idDoDispositivo(): string {
 const totalDaLinha = (l: LinhaSelecionada) =>
   (l.precoUnitario + l.opcoes.reduce((s, o) => s + o.preco, 0)) * l.quantidade
 
-export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) {
+export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza }: Props) {
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(grupos[0]?.id ?? null)
   const [busca, setBusca] = useState('')
   const [fichaAberta, setFichaAberta] = useState<ItemDaMesa | null>(null)
@@ -350,7 +361,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
                   <div className="mesa-card-rodape">
                     <div className="mesa-preco">
                       <span className="mesa-preco-rotulo">A partir de</span>
-                      <span className="mesa-preco-valor">{brl(item.preco)}</span>
+                      <span className="mesa-preco-valor">{brl(item.precoAPartirDe)}</span>
                     </div>
                     <button className="mesa-botao-add" onClick={() => setFichaAberta(item)}>
                       Selecionar item
@@ -395,6 +406,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens }: Props) 
       {fichaAberta && (
         <Configurador
           item={fichaAberta}
+          pizza={pizza}
           onFechar={() => setFichaAberta(null)}
           onAdicionar={(linha) => {
             atualizarSelecao([...selecao, linha])
@@ -602,59 +614,169 @@ function ChamarGarcom({ token }: { token: string }) {
 
 interface Etapa {
   id: string
+  /** O que a escolha desta etapa é — decide o preço (ver lib/selecao-preco). */
+  tipo: TipoOpcao
   titulo: string
   instrucao: string
   obrigatorio: boolean
   min: number
   max: number
-  opcoes: { id: string; nome: string; preco: number; imagemUrl: string | null }[]
+  opcoes: { id: string; nome: string; preco: number; imagemUrl: string | null; detalhe?: string; descricao?: string }[]
+}
+
+const GRUPO_DO_TIPO: Record<Exclude<TipoOpcao, 'opcao'>, string> = {
+  tamanho: 'Tamanho',
+  sabor: 'Sabor',
+  borda: 'Borda',
+  massa: 'Massa',
 }
 
 function Configurador({
   item,
+  pizza,
   onFechar,
   onAdicionar,
 }: {
   item: ItemDaMesa
+  pizza: PizzaDaLoja
   onFechar: () => void
   onAdicionar: (linha: LinhaSelecionada) => void
 }) {
+  const ehPizza = item.tipoItem === 'pizza'
+  const [escolhas, setEscolhas] = useState<Record<string, string[]>>({})
+  // Tamanho de pizza só aparece se algum sabor tem preço nele.
+  const tamanhosPizza = useMemo(
+    () => {
+      if (!ehPizza) return []
+      // Mesma regra do PDV e da vitrine: tamanho sem sabor com preço não é vendido.
+      const comPreco = pizza.tamanhos.filter((t) => item.sabores.some((s) => (s.precos[t.id] ?? 0) > 0))
+      return comPreco.length > 0 ? comPreco : pizza.tamanhos
+    },
+    [ehPizza, pizza.tamanhos, item.sabores],
+  )
+  const tamanhoPizza = tamanhosPizza.find((t) => (escolhas.tamanho ?? [])[0] === t.id)
+  const precificavel = useMemo<ItemPrecificavel>(
+    () => ({
+      preco: item.preco,
+      tipoItem: item.tipoItem,
+      tamanhos: item.tamanhos,
+      sabores: item.sabores,
+      grupos: item.grupos.map((g) => ({ nome: g.nome, complementos: g.complementos })),
+    }),
+    [item],
+  )
+
   /**
    * As etapas saem do catálogo, nunca de uma lista fixa: tamanho (quando houver), os
    * grupos de opções do item na ordem cadastrada, e por último quantidade + observação.
    */
   const etapas = useMemo<Etapa[]>(() => {
     const lista: Etapa[] = []
-    if (item.tamanhos.length > 0) {
+    if (ehPizza) {
+      // Pizza: tamanho → sabor(es) → borda → massa, e depois os adicionais do item.
       lista.push({
         id: 'tamanho',
+        tipo: 'tamanho',
         titulo: 'Escolha o tamanho',
-        instrucao: 'Você deve escolher 1 item.',
+        instrucao: 'Você deve escolher 1 tamanho.',
         obrigatorio: true,
         min: 1,
         max: 1,
-        opcoes: item.tamanhos.map((t) => ({ id: t.id, nome: t.nome, preco: t.preco, imagemUrl: null })),
+        opcoes: tamanhosPizza.map((t) => {
+          const precos = item.sabores.map((s) => s.precos[t.id] ?? 0).filter((x) => x > 0)
+          return {
+            id: t.id,
+            nome: t.nome,
+            preco: 0,
+            imagemUrl: null,
+            detalhe: precos.length ? `a partir de ${brl(Math.min(...precos))}` : undefined,
+            descricao: t.maxSabores > 1 ? `Até ${t.maxSabores} sabores` : undefined,
+          }
+        }),
+      })
+      const max = Math.max(1, tamanhoPizza?.maxSabores ?? 1)
+      lista.push({
+        id: 'sabor',
+        tipo: 'sabor',
+        titulo: max > 1 ? 'Escolha os sabores' : 'Escolha o sabor',
+        instrucao: !tamanhoPizza
+          ? 'Escolha o tamanho primeiro.'
+          : max > 1
+            ? `Escolha de 1 a ${max} sabores. Com mais de um, o preço é ${pizza.regra === 'maior' ? 'o do sabor mais caro' : 'a média dos sabores'}.`
+            : 'Você deve escolher 1 sabor.',
+        obrigatorio: true,
+        min: 1,
+        max,
+        opcoes: tamanhoPizza
+          ? item.sabores
+              .filter((sb) => (sb.precos[tamanhoPizza.id] ?? 0) > 0)
+              .map((sb) => ({
+                id: `sabor:${sb.nome}`,
+                nome: sb.nome,
+                preco: 0,
+                imagemUrl: null,
+                detalhe: brl(sb.precos[tamanhoPizza.id]!),
+                descricao: sb.descricao || undefined,
+              }))
+          : [],
+      })
+      if (pizza.bordas.length > 0) {
+        lista.push({
+          id: 'borda',
+          tipo: 'borda',
+          titulo: 'Borda',
+          instrucao: 'Opcional. Escolha até 1.',
+          obrigatorio: false,
+          min: 0,
+          max: 1,
+          opcoes: pizza.bordas.map((b) => ({ id: `borda:${b.nome}`, nome: b.nome, preco: b.preco, imagemUrl: null })),
+        })
+      }
+      if (pizza.massas.length > 0) {
+        lista.push({
+          id: 'massa',
+          tipo: 'massa',
+          titulo: 'Massa',
+          instrucao: 'Opcional. Escolha até 1.',
+          obrigatorio: false,
+          min: 0,
+          max: 1,
+          opcoes: pizza.massas.map((m) => ({ id: `massa:${m.nome}`, nome: m.nome, preco: m.preco, imagemUrl: null })),
+        })
+      }
+    } else if (item.tamanhos.length > 0) {
+      // O tamanho SUBSTITUI o preço do item — mostra o preço cheio, não "+ R$".
+      lista.push({
+        id: 'tamanho',
+        tipo: 'tamanho',
+        titulo: 'Escolha o tamanho',
+        instrucao: 'Você deve escolher 1 tamanho.',
+        obrigatorio: true,
+        min: 1,
+        max: 1,
+        opcoes: item.tamanhos.map((t) => ({ id: t.id, nome: t.nome, preco: 0, imagemUrl: null, detalhe: brl(t.preco) })),
       })
     }
     for (const g of item.grupos) {
       if (g.complementos.length === 0) continue
       lista.push({
         id: g.id,
+        tipo: 'opcao',
         titulo: g.nome,
         instrucao: g.obrigatorio
           ? `Você deve escolher ${g.minEscolhas > 1 ? `${g.minEscolhas} itens` : '1 item'}.`
           : `Opcional. Escolha até ${g.maxEscolhas > 1 ? `${g.maxEscolhas} itens` : '1 item'}.`,
         obrigatorio: g.obrigatorio,
         min: g.obrigatorio ? Math.max(1, g.minEscolhas) : 0,
-        max: Math.max(1, g.maxEscolhas),
+        // Máximo 0 = "quantos quiser", como no PDV e na vitrine.
+        max: g.maxEscolhas > 0 ? g.maxEscolhas : Math.max(1, g.complementos.length),
         opcoes: g.complementos,
       })
     }
     return lista
-  }, [item])
+  }, [item, ehPizza, tamanhosPizza, tamanhoPizza, pizza])
 
   const [passo, setPasso] = useState(0)
-  const [escolhas, setEscolhas] = useState<Record<string, string[]>>({})
   const [quantidade, setQuantidade] = useState(1)
   const [observacao, setObservacao] = useState('')
 
@@ -664,7 +786,15 @@ function Configurador({
   function alternar(etapa: Etapa, opcaoId: string) {
     setEscolhas((atual) => {
       const atuais = atual[etapa.id] ?? []
-      if (etapa.max === 1) return { ...atual, [etapa.id]: [opcaoId] }
+      if (ehPizza && etapa.tipo === 'tamanho') {
+        // Troca de tamanho: sai o sabor sem preço nele e o que passa do limite de sabores.
+        const t = tamanhosPizza.find((x) => x.id === opcaoId)
+        const sabores = (atual.sabor ?? [])
+          .filter((id) => (item.sabores.find((sb) => `sabor:${sb.nome}` === id)?.precos[t?.id ?? ''] ?? 0) > 0)
+          .slice(0, Math.max(1, t?.maxSabores ?? 1))
+        return { ...atual, tamanho: [opcaoId], sabor: sabores }
+      }
+      if (etapa.max === 1) return { ...atual, [etapa.id]: atuais[0] === opcaoId && !etapa.obrigatorio ? [] : [opcaoId] }
       if (atuais.includes(opcaoId)) return { ...atual, [etapa.id]: atuais.filter((x) => x !== opcaoId) }
       if (atuais.length >= etapa.max) return atual
       return { ...atual, [etapa.id]: [...atuais, opcaoId] }
@@ -676,13 +806,16 @@ function Configurador({
     for (const e of etapas) {
       for (const id of escolhas[e.id] ?? []) {
         const o = e.opcoes.find((x) => x.id === id)
-        if (o) saida.push({ grupo: e.titulo, escolha: o.nome, preco: o.preco })
+        if (o) saida.push({ grupo: e.tipo === 'opcao' ? e.titulo : GRUPO_DO_TIPO[e.tipo], escolha: o.nome, preco: o.preco, tipo: e.tipo })
       }
     }
     return saida
   }, [etapas, escolhas])
 
-  const subtotal = (item.preco + opcoesEscolhidas.reduce((s, o) => s + o.preco, 0)) * quantidade
+  // Mesmo cálculo do servidor: pizza pelo sabor no tamanho, tamanho substitui o preço,
+  // borda/massa/adicionais somam.
+  const precificado = useMemo(() => precificarLinha(precificavel, opcoesEscolhidas, pizza), [precificavel, opcoesEscolhidas, pizza])
+  const subtotal = (precificado.precoUnitario + precificado.opcoes.reduce((s, o) => s + o.preco, 0)) * quantidade
   const etapaValida = !etapa || (escolhas[etapa.id] ?? []).length >= etapa.min
 
   function avancar() {
@@ -696,10 +829,10 @@ function Configurador({
       itemId: item.id,
       nome: item.nome,
       imagemUrl: item.imagemUrl,
-      precoUnitario: item.preco,
+      precoUnitario: precificado.precoUnitario,
       quantidade,
       observacao,
-      opcoes: opcoesEscolhidas,
+      opcoes: precificado.opcoes,
     })
   }
 
@@ -816,8 +949,15 @@ function Configurador({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={o.imagemUrl} alt="" className="mesa-opcao-foto" />
                       )}
-                      <span className="mesa-opcao-nome">{o.nome}</span>
-                      {o.preco > 0 && <span className="mesa-opcao-preco">+ {brl(o.preco)}</span>}
+                      <span className="mesa-opcao-nome">
+                        {o.nome}
+                        {o.descricao && <small className="mesa-opcao-descricao">{o.descricao}</small>}
+                      </span>
+                      {o.detalhe ? (
+                        <span className="mesa-opcao-preco">{o.detalhe}</span>
+                      ) : (
+                        o.preco > 0 && <span className="mesa-opcao-preco">+ {brl(o.preco)}</span>
+                      )}
                     </button>
                   )
                 })}
@@ -923,7 +1063,7 @@ function PainelSelecao({
               </div>
               <div className="mesa-linha-texto">
                 <strong>{l.nome}</strong>
-                {l.opcoes.length > 0 && <small>{l.opcoes.map((o) => o.escolha).join(' · ')}</small>}
+                {l.opcoes.length > 0 && <small>{l.opcoes.map(rotuloOpcao).join(' · ')}</small>}
                 {l.observacao && <small className="mesa-linha-obs">“{l.observacao}”</small>}
                 <span className="mesa-linha-preco">{brl(totalDaLinha(l))}</span>
               </div>
@@ -957,7 +1097,7 @@ function PainelSelecao({
                     <span className="mesa-de-outros-qtd">{l.quantidade}×</span>
                     <span className="mesa-de-outros-nome">
                       {l.nome}
-                      {l.opcoes.length > 0 && <small>{l.opcoes.map((o) => o.escolha).join(' · ')}</small>}
+                      {l.opcoes.length > 0 && <small>{l.opcoes.map(rotuloOpcao).join(' · ')}</small>}
                       {l.observacao && <small>“{l.observacao}”</small>}
                     </span>
                     <span className="mesa-de-outros-preco">
@@ -1186,7 +1326,8 @@ const TOKENS = `
 .mesa-marcador.redondo { border-radius: 50%; }
 .mesa-opcao.marcada .mesa-marcador { border-color: var(--coral); background: var(--coral); box-shadow: inset 0 0 0 3px #fff; }
 .mesa-opcao-foto { width: 32px; height: 32px; object-fit: contain; }
-.mesa-opcao-nome { flex: 1; }
+.mesa-opcao-nome { flex: 1; min-width: 0; }
+.mesa-opcao-descricao { display: block; margin-top: 2px; color: var(--suave); font-size: 12px; font-weight: 400; line-height: 1.35; }
 .mesa-opcao-preco { color: var(--suave); font-size: 12px; font-weight: 700; white-space: nowrap; }
 
 .mesa-qtd { display: flex; align-items: center; gap: 18px; padding: 16px; }

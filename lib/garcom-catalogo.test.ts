@@ -205,3 +205,40 @@ describe('envio', () => {
     expect(bloqueioDoEnvio([{ ...linha, indisponivel: 'saiu' }], false)).toMatch(/indisponível/)
   })
 })
+
+describe('pizza escolhida no celular chega ao garçom já preenchida', () => {
+  const PIZZA = item('i-pizza', 'Pizza Salgada', 'g-bebidas', {
+    tipoItem: 'pizza',
+    preco: 69,
+    grupos: [{ ...ADICIONAL, nome: 'Adicionais de Pizza' }],
+  })
+
+  it('tamanho, sabores (meio a meio), borda, massa e adicional viram a pré-escolha do configurador', () => {
+    const r = resolverDaSelecao(
+      {
+        chave: 's:1:0', itemId: 'i-pizza', nome: 'Pizza Salgada', quantidade: 1, precoUnitario: 75, observacao: 'sem cebola',
+        opcoes: [
+          { grupo: 'Tamanho', escolha: 'Grande', preco: 0, tipo: 'tamanho' },
+          { grupo: 'Sabor', escolha: 'Calabresa', preco: 0, tipo: 'sabor' },
+          { grupo: 'Sabor', escolha: 'Portuguesa', preco: 0, tipo: 'sabor' },
+          { grupo: 'Borda', escolha: 'Catupiry', preco: 8, tipo: 'borda' },
+          { grupo: 'Massa', escolha: 'Integral', preco: 3, tipo: 'massa' },
+          { grupo: 'Adicionais de Pizza', escolha: 'Bacon', preco: 4, tipo: 'opcao' },
+        ],
+      },
+      [PIZZA],
+      CATEGORIAS,
+      AS_15H,
+    )
+    expect(r.tipo).toBe('configurar')
+    if (r.tipo !== 'configurar') return
+    expect(r.preescolha).toMatchObject({
+      tamanhoNome: 'Grande',
+      saborNome: 'Calabresa / Portuguesa',
+      bordaNome: 'Catupiry',
+      massaNome: 'Integral',
+      complementos: [{ nome: 'Bacon', preco: 4 }],
+      observacao: 'sem cebola',
+    })
+  })
+})

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { TipoOpcao } from '@/lib/selecao-preco'
 
 /**
  * Sessão da mesa e seleção do cliente.
@@ -23,6 +24,17 @@ export interface OpcaoSelecionada {
   grupo: string
   escolha: string
   preco: number
+  /** tamanho | sabor | borda | massa | opcao (adicional). Ausente em seleção antiga. */
+  tipo?: TipoOpcao
+}
+
+const TIPOS_OPCAO = new Set<TipoOpcao>(['tamanho', 'sabor', 'borda', 'massa', 'opcao'])
+
+/** Entrada do catálogo para sanear a seleção. `precificar` reprecifica pelo catálogo. */
+export interface ItemDoCatalogoDaMesa {
+  nome: string
+  preco: number
+  precificar?: (opcoes: OpcaoSelecionada[]) => { precoUnitario: number; opcoes: OpcaoSelecionada[] }
 }
 
 export interface ItemSelecionado {
@@ -70,7 +82,7 @@ const LIMITE_QTD = 99
  */
 export function sanearSelecao(
   bruto: unknown,
-  catalogo: Map<string, { nome: string; preco: number }>,
+  catalogo: Map<string, ItemDoCatalogoDaMesa>,
 ): ItemSelecionado[] {
   if (!Array.isArray(bruto)) return []
   const itens: ItemSelecionado[] = []
@@ -92,22 +104,28 @@ export function sanearSelecao(
           .slice(0, 30)
           .map((o) => {
             const x = (o ?? {}) as Record<string, unknown>
+            const tipo = typeof x.tipo === 'string' && TIPOS_OPCAO.has(x.tipo as TipoOpcao) ? (x.tipo as TipoOpcao) : undefined
             return {
               grupo: typeof x.grupo === 'string' ? x.grupo.slice(0, 80) : '',
               escolha: typeof x.escolha === 'string' ? x.escolha.slice(0, 120) : '',
               preco: Number.isFinite(Number(x.preco)) ? Math.max(0, Number(x.preco)) : 0,
+              ...(tipo ? { tipo } : {}),
             }
           })
           .filter((o) => o.escolha)
       : []
 
+    // Preço da linha pelo catálogo (pizza, tamanho, adicionais). Sem precificador, fica o
+    // preço-base do item e as opções como vieram.
+    const precificado = doCatalogo.precificar ? doCatalogo.precificar(opcoes) : null
+
     itens.push({
       itemId,
       nome: doCatalogo.nome,
-      precoUnitario: doCatalogo.preco,
+      precoUnitario: precificado ? precificado.precoUnitario : doCatalogo.preco,
       quantidade,
       observacao,
-      opcoes,
+      opcoes: precificado ? precificado.opcoes : opcoes,
     })
   }
 

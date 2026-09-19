@@ -397,7 +397,10 @@ export function ConfiguradorGarcom({
   const sabores = useMemo(() => item.sabores.filter((s) => s.status === 'disponivel'), [item])
   // Tamanho de pizza só entra se algum sabor disponível tem preço nele.
   const tamanhosPizza = useMemo(
-    () => pizza.tamanhos.filter((t) => sabores.some((s) => s.precos.some((p) => p.tamanhoPadraoId === t.id))),
+    () => {
+      const comPreco = pizza.tamanhos.filter((t) => sabores.some((s) => s.precos.some((p) => p.tamanhoPadraoId === t.id && p.preco > 0)))
+      return comPreco.length > 0 ? comPreco : pizza.tamanhos
+    },
     [pizza.tamanhos, sabores],
   )
   const tamanhosItem = useMemo(() => [...item.tamanhos].sort((a, b) => a.posicao - b.posicao), [item])
@@ -423,7 +426,8 @@ export function ConfiguradorGarcom({
 
   function precoDoSabor(nome: string): number | undefined {
     if (!tamanhoPizza) return undefined
-    return sabores.find((s) => s.nome === nome)?.precos.find((p) => p.tamanhoPadraoId === tamanhoPizza.id)?.preco
+    const p = sabores.find((s) => s.nome === nome)?.precos.find((x) => x.tamanhoPadraoId === tamanhoPizza.id)?.preco
+    return p !== undefined && p > 0 ? p : undefined
   }
 
   function escolherTamanhoPizza(nome: string) {
@@ -432,7 +436,7 @@ export function ConfiguradorGarcom({
     const t = tamanhosPizza.find((x) => x.nome === nome)
     setSaboresEscolhidos((atual) =>
       atual
-        .filter((n) => sabores.find((s) => s.nome === n)?.precos.some((p) => p.tamanhoPadraoId === t?.id))
+        .filter((n) => sabores.find((s) => s.nome === n)?.precos.some((p) => p.tamanhoPadraoId === t?.id && p.preco > 0))
         .slice(0, Math.max(1, t?.maxSabores ?? 1)),
     )
   }

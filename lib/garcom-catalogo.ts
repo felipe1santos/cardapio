@@ -18,6 +18,8 @@
 import type { GrupoCardapio, ItemCardapio } from '@/lib/queries/cardapio'
 import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
+import { juntarSabores } from '@/lib/pizza-preco'
+import { tipoDaOpcao, type TipoOpcao } from '@/lib/selecao-preco'
 
 export interface Relogio {
   /** Item vendido hoje (dia da semana em São Paulo). */
@@ -235,7 +237,7 @@ export interface LinhaSelecao {
   quantidade: number
   precoUnitario: number
   observacao: string
-  opcoes: { grupo: string; escolha: string; preco: number }[]
+  opcoes: { grupo: string; escolha: string; preco: number; tipo?: TipoOpcao }[]
 }
 
 export type ResultadoSelecao =
@@ -260,17 +262,30 @@ export function resolverDaSelecao(
   const motivo = motivoIndisponivel(item, categorias, relogio)
   if (motivo || !item) return { tipo: 'indisponivel', motivo: `"${sel.nome}" ${TEXTO_MOTIVO[motivo ?? 'inexistente']}.` }
 
-  // Pizza e tamanho: o cliente escolhe no celular, mas o garçom confirma no configurador.
+  const grupos = gruposComOpcao(item)
+  const opcoesAtivas = new Map(grupos.flatMap((g) => g.complementos.map((c) => [c.nome, c.preco] as const)))
+  const doTipo = (t: TipoOpcao) => sel.opcoes.filter((o) => tipoDaOpcao(o) === t).map((o) => o.escolha)
+
+  // Pizza e tamanho: o cliente escolhe no celular e o garçom confirma no configurador,
+  // que já abre com o que o cliente marcou (tamanho, sabores, borda, massa, adicionais).
   if (precisaTamanho(item)) {
+    const sabores = doTipo('sabor')
     return {
-      tipo: 'configurar', item, motivo: 'Confirme tamanho e sabor com o cliente.',
-      preescolha: { quantidade: sel.quantidade, observacao: sel.observacao },
+      tipo: 'configurar', item,
+      motivo: item.tipoItem === 'pizza' ? 'Confirme tamanho e sabor com o cliente.' : 'Confirme o tamanho com o cliente.',
+      preescolha: {
+        quantidade: sel.quantidade,
+        observacao: sel.observacao,
+        tamanhoNome: doTipo('tamanho')[0],
+        saborNome: sabores.length ? juntarSabores(sabores) : undefined,
+        bordaNome: doTipo('borda')[0],
+        massaNome: doTipo('massa')[0],
+        complementos: doTipo('opcao').filter((n) => opcoesAtivas.has(n)).map((n) => ({ nome: n, preco: opcoesAtivas.get(n)! })),
+      },
     }
   }
 
-  const grupos = gruposComOpcao(item)
-  const opcoesAtivas = new Map(grupos.flatMap((g) => g.complementos.map((c) => [c.nome, c.preco] as const)))
-  const escolhidas = sel.opcoes.map((o) => o.escolha)
+  const escolhidas = doTipo('opcao')
   const sumiu = escolhidas.filter((n) => !opcoesAtivas.has(n))
   const complementos = escolhidas.filter((n) => opcoesAtivas.has(n)).map((n) => ({ nome: n, preco: opcoesAtivas.get(n)! }))
   const erros = validarOpcoes(regrasDoItem(item), complementos.map((c) => c.nome))

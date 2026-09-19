@@ -12,6 +12,8 @@ import {
 import { listarGrupos, listarItens } from '@/lib/queries/cardapio'
 import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
+import { carregarPizzaDaLoja, itemPrecificavel } from '@/lib/queries/mesa-catalogo'
+import { precificarLinha } from '@/lib/selecao-preco'
 
 /**
  * Rascunho do cliente na mesa. **Não cria pedido.**
@@ -101,9 +103,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ toke
   // Preço e nome vêm do catálogo, nunca do navegador — e item que não é desta loja é
   // descartado. A seleção é só uma lista, mas ainda assim não pode exibir preço
   // inventado para o garçom.
-  const [itensDaLoja, categorias] = await Promise.all([
+  const [itensDaLoja, categorias, pizza] = await Promise.all([
     listarItens(ctx.admin, ctx.mesa.restauranteId),
     listarGrupos(ctx.admin, ctx.mesa.restauranteId),
+    carregarPizzaDaLoja(ctx.admin, ctx.mesa.restauranteId),
   ])
   const catalogo = new Map(
     itensDaLoja
@@ -114,7 +117,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ toke
           itemDisponivelHoje(i.diasDisponiveis) &&
           categoriaNoHorario(i, categorias, grupoEstaAtivoAgora),
       )
-      .map((i) => [i.id, { nome: i.nome, preco: i.promocaoPreco ?? i.preco }]),
+      .map((i) => {
+        // Pizza (tamanho + sabores + borda/massa), tamanho e adicionais: preço do catálogo.
+        const precificavel = itemPrecificavel(i)
+        return [
+          i.id,
+          {
+            nome: i.nome,
+            preco: i.promocaoPreco ?? i.preco,
+            precificar: (opcoes: Parameters<typeof precificarLinha>[1]) => precificarLinha(precificavel, opcoes, pizza),
+          },
+        ] as const
+      }),
   )
 
   const itens = sanearSelecao(corpo.itens, catalogo)
