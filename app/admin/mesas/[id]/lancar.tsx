@@ -139,7 +139,7 @@ export function SelecaoDoCliente({
         className="flex min-h-[44px] w-full items-center gap-2 px-3 py-2 text-left sm:px-4"
       >
         <Badge tone="pending">Não lançado</Badge>
-        <h3 className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">Seleção do cliente no celular</h3>
+        <h3 className="min-w-0 flex-1 text-[13px] font-bold leading-tight text-text-main">Seleção do cliente no celular</h3>
         {linhas.length > 0 && (
           <span className="flex-shrink-0 text-[11px] font-semibold text-text-subtle">
             {linhas.length} {linhas.length === 1 ? 'item' : 'itens'}
