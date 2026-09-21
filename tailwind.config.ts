@@ -79,12 +79,12 @@ const config: Config = {
         // A variável vem do next/font (app/layout.tsx). "Inter" fica como
         // segunda opção para quem já tiver a fonte instalada no sistema.
         sans: ["var(--font-inter)", "Inter", "sans-serif"],
-        // A vitrine do cliente usa Rubik (carregada em app/loja/[slug]/layout.tsx);
+        // A vitrine do cliente usa Montserrat (carregada em app/loja/[slug]/layout.tsx);
         // o painel segue em `sans` (Inter). Exceção registrada no CLAUDE.md §3.
         // O escopo de fato é aplicado via `.font-loja` em app/globals.css, não
         // por uso direto da classe `font-vitrine` — esta entrada existe para
         // nomear a pilha de fallback e documentar a família no design system.
-        vitrine: ["var(--font-rubik)", "Rubik", "sans-serif"],
+        vitrine: ["var(--font-vitrine)", "Montserrat", "sans-serif"],
       },
     },
   },
