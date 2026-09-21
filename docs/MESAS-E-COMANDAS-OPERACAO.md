@@ -112,8 +112,8 @@ update restaurantes set modulo_mesas_ativo = true where slug = '<slug-da-loja>';
 Depois, com o dono:
 
 1. cadastrar as mesas (nome/número, setor, capacidade) em **Mesas e Comandas**;
-2. conferir **Conta e pagamentos**: taxa de serviço padrão, formas aceitas (fiado só se
-   a loja trabalha com isso) e **quem pode o quê no salão** — garçom recebe? garçom
+2. conferir **Conta e pagamentos**: taxa de serviço padrão, formas aceitas (dinheiro,
+   Pix, crédito, débito e vale) e **quem pode o quê no salão** — garçom recebe? garçom
    transfere? caixa dá desconto? Os padrões seguem a matriz: garçom não recebe, caixa
    recebe e fecha, desconto é da gestão;
 3. imprimir a **Folha de QR** e colar/colocar nas mesas;
@@ -285,12 +285,26 @@ impressão), e `restaurantes.impressao_agente_token` é a credencial do agente d
 - O link só aparece para a gestão: garçom e caixa não leem o token nem pela tela nem
   pelo banco.
 
+### Cardápio da mesa em "somente visualização"
+
+Em **Ajustes › Mesas** (card amarelo), o QR vira um cardápio de consulta: o cliente vê
+itens, fotos, descrições e sabores, mas **não monta seleção e não chama o garçom pela
+tela** — o botão some e as rotas da seleção e do chamado recusam com 403. Quem pede é o
+garçom, na mesa.
+
+O aviso da loja continua aparecendo como rodapé, depois do último item, nos dois modos;
+com o modo ligado e nenhum texto escrito, o padrão passa a ser "Este cardápio é só para
+consultar. Para pedir, chame o garçom."
+
+Consequência a combinar com a loja: **"Pedir a conta" e "Preciso de ajuda" também somem**
+junto com o botão do garçom, já que os três são o mesmo chamado.
+
 ### Caixa (papel atendente)
 
 Entra em **Mesas e Comandas**, vê as mesas ocupadas com o número da comanda e abre
 **Ver conta**: registra pagamentos (Pix, cartão, dinheiro com troco, vale), divide por
-pessoa ou por item e fecha a conta. Não lança pedido, não atende chamado, não estorna,
-não pendura (fiado) e só dá desconto se o dono ligar a regra.
+pessoa ou por item e fecha a conta. Não lança pedido, não atende chamado, não estorna
+e só dá desconto se o dono ligar a regra.
 
 ### Pedido de cancelamento
 
@@ -299,15 +313,18 @@ cancelamento" do lançamento), escreve o motivo e a gestão vê o bloco **Pedido
 cancelamento aguardando** na conta, com **Aprovar** e **Recusar**. Enquanto houver pedido
 pendente a conta **não fecha**.
 
-### Taxa, desconto e fiado
+### Taxa e desconto
 
 - **Cliente recusou a taxa** e **Restaurar taxa** ficam na própria conta; o fechamento
   registra se a taxa foi aceita, removida ou alterada.
 - Desconto em **R$** ou **%**; o percentual acompanha a conta se um item for cancelado.
   Sempre com motivo.
-- **Fiado** só com a gestão e com o nome/contato de quem fica devendo.
 - Nada disso deixa o total abaixo do que já foi pago: nesse caso a tela pede o estorno
   antes.
+- **Fiado saiu da tela.** Não é mais oferecido como forma de pagamento em lugar nenhum,
+  e as rotas recusam a forma. As funções do banco (0067/0072) e o rótulo continuam
+  existindo só para as contas antigas que já foram pagas assim aparecerem com nome no
+  histórico.
 
 ### Quando algo não bate na conta
 
