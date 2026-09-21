@@ -132,6 +132,16 @@ export function PainelConta({
 
   const conta = dados?.conta ?? null
   const podeFazer = (acao: string) => !!dados?.permissoes?.[acao]
+  /**
+   * Conta sem nada dentro: nenhum lançamento ativo e nenhum pagamento. É o estado em que
+   * a conta fica quando o último lançamento é cancelado — e é o que prende a mesa em
+   * "Ocupada" no salão, porque a comanda continua aberta.
+   */
+  const contaVazia =
+    !!conta &&
+    conta.totais.total === 0 &&
+    conta.totais.pago === 0 &&
+    conta.lancamentos.every((l) => l.status === 'cancelado')
 
   async function executar(acao: string, corpo: Record<string, unknown>, sucesso: string) {
     const r = await agir(acao, corpo)
@@ -413,6 +423,24 @@ export function PainelConta({
               </span>
             </div>
           </div>
+
+          {/* Conta que ficou só com lançamento cancelado: a mesa segue "Ocupada" no
+              salão, com R$ 0,00, até alguém perceber. Aconteceu em produção — mesa presa
+              por dois dias. O sistema não fecha sozinho (é dinheiro e histórico, decisão
+              de gente), mas para de deixar isso invisível e põe a saída na mão. */}
+          {contaVazia && (
+            <p className="mt-2 flex items-start gap-2 rounded-menuzia border border-warn bg-warn-bg px-3 py-2.5 text-[12px] text-text-main" role="status">
+              <span aria-hidden>⚠️</span>
+              <span>
+                <strong>Esta conta está aberta e vazia.</strong> Não tem nenhum item ativo nem pagamento
+                {conta.lancamentos.length > 0 ? ' — o que havia foi cancelado' : ''}. Enquanto ela existir, a mesa
+                continua ocupada no salão.{' '}
+                {podeFazer('cancelar_comanda')
+                  ? 'Cancele a conta abaixo para liberar a mesa.'
+                  : 'Peça à gestão para cancelar a conta e liberar a mesa.'}
+              </span>
+            </p>
+          )}
 
           {conta.totais.pago - conta.totais.total > 0.005 && (
             // Acontece quando item é cancelado depois de pago. O sistema não inventa crédito:

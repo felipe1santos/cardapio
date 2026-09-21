@@ -214,6 +214,13 @@ function validarCupomInput(input: CupomInput, codigo: string): void {
   if (input.tipo === 'item_gratis' && !input.itemId) {
     throw new Error('Selecione o item que o cupom vai dar de graça.')
   }
+
+  // Zero não é "ilimitado" (isso é o campo vazio) nem faz sentido como teto: um cupom
+  // salvo com 0 respondia "as unidades acabaram" ao primeiro cliente, sem ninguém nunca
+  // ter usado. O banco também recusa, desde a 0076 — aqui é para a mensagem ser clara.
+  if (input.maxUsos != null && input.maxUsos < 1) {
+    throw new Error('O máximo de usos precisa ser pelo menos 1. Deixe vazio para não ter limite.')
+  }
 }
 
 // ─── Data/hora em America/Sao_Paulo (sem depender do fuso do servidor) ────

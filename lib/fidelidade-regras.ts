@@ -203,6 +203,13 @@ export function montarMensagemFidelidade(
  */
 export const MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO = 'Entre com seu telefone no cardápio para usar este cupom.'
 
+/**
+ * Teto GLOBAL do cupom esgotado — o da loja, somando todos os clientes, não o do cliente
+ * que está tentando. "Atingiu o limite de usos" fazia quem nunca tinha usado achar que o
+ * sistema estava errado; o texto agora diz de quem é o limite.
+ */
+export const MOTIVO_CUPOM_ESGOTADO = 'As unidades deste cupom já acabaram.'
+
 export interface CupomRegra {
   ativo: boolean
   tipo: 'desconto_percentual' | 'desconto_valor' | 'entrega_gratis' | 'item_gratis'
@@ -292,8 +299,12 @@ export function validarCupom(
     return { ok: false, motivo: 'Você já usou este cupom.' }
   }
 
-  if (cupom.maxUsos != null && cupom.usos >= cupom.maxUsos) {
-    return { ok: false, motivo: 'Este cupom atingiu o limite de usos.' }
+  // `maxUsos` é o teto da LOJA (todos os clientes somados), não o do cliente — quem
+  // limita por cliente é `usoUnicoPorCliente`, logo acima. `<= 0` é cadastro inválido
+  // (a 0076 passou a recusá-lo no banco) e não pode significar "esgotado": um cupom
+  // salvo com 0 por engano respondia "limite atingido" ao primeiro cliente da vida.
+  if (cupom.maxUsos != null && cupom.maxUsos > 0 && cupom.usos >= cupom.maxUsos) {
+    return { ok: false, motivo: MOTIVO_CUPOM_ESGOTADO }
   }
 
   return { ok: true }

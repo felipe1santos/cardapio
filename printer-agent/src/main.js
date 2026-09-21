@@ -4,7 +4,7 @@ Menu.setApplicationMenu(null)
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
-const { carregarConfig, salvarConfig } = require('./store')
+const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal } = require('./store')
 const { listarImpressorasWindows, imprimirTexto } = require('./printer')
 const { montarRecibo } = require('./recibo')
 
@@ -110,6 +110,20 @@ function criarJanela() {
   })
 }
 
+/**
+ * Avisa o servidor que o pedido saiu no papel. `true` só quando o servidor
+ * confirma — erro de rede e resposta de erro contam como "não avisado", para
+ * que a memória local segure o pedido em vez de deixá-lo voltar para a fila.
+ */
+async function avisarImpresso(pedidoId, auth) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedidoId}/imprimir`, { method: 'POST', headers: auth })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 async function cicloDePolling() {
   const config = carregarConfig()
   if (!config.token) return
@@ -159,15 +173,34 @@ async function cicloDePolling() {
     else logArquivo(`LOGO: nao baixada (imprimirLogo=${configImpressao.imprimirLogo}, logoUrl=${logoUrl ? 'presente' : 'AUSENTE'})`)
 
     try {
+      const jaImpressos = carregarImpressos()
       for (const pedido of pedidos) {
+        // Saiu no papel num ciclo anterior e o servidor não chegou a saber: só
+        // reavisa. Sem isto, o pedido voltava na consulta e imprimia de novo.
+        if (jaImpressos.includes(pedido.id)) {
+          if (await avisarImpresso(pedido.id, auth)) {
+            esquecerImpressoLocal(pedido.id)
+            log(`Pedido #${pedido.numero}: já tinha saído no papel, agora registrado.`)
+          } else {
+            log(`Pedido #${pedido.numero}: já saiu no papel; ainda não consegui avisar o servidor.`)
+          }
+          continue
+        }
+
         const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
         const saida = await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
         mostrarDiagnostico(saida)
-        await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedido.id}/imprimir`, {
-          method: 'POST',
-          headers: auth,
-        })
-        log(`Pedido #${pedido.numero} impresso.`)
+
+        // A partir daqui o papel pode já ter saído: registra local ANTES de
+        // avisar o servidor, porque é a falha do aviso que causava a duplicata.
+        marcarImpressoLocal(pedido.id)
+
+        if (await avisarImpresso(pedido.id, auth)) {
+          esquecerImpressoLocal(pedido.id)
+          log(`Pedido #${pedido.numero} impresso.`)
+        } else {
+          log(`Pedido #${pedido.numero} impresso, mas não consegui avisar o servidor — aviso na próxima rodada, sem reimprimir.`)
+        }
       }
     } finally {
       if (logoPath) fs.unlink(logoPath, () => {})

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MOTIVO_CUPOM_ESGOTADO,
   aplicarPedidoAoProgresso,
   calcularDesconto,
   fracaoProgresso,
@@ -298,6 +299,42 @@ describe('validarCupom', () => {
   it('maxUsos não atingido passa', () => {
     const r = validarCupom(cupom({ maxUsos: 100, usos: 99 }), hist(), ctxBase)
     expect(r.ok).toBe(true)
+  })
+
+  /**
+   * O que a loja viu em produção (2026-09-21): cliente de primeira compra, que nunca
+   * usou cupom nenhum, recebendo "atingiu o limite de usos". Duas causas somadas —
+   * `max_usos` lido como "por cliente" e o cadastro aceitando 0.
+   */
+  describe('teto de usos é da loja, não do cliente', () => {
+    it('maxUsos 0 não esgota o cupom: zero é cadastro inválido, não "acabou"', () => {
+      const r = validarCupom(cupom({ maxUsos: 0, usos: 0 }), hist(), ctxBase)
+      expect(r.ok).toBe(true)
+    })
+
+    it('cliente que nunca usou ainda pega o cupom enquanto sobrar unidade', () => {
+      const r = validarCupom(
+        cupom({ maxUsos: 50, usos: 1, publico: 'primeira_compra', usoUnicoPorCliente: true }),
+        hist({ totalPedidosEntregues: 0, jaUsouEsteCupom: false }),
+        ctxBase,
+      )
+      expect(r.ok).toBe(true)
+    })
+
+    it('o motivo diz que as unidades acabaram, não que o cliente estourou o limite', () => {
+      const r = validarCupom(cupom({ maxUsos: 1, usos: 1 }), hist(), ctxBase)
+      expect(r).toEqual({ ok: false, motivo: MOTIVO_CUPOM_ESGOTADO })
+      expect(r.ok === false && r.motivo).not.toMatch(/você|seu/i)
+    })
+
+    it('o limite por pessoa é outro, e tem a sua própria mensagem', () => {
+      const r = validarCupom(
+        cupom({ maxUsos: 50, usos: 1, usoUnicoPorCliente: true }),
+        hist({ jaUsouEsteCupom: true }),
+        ctxBase,
+      )
+      expect(r).toEqual({ ok: false, motivo: 'Você já usou este cupom.' })
+    })
   })
 })
 
