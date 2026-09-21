@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowRightLeft, Check, History, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
+import { ArrowRightLeft, Check, Eye, History, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
 import { esperaTexto } from '@/lib/chamados'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -85,10 +85,21 @@ export default function MesaDetalhePage() {
   const [confirmarJuntar, setConfirmarJuntar] = useState<MesaOpcao | null>(null)
   const estadoConta = useConta(params.id)
   const permissoesConta = estadoConta.dados?.permissoes ?? {}
-  // O caixa vê e cobra a conta, mas não lança nem atende chamado. Enquanto as permissões
-  // não chegam, a aba de lançar fica (é a do garçom, o caso mais comum).
+  // O caixa vê e cobra a conta, mas não lança nem atende chamado. Falha FECHADA: enquanto
+  // as permissões não chegam, nenhuma aba aparece (a área mostra "Carregando…"). Antes a
+  // aba de lançar vinha por padrão e o caixa via o catálogo inteiro por um instante.
   const permissoesCarregadas = !!estadoConta.dados
-  const podeLancar = !permissoesCarregadas || permissoesConta.lancar === true
+  const podeLancar = permissoesCarregadas && permissoesConta.lancar === true
+  // Atender chamado é `mesas.operar`, não "lançar": são permissões diferentes e um dia
+  // podem divergir. `assumir` é a que a rota calcula com `mesas.operar`.
+  const podeAtenderChamado = permissoesCarregadas && permissoesConta.assumir === true
+  /**
+   * Cardápio da mesa em "somente visualização" (0075): o QR é só leitura. O cliente não
+   * monta seleção e não chama ninguém — não existe a figura do garçom nesse modo. A tela
+   * diz isso em vez de ficar mostrando "o cliente ainda não marcou nada", que faria o
+   * garçom esperar por algo que nunca vem.
+   */
+  const somenteVisualizacao = estadoConta.dados?.somenteVisualizacao === true
   // Motivo digitado na troca de mesa, guardado para a confirmação de "juntar contas".
   const [motivoTroca, setMotivoTroca] = useState('')
   const [grupos, setGrupos] = useState<GrupoCardapio[]>([])
@@ -207,11 +218,13 @@ export default function MesaDetalhePage() {
   }, [restauranteId, intervaloMs, carregar])
 
   // O cliente continua marcando itens no celular enquanto o garçom está na mesa: a lista
-  // se atualiza sozinha, sem ele precisar recarregar a página.
+  // se atualiza sozinha, sem ele precisar recarregar a página. No modo só-visualização
+  // não existe seleção — o polling seria uma consulta a cada 5s para nunca achar nada.
   useEffect(() => {
+    if (somenteVisualizacao) return
     const t = setInterval(() => void recarregarSelecao(), 5000)
     return () => clearInterval(t)
-  }, [recarregarSelecao])
+  }, [recarregarSelecao, somenteVisualizacao])
 
   useEffect(() => {
     void carregar()
@@ -448,10 +461,12 @@ export default function MesaDetalhePage() {
     router.push(`/admin/mesas/${destinoMesaId}`)
   }
 
-  // Caixa não tem aba de lançar: abre direto na conta.
+  // Caixa não tem aba de lançar: abre direto na conta. Só decide DEPOIS de saber as
+  // permissões — antes, `podeLancar` é false por falha fechada, e sem esta guarda o
+  // garçom (o caso comum) cairia na Conta e teria de voltar para Lançar na mão.
   useEffect(() => {
-    if (!podeLancar && aba === 'lancar') setAba('conta')
-  }, [podeLancar, aba])
+    if (permissoesCarregadas && !podeLancar && aba === 'lancar') setAba('conta')
+  }, [permissoesCarregadas, podeLancar, aba])
 
   if (carregando) {
     return (
@@ -507,7 +522,27 @@ export default function MesaDetalhePage() {
       />
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-5">
-        {podeLancar && <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />}
+        {podeAtenderChamado && <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />}
+
+        {somenteVisualizacao && (
+          <div
+            className="mb-3 flex items-start gap-2.5 rounded-menuzia border border-warn bg-warn-bg px-4 py-3 sm:mb-4"
+            role="status"
+            data-aviso-somente-visualizacao
+          >
+            <Eye className="mt-0.5 h-4 w-4 flex-shrink-0 text-warn" aria-hidden />
+            <span>
+              <span className="block text-[13px] font-bold text-text-main">
+                Cardápio da mesa em somente visualização
+              </span>
+              <span className="block text-[12px] leading-relaxed text-text-subtle">
+                O QR desta loja é só para o cliente ver o cardápio. Ele não monta seleção, não chama o garçom e não
+                pede a conta pela tela — não há pedido para tirar aqui. Para voltar a atender pela mesa, desligue o
+                modo em <strong className="text-text-main">Ajustes › Mesas</strong>.
+              </span>
+            </span>
+          </div>
+        )}
 
         {avisoPagina && (
           <p className="mb-3 flex items-center justify-between gap-2 rounded-menuzia bg-alert-bg px-4 py-2.5 text-[13px] text-alert-text" role="status">
@@ -555,6 +590,15 @@ export default function MesaDetalhePage() {
           )
         })()}
 
+        {/* Falha fechada: as abas só aparecem quando se sabe o que este papel pode. O
+            espaço fica reservado para a barra não empurrar o conteúdo ao chegar. */}
+        {!permissoesCarregadas && (
+          <div className="mb-3 flex min-h-[52px] items-center rounded-menuzia bg-main px-4 text-[12px] text-text-subtle shadow-sm sm:mb-4" role="status">
+            Carregando…
+          </div>
+        )}
+
+        {permissoesCarregadas && (
         <div className="mb-3 grid grid-flow-col auto-cols-fr gap-1.5 rounded-menuzia bg-main p-1 shadow-sm sm:mb-4 sm:inline-grid" role="tablist">
           {([
             ['lancar', 'Lançar', ShoppingBag, 'bg-primary'],
@@ -576,6 +620,7 @@ export default function MesaDetalhePage() {
             </button>
           ))}
         </div>
+        )}
 
         {aba === 'conta' && (
           <PainelConta
@@ -595,16 +640,20 @@ export default function MesaDetalhePage() {
         <div className={`grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start ${naAbaLancar ? '' : 'hidden'}`}>
           {/* ── Catálogo: o garçom escolhe à mão ─────────────────────────── */}
           <section className="min-w-0 space-y-3">
-            <SelecaoDoCliente
-              linhas={selecaoCliente}
-              resolucoes={resolucoes}
-              adicionadas={adicionadas}
-              aberto={selecaoAberta}
-              aviso={avisoSelecao}
-              onAlternar={() => setSelecaoAberta((a) => !a)}
-              onAdicionar={adicionarUmaDaSelecao}
-              onAdicionarTodas={adicionarSelecaoToda}
-            />
+            {/* No modo só-visualização o cliente nunca marca nada: a faixa "ainda não
+                marcou" viraria ruído permanente. O aviso do topo já explica a tela. */}
+            {!somenteVisualizacao && (
+              <SelecaoDoCliente
+                linhas={selecaoCliente}
+                resolucoes={resolucoes}
+                adicionadas={adicionadas}
+                aberto={selecaoAberta}
+                aviso={avisoSelecao}
+                onAlternar={() => setSelecaoAberta((a) => !a)}
+                onAdicionar={adicionarUmaDaSelecao}
+                onAdicionarTodas={adicionarSelecaoToda}
+              />
+            )}
 
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" aria-hidden />

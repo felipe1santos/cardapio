@@ -88,7 +88,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const conta = await buscarConta(ctx.admin, ctx.sessao.restauranteId, id)
   const { data: loja } = await ctx.admin
     .from('restaurantes')
-    .select('formas_pagamento_mesa, taxa_servico_padrao')
+    .select('formas_pagamento_mesa, taxa_servico_padrao, mesa_somente_visualizacao')
     .eq('id', ctx.sessao.restauranteId)
     .maybeSingle()
 
@@ -101,6 +101,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       ehFormaOferecida,
     ),
     taxaServicoPadrao: Number(loja?.taxa_servico_padrao ?? 0),
+    // Cardápio da mesa só para ver (0075): a tela do salão avisa o garçom de que aqui
+    // não existe seleção do cliente nem chamado — nada vem do QR.
+    somenteVisualizacao: (loja?.mesa_somente_visualizacao as boolean | null) === true,
     permissoes: permissoesDaTela(ctx),
   })
 }

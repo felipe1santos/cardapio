@@ -220,6 +220,40 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
   }, [lerDoServidor, somenteVisualizacao])
 
   /**
+   * A loja liga e desliga "somente visualização" com celulares já na mesa. A tela
+   * pergunta o modo de tempos em tempos (e ao voltar para a aba) e se recarrega quando
+   * ele muda — senão o cliente ficaria montando uma seleção que a rota recusa, ou
+   * preso no cardápio de consulta numa loja que voltou a atender pela mesa.
+   *
+   * Intervalo folgado de propósito: é uma troca rara, e cada mesa tem vários celulares.
+   */
+  useEffect(() => {
+    let vivo = true
+    const conferir = async () => {
+      try {
+        const r = await fetch(`/api/mesa/${token}/modo`, { cache: 'no-store' })
+        if (!r.ok || !vivo) return
+        const corpo = (await r.json()) as { somenteVisualizacao?: boolean }
+        if (vivo && corpo.somenteVisualizacao !== undefined && corpo.somenteVisualizacao !== somenteVisualizacao) {
+          window.location.reload()
+        }
+      } catch {
+        // Sem rede: continua no modo em que está. A rota recusa o que não pode.
+      }
+    }
+    const t = setInterval(() => void conferir(), 60000)
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') void conferir()
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => {
+      vivo = false
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', aoVoltar)
+    }
+  }, [token, somenteVisualizacao])
+
+  /**
    * Guarda a lista no servidor para o garçom poder consultá-la de outro aparelho.
    * É rascunho: a rota só grava `selecao_itens` e nunca cria pedido.
    */

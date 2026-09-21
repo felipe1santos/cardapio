@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { CardapioDaMesa, type ItemDaMesa } from './cardapio'
 
 const base: Pick<ItemDaMesa, 'grupoId' | 'precoOriginal' | 'imagemUrl' | 'grupos' | 'tamanhos'> = {
@@ -59,6 +59,54 @@ describe('cardápio da mesa — somente visualização', () => {
   it('desligado, o botão de chamar o garçom continua na tela', () => {
     renderizar(false)
     expect(screen.getByRole('button', { name: 'Chamar o garçom' })).toBeInTheDocument()
+  })
+
+  /**
+   * A loja vira a chave com celulares já na mesa. Ao voltar para a aba, a tela confere o
+   * modo e se recarrega se mudou — senão o cliente fica montando uma seleção que a rota
+   * recusa, ou preso no cardápio de consulta numa loja que voltou a atender.
+   */
+  it('confere o modo ao voltar para a aba e recarrega quando ele mudou', async () => {
+    const reload = vi.fn()
+    const local = window.location
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...local, reload } })
+
+    globalThis.fetch = vi.fn(async (url: unknown) =>
+      String(url).includes('/modo')
+        ? new Response(JSON.stringify({ somenteVisualizacao: false }))
+        : new Response(JSON.stringify({ id: null, itens: [], deOutros: [] })),
+    ) as typeof fetch
+
+    renderizar(true)
+    fireEvent(document, new Event('visibilitychange'))
+    await waitFor(() => expect(reload).toHaveBeenCalled())
+
+    const chamadas = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))
+    expect(chamadas.some((u) => u.endsWith('/api/mesa/t/modo'))).toBe(true)
+
+    Object.defineProperty(window, 'location', { configurable: true, value: local })
+  })
+
+  it('modo igual ao da tela não recarrega nada', async () => {
+    const reload = vi.fn()
+    const local = window.location
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...local, reload } })
+
+    globalThis.fetch = vi.fn(async (url: unknown) =>
+      String(url).includes('/modo')
+        ? new Response(JSON.stringify({ somenteVisualizacao: true }))
+        : new Response(JSON.stringify({ id: null, itens: [], deOutros: [] })),
+    ) as typeof fetch
+
+    renderizar(true)
+    fireEvent(document, new Event('visibilitychange'))
+    await waitFor(() => {
+      const chamadas = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))
+      expect(chamadas.some((u) => u.endsWith('/api/mesa/t/modo'))).toBe(true)
+    })
+    expect(reload).not.toHaveBeenCalled()
+
+    Object.defineProperty(window, 'location', { configurable: true, value: local })
   })
 
   it('pizza abre a ficha com foto, descrição e sabores — sem tamanho, adicional nem botão de adicionar', () => {

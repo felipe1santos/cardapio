@@ -54,6 +54,8 @@ interface Resposta {
   formasPagamento: FormaPagamento[]
   /** Taxa padrão da loja, para "restaurar" a taxa numa conta em que ela foi removida. */
   taxaServicoPadrao: number
+  /** Cardápio da mesa só para ver (0075): não há seleção do cliente nem chamado. */
+  somenteVisualizacao: boolean
   permissoes: Permissoes
 }
 

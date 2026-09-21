@@ -421,7 +421,9 @@ function SecaoOrdem({
       <h3 className="mb-1 text-[13px] font-bold text-text-main">Ordem das categorias (cardápio da mesa)</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
         Arrume a ordem em que as categorias aparecem na lista da esquerda do cardápio que o cliente abre pelo QR da
-        mesa. Não muda o delivery — a ordem dele continua sendo ajustada em Cardápio.
+        mesa. Não muda o delivery — a ordem dele continua sendo ajustada em Cardápio. Aqui estão todas as categorias
+        com item vendido no salão: as que hoje estão fora do horário, ou com tudo esgotado, continuam na lista para
+        você poder ordená-las — no cardápio da mesa elas só aparecem quando voltarem.
       </p>
 
       {categorias.length === 0 ? (
@@ -438,7 +440,7 @@ function SecaoOrdem({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold text-text-main">{g.nome}</span>
                     <span className="block text-[11px] text-text-subtle">
-                      {qtdItens.get(id) ?? 0} {(qtdItens.get(id) ?? 0) === 1 ? 'item' : 'itens'}
+                      {qtdItens.get(id) ?? 0} {(qtdItens.get(id) ?? 0) === 1 ? 'item no salão' : 'itens no salão'}
                       {g.horarioAtivoInicio && g.horarioAtivoFim
                         ? ` · ${g.horarioAtivoInicio.slice(0, 5)}–${g.horarioAtivoFim.slice(0, 5)}`
                         : ''}

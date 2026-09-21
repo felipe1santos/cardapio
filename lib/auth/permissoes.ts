@@ -43,7 +43,6 @@ export const PERMISSOES = [
   'comanda.transferir',
   'comanda.desconto',
   'comanda.estornar',
-  'comanda.fiado',
   // Retaguarda
   'clientes.ver',
   'dashboard.faturamento',
@@ -101,9 +100,9 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
   'comanda.transferir': ['dono', 'gerente', 'garcom'],
   // Taxa e desconto. O caixa só se a loja ligar (`salao_caixa_desconto`).
   'comanda.desconto': ['dono', 'gerente'],
-  // Devolver dinheiro e deixar conta pendurada são decisões da gestão.
+  // Devolver dinheiro é decisão da gestão. (`comanda.fiado` saiu com o fiado: a forma
+  // não é mais oferecida em lugar nenhum, então a permissão não tinha mais dono.)
   'comanda.estornar': ['dono', 'gerente'],
-  'comanda.fiado': ['dono', 'gerente'],
 
   // Base de clientes é do delivery: telefone e endereço não são assunto do salão.
   'clientes.ver': ['dono', 'gerente', 'atendente'],

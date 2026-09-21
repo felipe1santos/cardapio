@@ -38,7 +38,6 @@ const ESPERADO: Record<Permissao, Papel[]> = {
   'comanda.transferir': ['dono', 'gerente', 'garcom'],
   'comanda.desconto': ['dono', 'gerente'],
   'comanda.estornar': ['dono', 'gerente'],
-  'comanda.fiado': ['dono', 'gerente'],
   'clientes.ver': ['dono', 'gerente', 'atendente'],
   'dashboard.faturamento': ['dono', 'gerente'],
   'cardapio.editar': ['dono', 'gerente'],
@@ -101,8 +100,8 @@ describe('separação por canal', () => {
     for (const p of doSalao) expect(pode('atendente', p), p).toBe(doCaixa.includes(p))
   })
 
-  it('garçom não recebe, não estorna nem pendura conta por padrão', () => {
-    for (const p of ['comanda.fechar', 'comanda.estornar', 'comanda.fiado', 'comanda.desconto'] as Permissao[]) {
+  it('garçom não recebe, não estorna nem dá desconto por padrão', () => {
+    for (const p of ['comanda.fechar', 'comanda.estornar', 'comanda.desconto'] as Permissao[]) {
       expect(pode('garcom', p), p).toBe(false)
     }
   })
@@ -244,7 +243,7 @@ describe('regras do salão por loja', () => {
   it('"garçom recebe" libera pagamento e fechamento ao garçom — e só isso', () => {
     const regras = { ...REGRAS_SALAO_PADRAO, garcomRecebe: true }
     expect(podeNoSalao('garcom', 'comanda.fechar', regras)).toBe(true)
-    for (const p of ['comanda.estornar', 'comanda.fiado', 'comanda.desconto', 'dashboard.faturamento'] as Permissao[]) {
+    for (const p of ['comanda.estornar', 'comanda.desconto', 'dashboard.faturamento'] as Permissao[]) {
       expect(podeNoSalao('garcom', p, regras), p).toBe(false)
     }
   })
