@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { decidirAcesso, ehRotaDoModuloMesas } from '@/lib/auth/rotas'
+import { decidirAcesso, ehRotaDoModuloMesas, superficie } from '@/lib/auth/rotas'
 
 /**
  * Porteiro do painel. Esconder item do menu não protege nada: quem digita a URL entra.
@@ -49,9 +49,23 @@ export async function middleware(request: NextRequest) {
   if (auth.user) {
     const { data, error } = await supabase.from('usuarios').select('papel').eq('id', auth.user.id).maybeSingle()
     if (error) {
-      // Falha de rede/banco, não de permissão. Deixar passar é o menor mal: a RLS continua
-      // negando o dado, e derrubar o dono do painel por um soluço de conexão seria pior.
       console.error('[middleware] não consegui ler o papel', error.message)
+      // Falha de rede/banco, não de permissão. Numa PÁGINA, deixar passar é o menor mal:
+      // a RLS continua negando o dado, e derrubar o dono do painel por um soluço de
+      // conexão seria pior.
+      //
+      // Numa API, não. Boa parte das rotas de `/api/admin` roda com `service_role`
+      // (PDV, cancelamento de pedido, campanhas, fidelidade, Nexta, WhatsApp), que passa
+      // POR CIMA da RLS — ali este porteiro é a única checagem de papel que existe, e
+      // deixar passar abriria fechar comanda e disparar campanha para qualquer usuário
+      // logado. Sem saber o papel, a resposta é 503: é uma falha nossa, temporária, e o
+      // cliente pode repetir.
+      if (superficie(pathname) === 'api') {
+        return NextResponse.json(
+          { error: 'Não foi possível confirmar sua permissão agora. Tente de novo em instantes.' },
+          { status: 503 },
+        )
+      }
       return response
     }
     papel = (data?.papel as string | undefined) ?? null

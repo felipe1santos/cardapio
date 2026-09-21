@@ -1073,14 +1073,28 @@ export default function FidelidadePage() {
                   className={INPUT_CLS}
                 />
               </Field>
-              <Field label="Máximo de usos" hint="Vazio = ilimitado.">
+              {/* O rótulo antigo ("Máximo de usos", "Vazio = ilimitado") foi lido como
+                  "usos por cliente" — logo abaixo há um toggle chamado "Uso único por
+                  cliente", o que reforçava a leitura. Loja cadastrou 1, o primeiro
+                  cliente usou, e todos os outros passaram a receber "o limite acabou"
+                  sem nunca ter usado. O texto agora diz de quem é o limite. */}
+              <Field
+                label="Limite total de usos"
+                hint="Somando TODOS os clientes. Vazio = sem limite. Para limitar por pessoa, use a chave abaixo."
+              >
                 <input
                   type="number" min={1} step={1}
                   value={formCupom.maxUsos}
                   onChange={(e) => setFormCupom((f) => ({ ...f, maxUsos: e.target.value }))}
-                  placeholder="Ex: 100"
+                  placeholder="Ex: 100 (vazio = sem limite)"
                   className={INPUT_CLS}
                 />
+                {formCupom.maxUsos !== '' && Number(formCupom.maxUsos) > 0 && Number(formCupom.maxUsos) <= 3 && (
+                  <p className="mt-1 text-[11px] font-semibold text-warn">
+                    Atenção: o cupom sai do ar depois de {formCupom.maxUsos}{' '}
+                    {Number(formCupom.maxUsos) === 1 ? 'uso no total' : 'usos no total'} — não por cliente.
+                  </p>
+                )}
               </Field>
             </div>
 

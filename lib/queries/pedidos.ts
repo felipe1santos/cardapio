@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolverFrete } from '@/lib/frete'
-import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
+import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_ESGOTADO, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
 import { itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
@@ -1207,6 +1207,18 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
     if (!resultado.ok) throw new Error(resultado.motivo)
 
     await aplicarPremio(regra.tipo, regra.valor, cupom.item_id, `Cupom ${cupom.codigo}`, 'O item deste cupom não está mais disponível.')
+
+    // CLAIM-FIRST, igual ao prêmio de fidelidade logo abaixo: o uso é RESERVADO antes de
+    // o pedido existir, num UPDATE condicional atômico (0076). Antes, o contador subia
+    // depois do insert, e dois pedidos simultâneos num cupom de `max_usos = 1` davam o
+    // desconto duas vezes — o segundo só descobria quando já era tarde.
+    const { data: reservou, error: reservaError } = await admin.rpc('cupom_reservar_uso', {
+      p_cupom_id: cupom.id,
+      p_restaurante_id: restauranteId,
+    })
+    if (reservaError) throw reservaError
+    if (reservou !== true) throw new Error(MOTIVO_CUPOM_ESGOTADO)
+
     cupomAplicado = { id: cupom.id, codigo: cupom.codigo, usos: cupom.usos }
   }
 
@@ -1322,6 +1334,15 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
         console.error(`[criarPedido] falha ao reverter claim da recompensa ${recompensaResgatada}:`, reverterError)
       }
     }
+    // Mesma coisa para o uso do cupom, reservado antes do insert: sem devolver, um
+    // pedido que falhou queimaria um uso do teto para sempre.
+    if (cupomAplicado) {
+      try {
+        await admin.rpc('cupom_devolver_uso', { p_cupom_id: cupomAplicado.id, p_restaurante_id: restauranteId })
+      } catch (reverterError) {
+        console.error(`[criarPedido] falha ao devolver o uso do cupom ${cupomAplicado.codigo}:`, reverterError)
+      }
+    }
     throw pedidoError
   }
 
@@ -1341,10 +1362,11 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   if (itensInsertError) throw itensInsertError
 
   if (cupomAplicado) {
-    // Registros de uso do cupom — aceitação otimista: o pedido já existe e o desconto já
-    // foi concedido; falhar aqui só puniria o cliente por um problema de contabilização.
-    // O pior caso (corrida em volume baixo por loja) é o contador/trava ficar 1 uso
-    // defasado — visível pro admin e corrigível, então apenas loga.
+    // O contador já subiu na reserva, antes do pedido. Aqui fica só o registro de QUEM
+    // usou, que alimenta o "uso único por cliente" e o histórico. O índice único de
+    // (cupom_id, cliente_telefone) da 0076 é quem garante a trava; um choque nele
+    // significa que o mesmo cliente já tinha usado, e o pedido segue de pé — o desconto
+    // já foi concedido e derrubá-lo agora puniria o cliente por um problema nosso.
     const { error: usoError } = await admin.from('cupom_usos').insert({
       cupom_id: cupomAplicado.id,
       restaurante_id: restauranteId,
@@ -1352,22 +1374,6 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
       pedido_id: pedido.id,
     })
     if (usoError) console.error(`[criarPedido] falha ao registrar uso do cupom ${cupomAplicado.codigo} no pedido ${pedido.id}:`, usoError)
-
-    // Incremento com compare-and-swap (supabase-js não expressa `usos = usos + 1`): só
-    // grava se `usos` ainda for o valor lido na validação — assim nunca estoura o teto
-    // de max_usos (validarCupom já garantiu usos < max_usos pra esse valor). 0 rows =
-    // outro pedido incrementou no meio do caminho; pedido mantido, descompasso logado.
-    const { data: incremento, error: incrementoError } = await admin
-      .from('cupons')
-      .update({ usos: cupomAplicado.usos + 1 })
-      .eq('id', cupomAplicado.id)
-      .eq('usos', cupomAplicado.usos)
-      .select('id')
-    if (incrementoError) {
-      console.error(`[criarPedido] falha ao incrementar usos do cupom ${cupomAplicado.codigo}:`, incrementoError)
-    } else if (!incremento || incremento.length === 0) {
-      console.error(`[criarPedido] contador de usos do cupom ${cupomAplicado.codigo} não incrementado (corrida) — pedido ${pedido.id} mantido.`)
-    }
   }
 
   return { id: pedido.id, numero: pedido.numero }
