@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { pode } from '@/lib/auth/permissoes'
 import { contextoSalao } from '@/lib/auth/salao'
-import { FORMAS_PAGAMENTO, ehForma } from '@/lib/conta'
+import { FORMAS_PAGAMENTO_OFERECIDAS, ehFormaOferecida } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 
 /**
@@ -24,8 +24,12 @@ export async function GET() {
     .maybeSingle()
   return NextResponse.json({
     taxaServicoPadrao: Number(data?.taxa_servico_padrao ?? 0),
-    formasPagamento: (data?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito'],
-    formasDisponiveis: FORMAS_PAGAMENTO,
+    // Loja que já tinha `fiado` gravado não o vê mais na lista: filtrar aqui evita
+    // a caixinha marcada e invisível voltar para o banco no próximo salvar.
+    formasPagamento: ((data?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito']).filter(
+      ehFormaOferecida,
+    ),
+    formasDisponiveis: FORMAS_PAGAMENTO_OFERECIDAS,
     regras: ctx.regras,
     podeEditarRegras: pode(ctx.sessao.papel, 'ajustes.editar'),
   })
@@ -47,11 +51,11 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Taxa de serviço entre 0% e 30%.' }, { status: 400 })
   }
   const formas = Array.isArray(corpo.formasPagamento) ? [...new Set(corpo.formasPagamento)] : []
-  if (formas.length === 0 || !formas.every(ehForma)) {
+  if (formas.length === 0 || !formas.every(ehFormaOferecida)) {
     return NextResponse.json({ error: 'Escolha pelo menos uma forma de pagamento válida.' }, { status: 400 })
   }
   // Ordem estável (a da lista oficial), para os botões não trocarem de lugar.
-  const ordenadas = FORMAS_PAGAMENTO.filter((f) => formas.includes(f))
+  const ordenadas = FORMAS_PAGAMENTO_OFERECIDAS.filter((f) => formas.includes(f))
 
   const patch: Record<string, unknown> = {
     taxa_servico_padrao: Math.round(taxa * 100) / 100,

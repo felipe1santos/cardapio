@@ -10,6 +10,18 @@ export const MESA_MENSAGEM_PADRAO =
   'Esta é apenas a sua seleção. Mostre-a ao garçom para realizar o pedido. Nada foi enviado para a cozinha.'
 
 /**
+ * Em "somente visualização" não existe seleção para mostrar ao garçom, então o texto
+ * padrão não pode falar dela. O recado da loja (quando houver) continua valendo nos
+ * dois modos — este padrão só entra quando ela não escreveu nada.
+ */
+export const MESA_MENSAGEM_PADRAO_VISUALIZACAO =
+  'Este cardápio é só para consultar. Para pedir, chame o garçom.'
+
+export function mensagemPadraoDaMesa(somenteVisualizacao: boolean): string {
+  return somenteVisualizacao ? MESA_MENSAGEM_PADRAO_VISUALIZACAO : MESA_MENSAGEM_PADRAO
+}
+
+/**
  * Só imagens do próprio armazenamento da loja entram no carrossel (bucket `cardapio`,
  * pasta da loja). Evita virar vitrine de imagem externa ou de outra loja.
  */

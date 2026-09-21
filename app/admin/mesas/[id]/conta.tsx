@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowRightLeft, Ban, Check, ChevronRight, Clock, CreditCard, Minus, Plus, Printer, RotateCcw, Send, Settings2, UserCheck, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { centavos, dividirPorPessoas, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
+import { centavos, dividirPorPessoas, ehFormaOferecida, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
 import type { ContaDaMesa, EventoHistorico, ItemDaConta, LancamentoDaConta } from '@/lib/queries/conta'
 
 /**
@@ -474,7 +474,7 @@ export function PainelConta({
             restante={conta.totais.restante}
             porPessoa={porPessoa[0] ?? null}
             porItens={itensMarcados.length > 0 ? Math.min(totalMarcadoComTaxa, conta.totais.restante) : null}
-            formas={dados.formasPagamento.filter((f) => f !== 'fiado' || podeFazer('fiado'))}
+            formas={dados.formasPagamento.filter(ehFormaOferecida)}
             executar={executar}
           />
         )}
@@ -825,21 +825,19 @@ function FormPagamento({
       )}
 
       <label className="block">
-        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-          {forma === 'fiado' ? 'De quem é a conta (obrigatório)' : 'Observação'}
-        </span>
+        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Observação</span>
         <input
           value={observacao}
           onChange={(e) => setObservacao(e.target.value.slice(0, 200))}
           className={INPUT}
-          placeholder={forma === 'fiado' ? 'Nome e telefone de quem fica devendo' : 'Opcional'}
-          aria-label={forma === 'fiado' ? 'De quem é a conta' : 'Observação do pagamento'}
+          placeholder="Opcional"
+          aria-label="Observação do pagamento"
         />
       </label>
 
       <Button
         className="w-full"
-        disabled={enviando || !(valorNum > 0) || (forma === 'fiado' && !observacao.trim())}
+        disabled={enviando || !(valorNum > 0)}
         onClick={async () => {
           setEnviando(true)
           const r = await executar(

@@ -267,4 +267,46 @@ describe('regras do salão por loja', () => {
     const tudo = { garcomRecebe: true, garcomTransfere: true, caixaDesconto: true }
     for (const p of PERMISSOES) expect(podeNoSalao('sommelier', p, tudo)).toBe(false)
   })
+
+  /**
+   * As oito combinações das três chaves, para garantir que marcar uma não mexe nas
+   * outras — é assim que o dono usa a tela ("Quem pode o quê no salão"), marcando e
+   * desmarcando itens em qualquer ordem.
+   */
+  it('as três chaves são independentes nas 8 combinações', () => {
+    for (const garcomRecebe of [false, true]) {
+      for (const garcomTransfere of [false, true]) {
+        for (const caixaDesconto of [false, true]) {
+          const regras = { garcomRecebe, garcomTransfere, caixaDesconto }
+          const eis = JSON.stringify(regras)
+
+          // Cada chave move exatamente o seu par papel+permissão…
+          expect(podeNoSalao('garcom', 'comanda.fechar', regras), eis).toBe(garcomRecebe)
+          expect(podeNoSalao('garcom', 'comanda.transferir', regras), eis).toBe(garcomTransfere)
+          expect(podeNoSalao('atendente', 'comanda.desconto', regras), eis).toBe(caixaDesconto)
+
+          // …e nada além dele. Lançar na mesa é do garçom independentemente das chaves:
+          // com "somente visualização" desligado, o cliente monta a lista e o garçom
+          // lança o pedido, por mais restrita que a loja tenha deixado a parte do caixa.
+          for (const p of ['mesas.operar', 'comanda.ver', 'pedidos.mesa.criar', 'pedidos.mesa.enviar_cozinha'] as Permissao[]) {
+            expect(podeNoSalao('garcom', p, regras), `${eis} ${p}`).toBe(true)
+          }
+          for (const p of ['comanda.estornar', 'comanda.desconto', 'pedidos.mesa.cancelar', 'mesas.gerenciar'] as Permissao[]) {
+            expect(podeNoSalao('garcom', p, regras), `${eis} ${p}`).toBe(false)
+          }
+          // O caixa cobra e vê a conta, mas nunca atende mesa nem lança pedido.
+          expect(podeNoSalao('atendente', 'comanda.fechar', regras), eis).toBe(true)
+          for (const p of ['mesas.operar', 'pedidos.mesa.enviar_cozinha', 'comanda.estornar'] as Permissao[]) {
+            expect(podeNoSalao('atendente', p, regras), `${eis} ${p}`).toBe(false)
+          }
+          // A gestão não perde nada com chave desligada.
+          for (const papel of ['dono', 'gerente'] as Papel[]) {
+            for (const p of ['comanda.fechar', 'comanda.transferir', 'comanda.desconto', 'comanda.estornar'] as Permissao[]) {
+              expect(podeNoSalao(papel, p, regras), `${eis} ${papel} ${p}`).toBe(true)
+            }
+          }
+        }
+      }
+    }
+  })
 })

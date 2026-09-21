@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { Permissao } from '@/lib/auth/permissoes'
 import { contextoSalao, type ContextoSalao } from '@/lib/auth/salao'
-import { ehForma, formatarResumoPagamento } from '@/lib/conta'
+import { ehFormaOferecida, formatarResumoPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 import {
   ajustarValores,
@@ -55,7 +55,6 @@ function permissoesDaTela(ctx: ContextoSalao) {
     ...Object.fromEntries(Object.entries(PERMISSAO_DA_ACAO).map(([acao, p]) => [acao, ctx.pode(p)])),
     // Pessoas e observação: quem atende e quem divide a conta.
     ajustar_mesa: ctx.pode('mesas.operar') || ctx.pode('comanda.fechar'),
-    fiado: ctx.pode('comanda.fiado'),
     // Assumir a mesa é de quem atende; o caixa ajusta pessoas e observação, não o responsável.
     assumir: ctx.pode('mesas.operar'),
     lancar: ctx.pode('pedidos.mesa.enviar_cozinha'),
@@ -147,15 +146,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const recebido = corpo.recebido === null || corpo.recebido === undefined || corpo.recebido === '' ? null : Number(corpo.recebido)
       const chave = typeof corpo.chave === 'string' ? corpo.chave : ''
       const observacao = texto(corpo.observacao) || null
-      if (!ehForma(forma)) return NextResponse.json({ error: 'Forma de pagamento inválida.' }, { status: 400 })
+      // `ehFormaOferecida` já barra `fiado`: a forma saiu da tela e não nasce mais
+      // pagamento com ela, mesmo que a loja a tenha gravada de antes.
+      if (!ehFormaOferecida(forma)) return NextResponse.json({ error: 'Forma de pagamento inválida.' }, { status: 400 })
       // A loja escolhe o que aceita na mesa; esconder o botão na tela não basta.
       const { data: loja } = await admin.from('restaurantes').select('formas_pagamento_mesa').eq('id', sessao.restauranteId).maybeSingle()
       const aceitas = (loja?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito']
       if (!aceitas.includes(forma)) return NextResponse.json({ error: 'A loja não aceita esta forma de pagamento na mesa.' }, { status: 400 })
-      // Pendurar a conta é decisão da gestão, mesmo que o caixa possa receber.
-      if (forma === 'fiado' && !ctx.pode('comanda.fiado')) {
-        return NextResponse.json({ error: 'Só a gestão autoriza fiado.' }, { status: 403 })
-      }
       if (!UUID.test(chave)) return NextResponse.json({ error: 'Chave do pagamento ausente.' }, { status: 400 })
       if (!Number.isFinite(valor) || valor <= 0) return NextResponse.json({ error: 'Informe um valor maior que zero.' }, { status: 400 })
       if (recebido !== null && !Number.isFinite(recebido)) return NextResponse.json({ error: 'Valor recebido inválido.' }, { status: 400 })
@@ -167,7 +164,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!r.ok) return falhou(r)
       if (!r.valor.idempotente) {
         await auditar('conta.pagamento', conta!.comandaId, {
-          resumo: formatarResumoPagamento(forma, valor, r.valor.troco ?? 0) + (forma === 'fiado' && observacao ? ` · ${observacao}` : ''),
+          resumo: formatarResumoPagamento(forma, valor, r.valor.troco ?? 0) + (observacao ? ` · ${observacao}` : ''),
           pagamento_id: r.valor.id,
         })
       }

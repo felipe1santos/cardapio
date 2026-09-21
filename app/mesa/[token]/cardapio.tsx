@@ -308,7 +308,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
           <span className="mesa-etiqueta" title="Você está nesta mesa">
             {mesaNome}
           </span>
-          <ChamarGarcom token={token} />
+          {/* Só visualização = cardápio de consulta: nem seleção, nem chamar o garçom.
+              O cliente chama pelo salão; o botão aqui só geraria chamado sem contexto. */}
+          {!somenteVisualizacao && <ChamarGarcom token={token} />}
           {!somenteVisualizacao && (
           <button className="mesa-botao-selecao" onClick={() => setPainelAberto(true)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -362,7 +364,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
             <div className="mesa-banner-texto">
               <span className="mesa-banner-titulo">{busca ? 'Resultado da busca' : categoriaAtual?.nome ?? 'Cardápio'}</span>
               <span className="mesa-banner-sub">
-                Escolha o que quiser e mostre a lista ao garçom
+                {somenteVisualizacao
+                  ? 'Veja o cardápio e peça ao garçom'
+                  : 'Escolha o que quiser e mostre a lista ao garçom'}
               </span>
             </div>
           </div>
@@ -408,12 +412,13 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
             )}
           </div>
 
-          {!somenteVisualizacao && (
-            <div className="mesa-aviso-rodape" role="note">
-              <span className="mesa-aviso-icone" aria-hidden="true">i</span>
-              <p>{mensagem}</p>
-            </div>
-          )}
+          {/* Rodapé do cardápio: fecha a lista depois do último item, nos dois modos.
+              É onde a loja fala com quem está na mesa — em "só visualização" é o único
+              lugar onde esse recado aparece, já que não há painel de seleção. */}
+          <div className="mesa-aviso-rodape" role="note">
+            <span className="mesa-aviso-icone" aria-hidden="true">i</span>
+            <p>{mensagem}</p>
+          </div>
 
           {/* Marca d'água da Menuzia: discreta, no fim do cardápio, sem roubar a cena da loja. */}
           <div className="mesa-marca-dagua" aria-label="Cardápio feito com Menuzia">

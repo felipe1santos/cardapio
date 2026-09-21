@@ -1,4 +1,8 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { urlCardapio } from '@/lib/qr-cardapio'
 
 export interface SidebarItem {
   href: string
@@ -66,9 +70,10 @@ export function Sidebar({
           aberta ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible',
         ].join(' ')}
       >
-      <div className="flex h-[60px] flex-shrink-0 items-center justify-between rounded-br-[18px] bg-primary px-4 text-white lg:justify-start">
+      <div className="flex h-[60px] flex-shrink-0 items-center gap-1.5 rounded-br-[18px] bg-primary px-4 text-white">
         <span className="text-lg font-bold lowercase tracking-wide">menuzia</span>
-        <button className="-mr-2 p-2.5 lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
+        {storeSlug && <CopiarLinkCardapio slug={storeSlug} />}
+        <button className="-mr-2 ml-auto p-2.5 lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
           <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>
@@ -138,7 +143,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onSignOut}
-          className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-menuzia border border-white/10 px-3 py-2.5 text-[12px] font-semibold text-sidebar-text transition-colors hover:bg-sidebar-hover hover:text-white"
+          className="mx-3 mb-4 flex items-center justify-center gap-2 rounded-menuzia border border-white/10 px-3 py-2.5 text-[12px] font-semibold text-sidebar-text transition-colors hover:bg-sidebar-hover hover:text-white"
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-current">
             <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
@@ -146,20 +151,69 @@ export function Sidebar({
           Sair
         </button>
       )}
-      {storeSlug && (
-        <a
-          href={`/loja/${storeSlug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mx-3 mb-4 flex items-center justify-center gap-2 rounded-menuzia border border-primary/30 bg-primary/10 px-3 py-2.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/20"
-        >
-          <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-primary">
-            <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
-          </svg>
-          Ver cardápio
-        </a>
-      )}
       </aside>
     </>
+  )
+}
+
+/**
+ * Atalho do link do cardápio, colado na marca. Copiar é o que o dono realmente faz com
+ * ele — manda no WhatsApp, cola na bio, no Instagram. O botão antigo abria a vitrine numa
+ * aba nova, e daí o link ainda tinha que ser copiado da barra de endereço.
+ *
+ * A URL é montada no clique, não na renderização: `window` não existe no servidor, e ler
+ * `location.origin` durante o render quebraria a hidratação.
+ */
+function CopiarLinkCardapio({ slug }: { slug: string }) {
+  const [copiado, setCopiado] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+
+  const copiar = useCallback(async () => {
+    const url = urlCardapio(window.location.origin, slug)
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      // Clipboard bloqueado (http sem localhost, permissão negada): o dono ainda
+      // precisa do link, então abre a vitrine e ele copia da barra de endereço.
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    setCopiado(true)
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => setCopiado(false), 2000)
+  }, [slug])
+
+  return (
+    <span className="relative flex items-center">
+      <button
+        type="button"
+        onClick={() => void copiar()}
+        title="Copiar o link do cardápio"
+        aria-label={copiado ? 'Link do cardápio copiado' : 'Copiar o link do cardápio'}
+        className="grid h-8 w-8 place-items-center rounded-menuzia text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+      >
+        {copiado ? (
+          <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] fill-current">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] fill-current">
+            <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
+          </svg>
+        )}
+      </button>
+      {copiado && (
+        <span
+          role="status"
+          className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-menuzia bg-sidebar-bg px-2 py-1 text-[11px] font-semibold text-white shadow"
+        >
+          Link copiado
+        </span>
+      )}
+    </span>
   )
 }

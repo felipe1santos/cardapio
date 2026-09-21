@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, listarGrupos, listarItens, type GrupoCardapio, type ItemCardapio } from '@/lib/queries/cardapio'
 import { enviarImagemCarrosselMesa } from '@/lib/queries/ajustes'
-import { MESA_CARROSSEL_MAX, MESA_MENSAGEM_MAX, ordenarParaMesa } from '@/lib/mesa-vitrine'
+import { MESA_CARROSSEL_MAX, MESA_MENSAGEM_MAX, mensagemPadraoDaMesa, ordenarParaMesa } from '@/lib/mesa-vitrine'
 
 /**
  * Personalização do cardápio que o cliente abre pelo QR da mesa:
@@ -105,7 +105,9 @@ export function CardapioDaMesaConfig() {
       />
       <SecaoMensagem
         inicial={estado.mensagem}
-        padrao={estado.mensagemPadrao}
+        // O texto padrão depende do modo, e o modo muda na tela ao lado sem recarregar:
+        // calcular aqui mantém a prévia coerente com a chave que o dono acabou de virar.
+        padrao={mensagemPadraoDaMesa(estado.somenteVisualizacao)}
         onSalvo={(mensagem) => setEstado({ ...estado, mensagem })}
       />
       <SecaoOrdem grupos={grupos} itens={itens} posicoes={estado.posicoes} onSalvo={(posicoes) => setEstado({ ...estado, posicoes })} />
@@ -142,15 +144,17 @@ function SecaoModo({ inicial, onSalvo }: { inicial: boolean; onSalvo: (v: boolea
     })
   }
 
+  // Fundo amarelo: esta chave muda o cardápio inteiro do QR (some a seleção e o
+  // chamado do garçom). Destacada, ninguém a liga sem perceber no meio das outras.
   return (
-    <Card>
+    <Card className="!bg-warn-bg border-warn/40">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="mb-1 text-[13px] font-bold text-text-main">Somente visualização (cardápio da mesa)</h3>
           <p className="text-[12px] leading-relaxed text-text-subtle">
             Ligado, o cliente só <strong className="text-text-main">vê</strong> o cardápio do QR: itens, fotos,
-            descrições e os sabores da pizza. Ele não escolhe tamanho nem adicional e não monta a lista. Tocando num item,
-            abre a foto inteira com a descrição. Desligado, tudo funciona como hoje.
+            descrições e os sabores da pizza. Ele não escolhe tamanho nem adicional, não monta a lista e não chama o
+            garçom pela tela. Tocando num item, abre a foto inteira com a descrição. Desligado, tudo funciona como hoje.
           </p>
         </div>
         <button
@@ -312,7 +316,8 @@ function SecaoMensagem({ inicial, padrao, onSalvo }: { inicial: string | null; p
     <Card>
       <h3 className="mb-1 text-[13px] font-bold text-text-main">Aviso da seleção (cardápio da mesa)</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-        Aparece no fim do cardápio e em &quot;Minha seleção&quot;. Deixe em branco para usar o texto padrão.
+        Aparece como rodapé, depois do último item do cardápio — e também em &quot;Minha seleção&quot;, quando o cliente
+        monta a lista. Deixe em branco para usar o texto padrão.
       </p>
       <textarea
         value={texto}

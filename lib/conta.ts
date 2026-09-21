@@ -23,6 +23,18 @@ export function ehForma(valor: unknown): valor is FormaPagamento {
   return typeof valor === 'string' && (FORMAS_PAGAMENTO as readonly string[]).includes(valor)
 }
 
+/**
+ * O que a loja pode OFERECER hoje. `fiado` saiu da tela: continua no tipo e em
+ * `ROTULO_FORMA` porque o banco (0067/0072) ainda aceita a forma e contas antigas
+ * gravaram pagamentos com ela — tirar o rótulo deixaria o histórico sem nome. Nada
+ * novo nasce com `fiado`: a configuração, a tela de receber e a rota filtram.
+ */
+export const FORMAS_PAGAMENTO_OFERECIDAS = FORMAS_PAGAMENTO.filter((f) => f !== 'fiado')
+
+export function ehFormaOferecida(valor: unknown): valor is FormaPagamento {
+  return ehForma(valor) && (FORMAS_PAGAMENTO_OFERECIDAS as readonly string[]).includes(valor)
+}
+
 /** Resumo de um pagamento para a trilha de auditoria. Sem dado sensível: forma e valores. */
 export function formatarResumoPagamento(forma: FormaPagamento, valor: number, troco: number): string {
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

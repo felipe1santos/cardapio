@@ -18,7 +18,7 @@ const REGRAS: { chave: keyof RegrasSalao; titulo: string; ajuda: string }[] = [
   {
     chave: 'garcomRecebe',
     titulo: 'Garçom recebe pagamento e fecha a conta',
-    ajuda: 'Desligado, só o caixa (atendente) e a gestão cobram. Estorno e fiado continuam com a gestão.',
+    ajuda: 'Desligado, só o caixa (atendente) e a gestão cobram. O estorno continua com a gestão.',
   },
   {
     chave: 'garcomTransfere',
@@ -117,8 +117,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
             ))}
           </div>
           <span className="mt-1 block text-[11px] text-text-subtle">
-            É só o registro do que o cliente pagou — nenhuma cobrança é feita pelo sistema. Fiado exige autorização da
-            gestão e o nome de quem fica devendo.
+            É só o registro do que o cliente pagou — nenhuma cobrança é feita pelo sistema.
           </span>
         </fieldset>
 

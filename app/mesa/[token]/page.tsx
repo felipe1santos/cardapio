@@ -9,7 +9,7 @@ import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import { carregarPizzaDaLoja, itemPrecificavel } from '@/lib/queries/mesa-catalogo'
 import { precoAPartirDe } from '@/lib/selecao-preco'
-import { MESA_MENSAGEM_PADRAO, ordenarParaMesa } from '@/lib/mesa-vitrine'
+import { mensagemPadraoDaMesa, ordenarParaMesa } from '@/lib/mesa-vitrine'
 import { CardapioDaMesa } from './cardapio'
 
 /**
@@ -74,8 +74,9 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
     admin.from('grupos_cardapio').select('id, posicao_mesa').eq('restaurante_id', mesa.restauranteId),
   ])
   const carrossel = ((vitrine?.mesa_carrossel_urls as string[] | null) ?? []).filter(Boolean)
-  const mensagem = ((vitrine?.mesa_mensagem_selecao as string | null) ?? '').trim() || MESA_MENSAGEM_PADRAO
   const somenteVisualizacao = (vitrine as { mesa_somente_visualizacao?: boolean } | null)?.mesa_somente_visualizacao === true
+  const mensagem =
+    ((vitrine?.mesa_mensagem_selecao as string | null) ?? '').trim() || mensagemPadraoDaMesa(somenteVisualizacao)
   const posicaoCategoria = new Map(((posicoes ?? []) as { id: string; posicao_mesa: number | null }[]).map((x) => [x.id, x.posicao_mesa]))
 
   // Catálogo é um só: as mesmas linhas que a vitrine lê, com os MESMOS filtros — status,

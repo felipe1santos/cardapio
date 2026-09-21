@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { carrosselValido, mensagemValida, ordemValida, ordenarParaMesa, MESA_CARROSSEL_MAX } from './mesa-vitrine'
+import {
+  carrosselValido,
+  mensagemPadraoDaMesa,
+  mensagemValida,
+  ordemValida,
+  ordenarParaMesa,
+  MESA_CARROSSEL_MAX,
+} from './mesa-vitrine'
 
 const BASE = { supabaseUrl: 'https://x.supabase.co', restauranteId: 'loja-1' }
 const img = (n: number) => `https://x.supabase.co/storage/v1/object/public/cardapio/loja-1/perfil/mesa-carrossel-${n}.webp`
@@ -25,6 +32,11 @@ describe('mensagem da seleção', () => {
   })
   it('acima de 280 é recusada', () => {
     expect(mensagemValida('x'.repeat(281)).ok).toBe(false)
+  })
+  it('o padrão só fala em seleção quando existe seleção', () => {
+    expect(mensagemPadraoDaMesa(false)).toContain('sua seleção')
+    expect(mensagemPadraoDaMesa(true)).not.toContain('seleção')
+    expect(mensagemPadraoDaMesa(true)).toContain('consultar')
   })
 })
 

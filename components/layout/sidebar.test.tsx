@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Sidebar } from './sidebar'
 
 const ITEMS = [
@@ -25,5 +25,40 @@ describe('Sidebar', () => {
   it('renders the lowercase brand name', () => {
     render(<Sidebar items={ITEMS} activeHref="/dashboard" />)
     expect(screen.getByText('menuzia')).toBeInTheDocument()
+  })
+})
+
+describe('atalho do link do cardápio', () => {
+  it('sem loja, não há botão de copiar', () => {
+    render(<Sidebar items={ITEMS} activeHref="/dashboard" />)
+    expect(screen.queryByRole('button', { name: 'Copiar o link do cardápio' })).toBeNull()
+  })
+
+  it('copia a URL pública da loja e confirma na tela', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.assign(navigator, { clipboard: { writeText } })
+    render(<Sidebar items={ITEMS} activeHref="/dashboard" storeSlug="fire-house" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar o link do cardápio' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/loja/fire-house`))
+    expect(await screen.findByText('Link copiado')).toBeInTheDocument()
+  })
+
+  it('clipboard bloqueado: abre a vitrine para o dono copiar da barra de endereço', async () => {
+    const writeText = vi.fn(async () => {
+      throw new Error('bloqueado')
+    })
+    Object.assign(navigator, { clipboard: { writeText } })
+    const abrir = vi.spyOn(window, 'open').mockImplementation(() => null)
+    render(<Sidebar items={ITEMS} activeHref="/dashboard" storeSlug="fire-house" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar o link do cardápio' }))
+
+    await waitFor(() =>
+      expect(abrir).toHaveBeenCalledWith(`${window.location.origin}/loja/fire-house`, '_blank', 'noopener,noreferrer'),
+    )
+    expect(screen.queryByText('Link copiado')).toBeNull()
+    abrir.mockRestore()
   })
 })

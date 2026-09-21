@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { contextoSalao } from '@/lib/auth/salao'
 import { registrarAuditoria } from '@/lib/auditoria'
 import {
-  MESA_MENSAGEM_PADRAO,
+  mensagemPadraoDaMesa,
   carrosselValido,
   mensagemValida,
   ordemValida,
@@ -30,7 +30,7 @@ export async function GET() {
   return NextResponse.json({
     carrossel: (r?.mesa_carrossel_urls as string[] | null) ?? [],
     mensagem: (r?.mesa_mensagem_selecao as string | null) ?? null,
-    mensagemPadrao: MESA_MENSAGEM_PADRAO,
+    mensagemPadrao: mensagemPadraoDaMesa((r?.mesa_somente_visualizacao as boolean | null) === true),
     somenteVisualizacao: (r?.mesa_somente_visualizacao as boolean | null) === true,
     // Posição de cada CATEGORIA no cardápio da mesa.
     posicoes: Object.fromEntries(((categorias ?? []) as { id: string; posicao_mesa: number | null }[]).map((i) => [i.id, i.posicao_mesa])),

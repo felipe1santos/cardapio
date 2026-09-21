@@ -39,12 +39,26 @@ beforeEach(() => {
 })
 
 describe('cardápio da mesa — somente visualização', () => {
-  it('sem "Minha seleção", sem aviso da seleção e sem ler/gravar seleção', () => {
+  it('sem "Minha seleção", sem chamar garçom e sem ler/gravar seleção', () => {
     renderizar(true)
     expect(screen.queryByText('Minha seleção')).toBeNull()
-    expect(screen.queryByText('Aviso da seleção')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Chamar o garçom|Garçom já chamado/ })).toBeNull()
     const chamadas = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))
     expect(chamadas.filter((u) => u.includes('/selecao'))).toEqual([])
+    expect(chamadas.filter((u) => u.includes('/chamado'))).toEqual([])
+  })
+
+  it('o aviso da loja fecha o cardápio como rodapé nos dois modos', () => {
+    const { unmount } = renderizar(true)
+    expect(screen.getByRole('note')).toHaveTextContent('Aviso da seleção')
+    unmount()
+    renderizar(false)
+    expect(screen.getByRole('note')).toHaveTextContent('Aviso da seleção')
+  })
+
+  it('desligado, o botão de chamar o garçom continua na tela', () => {
+    renderizar(false)
+    expect(screen.getByRole('button', { name: 'Chamar o garçom' })).toBeInTheDocument()
   })
 
   it('pizza abre a ficha com foto, descrição e sabores — sem tamanho, adicional nem botão de adicionar', () => {

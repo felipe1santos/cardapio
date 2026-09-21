@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { dividirPorPessoas, trocoPara, centavos, mensagemDeErroConta, ehForma } from './conta'
+import {
+  dividirPorPessoas,
+  trocoPara,
+  centavos,
+  mensagemDeErroConta,
+  ehForma,
+  ehFormaOferecida,
+  FORMAS_PAGAMENTO_OFERECIDAS,
+  ROTULO_FORMA,
+} from './conta'
 
 describe('dividirPorPessoas', () => {
   it('fecha o centavo: a soma das partes é sempre o total', () => {
@@ -67,5 +76,19 @@ describe('ehForma', () => {
     expect(ehForma('fiado')).toBe(true)
     expect(ehForma('bitcoin')).toBe(false)
     expect(ehForma(null)).toBe(false)
+  })
+})
+
+describe('formas oferecidas', () => {
+  it('fiado saiu da lista que a loja pode escolher', () => {
+    expect(FORMAS_PAGAMENTO_OFERECIDAS).toEqual(['dinheiro', 'pix', 'credito', 'debito', 'vale'])
+    expect(ehFormaOferecida('fiado')).toBe(false)
+    expect(ehFormaOferecida('pix')).toBe(true)
+    expect(ehFormaOferecida('bitcoin')).toBe(false)
+  })
+
+  it('o rótulo de fiado continua existindo para o histórico já gravado', () => {
+    expect(ROTULO_FORMA.fiado).toBe('Fiado')
+    expect(ehForma('fiado')).toBe(true)
   })
 })

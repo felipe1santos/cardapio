@@ -68,6 +68,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const ctx = await contexto(token)
   if (!ctx) return NextResponse.json({ error: 'Mesa não encontrada' }, { status: 404 })
 
+  // Cardápio em "somente visualização" (0075): a tela não mostra o botão, e o servidor
+  // recusa do mesmo jeito — senão bastaria um POST no token para encher o painel do
+  // salão de chamados de uma loja que desligou a função.
+  const { data: modo } = await ctx.admin
+    .from('restaurantes')
+    .select('mesa_somente_visualizacao')
+    .eq('id', ctx.mesa.restauranteId)
+    .maybeSingle()
+  if ((modo as { mesa_somente_visualizacao?: boolean } | null)?.mesa_somente_visualizacao === true) {
+    return NextResponse.json({ error: 'Este cardápio é só para visualização.' }, { status: 403 })
+  }
+
   // Loja, mesa e sessão vêm do token, nunca do corpo: o navegador só escolhe o motivo,
   // e mesmo esse passa por allowlist.
   const sessao = await buscarSessaoAberta(ctx.admin, ctx.mesa.restauranteId, ctx.mesa.mesaId)
