@@ -90,6 +90,25 @@ html:has(.font-loja) {
   --v-etiqueta-bg: #f7faff;
 }
 
+/* Ponto de "loja aberta": pulso lento e discreto. O `animate-ping` do Tailwind
+   é rápido demais para ficar a tela inteira no campo de visão do cliente —
+   vira pisca-pisca. Dois segundos dão o sinal de "ao vivo" sem incomodar.
+   Respeita quem pediu menos movimento no sistema. */
+@keyframes ping-lento {
+  0% { transform: scale(1); opacity: 0.7; }
+  70%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+.animate-ping-lento {
+  animation: ping-lento 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ping-lento {
+    animation: none;
+  }
+}
+
 /* Card de pedido novo no Kanban: pisca alternando azul/vermelho enquanto
    estiver aguardando aceite (para assim que alguém aceita ou o aceite
    automático avança o pedido). */
