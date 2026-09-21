@@ -95,7 +95,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json({
     conta,
     historico: conta ? await historicoDaConta(ctx.admin, ctx.sessao.restauranteId, conta) : [],
-    formasPagamento: (loja?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito'],
+    // Filtrado na fonte: loja que ainda tem `fiado` gravado de antes não oferece a
+    // forma na tela de receber nem para nenhum outro consumidor desta rota.
+    formasPagamento: ((loja?.formas_pagamento_mesa as string[] | null) ?? ['dinheiro', 'pix', 'credito', 'debito']).filter(
+      ehFormaOferecida,
+    ),
     taxaServicoPadrao: Number(loja?.taxa_servico_padrao ?? 0),
     permissoes: permissoesDaTela(ctx),
   })
