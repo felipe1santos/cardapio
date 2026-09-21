@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Gift, Ticket, Percent, Clock, Check, RotateCcw } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Gift, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
+import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -284,12 +285,24 @@ function FlashSelecao({ ativo, chave }: { ativo: boolean; chave?: string | numbe
   return <span key={chave} aria-hidden className="animate-flash-selecao pointer-events-none absolute inset-y-0 left-0 right-0 origin-left bg-promo-bg" />
 }
 
+/**
+ * Etiquetas do cadastro, como o cliente as vê.
+ *
+ * Pílula clara com texto escuro da mesma família de cor, no corpo 10/600 da
+ * referência: sobre a foto do prato ela precisa se ler num relance sem roubar
+ * a cena. Cada etiqueta tem o seu tom, e "Promoção" é a única verde — assim
+ * ela conversa com o preço promocional, que também é verde, em vez de
+ * competir com ele.
+ *
+ * O emoji é o que sobrevive à miniatura: em 10px, no meio de uma foto, a
+ * silhueta colorida é reconhecida antes da palavra.
+ */
 const TAG_STYLES: Record<string, { label: string; cls: string }> = {
-  mais_pedido: { label: 'Mais pedido', cls: 'bg-amber-100 text-amber-700' },
-  edicao_limitada: { label: 'Edição limitada', cls: 'bg-pink-100 text-pink-600' },
-  novo: { label: 'Novo', cls: 'bg-sky-100 text-sky-700' },
-  favorito: { label: 'Favorito da casa', cls: 'bg-purple-100 text-purple-700' },
-  promocao: { label: 'Promoção', cls: 'bg-purple-100 text-purple-700' },
+  mais_pedido: { label: '🔥 Mais pedido', cls: 'bg-[#FFF1DC] text-[#9A5B00]' },
+  edicao_limitada: { label: '⏳ Edição limitada', cls: 'bg-[#FCE7F3] text-[#A81B60]' },
+  novo: { label: '✨ Novo', cls: 'bg-[#E0F2FE] text-[#0369A1]' },
+  favorito: { label: '⭐ Favorito da casa', cls: 'bg-[#EDE9FE] text-[#6D28D9]' },
+  promocao: { label: '🏷️ Promoção', cls: 'bg-[#DCFCE7] text-[#15803D]' },
 }
 
 /**
@@ -297,8 +310,38 @@ const TAG_STYLES: Record<string, { label: string; cls: string }> = {
  * etiqueta roxa de promoção mesmo quando o lojista não marcou nada no cadastro —
  * é o que faz a oferta ser vista na lista.
  */
-export function tagDoItem(item: { tag: string | null; promocaoPreco: number | null }): string | null {
-  return item.tag ?? (item.promocaoPreco !== null ? 'promocao' : null)
+export function tagDoItem(item: { tag: string | null; promocaoPreco: number | null; maisVendido?: boolean }): string | null {
+  if (item.tag) return item.tag
+  if (item.promocaoPreco !== null) return 'promocao'
+  // "Item em destaque" do cadastro entra como etiqueta, e não como uma segunda
+  // pílula empilhada: duas etiquetas sobre a mesma foto se anulavam, e o
+  // lojista que marca destaque quer exatamente dizer "este é o mais pedido".
+  return item.maisVendido ? 'mais_pedido' : null
+}
+
+/**
+ * Descrição do item com o negrito e as cores que o lojista marcou no cadastro.
+ *
+ * Nada de `dangerouslySetInnerHTML`: o parser devolve pedaços e cada um vira um
+ * `<span>`. O que o lojista digitar continua sendo texto, mesmo que pareça HTML
+ * — ver `lib/descricao-rica.ts`.
+ */
+function DescricaoItem({ texto, className = '' }: { texto: string; className?: string }) {
+  const pedacos = useMemo(() => pedacosDaDescricao(texto), [texto])
+  if (pedacos.length === 0) return null
+  return (
+    <p className={className}>
+      {pedacos.map((p, i) =>
+        p.negrito || p.cor ? (
+          <span key={i} style={{ fontWeight: p.negrito ? 600 : undefined, color: p.cor ?? undefined }}>
+            {p.texto}
+          </span>
+        ) : (
+          <span key={i}>{p.texto}</span>
+        ),
+      )}
+    </p>
+  )
 }
 
 /** Pílula de etiqueta do item na vitrine (configurada no cadastro). */
@@ -307,7 +350,7 @@ function TagBadge({ tag }: { tag: string | null }) {
   const s = TAG_STYLES[tag]
   if (!s) return null
   return (
-    <span className={`inline-block w-fit rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.cls}`}>
+    <span className={`inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full px-[8px] py-[3px] text-[10px] font-semibold leading-[14px] shadow-sm ${s.cls}`}>
       {s.label}
     </span>
   )
@@ -406,20 +449,18 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
       <div className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
-        {/* Etiqueta sobre a foto (não acima do nome) */}
+        {/* Etiqueta sobre a foto (não acima do nome). Uma só: `tagDoItem` já
+            resolve a precedência entre etiqueta do cadastro, promoção e destaque. */}
         {tagDoItem(item) && (
-          <span className="absolute left-2.5 top-2.5 shadow-sm">
+          <span className="absolute left-[8px] top-[8px]">
             <TagBadge tag={tagDoItem(item)} />
           </span>
-        )}
-        {item.maisVendido && (
-          <span className={`absolute left-2.5 ${tagDoItem(item) ? 'top-9' : 'top-2.5'} rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
         )}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
         <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2 min-h-[40px]'} mb-[8px] text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]`}>{item.nome}</div>
         {item.descricao && !compact && (
-          <p className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]">{item.descricao}</p>
+          <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
         <div className={compact ? 'pt-0.5' : ''}>
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
@@ -450,9 +491,17 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       className="flex w-full gap-[12px] border-b border-[var(--v-borda)] bg-white py-[16px] pl-[16px] pr-[8px] text-left transition-colors last:border-none hover:bg-[#FAFAFA] active:bg-[#F3F4F6]"
     >
       <div className="min-w-0 flex-1">
+        {/* Etiqueta acima do nome, e não sobre a foto: em 120px, "Favorito da
+            casa" ou "Edição limitada" não cabem e saem cortadas. Aqui têm a
+            largura da coluna de texto e ainda anunciam o item antes do nome. */}
+        {tagDoItem(item) && (
+          <span className="mb-[6px] flex">
+            <TagBadge tag={tagDoItem(item)} />
+          </span>
+        )}
         <div className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">{item.nome}</div>
         {item.descricao && (
-          <p className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]">{item.descricao}</p>
+          <DescricaoItem texto={item.descricao} className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
         <div className="mt-[8px]">
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
@@ -460,15 +509,6 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       </div>
       <div className="relative flex-shrink-0">
         <ProductThumb item={item} size={imagemGrande ? 140 : 120} />
-        {/* Etiqueta sobre a foto (não acima do nome) */}
-        {tagDoItem(item) && (
-          <span className="absolute left-1 top-1 shadow-sm">
-            <TagBadge tag={tagDoItem(item)} />
-          </span>
-        )}
-        {item.maisVendido && (
-          <span className={`absolute left-1 ${tagDoItem(item) ? 'bottom-1' : 'top-1'} rounded bg-pink-100 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
-        )}
       </div>
     </button>
   )
@@ -770,7 +810,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     () => allItems.filter((item) => item.maisVendido).slice(0, 12),
     [allItems],
   )
-  const collageImages = useMemo(() => allItems.filter((item) => item.imagemUrl).slice(0, 3), [allItems])
+  /**
+   * Loja que trabalha sem capa. A vitrine não inventa uma: antes, quem não
+   * cadastrava banner ganhava a foto de um produto qualquer esticada no topo
+   * (ou um degradê da cor do tema) — uma faixa que a loja não escolheu, comendo
+   * a primeira tela inteira no celular. Sem banner, o cardápio abre direto no
+   * cabeçalho, com a logo à esquerda e os dados ao lado.
+   */
+  const semCapa = !restaurante?.bannerUrl
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('home')
@@ -2539,7 +2586,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 escolha da categoria, e a capa empurrava os cartões pra baixo
                 da dobra sem acrescentar nada à decisão que o cliente precisa
                 tomar. A identidade da loja continua na barra logo abaixo. */}
-            {!gavetaAtiva && (
+            {!gavetaAtiva && semCapa && (
+              // Loja que trabalha sem capa: em vez de inventar uma (colagem de
+              // produtos ou degradê do tema), o cardápio começa direto no
+              // cabeçalho. Só o que a loja de fato cadastrou aparece.
+              <div className="h-[12px] lg:h-10" />
+            )}
+            {!gavetaAtiva && !semCapa && (
             <div className="relative">
               <div className="absolute inset-x-0 top-0 hidden h-44 bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)] lg:block" />
               <div className="relative lg:mx-8 lg:mt-10 lg:rounded-menuzia lg:bg-white lg:p-1.5 lg:shadow-md">
@@ -2551,26 +2604,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     primeiro produto pra fora da tela. De 640 px pra cima a
                     altura passa a ser fixa. */}
                 <div className="relative z-0 aspect-[2/1] w-full overflow-hidden sm:aspect-auto sm:h-64 lg:h-80 lg:rounded-menuzia">
-                  {restaurante.bannerUrl ? (
-                    // Capa da loja: é o LCP da vitrine — carrega cedo e com prioridade alta.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={restaurante.bannerUrl}
-                      // Celular estreito baixa a variante de 800 px; o desktop
-                      // continua na de 1600 px. Loja sem a variante cai no src.
-                      {...(srcSetCapa(restaurante.bannerUrl, restaurante.bannerMobileUrl) ? { srcSet: srcSetCapa(restaurante.bannerUrl, restaurante.bannerMobileUrl), sizes: TAMANHOS_CAPA } : {})}
-                      alt={storeName}
-                      loading="eager"
-                      decoding="async"
-                      fetchPriority="high"
-                      className="h-full w-full object-cover"
-                      style={{ objectPosition: objectPosition(restaurante.bannerFoco) }}
-                    />
-                  ) : collageImages[0] ? (
-                    <ProductImage item={collageImages[0]} className="h-full w-full" prioritaria />
-                  ) : (
-                    <div className="h-full w-full bg-gradient-to-br from-[var(--tema-from)] via-[var(--tema-primaria)] to-[var(--tema-dark)]" />
-                  )}
+                  {/* Capa da loja: é o LCP da vitrine — carrega cedo e com
+                      prioridade alta. Só existe aqui porque `semCapa` já tirou
+                      o bloco inteiro quando a loja não cadastrou banner. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={restaurante.bannerUrl!}
+                    // Celular estreito baixa a variante de 800 px; o desktop
+                    // continua na de 1600 px. Loja sem a variante cai no src.
+                    {...(srcSetCapa(restaurante.bannerUrl, restaurante.bannerMobileUrl) ? { srcSet: srcSetCapa(restaurante.bannerUrl, restaurante.bannerMobileUrl), sizes: TAMANHOS_CAPA } : {})}
+                    alt={storeName}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                    className="h-full w-full object-cover"
+                    style={{ objectPosition: objectPosition(restaurante.bannerFoco) }}
+                  />
                 </div>
               </div>
             </div>
@@ -2587,7 +2636,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {!gavetaEmTela && (
             <div className={[
               'relative z-10 px-[16px] lg:px-8',
-              gavetaAtiva ? '' : '-mt-[24px] rounded-t-[24px] bg-white pt-[24px] lg:mt-0 lg:rounded-none lg:bg-transparent lg:pt-0',
+              // Sem capa não há o que encavalar: a folha começa rente ao topo.
+              gavetaAtiva ? '' : semCapa ? 'bg-white pt-[16px] lg:bg-transparent lg:pt-0' : '-mt-[24px] rounded-t-[24px] bg-white pt-[24px] lg:mt-0 lg:rounded-none lg:bg-transparent lg:pt-0',
             ].join(' ')}>
               {/* Logo grande e o texto do lado ocupando a mesma altura: nome,
                   status, tempo/nota e endereço somam a altura da logo. */}
@@ -2596,9 +2646,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 // Sobre a folha branca o cartão seria um branco dentro de outro:
                 // a moldura só volta no desktop, onde não há folha.
                 'lg:rounded-[12px] lg:border lg:border-[var(--v-borda)] lg:bg-white lg:p-3.5 lg:shadow-sm',
-                gavetaAtiva ? 'mt-3 rounded-[12px] border border-[var(--v-borda)] bg-white p-[12px] shadow-sm' : 'lg:-mt-10',
+                gavetaAtiva ? 'mt-3 rounded-[12px] border border-[var(--v-borda)] bg-white p-[12px] shadow-sm' : semCapa ? '' : 'lg:-mt-10',
               ].join(' ')}>
-                <div className="h-[88px] w-[88px] flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-[96px] sm:w-[96px] lg:h-[108px] lg:w-[108px]">
+                <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-[12px] bg-[var(--v-placeholder)] sm:h-[88px] sm:w-[88px] lg:h-[96px] lg:w-[96px]">
                   {restaurante.logoUrl ? (
                     // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -2610,30 +2660,30 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
+                  {/* Status ACIMA do nome, em texto puro — é o primeiro dado que
+                      o cliente procura ("ainda dá tempo de pedir?") e, como
+                      linha própria, ele lê antes mesmo do nome da loja.
+                      Aberta: verde, com o ponto pulsando. Fechada: vermelho,
+                      com a próxima abertura, sem pulsar — nada a acompanhar. */}
+                  {restaurante.lojaAberta ? (
+                    <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-bold leading-[16px] text-[var(--v-aberto)]">
+                      <span className="relative flex h-[7px] w-[7px] flex-shrink-0">
+                        <span className="animate-ping-lento absolute inline-flex h-full w-full rounded-full bg-[var(--v-aberto)] opacity-70" />
+                        <span className="relative inline-flex h-[7px] w-[7px] rounded-full bg-[var(--v-aberto)]" />
+                      </span>
+                      {restaurante.fechamentoHoraTexto ? `Aberta até ${restaurante.fechamentoHoraTexto}` : 'Aberta agora'}
+                    </span>
+                  ) : (
+                    <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-bold leading-[16px] text-[#B91C1C]">
+                      <span className="h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[#B91C1C]" />
+                      <span className="truncate">{horarioTexto ? `Fechada · abre ${horarioTexto.toLowerCase()}` : 'Fechada agora'}</span>
+                    </span>
+                  )}
                   {/* 14/700 no celular: a referência mantém o nome da loja no
                       mesmo corpo do nome dos produtos — quem escolhe onde pedir
                       já escolheu; a tela agora é do cardápio. No desktop, onde
                       sobra largura, ele volta a crescer. */}
                   <h1 className="truncate text-[14px] font-bold leading-[20px] text-[var(--v-texto)] sm:text-[20px] lg:text-[24px]">{storeName}</h1>
-                  {/* Uma pílula por linha de informação: com tudo na mesma
-                      linha, tempo de entrega e nota saíam da tela no celular. */}
-                  <div className="mt-1 flex items-center gap-1.5">
-                    {restaurante.lojaAberta ? (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-price-bg px-2 py-[3px] text-[11px] font-semibold text-[var(--v-aberto)] sm:text-[12px]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--v-aberto)]" /> Aberta
-                      </span>
-                    ) : (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-danger-bg px-2 py-[3px] text-[11px] font-semibold text-[#B91C1C] sm:text-[12px]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#B91C1C]" /> Fechada
-                      </span>
-                    )}
-                    {horarioTexto && (
-                      <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-petrol-bg px-2 py-[3px] text-[11px] font-medium text-petrol sm:text-[12px]">
-                        <Clock className="h-3 w-3 flex-shrink-0" strokeWidth={2.5} />
-                        <span className="truncate">{horarioTexto}</span>
-                      </span>
-                    )}
-                  </div>
                   <div className="mt-[8px] flex items-center gap-[12px] text-[12px] font-medium text-petrol sm:text-[12.5px]">
                     <span className="inline-flex flex-shrink-0 items-center gap-1">
                       <Truck className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
@@ -3629,7 +3679,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               }
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
-                <p className="my-2 text-sm leading-relaxed text-text-subtle">{productSheet.descricao}</p>
+                <DescricaoItem texto={productSheet.descricao} className="my-2 text-[13px] leading-[19px] text-[var(--v-secundario)]" />
                 {productSheet.tipoItem !== 'pizza' && productSheet.tamanhos.length === 0 && (
                   <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
                 )}

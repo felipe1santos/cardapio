@@ -91,6 +91,7 @@ import { BulkUploadModal, type BulkUploadTarget } from './bulk-upload-modal'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { enviarImagemCategoria } from '@/lib/queries/ajustes'
+import { DescricaoEditor } from '@/components/admin/descricao-editor'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -3294,10 +3295,11 @@ export default function CardapioPage() {
             className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
 
           <div className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Descrição</div>
-          <input value={form.descricao} onChange={(e) => setForm((prev) => ({ ...prev, descricao: e.target.value }))}
+          <DescricaoEditor
+            valor={form.descricao}
+            onChange={(descricao) => setForm((prev) => ({ ...prev, descricao }))}
             placeholder="Ex.: Pão brioche, 2 hambúrgueres 120g, cheddar e molho da casa"
-            className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary" />
-          <p className="mt-1 text-[11px] text-text-subtle">Uma boa descrição ajuda o cliente a decidir — liste os principais ingredientes.</p>
+          />
 
           <div className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Foto do item</div>
           <div className="mb-4 flex items-center gap-3">
