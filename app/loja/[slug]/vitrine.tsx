@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, Gift, Ticket, Percent, Clock, Check, RotateCcw } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Gift, Ticket, Percent, Clock, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
@@ -188,14 +188,16 @@ function PriceTag({ price, originalPrice, hideDiscount = false }: { price: numbe
     // Em promoção: preço verde (fonte fina), valor antigo riscado e pill de % verde.
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="text-[15px] font-bold text-promo">{brl(price)}</span>
-        <span className="text-[12px] font-normal text-text-subtle line-through">{brl(originalPrice)}</span>
-        <span className="rounded bg-promo-bg px-1.5 py-0.5 text-[11px] font-bold text-promo">-{off}%</span>
+        <span className="text-[14px] font-semibold text-promo">{brl(price)}</span>
+        <span className="text-[12px] font-normal text-[var(--v-secundario)] line-through">{brl(originalPrice)}</span>
+        <span className="rounded-full bg-promo-bg px-2 py-0.5 text-[10px] font-medium text-promo">-{off}%</span>
       </span>
     )
   }
-  // Sem desconto: preço neutro (não verde), fonte fina.
-  return <span className="text-[15.5px] font-bold text-text-main">{brl(price)}</span>
+  // Sem desconto: preço neutro (não verde), no mesmo corpo e peso do nome do
+  // item — é assim na referência, e o preço em destaque maior fazia a lista
+  // parecer uma tabela de valores em vez de um cardápio.
+  return <span className="text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]">{brl(price)}</span>
 }
 
 /**
@@ -341,14 +343,16 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
         decoding="async"
         width={size}
         height={size}
-        className="flex-shrink-0 rounded object-cover"
+        // Canto de 8px: a referência arredonda a foto do item o suficiente para
+        // ela não brigar com o texto, sem virar cartão.
+        className="flex-shrink-0 rounded-[8px] object-cover"
         style={{ width: size, height: size }}
       />
     )
   }
   return (
     <div
-      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]"
+      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[var(--v-placeholder)]"
       style={{ width: size, height: size }}
     >
       <FallbackIcon style={{ width: size * 0.4, height: size * 0.4 }} className="text-[#9CA3AF]" strokeWidth={1.75} />
@@ -396,9 +400,11 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
   return (
     <button
       onClick={onClick}
-      className={`group flex flex-col overflow-hidden rounded-md border border-border bg-white text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.98] ${className}`}
+      className={`group flex flex-col overflow-hidden rounded-[12px] bg-white text-left transition-all duration-150 active:scale-[0.98] ${className}`}
     >
-      <div className={`relative ${compact ? 'aspect-square' : 'aspect-[4/3]'} w-full overflow-hidden rounded-t-md`}>
+      {/* 140px de foto com canto de 12px: a medida da referência para o cartão
+          de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
+      <div className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
         {/* Etiqueta sobre a foto (não acima do nome) */}
         {tagDoItem(item) && (
@@ -410,12 +416,12 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           <span className={`absolute left-2.5 ${tagDoItem(item) ? 'top-9' : 'top-2.5'} rounded bg-pink-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-pink-600 shadow-sm`}>Mais vendido</span>
         )}
       </div>
-      <div className={compact ? 'flex flex-col gap-0.5 p-2.5' : 'flex flex-1 flex-col gap-1 p-3'}>
-        <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2'} text-[14px] font-bold leading-snug text-text-main`}>{item.nome}</div>
+      <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
+        <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2 min-h-[40px]'} mb-[8px] text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]`}>{item.nome}</div>
         {item.descricao && !compact && (
-          <p className="line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
+          <p className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]">{item.descricao}</p>
         )}
-        <div className={compact ? 'pt-0.5' : 'pt-1'}>
+        <div className={compact ? 'pt-0.5' : ''}>
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
         </div>
       </div>
@@ -423,23 +429,37 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
   )
 }
 
+/**
+ * Linha do cardápio: texto à esquerda, foto à direita, separador fino embaixo.
+ *
+ * As medidas seguem a referência da §"Escala tipográfica" (app/globals.css):
+ * nome 14/600 em duas linhas, descrição 12/400 com entrelinha 16px em até três
+ * linhas, preço 14/600, foto de 120px e 12px de respiro entre texto e foto.
+ * Foto de 120px (e não as 76 de antes) é o que dá ao prato o mesmo peso visual
+ * que ele tem nos aplicativos de delivery — é a foto que vende.
+ *
+ * `imagemGrande` (ajuste da loja) sobe a foto para 140px; sem ele, 120.
+ *
+ * As medidas vão em px e não nos utilitários em rem: a base do painel é 87,5%,
+ * e cada `gap-3`/`py-4`/`leading-4` chegaria 12,5% menor (ver app/globals.css).
+ */
 function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCardapio; onClick: () => void; imagemGrande?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-3 border-b border-border bg-white px-3 py-3 text-left transition-colors last:border-none hover:bg-[#F9FAFB] active:bg-[#F3F4F6]"
+      className="flex w-full gap-[12px] border-b border-[var(--v-borda)] bg-white py-[16px] pl-[16px] pr-[8px] text-left transition-colors last:border-none hover:bg-[#FAFAFA] active:bg-[#F3F4F6]"
     >
       <div className="min-w-0 flex-1">
-        <div className="line-clamp-1 text-[14px] font-bold leading-snug text-text-main">{item.nome}</div>
+        <div className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">{item.nome}</div>
         {item.descricao && (
-          <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-text-subtle">{item.descricao}</p>
+          <p className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]">{item.descricao}</p>
         )}
-        <div className="mt-1.5">
+        <div className="mt-[8px]">
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
         </div>
       </div>
       <div className="relative flex-shrink-0">
-        <ProductThumb item={item} size={imagemGrande ? 100 : 76} />
+        <ProductThumb item={item} size={imagemGrande ? 140 : 120} />
         {/* Etiqueta sobre a foto (não acima do nome) */}
         {tagDoItem(item) && (
           <span className="absolute left-1 top-1 shadow-sm">
@@ -456,8 +476,10 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
 
 function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: ItemCardapio[]; layout: LayoutCardapio; onSelect: (item: ItemCardapio) => void; imagemGrande?: boolean }) {
   if (layout === 'lista') {
+    // Sem cartão em volta: a lista é uma folha branca com linhas separadas por
+    // um fio, como na referência. O contorno duplicava a moldura do conteúdo.
     return (
-      <div className="overflow-hidden rounded border border-border bg-white">
+      <div className="bg-white">
         {items.map((item) => (
           <ProductListRow key={item.id} item={item} onClick={() => onSelect(item)} imagemGrande={imagemGrande} />
         ))}
@@ -465,7 +487,7 @@ function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: I
     )
   }
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 px-4 lg:grid-cols-3 lg:gap-4 lg:px-0 xl:grid-cols-4">
       {items.map((item) => (
         <ProductCard key={item.id} item={item} onClick={() => onSelect(item)} />
       ))}
@@ -2454,7 +2476,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
-      className="font-loja min-h-dvh bg-[#F3F4F6] text-text-main"
+      className="font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]"
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
     >
       <style>{`@keyframes toast-pop-top{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes cupons-piscar{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.15)}}`}</style>
@@ -2557,15 +2579,24 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {/* Barra única da loja: logo + nome/status + busca/info (de ponta a ponta).
                 Dentro de uma categoria da gaveta ela some junto com o resto do
                 topo — ali a tela é só os itens daquela seção. */}
+            {/* No celular, tudo abaixo da capa vive sobre uma folha branca única
+                de cantos arredondados, que sobe 24px sobre a foto — é o gesto da
+                referência, e é ele que emenda loja, categorias e cardápio num
+                bloco só em vez de ilhas brancas sobre cinza. No desktop a folha
+                não existe: lá a página é de duas colunas. */}
             {!gavetaEmTela && (
-            <div className="relative z-10 px-3 sm:px-4 lg:px-8">
+            <div className={[
+              'relative z-10 px-[16px] lg:px-8',
+              gavetaAtiva ? '' : '-mt-[24px] rounded-t-[24px] bg-white pt-[24px] lg:mt-0 lg:rounded-none lg:bg-transparent lg:pt-0',
+            ].join(' ')}>
               {/* Logo grande e o texto do lado ocupando a mesma altura: nome,
                   status, tempo/nota e endereço somam a altura da logo. */}
-              {/* A margem negativa existe pra encavalar a barra na capa. Sem
-                  capa (modo gaveta) ela puxaria a barra pra cima de nada. */}
               <div className={[
-                'flex items-center gap-3 rounded-md border border-border bg-white p-2.5 shadow-md sm:gap-4 sm:p-3.5',
-                gavetaAtiva ? 'mt-3' : '-mt-8 sm:-mt-10',
+                'flex items-center gap-[12px] sm:gap-4',
+                // Sobre a folha branca o cartão seria um branco dentro de outro:
+                // a moldura só volta no desktop, onde não há folha.
+                'lg:rounded-[12px] lg:border lg:border-[var(--v-borda)] lg:bg-white lg:p-3.5 lg:shadow-sm',
+                gavetaAtiva ? 'mt-3 rounded-[12px] border border-[var(--v-borda)] bg-white p-[12px] shadow-sm' : 'lg:-mt-10',
               ].join(' ')}>
                 <div className="h-[88px] w-[88px] flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6] sm:h-[96px] sm:w-[96px] lg:h-[108px] lg:w-[108px]">
                   {restaurante.logoUrl ? (
@@ -2579,27 +2610,31 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="truncate text-[17px] font-extrabold leading-tight tracking-tight text-text-main sm:text-[22px] lg:text-[26px]">{storeName}</h1>
+                  {/* 14/700 no celular: a referência mantém o nome da loja no
+                      mesmo corpo do nome dos produtos — quem escolhe onde pedir
+                      já escolheu; a tela agora é do cardápio. No desktop, onde
+                      sobra largura, ele volta a crescer. */}
+                  <h1 className="truncate text-[14px] font-bold leading-[20px] text-[var(--v-texto)] sm:text-[20px] lg:text-[24px]">{storeName}</h1>
                   {/* Uma pílula por linha de informação: com tudo na mesma
                       linha, tempo de entrega e nota saíam da tela no celular. */}
                   <div className="mt-1 flex items-center gap-1.5">
                     {restaurante.lojaAberta ? (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded bg-price-bg px-2 py-[3px] text-[11px] font-bold text-promo sm:text-[12px]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-promo" /> Aberta
+                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-price-bg px-2 py-[3px] text-[11px] font-semibold text-[var(--v-aberto)] sm:text-[12px]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--v-aberto)]" /> Aberta
                       </span>
                     ) : (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded bg-danger-bg px-2 py-[3px] text-[11px] font-bold text-[#B91C1C] sm:text-[12px]">
+                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-danger-bg px-2 py-[3px] text-[11px] font-semibold text-[#B91C1C] sm:text-[12px]">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#B91C1C]" /> Fechada
                       </span>
                     )}
                     {horarioTexto && (
-                      <span className="inline-flex min-w-0 items-center gap-1 rounded bg-petrol-bg px-2 py-[3px] text-[11px] font-semibold text-petrol sm:text-[12px]">
+                      <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-petrol-bg px-2 py-[3px] text-[11px] font-medium text-petrol sm:text-[12px]">
                         <Clock className="h-3 w-3 flex-shrink-0" strokeWidth={2.5} />
                         <span className="truncate">{horarioTexto}</span>
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 flex items-center gap-3 text-[11.5px] font-semibold text-petrol sm:text-[12.5px]">
+                  <div className="mt-[8px] flex items-center gap-[12px] text-[12px] font-medium text-petrol sm:text-[12.5px]">
                     <span className="inline-flex flex-shrink-0 items-center gap-1">
                       <Truck className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
                     </span>
@@ -2612,7 +2647,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     )}
                   </div>
                   {(restaurante.bairro || restaurante.cidade) && (
-                    <p className="mt-1 truncate text-[11.5px] font-medium text-text-subtle sm:text-[12.5px]">
+                    <p className="mt-[8px] truncate text-[12px] font-normal leading-[1.2] text-[var(--v-secundario)] sm:text-[12.5px]">
                       📍 {capitalizarTexto([restaurante.bairro, restaurante.cidade].filter(Boolean).join(', '))}
                     </p>
                   )}
@@ -2642,6 +2677,32 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </button>
                 </div>
               </div>
+
+              {/* Linha de conta: entrar fica à esquerda, logo abaixo dos dados da
+                  loja, e a chamada de benefícios à direita. É o primeiro pedido
+                  que a tela faz ao cliente — identificar-se agora é o que traz
+                  endereço salvo, histórico e cupom, e evita o login no meio do
+                  checkout, onde ele desiste. Some quando já está identificado. */}
+              {!perfilCliente && (
+                <div className="mt-[12px] flex items-center justify-between gap-[12px]">
+                  <button
+                    onClick={() => setContaOpen(true)}
+                    className="-ml-1 inline-flex items-center gap-[6px] rounded px-1 py-1 text-[12px] font-semibold leading-[16px] text-[var(--v-acao)] transition-opacity hover:opacity-80"
+                  >
+                    Fazer login
+                    <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </button>
+                  {recompensasDisponiveis + cuponsPublicosCount > 0 && (
+                    <button
+                      onClick={() => setTab('cupons')}
+                      className="inline-flex items-center gap-[6px] rounded-full bg-[var(--v-acao-bg)] px-[12px] py-[6px] text-[12px] font-semibold leading-[16px] text-[var(--v-acao)]"
+                    >
+                      <Gift className="h-3.5 w-3.5" strokeWidth={2.2} />
+                      Aproveite benefícios!
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             )}
 
@@ -2688,7 +2749,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
             {/* Duas colunas no desktop: cardápio à esquerda + sacola fixa à direita */}
             <div className="lg:flex lg:items-start lg:gap-8 lg:px-8">
-            <div className="min-w-0 flex-1">
+            {/* No celular o cardápio é uma folha branca contínua da barra de
+                categorias até o último item — como na referência. Alternar
+                branco e cinza a cada seção cortava a lista em faixas e fazia
+                cada categoria parecer um bloco solto. No desktop o fundo volta
+                a ser o da página, porque ali a sacola divide a tela. */}
+            <div className="min-w-0 flex-1 bg-white lg:bg-transparent">
             {/* Category nav.
                 No modo gaveta as chips de categoria somem: quem escolhe
                 categoria ali é o cartão, e repetir a mesma lista numa barra
@@ -2697,11 +2763,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 entrada nesse modo — e a barra inteira some quando a loja não
                 tem promoção. */}
             {(!gavetaAtiva || (promoItems.length > 0 && !gavetaEmTela)) && (
-            <div className="sticky top-0 z-10 mt-2 flex gap-2 overflow-x-auto bg-[#F3F4F6] px-4 py-2 [scrollbar-width:none] lg:top-16 lg:px-0">
+            <div className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-[var(--v-borda)] bg-white px-[16px] pb-[8px] pt-[12px] [scrollbar-width:none] lg:top-16 lg:mt-3 lg:px-0 lg:py-2">
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors', activeCategory === '__promos__' ? 'border-promo bg-promo text-white shadow-sm' : 'border-border bg-white text-text-subtle hover:border-promo hover:text-promo'].join(' ')}
+                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-[14px] py-[6px] text-[14px] font-medium leading-[20px] transition-colors', activeCategory === '__promos__' ? 'border-promo bg-promo text-white shadow-sm' : 'border-border bg-white text-text-subtle hover:border-promo hover:text-promo'].join(' ')}
                 >
                   🏷️ Promoções
                 </button>
@@ -2713,7 +2779,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     setActiveCategory(cat.nome)
                     document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
-                  className={['flex-shrink-0 whitespace-nowrap rounded border px-3.5 py-1.5 text-[13px] font-semibold transition-colors',
+                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-[14px] py-[6px] text-[14px] font-medium leading-[20px] transition-colors',
                     activeCategory === cat.nome
                       ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white'
                       : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
@@ -2835,8 +2901,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
                 : groups
               ).map((cat) => (
-                <div key={cat.id} id={`sec-${cat.id}`} className="px-4 pb-1 pt-4 lg:px-0">
-                  <h2 className="mb-3 text-[17px] font-bold tracking-tight">{cat.nome}</h2>
+                <div key={cat.id} id={`sec-${cat.id}`} className="pb-1 pt-2 lg:px-0">
+                  {/* Título centralizado, 16/600: na referência ele funciona como
+                      divisória entre blocos de produtos, não como manchete. */}
+                  <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">{cat.nome}</h2>
                   <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
                 </div>
               ))}

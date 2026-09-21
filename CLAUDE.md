@@ -96,9 +96,20 @@ um contexto mobile-first de vitrine).
 ### Tipografia e tom visual
 - Fonte: **Inter** (Google Fonts, pesos 400/500/600/700/800), `font-size` base 14px,
   em todo o painel administrativo. **Exceção: a vitrine do cliente
-  (`app/loja/[slug]/`) usa Rubik**, carregada em `app/loja/[slug]/layout.tsx` e
-  exposta como a família `font-vitrine` do Tailwind — decisão de 2026-09-13,
-  ver `docs/superpowers/specs/2026-09-13-vitrine-banner-gaveta-design.md`.
+  (`app/loja/[slug]/`) usa Montserrat** (400/500/600/700), carregada em
+  `app/loja/[slug]/layout.tsx` e exposta como a família `font-vitrine` do Tailwind.
+  Era Rubik desde 2026-09-13; trocada em 2026-09-21 junto com a escala e a paleta
+  da vitrine, para alinhá-la à referência de delivery escolhida pelo dono.
+- **A vitrine tem escala e paleta próprias**, definidas em `app/globals.css` sob
+  `.font-loja` (variáveis `--v-*`): fundo `#F8FAFC`, texto `#3D3D3D`, secundário
+  `#5C5C5C`, títulos `#1F1F1F`, ação/login `#1446AB`, aberto `#16884D`. Nome de item
+  14/600, descrição 12/400 (entrelinha 16px), preço 14/600, título de seção 16/600
+  centralizado; foto do item 120px (140 com "imagem grande"), canto de 8px; cartão de
+  destaque com foto de 140px e canto de 12px.
+- ⚠️ **Na vitrine, medida que precisa bater vai em px, não em utilitário `rem`.** A raiz
+  do painel é `87.5%`, então `gap-3` vale 10,5px e `rounded-lg` 7px. `.font-loja`
+  devolve a base para 16px, mas `rem` é relativo ao `<html>` — por isso as classes
+  usam `gap-[12px]`, `leading-[16px]`, `rounded-[8px]` e afins.
 - **`--radius-max: 3px`** — cantos quase retos em todos os elementos (cards, botões,
   inputs, badges, thumbnails). Essa "quadratura" é uma marca registrada do visual Menuzia
   — não usar `border-radius` arredondado generoso, exceto em elementos circulares
@@ -246,9 +257,10 @@ genéricos, hierarquia visual burocrática) que destoa da identidade Menuzia (pa
 ciano + neutros, radius quase reto, tipografia Inter, tom premium e enxuto dos outros
 três painéis).
 
-> **Nota de 2026-09-13:** esta seção é texto histórico de planejamento. A vitrine
-> implementada usa **Rubik**, não Inter — ver a exceção na §3 ("Tipografia e tom
-> visual"). Onde esta seção disser "Inter" para a vitrine, vale a §3.
+> **Nota de 2026-09-21:** esta seção é texto histórico de planejamento. A vitrine
+> implementada usa **Montserrat** (não Inter, e não mais Rubik) e tem escala, paleta e
+> cantos próprios — ver a exceção na §3 ("Tipografia e tom visual"). Onde esta seção
+> disser "Inter" ou "radius 3px" para a vitrine, vale a §3.
 
 **Instruções para o redesign** (use a skill de frontend-design já instalada):
 
@@ -257,7 +269,8 @@ três painéis).
   "formulário de pedido". Pense em referências de produtos como apps de delivery
   premium e cardápios digitais de restaurantes de alto padrão.
 - Manter a base de **identidade Menuzia** (cores, radius 3px, fonte Inter — exceto na
-  vitrine, que usa Rubik; ver a exceção na §3 —, tom dos
+  vitrine, que usa Montserrat, paleta própria e cantos arredondados; ver a exceção na
+  §3 —, tom dos
   preços/badges) mas elevar a execução: fotos reais dos produtos (não emojis),
   composição visual mais editorial (hero da loja, destaques/banners de promoções,
   cards de produto com mais respiro e hierarquia tipográfica refinada), microinterações

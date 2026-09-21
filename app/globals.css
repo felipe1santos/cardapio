@@ -38,7 +38,7 @@ html {
 }
 
 html:has(.font-loja) {
-  background-color: #f3f4f6;
+  background-color: #f8fafc;
 }
 
 @layer utilities {
@@ -47,13 +47,47 @@ html:has(.font-loja) {
   }
 }
 
-/* Vitrine do cliente: fonte Rubik (o painel segue em Inter), escopada por
+/* Vitrine do cliente: fonte Montserrat (o painel segue em Inter), escopada por
    segurança — cobre tanto o wrapper principal quanto a tela de erro, que são
    duas raízes `.font-loja` independentes. Decisão de 2026-09-13, ver
    CLAUDE.md §3 e docs/superpowers/specs/2026-09-13-vitrine-banner-gaveta-design.md. */
 .font-loja,
 .font-loja * {
-  font-family: var(--font-rubik), 'Rubik', sans-serif;
+  font-family: var(--font-vitrine), 'Montserrat', sans-serif;
+}
+
+/* Escala tipográfica e paleta da vitrine.
+   ---------------------------------------
+   Os valores vêm da referência de cardápio de delivery que o dono escolheu
+   (2026-09-21): tipografia densa, com o nome do item em 14px e a descrição em
+   12px, e neutros mais quentes que os do painel. Ficam como variáveis, e não
+   espalhados em classes arbitrárias, para que a próxima mudança de referência
+   seja um arquivo só. Valem apenas dentro de `.font-loja`: o painel não vê nada
+   disto. */
+/* A vitrine volta à base de 16px do navegador.
+   O painel roda com `html { font-size: 87.5% }`, e é ele quem manda na escala
+   do Tailwind: `leading-4` resolvia 14px em vez de 16px, `rounded-lg` 7px em
+   vez de 8px, `gap-3` 10,5px em vez de 12px. Como a vitrine segue medidas
+   exatas da referência, ela precisa da base cheia — senão todo espaçamento
+   chega 12,5% menor do que foi especificado.
+
+   `rem` é relativo ao <html>, não ao elemento, então mudar aqui NÃO basta para
+   os utilitários: por isso as medidas que precisam bater ao pixel estão
+   escritas em px no componente. Esta regra cuida do resto (o que herda `em`,
+   e o tamanho de texto padrão). */
+.font-loja {
+  font-size: 16px;
+  --v-titulo: #1f1f1f;      /* títulos de seção */
+  --v-texto: #3d3d3d;       /* nome do item, preço, nome da loja */
+  --v-secundario: #5c5c5c;  /* descrição, endereço, rótulos */
+  --v-borda: #e5e5e5;       /* separador entre itens da lista */
+  --v-fundo: #f8fafc;       /* fundo fora do cartão de conteúdo */
+  --v-placeholder: #f6f6f6; /* caixa da foto enquanto não há imagem */
+  --v-aberto: #16884d;      /* "Aberto até 23:00" */
+  --v-acao: #1446ab;        /* "Fazer login" e links de ação */
+  --v-acao-bg: #e5eeff;     /* pílula de benefícios ao lado do login */
+  --v-etiqueta: #363d4d;    /* texto da etiqueta de peso/porção */
+  --v-etiqueta-bg: #f7faff;
 }
 
 /* Card de pedido novo no Kanban: pisca alternando azul/vermelho enquanto
