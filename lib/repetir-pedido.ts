@@ -66,6 +66,31 @@ function complementosPorNome(item: ItemCardapio): Map<string, number> {
   return mapa
 }
 
+/**
+ * Fotos dos itens de um pedido antigo, para a lista de "Meus pedidos".
+ *
+ * A foto vem do CARDÁPIO DE AGORA, não do histórico: o pedido guarda só nomes, e
+ * é a imagem atual que o cliente vai receber se repetir. Item que saiu do
+ * cardápio simplesmente não entra — a lista mostra o que ainda existe.
+ *
+ * Separada de `montarRepeticaoPedido` porque a lista desenha vários pedidos de
+ * uma vez e não precisa recalcular preço, adicional e tamanho de cada um só
+ * para mostrar três miniaturas.
+ */
+export function fotosDoPedido(pedido: PedidoCliente, cardapio: ItemCardapio[], limite = 3): string[] {
+  const porNome = new Map(cardapio.map((i) => [chave(i.nome), i]))
+  const fotos: string[] = []
+  for (const item of pedido.itens) {
+    const doCardapio = porNome.get(chave(item.nome))
+    const url = doCardapio?.imagemThumbUrl ?? doCardapio?.imagemUrl
+    // Sem repetir a mesma foto: dois sabores do mesmo item viravam duas
+    // miniaturas idênticas, gastando o espaço que o terceiro item usaria.
+    if (url && !fotos.includes(url)) fotos.push(url)
+    if (fotos.length >= limite) break
+  }
+  return fotos
+}
+
 export function montarRepeticaoPedido(pedido: PedidoCliente, cardapio: ItemCardapio[]): ResultadoRepeticao {
   const porNome = new Map(cardapio.map((i) => [chave(i.nome), i]))
   const resultado: ResultadoRepeticao = { linhas: [], indisponiveis: [], semAlgunsAdicionais: [], precisamMontagem: [] }

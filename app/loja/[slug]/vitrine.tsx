@@ -25,7 +25,7 @@ import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
-import { avisoRepeticao, montarRepeticaoPedido } from '@/lib/repetir-pedido'
+import { avisoRepeticao, fotosDoPedido, montarRepeticaoPedido, type ResultadoRepeticao } from '@/lib/repetir-pedido'
 import { resolverPaleta } from '@/lib/paletas'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import { objectPosition, FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
@@ -1335,18 +1335,30 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }, [tab, cart.length, premioCarrinhoVisto, recompensaSelecionada, cupomAplicado, fidelidade])
 
   /**
-   * "Pedir de novo": monta a sacola com o pedido antigo, casando cada item com o
-   * cardápio de agora (preço atual, sem o que saiu). Nunca substitui o que o
-   * cliente já escolheu — acrescenta, senão o clique poderia apagar a sacola.
+   * "Pedir de novo" abre a conferência antes de mexer na sacola. O clique ia
+   * direto para o carrinho, e o cliente só descobria lá que o preço mudou ou
+   * que faltou um item — agora ele vê o que vai levar, com foto, e confirma.
    */
-  function repetirPedido(pedido: PedidoCliente) {
+  function abrirRepeticao(pedido: PedidoCliente) {
     const resultado = montarRepeticaoPedido(pedido, allItems)
     if (resultado.linhas.length === 0) {
       showToast('Os itens desse pedido não estão mais disponíveis.')
       return
     }
-    setCart((prev) => [...prev, ...resultado.linhas])
     setPedidoDetalhe(null)
+    setRepetirModal({ pedido, resultado })
+  }
+
+  /**
+   * Confirmada a conferência, monta a sacola com o pedido antigo pelo preço de
+   * agora. Nunca substitui o que o cliente já escolheu — acrescenta, senão o
+   * clique poderia apagar a sacola.
+   */
+  function confirmarRepeticao() {
+    if (!repetirModal) return
+    const { resultado } = repetirModal
+    setCart((prev) => [...prev, ...resultado.linhas])
+    setRepetirModal(null)
     setTab('cart')
     const aviso = avisoRepeticao(resultado)
     showToast(aviso ? `Sacola montada — ${aviso}` : 'Pedido montado na sacola!')
@@ -1923,13 +1935,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [pedidoWa, setPedidoWa] = useState<string | null>(null)
   const [cliente, setCliente] = useState({ nome: '', telefone: '' })
   const [pedidoDetalhe, setPedidoDetalhe] = useState<PedidoCliente | null>(null)
+  /** Conferência do "Pedir de novo", antes de mexer na sacola. */
+  const [repetirModal, setRepetirModal] = useState<{ pedido: PedidoCliente; resultado: ResultadoRepeticao } | null>(null)
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
   useEffect(() => {
-    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe || confirmacaoAberta || saidaAberta || !!premioModal
+    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe || confirmacaoAberta || saidaAberta || !!premioModal || !!repetirModal
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe, confirmacaoAberta, saidaAberta, premioModal])
+  }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe, confirmacaoAberta, saidaAberta, premioModal, repetirModal])
 
   // ── Histórico de pedidos do cliente logado ────────────────────────────────
   const [meusPedidos, setMeusPedidos] = useState<PedidoCliente[]>([])
@@ -1984,6 +1998,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     statusPedidosRef.current = atual
     if (entregou) setFidelidadeVersao((v) => v + 1)
   }, [meusPedidos])
+
+  /**
+   * Miniaturas de cada pedido da lista, casadas com o cardápio de agora. Fica em
+   * `useMemo` porque a lista redesenha a cada tick do polling de status, e
+   * refazer o casamento nome→item de todos os pedidos a cada segundo seria
+   * trabalho jogado fora.
+   */
+  const fotosPorPedido = useMemo(
+    () => new Map(meusPedidos.map((p) => [p.id, fotosDoPedido(p, allItems)])),
+    [meusPedidos, allItems],
+  )
 
   const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
     Pix: 'pix',
@@ -2169,6 +2194,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (confirmacaoAberta) { setConfirmacaoAberta(false); return true }
     if (productSheet) { closeProductSheet(); return true }
     if (checkoutOpen) { checkoutBack(); return true }
+    // Antes do detalhe do pedido: a conferência do "pedir de novo" abre por
+    // cima dele, então é ela que o voltar do celular fecha primeiro.
+    if (repetirModal) { setRepetirModal(null); return true }
     if (pedidoDetalhe) { setPedidoDetalhe(null); return true }
     if (freteOpen) { setFreteOpen(false); return true }
     if (contaOpen) { setContaOpen(false); return true }
@@ -2257,22 +2285,31 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Blocos reutilizados no carrinho (aba mobile + painel lateral desktop) ──
   // Numa retirada não existe frete pra ficar grátis — o banner só confunde.
+  /**
+   * Aviso de entrega grátis: duas linhas, não quatro. Antes eram o título, a
+   * barra e mais uma frase repetindo o mesmo — três alturas de texto num cartão
+   * que fica em cima da sacola, empurrando os itens para fora da tela no
+   * celular. O que o cliente precisa saber é quanto FALTA; o valor do gatilho é
+   * detalhe e cabe na mesma linha, em cinza.
+   */
   const freteGratisBanner = freteGratisAtivo && cart.length > 0 && tipoPedido === 'entrega' ? (
     ganhouFreteGratis ? (
-      <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-[#16A34A]/30 bg-[#DCFCE7] px-3.5 py-3">
-        <Truck className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
-        <span className="text-[13px] font-bold text-[#16A34A]">Você ganhou entrega grátis neste pedido! 🎉</span>
+      <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#16A34A]/30 bg-[#DCFCE7] px-3 py-2">
+        <Truck className="h-[15px] w-[15px] flex-shrink-0 text-[#16A34A]" strokeWidth={2.2} />
+        <span className="text-[12px] font-bold leading-[16px] text-[#15803D]">Você ganhou entrega grátis! 🎉</span>
       </div>
     ) : (
-      <div className="mb-4 rounded-lg border border-[#16A34A]/30 bg-[#F0FDF4] px-3.5 py-3">
-        <div className="flex items-center gap-2.5">
-          <Truck className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
-          <span className="text-[13px] font-semibold text-[#16A34A]">Entrega grátis para pedidos acima de {brl(freteGratisMinimo ?? 0)}</span>
+      <div className="mb-3 rounded-lg border border-[#16A34A]/30 bg-[#F0FDF4] px-3 py-2">
+        <div className="flex items-baseline gap-1.5">
+          <Truck className="h-[15px] w-[15px] flex-shrink-0 translate-y-[2px] text-[#16A34A]" strokeWidth={2.2} />
+          <span className="min-w-0 flex-1 text-[12px] font-semibold leading-[16px] text-[#15803D]">
+            Faltam {brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))} para a entrega grátis
+          </span>
+          <span className="flex-shrink-0 text-[11px] font-medium text-[#16A34A]/70">{brl(freteGratisMinimo ?? 0)}</span>
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#DCFCE7]">
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#DCFCE7]">
           <div className="h-full rounded-full bg-[#16A34A] transition-all duration-300" style={{ width: `${Math.min(100, (subtotal / (freteGratisMinimo || 1)) * 100)}%` }} />
         </div>
-        <p className="mt-1.5 text-[12px] font-medium text-[#15803D]">Faltam {brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))} para ganhar a entrega grátis.</p>
       </div>
     )
   ) : null
@@ -2321,24 +2358,35 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     <span className="text-text-subtle">{brl(fee)}</span>
   )
 
+  /**
+   * Benefício de entrega grátis numa RETIRADA não desconta nada — não existe taxa
+   * para zerar —, mas o uso é gasto do mesmo jeito: o cupom conta como usado e o
+   * prêmio de fidelidade é resgatado para sempre. O cliente precisa saber antes
+   * de fechar o pedido; a escolha continua sendo dele.
+   */
+  const beneficioInutilNaRetirada =
+    tipoPedido === 'retirada' && (recompensaSelecionada?.premioTipo === 'entrega_gratis' || cupomAplicado?.tipo === 'entrega_gratis')
+
   // Chip do benefício ativo (cupom ou prêmio) — sacola mobile + painel desktop.
   const beneficioBanner = (recompensaSelecionada || cupomAplicado) ? (
-    <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-[#16A34A]/30 bg-[#F0FDF4] px-3.5 py-3">
-      <Gift className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
+    <div className={`mb-4 flex items-center gap-2.5 rounded-lg border px-3.5 py-3 ${beneficioInutilNaRetirada ? 'border-warn bg-warn-bg' : 'border-[#16A34A]/30 bg-[#F0FDF4]'}`}>
+      <Gift className={`h-5 w-5 flex-shrink-0 ${beneficioInutilNaRetirada ? 'text-warn' : 'text-[#16A34A]'}`} strokeWidth={2} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-bold text-[#15803D]">
           {recompensaSelecionada
             ? `Prêmio: ${premioLabelCampanha({ premioTipo: recompensaSelecionada.premioTipo, premioValor: recompensaSelecionada.premioValor }, recompensaSelecionada.premioItemNome)}`
             : `Cupom ${cupomAplicado?.codigo}`}
         </div>
-        <div className="truncate text-[12px] text-[#15803D]/80">
-          {beneficio?.tipo === 'item_gratis'
-            ? `Item grátis: ${beneficio.itemNome ?? 'prêmio'}`
-            : beneficio?.tipo === 'entrega_gratis'
-              ? 'Entrega grátis neste pedido'
-              : beneficio?.tipo === 'desconto_percentual'
-                ? `${beneficio.valor ?? 0}% de desconto (-${brl(desconto)})`
-                : `Desconto de ${brl(desconto)}`}
+        <div className={`text-[12px] ${beneficioInutilNaRetirada ? 'font-semibold text-text-main' : 'truncate text-[#15803D]/80'}`}>
+          {beneficioInutilNaRetirada
+            ? 'Na retirada não há taxa de entrega, então este benefício não vai descontar nada — e mesmo assim seria consumido. Troque para Entrega ou remova aqui ao lado.'
+            : beneficio?.tipo === 'item_gratis'
+              ? `Item grátis: ${beneficio.itemNome ?? 'prêmio'}`
+              : beneficio?.tipo === 'entrega_gratis'
+                ? 'Entrega grátis neste pedido'
+                : beneficio?.tipo === 'desconto_percentual'
+                  ? `${beneficio.valor ?? 0}% de desconto (-${brl(desconto)})`
+                  : `Desconto de ${brl(desconto)}`}
         </div>
       </div>
       <button onClick={removerBeneficio} aria-label="Remover cupom ou prêmio" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] text-text-subtle shadow-sm transition-colors hover:text-danger">✕</button>
@@ -3228,7 +3276,27 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         <span className={['flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide', info.cls].join(' ')}>{info.label}</span>
                       </div>
                       <div className="border-t border-border px-4 py-3">
-                        <p className="line-clamp-2 text-[13px] text-text-subtle">{resumo}</p>
+                        {/* As fotos vêm do cardápio de hoje: é uma lista de comida,
+                            e um pedido reconhecido pela imagem é pedido de novo
+                            mais rápido do que um lido linha a linha. */}
+                        <div className="flex items-start gap-3">
+                          {fotosPorPedido.get(p.id)?.length ? (
+                            <span className="flex flex-shrink-0 -space-x-2">
+                              {fotosPorPedido.get(p.id)!.map((url) => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={url}
+                                  src={url}
+                                  alt=""
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-11 w-11 rounded-[8px] border-2 border-white object-cover shadow-sm"
+                                />
+                              ))}
+                            </span>
+                          ) : null}
+                          <p className="line-clamp-2 min-w-0 flex-1 text-[13px] text-text-subtle">{resumo}</p>
+                        </div>
                         <div className="mt-2 flex items-center justify-between">
                           <span className="text-[12px] font-semibold text-[var(--tema-primaria)]">Ver detalhes →</span>
                           <span className="text-[15px] font-bold text-[#16A34A]">{brl(p.total)}</span>
@@ -3244,7 +3312,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     {!ativo && (
                       <div className="border-t border-border p-3">
                         <button
-                          onClick={() => repetirPedido(p)}
+                          onClick={() => abrirRepeticao(p)}
                           className="flex w-full items-center justify-center gap-2 rounded bg-[var(--tema-light)] py-2.5 text-[12px] font-bold uppercase tracking-wide text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-primaria)] hover:text-white"
                         >
                           <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -3586,6 +3654,89 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </div>
         </nav>
       </div>
+
+      {/* ── Conferência do "Pedir de novo" ─────────────────────────────── */}
+      {repetirModal && (() => {
+        const { pedido, resultado } = repetirModal
+        const total = resultado.linhas.reduce(
+          (s, l) => s + (l.unit + l.addons.reduce((a, x) => a + x.preco, 0)) * l.qty,
+          0,
+        )
+        const aviso = avisoRepeticao(resultado)
+        return (
+          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setRepetirModal(null)}>
+            <div
+              className="flex max-h-[88dvh] w-full flex-col rounded-t-2xl bg-white sm:max-w-[420px] sm:rounded-2xl"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-label={`Repetir o pedido ${pedido.numero}`}
+            >
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <div>
+                  <div className="text-[15px] font-bold text-[var(--v-texto)]">Pedir de novo</div>
+                  <div className="text-[12px] text-[var(--v-secundario)]">Do seu pedido #{pedido.numero}</div>
+                </div>
+                <button onClick={() => setRepetirModal(null)} aria-label="Fechar" className="grid h-9 w-9 place-items-center rounded-full text-[18px] text-text-subtle hover:bg-[#F3F4F6]">×</button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                {resultado.linhas.map((l) => (
+                  <div key={l.key} className="flex items-center gap-3 border-b border-border py-2.5 last:border-0">
+                    {l.imagemUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={l.imagemUrl} alt="" loading="lazy" className="h-12 w-12 flex-shrink-0 rounded-[8px] object-cover" />
+                    ) : (
+                      <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-[8px] bg-[var(--v-placeholder)]">
+                        <HandPlatter className="h-5 w-5 text-[#9CA3AF]" strokeWidth={1.75} />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold leading-[17px] text-[var(--v-texto)]">
+                        {l.qty}× {l.name}
+                      </span>
+                      {(l.tamanhoNome || l.saborNome || l.addons.length > 0 || l.obs) && (
+                        <span className="mt-0.5 block text-[11px] leading-[15px] text-[var(--v-secundario)]">
+                          {[l.tamanhoNome, l.saborNome, ...l.addons.map((a) => a.nome), l.obs].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex-shrink-0 text-[13px] font-semibold text-[var(--v-texto)]">
+                      {brl((l.unit + l.addons.reduce((a, x) => a + x.preco, 0)) * l.qty)}
+                    </span>
+                  </div>
+                ))}
+
+                {/* O que mudou desde aquele pedido: preço já vem recalculado, mas
+                    item que saiu do cardápio o cliente precisa saber ANTES. */}
+                {aviso && (
+                  <p className="mt-3 rounded-lg border border-warn bg-warn-bg px-3 py-2 text-[12px] leading-[16px] text-text-main">
+                    {aviso}
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t border-border p-4">
+                <div className="mb-2.5 flex items-baseline justify-between">
+                  <span className="text-[12px] text-[var(--v-secundario)]">Subtotal com os preços de hoje</span>
+                  <span className="text-[17px] font-bold text-[var(--v-texto)]">{brl(total)}</span>
+                </div>
+                <button
+                  onClick={confirmarRepeticao}
+                  className="w-full rounded-lg bg-[var(--tema-primaria)] py-3 text-[13px] font-bold uppercase tracking-wide text-white transition-opacity active:opacity-90"
+                >
+                  Adicionar à sacola
+                </button>
+                <button
+                  onClick={() => setRepetirModal(null)}
+                  className="mt-1.5 w-full py-2 text-[12px] font-semibold text-text-subtle"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Guarda de saída: o voltar na raiz pergunta antes de largar a loja ── */}
       {saidaAberta && (

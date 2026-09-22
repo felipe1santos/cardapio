@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { avisoRepeticao, montarRepeticaoPedido } from './repetir-pedido'
+import { avisoRepeticao, fotosDoPedido, montarRepeticaoPedido } from './repetir-pedido'
 import type { ItemCardapio } from '@/lib/queries/cardapio'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 
@@ -160,5 +160,38 @@ describe('avisoRepeticao', () => {
   it('junta os motivos numa frase só', () => {
     const texto = avisoRepeticao({ ...vazio, indisponiveis: ['A'], precisamMontagem: ['Pizza'], semAlgunsAdicionais: ['B'] })
     expect(texto).toBe('Um item saiu do cardápio, uma pizza precisa ser montada de novo e alguns adicionais mudaram.')
+  })
+})
+
+describe('fotosDoPedido', () => {
+  it('pega a foto do cardápio de agora, não do histórico', () => {
+    const cardapio = [item({ nome: 'X Burger', imagemUrl: 'https://exemplo/nova.png' })]
+    expect(fotosDoPedido(pedido([{ nome: 'X Burger' }]), cardapio)).toEqual(['https://exemplo/nova.png'])
+  })
+
+  it('prefere a miniatura quando existe — é uma lista, não a ficha', () => {
+    const cardapio = [item({ imagemThumbUrl: 'https://exemplo/thumb.png' })]
+    expect(fotosDoPedido(pedido([{}]), cardapio)).toEqual(['https://exemplo/thumb.png'])
+  })
+
+  it('não repete a mesma foto: dois sabores do mesmo item ocupariam duas vagas', () => {
+    const cardapio = [item({ nome: 'Pizza', imagemUrl: 'https://exemplo/p.png' })]
+    expect(fotosDoPedido(pedido([{ nome: 'Pizza' }, { nome: 'Pizza' }]), cardapio)).toEqual(['https://exemplo/p.png'])
+  })
+
+  it('item que saiu do cardápio, ou sem foto, não entra', () => {
+    expect(fotosDoPedido(pedido([{ nome: 'Sumiu' }]), [item()])).toEqual([])
+    expect(fotosDoPedido(pedido([{}]), [item({ imagemUrl: null })])).toEqual([])
+  })
+
+  it('respeita o limite pedido', () => {
+    const cardapio = [
+      item({ id: 'a', nome: 'A', imagemUrl: 'https://exemplo/a.png' }),
+      item({ id: 'b', nome: 'B', imagemUrl: 'https://exemplo/b.png' }),
+      item({ id: 'c', nome: 'C', imagemUrl: 'https://exemplo/c.png' }),
+    ]
+    const p = pedido([{ nome: 'A' }, { nome: 'B' }, { nome: 'C' }])
+    expect(fotosDoPedido(p, cardapio, 2)).toHaveLength(2)
+    expect(fotosDoPedido(p, cardapio)).toHaveLength(3)
   })
 })
