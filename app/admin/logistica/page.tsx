@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import QRCode from 'qrcode'
-import { Bike, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { Bike, Clock, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -373,6 +374,8 @@ export default function LogisticaPage() {
   /** Prontos sem entregador próprio — inclui os que já foram mandados pro Nexta. */
   const unassignedTodos = useMemo(() => orders.filter((o) => o.status === 'pronto' && !o.entregadorId), [orders])
   const inRoute = orders.filter((o) => o.status === 'em_rota')
+  // Pedido aberto há mais de 12h: um dia alguém não marcou "entregue" e ele ficou.
+  const avisoParados = avisoDePedidosParados(orders, Date.now())
 
   // Entrega ativa do Nexta por pedido — é o que tira o pedido da fila de despacho.
   const nextaPorPedido = useMemo(() => {
@@ -808,6 +811,15 @@ export default function LogisticaPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-5">
         {error && (
           <div className="flex-shrink-0 rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
+        )}
+
+        {/* Entrega que ninguém fechou fica aqui para sempre e some do acompanhamento do
+            cliente. O sistema não encerra nada sozinho — cobra (lib/pedido-parado.ts). */}
+        {avisoParados && (
+          <div role="status" className="flex flex-shrink-0 items-start gap-2 rounded-menuzia border border-warn bg-warn-bg px-3.5 py-2.5 text-[13px] font-medium text-warn">
+            <Clock className="mt-[1px] h-4 w-4 flex-shrink-0" strokeWidth={2.2} />
+            <span>{avisoParados}</span>
+          </div>
         )}
 
         <div className="flex flex-shrink-0 flex-col gap-2">
@@ -1386,7 +1398,13 @@ export default function LogisticaPage() {
                       <div className="mb-1 flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold">#{order.numero}</span>
                         <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
-                        <Badge tone="preparing">Saiu para entrega</Badge>
+                        {pedidoParado(order, Date.now()) ? (
+                          <Badge tone="danger" title="Saiu há muito tempo e ninguém fechou. Marque entregue ou não entregue.">
+                            Parado há {tempoParado(order.criadoEm, Date.now())}
+                          </Badge>
+                        ) : (
+                          <Badge tone="preparing">Saiu para entrega</Badge>
+                        )}
                         <ArrowRight className="h-4 w-4 text-status-preparing" strokeWidth={2.5} />
                         {/* Entrega do Nexta não tem entregador próprio: quem aparece é o
                             motoboy que o webhook informou. */}

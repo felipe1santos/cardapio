@@ -174,12 +174,12 @@ export function CadastroForm({ error }: { error?: string }) {
 
         <label className="mb-3 block">
           <span className={labelClass}>Senha</span>
-          <input name="senha" type="password" required minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} className={authInput} />
+          <input name="senha" type="password" autoComplete="new-password" required minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} className={authInput} />
         </label>
 
         <label className="mb-1 block">
           <span className={labelClass}>Confirmar senha</span>
-          <input name="confirmarSenha" type="password" required minLength={6} value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} className={authInput} />
+          <input name="confirmarSenha" type="password" autoComplete="new-password" required minLength={6} value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} className={authInput} />
         </label>
         <p className="mb-5 min-h-[16px] text-[11px] font-medium">
           {confirmarSenha.length > 0 && !senhasOk && <span className="text-danger">{senha.length < 6 ? 'A senha deve ter no mínimo 6 caracteres.' : 'As senhas não coincidem.'}</span>}

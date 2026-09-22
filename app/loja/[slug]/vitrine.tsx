@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Megaphone, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
+import { ETIQUETAS_ITEM, tagDoItem } from '@/lib/etiqueta-item'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
@@ -314,30 +315,9 @@ function FlashSelecao({ ativo, chave }: { ativo: boolean; chave?: string | numbe
  * ela conversa com o preço promocional, que também é verde, em vez de
  * competir com ele.
  *
- * O emoji é o que sobrevive à miniatura: em 10px, no meio de uma foto, a
- * silhueta colorida é reconhecida antes da palavra.
+ * O rótulo, as cores e a precedência vivem em lib/etiqueta-item.ts, porque o
+ * cardápio da mesa (QR) mostra as MESMAS etiquetas.
  */
-const TAG_STYLES: Record<string, { label: string; cls: string }> = {
-  mais_pedido: { label: '🔥 Mais pedido', cls: 'bg-[#FFF1DC] text-[#9A5B00]' },
-  edicao_limitada: { label: '⏳ Edição limitada', cls: 'bg-[#FCE7F3] text-[#A81B60]' },
-  novo: { label: '✨ Novo', cls: 'bg-[#E0F2FE] text-[#0369A1]' },
-  favorito: { label: '⭐ Favorito da casa', cls: 'bg-[#EDE9FE] text-[#6D28D9]' },
-  promocao: { label: '🏷️ Promoção', cls: 'bg-[#DCFCE7] text-[#15803D]' },
-}
-
-/**
- * Etiqueta que o item mostra na vitrine. Item com desconto ativo ganha a
- * etiqueta roxa de promoção mesmo quando o lojista não marcou nada no cadastro —
- * é o que faz a oferta ser vista na lista.
- */
-export function tagDoItem(item: { tag: string | null; promocaoPreco: number | null; maisVendido?: boolean }): string | null {
-  if (item.tag) return item.tag
-  if (item.promocaoPreco !== null) return 'promocao'
-  // "Item em destaque" do cadastro entra como etiqueta, e não como uma segunda
-  // pílula empilhada: duas etiquetas sobre a mesma foto se anulavam, e o
-  // lojista que marca destaque quer exatamente dizer "este é o mais pedido".
-  return item.maisVendido ? 'mais_pedido' : null
-}
 
 /**
  * Descrição do item com o negrito e as cores que o lojista marcou no cadastro.
@@ -425,7 +405,7 @@ function CarrosselPromo({ urls, foco }: { urls: string[]; foco: string }) {
 /** Pílula de etiqueta do item na vitrine (configurada no cadastro). */
 function TagBadge({ tag }: { tag: string | null }) {
   if (!tag) return null
-  const s = TAG_STYLES[tag]
+  const s = ETIQUETAS_ITEM[tag]
   if (!s) return null
   return (
     <span className={`inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full px-[8px] py-[3px] text-[10px] font-semibold leading-[14px] shadow-sm ${s.cls}`}>

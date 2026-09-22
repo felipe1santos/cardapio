@@ -38,6 +38,7 @@ export default async function LoginPage({
         <input
           name="email"
           type="text"
+          autoComplete="username"
           required
           placeholder="Usuário ou e-mail"
           aria-label="Usuário ou e-mail"
@@ -47,6 +48,7 @@ export default async function LoginPage({
         <input
           name="password"
           type="password"
+          autoComplete="current-password"
           required
           placeholder="Senha"
           aria-label="Senha"

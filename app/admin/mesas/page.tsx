@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import {
+  AJUDA_ESTADO,
   listarMesas,
   criarMesa,
   atualizarMesa,
@@ -32,12 +33,14 @@ import { PainelChamados, useRelogio } from './chamados'
  */
 const TOM_ESTADO: Record<EstadoMesa, { bloco: string; texto: string; ponto: string }> = {
   livre: { bloco: 'bg-status-ready', texto: 'text-white', ponto: 'bg-status-ready' },
+  // Mesmo laranja do painel de mesas do PDV: mesa sentada esperando alguém anotar.
+  aguardando: { bloco: 'bg-status-pending', texto: 'text-white', ponto: 'bg-status-pending' },
   ocupada: { bloco: 'bg-primary', texto: 'text-white', ponto: 'bg-primary' },
   bloqueada: { bloco: 'bg-sidebar-bg', texto: 'text-white', ponto: 'bg-sidebar-bg' },
   inativa: { bloco: 'bg-border', texto: 'text-text-subtle', ponto: 'bg-text-subtle' },
 }
 
-const ORDEM_FILTROS: (EstadoMesa | 'todas')[] = ['todas', 'livre', 'ocupada', 'bloqueada', 'inativa']
+const ORDEM_FILTROS: (EstadoMesa | 'todas')[] = ['todas', 'livre', 'aguardando', 'ocupada', 'bloqueada', 'inativa']
 
 interface MesaNaTela extends Mesa {
   estado: EstadoMesa
@@ -96,7 +99,10 @@ export default function MesasPage() {
             const estadoComanda = porId.get(m.id)
             return {
               ...m,
-              estado: estadoDaMesa(m, !!estadoComanda?.comandaAberta),
+              estado: estadoDaMesa(m, {
+                aberta: !!estadoComanda?.comandaAberta,
+                qtdPedidos: estadoComanda?.qtdPedidos ?? 0,
+              }),
               total: estadoComanda?.total ?? 0,
               qtdPedidos: estadoComanda?.qtdPedidos ?? 0,
               abertaEm: estadoComanda?.comandaAberta?.abertaEm ?? null,
@@ -296,6 +302,7 @@ export default function MesasPage() {
               <button
                 key={f}
                 onClick={() => setFiltro(f)}
+                title={f === 'todas' ? 'Todas as mesas' : AJUDA_ESTADO[f]}
                 className={[
                   'min-h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-0',
                   filtro === f
@@ -368,10 +375,13 @@ export default function MesasPage() {
             {visiveis.map((mesa) => {
               const tom = TOM_ESTADO[mesa.estado]
               const chamadoDaMesa = chamados.find((c) => c.mesaId === mesa.id) ?? null
+              // "Aguardando" e "Ocupada" são a mesma conta aberta, mudando só se já tem
+              // lançamento — o que vale para abrir, para o relógio e para o caixa vale nos dois.
+              const contaAberta = mesa.estado === 'ocupada' || mesa.estado === 'aguardando'
               // Abrir a mesa é o que o garçom faz. Mesa inativa ou bloqueada não recebe
               // lançamento, então o bloco não vira atalho.
-              const abre = mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || mesa.estado === 'ocupada')
-              const acao = !atende ? 'Ver conta' : mesa.estado === 'ocupada' ? 'Toque p/ abrir' : 'Toque p/ lançar'
+              const abre = mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || contaAberta)
+              const acao = !atende ? 'Ver conta' : contaAberta ? 'Toque p/ abrir' : 'Toque p/ lançar'
               const conteudo = (
                 <>
                   <div className="flex items-start justify-between gap-1">
@@ -379,7 +389,7 @@ export default function MesasPage() {
                       {mesa.bloqueada && <Lock className="mr-0.5 inline h-3 w-3 align-[-2px]" />}
                       {ROTULO_ESTADO[mesa.estado]}
                     </span>
-                    {mesa.estado === 'ocupada' && mesa.abertaEm && (
+                    {contaAberta && mesa.abertaEm && (
                       <span className="text-[10px] font-medium opacity-80">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')}</span>
                     )}
                   </div>
@@ -395,7 +405,7 @@ export default function MesasPage() {
                       {mesa.setor || 'Sem setor'}
                       {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
                     </span>
-                    {mesa.estado === 'ocupada' ? (
+                    {contaAberta ? (
                       <span className="mt-1 block truncate text-[13px] font-bold">
                         {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · {mesa.qtdPedidos} lanç.
                       </span>

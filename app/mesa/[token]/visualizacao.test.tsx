@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { CardapioDaMesa, type ItemDaMesa } from './cardapio'
 
-const base: Pick<ItemDaMesa, 'grupoId' | 'precoOriginal' | 'imagemUrl' | 'grupos' | 'tamanhos'> = {
-  grupoId: 'g1', precoOriginal: null, imagemUrl: 'https://x/foto.webp', grupos: [], tamanhos: [],
+const base: Pick<ItemDaMesa, 'grupoId' | 'precoOriginal' | 'imagemUrl' | 'grupos' | 'tamanhos' | 'tag' | 'maisVendido'> = {
+  grupoId: 'g1', precoOriginal: null, imagemUrl: 'https://x/foto.webp', grupos: [], tamanhos: [], tag: null, maisVendido: false,
 }
 
 const PIZZA: ItemDaMesa = {

@@ -2145,6 +2145,10 @@ function TabConta({ active }: { active: boolean }) {
           <Field label="Nova senha">
             <Input
               type="password"
+              // Sem isto o navegador oferece a senha SALVA da loja e preenche os dois
+              // campos com ela: quem só passou pela tela acaba "trocando" a senha por
+              // ela mesma, e o gerenciador guarda uma senha que ninguém escolheu.
+              autoComplete="new-password"
               value={novaSenha}
               onChange={(e) => { setNovaSenha(e.target.value); setSaved(false) }}
               placeholder="Mínimo 6 caracteres"
@@ -2153,6 +2157,7 @@ function TabConta({ active }: { active: boolean }) {
           <Field label="Confirmar nova senha">
             <Input
               type="password"
+              autoComplete="new-password"
               value={confirmarSenha}
               onChange={(e) => { setConfirmarSenha(e.target.value); setSaved(false) }}
               placeholder="Repita a nova senha"

@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MOTIVOS_CHAMADO, type MotivoChamado } from '@/lib/chamados'
+import { descricaoEmTextoPuro, pedacosDaDescricao } from '@/lib/descricao-rica'
+import { etiquetaDoItem } from '@/lib/etiqueta-item'
+import { adicionarNaSelecao } from '@/lib/selecao-mesa'
 import { precificarLinha, type ItemPrecificavel, type OpcaoDaLinha, type PizzaDaLoja, type TipoOpcao } from '@/lib/selecao-preco'
 
 /**
@@ -52,6 +55,10 @@ export interface ItemDaMesa {
   sabores: { nome: string; descricao: string; precos: Record<string, number> }[]
   /** Menor preço possível (tamanho/sabor mais barato) — o "a partir de" do cartão. */
   precoAPartirDe: number
+  /** Etiqueta do cadastro ('mais_pedido', 'novo'…). Null = sem etiqueta marcada. */
+  tag: string | null
+  /** "Item em destaque" do cadastro, que vira a etiqueta de mais pedido. */
+  maisVendido: boolean
 }
 
 export interface CategoriaDaMesa {
@@ -183,8 +190,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
       const linhas: LinhaSelecionada[] = corpo.itens
         .filter((i) => i.itemId)
         .map((i, idx) => ({
-          // Posição na chave: duas linhas idênticas (mesmo item, mesmas opções) são
-          // legítimas e não podem colidir como chave do React.
+          // A posição entra na chave porque a lista pode chegar do servidor com linhas
+          // repetidas (gravadas antes do agrupamento, ou por outra aba) — elas são
+          // juntadas logo abaixo, mas não podem colidir como chave do React antes disso.
           chave: `${idx}-${i.itemId}-${i.quantidade}-${i.opcoes.map((o) => o.escolha).join('|')}`,
           itemId: i.itemId as string,
           nome: i.nome,
@@ -194,6 +202,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
           observacao: i.observacao,
           opcoes: i.opcoes,
         }))
+        // Lista gravada antes do agrupamento chega com o mesmo item em várias linhas;
+        // juntar aqui também arruma o que já estava salvo na mesa.
+        .reduce<LinhaSelecionada[]>((acc, l) => adicionarNaSelecao(acc, l), [])
       qtdNaTela.current = linhas.length
       setSelecao(linhas)
     } catch {
@@ -300,7 +311,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
     const termo = busca.trim().toLowerCase()
     if (termo) {
       return itens.filter(
-        (i) => i.nome.toLowerCase().includes(termo) || i.descricao.toLowerCase().includes(termo),
+        // Busca no texto sem as marcações: quem procura "copo" acha o item cuja
+        // descrição é `[[roxo|b]]copo de brinde[[/]]`.
+        (i) => i.nome.toLowerCase().includes(termo) || descricaoEmTextoPuro(i.descricao).toLowerCase().includes(termo),
       )
     }
     return itens.filter((i) => i.grupoId === categoriaAtiva)
@@ -416,8 +429,11 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
                 aria-label={somenteVisualizacao ? `Ver ${item.nome}` : `Escolher ${item.nome}`}
               >
                 <div className="mesa-card-texto">
+                  {/* A mesma etiqueta do delivery, com a mesma cor: o cliente sentado
+                      precisa ver promoção e destaque como quem pede pelo celular. */}
+                  <Etiqueta item={item} />
                   <h3>{item.nome}</h3>
-                  {item.descricao && <p>{item.descricao}</p>}
+                  <DescricaoDoItem texto={item.descricao} />
                   <div className="mesa-card-rodape">
                     <div className="mesa-preco">
                       <span className="mesa-preco-rotulo">A partir de</span>
@@ -480,7 +496,9 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
           pizza={pizza}
           onFechar={() => setFichaAberta(null)}
           onAdicionar={(linha) => {
-            atualizarSelecao([...selecao, linha])
+            // Mesmo item, mesmas escolhas: soma na linha que já está na lista, em vez
+            // de empilhar "1× Coca" três vezes (ver lib/selecao-mesa.ts).
+            atualizarSelecao(adicionarNaSelecao(selecao, linha))
             setFichaAberta(null)
           }}
         />
@@ -543,6 +561,54 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
         </div>
       )}
     </div>
+  )
+}
+
+// ── Descrição e etiqueta do item ────────────────────────────────────────────
+
+/**
+ * Descrição com o negrito e as cores que o lojista marcou no cadastro.
+ *
+ * O cardápio da mesa mostrava o texto CRU: quem escrevesse `**2 litros**` na
+ * descrição via os asteriscos e o `[[roxo]]` na tela, sentado à mesa, enquanto
+ * no delivery saía formatado. Mesmo parser da vitrine, e pelo mesmo motivo:
+ * nada de `dangerouslySetInnerHTML` — cada pedaço vira um `<span>`, então o que
+ * o lojista digita continua sendo texto mesmo que pareça HTML.
+ */
+function DescricaoDoItem({ texto }: { texto: string }) {
+  const pedacos = useMemo(() => pedacosDaDescricao(texto), [texto])
+  if (pedacos.length === 0) return null
+  return (
+    <p>
+      {pedacos.map((pedaco, i) => (
+        <span key={i} style={{ fontWeight: pedaco.negrito ? 700 : undefined, color: pedaco.cor ?? undefined }}>
+          {pedaco.texto}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+// ── Etiqueta do item ────────────────────────────────────────────────────────
+
+/**
+ * Pílula de etiqueta no cartão do item (mais pedido, novo, promoção…).
+ *
+ * As cores vêm em hex de `lib/etiqueta-item.ts`, e não em classe do Tailwind,
+ * porque esta tela tem folha de estilo própria (`TOKENS`) — mas o rótulo e a
+ * cor são exatamente os da vitrine.
+ */
+function Etiqueta({ item }: { item: ItemDaMesa }) {
+  const estilo = etiquetaDoItem({
+    tag: item.tag,
+    promocaoPreco: item.precoOriginal !== null ? item.preco : null,
+    maisVendido: item.maisVendido,
+  })
+  if (!estilo) return null
+  return (
+    <span className="mesa-item-etiqueta" style={{ background: estilo.fundo, color: estilo.texto }}>
+      {estilo.label}
+    </span>
   )
 }
 
@@ -839,8 +905,9 @@ function FichaVisualizacao({ item, onFechar }: { item: ItemDaMesa; onFechar: () 
           )}
         </div>
         <div className="mesa-ver-texto">
+          <Etiqueta item={item} />
           <h2>{item.nome}</h2>
-          {item.descricao && <p>{item.descricao}</p>}
+          <DescricaoDoItem texto={item.descricao} />
           {ehPizza && item.sabores.length > 0 && (
             <div className="mesa-ver-sabores">
               <h3>Sabores</h3>
@@ -1105,7 +1172,7 @@ function Configurador({
           </div>
           <div className="mesa-modal-resumo">
             <h2>{item.nome}</h2>
-            {item.descricao && <p>{item.descricao}</p>}
+            <DescricaoDoItem texto={item.descricao} />
           </div>
 
           <ol className="mesa-trilha">
@@ -1540,6 +1607,7 @@ const TOKENS = `
 .mesa-card:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
 .mesa-card-mais { position: absolute; right: 6px; bottom: 6px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 18px; font-weight: 700; line-height: 1; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .mesa-card-texto { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mesa-item-etiqueta { align-self: start; display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 700; line-height: 14px; white-space: nowrap; }
 .mesa-card-texto h3 { margin: 0; font-size: 14px; font-weight: 800; line-height: 1.25; }
 .mesa-card-texto p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mesa-card-rodape { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; }

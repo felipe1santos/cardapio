@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type EstadoMesa = 'livre' | 'ocupada' | 'bloqueada' | 'inativa'
+export type EstadoMesa = 'livre' | 'aguardando' | 'ocupada' | 'bloqueada' | 'inativa'
 
 export interface Mesa {
   id: string
@@ -61,23 +61,43 @@ export function mapMesaRow(row: MesaRow): Mesa {
 }
 
 /**
- * Estado que o mapa do salão mostra.
+ * Estado que o mapa do salão e o painel de mesas do PDV mostram.
  *
  * Ordem de precedência pensada para o operador: cadastro vence operação, e operação
  * vence movimento. Uma mesa desativada não deve piscar "ocupada" porque sobrou comanda
  * aberta de ontem — ela sumiu do salão, ponto.
+ *
+ * `aguardando` é a mesa que abriu comanda e ainda não tem nada lançado: cliente
+ * sentado esperando alguém anotar. O PDV já separava esse estado; o salão chamava
+ * tudo de "Ocupada", então a mesma mesa tinha dois nomes conforme a tela — e o
+ * garçom e o caixa não conseguiam falar da mesma mesa pelo nome do estado. Uma
+ * regra só, usada pelas duas telas.
  */
-export function estadoDaMesa(mesa: Pick<Mesa, 'ativa' | 'bloqueada'>, temComandaAberta: boolean): EstadoMesa {
+export function estadoDaMesa(
+  mesa: Pick<Mesa, 'ativa' | 'bloqueada'>,
+  comanda: { aberta: boolean; qtdPedidos: number },
+): EstadoMesa {
   if (!mesa.ativa) return 'inativa'
   if (mesa.bloqueada) return 'bloqueada'
-  return temComandaAberta ? 'ocupada' : 'livre'
+  if (!comanda.aberta) return 'livre'
+  return comanda.qtdPedidos > 0 ? 'ocupada' : 'aguardando'
 }
 
 export const ROTULO_ESTADO: Record<EstadoMesa, string> = {
   livre: 'Livre',
+  aguardando: 'Aguardando',
   ocupada: 'Ocupada',
   bloqueada: 'Bloqueada',
   inativa: 'Inativa',
+}
+
+/** O que cada estado quer dizer, para a legenda e o `title` do bloco da mesa. */
+export const AJUDA_ESTADO: Record<EstadoMesa, string> = {
+  livre: 'Sem comanda aberta.',
+  aguardando: 'Comanda aberta, nada lançado ainda.',
+  ocupada: 'Comanda aberta com pedidos lançados.',
+  bloqueada: 'Fora de uso por decisão da gestão.',
+  inativa: 'Mesa desativada no cadastro.',
 }
 
 /** Monta a URL pública do QR. O token viaja sozinho: não expõe loja nem id da mesa. */

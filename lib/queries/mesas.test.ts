@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { mapMesaRow, estadoDaMesa, urlPublicaDaMesa, proximoNomeDeMesa, resolverMesaPorToken } from './mesas'
+import {
+  mapMesaRow,
+  estadoDaMesa,
+  urlPublicaDaMesa,
+  proximoNomeDeMesa,
+  resolverMesaPorToken,
+  ROTULO_ESTADO,
+  AJUDA_ESTADO,
+} from './mesas'
 
 const LINHA = {
   id: 'm1',
@@ -48,21 +56,39 @@ describe('mapMesaRow', () => {
 })
 
 describe('estadoDaMesa', () => {
+  const semConta = { aberta: false, qtdPedidos: 0 }
+  const contaVazia = { aberta: true, qtdPedidos: 0 }
+  const contaComPedido = { aberta: true, qtdPedidos: 2 }
+
   it('livre quando ativa, desbloqueada e sem comanda', () => {
-    expect(estadoDaMesa({ ativa: true, bloqueada: false }, false)).toBe('livre')
+    expect(estadoDaMesa({ ativa: true, bloqueada: false }, semConta)).toBe('livre')
   })
 
-  it('ocupada quando há comanda aberta', () => {
-    expect(estadoDaMesa({ ativa: true, bloqueada: false }, true)).toBe('ocupada')
+  /** A mesa sentada esperando alguém anotar: é o que o PDV já chamava de "Aguardando". */
+  it('aguardando quando a comanda abriu e nada foi lançado', () => {
+    expect(estadoDaMesa({ ativa: true, bloqueada: false }, contaVazia)).toBe('aguardando')
+  })
+
+  it('ocupada quando há comanda aberta com lançamento', () => {
+    expect(estadoDaMesa({ ativa: true, bloqueada: false }, contaComPedido)).toBe('ocupada')
   })
 
   it('bloqueio vence o movimento', () => {
-    expect(estadoDaMesa({ ativa: true, bloqueada: true }, true)).toBe('bloqueada')
+    expect(estadoDaMesa({ ativa: true, bloqueada: true }, contaComPedido)).toBe('bloqueada')
+    expect(estadoDaMesa({ ativa: true, bloqueada: true }, contaVazia)).toBe('bloqueada')
   })
 
   it('cadastro vence tudo: mesa inativa não pisca ocupada por comanda esquecida', () => {
-    expect(estadoDaMesa({ ativa: false, bloqueada: true }, true)).toBe('inativa')
-    expect(estadoDaMesa({ ativa: false, bloqueada: false }, true)).toBe('inativa')
+    expect(estadoDaMesa({ ativa: false, bloqueada: true }, contaComPedido)).toBe('inativa')
+    expect(estadoDaMesa({ ativa: false, bloqueada: false }, contaComPedido)).toBe('inativa')
+  })
+
+  /** O salão e o PDV leem os mesmos rótulos: a mesma mesa não pode ter dois nomes. */
+  it('todo estado tem rótulo e explicação', () => {
+    for (const estado of ['livre', 'aguardando', 'ocupada', 'bloqueada', 'inativa'] as const) {
+      expect(ROTULO_ESTADO[estado]).toBeTruthy()
+      expect(AJUDA_ESTADO[estado]).toBeTruthy()
+    }
   })
 })
 

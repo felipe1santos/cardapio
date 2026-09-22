@@ -35,6 +35,7 @@ export default async function RedefinirSenhaPage({
         <input
           name="senha"
           type="password"
+          autoComplete="new-password"
           required
           minLength={6}
           placeholder="Nova senha"
@@ -45,6 +46,7 @@ export default async function RedefinirSenhaPage({
         <input
           name="confirmarSenha"
           type="password"
+          autoComplete="new-password"
           required
           minLength={6}
           placeholder="Confirmar nova senha"

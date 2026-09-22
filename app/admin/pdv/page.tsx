@@ -13,6 +13,7 @@ import {
   type PizzaSabor,
 } from '@/lib/queries/cardapio'
 import type { MesaComEstado } from '@/lib/queries/comandas'
+import { AJUDA_ESTADO, estadoDaMesa, ROTULO_ESTADO, type EstadoMesa } from '@/lib/queries/mesas'
 import {
   buscarRegraPrecoPizza,
   listarBordasPizza,
@@ -106,13 +107,22 @@ function tempoDecorrido(iso: string): string {
   return `${h}h${String(min % 60).padStart(2, '0')}`
 }
 
-type MesaEstadoVisual = 'livre' | 'aguardando' | 'ocupada'
-/** Estado visual da mesa: livre (sem comanda), aguardando (comanda aberta sem pedido),
- * ocupada (comanda aberta com pedidos). */
-function mesaEstadoVisual(mesa: MesaComEstado): MesaEstadoVisual {
-  if (!mesa.comandaAberta) return 'livre'
-  if (mesa.qtdPedidos === 0) return 'aguardando'
-  return 'ocupada'
+/** Cor do bloco por estado — as mesmas do mapa do salão, para as telas combinarem. */
+const COR_ESTADO_MESA: Record<EstadoMesa, string> = {
+  livre: 'bg-status-ready',
+  aguardando: 'bg-status-pending',
+  ocupada: 'bg-primary',
+  bloqueada: 'bg-sidebar-bg',
+  inativa: 'bg-border',
+}
+
+/**
+ * Estado visual da mesa no painel do PDV. A regra é a mesma do salão
+ * (`estadoDaMesa`, em lib/queries/mesas.ts) para a mesma mesa não ter dois nomes
+ * conforme a tela — era "Ocupada" no salão e "Aguardando" aqui.
+ */
+function mesaEstadoVisual(mesa: MesaComEstado): EstadoMesa {
+  return estadoDaMesa(mesa, { aberta: !!mesa.comandaAberta, qtdPedidos: mesa.qtdPedidos })
 }
 
 // ─── Product Selector Modal ───────────────────────────────────────────────────
@@ -1443,14 +1453,10 @@ export default function PdvPage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-[18px] font-bold text-text-main">Mesas</h1>
               <div className="flex flex-wrap items-center gap-4">
-                {([
-                  ['bg-status-ready', 'Livre'],
-                  ['bg-primary', 'Ocupada'],
-                  ['bg-status-pending', 'Aguardando'],
-                ] as const).map(([cor, lbl]) => (
-                  <span key={lbl} className="flex items-center gap-1.5">
-                    <span className={['h-3 w-3 rounded-full', cor].join(' ')} />
-                    <span className="text-[11px] font-semibold text-text-subtle">{lbl}</span>
+                {(['livre', 'aguardando', 'ocupada'] as const).map((estado) => (
+                  <span key={estado} className="flex items-center gap-1.5" title={AJUDA_ESTADO[estado]}>
+                    <span className={['h-3 w-3 rounded-full', COR_ESTADO_MESA[estado]].join(' ')} />
+                    <span className="text-[11px] font-semibold text-text-subtle">{ROTULO_ESTADO[estado]}</span>
                   </span>
                 ))}
                 {botaoTelaCheia}
@@ -1474,8 +1480,8 @@ export default function PdvPage() {
 
               {mesasEstado.map((mesa) => {
                 const estado = mesaEstadoVisual(mesa)
-                const cor = { livre: 'bg-status-ready', aguardando: 'bg-status-pending', ocupada: 'bg-primary' }[estado]
-                const labelEstado = { livre: 'Livre', aguardando: 'Aguardando', ocupada: 'Ocupada' }[estado]
+                const cor = COR_ESTADO_MESA[estado]
+                const labelEstado = ROTULO_ESTADO[estado]
                 return (
                   <button
                     key={mesa.id}

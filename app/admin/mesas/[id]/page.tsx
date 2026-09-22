@@ -8,7 +8,7 @@ import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, listarGrupos, listarItens, type ItemCardapio, type GrupoCardapio } from '@/lib/queries/cardapio'
-import { listarMesas, type Mesa } from '@/lib/queries/mesas'
+import { estadoDaMesa, listarMesas, ROTULO_ESTADO, type Mesa } from '@/lib/queries/mesas'
 import { buscarComandaAberta, listarPedidosDaComanda, calcularTotalComanda } from '@/lib/queries/comandas'
 import type { Pedido } from '@/lib/queries/pedidos'
 import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-sessao'
@@ -556,9 +556,14 @@ export default function MesaDetalhePage() {
         {/* ── Resumo da mesa: o estado de relance, na cor do salão ─────────── */}
         {(() => {
           const conta = estadoConta.dados?.conta ?? null
-          const bloqueada = mesa.bloqueada
-          const cor = bloqueada ? 'bg-sidebar-bg' : conta ? 'bg-primary' : 'bg-status-ready'
-          const estadoTexto = bloqueada ? 'Bloqueada' : conta ? 'Ocupada' : 'Livre'
+          // Mesmo vocabulário do salão e do PDV: conta aberta sem lançamento é
+          // "Aguardando", não "Ocupada" (ver lib/queries/mesas.ts).
+          const estado = estadoDaMesa(mesa, {
+            aberta: !!conta,
+            qtdPedidos: conta?.lancamentos?.length ?? 0,
+          })
+          const cor = { livre: 'bg-status-ready', aguardando: 'bg-status-pending', ocupada: 'bg-primary', bloqueada: 'bg-sidebar-bg', inativa: 'bg-border' }[estado]
+          const estadoTexto = ROTULO_ESTADO[estado]
           return (
             <div className={`mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-menuzia px-4 py-3 text-white shadow-sm sm:mb-4 ${cor}`} data-resumo-mesa>
               <div className="flex min-w-0 items-center gap-3">

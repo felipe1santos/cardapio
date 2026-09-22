@@ -34,6 +34,7 @@ import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRA
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
 import { rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
+import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
@@ -224,7 +225,15 @@ function FluxoCard({ order, tone, onClick, onConcluir }: { order: Pedido; tone: 
       <button onClick={onClick} className="w-full p-3 text-left">
         <div className="flex items-center justify-between">
           <span className="text-sm font-bold">#{order.numero}</span>
-          <Badge tone={t.badge}>{t.label}</Badge>
+          <div className="flex items-center gap-1.5">
+            {/* Em rota há dias é pedido esquecido, não entrega em andamento. */}
+            {pedidoParado(order, Date.now()) && (
+              <Badge tone="danger" title="Ninguém fechou este pedido. Conclua ou cancele.">
+                Parado há {tempoParado(order.criadoEm, Date.now())}
+              </Badge>
+            )}
+            <Badge tone={t.badge}>{t.label}</Badge>
+          </div>
         </div>
         <div className="mt-1 text-xs text-text-subtle">
           {order.clienteNome || 'Cliente'}
@@ -795,6 +804,9 @@ export default function PedidosPage() {
 
   const abertos = orders.length
   const emEntrega = transit.length
+  // Pedido que ninguém fechou continua aqui para sempre (o #95 ficou em rota desde
+  // julho). Nada se fecha sozinho — mas a tela cobra, senão ninguém vê (lib/pedido-parado.ts).
+  const avisoParados = avisoDePedidosParados([...orders, ...transit], now)
   const tempoMedioMin = orders.length
     ? Math.round(orders.reduce((s, o) => s + tempoDecorrido(o.criadoEm, now).mins, 0) / orders.length)
     : 0
@@ -920,6 +932,16 @@ export default function PedidosPage() {
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
+        {avisoParados && (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-menuzia border border-warn bg-warn-bg px-3.5 py-2.5 text-[13px] font-medium text-warn"
+          >
+            <Clock className="mt-[1px] h-4 w-4 flex-shrink-0" strokeWidth={2.2} />
+            <span>{avisoParados}</span>
+          </div>
+        )}
+
         {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia ou pelo botão Métricas) */}
         {!focusMode && showStats && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -961,6 +983,13 @@ export default function PedidosPage() {
                           <div className="flex items-center gap-1.5">
                             <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
                             {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
+                            {/* Aberto há mais de 12h: o cronômetro em minutos não dá conta
+                                de mostrar isso (um pedido de julho marca "97000:12"). */}
+                            {pedidoParado(order, now) && (
+                              <Badge tone="danger" title="Ninguém fechou este pedido. Conclua ou cancele.">
+                                Parado há {tempoParado(order.criadoEm, now)}
+                              </Badge>
+                            )}
                             {/* Salão e balcão não são a mesma coisa: quem lê o card precisa
                                 saber se o prato vai para uma mesa ou para o balcão. */}
                             {origemDoCard(order).tom === 'salao' && <Badge tone="ready">Salão</Badge>}
