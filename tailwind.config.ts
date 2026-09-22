@@ -5,6 +5,10 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    // `lib/` também: regra que decide aparência mora lá (as cores das etiquetas
+    // do item, por exemplo). Fora do content, a classe existe no HTML e não
+    // existe no CSS — a pílula sai sem fundo e ninguém vê o erro no build.
+    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {

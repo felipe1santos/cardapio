@@ -3691,7 +3691,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {cartCount > 0 && tab !== 'cart' && (
           <button
             onClick={() => setTab('cart')}
-            className="fixed inset-x-0 bottom-[78px] z-30 mx-auto flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg lg:hidden"
+            className="camada-propria fixed inset-x-0 bottom-[78px] z-30 mx-auto flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg lg:hidden"
           >
             <span className="flex items-center gap-2.5 text-sm font-bold">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{cartCount}</span>
@@ -4651,7 +4651,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
           )}
 
-          <div className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-[600px] border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:mx-0 lg:max-w-none lg:pb-4">
+          <div className="camada-propria fixed inset-x-0 bottom-0 mx-auto w-full max-w-[600px] border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:mx-0 lg:max-w-none lg:pb-4">
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
               className={['flex w-full items-center justify-between rounded-lg px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]', checkoutStep === 3 ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)]'].join(' ')}>

@@ -35,3 +35,25 @@ describe('Menuzia Tailwind theme tokens', () => {
     expect(sans).toContain('Inter')
   })
 })
+
+/**
+ * O `content` diz ao Tailwind ONDE procurar nome de classe. O que ficar fora
+ * dele não vira CSS — e o sintoma é silencioso: a classe existe no HTML, não
+ * existe na folha de estilo, e o elemento aparece sem cor.
+ *
+ * Foi o que aconteceu com as etiquetas do item ("Mais pedido", "Promoção"): as
+ * classes saíram da vitrine para `lib/etiqueta-item.ts` quando o cardápio da
+ * mesa passou a usá-las, e as pílulas ficaram sem fundo na vitrine em produção.
+ */
+describe('Tailwind enxerga onde as classes realmente moram', () => {
+  const content = (Array.isArray(config.content) ? config.content : []) as string[]
+
+  it('varre app, components e lib', () => {
+    for (const pasta of ['./app', './components', './lib']) {
+      expect(
+        content.some((padrao) => padrao.startsWith(`${pasta}/`)),
+        `nenhum padrão do content cobre ${pasta}`,
+      ).toBe(true)
+    }
+  })
+})

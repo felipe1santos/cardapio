@@ -218,6 +218,23 @@ html:has(.font-loja) {
   padding-bottom: 6px;
 }
 
+/* ── Barra fixa que não pode piscar durante a rolagem ──────────────────────
+   Barra `fixed` de fundo branco que o navegador NÃO promove a uma camada
+   própria é redesenhada junto com a página a cada quadro de rolagem. No fling
+   do Chrome Android os ladrilhos chegam com o fundo pintado antes do texto e
+   dos ícones — e o menu inferior "fica branco por um instante". Confirmado
+   pelo LayerTree do próprio Chrome: a barra de 390x68 não aparecia na lista de
+   camadas, enquanto as folhas que já usam `transform` apareciam.
+
+   `translateZ(0)` dá a ela uma camada só sua; `will-change` avisa o navegador
+   antes do gesto começar. São duas barras pequenas, então o custo em memória
+   de GPU é desprezível perto de um menu que some na mão do cliente. */
+.nav-rodape,
+.camada-propria {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
 @media (display-mode: standalone), (display-mode: fullscreen) {
   .nav-rodape {
     padding-bottom: max(env(safe-area-inset-bottom), 6px);
