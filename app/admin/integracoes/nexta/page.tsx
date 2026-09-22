@@ -453,7 +453,7 @@ export default function IntegracaoNextaPage() {
                   href={SUPORTE_WHATSAPP}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-primary px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark sm:w-auto"
+                  className="toque-botao inline-flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-primary px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark sm:w-auto"
                 >
                   <Headset className="h-4 w-4" /> Falar com o suporte
                 </a>
@@ -861,7 +861,7 @@ export default function IntegracaoNextaPage() {
                 href="https://nexta-est.flutterflow.app"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:border-primary hover:text-primary"
+                className="toque-botao inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:border-primary hover:text-primary"
               >
                 <Link2 className="h-4 w-4" /> Abrir painel do Nexta
               </a>

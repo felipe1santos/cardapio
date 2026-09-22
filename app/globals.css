@@ -296,4 +296,21 @@ html:has(.font-loja) {
   [data-painel] button.toque-icone:not([data-toque-livre]) {
     min-width: 40px;
   }
+
+  /* Link que tem cara de botão (abre o WhatsApp do suporte, o painel do parceiro).
+     Links soltos no meio de um parágrafo ficam de fora — esticar um link inline
+     quebraria o texto —, então quem quer o piso se marca com `toque-botao`. */
+  [data-painel] a.toque-botao {
+    min-height: 40px;
+  }
+
+  /* Caixa de marcar quase sempre vem dentro de um `<label>` com o texto ao lado —
+     e é o label inteiro que recebe o toque. Levar ele a 40px aumenta o alvo real
+     sem inchar a caixinha. */
+  [data-painel] label:has(> input[type='checkbox']),
+  [data-painel] label:has(> input[type='radio']) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
 }
