@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -7,14 +7,26 @@ const aqui = dirname(fileURLToPath(import.meta.url))
 const sql = readFileSync(join(aqui, '0055_seg_restaurantes_colunas_publicas.sql'), 'utf8')
 const cardapio = readFileSync(join(aqui, '..', '..', 'lib', 'queries', 'cardapio.ts'), 'utf8')
 
-/** Colunas concedidas a `anon` no grant explícito da migration. */
+/**
+ * Colunas concedidas a `anon` em TODAS as migrations, não só nesta.
+ *
+ * A 0055 fechou o acesso e concedeu a lista da época; toda coluna nova que a
+ * vitrine passe a ler precisa de um `grant select` na migration que a cria (a
+ * 0077 fez isso com o banner promocional). Ler só a 0055 faria este teste
+ * acusar falha justamente quando a concessão foi feita no lugar certo.
+ */
 function colunasConcedidas(): string[] {
-  const bloco = sql.match(/grant select \(([\s\S]*?)\) on public\.restaurantes to anon;/)
-  expect(bloco).not.toBeNull()
-  return bloco![1]
-    .split(',')
-    .map((c) => c.replace(/--.*$/gm, '').trim())
-    .filter(Boolean)
+  const colunas = new Set<string>()
+  for (const arquivo of readdirSync(aqui).filter((f) => f.endsWith('.sql')).sort()) {
+    const conteudo = readFileSync(join(aqui, arquivo), 'utf8')
+    for (const m of conteudo.matchAll(/grant select \(([\s\S]*?)\) on public\.restaurantes to anon/g)) {
+      for (const bruto of m[1]!.split(',')) {
+        const col = bruto.replace(/--.*$/gm, '').trim()
+        if (col) colunas.add(col)
+      }
+    }
+  }
+  return [...colunas]
 }
 
 /** Colunas que `buscarRestaurantePorSlug` lê — o único caminho anônimo. */
@@ -59,12 +71,18 @@ describe('0055 — anon perde o SELECT de tabela em restaurantes', () => {
     expect(concedidas.filter((c) => c.startsWith('impressao_'))).toEqual([])
   })
 
+  /**
+   * A guarda que importa: o que a vitrine lê e o que `anon` pode ler têm de ser
+   * a mesma lista. Faltando uma coluna, o cardápio quebra só para o visitante
+   * não logado — falha que passa batida em teste feito com sessão de admin.
+   * Sobrando uma, vaza dado da loja pela chave pública.
+   *
+   * `frete_fora_da_lista` entra pelo bloco condicional da própria 0055 (a coluna
+   * nasce na 0054, congelada), e as do banner promocional pela 0077 — todas são
+   * captadas pela varredura, então nenhuma precisa de exceção aqui.
+   */
   it('concede exatamente o que a vitrine lê, sem sobra', () => {
-    const concedidas = colunasConcedidas()
-    const daVitrine = colunasDaVitrine()
-    // `frete_fora_da_lista` nasce na 0054 (congelada) e entra pelo bloco condicional.
-    const esperadas = daVitrine.filter((c) => c !== 'frete_fora_da_lista')
-    expect([...concedidas].sort()).toEqual([...esperadas].sort())
+    expect([...colunasConcedidas()].sort()).toEqual([...colunasDaVitrine()].sort())
   })
 
   it('cobre frete_fora_da_lista sem depender da ordem de aplicação da 0054', () => {

@@ -13,6 +13,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, listarGrupos, type LayoutCardapio } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
+import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
 import {
   buscarConfigLoja,
   atualizarConfigLoja,
@@ -283,6 +284,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     bannerUrl: '',
     bannerMobileUrl: '',
     bannerPromocionalUrl: '',
+    bannerPromoUrls: [] as string[],
+    bannerPromoTexto: '',
     layoutCardapio: 'categoria' as LayoutCardapio,
     imagemGrande: false,
     bannerFoco: FOCO_PADRAO as Foco,
@@ -332,6 +335,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerUrl: c.bannerUrl ?? '',
         bannerMobileUrl: c.bannerMobileUrl ?? '',
         bannerPromocionalUrl: c.bannerPromocionalUrl ?? '',
+        bannerPromoUrls: c.bannerPromoUrls ?? [],
+        bannerPromoTexto: c.bannerPromoTexto ?? '',
         layoutCardapio: c.layoutCardapio,
         imagemGrande: c.imagemGrande,
         bannerFoco: c.bannerFoco,
@@ -402,21 +407,73 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     }
   }
 
+  /**
+   * Envia uma ou mais imagens para o banner promocional. Várias de uma vez
+   * porque o lojista escolhe as promoções da semana juntas, não uma por vez.
+   *
+   * A imagem vai para `bannerPromoUrls`; `bannerPromocionalUrl` (a coluna antiga)
+   * só é limpa quando ela já estiver na lista, para a loja não ficar com a mesma
+   * arte duas vezes. Ver lib/banner-promocional.ts.
+   */
   async function handleBannerPromoPick(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+    const files = [...(event.target.files ?? [])]
     event.target.value = ''
-    if (!file) return
+    if (files.length === 0) return
+    const espaco = BANNER_PROMO_MAX_IMAGENS - form.bannerPromoUrls.length
+    if (espaco <= 0) {
+      setError(`O banner promocional aceita até ${BANNER_PROMO_MAX_IMAGENS} imagens. Remova uma antes de enviar outra.`)
+      return
+    }
     setUploadingBannerPromo(true)
     setError(null)
     try {
-      const url = await enviarBannerPromocionalLoja(supabase, restauranteId, file)
-      setForm((prev) => ({ ...prev, bannerPromocionalUrl: url, bannerPromoFoco: FOCO_PADRAO }))
+      const novas: string[] = []
+      for (const file of files.slice(0, espaco)) {
+        novas.push(await enviarBannerPromocionalLoja(supabase, restauranteId, file))
+      }
+      setForm((prev) => ({
+        ...prev,
+        bannerPromoUrls: [...prev.bannerPromoUrls, ...novas],
+        bannerPromoFoco: prev.bannerPromoUrls.length === 0 ? FOCO_PADRAO : prev.bannerPromoFoco,
+      }))
       setSaved(false)
     } catch {
       setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
     } finally {
       setUploadingBannerPromo(false)
     }
+  }
+
+  /**
+   * A lista que a tela mostra: as imagens novas mais a arte do cadastro antigo,
+   * resolvidas pela mesma regra da vitrine — assim a prévia do painel e o
+   * cardápio nunca discordam sobre o que está no ar.
+   */
+  const imagensPromo = (() => {
+    const b = bannerPromocional({ urls: form.bannerPromoUrls, urlLegado: form.bannerPromocionalUrl })
+    return b.tipo === 'imagens' ? b.urls : []
+  })()
+
+  function removerImagemPromo(url: string) {
+    setForm((prev) => ({
+      ...prev,
+      bannerPromoUrls: prev.bannerPromoUrls.filter((u) => u !== url),
+      // A arte antiga vive na outra coluna: removê-la da tela precisa limpar lá.
+      bannerPromocionalUrl: prev.bannerPromocionalUrl === url ? '' : prev.bannerPromocionalUrl,
+    }))
+    setSaved(false)
+  }
+
+  function moverImagemPromo(url: string, direcao: -1 | 1) {
+    setForm((prev) => {
+      const lista = [...prev.bannerPromoUrls]
+      const i = lista.indexOf(url)
+      const j = i + direcao
+      if (i === -1 || j < 0 || j >= lista.length) return prev
+      ;[lista[i], lista[j]] = [lista[j]!, lista[i]!]
+      return { ...prev, bannerPromoUrls: lista }
+    })
+    setSaved(false)
   }
 
   function setLayout(value: LayoutCardapio) {
@@ -492,6 +549,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerUrl: form.bannerUrl.trim() || null,
         bannerMobileUrl: form.bannerMobileUrl.trim() || null,
         bannerPromocionalUrl: form.bannerPromocionalUrl.trim() || null,
+        bannerPromoUrls: form.bannerPromoUrls,
+        bannerPromoTexto: form.bannerPromoTexto.trim() || null,
         layoutCardapio: form.layoutCardapio,
         imagemGrande: form.imagemGrande,
         bannerFoco: form.bannerFoco,
@@ -777,43 +836,108 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               </div>
             </div>
           </Field>
-          <Field label="Banner promocional" hint="Aparece dentro do cardápio, entre a busca e as categorias — use pra destacar uma promoção. Deixe em branco pra não mostrar nada.">
-            <div className="space-y-2.5">
-              {form.bannerPromocionalUrl && (
-                // Mesma ideia da capa: a miniatura já usa a proporção do
-                // celular (≈3,2:1) e o foco escolhido.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={form.bannerPromocionalUrl}
-                  alt="Banner promocional"
-                  className="aspect-[2.84/1] w-full rounded-menuzia border border-border object-cover"
-                  style={{ objectPosition: objectPosition(form.bannerPromoFoco) }}
-                />
+          <Field
+            label="Banner promocional"
+            hint="Aparece dentro do cardápio, logo abaixo das categorias. Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
+          >
+            <div className="space-y-3">
+              {imagensPromo.length > 0 && (
+                <div className="space-y-2">
+                  {imagensPromo.map((url, i) => (
+                    <div key={url} className="flex items-center gap-2">
+                      {/* Miniatura na proporção da faixa do celular, com o foco
+                          escolhido — é assim que o cliente vai ver. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={`Banner promocional ${i + 1}`}
+                        className="aspect-[2.58/1] w-full min-w-0 flex-1 rounded-menuzia border border-border object-cover"
+                        style={{ objectPosition: objectPosition(form.bannerPromoFoco) }}
+                      />
+                      <div className="flex flex-shrink-0 flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moverImagemPromo(url, -1)}
+                          disabled={i === 0}
+                          aria-label="Mover para antes"
+                          className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-30"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moverImagemPromo(url, 1)}
+                          disabled={i === imagensPromo.length - 1}
+                          aria-label="Mover para depois"
+                          className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-30"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removerImagemPromo(url)}
+                          aria-label="Remover imagem"
+                          className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-danger hover:bg-danger-bg"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {imagensPromo.length > 1 && (
+                    <p className="text-[11px] text-text-subtle">
+                      {imagensPromo.length} imagens — no cardápio elas passam sozinhas, a cada 5 segundos, nesta ordem.
+                    </p>
+                  )}
+                </div>
               )}
-              <input ref={bannerPromoInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerPromoPick} />
+
+              <input ref={bannerPromoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleBannerPromoPick} />
               <div className="flex flex-wrap items-center gap-3">
-                <Button variant="outline" type="button" onClick={() => bannerPromoInputRef.current?.click()} disabled={uploadingBannerPromo}>
-                  {uploadingBannerPromo ? 'Enviando…' : form.bannerPromocionalUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                <Button variant="outline" type="button" onClick={() => bannerPromoInputRef.current?.click()} disabled={uploadingBannerPromo || imagensPromo.length >= BANNER_PROMO_MAX_IMAGENS}>
+                  {uploadingBannerPromo ? 'Enviando…' : imagensPromo.length > 0 ? 'Adicionar imagem' : 'Enviar imagem'}
                 </Button>
-                {form.bannerPromocionalUrl && (
+                {imagensPromo.length > 0 && (
                   <AjustarFoco
-                    src={form.bannerPromocionalUrl}
+                    src={imagensPromo[0]!}
                     foco={form.bannerPromoFoco}
                     onChange={(f) => { setForm((prev) => ({ ...prev, bannerPromoFoco: f })); setSaved(false) }}
-                    // A faixa cresceu pra h-36/sm:h-44 (126 px no celular,
-                    // 154 px no desktop — o html da vitrine tem base 14 px).
-                    // Daí 358/126 = 2,84 no celular e 1224/154 = 7,95 no
-                    // desktop. Continua um talho largo: é por isso que ela
-                    // precisa de foco.
-                    proporcoes={[{ rotulo: 'Celular', ratio: 2.84 }, { rotulo: 'Computador', ratio: 7.95 }]}
+                    // A faixa tem 139 px no celular e 169 px no desktop (10% a
+                    // mais que antes). Daí 358/139 = 2,58 no celular e
+                    // 1224/169 = 7,24 no desktop — continua um talho largo, e é
+                    // por isso que ela precisa de foco.
+                    proporcoes={[{ rotulo: 'Celular', ratio: 2.58 }, { rotulo: 'Computador', ratio: 7.24 }]}
                     titulo="Posição do banner promocional"
-                    descricao="A faixa é bem mais larga que alta e corta bastante da arte. Marque o que não pode sumir."
+                    descricao="A faixa é bem mais larga que alta e corta bastante da arte. Marque o que não pode sumir. Vale para todas as imagens."
                     disabled={uploadingBannerPromo}
                   />
                 )}
-                {form.bannerPromocionalUrl && (
-                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, bannerPromocionalUrl: '', bannerPromoFoco: FOCO_PADRAO })); setSaved(false) }} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                {imagensPromo.length >= BANNER_PROMO_MAX_IMAGENS && (
+                  <span className="text-[11px] text-text-subtle">Limite de {BANNER_PROMO_MAX_IMAGENS} imagens.</span>
                 )}
+              </div>
+
+              {/* Alternativa para quem não tem arte pronta. Só aparece no
+                  cardápio quando não há imagem nenhuma — as duas coisas na
+                  mesma faixa brigariam pelo mesmo espaço. */}
+              <div className="border-t border-border pt-3">
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                  Ou um aviso em texto
+                </div>
+                <input
+                  value={form.bannerPromoTexto}
+                  onChange={(e) => { setForm((prev) => ({ ...prev, bannerPromoTexto: e.target.value.slice(0, BANNER_PROMO_MAX_TEXTO) })); setSaved(false) }}
+                  placeholder="Ex.: Hoje a pizza grande sai por R$ 49 até 22h"
+                  className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary"
+                />
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-text-subtle">
+                    {imagensPromo.length > 0
+                      ? 'Enquanto houver imagem, o aviso em texto não aparece no cardápio.'
+                      : 'Aparece como uma faixa com a cor da sua loja.'}
+                  </p>
+                  <span className="flex-shrink-0 text-[11px] text-text-subtle">{form.bannerPromoTexto.length}/{BANNER_PROMO_MAX_TEXTO}</span>
+                </div>
               </div>
             </div>
           </Field>

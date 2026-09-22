@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Gift, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Megaphone, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
+import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -78,6 +79,25 @@ const STATUS_PEDIDO_INFO: Record<string, { label: string; cls: string }> = {
 }
 
 const PEDIDO_ATIVO = new Set(['recebido', 'preparando', 'pronto', 'em_rota'])
+
+/**
+ * Depois disto, um pedido "em andamento" não está mais em andamento.
+ *
+ * O status do pedido só sai de `em_rota` quando alguém da loja marca como
+ * entregue — e isso às vezes não acontece: havia um pedido parado em rota desde
+ * julho. Para o cliente, o card "Pedido #95 · Saiu para entrega" ficava no topo
+ * do cardápio para sempre, e o "Pedir de novo" daquele pedido nunca aparecia.
+ * Doze horas cobrem qualquer entrega real, inclusive a que atrasou muito.
+ */
+const ACOMPANHAMENTO_MAX_MS = 12 * 60 * 60 * 1000
+
+export function pedidoEstaEmAndamento(pedido: { status: string; criadoEm: string }, agora: number): boolean {
+  if (!PEDIDO_ATIVO.has(pedido.status)) return false
+  const feito = Date.parse(pedido.criadoEm)
+  // Data ilegível não deve esconder um pedido que pode ser real.
+  if (!Number.isFinite(feito)) return true
+  return agora - feito < ACOMPANHAMENTO_MAX_MS
+}
 
 /** Timeline vertical do acompanhamento do pedido, espelhando o status do Kanban/Logística. */
 function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
@@ -341,6 +361,64 @@ function DescricaoItem({ texto, className = '' }: { texto: string; className?: s
         ),
       )}
     </p>
+  )
+}
+
+/**
+ * Faixa promocional com as imagens que a loja subiu. Com mais de uma, passa
+ * sozinha a cada 5 segundos — tempo de ler um anúncio sem prender quem está
+ * rolando o cardápio.
+ *
+ * Altura de 139px no celular e 169px no desktop: 10% a mais do que a faixa
+ * anterior, em px porque a raiz do painel é 87,5% e `h-36` valeria 126px.
+ *
+ * A troca é por opacidade e não por deslocamento: a faixa fica logo abaixo do
+ * trilho de categorias, e um slide lateral ali competiria com o gesto de rolar
+ * as categorias no toque.
+ */
+function CarrosselPromo({ urls, foco }: { urls: string[]; foco: string }) {
+  const [atual, setAtual] = useState(0)
+
+  useEffect(() => {
+    if (urls.length < 2) return
+    const t = setInterval(() => setAtual((i) => (i + 1) % urls.length), 5000)
+    return () => clearInterval(t)
+  }, [urls.length])
+
+  // Lista encolheu (a loja apagou uma imagem) com o índice já lá na frente.
+  useEffect(() => {
+    if (atual >= urls.length) setAtual(0)
+  }, [atual, urls.length])
+
+  return (
+    <div className="relative h-[139px] w-full overflow-hidden rounded-md border border-border sm:h-[169px]">
+      {urls.map((url, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={url}
+          src={url}
+          alt=""
+          // A primeira carrega logo (está na dobra); as outras só quando a vez
+          // delas chega perto — não vale disputar banda com as fotos dos pratos.
+          loading={i === 0 ? 'eager' : 'lazy'}
+          decoding="async"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${i === atual ? 'opacity-100' : 'opacity-0'}`}
+          style={{ objectPosition: foco }}
+        />
+      ))}
+      {urls.length > 1 && (
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+          {urls.map((url, i) => (
+            <button
+              key={url}
+              onClick={() => setAtual(i)}
+              aria-label={`Ver promoção ${i + 1} de ${urls.length}`}
+              className={`h-1.5 rounded-full shadow transition-all ${i === atual ? 'w-4 bg-white' : 'w-1.5 bg-white/60'}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -818,6 +896,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
    * cabeçalho, com a logo à esquerda e os dados ao lado.
    */
   const semCapa = !restaurante?.bannerUrl
+
+  /**
+   * O que a faixa promocional mostra: as imagens novas, a imagem única do
+   * cadastro antigo (que continua valendo) ou o aviso em texto. A precedência
+   * está em `lib/banner-promocional.ts`, testada fora da tela.
+   */
+  const bannerPromo = useMemo(
+    () =>
+      bannerPromocional({
+        urls: restaurante?.bannerPromoUrls,
+        urlLegado: restaurante?.bannerPromocionalUrl,
+        texto: restaurante?.bannerPromoTexto,
+      }),
+    [restaurante?.bannerPromoUrls, restaurante?.bannerPromocionalUrl, restaurante?.bannerPromoTexto],
+  )
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('home')
@@ -1947,6 +2040,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Histórico de pedidos do cliente logado ────────────────────────────────
   const [meusPedidos, setMeusPedidos] = useState<PedidoCliente[]>([])
+  /**
+   * Relógio do acompanhamento. Não dá para chamar `Date.now()` direto no render:
+   * o servidor e o cliente pintariam horas diferentes e a hidratação quebraria.
+   * Começa em 0 (nada é velho ainda) e passa a valer no primeiro efeito.
+   */
+  const [agoraAcompanhamento, setAgoraAcompanhamento] = useState(0)
+  useEffect(() => {
+    setAgoraAcompanhamento(Date.now())
+    const t = setInterval(() => setAgoraAcompanhamento(Date.now()), 60000)
+    return () => clearInterval(t)
+  }, [])
   const [pedidosLoading, setPedidosLoading] = useState(false)
 
   useEffect(() => {
@@ -2491,7 +2595,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const storeName = restaurante.nome
 
   // Pedido que ainda está rolando — vira a faixa de acompanhamento no cardápio.
-  const pedidoEmAndamento = meusPedidos.find((pedido) => PEDIDO_ATIVO.has(pedido.status)) ?? null
+  const pedidoEmAndamento = meusPedidos.find((pedido) => pedidoEstaEmAndamento(pedido, agoraAcompanhamento)) ?? null
 
   // Prêmio que o cliente já conquistou e pode usar hoje, ainda não aplicado no
   // pedido. É o que o lembrete da sacola oferece em um clique.
@@ -2804,28 +2908,6 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
             )}
 
-            {restaurante.bannerPromocionalUrl && !gavetaEmTela && (
-              <div className="mx-4 mt-3 lg:mx-8">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={restaurante.bannerPromocionalUrl}
-                  alt="Promoção"
-                  // Fica logo abaixo do hero: quando está visível o browser baixa
-                  // na hora; quando não está, deixa de concorrer com o LCP.
-                  loading="lazy"
-                  decoding="async"
-                  // 98 px de altura no celular deixavam a faixa parecendo uma
-                  // tarja de aviso, não um anúncio. 126/154 px dão respiro à
-                  // arte sem empurrar o primeiro produto pra fora da tela.
-                  className="h-36 w-full rounded-md border border-border object-cover sm:h-44"
-                  // A faixa é bem mais larga que alta (≈3,2:1 no celular,
-                  // ≈8,4:1 no desktop), então o recorte come muito da arte —
-                  // é onde o ponto de foco escolhido no painel mais importa.
-                  style={{ objectPosition: objectPosition(restaurante.bannerPromoFoco) }}
-                />
-              </div>
-            )}
-
             {/* Search (colapsável) — só ocupa espaço quando aberta */}
             {searchOpen && (
               <div className="mx-4 mt-3 lg:mx-8">
@@ -2886,6 +2968,29 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </button>
               ))}
             </div>
+            )}
+
+            {/* Faixa promocional — DEPOIS das categorias, não antes. Acima dela,
+                empurrava o trilho de categorias e o primeiro produto para baixo
+                da dobra: o cliente abria o cardápio e via um anúncio no lugar da
+                comida. Aqui ela é a primeira coisa dentro do cardápio, que é
+                onde um anúncio é lido sem atrapalhar quem já sabe o que quer. */}
+            {bannerPromo.tipo !== 'nenhum' && !gavetaEmTela && (
+              <div className="mx-4 mt-3 lg:mx-8">
+                {bannerPromo.tipo === 'texto' ? (
+                  // Aviso escrito pela loja, para quem não tem arte pronta. Usa a
+                  // cor do tema para pertencer à loja, e não parecer erro do app.
+                  <div className="flex min-h-[64px] items-center gap-3 rounded-md border border-[var(--tema-primaria)]/30 bg-[var(--tema-light)] px-4 py-3">
+                    <Megaphone className="h-5 w-5 flex-shrink-0 text-[var(--tema-primaria)]" strokeWidth={2} />
+                    <p className="text-[13px] font-semibold leading-[18px] text-[var(--v-texto)]">{bannerPromo.texto}</p>
+                  </div>
+                ) : (
+                  <CarrosselPromo
+                    urls={bannerPromo.urls}
+                    foco={objectPosition(restaurante.bannerPromoFoco)}
+                  />
+                )}
+              </div>
             )}
 
             {/* Pedido em andamento: enquanto a cozinha trabalha, o cliente
@@ -3080,11 +3185,6 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           Calcular taxa de entrega
                         </button>
                         )}
-                        {!restaurante.lojaAberta && (
-                          <p className="mb-2.5 rounded-lg bg-danger-bg px-3 py-2 text-center text-[12px] font-semibold text-danger">
-                            Loja fechada no momento{restaurante.proximaAberturaTexto ? ` — ${restaurante.proximaAberturaTexto}` : ' — não é possível finalizar o pedido'}.
-                          </p>
-                        )}
                         <button
                           disabled={!restaurante.lojaAberta}
                           onClick={() => {
@@ -3133,6 +3233,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
               Continuar comprando
             </button>
+          </div>
+        )}
+
+        {/* Loja fechada: aviso no ALTO da sacola, grudado, e não espremido entre
+            os dois botões do rodapé. Lá embaixo ele só era lido depois de o
+            cliente montar o pedido inteiro e tentar finalizar — tarde demais.
+            Aqui ele é a primeira coisa da tela, e continua visível enquanto o
+            cliente rola a sacola. */}
+        {tab === 'cart' && !restaurante.lojaAberta && (
+          <div className="sticky top-0 z-20 flex items-start gap-2.5 border-b border-danger/30 bg-danger-bg px-4 py-3 shadow-sm">
+            <Clock className="mt-[1px] h-4 w-4 flex-shrink-0 text-danger" strokeWidth={2.4} />
+            <p className="text-[12px] font-semibold leading-[16px] text-danger">
+              A loja está fechada agora — dá para montar a sacola, mas o pedido só pode ser enviado quando ela abrir
+              {restaurante.proximaAberturaTexto ? `: ${restaurante.proximaAberturaTexto.toLowerCase()}` : '.'}
+            </p>
           </div>
         )}
 
@@ -3212,11 +3327,6 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   >
                     Continuar comprando
                   </button>
-                  {!restaurante.lojaAberta && (
-                    <p className="mt-2.5 rounded-lg bg-danger-bg px-3 py-2 text-center text-[12px] font-semibold text-danger">
-                      Loja fechada no momento{restaurante.proximaAberturaTexto ? ` — ${restaurante.proximaAberturaTexto}` : ' — não é possível finalizar o pedido'}.
-                    </p>
-                  )}
                   <button
                     disabled={!restaurante.lojaAberta}
                     onClick={() => {
@@ -3258,7 +3368,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <div className="space-y-4 pb-4">
                 {meusPedidos.map((p) => {
                   const info = STATUS_PEDIDO_INFO[p.status] ?? { label: p.status, cls: 'bg-[#F3F4F6] text-text-subtle' }
-                  const ativo = PEDIDO_ATIVO.has(p.status)
+                  const ativo = pedidoEstaEmAndamento(p, agoraAcompanhamento)
                   const data = new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                   const resumo = p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')
                   return (
@@ -3332,7 +3442,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {pedidoDetalhe && (() => {
           const p = pedidoDetalhe
           const info = STATUS_PEDIDO_INFO[p.status] ?? { label: p.status, cls: 'bg-[#F3F4F6] text-text-subtle' }
-          const ativo = PEDIDO_ATIVO.has(p.status)
+          const ativo = pedidoEstaEmAndamento(p, agoraAcompanhamento)
           const pontos = Math.max(0, Math.floor(p.subtotal))
           const waDigits = (restaurante?.telefone ?? '').replace(/\D/g, '')
           const waLink = waDigits
