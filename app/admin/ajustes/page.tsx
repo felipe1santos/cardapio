@@ -2772,13 +2772,13 @@ export default function AjustesPage() {
       <TopBar title="Ajustes" breadcrumb="Configurações da loja" />
 
       {/* Tab bar */}
-      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-4">
+      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-4 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={[
-              'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
+              'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
               tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
             ].join(' ')}
           >

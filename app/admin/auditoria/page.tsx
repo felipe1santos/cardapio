@@ -141,7 +141,27 @@ export default function AuditoriaPage() {
         )}
 
         {!erro && !carregando && visiveis.length > 0 && (
-          <div className="overflow-hidden rounded-menuzia border border-border bg-main">
+          <>
+          {/* Celular: quatro colunas numa tela de 390px espremem "o que" e "detalhe" em
+              duas letras por linha. Aqui cada evento vira um bloco, com o detalhe embaixo. */}
+          <div className="flex flex-col gap-2 lg:hidden">
+            {visiveis.map((e) => (
+              <div key={e.id} className="rounded-menuzia border border-border bg-main p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-text-main">{rotuloEvento(e.acao)}</span>
+                  <span className="flex-shrink-0 text-[11px] tabular-nums text-text-subtle">{dataHora(e.criadoEm)}</span>
+                </div>
+                <div className="mt-1 text-[12px] text-text-subtle">
+                  {e.usuarioNome ?? 'Sistema'}
+                  {e.ator === 'sistema' && <span className="ml-1.5 text-[10px] uppercase tracking-wide">automático</span>}
+                </div>
+                {resumoEvento(e.dados) && (
+                  <div className="mt-1.5 text-[12px] leading-relaxed text-text-subtle">{resumoEvento(e.dados)}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-hidden rounded-menuzia border border-border bg-main lg:block">
             <table className="w-full text-left">
               <thead className="bg-page text-[11px] font-bold uppercase tracking-wide text-text-subtle">
                 <tr>
@@ -168,6 +188,7 @@ export default function AuditoriaPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         <p className="mt-3 text-[11px] text-text-subtle">

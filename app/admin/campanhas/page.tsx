@@ -441,7 +441,51 @@ export default function CampanhasPage() {
             <Button onClick={abrirNovo}>Criar primeira campanha</Button>
           </Card>
         ) : (
-          <Card className="overflow-hidden p-0">
+          <>
+          {/* Celular: cartão por campanha. Na tabela espremida, "Agendado" e "Progresso"
+              (o que a pessoa vem conferir) ficavam ilegíveis, e as ações viravam três
+              links colados de 11px. */}
+          <div className="flex flex-col gap-2 lg:hidden">
+            {campanhas.map((c) => (
+              <Card key={c.id} className="p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 break-words text-[14px] font-bold text-text-main">{c.nome}</span>
+                  <Badge status={c.status} />
+                </div>
+                <div className="mt-1.5 text-[12px] text-text-subtle">
+                  {TIPO_LABEL[c.tipoMensagem]} · {formatarDataHora(c.agendadoEm)}
+                </div>
+                <div className="mt-2.5">
+                  <Progress enviados={c.totalEnviados + c.totalErros} total={c.totalDestinatarios} />
+                  {c.totalErros > 0 && <span className="mt-0.5 block text-[11px] text-danger">{c.totalErros} erro(s)</span>}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                  <button
+                    onClick={() => setPreviewCampanha(c)}
+                    className="rounded-menuzia border border-border px-3 text-[12px] font-semibold text-text-subtle"
+                  >
+                    Ver mensagem
+                  </button>
+                  {(c.status === 'rascunho' || c.status === 'agendada') && (
+                    <button onClick={() => abrirEditar(c)} className="rounded-menuzia border border-primary px-3 text-[12px] font-semibold text-primary">
+                      Editar
+                    </button>
+                  )}
+                  {c.status === 'agendada' && (
+                    <button onClick={() => cancelarCampanha(c.id)} className="rounded-menuzia border border-danger px-3 text-[12px] font-semibold text-danger">
+                      Cancelar
+                    </button>
+                  )}
+                  {(c.status === 'rascunho' || c.status === 'concluida' || c.status === 'cancelada') && (
+                    <button onClick={() => excluirCampanha(c.id)} className="rounded-menuzia border border-border px-3 text-[12px] font-semibold text-text-subtle">
+                      Excluir
+                    </button>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+          <Card className="hidden overflow-hidden p-0 lg:block">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-border bg-page">
@@ -492,6 +536,7 @@ export default function CampanhasPage() {
               </tbody>
             </table>
           </Card>
+          </>
         )}
       </div>
 

@@ -249,3 +249,38 @@ html:has(.font-loja) {
     print-color-adjust: exact;
   }
 }
+
+/* ══ Painel no celular ══════════════════════════════════════════════════════
+   O painel foi desenhado para mouse: botão de 28px, chip de 29px, toggle de
+   dia da semana de 21px. No dedo isso erra o alvo — e o dono quer tocar a loja
+   pelo celular. Abaixo de `lg` (onde a sidebar vira gaveta) todo controle do
+   painel ganha piso de 40px de altura, que é o mínimo confortável de toque.
+
+   Vale SÓ no painel (`[data-painel]`, a raiz de app/admin/layout.tsx) e SÓ
+   abaixo de 1024px: a tela de desktop continua byte a byte a mesma. Links
+   soltos no meio de um texto ficam de fora de propósito — esticar um link
+   inline quebraria o parágrafo. Quem precisa fugir da regra (uma pílula
+   decorativa, um controle dentro de célula apertada) marca `data-toque-livre`. */
+@media (max-width: 1023px) {
+  [data-painel] button:not([data-toque-livre]),
+  [data-painel] [role='button']:not([data-toque-livre]),
+  [data-painel] select:not([data-toque-livre]),
+  [data-painel] textarea:not([data-toque-livre]),
+  [data-painel]
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([data-toque-livre]) {
+    min-height: 40px;
+  }
+
+  /* Caixa de marcar de 14px é o menor alvo do painel inteiro — e costuma estar
+     em lista, onde o dedo erra na linha vizinha. */
+  [data-painel] input[type='checkbox']:not([data-toque-livre]),
+  [data-painel] input[type='radio']:not([data-toque-livre]) {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Botão só de ícone precisa de área nos dois eixos, não só na altura. */
+  [data-painel] button.toque-icone:not([data-toque-livre]) {
+    min-width: 40px;
+  }
+}

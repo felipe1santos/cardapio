@@ -326,7 +326,9 @@ function DayToggles({ days, onChange }: { days: number[]; onChange: (days: numbe
           type="button"
           onClick={() => toggle(day)}
           className={[
-            'flex h-6 w-6 select-none items-center justify-center rounded-menuzia border text-[11px] font-bold transition-colors',
+            // 21px no desktop é alvo de mouse; no dedo erra o dia vizinho. Abaixo de
+            // `lg` a pílula cresce nos dois eixos (a de altura vem da camada do painel).
+            'flex h-6 w-6 max-lg:h-10 max-lg:w-10 max-lg:text-[13px] select-none items-center justify-center rounded-menuzia border text-[11px] font-bold transition-colors',
             active.has(day)
               ? 'border-[#0688D4] bg-[#0688D4] text-white'
               : 'border-border bg-white text-text-subtle hover:border-[#0688D4]',
@@ -2672,7 +2674,7 @@ export default function CardapioPage() {
       />
 
       {/* Tab bar */}
-      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-3.5">
+      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-3.5 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
         {([
           { id: 'itens' as CardapioTab, label: 'Itens do cardápio' },
           { id: 'complementos' as CardapioTab, label: 'Grupos de complementos' },
@@ -2683,7 +2685,7 @@ export default function CardapioPage() {
             key={t.id}
             onClick={() => setCardapioTab(t.id)}
             className={[
-              'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
+              'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
               cardapioTab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
             ].join(' ')}
           >
@@ -2721,7 +2723,9 @@ export default function CardapioPage() {
               className="w-full border-none font-sans text-[13px] text-text-main outline-none"
             />
           </div>
-          <div className="flex overflow-hidden rounded-menuzia border border-border bg-white">
+          {/* No celular a lista é sempre em cartões — a tabela de 6 colunas não cabe —,
+              então o par de botões some para não prometer uma visão que não existe lá. */}
+          <div className="flex overflow-hidden rounded-menuzia border border-border bg-white max-lg:hidden">
             <button type="button" onClick={() => setView('table')} title="Tabela"
               className={`flex items-center px-2.5 py-1.5 ${view === 'table' ? 'bg-primary text-white' : 'text-text-subtle'}`}>
               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M3 5h18v2H3zm0 6h18v2H3zm0 6h18v2H3z" /></svg>
@@ -2869,13 +2873,13 @@ export default function CardapioPage() {
                         onClick={() => moveCategoria(group, -1)}
                         disabled={groups[0]?.id === group.id}
                         title="Mover pra cima (muda a ordem na vitrine)"
-                        className="rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
+                        className="toque-icone rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
                       >↑</button>
                       <button
                         onClick={() => moveCategoria(group, 1)}
                         disabled={groups[groups.length - 1]?.id === group.id}
                         title="Mover pra baixo (muda a ordem na vitrine)"
-                        className="rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
+                        className="toque-icone rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
                       >↓</button>
                       <button onClick={() => startEditCategoria(group)} title="Editar categoria (nome e foto de capa)" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">✎</button>
                       <button onClick={() => startScheduleCategoria(group)} title="Ativação automática por horário" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">🕐</button>
@@ -2918,7 +2922,10 @@ export default function CardapioPage() {
                   Nenhum item nesta categoria ainda. Use &ldquo;+ Novo item&rdquo; para cadastrar o primeiro.
                 </div>
               )}
+              {/* `lg:contents` deixa a tabela no lugar dela no desktop; abaixo de `lg` o
+                  bloco some inteiro e quem aparece é a grade de cartões logo abaixo. */}
               {activeGroupId && visibleItems.length > 0 && view === 'table' && (
+                <div className="hidden lg:contents">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
@@ -2979,7 +2986,7 @@ export default function CardapioPage() {
                         <td className="border-b border-border px-3.5 py-3">
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => openEditItem(item)} title="Editar"
-                              className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
+                              className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
                               <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
                                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z" />
                               </svg>
@@ -2988,7 +2995,7 @@ export default function CardapioPage() {
                               onClick={() => toggleItemStatus(item)}
                               disabled={statusSavingId === item.id}
                               title={item.status === 'disponivel' ? 'Pausar item' : 'Retomar item'}
-                              className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                              className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {item.status === 'disponivel'
                                 ? <Pause className="h-[15px] w-[15px]" strokeWidth={2} />
@@ -3000,9 +3007,10 @@ export default function CardapioPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
-              {activeGroupId && visibleItems.length > 0 && view === 'grid' && (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3.5 p-4">
+              {activeGroupId && visibleItems.length > 0 && (
+                <div className={`grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3.5 p-4 ${view === 'table' ? 'lg:hidden' : ''}`}>
                   {visibleItems.map((item) => (
                     <div key={item.id} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
                       <div className="relative flex h-[120px] items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
@@ -3036,7 +3044,7 @@ export default function CardapioPage() {
                             </span>
                           )}
                           <button onClick={() => openEditItem(item)}
-                            className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
+                            className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
                             <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
                               <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z" />
                             </svg>
@@ -3087,7 +3095,7 @@ export default function CardapioPage() {
             <h2 className="text-[15px] font-bold">Nova categoria</h2>
             <p className="mt-0.5 text-xs text-text-subtle">Ex.: Lanches, Combos, Bebidas, Sobremesas.</p>
           </div>
-          <button onClick={closeDrawer} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
+          <button onClick={closeDrawer} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
         </div>
         <div className="flex-1 overflow-y-auto p-4.5">
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Nome da categoria</div>
@@ -3163,7 +3171,7 @@ export default function CardapioPage() {
             <h2 className="text-[15px] font-bold">Importar grupo de complementos</h2>
             <p className="mt-0.5 text-xs text-text-subtle">Selecione um grupo salvo para adicionar a este produto com as regras já configuradas.</p>
           </div>
-          <button onClick={() => setDrawer('edit')} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
+          <button onClick={() => setDrawer('edit')} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
         </div>
         <div className="flex-1 overflow-y-auto p-4.5">
           {presets.length === 0 && (
@@ -3225,7 +3233,7 @@ export default function CardapioPage() {
             <h2 className="text-[15px] font-bold">{form.id ? 'Editar item' : 'Novo item'}</h2>
             <p className="mt-0.5 text-xs text-text-subtle">{form.id ? form.nome : `Novo item em ${activeGroup ?? ''}`}</p>
           </div>
-          <button onClick={closeDrawer} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
+          <button onClick={closeDrawer} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
         </div>
         {/* Stepper do wizard */}
         <div className="border-b border-border bg-page px-4.5 py-2.5">

@@ -387,13 +387,13 @@ export default function IntegracaoNextaPage() {
       <TopBar title="Integrações" breadcrumb="Integrações › Nexta Delivery" />
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-white px-5 pt-2">
+        <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-white px-5 pt-2 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
           {SUB_NAV.map((s) => (
             <button
               key={s.id}
               onClick={() => setSubNav(s.id)}
               className={[
-                'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
+                'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
                 subNav === s.id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main',
               ].join(' ')}
             >

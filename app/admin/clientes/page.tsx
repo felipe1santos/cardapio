@@ -146,7 +146,52 @@ export default function ClientesPage() {
               : 'Nenhum cliente encontrado para essa busca.'}
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-menuzia border border-border bg-white">
+          <>
+          {/* Celular: a tabela de 1180px virava rolagem lateral infinita. Cada cliente
+              vira um cartão com o mesmo conteúdo, na ordem em que se lê. O desktop
+              continua na tabela — a comparação linha a linha é o valor dela. */}
+          <div className="flex flex-col gap-2 lg:hidden">
+            {filtrados.map((cliente) => (
+              <div key={cliente.telefone} className="rounded-menuzia border border-border bg-white p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-[14px] font-bold">{cliente.nome || '—'}</div>
+                    <div className="text-[12px] text-text-subtle">{cliente.telefone}</div>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="text-[14px] font-bold text-price-text">{brl(cliente.valorTotal)}</div>
+                    <div className="text-[11px] text-text-subtle">{cliente.totalPedidos} pedido{cliente.totalPedidos === 1 ? '' : 's'}</div>
+                  </div>
+                </div>
+                {formatarEndereco(cliente) && (
+                  <div className="mt-2 text-[12px] leading-relaxed text-text-subtle">{formatarEndereco(cliente)}</div>
+                )}
+                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border pt-3 text-[12px]">
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Última compra</dt>
+                    <dd className="mt-0.5">{formatarData(cliente.ultimaCompraEm)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Ticket médio</dt>
+                    <dd className="mt-0.5 font-semibold">{brl(cliente.ticketMedio)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Recorrência</dt>
+                    <dd className="mt-0.5">{cliente.pedidosPorSemana.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x/semana</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Dia preferido</dt>
+                    <dd className="mt-0.5">{cliente.diaSemanaPreferido !== null ? DIAS_SEMANA[cliente.diaSemanaPreferido] : '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Gasto/semana</dt>
+                    <dd className="mt-0.5">{brl(cliente.gastoSemanalMedio)}</dd>
+                  </div>
+                </dl>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto rounded-menuzia border border-border bg-white lg:block">
             <table className="w-full min-w-[1180px] border-collapse">
               <thead>
                 <tr>
@@ -187,6 +232,7 @@ export default function ClientesPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </>

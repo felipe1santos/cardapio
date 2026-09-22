@@ -241,7 +241,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <MenuLateralContext.Provider value={valorDoMenu}>
-    <div className="flex h-screen overflow-hidden">
+    {/* `data-painel`: gancho da camada de celular em globals.css (alvo de toque de
+        40px abaixo de lg). Nada muda no desktop — a regra vive dentro de media query. */}
+    <div data-painel className="flex h-screen overflow-hidden">
       {!focusMode && (
         <Sidebar
           items={items}

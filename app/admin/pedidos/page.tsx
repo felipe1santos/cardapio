@@ -1159,7 +1159,7 @@ export default function PedidosPage() {
                 <h2 className="text-[15px] font-bold">Pedido #{detail.numero}</h2>
                 <p className="mt-0.5 text-xs text-text-subtle">{detail.clienteNome || 'Cliente'} · {detail.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</p>
               </div>
-              <button onClick={() => setDetail(null)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+              <button onClick={() => setDetail(null)} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
                 ×
               </button>
             </div>

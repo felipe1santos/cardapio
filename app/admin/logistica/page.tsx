@@ -842,7 +842,7 @@ export default function LogisticaPage() {
           )}
         </div>
 
-        <div className="flex flex-shrink-0 gap-0.5 border-b border-border">
+        <div className="flex flex-shrink-0 gap-0.5 border-b border-border max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
           {TABS.map((t) => {
             const contador = t.id === 'concluidos' ? concluidos.length : t.id === 'entregadores' ? drivers.length : unassigned.length
             return (
@@ -850,7 +850,7 @@ export default function LogisticaPage() {
                 key={t.id}
                 onClick={() => irParaTab(t.id)}
                 className={[
-                  'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
+                  'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
                   tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
                 ].join(' ')}
               >
@@ -1554,7 +1554,7 @@ export default function LogisticaPage() {
             <h2 className="text-[15px] font-bold">Fechamento de caixa</h2>
             <p className="mt-0.5 text-xs text-text-subtle">Conferência entre o dinheiro esperado e o declarado por entregador.</p>
           </div>
-          <button onClick={() => setClosingOpen(false)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+          <button onClick={() => setClosingOpen(false)} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
             ×
           </button>
         </div>
@@ -1623,7 +1623,7 @@ export default function LogisticaPage() {
             <h2 className="text-[15px] font-bold">Acesso do entregador</h2>
             <p className="mt-0.5 text-xs text-text-subtle">{linkDriver?.nome}</p>
           </div>
-          <button onClick={() => setLinkDriver(null)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+          <button onClick={() => setLinkDriver(null)} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
             ×
           </button>
         </div>
@@ -1661,7 +1661,7 @@ export default function LogisticaPage() {
                   <p className="mt-0.5 text-xs text-text-subtle">Atualizado {tempoRelativo(locationDriver.localizacao.atualizadaEm)}</p>
                 )}
               </div>
-              <button onClick={() => setLocationDriverId(null)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+              <button onClick={() => setLocationDriverId(null)} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
                 ×
               </button>
             </div>
@@ -1696,7 +1696,7 @@ export default function LogisticaPage() {
             <h2 className="text-[15px] font-bold">Perfil do entregador</h2>
             <p className="mt-0.5 text-xs text-text-subtle">{profileDriver?.nome}</p>
           </div>
-          <button onClick={() => setProfileDriverId(null)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+          <button onClick={() => setProfileDriverId(null)} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
             ×
           </button>
         </div>

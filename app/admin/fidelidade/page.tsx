@@ -637,13 +637,13 @@ export default function FidelidadePage() {
       <TopBar title="Fidelidade" breadcrumb="Campanhas de fidelidade e cupons de desconto" />
 
       {/* Tab bar */}
-      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-4">
+      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-4 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
         {ABAS.map((t) => (
           <button
             key={t.id}
             onClick={() => setAba(t.id)}
             className={[
-              'rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
+              'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
               aba === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
             ].join(' ')}
           >
@@ -674,7 +674,40 @@ export default function FidelidadePage() {
                 <Button onClick={abrirNovaCampanha}>Criar primeira campanha</Button>
               </Card>
             ) : (
-              <Card className="overflow-hidden p-0">
+              <>
+              {/* Celular: oito colunas não cabem em 390px. Cartão por campanha, com o
+                  que decide (meta, prêmio, gente dentro) em cima e as ações no rodapé. */}
+              <div className="flex flex-col gap-2 lg:hidden">
+                {campanhas.map((c) => (
+                  <Card key={c.id} className="p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-[14px] font-bold text-text-main">{c.nome}</p>
+                        {c.descricao && <p className="mt-0.5 text-[11px] text-text-subtle">{c.descricao}</p>}
+                      </div>
+                      <ToggleSwitch checked={c.ativa} onChange={() => toggleCampanhaAtiva(c)} />
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-[13px]">
+                      {c.premioTipo === 'item_gratis' && <ItemThumb nome={c.premioItemNome ?? 'Item'} imagemUrl={c.premioItemImagemUrl ?? null} />}
+                      <span className="text-text-main">{metaLegivel(c)} → {premioLegivel(c)}</span>
+                    </div>
+                    <div className="mt-1.5 text-[12px] text-text-subtle">
+                      {c.diasSemanaResgate.length === 0 ? 'Resgate em qualquer dia' : `Resgate só ${diasSemanaTexto(c.diasSemanaResgate)}`}
+                      {c.repetivel ? ' · repetível' : ''}
+                    </div>
+                    <div className="mt-1.5 text-[12px] text-text-subtle">
+                      <span className="font-semibold text-text-main">{c.clientesProgredindo}</span> progredindo ·{' '}
+                      <span className="font-semibold text-text-main">{c.recompensasGanhas}</span> ganhos ·{' '}
+                      <span className="font-semibold text-text-main">{c.recompensasResgatadas}</span> resgatados
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                      <button onClick={() => abrirEditarCampanha(c)} className="rounded-menuzia border border-primary text-[12px] font-semibold text-primary">Editar</button>
+                      <button onClick={() => excluirCampanha(c.id)} className="rounded-menuzia border border-border text-[12px] font-semibold text-text-subtle">Excluir</button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <Card className="hidden overflow-hidden p-0 lg:block">
                 <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-border bg-page">
@@ -736,6 +769,7 @@ export default function FidelidadePage() {
                   </tbody>
                 </table>
               </Card>
+              </>
             )}
           </>
         )}
@@ -770,7 +804,64 @@ export default function FidelidadePage() {
                 </div>
               </Card>
             ) : (
-              <Card className="overflow-hidden p-0">
+              <>
+              {/* Celular: cartão por cupom. "Usos" e "Público" são o que o dono vem
+                  conferir quando um cliente reclama que o código não passa. */}
+              <div className="flex flex-col gap-2 lg:hidden">
+                {cupons.map((c) => (
+                  <Card key={c.id} className="p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="inline-flex items-center rounded border border-border bg-page px-2 py-0.5 font-mono text-[13px] font-bold tracking-wide text-text-main">
+                        {c.codigo}
+                      </span>
+                      <ToggleSwitch checked={c.ativo} onChange={() => toggleCupomAtivo(c)} />
+                    </div>
+                    {c.descricao && <p className="mt-1.5 text-[11px] text-text-subtle">{c.descricao}</p>}
+                    <div className="mt-2 flex items-center gap-2 text-[13px]">
+                      {c.tipo === 'item_gratis' && <ItemThumb nome={c.itemNome ?? 'Item'} imagemUrl={c.itemImagemUrl ?? null} />}
+                      <span className="font-semibold text-text-main">{cupomTipoLegivel(c)}</span>
+                    </div>
+                    {c.valorMinimoPedido != null && (
+                      <p className="mt-0.5 text-[11px] text-text-subtle">Pedido mínimo {brl(c.valorMinimoPedido)}</p>
+                    )}
+                    <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border pt-2.5 text-[12px]">
+                      <div>
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Público</dt>
+                        <dd className="mt-0.5">
+                          {c.publico === 'todos' && 'Todos'}
+                          {c.publico === 'primeira_compra' && 'Primeira compra'}
+                          {c.publico === 'recompra' && `Recompra${c.diasInatividade != null ? ` (${c.diasInatividade}d)` : ''}`}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Usos</dt>
+                        <dd className="mt-0.5">
+                          {c.usos}
+                          {c.maxUsos != null && ` / ${c.maxUsos}`}
+                          {c.usoUnicoPorCliente && ' · 1x por cliente'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Dias</dt>
+                        <dd className="mt-0.5">{c.diasSemana.length === 0 ? 'Todos' : [...c.diasSemana].sort().map((d) => DIA_CURTO[d]).join(', ')}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Validade</dt>
+                        <dd className="mt-0.5">
+                          {!c.validadeInicio && !c.validadeFim
+                            ? '—'
+                            : `${c.validadeInicio ? formatarData(c.validadeInicio) : '…'} – ${c.validadeFim ? formatarData(c.validadeFim) : '…'}`}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                      <button onClick={() => abrirEditarCupom(c)} className="rounded-menuzia border border-primary text-[12px] font-semibold text-primary">Editar</button>
+                      <button onClick={() => excluirCupom(c.id)} className="rounded-menuzia border border-border text-[12px] font-semibold text-text-subtle">Excluir</button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <Card className="hidden overflow-hidden p-0 lg:block">
                 <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-border bg-page">
@@ -834,6 +925,7 @@ export default function FidelidadePage() {
                   </tbody>
                 </table>
               </Card>
+              </>
             )}
           </>
         )}

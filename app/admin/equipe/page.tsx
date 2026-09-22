@@ -114,7 +114,57 @@ export default function EquipePage() {
         )}
 
         {!carregando && !erro && (
-          <div className="overflow-x-auto rounded-menuzia border border-border bg-main">
+          <>
+          {/* Celular: cartão por pessoa. A tabela é boa para varrer a equipe inteira no
+              monitor; no telefone ela virava rolagem lateral com o botão de ação escondido
+              fora da tela — que é justamente o que se vem fazer aqui. */}
+          <div className="flex flex-col gap-2 lg:hidden">
+            {equipe.map((f) => {
+              const administravel = f.id !== eu && (papeisOferecidos as string[]).includes(f.papel)
+              return (
+                <div key={f.id} className={`rounded-menuzia border border-border bg-main p-3.5 ${f.ativo ? '' : 'opacity-60'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-[14px] font-bold text-text-main">
+                        {f.nome || '—'}
+                        {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
+                      </div>
+                      <div className="font-mono text-[12px] text-text-subtle">{f.usuario || '—'}</div>
+                    </div>
+                    <Badge tone={f.ativo ? 'ok' : 'danger'}>{f.ativo ? 'Ativo' : 'Desativado'}</Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Badge tone={f.papel === 'dono' ? 'highlight' : f.papel === 'garcom' ? 'preparing' : 'alert'}>
+                      {ROTULO_PAPEL[f.papel] ?? f.papel}
+                    </Badge>
+                    <span className="text-[12px] text-text-subtle">{quando(f.ultimoLoginEm)}</span>
+                  </div>
+                  {administravel && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                      <Button variant="outline" onClick={() => setSenhaDe(f)}>
+                        <KeyRound className="mr-1 inline h-3.5 w-3.5" />
+                        Senha
+                      </Button>
+                      <Button variant="outline" onClick={() => alternarAtivo(f)}>
+                        {f.ativo ? (
+                          <>
+                            <UserX className="mr-1 inline h-3.5 w-3.5" />
+                            Desativar
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="mr-1 inline h-3.5 w-3.5" />
+                            Reativar
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div className="hidden overflow-x-auto rounded-menuzia border border-border bg-main lg:block">
             <table className="w-full min-w-[640px] text-left text-[13px]">
               <thead className="border-b border-border bg-bg-page text-[11px] uppercase tracking-wide text-text-subtle">
                 <tr>
@@ -175,6 +225,7 @@ export default function EquipePage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         <p className="mt-3 text-[12px] text-text-subtle">
