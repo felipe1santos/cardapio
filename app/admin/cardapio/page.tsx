@@ -2750,10 +2750,11 @@ export default function CardapioPage() {
           </div>
         </div>
 
-        {/* Layout: categories + content */}
-        <div className="flex flex-1 gap-4 overflow-hidden">
+        {/* Layout: categories + content. No celular os dois viram uma coluna só: a
+            lateral de 280px ao lado da lista deixava os itens espremidos fora da tela. */}
+        <div className="flex flex-1 gap-4 overflow-hidden max-lg:flex-col max-lg:overflow-y-auto">
           {/* Categories panel */}
-          <aside className="flex w-[280px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+          <aside className="flex w-[280px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white max-lg:max-h-[46vh] max-lg:w-full">
             <div className="border-b border-border px-3.5 py-3">
               <h3 className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Categorias</h3>
             </div>
@@ -2898,7 +2899,7 @@ export default function CardapioPage() {
           </aside>
 
           {/* Content panel */}
-          <section className="flex flex-1 flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+          <section className="flex flex-1 flex-col overflow-hidden rounded-menuzia border border-border bg-white max-lg:flex-none max-lg:overflow-visible">
             <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-border px-4 py-3">
               <div className="text-[13px] text-text-subtle">
                 Total de <b className="text-text-main">{visibleItems.length} itens</b> em <b className="text-text-main">{activeGroup ?? '—'}</b>
@@ -2911,7 +2912,7 @@ export default function CardapioPage() {
                 </div>
               )}
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto max-lg:overflow-visible">
               {!activeGroupId && (
                 <div className="flex h-full items-center justify-center p-8 text-center text-sm text-text-subtle">
                   Crie uma categoria para começar a cadastrar itens do cardápio.

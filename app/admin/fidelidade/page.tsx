@@ -656,7 +656,7 @@ export default function FidelidadePage() {
         {/* ── Aba Campanhas ──────────────────────────────────────────────── */}
         {aba === 'campanhas' && (
           <>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between max-lg:flex-col max-lg:items-stretch max-lg:gap-2">
               <p className="text-[13px] text-text-subtle">
                 Recompense clientes recorrentes: eles acumulam progresso a cada pedido entregue e ganham o prêmio ao bater a meta.
               </p>
@@ -777,7 +777,7 @@ export default function FidelidadePage() {
         {/* ── Aba Cupons ─────────────────────────────────────────────────── */}
         {aba === 'cupons' && (
           <>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between max-lg:flex-col max-lg:items-stretch max-lg:gap-2">
               <p className="text-[13px] text-text-subtle">Crie códigos de desconto que o cliente aplica no checkout do cardápio.</p>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={abrirPresetCompreDeNovo}>

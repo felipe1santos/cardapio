@@ -953,13 +953,13 @@ export default function PedidosPage() {
         )}
 
         {/* Board */}
-        <div className={`grid flex-1 grid-cols-1 gap-3 overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        <div className={`grid flex-1 grid-cols-1 gap-3 overflow-hidden max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             const cfg = COLUNA_CONFIG[coluna]
             const accent: Record<Coluna, string> = { recebido: 'border-l-status-pending', preparando: 'border-l-[#024A7D]', pronto: 'border-l-status-ready' }
             return (
-              <div key={coluna} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+              <div key={coluna} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
                 <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`}>
                   <div className="flex items-center gap-2">
                     <cfg.Icon className="h-4 w-4" strokeWidth={2.5} />
@@ -967,7 +967,7 @@ export default function PedidosPage() {
                   </div>
                   <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold text-white">{colOrders.length}</span>
                 </div>
-                <div className="flex-1 space-y-3 overflow-y-auto p-3">
+                <div className="flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible">
                   {colOrders.map((order) => {
                     const tempo = tempoDecorrido(order.criadoEm, now)
                     return (
@@ -1106,12 +1106,12 @@ export default function PedidosPage() {
 
           {/* 4ª coluna opcional: entregas e concluídos */}
           {showCol4 && (
-            <div className="flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] border-t-purple bg-white">
+            <div className="flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] border-t-purple bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Entregas & concluídos</h3>
                 <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{transit.length + concluded.length}</span>
               </div>
-              <div className="flex-1 space-y-4 overflow-y-auto p-3">
+              <div className="flex-1 space-y-4 overflow-y-auto p-3 max-lg:overflow-visible">
                 <SubSecao titulo="Em trânsito" cor="text-status-preparing" vazio="Ninguém em rota">
                   {transit.map((o) => (
                     <FluxoCard

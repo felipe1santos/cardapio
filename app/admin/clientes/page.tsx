@@ -99,7 +99,7 @@ export default function ClientesPage() {
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-menuzia border border-border bg-white p-4">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Clientes</div>
             <div className="mt-1.5 text-xl font-bold">{stats.total.toLocaleString('pt-BR')}</div>

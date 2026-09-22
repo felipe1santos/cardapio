@@ -425,7 +425,7 @@ export default function CampanhasPage() {
       <TopBar title="Campanhas" breadcrumb="Disparo de mensagens WhatsApp" />
 
       <div className="flex flex-1 flex-col overflow-y-auto p-5 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between max-lg:flex-col max-lg:items-stretch max-lg:gap-2">
           <p className="text-[13px] text-text-subtle">Dispare mensagens, imagens ou áudios para clientes segmentados.</p>
           <Button onClick={abrirNovo}>+ Nova campanha</Button>
         </div>
