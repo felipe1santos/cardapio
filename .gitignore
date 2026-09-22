@@ -47,3 +47,4 @@ next-env.d.ts
 
 # screenshots de conferência da vitrine (playwright)
 .shots/
+.tmp-*
