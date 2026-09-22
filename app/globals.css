@@ -262,7 +262,20 @@ html:has(.font-loja) {
    inline quebraria o parágrafo. Quem precisa fugir da regra (uma pílula
    decorativa, um controle dentro de célula apertada) marca `data-toque-livre`. */
 @media (max-width: 1023px) {
-  [data-painel] button:not([data-toque-livre]),
+  /* A chavinha liga/desliga é o único controle que NÃO cresce: esticá-la para 40px
+     deixaria o trilho oval e o botãozinho fora do lugar (o deslocamento dele é fixo
+     em px). Em vez de mudar o desenho, cresce só a área que recebe o toque. */
+  [data-painel] [role='switch'] {
+    position: relative;
+  }
+
+  [data-painel] [role='switch']::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
+
+  [data-painel] button:not([role='switch']):not([data-toque-livre]),
   [data-painel] [role='button']:not([data-toque-livre]),
   [data-painel] select:not([data-toque-livre]),
   [data-painel] textarea:not([data-toque-livre]),

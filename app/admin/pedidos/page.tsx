@@ -904,10 +904,12 @@ export default function PedidosPage() {
       >
         <Columns3 className="h-4 w-4" /> Entregas
       </button>
+      {/* "Tela cheia" esconde a sidebar — no celular ela já é gaveta, então o botão não
+          faz nada e ainda empurra a barra de ações para uma terceira linha. */}
       <button
         onClick={toggleFocus}
         title={focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
-        className={`${TOOL_BTN} ${focusMode ? 'bg-text-main text-white hover:opacity-90' : 'bg-page text-text-subtle hover:bg-border'}`}
+        className={`${TOOL_BTN} max-lg:hidden ${focusMode ? 'bg-text-main text-white hover:opacity-90' : 'bg-page text-text-subtle hover:bg-border'}`}
       >
         {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} {focusMode ? 'Sair' : 'Tela cheia'}
       </button>
