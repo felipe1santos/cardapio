@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { Pause, Play } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -2956,7 +2957,7 @@ export default function CardapioPage() {
                                 )}
                                 <span className="text-[13px] font-semibold">{item.nome}</span>
                               </div>
-                              <div className="mt-0.5 text-[11px] text-text-subtle">{item.descricao}</div>
+                              <div className="mt-0.5 text-[11px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
                             </div>
                           </div>
                         </td>
@@ -3030,7 +3031,7 @@ export default function CardapioPage() {
                           )}
                           <div className="text-sm font-semibold">{item.nome}</div>
                         </div>
-                        <div className="flex-1 text-xs leading-relaxed text-text-subtle">{item.descricao}</div>
+                        <div className="flex-1 text-xs leading-relaxed text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
                         <div className="mt-1 flex items-center justify-between">
                           {item.promocaoPreco !== null ? (
                             <span className="flex flex-col">

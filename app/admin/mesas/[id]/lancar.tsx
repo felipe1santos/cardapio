@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { Check, ChevronDown, ImageOff, Minus, Pencil, Plus, Send, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -87,7 +88,9 @@ export function CardProduto({
       <span className="min-w-0 flex-1">
         {categoria && <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-text-subtle">{categoria}</span>}
         <span className="block truncate text-[13px] font-semibold text-text-main">{item.nome}</span>
-        {item.descricao && <span className="line-clamp-1 text-[11px] leading-snug text-text-subtle">{item.descricao}</span>}
+        {item.descricao && (
+          <span className="line-clamp-1 text-[11px] leading-snug text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</span>
+        )}
         <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
           <span className="text-[12px] font-bold text-price-text">
             {preco.aPartirDe && <span className="font-normal text-text-subtle">a partir de </span>}

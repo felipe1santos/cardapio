@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { useRouter } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
@@ -319,7 +320,7 @@ function SeletorModal({
                     >
                       <span className="font-semibold">{s.nome}</span>
                       {s.descricao && (
-                        <span className="block text-[11px] font-normal text-text-subtle">{s.descricao}</span>
+                        <span className="block text-[11px] font-normal text-text-subtle">{descricaoEmTextoPuro(s.descricao)}</span>
                       )}
                     </button>
                   )
