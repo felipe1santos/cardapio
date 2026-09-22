@@ -73,6 +73,23 @@ const PUBLICO_LABEL: Record<NonNullable<CupomInput['publico']>, string> = {
   recompra: 'Recompra (clientes sumidos)',
 }
 
+/**
+ * O que cada público significa na prática. Sem isto, "Primeira compra" parecia
+ * valer uma vez só na loja inteira — e era assim que o limite total acabava
+ * sendo preenchido com 1, matando o cupom no primeiro cliente.
+ *
+ * Os dois segmentados dependem de saber QUEM está pedindo, então a vitrine só os
+ * aceita depois que o cliente entra com o telefone. O lojista precisa saber
+ * disso antes de divulgar o código.
+ */
+const PUBLICO_AJUDA: Record<NonNullable<CupomInput['publico']>, string> = {
+  todos: 'Qualquer pessoa que digitar o código, quantos clientes forem.',
+  primeira_compra:
+    'Vale para TODO cliente que ainda não recebeu nenhum pedido — cada um usa uma vez, sem limite de quantos clientes. O cliente precisa entrar com o telefone no cardápio.',
+  recompra:
+    'Para quem fez no máximo 1 pedido ou sumiu há um tempo. Cada um usa uma vez. O cliente precisa entrar com o telefone no cardápio.',
+}
+
 function metaLegivel(c: CampanhaFidelidadeComStats): string {
   let base: string
   if (c.tipoMeta === 'valor_gasto') base = `${brl(c.metaValor ?? 0)} gastos`
@@ -1016,7 +1033,7 @@ export default function FidelidadePage() {
               </Field>
             )}
 
-            <Field label="Público">
+            <Field label="Público" hint={PUBLICO_AJUDA[formCupom.publico]}>
               <select
                 value={formCupom.publico}
                 onChange={(e) => setFormCupom((f) => ({ ...f, publico: e.target.value as CupomForm['publico'] }))}
@@ -1089,10 +1106,18 @@ export default function FidelidadePage() {
                   placeholder="Ex: 100 (vazio = sem limite)"
                   className={INPUT_CLS}
                 />
-                {formCupom.maxUsos !== '' && Number(formCupom.maxUsos) > 0 && Number(formCupom.maxUsos) <= 3 && (
+                {formCupom.maxUsos !== '' && Number(formCupom.maxUsos) > 0 && (
                   <p className="mt-1 text-[11px] font-semibold text-warn">
-                    Atenção: o cupom sai do ar depois de {formCupom.maxUsos}{' '}
-                    {Number(formCupom.maxUsos) === 1 ? 'uso no total' : 'usos no total'} — não por cliente.
+                    {formCupom.publico === 'todos'
+                      ? `Atenção: o cupom sai do ar depois de ${formCupom.maxUsos} ${Number(formCupom.maxUsos) === 1 ? 'uso no total' : 'usos no total'} — não por cliente.`
+                      : // O caso que quebrou na prática: "primeira compra" com teto 1. O
+                        // lojista quer um por cliente, e "Uso único por cliente" já faz
+                        // isso — o teto aqui é quantos clientes ao todo aproveitam.
+                        `Atenção: ${
+                          Number(formCupom.maxUsos) === 1
+                            ? 'só o primeiro cliente vai conseguir usar; do 2º'
+                            : `só os ${formCupom.maxUsos} primeiros clientes vão conseguir usar; do ${Number(formCupom.maxUsos) + 1}º`
+                        } em diante o cupom aparece como esgotado. Para valer para todos, deixe este campo vazio — "Uso único por cliente" já garante um por pessoa.`}
                   </p>
                 )}
               </Field>
