@@ -27,6 +27,9 @@ import {
 import { type NovoPedidoItemInput, type Pedido } from '@/lib/queries/pedidos'
 import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { Button } from '@/components/ui/button'
+import { CentralBalcao } from '@/components/pdv/central-balcao'
+import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
+import { chamar, novaChave } from '@/components/pdv/util'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -794,6 +797,18 @@ export default function PdvPage() {
   // true = mostra o painel com todas as mesas; false = mesa aberta (cardápio + comanda).
   const [painelMesas, setPainelMesas] = useState(true)
 
+  // ── PDV v2 (flag por loja, lida do servidor) ───────────────────────────────
+  // Com a flag: Central de Balcão, balcão como comanda, conta com pagamento real e
+  // pendências. Sem ela: o fluxo antigo, exatamente como era.
+  const [pdvV2, setPdvV2] = useState(false)
+  const [telaBalcao, setTelaBalcao] = useState(false)
+  const [contaAberta, setContaAberta] = useState<string | null>(null)
+  /** Onde o lançamento v2 cai: comanda existente (balcão/mesa) ou mesa livre. */
+  const [alvoV2, setAlvoV2] = useState<{ comandaId?: string; mesaId?: string; rotulo: string } | null>(null)
+  // Chave do lançamento: nasce quando a montagem começa e só troca depois de um envio
+  // que deu certo — reenvio (rede caiu, clique duplo) devolve o mesmo pedido.
+  const chaveLancamento = useRef(novaChave())
+
   // ── Tela cheia do navegador (Fullscreen API) ────────────────────────────────
   const [telaCheia, setTelaCheia] = useState(false)
   useEffect(() => {
@@ -814,8 +829,9 @@ export default function PdvPage() {
   const recarregarMesas = useCallback(async () => {
     const res = await fetch('/api/admin/pdv/comanda')
     if (!res.ok) return
-    const data = (await res.json()) as { mesas: MesaComEstado[] }
+    const data = (await res.json()) as { mesas: MesaComEstado[]; pdvV2?: boolean }
     setMesasEstado(data.mesas)
+    setPdvV2(data.pdvV2 === true)
   }, [])
 
   // ── Focus mode: hide sidebar while PDV is open ────────────────────────────
@@ -947,6 +963,17 @@ export default function PdvPage() {
   // (itens já pedidos + adicionar itens + receber pagamento); se livre, vai
   // direto cadastrar um novo pedido.
   function clicarMesa(mesa: MesaComEstado) {
+    if (pdvV2) {
+      // v2: mesa ocupada abre a conta (pagamento real, pendências); livre vai lançar.
+      if (mesa.comandaAberta) {
+        setMesaSelecionada(mesa)
+        setContaAberta(mesa.comandaAberta.id)
+      } else {
+        selecionarMesa(mesa)
+        setAlvoV2({ mesaId: mesa.id, rotulo: mesa.nome })
+      }
+      return
+    }
     if (mesa.comandaAberta) {
       setMesaSelecionada(mesa)
       setMesaEscolhida(true)
@@ -1021,13 +1048,23 @@ export default function PdvPage() {
 
   // ── Cancelar pedido da comanda ─────────────────────────────────────────────
   async function cancelarPedido(pedidoId: string) {
-    if (!confirm('Cancelar este pedido? Ele some da cozinha e sai da conta.')) return
-    const res = await fetch(`/api/admin/pdv/pedido/${pedidoId}/cancelar`, { method: 'POST' })
-    if (res.ok) {
-      const comandaId = mesaSelecionada?.comandaAberta?.id
-      if (comandaId) await recarregarComanda(comandaId)
-      await recarregarMesas()
+    // Motivo obrigatório (a rota recusa sem ele) e a regra do presencial: o atendente
+    // cancela direto só pedido ainda "recebido" de conta sem pagamento.
+    const motivo = prompt('Motivo do cancelamento (obrigatório):')?.trim()
+    if (!motivo) return
+    const res = await fetch(`/api/admin/pdv/pedido/${pedidoId}/cancelar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ motivo }),
+    })
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null
+      setLaunchMsg({ type: 'err', text: data?.error ?? 'Não foi possível cancelar.' })
+      return
     }
+    const comandaId = mesaSelecionada?.comandaAberta?.id
+    if (comandaId) await recarregarComanda(comandaId)
+    await recarregarMesas()
   }
 
   // ── Fechar conta da mesa ───────────────────────────────────────────────────
@@ -1045,12 +1082,23 @@ export default function PdvPage() {
   // Recebe o pagamento (marca todos os pedidos da comanda como pagos). Se fechar=true,
   // também fecha a conta e libera a mesa; senão mantém a mesa aberta (cliente pagou
   // antecipado e continua na mesa). Pagamento é obrigatório antes de fechar.
-  async function processarPagamento(fechar: boolean) {
+  async function processarPagamento(fechar: boolean, forma: FormaPgtoUI) {
     const comandaId = mesaSelecionada?.comandaAberta?.id
     if (!comandaId || fechando) return
     setFechando(true)
     try {
-      await fetch(`/api/admin/pdv/comanda/${comandaId}/pagar`, { method: 'POST' })
+      // A forma escolhida vai junto: a rota registra o pagamento de verdade.
+      const pag = await fetch(`/api/admin/pdv/comanda/${comandaId}/pagar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forma }),
+      })
+      if (!pag.ok) {
+        const data = (await pag.json().catch(() => null)) as { error?: string } | null
+        setLaunchMsg({ type: 'err', text: data?.error ?? 'Não foi possível registrar o pagamento.' })
+        setPagamentoAberto(false)
+        return
+      }
       if (fechar) {
         const res = await fetch(`/api/admin/pdv/comanda/${comandaId}/fechar`, { method: 'POST' })
         if (res.ok) {
@@ -1084,7 +1132,43 @@ export default function PdvPage() {
   }
 
   // ── Launch ─────────────────────────────────────────────────────────────────
+  async function lancarNaCozinhaV2() {
+    if (!alvoV2 || comanda.length === 0 || launching) return
+    setLaunching(true)
+    setLaunchMsg(null)
+    const r = await chamar<{ id: string; numero: number; comandaId: string; idempotente: boolean }>('/api/admin/pdv/lancamento', {
+      method: 'POST',
+      body: JSON.stringify({
+        comandaId: alvoV2.comandaId,
+        mesaId: alvoV2.comandaId ? undefined : alvoV2.mesaId,
+        chave: chaveLancamento.current,
+        itens: comanda.map((linha) => ({
+          itemId: linha.item.id,
+          quantidade: linha.quantidade,
+          observacao: linha.observacao,
+          complementos: linha.complementos,
+          tamanhoNome: linha.tamanhoNome || undefined,
+          saborNome: linha.saborNome || undefined,
+          bordaNome: linha.bordaNome || undefined,
+          massaNome: linha.massaNome || undefined,
+        })),
+      }),
+    })
+    setLaunching(false)
+    if (!r.ok || !r.dados) {
+      setLaunchMsg({ type: 'err', text: r.erro ?? 'Erro ao lançar pedido.' })
+      return
+    }
+    chaveLancamento.current = novaChave()
+    setComanda([])
+    setLaunchMsg({ type: 'ok', text: `Pedido #${r.dados.numero} lançado em ${alvoV2.rotulo}!` })
+    // A mesa livre ganhou comanda no primeiro lançamento: os próximos caem nela.
+    setAlvoV2((a) => (a ? { ...a, comandaId: r.dados!.comandaId } : a))
+    void recarregarMesas()
+  }
+
   async function lancarNaCozinha() {
+    if (pdvV2) return lancarNaCozinhaV2()
     if (!mesaEscolhida || comanda.length === 0 || launching) return
     setLaunching(true)
     setLaunchMsg(null)
@@ -1269,8 +1353,8 @@ export default function PdvPage() {
           emPreparo={pedidosComanda.some((p) => p.status === 'preparando' || p.status === 'recebido')}
           processando={fechando}
           onCancel={() => setPagamentoAberto(false)}
-          onReceber={() => void processarPagamento(false)}
-          onReceberEFechar={() => void processarPagamento(true)}
+          onReceber={(forma) => void processarPagamento(false, forma)}
+          onReceberEFechar={(forma) => void processarPagamento(true, forma)}
         />
       )}
 
@@ -1422,6 +1506,39 @@ export default function PdvPage() {
         )
       })()}
 
+      {/* PDV v2: conta presencial (mesa ou balcão) */}
+      {pdvV2 && contaAberta && (
+        <ContaPresencialModal
+          supabase={supabase}
+          comandaId={contaAberta}
+          onFechar={() => {
+            setContaAberta(null)
+            void recarregarMesas()
+          }}
+          onLancarItens={(c) => {
+            setContaAberta(null)
+            setComanda([])
+            setLaunchMsg(null)
+            chaveLancamento.current = novaChave()
+            setAlvoV2({
+              comandaId: c.id,
+              rotulo: c.tipo === 'balcao' ? `Balcão · Senha ${c.senha} · ${c.clienteNome}` : (c.mesaNome ?? 'Mesa'),
+            })
+            setMesaEscolhida(true)
+            setPainelMesas(false)
+            setMobileTab('cardapio')
+          }}
+          onEncerrada={() => {
+            setContaAberta(null)
+            setAlvoV2(null)
+            setComanda([])
+            setMesaSelecionada(null)
+            setPainelMesas(true)
+            void recarregarMesas()
+          }}
+        />
+      )}
+
       {/* Confirmação de saída do PDV */}
       {sairConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -1450,7 +1567,29 @@ export default function PdvPage() {
 
 
       <div className="flex h-full flex-col overflow-hidden bg-page">
-        {painelMesas ? (
+        {painelMesas && pdvV2 && telaBalcao && restauranteId ? (
+          /* ═══ Central de Balcão (PDV v2) ═══ */
+          <CentralBalcao
+            supabase={supabase}
+            restauranteId={restauranteId}
+            acoes={<>{botaoTelaCheia}{botaoSair}</>}
+            onVoltar={() => {
+              setTelaBalcao(false)
+              void recarregarMesas()
+            }}
+            onAbrirConta={(id) => setContaAberta(id)}
+            onNovaComanda={(c) => {
+              chaveLancamento.current = novaChave()
+              setAlvoV2({ comandaId: c.id, rotulo: `Balcão · Senha ${c.senha} · ${c.nome}` })
+              setMesaSelecionada(null)
+              setMesaEscolhida(true)
+              setComanda([])
+              setLaunchMsg(null)
+              setPainelMesas(false)
+              setMobileTab('cardapio')
+            }}
+          />
+        ) : painelMesas ? (
           /* ═══ Painel de mesas ═══ */
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -1471,13 +1610,14 @@ export default function PdvPage() {
               {/* Balcão — venda avulsa */}
               <button
                 type="button"
-                onClick={() => selecionarMesa(null)}
+                onClick={() => (pdvV2 ? setTelaBalcao(true) : selecionarMesa(null))}
+                data-testid="card-balcao"
                 className="flex aspect-square flex-col justify-between rounded-menuzia bg-sidebar-bg p-3 text-left text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.97]"
               >
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-white/60">Avulso</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-white/60">{pdvV2 ? 'Comandas' : 'Avulso'}</span>
                 <div>
                   <span className="block text-[20px] font-bold leading-none">Balcão</span>
-                  <span className="mt-1 block text-[11px] text-white/70">Venda rápida</span>
+                  <span className="mt-1 block text-[11px] text-white/70">{pdvV2 ? 'Central de balcão' : 'Venda rápida'}</span>
                 </div>
               </button>
 
@@ -1568,9 +1708,11 @@ export default function PdvPage() {
                     <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                       <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
                     </svg>
-                    Mesas
+                    {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
                   </button>
-                  <span className="text-[14px] font-bold text-text-main">{mesaSelecionada?.nome ?? 'Balcão'}</span>
+                  <span className="text-[14px] font-bold text-text-main" data-testid="pdv-alvo">
+                    {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
+                  </span>
                   <div className="ml-auto flex items-center gap-2">{botaoTelaCheia}{botaoSair}</div>
                 </div>
             {/* Search + category chips */}
@@ -1689,7 +1831,7 @@ export default function PdvPage() {
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Comanda</p>
               <span className="rounded-menuzia bg-primary/10 px-2.5 py-1 text-[13px] font-bold text-primary">
-                {mesaSelecionada?.nome ?? 'Balcão'}
+                {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
               </span>
             </div>
 
@@ -1705,8 +1847,22 @@ export default function PdvPage() {
               </div>
             )}
 
+            {/* PDV v2: a conta (itens, estados, pagamentos) abre no modal da conta. */}
+            {pdvV2 && alvoV2?.comandaId && (
+              <div className="border-b border-border bg-page/50 p-3">
+                <button
+                  type="button"
+                  onClick={() => setContaAberta(alvoV2.comandaId!)}
+                  data-testid="pdv-ver-conta"
+                  className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
+                >
+                  Ver conta · receber · fechar
+                </button>
+              </div>
+            )}
+
             {/* Conta da mesa — resumo compacto do que já foi lançado */}
-            {mesaSelecionada?.comandaAberta && (
+            {!pdvV2 && mesaSelecionada?.comandaAberta && (
               <div className="border-b border-border bg-page/50">
                 <div className="flex items-center justify-between px-4 pb-1 pt-3">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Já lançado na mesa</p>
@@ -1759,13 +1915,15 @@ export default function PdvPage() {
               <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
                 Novo pedido{comanda.length > 0 ? ` · ${comanda.reduce((s, l) => s + l.quantidade, 0)} item(ns)` : ''}
               </p>
-              <input
-                type="text"
-                value={nomeCliente}
-                onChange={(e) => setNomeCliente(e.target.value)}
-                placeholder="Cliente (opcional)"
-                className="w-40 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[12px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none"
-              />
+              {!pdvV2 && (
+                <input
+                  type="text"
+                  value={nomeCliente}
+                  onChange={(e) => setNomeCliente(e.target.value)}
+                  placeholder="Cliente (opcional)"
+                  className="w-40 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[12px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none"
+                />
+              )}
             </div>
 
             {/* Order lines */}
@@ -1872,8 +2030,9 @@ export default function PdvPage() {
               )}
               <button
                 type="button"
-                disabled={!mesaEscolhida || comanda.length === 0 || launching}
+                disabled={(pdvV2 ? !alvoV2 : !mesaEscolhida) || comanda.length === 0 || launching}
                 onClick={lancarNaCozinha}
+                data-testid="pdv-lancar"
                 className="w-full rounded-menuzia bg-status-ready py-4 text-[16px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
               >
                 {launching ? 'Lançando…' : 'Lançar na cozinha'}
