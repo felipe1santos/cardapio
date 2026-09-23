@@ -65,6 +65,19 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
     setOrigem(window.location.origin)
   }, [])
 
+  /**
+   * Sair da aba fecha a janela de impressão.
+   *
+   * A aba não desmonta ao trocar de seção em Ajustes — ela só fica `hidden` —, e
+   * a janela vive num portal no `<body>`, que `hidden` no pai não alcança. Sem
+   * isto, quem abrisse a impressão e fosse para "Perfil da loja" ficava com a
+   * tela do painel escurecida pela película do modal e sem conseguir rolar
+   * (o `overflow: hidden` do body continuava valendo). Reproduzido em produção.
+   */
+  useEffect(() => {
+    if (!active) setImpressao(null)
+  }, [active])
+
   useEffect(() => {
     if (!active || loaded) return
     let vivo = true
