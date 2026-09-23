@@ -461,9 +461,32 @@ export async function enviarFotoEntregador(supabase: SupabaseClient, restaurante
   return data.publicUrl
 }
 
-export async function criarEntregador(supabase: SupabaseClient, restauranteId: string, nome: string, telefone: string) {
-  const { error } = await supabase.from('entregadores').insert({ restaurante_id: restauranteId, nome, telefone, status: 'online' })
+/**
+ * Cadastra o entregador já com veículo e placa (colunas existentes desde o
+ * perfil do entregador) e devolve o registro — a tela usa o token para abrir o
+ * link/QR de acesso logo em seguida, que é o próximo passo de todo cadastro.
+ */
+export async function criarEntregador(
+  supabase: SupabaseClient,
+  restauranteId: string,
+  nome: string,
+  telefone: string,
+  extra: { veiculo?: string; placa?: string } = {},
+): Promise<{ id: string; token: string }> {
+  const { data, error } = await supabase
+    .from('entregadores')
+    .insert({
+      restaurante_id: restauranteId,
+      nome,
+      telefone,
+      status: 'online',
+      veiculo: extra.veiculo ?? '',
+      placa: extra.placa ?? '',
+    })
+    .select('id, token')
+    .single()
   if (error) throw error
+  return data as { id: string; token: string }
 }
 
 export async function definirStatusEntregador(supabase: SupabaseClient, entregadorId: string, status: StatusEntregador) {

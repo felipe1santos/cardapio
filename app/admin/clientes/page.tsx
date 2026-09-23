@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { CartaoNumero } from '@/components/admin/cartao-numero'
+import { ICONES } from '@/lib/icones-painel'
 import {
   listarClientesComMetricas,
   gerarCsvMetaAds,
@@ -99,23 +101,11 @@ export default function ClientesPage() {
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Clientes</div>
-            <div className="mt-1.5 text-xl font-bold">{stats.total.toLocaleString('pt-BR')}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Compraram 1x</div>
-            <div className="mt-1.5 text-xl font-bold">{stats.unicos.toLocaleString('pt-BR')}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Recorrentes (2+)</div>
-            <div className="mt-1.5 text-xl font-bold">{stats.recorrentes.toLocaleString('pt-BR')}</div>
-          </div>
-          <div className="rounded-menuzia border border-border bg-white p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Ticket médio</div>
-            <div className="mt-1.5 text-xl font-bold">{brl(stats.ticketMedio)}</div>
-          </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <CartaoNumero icone={ICONES.clientes} tom="roxo" rotulo="Clientes" valor={stats.total.toLocaleString('pt-BR')} />
+          <CartaoNumero icone={ICONES.pessoaNova} tom="laranja" rotulo="Compraram 1x" valor={stats.unicos.toLocaleString('pt-BR')} />
+          <CartaoNumero icone={ICONES.pessoaVolta} tom="verde" rotulo="Recorrentes (2+)" valor={stats.recorrentes.toLocaleString('pt-BR')} />
+          <CartaoNumero icone={ICONES.ticket} tom="azul" rotulo="Ticket médio" valor={brl(stats.ticketMedio)} />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -191,46 +181,71 @@ export default function ClientesPage() {
               </div>
             ))}
           </div>
-          <div className="hidden overflow-x-auto rounded-menuzia border border-border bg-white lg:block">
-            <table className="w-full min-w-[1180px] border-collapse">
+          {/* Desktop: uma linha por cliente. Nome e telefone lado a lado, endereço
+              cortado com reticências (inteiro no title) — antes cada célula
+              quebrava em duas ou três linhas e a lista ficava grossa demais. */}
+          <div className="hidden overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white lg:block">
+            <div className="flex items-center justify-between border-b border-[var(--adm-borda)] px-4 py-3">
+              <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Clientes</h3>
+              <span className="text-[12px] text-[var(--adm-texto-suave)]">
+                {filtrados.length.toLocaleString('pt-BR')} {filtrados.length === 1 ? 'cliente' : 'clientes'}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[1100px] table-fixed border-collapse">
+              <colgroup>
+                <col className="w-[190px]" />
+                <col className="w-[140px]" />
+                <col />
+                <col className="w-[76px]" />
+                <col className="w-[128px]" />
+                <col className="w-[110px]" />
+                <col className="w-[104px]" />
+                <col className="w-[96px]" />
+                <col className="w-[92px]" />
+                <col className="w-[104px]" />
+              </colgroup>
               <thead>
-                <tr>
-                  <th className="sticky top-0 border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cliente</th>
-                  <th className="sticky top-0 border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Endereço</th>
-                  <th className="sticky top-0 w-[80px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pedidos</th>
-                  <th className="sticky top-0 w-[130px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Última compra</th>
-                  <th className="sticky top-0 w-[110px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Total gasto</th>
-                  <th className="sticky top-0 w-[110px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Ticket médio</th>
-                  <th className="sticky top-0 w-[110px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Recorrência</th>
-                  <th className="sticky top-0 w-[110px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Dia preferido</th>
-                  <th className="sticky top-0 w-[110px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Gasto/semana</th>
+                <tr className="bg-[#f1f2f4]">
+                  {['Cliente', 'Telefone', 'Endereço', 'Pedidos', 'Última compra', 'Total gasto', 'Ticket médio', 'Recorrência', 'Dia pref.', 'Gasto/semana'].map((t, i) => (
+                    <th
+                      key={t}
+                      className={`sticky top-0 whitespace-nowrap px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-texto-forte)] ${i >= 3 && i !== 4 && i !== 8 ? 'text-right' : 'text-left'}`}
+                    >
+                      {t}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody>
-                {filtrados.map((cliente) => (
-                  <tr key={cliente.telefone} className="hover:bg-[#F9FAFB]">
-                    <td className="border-b border-border px-3.5 py-3">
-                      <div className="text-[13px] font-semibold">{cliente.nome || '—'}</div>
-                      <div className="text-[11px] text-text-subtle">{cliente.telefone}</div>
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3 text-[12px] leading-relaxed text-text-subtle">
-                      {formatarEndereco(cliente) || '—'}
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3 text-[13px] font-semibold">{cliente.totalPedidos}</td>
-                    <td className="border-b border-border px-3.5 py-3 text-[12px] text-text-subtle">{formatarData(cliente.ultimaCompraEm)}</td>
-                    <td className="border-b border-border px-3.5 py-3 text-[13px] font-semibold text-price-text">{brl(cliente.valorTotal)}</td>
-                    <td className="border-b border-border px-3.5 py-3 text-[13px]">{brl(cliente.ticketMedio)}</td>
-                    <td className="border-b border-border px-3.5 py-3 text-[12px] text-text-subtle">
-                      {cliente.pedidosPorSemana.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x/semana
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3 text-[12px] text-text-subtle">
-                      {cliente.diaSemanaPreferido !== null ? DIAS_SEMANA[cliente.diaSemanaPreferido] : '—'}
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3 text-[13px]">{brl(cliente.gastoSemanalMedio)}</td>
-                  </tr>
-                ))}
+              <tbody className="text-[12.8px]">
+                {filtrados.map((cliente) => {
+                  const endereco = formatarEndereco(cliente)
+                  return (
+                    <tr key={cliente.telefone} className="border-b border-[var(--adm-borda)] last:border-b-0 hover:bg-[var(--adm-superficie-2)]">
+                      <td className="truncate whitespace-nowrap px-3 py-2 font-semibold text-[var(--adm-texto)]" title={cliente.nome}>
+                        {cliente.nome || '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 tabular-nums text-[var(--adm-texto-medio)]">{cliente.telefone}</td>
+                      <td className="truncate whitespace-nowrap px-3 py-2 text-[var(--adm-texto-suave)]" title={endereco}>
+                        {endereco || '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{cliente.totalPedidos}</td>
+                      <td className="whitespace-nowrap px-3 py-2 tabular-nums text-[var(--adm-texto-medio)]">{formatarData(cliente.ultimaCompraEm)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-price-text">{brl(cliente.valorTotal)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{brl(cliente.ticketMedio)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--adm-texto-medio)]">
+                        {cliente.pedidosPorSemana.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x/sem
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-[var(--adm-texto-medio)]">
+                        {cliente.diaSemanaPreferido !== null ? DIAS_SEMANA[cliente.diaSemanaPreferido] : '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{brl(cliente.gastoSemanalMedio)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
+            </div>
           </div>
           </>
         )}

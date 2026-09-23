@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
+import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -638,23 +639,12 @@ export default function FidelidadePage() {
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar title="Fidelidade" breadcrumb="Campanhas de fidelidade e cupons de desconto" />
 
-      {/* Tab bar */}
-      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-4 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
-        {ABAS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setAba(t.id)}
-            className={[
-              'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-              aba === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
-            ].join(' ')}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Submenu vertical, igual ao de Ajustes: coluna no desktop, trilho
+          rolável no celular. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+      <SubmenuVertical itens={ABAS} ativo={aba} onSelecionar={setAba} titulo="Seções da fidelidade" />
 
-      <div className="flex flex-1 flex-col space-y-4 overflow-y-auto p-5">
+      <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-5">
         {/* ── Aba Campanhas ──────────────────────────────────────────────── */}
         {aba === 'campanhas' && (
           <>
@@ -931,6 +921,7 @@ export default function FidelidadePage() {
             )}
           </>
         )}
+      </div>
       </div>
 
       {/* ── Drawer: Campanha ─────────────────────────────────────────────── */}

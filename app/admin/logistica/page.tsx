@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import QRCode from 'qrcode'
-import { Bike, Clock, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, ArrowRight, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { Bike, Clock, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { TopBar } from '@/components/layout/topbar'
+import { CartaoNumero, TONS_PAINEL, type TomPainel } from '@/components/admin/cartao-numero'
+import { ICONES } from '@/lib/icones-painel'
+import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RouteMap } from '@/components/maps/route-map'
@@ -21,6 +24,7 @@ import {
   atualizarPerfilEntregador,
   buscarDespachoAberto,
   criarEntregador,
+  definirStatusEntregador,
   definirDespachoAberto,
   enderecoCompletoPedido,
   enviarFotoEntregador,
@@ -71,8 +75,6 @@ function inicioDoDiaISO() {
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
-const STATUS_LABEL: Record<StatusEntregador, string> = { online: 'Disponível', ocupado: 'Ocupado', offline: 'Offline' }
-const STATUS_DOT: Record<StatusEntregador, string> = { online: 'bg-status-ready', ocupado: 'bg-status-pending', offline: 'bg-text-subtle' }
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
@@ -91,12 +93,6 @@ function endereco(p: Pedido) {
   return partes.join(' · ') || 'Entrega'
 }
 
-const STAT_TINT: Record<'slate' | 'orange' | 'blue' | 'primary', { box: string; value: string }> = {
-  slate: { box: 'bg-page text-text-subtle', value: '' },
-  orange: { box: 'bg-status-pending/10 text-status-pending', value: 'text-status-pending' },
-  blue: { box: 'bg-status-preparing/10 text-status-preparing', value: 'text-status-preparing' },
-  primary: { box: 'bg-primary/10 text-primary', value: '' },
-}
 
 // Painel do lojista Nexta — não tem deep link por entrega (o id que eles usam na UI deles
 // é interno e nunca chega até nós), então o atalho abre o monitor geral.
@@ -207,17 +203,245 @@ function detalheCotacao(cotacao: CotacaoNextaEstado | undefined): React.ReactNod
   return cotacao?.status === 'erro' ? 'sem cotação' : 'cotando…'
 }
 
-/** Card de métrica da Logística — caixa de ícone colorida + valor, no mesmo padrão do Kanban. */
-function StatCard({ tint, value, label, icon }: { tint: keyof typeof STAT_TINT; value: React.ReactNode; label: string; icon: React.ReactNode }) {
-  const t = STAT_TINT[tint]
+/* ── Peças da tela ─────────────────────────────────────────────────────────
+   Mesmo vocabulário do Dashboard: cartão branco de borda fina, cabeçalho
+   branco com ícone em bolha colorida (a cor diz o assunto, não pinta o bloco
+   inteiro) e estados vazios com uma frase que diz o que fazer. */
+
+function CabecalhoSecao({
+  icone,
+  tom,
+  titulo,
+  contador,
+  descricao,
+  acoes,
+  antes,
+  fixo = false,
+}: {
+  icone: React.ReactNode
+  tom: TomPainel
+  titulo: string
+  contador?: number
+  descricao?: React.ReactNode
+  acoes?: React.ReactNode
+  /** Controle à esquerda do ícone (o "selecionar todos"). */
+  antes?: React.ReactNode
+  /** Gruda no topo da coluna rolável. */
+  fixo?: boolean
+}) {
+  const t = TONS_PAINEL[tom]
   return (
-    <div className="flex items-center gap-3 rounded-menuzia border border-border bg-white p-4">
-      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-menuzia ${t.box}`}>{icon}</div>
-      <div>
-        <div className={`text-2xl font-bold leading-none ${t.value}`}>{value}</div>
-        <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
+    <div className={`flex-shrink-0 border-b border-[var(--adm-borda)] bg-white px-4 py-3 ${fixo ? 'sticky top-0 z-20 rounded-t-[6px]' : ''}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {antes}
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: t.fundo, color: t.cor }}>
+            {icone}
+          </span>
+          <h3 className="truncate text-[14px] font-bold text-[var(--adm-texto-forte)]">{titulo}</h3>
+          {contador !== undefined && (
+            <span className="rounded-full bg-[#f1f2f4] px-2 py-[1px] text-[11px] font-bold text-[var(--adm-texto-medio)]">{contador}</span>
+          )}
+        </div>
+        {acoes && <div className="flex flex-wrap items-center gap-2">{acoes}</div>}
+      </div>
+      {descricao && <p className="mt-1.5 text-[12px] text-[var(--adm-texto-suave)]">{descricao}</p>}
+    </div>
+  )
+}
+
+function Vazio({ icone, titulo, texto }: { icone: React.ReactNode; titulo: string; texto: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 px-6 py-10 text-center">
+      <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-[#f1f2f4] text-[var(--adm-texto-suave)]">{icone}</span>
+      <p className="text-[13.5px] font-semibold text-[var(--adm-texto)]">{titulo}</p>
+      <p className="max-w-[320px] text-[12px] text-[var(--adm-texto-suave)]">{texto}</p>
+    </div>
+  )
+}
+
+/** Foto do entregador ou a inicial num círculo com cor estável pelo nome. */
+const CORES_AVATAR = ['#A855F7', '#F97316', '#10B981', '#3B82F6', '#F59E0B', '#EF4444']
+function Avatar({ nome, fotoUrl, tamanho = 40 }: { nome: string; fotoUrl: string | null; tamanho?: number }) {
+  if (fotoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={fotoUrl}
+        alt={nome}
+        loading="lazy"
+        decoding="async"
+        width={tamanho}
+        height={tamanho}
+        className="flex-shrink-0 rounded-full border border-[var(--adm-borda)] object-cover"
+        style={{ width: tamanho, height: tamanho }}
+      />
+    )
+  }
+  const cor = CORES_AVATAR[[...nome].reduce((s, c) => s + c.charCodeAt(0), 0) % CORES_AVATAR.length]
+  return (
+    <span
+      className="flex flex-shrink-0 items-center justify-center rounded-full font-bold text-white"
+      style={{ width: tamanho, height: tamanho, backgroundColor: cor, fontSize: Math.round(tamanho * 0.42) }}
+      aria-hidden="true"
+    >
+      {nome.trim().charAt(0).toUpperCase() || '?'}
+    </span>
+  )
+}
+
+/** Número, cliente, endereço e pagamento de um pedido — igual em todas as listas. */
+function ResumoPedido({ order, selo, extra }: { order: Pedido; selo?: React.ReactNode; extra?: React.ReactNode }) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[14px] font-bold tabular-nums">#{order.numero}</span>
+        <span className="truncate text-[13.5px] font-semibold text-[var(--adm-texto)]">{order.clienteNome || 'Cliente'}</span>
+        {selo}
+        <span className="text-[11px] text-[var(--adm-texto-suave)]">{tempoRelativo(order.criadoEm)}</span>
+      </div>
+      <div className="mt-1 flex items-start gap-1.5 text-[12.5px] text-[var(--adm-texto-medio)]">
+        <MapPin className="mt-[2px] h-3.5 w-3.5 flex-shrink-0 text-[var(--adm-texto-suave)]" />
+        <span>{endereco(order)}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+        {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>}
+        <span className="text-[13.5px] font-bold tabular-nums text-price-text">{brl(order.total)}</span>
+        {extra}
+      </div>
+    </>
+  )
+}
+
+/** Opções "meus entregadores" dos menus de atribuir, com foto e carga atual. */
+function ListaEntregadoresMenu({ entregadores, onEscolher }: { entregadores: Entregador[]; onEscolher: (id: string) => void }) {
+  if (entregadores.length === 0) {
+    return <div className="px-3 py-2.5 text-[12px] text-[var(--adm-texto-suave)]">Nenhum entregador disponível agora</div>
+  }
+  return (
+    <>
+      {entregadores.map((driver) => (
+        <button
+          key={driver.id}
+          onClick={() => onEscolher(driver.id)}
+          className="flex w-full items-center gap-2.5 rounded-[4px] px-2.5 py-2 text-left text-[13px] font-medium text-[var(--adm-texto)] hover:bg-[var(--adm-superficie-2)]"
+        >
+          <Avatar nome={driver.nome} fotoUrl={driver.fotoUrl} tamanho={26} />
+          <span className="min-w-0 flex-1 truncate">{driver.nome}</span>
+          <span className={`text-[11px] font-semibold ${driver.emRota ? 'text-[#9333EA]' : 'text-[var(--adm-texto-suave)]'}`}>
+            {driver.emRota ? `${driver.emRota} em rota` : 'livre'}
+          </span>
+        </button>
+      ))}
+    </>
+  )
+}
+
+const TOM_STATUS: Record<StatusEntregador, { fundo: string; texto: string; ponto: string }> = {
+  online: { fundo: '#DCFCE7', texto: '#15803D', ponto: '#10B981' },
+  ocupado: { fundo: '#FFEDD5', texto: '#C2410C', ponto: '#F97316' },
+  offline: { fundo: '#F1F2F4', texto: '#4B5563', ponto: '#9CA3AF' },
+}
+
+/**
+ * Cartão do entregador: quem é, com o que roda, se está na rua e o que dá pra
+ * fazer com ele — tudo com rótulo. Antes eram quatro ícones de 14px sem nome.
+ */
+function CartaoEntregador({
+  driver,
+  mudandoStatus,
+  onStatus,
+  onPerfil,
+  onLocalizacao,
+  onAcesso,
+}: {
+  driver: Entregador
+  mudandoStatus: boolean
+  onStatus: (s: StatusEntregador) => void
+  onPerfil: () => void
+  onLocalizacao: () => void
+  onAcesso: () => void
+}) {
+  const tom = TOM_STATUS[driver.status]
+  const veiculo = [driver.veiculo, driver.placa].filter(Boolean).join(' · ')
+  const acao = 'inline-flex flex-1 items-center justify-center gap-1.5 rounded-[4px] border border-[var(--adm-borda)] bg-white px-2 py-2 text-[12px] font-semibold text-[var(--adm-texto-medio)] transition-colors hover:border-[var(--adm-azul)] hover:text-[var(--adm-azul)] disabled:cursor-not-allowed disabled:opacity-50'
+  return (
+    <div className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+      <div className="flex items-start gap-3 p-4">
+        <div className="relative">
+          <Avatar nome={driver.nome} fotoUrl={driver.fotoUrl} tamanho={44} />
+          <span
+            className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white"
+            style={{ backgroundColor: driver.online ? '#10B981' : '#D1D5DB' }}
+            title={driver.online ? 'Com o app aberto agora' : 'App fechado'}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-[14px] font-bold text-[var(--adm-texto)]">{driver.nome}</p>
+            <select
+              value={driver.status}
+              disabled={mudandoStatus}
+              onChange={(e) => onStatus(e.target.value as StatusEntregador)}
+              aria-label={`Situação de ${driver.nome}`}
+              className="flex-shrink-0 cursor-pointer rounded-full border-0 py-1 pl-2.5 pr-6 text-[11px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-[var(--adm-azul)]"
+              style={{ backgroundColor: tom.fundo, color: tom.texto }}
+            >
+              <option value="online">Disponível</option>
+              <option value="ocupado">Ocupado</option>
+              <option value="offline">Offline</option>
+            </select>
+          </div>
+          <p className="mt-0.5 truncate text-[12px] text-[var(--adm-texto-suave)]">
+            {veiculo || <span className="italic">Veículo não informado</span>}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+            <span className={`font-semibold ${driver.emRota ? 'text-[#9333EA]' : 'text-[var(--adm-texto-medio)]'}`}>
+              {driver.emRota ? `${driver.emRota} entrega${driver.emRota > 1 ? 's' : ''} em rota` : 'Sem entregas agora'}
+            </span>
+            {driver.telefone ? (
+              <a href={`tel:${driver.telefone}`} className="inline-flex items-center gap-1 text-[var(--adm-texto-medio)] hover:text-[var(--adm-azul)]">
+                <Phone className="h-3.5 w-3.5" /> {driver.telefone}
+              </a>
+            ) : (
+              <span className="text-[var(--adm-texto-suave)]">Sem telefone</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="mt-auto flex gap-2 border-t border-[var(--adm-borda)] bg-[var(--adm-superficie-2)] p-3">
+        <button onClick={onAcesso} className={acao} title="Link e QR para o motoboy abrir o app sem senha">
+          <ExternalLink className="h-3.5 w-3.5" /> Acesso
+        </button>
+        <button
+          onClick={onLocalizacao}
+          className={acao}
+          title={driver.online ? 'Ver onde ele está agora' : driver.localizacao ? 'Ver a última localização conhecida' : 'Localização ainda não disponível'}
+        >
+          <MapPin className={`h-3.5 w-3.5 ${driver.online ? 'text-[#10B981]' : ''}`} /> Mapa
+        </button>
+        <button onClick={onPerfil} className={acao}>
+          <User className="h-3.5 w-3.5" /> Editar
+        </button>
       </div>
     </div>
+  )
+}
+
+const CLASSE_CAMPO =
+  'h-[38px] w-full rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 font-sans text-[13px] outline-none transition-colors focus:border-[var(--adm-azul)]'
+
+function CampoEntregador({ rotulo, obrigatorio, dica, children }: { rotulo: string; obrigatorio?: boolean; dica?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[12px] font-semibold text-[var(--adm-texto-forte)]">
+        {rotulo}
+        {obrigatorio && <span className="text-danger"> *</span>}
+      </span>
+      {children}
+      {dica && <span className="mt-1 block text-[11px] text-[var(--adm-texto-suave)]">{dica}</span>}
+    </label>
   )
 }
 
@@ -263,7 +487,8 @@ export default function LogisticaPage() {
   const [filtroValorMin, setFiltroValorMin] = useState('')
   const [filtroValorMax, setFiltroValorMax] = useState('')
 
-  const [novoDriver, setNovoDriver] = useState({ nome: '', telefone: '' })
+  const [novoDriver, setNovoDriver] = useState({ nome: '', telefone: '', veiculo: '', placa: '' })
+  const [statusMudando, setStatusMudando] = useState<string | null>(null)
   const [addingDriver, setAddingDriver] = useState(false)
   const [addDriverOpen, setAddDriverOpen] = useState(false)
 
@@ -757,18 +982,53 @@ export default function LogisticaPage() {
     }
   }
 
+  function abrirNovoEntregador() {
+    setNovoDriver({ nome: '', telefone: '', veiculo: '', placa: '' })
+    setAddDriverOpen(true)
+  }
+
   async function addDriver() {
     if (!restauranteId || !novoDriver.nome.trim()) return
     setAddingDriver(true)
     try {
-      await criarEntregador(supabase, restauranteId, novoDriver.nome.trim(), novoDriver.telefone.trim())
-      setNovoDriver({ nome: '', telefone: '' })
+      const nome = novoDriver.nome.trim()
+      const telefone = novoDriver.telefone.trim()
+      const veiculo = novoDriver.veiculo.trim()
+      const placa = novoDriver.placa.trim()
+      const criado = await criarEntregador(supabase, restauranteId, nome, telefone, { veiculo, placa })
       setAddDriverOpen(false)
       await refetch(restauranteId)
+      // Próximo passo natural: mandar o acesso pro motoboy.
+      setLinkDriver({
+        id: criado.id,
+        token: criado.token,
+        nome,
+        telefone,
+        veiculo,
+        placa,
+        status: 'online',
+        emRota: 0,
+        online: false,
+        localizacao: null,
+        fotoUrl: null,
+      })
     } catch {
       setError('Não foi possível cadastrar o entregador.')
     } finally {
       setAddingDriver(false)
+    }
+  }
+
+  async function mudarStatus(id: string, status: StatusEntregador) {
+    setStatusMudando(id)
+    setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, status } : d)))
+    try {
+      await definirStatusEntregador(supabase, id, status)
+    } catch {
+      setError('Não foi possível mudar a situação do entregador.')
+      if (restauranteId) refetch(restauranteId)
+    } finally {
+      setStatusMudando(null)
     }
   }
 
@@ -810,185 +1070,145 @@ export default function LogisticaPage() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-5">
         {error && (
-          <div className="flex-shrink-0 rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
+          <div className="flex flex-shrink-0 items-center justify-between gap-3 rounded-[6px] border-[0.8px] border-danger bg-danger-bg px-3.5 py-2.5 text-[12.8px] font-semibold text-danger">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-[12px] font-semibold underline-offset-2 hover:underline">
+              Dispensar
+            </button>
+          </div>
         )}
 
         {/* Entrega que ninguém fechou fica aqui para sempre e some do acompanhamento do
             cliente. O sistema não encerra nada sozinho — cobra (lib/pedido-parado.ts). */}
         {avisoParados && (
-          <div role="status" className="flex flex-shrink-0 items-start gap-2 rounded-menuzia border border-warn bg-warn-bg px-3.5 py-2.5 text-[13px] font-medium text-warn">
+          <div role="status" className="flex flex-shrink-0 items-start gap-2 rounded-[6px] border-[0.8px] border-[#fcd34d] bg-warn-bg px-3.5 py-2.5 text-[12.8px] font-medium text-[var(--adm-laranja)]">
             <Clock className="mt-[1px] h-4 w-4 flex-shrink-0" strokeWidth={2.2} />
             <span>{avisoParados}</span>
           </div>
         )}
 
-        <div className="flex flex-shrink-0 flex-col gap-2">
-          <div className="flex justify-end">
-            <button
-              onClick={alternarResumo}
-              className="inline-flex items-center gap-1 rounded-menuzia px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:bg-page hover:text-text-main"
-            >
-              {resumoVisivel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              {resumoVisivel ? 'Ocultar resumo' : 'Mostrar resumo'}
-            </button>
+        {resumoVisivel && (
+          <div className="grid flex-shrink-0 grid-cols-2 gap-3 xl:grid-cols-4">
+            <CartaoNumero
+              icone={ICONES.entregador}
+              tom="verde"
+              rotulo="Entregadores disponíveis"
+              valor={available.length}
+              detalhe={`de ${drivers.length} cadastrado${drivers.length === 1 ? '' : 's'}`}
+            />
+            <CartaoNumero
+              icone={ICONES.pedidos}
+              tom="laranja"
+              rotulo="Aguardando despacho"
+              valor={unassigned.length}
+              detalhe={unassigned.length ? 'prontos na cozinha' : 'nada parado'}
+            />
+            <CartaoNumero
+              icone={ICONES.logistica}
+              tom="roxo"
+              rotulo="Em rota agora"
+              valor={inRoute.length + comNexta.length}
+              detalhe={comNexta.length ? `${comNexta.length} com o Nexta` : 'com seus entregadores'}
+            />
+            <CartaoNumero
+              icone={ICONES.concluido}
+              tom="azul"
+              rotulo="Entregues hoje"
+              valor={concluidos.filter((o) => o.status === 'entregue').length}
+              detalhe={brl(concluidos.filter((o) => o.status === 'entregue').reduce((s, o) => s + o.total, 0))}
+            />
           </div>
-          {resumoVisivel && (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatCard tint="primary" value={available.length} label="Entregadores online" icon={<Bike className="h-5 w-5" strokeWidth={2} />} />
-              <StatCard tint="orange" value={unassigned.length} label="Aguardando despacho" icon={<Package className="h-5 w-5" strokeWidth={2} />} />
-              <StatCard tint="blue" value={inRoute.length} label="Em rota" icon={<Truck className="h-5 w-5" strokeWidth={2} />} />
-              <StatCard tint="slate" value={drivers.length} label="Entregadores cadastrados" icon={<Users className="h-5 w-5" strokeWidth={2} />} />
-            </div>
-          )}
-        </div>
+        )}
 
-        <div className="flex flex-shrink-0 gap-0.5 border-b border-border max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
-          {TABS.map((t) => {
-            const contador = t.id === 'concluidos' ? concluidos.length : t.id === 'entregadores' ? drivers.length : unassigned.length
-            return (
-              <button
-                key={t.id}
-                onClick={() => irParaTab(t.id)}
-                className={[
-                  'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-                  tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
-                ].join(' ')}
-              >
-                {t.label}
-                {contador > 0 && (
-                  <span
-                    className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
-                      tab === t.id ? 'bg-white/20 text-white' : 'bg-page text-text-subtle'
-                    }`}
-                  >
-                    {contador}
-                  </span>
-                )}
-              </button>
-            )
-          })}
+        {/* Abas em linha, sublinhado na cor de marca — o mesmo desenho das tabelas
+            do Dashboard, sem o bloco vermelho de antes. */}
+        <div className="flex flex-shrink-0 items-end justify-between gap-3 border-b border-[var(--adm-borda)]">
+          <div className="flex gap-1 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden" role="tablist">
+            {TABS.map((t) => {
+              const contador = t.id === 'concluidos' ? concluidos.length : t.id === 'entregadores' ? drivers.length : unassigned.length
+              const ativa = tab === t.id
+              return (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={ativa}
+                  onClick={() => irParaTab(t.id)}
+                  className={[
+                    '-mb-px flex flex-shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 pb-2.5 pt-1.5 text-[13.5px] transition-colors',
+                    ativa
+                      ? 'border-[var(--adm-azul)] font-semibold text-[var(--adm-texto)]'
+                      : 'border-transparent font-medium text-[var(--adm-texto-suave)] hover:text-[var(--adm-texto)]',
+                  ].join(' ')}
+                >
+                  {t.label}
+                  {contador > 0 && (
+                    <span
+                      className={`min-w-[20px] rounded-full px-1.5 py-[1px] text-center text-[11px] font-bold ${
+                        ativa ? 'bg-[var(--adm-azul)] text-white' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'
+                      }`}
+                    >
+                      {contador}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            onClick={alternarResumo}
+            className="mb-1.5 hidden flex-shrink-0 items-center gap-1 rounded-[4px] px-2 py-1 text-[12px] font-medium text-[var(--adm-texto-suave)] transition-colors hover:bg-[var(--adm-hover)] hover:text-[var(--adm-texto)] sm:inline-flex"
+          >
+            {resumoVisivel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {resumoVisivel ? 'Ocultar resumo' : 'Mostrar resumo'}
+          </button>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* Entregadores */}
           {tab === 'entregadores' && (
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-menuzia border border-border bg-white">
-            <div className="flex items-center justify-between bg-text-main px-4 py-3 text-white">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" strokeWidth={2.5} />
-                <h3 className="text-sm font-bold">Entregadores</h3>
-                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{drivers.length}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {!addDriverOpen && (
-                  <button
-                    onClick={() => setAddDriverOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
-                  >
-                    <Plus className="h-4 w-4" /> Entregador
-                  </button>
-                )}
-                <button
-                  onClick={openClosing}
-                  className="inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
-                >
-                  <Wallet className="h-4 w-4" /> Fechamento de caixa
-                </button>
-              </div>
-            </div>
-            {addDriverOpen && (
-              <div className="flex flex-wrap items-center gap-2 border-b border-border bg-page/60 p-3">
-                <input
-                  value={novoDriver.nome}
-                  onChange={(e) => setNovoDriver((d) => ({ ...d, nome: e.target.value }))}
-                  placeholder="Nome do entregador"
-                  autoFocus
-                  className="min-w-[180px] flex-1 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
-                />
-                <input
-                  value={novoDriver.telefone}
-                  onChange={(e) => setNovoDriver((d) => ({ ...d, telefone: e.target.value }))}
-                  placeholder="Telefone (opcional)"
-                  className="min-w-[160px] flex-1 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setAddDriverOpen(false)
-                    setNovoDriver({ nome: '', telefone: '' })
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button variant="primary" onClick={addDriver} disabled={addingDriver || !novoDriver.nome.trim()}>
-                  {addingDriver ? 'Adicionando…' : 'Adicionar'}
-                </Button>
-              </div>
-            )}
-            <div className="grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 sm:grid-cols-2 xl:grid-cols-3">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+            <CabecalhoSecao
+              icone={<Users className="h-4 w-4" strokeWidth={2.2} />}
+              tom="cinza"
+              titulo="Entregadores"
+              contador={drivers.length}
+              descricao="Cadastre a equipe, envie o link de acesso e acompanhe quem está na rua."
+              acoes={
+                <>
+                  <Button variant="outline" onClick={openClosing} className="gap-1.5">
+                    <Wallet className="h-4 w-4" /> Fechamento de caixa
+                  </Button>
+                  <Button variant="primary" onClick={abrirNovoEntregador} className="gap-1.5">
+                    <Plus className="h-4 w-4" /> Novo entregador
+                  </Button>
+                </>
+              }
+            />
+            <div className="grid flex-1 auto-rows-min grid-cols-1 gap-3 overflow-y-auto bg-[var(--adm-bg)] p-4 md:grid-cols-2 2xl:grid-cols-3">
               {drivers.length === 0 && (
-                <div className="col-span-full px-2 py-10 text-center text-sm text-text-subtle">Nenhum entregador cadastrado ainda.</div>
+                <div className="col-span-full flex flex-col items-center gap-2 rounded-[6px] border border-dashed border-[var(--adm-borda-forte)] bg-white px-6 py-12 text-center">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F3E8FF] text-[#9333EA]">
+                    <Bike className="h-6 w-6" />
+                  </span>
+                  <p className="text-[14px] font-semibold text-[var(--adm-texto)]">Nenhum entregador cadastrado</p>
+                  <p className="max-w-[340px] text-[12.8px] text-[var(--adm-texto-suave)]">
+                    Cadastre seu primeiro motoboy. Ele recebe um link para ver as entregas e compartilhar a localização — sem senha.
+                  </p>
+                  <Button variant="primary" className="mt-2 gap-1.5" onClick={abrirNovoEntregador}>
+                    <Plus className="h-4 w-4" /> Cadastrar entregador
+                  </Button>
+                </div>
               )}
               {drivers.map((driver) => (
-                <div key={driver.id} className="h-fit rounded-menuzia border border-border p-3">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-semibold">{driver.nome}</span>
-                    <div className="flex flex-shrink-0 items-center gap-2.5">
-                      {driver.telefone ? (
-                        <a
-                          href={`tel:${driver.telefone}`}
-                          title={`Ligar para ${driver.telefone}`}
-                          className="flex h-4 w-4 items-center justify-center text-text-subtle hover:text-primary"
-                        >
-                          <Phone className="h-3.5 w-3.5" strokeWidth={2.25} />
-                        </a>
-                      ) : (
-                        <span title="Sem telefone cadastrado" className="flex h-4 w-4 items-center justify-center text-border">
-                          <Phone className="h-3.5 w-3.5" strokeWidth={2.25} />
-                        </span>
-                      )}
-                      <button
-                        onClick={() => setProfileDriverId(driver.id)}
-                        title="Perfil do entregador"
-                        className="flex h-4 w-4 items-center justify-center text-text-subtle hover:text-primary"
-                      >
-                        <User className="h-3.5 w-3.5" strokeWidth={2.25} />
-                      </button>
-                      <button
-                        onClick={() => setLocationDriverId(driver.id)}
-                        title={
-                          driver.online
-                            ? 'Motoboy online — ver localização'
-                            : driver.localizacao
-                              ? 'Ver última localização conhecida'
-                              : 'Localização ainda não disponível'
-                        }
-                        className={`flex h-4 w-4 items-center justify-center ${
-                          driver.online ? 'text-danger' : driver.localizacao ? 'text-warn' : 'text-border'
-                        }`}
-                      >
-                        <MapPin className="h-3.5 w-3.5" strokeWidth={2.25} />
-                      </button>
-                      <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[driver.status]}`} title={STATUS_LABEL[driver.status]} />
-                    </div>
-                  </div>
-                  <div className="mb-2 flex items-center justify-between text-xs text-text-subtle">
-                    <span>{STATUS_LABEL[driver.status]}</span>
-                    <span>{driver.emRota} entrega(s) em rota</span>
-                  </div>
-                  {driver.online ? (
-                    <div className="flex w-full items-center justify-center gap-1.5 rounded-menuzia border border-status-ready/30 bg-status-ready/10 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-status-ready">
-                      Motoboy online no app
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setLinkDriver(driver)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-menuzia border border-border py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:border-primary hover:text-primary"
-                    >
-                      Acesso do entregador (link/QR)
-                    </button>
-                  )}
-                </div>
+                <CartaoEntregador
+                  key={driver.id}
+                  driver={driver}
+                  mudandoStatus={statusMudando === driver.id}
+                  onStatus={(s) => mudarStatus(driver.id, s)}
+                  onPerfil={() => setProfileDriverId(driver.id)}
+                  onLocalizacao={() => setLocationDriverId(driver.id)}
+                  onAcesso={() => setLinkDriver(driver)}
+                />
               ))}
             </div>
           </section>
@@ -1001,7 +1221,7 @@ export default function LogisticaPage() {
             <>
             {/* Abaixo de lg as duas colunas viram abas — empilhar duas listas longas
                 num celular esconde justamente o que o operador precisa alcançar. */}
-            <div className="flex flex-shrink-0 gap-1 rounded-menuzia border border-border bg-white p-1 lg:hidden">
+            <div className="flex flex-shrink-0 gap-1 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-1 lg:hidden">
               {([
                 { id: 'prontos' as const, label: 'Prontos', contador: unassigned.length },
                 { id: 'rota' as const, label: 'Em rota', contador: comNexta.length + inRoute.length },
@@ -1009,18 +1229,12 @@ export default function LogisticaPage() {
                 <button
                   key={c.id}
                   onClick={() => setColunaMobile(c.id)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-menuzia px-3 py-2 text-[12px] font-bold uppercase tracking-wide transition-colors ${
-                    colunaMobile === c.id ? 'bg-primary text-white' : 'text-text-subtle hover:bg-page hover:text-text-main'
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-[4px] px-3 py-2 text-[13px] font-semibold transition-colors ${
+                    colunaMobile === c.id ? 'bg-[var(--adm-azul-claro)] text-[var(--adm-azul-escuro)]' : 'text-[var(--adm-texto-suave)] hover:bg-[var(--adm-hover)]'
                   }`}
                 >
                   {c.label}
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
-                      colunaMobile === c.id ? 'bg-white/20 text-white' : 'bg-page text-text-subtle'
-                    }`}
-                  >
-                    {c.contador}
-                  </span>
+                  <span className="rounded-full bg-white px-1.5 py-[1px] text-[11px] font-bold">{c.contador}</span>
                 </button>
               ))}
             </div>
@@ -1028,124 +1242,117 @@ export default function LogisticaPage() {
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-2 lg:gap-4">
             {/* Coluna da esquerda: onde o operador age. */}
             <div className={`min-h-0 flex-1 flex-col gap-4 overflow-y-auto ${colunaMobile === 'prontos' ? 'flex' : 'hidden'} lg:flex`}>
-            <div className="rounded-menuzia border border-border bg-white">
-              <div className="sticky top-0 z-20 flex items-center justify-between bg-status-pending px-4 py-3 text-white">
-                <div className="flex items-center gap-2">
-                  {unassigned.length > 0 && (
+            <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+              <CabecalhoSecao
+                fixo
+                icone={<Package className="h-4 w-4" strokeWidth={2.2} />}
+                tom="laranja"
+                titulo="Prontos para despachar"
+                contador={unassigned.length}
+                descricao={
+                  despachoAberto
+                    ? 'Despacho aberto — os entregadores também podem pegar estes pedidos pelo app.'
+                    : 'Escolha um entregador para cada pedido, ou selecione vários e atribua de uma vez.'
+                }
+                antes={
+                  unassigned.length > 0 && (
                     <input
                       type="checkbox"
+                      aria-label="Selecionar todos"
                       checked={unassigned.every((o) => selected.has(o.id))}
                       onChange={(e) => setSelected(e.target.checked ? new Set(unassigned.map((o) => o.id)) : new Set())}
-                      className="h-4 w-4 rounded border-white/60 accent-white"
+                      className="h-4 w-4 rounded border-[var(--adm-borda-forte)] accent-[var(--adm-azul)]"
                     />
-                  )}
-                  <Package className="h-4 w-4" strokeWidth={2.5} />
-                  <h3 className="text-sm font-bold">Prontos para despachar</h3>
-                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{unassigned.length}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={toggleDespacho}
-                    title={
-                      despachoAberto
-                        ? 'Fechar o despacho — os entregadores deixam de ver estes pedidos'
-                        : 'Liberar os pedidos prontos para os entregadores pegarem no app'
-                    }
-                    className={`inline-flex items-center gap-1.5 rounded-menuzia px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors ${
-                      despachoAberto ? 'bg-white text-status-pending hover:bg-white/90' : 'bg-black/20 text-white hover:bg-black/30'
-                    }`}
-                  >
-                    <Bike className="h-4 w-4" /> {despachoAberto ? 'Despacho aberto' : 'Liberar p/ entregadores'}
-                  </button>
-                {selected.size > 0 && (
-                  <div className="relative">
-                    <Button variant="dispatch" onClick={() => setBulkAssigning((v) => !v)}>
-                      Atribuir {selected.size} selecionado{selected.size > 1 ? 's' : ''}
-                    </Button>
-                    {bulkAssigning && (
-                      <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[240px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
-                        {nextaAtivo && (
-                          <>
-                            {/* Uma corrida por pedido: quem combina entregas é o próprio
-                                Nexta (mandamos canCombine), não a gente. */}
-                            <OpcaoNexta
-                              rotulo={`Nexta — ${selected.size} corrida${selected.size > 1 ? 's' : ''}`}
-                              detalhe={
-                                totalNextaSelecionado.cotados === 0
-                                  ? 'cotando…'
-                                  : <>
-                                      <span className="font-bold text-price-text">{brl(totalNextaSelecionado.total)}</span>
-                                      {totalNextaSelecionado.cotados < selected.size && ` · ${totalNextaSelecionado.cotados} de ${selected.size} cotados`}
-                                    </>
-                              }
-                              onClick={despacharNextaEmLote}
-                              disabled={nextaBusy !== null}
-                            />
-                            <div className="mt-1 border-t border-border px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">
-                              Meus entregadores
-                            </div>
-                          </>
+                  )
+                }
+                acoes={
+                  <>
+                    <button
+                      onClick={toggleDespacho}
+                      role="switch"
+                      aria-checked={despachoAberto}
+                      title={
+                        despachoAberto
+                          ? 'Fechar o despacho — os entregadores deixam de ver estes pedidos'
+                          : 'Liberar os pedidos prontos para os entregadores pegarem no app'
+                      }
+                      className="inline-flex items-center gap-2 rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[var(--adm-texto-medio)] transition-colors hover:border-[var(--adm-borda-forte)]"
+                    >
+                      <span className={`relative h-4 w-7 rounded-full transition-colors ${despachoAberto ? 'bg-[#10B981]' : 'bg-[#d1d5db]'}`}>
+                        <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${despachoAberto ? 'left-3.5' : 'left-0.5'}`} />
+                      </span>
+                      Despacho aberto
+                    </button>
+                    {selected.size > 0 && (
+                      <div className="relative">
+                        <Button variant="dispatch" onClick={() => setBulkAssigning((v) => !v)}>
+                          Atribuir {selected.size}
+                        </Button>
+                        {bulkAssigning && (
+                          <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[260px] rounded-[6px] border border-[var(--adm-borda)] bg-white p-1 shadow-[var(--adm-sombra-md)]">
+                            {nextaAtivo && (
+                              <>
+                                {/* Uma corrida por pedido: quem combina entregas é o próprio
+                                    Nexta (mandamos canCombine), não a gente. */}
+                                <OpcaoNexta
+                                  rotulo={`Nexta — ${selected.size} corrida${selected.size > 1 ? 's' : ''}`}
+                                  detalhe={
+                                    totalNextaSelecionado.cotados === 0
+                                      ? 'cotando…'
+                                      : <>
+                                          <span className="font-bold text-price-text">{brl(totalNextaSelecionado.total)}</span>
+                                          {totalNextaSelecionado.cotados < selected.size && ` · ${totalNextaSelecionado.cotados} de ${selected.size} cotados`}
+                                        </>
+                                  }
+                                  onClick={despacharNextaEmLote}
+                                  disabled={nextaBusy !== null}
+                                />
+                                <div className="mt-1 border-t border-[var(--adm-borda)] px-3 pb-1 pt-2 text-[11px] font-semibold text-[var(--adm-texto-suave)]">
+                                  Meus entregadores
+                                </div>
+                              </>
+                            )}
+                            <ListaEntregadoresMenu entregadores={available} onEscolher={assignBulk} />
+                          </div>
                         )}
-                        {available.length === 0 && <div className="px-3 py-2 text-xs text-text-subtle">Nenhum entregador disponível</div>}
-                        {available.map((driver) => (
-                          <button
-                            key={driver.id}
-                            onClick={() => assignBulk(driver.id)}
-                            className="flex w-full items-center justify-between rounded-menuzia px-3 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page"
-                          >
-                            <span>{driver.nome}</span>
-                            <span className="text-xs text-text-subtle">{driver.emRota} em rota</span>
-                          </button>
-                        ))}
                       </div>
                     )}
-                  </div>
-                )}
-                </div>
-              </div>
-              <div className="border-b border-border px-4 py-2 text-[12px] text-text-subtle">
-                Escolha um entregador para cada pedido abaixo.
-              </div>
-              {despachoAberto && (
-                <div className="flex items-center gap-1.5 border-b border-border bg-status-pending/5 px-4 py-2 text-[12px] font-medium text-status-pending">
-                  <Bike className="h-3.5 w-3.5 flex-shrink-0" /> Despacho aberto — os entregadores podem pegar estes pedidos pelo app.
-                </div>
-              )}
-              <div className="divide-y divide-border">
+                  </>
+                }
+              />
+              <div className="divide-y divide-[var(--adm-borda)]">
                 {unassigned.length === 0 && (
-                  <div className="flex flex-col items-center gap-1.5 p-8 text-center">
-                    <Package className="h-6 w-6 text-border" strokeWidth={2} />
-                    <div className="text-sm font-semibold text-text-main">Nenhum pedido aguardando despacho</div>
-                    <div className="text-xs text-text-subtle">Assim que a cozinha marcar um pedido como pronto, ele aparece aqui.</div>
-                  </div>
+                  <Vazio
+                    icone={<Package className="h-5 w-5" />}
+                    titulo="Nenhum pedido aguardando despacho"
+                    texto="Assim que a cozinha marcar um pedido como pronto, ele aparece aqui."
+                  />
                 )}
                 {unassigned.map((order) => (
-                  <div key={order.id} className="flex flex-col gap-3 border-l-[3px] border-l-status-pending bg-status-pending/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-start gap-3">
+                  <div
+                    key={order.id}
+                    className={`flex flex-col gap-3 p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${
+                      selected.has(order.id) ? 'bg-[var(--adm-azul-claro)]' : 'hover:bg-[var(--adm-superficie-2)]'
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
                       <input
                         type="checkbox"
+                        aria-label={`Selecionar pedido ${order.numero}`}
                         checked={selected.has(order.id)}
                         onChange={() => toggleSelect(order.id)}
-                        className="mt-1 h-4 w-4 rounded border-border accent-primary"
+                        className="mt-1 h-4 w-4 flex-shrink-0 rounded border-[var(--adm-borda-forte)] accent-[var(--adm-azul)]"
                       />
-                      <div>
-                        <div className="mb-1 flex items-center gap-2">
-                          <span className="text-sm font-bold">#{order.numero}</span>
-                          <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
-                          <Badge tone="new">Novo</Badge>
-                        </div>
-                        <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
-                          {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
-                            <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
-                          )}
-                          <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
-                          {nextaAtivo && <ChipNexta estado={cotacoesNexta[order.id]} />}
-                        </div>
+                      <div className="min-w-0">
+                        <ResumoPedido order={order} />
+                        {nextaAtivo && (
+                          <div className="mt-2">
+                            <ChipNexta estado={cotacoesNexta[order.id]} />
+                          </div>
+                        )}
                         {/* Voltou pra fila por causa do Nexta: o lojista precisa saber por quê. */}
                         {falhasNexta.has(order.id) && (
-                          <div className="mt-2 inline-flex items-center gap-1.5 rounded-menuzia bg-danger-bg px-2 py-1 text-[11px] font-semibold text-danger">
+                          <div className="mt-2 inline-flex items-center gap-1.5 rounded-[4px] bg-danger-bg px-2 py-1 text-[11px] font-semibold text-danger">
                             <Zap className="h-3 w-3" />
                             {falhasNexta.get(order.id)!.status === 'REJECTED'
                               ? `Nexta recusou: ${motivoRejeicaoTexto(falhasNexta.get(order.id)!.rejeicaoMotivo)}`
@@ -1157,7 +1364,7 @@ export default function LogisticaPage() {
                     <div className="relative flex-shrink-0">
                       <Button
                         variant="dispatch"
-                        className="min-h-[36px] w-full px-4 text-[12px] sm:w-auto"
+                        className="min-h-[36px] w-full gap-1.5 px-4 text-[12px] sm:w-auto"
                         onClick={(e) => {
                           if (assigning === order.id) {
                             setAssigning(null)
@@ -1181,11 +1388,11 @@ export default function LogisticaPage() {
                           setAssigning(order.id)
                         }}
                       >
-                        Atribuir entregador
+                        <Bike className="h-4 w-4" /> Atribuir
                       </Button>
                       {assigning === order.id && (
                         <div
-                          className={`absolute right-0 z-30 min-w-[240px] rounded-menuzia border border-border bg-white p-1 shadow-xl ${
+                          className={`absolute right-0 z-30 min-w-[260px] rounded-[6px] border border-[var(--adm-borda)] bg-white p-1 shadow-[var(--adm-sombra-md)] ${
                             assignAcima ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'
                           }`}
                         >
@@ -1197,22 +1404,12 @@ export default function LogisticaPage() {
                                 onClick={() => despacharNexta(order.id)}
                                 disabled={nextaBusy !== null}
                               />
-                              <div className="mt-1 border-t border-border px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">
+                              <div className="mt-1 border-t border-[var(--adm-borda)] px-3 pb-1 pt-2 text-[11px] font-semibold text-[var(--adm-texto-suave)]">
                                 Meus entregadores
                               </div>
                             </>
                           )}
-                          {available.length === 0 && <div className="px-3 py-2 text-xs text-text-subtle">Nenhum entregador disponível</div>}
-                          {available.map((driver) => (
-                            <button
-                              key={driver.id}
-                              onClick={() => assign(order.id, driver.id)}
-                              className="flex w-full items-center justify-between rounded-menuzia px-3 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page"
-                            >
-                              <span>{driver.nome}</span>
-                              <span className="text-xs text-text-subtle">{driver.emRota} em rota</span>
-                            </button>
-                          ))}
+                          <ListaEntregadoresMenu entregadores={available} onEscolher={(id) => assign(order.id, id)} />
                         </div>
                       )}
                     </div>
@@ -1226,97 +1423,89 @@ export default function LogisticaPage() {
             {/* Coluna da direita: já despachados, só acompanhamento. */}
             <div className={`min-h-0 flex-1 flex-col gap-4 overflow-y-auto ${colunaMobile === 'rota' ? 'flex' : 'hidden'} lg:flex`}>
             {comNexta.length === 0 && inRoute.length === 0 && (
-              <div className="flex flex-col items-center gap-1.5 rounded-menuzia border border-dashed border-border bg-white p-8 text-center">
-                <Truck className="h-6 w-6 text-border" strokeWidth={2} />
-                <div className="text-sm font-semibold text-text-main">Nenhum pedido em rota</div>
-                <div className="text-xs text-text-subtle">Os pedidos que você despachar aparecem aqui até serem entregues.</div>
+              <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+                <CabecalhoSecao icone={<Truck className="h-4 w-4" strokeWidth={2.2} />} tom="roxo" titulo="Em rota" contador={0} />
+                <Vazio
+                  icone={<Truck className="h-5 w-5" />}
+                  titulo="Nenhum pedido em rota"
+                  texto="Os pedidos que você despachar aparecem aqui até serem entregues."
+                />
               </div>
             )}
 
             {/* Com o Nexta: solicitado, ainda não coletado. Depois da coleta vai pra "Em rota". */}
             {nextaAtivo && comNexta.length > 0 && (
-              <div className="rounded-menuzia border border-border bg-white">
-                <div className="sticky top-0 z-20 flex items-center justify-between bg-primary px-4 py-3 text-white">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4" strokeWidth={2.5} />
-                    <h3 className="text-sm font-bold">Com o Nexta</h3>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{comNexta.length}</span>
-                  </div>
-                  <button
-                    onClick={alternarSomNexta}
-                    title={somNexta ? 'Desligar o alerta sonoro do Nexta' : 'Ligar o alerta sonoro do Nexta'}
-                    className={`inline-flex items-center gap-1.5 rounded-menuzia px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors ${
-                      somNexta ? 'bg-white text-primary hover:bg-white/90' : 'bg-black/20 text-white hover:bg-black/30'
-                    }`}
-                  >
-                    {somNexta ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />} Som
-                  </button>
-                </div>
-                <div className="border-b border-border px-4 py-2 text-[12px] text-text-subtle">
-                  O Nexta já foi chamado e avisado que está pronto para coleta.
-                </div>
-                <div className="divide-y divide-border">
+              <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+                <CabecalhoSecao
+                  fixo
+                  icone={<Zap className="h-4 w-4" strokeWidth={2.2} />}
+                  tom="azul"
+                  titulo="Com o Nexta"
+                  contador={comNexta.length}
+                  descricao="O Nexta já foi chamado e avisado que está pronto para coleta."
+                  acoes={
+                    <button
+                      onClick={alternarSomNexta}
+                      title={somNexta ? 'Desligar o alerta sonoro do Nexta' : 'Ligar o alerta sonoro do Nexta'}
+                      className={`inline-flex items-center gap-1.5 rounded-[4px] border px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
+                        somNexta
+                          ? 'border-[var(--adm-azul)] bg-[var(--adm-azul-claro)] text-[var(--adm-azul-escuro)]'
+                          : 'border-[var(--adm-borda)] bg-white text-[var(--adm-texto-medio)] hover:border-[var(--adm-borda-forte)]'
+                      }`}
+                    >
+                      {somNexta ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />} Som
+                    </button>
+                  }
+                />
+                <div className="divide-y divide-[var(--adm-borda)]">
                   {comNexta.map((order) => {
                     const entrega = nextaPorPedido.get(order.id)!
                     const etapaAtual = TIMELINE_NEXTA.findIndex((e) => e.status === entrega.status)
                     const ocupado = nextaBusy === order.id
                     return (
-                      <div key={order.id} className="border-l-[3px] border-l-primary bg-primary/5 p-4">
+                      <div key={order.id} className="p-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
-                            <div className="mb-1 flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-bold">#{order.numero}</span>
-                              <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
-                              <span className="inline-flex items-center gap-1 rounded-menuzia bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
-                                <Zap className="h-3 w-3" /> Nexta
-                              </span>
-                              <Badge tone="alert">{nextaEventoTexto(entrega.status)}</Badge>
-                            </div>
-                            <div className="mb-2 text-xs text-text-subtle">{endereco(order)}</div>
+                            <ResumoPedido
+                              order={order}
+                              selo={
+                                <>
+                                  <span className="inline-flex items-center gap-1 rounded-[4px] bg-[#E0F2FE] px-1.5 py-0.5 text-[11px] font-semibold text-[#0369A1]">
+                                    <Zap className="h-3 w-3" /> Nexta
+                                  </span>
+                                  <Badge tone="alert">{nextaEventoTexto(entrega.status)}</Badge>
+                                </>
+                              }
+                              extra={
+                                entrega.preco !== null && (
+                                  <span className="rounded-[4px] bg-price-bg px-1.5 py-0.5 text-[11px] font-semibold text-price-text">
+                                    Corrida {brl(entrega.preco)}
+                                  </span>
+                                )
+                              }
+                            />
 
                             {/* Timeline compacta: cada etapa acesa até a atual. Etapa
                                 desconhecida (enum novo) some com a timeline, não quebra. */}
                             {etapaAtual >= 0 && (
-                              <div className="mb-2 flex flex-wrap items-center gap-1">
+                              <div className="mt-2.5 flex items-center gap-1">
                                 {TIMELINE_NEXTA.map((etapa, i) => (
-                                  <span
-                                    key={etapa.status}
-                                    className={`rounded-menuzia px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                                      i <= etapaAtual ? 'bg-primary text-white' : 'bg-page text-text-subtle'
-                                    }`}
-                                  >
-                                    {etapa.label}
-                                  </span>
+                                  <div key={etapa.status} className="flex min-w-0 flex-1 flex-col gap-1">
+                                    <span className={`h-1 rounded-full ${i <= etapaAtual ? 'bg-[var(--adm-azul)]' : 'bg-[#e5e7eb]'}`} />
+                                    <span className={`truncate text-[10px] font-semibold ${i <= etapaAtual ? 'text-[var(--adm-azul-escuro)]' : 'text-[var(--adm-texto-suave)]'}`}>
+                                      {etapa.label}
+                                    </span>
+                                  </div>
                                 ))}
                               </div>
                             )}
 
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
-                              {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
-                                <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
-                              )}
-                              <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
-                              {entrega.preco !== null && (
-                                <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold text-price-text">
-                                  Corrida {brl(entrega.preco)}
-                                </span>
-                              )}
-                            </div>
-
                             {entrega.entregadorNome && (
                               <div className="mt-2.5 flex items-center gap-2">
-                                {entrega.entregadorFotoUrl ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={entrega.entregadorFotoUrl} alt={entrega.entregadorNome} loading="lazy" decoding="async" width={32} height={32} className="h-8 w-8 rounded-full border border-border object-cover" />
-                                ) : (
-                                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-xs font-bold text-text-subtle">
-                                    {entrega.entregadorNome.charAt(0).toUpperCase()}
-                                  </div>
-                                )}
+                                <Avatar nome={entrega.entregadorNome} fotoUrl={entrega.entregadorFotoUrl} tamanho={28} />
                                 <span className="text-[13px] font-semibold">{entrega.entregadorNome}</span>
                                 {entrega.entregadorTelefone && (
-                                  <a href={`tel:${entrega.entregadorTelefone}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                  <a href={`tel:${entrega.entregadorTelefone}`} className="inline-flex items-center gap-1 text-[12px] text-[var(--adm-azul)] hover:underline">
                                     <Phone className="h-3.5 w-3.5" /> {entrega.entregadorTelefone}
                                   </a>
                                 )}
@@ -1354,7 +1543,7 @@ export default function LogisticaPage() {
                         </div>
 
                         {cancelandoNexta === order.id && (
-                          <div className="mt-3 rounded-menuzia border border-danger bg-danger-bg p-3">
+                          <div className="mt-3 rounded-[6px] border border-danger bg-danger-bg p-3">
                             <p className="mb-2.5 text-[12px] font-medium text-danger">
                               Cancelar a corrida do pedido #{order.numero} no Nexta? Dependendo do estágio, o Nexta pode cobrar pelo
                               cancelamento — avisamos aqui se houver cobrança. O pedido volta para a fila de despacho.
@@ -1377,71 +1566,73 @@ export default function LogisticaPage() {
             )}
 
             {inRoute.length > 0 && (
-            <div className="rounded-menuzia border border-border bg-white">
-              <div className="sticky top-0 z-20 flex items-center justify-between bg-status-preparing px-4 py-3 text-white">
-                <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4" strokeWidth={2.5} />
-                  <h3 className="text-sm font-bold">Em rota</h3>
-                </div>
-                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{inRoute.length}</span>
-              </div>
-              <div className="border-b border-border px-4 py-2 text-[12px] text-text-subtle">
-                Já saíram com o entregador. Marque como entregue quando o cliente receber.
-              </div>
-              <div className="divide-y divide-border">
-                {inRoute.map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex flex-col gap-2 border-l-[3px] border-l-status-preparing bg-status-preparing/5 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold">#{order.numero}</span>
-                        <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
-                        {pedidoParado(order, Date.now()) ? (
-                          <Badge tone="danger" title="Saiu há muito tempo e ninguém fechou. Marque entregue ou não entregue.">
-                            Parado há {tempoParado(order.criadoEm, Date.now())}
-                          </Badge>
-                        ) : (
-                          <Badge tone="preparing">Saiu para entrega</Badge>
-                        )}
-                        <ArrowRight className="h-4 w-4 text-status-preparing" strokeWidth={2.5} />
+            <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+              <CabecalhoSecao
+                fixo
+                icone={<Truck className="h-4 w-4" strokeWidth={2.2} />}
+                tom="roxo"
+                titulo="Em rota"
+                contador={inRoute.length}
+                descricao="Já saíram com o entregador. Marque como entregue quando o cliente receber."
+              />
+              <div className="divide-y divide-[var(--adm-borda)]">
+                {inRoute.map((order) => {
+                  const parado = pedidoParado(order, Date.now())
+                  const nexta = nextaPorPedido.get(order.id)
+                  const motoboy = drivers.find((d) => d.id === order.entregadorId) ?? null
+                  return (
+                    <div
+                      key={order.id}
+                      className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${parado ? 'bg-danger-bg/40' : ''}`}
+                    >
+                      <div className="min-w-0">
+                        <ResumoPedido
+                          order={order}
+                          selo={
+                            parado ? (
+                              <Badge tone="danger" title="Saiu há muito tempo e ninguém fechou. Marque entregue ou não entregue.">
+                                Parado há {tempoParado(order.criadoEm, Date.now())}
+                              </Badge>
+                            ) : (
+                              <Badge tone="preparing">Saiu para entrega</Badge>
+                            )
+                          }
+                        />
                         {/* Entrega do Nexta não tem entregador próprio: quem aparece é o
                             motoboy que o webhook informou. */}
-                        {nextaPorPedido.has(order.id) ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[12px] font-semibold text-primary">
-                            <Zap className="h-3.5 w-3.5" /> Nexta
-                            {nextaPorPedido.get(order.id)!.entregadorNome && ` · ${nextaPorPedido.get(order.id)!.entregadorNome}`}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-status-preparing/10 px-2 py-0.5 text-[12px] font-semibold text-status-preparing">
-                            <Bike className="h-3.5 w-3.5" /> {driverName(order.entregadorId)}
-                          </span>
-                        )}
+                        <div className="mt-2 flex items-center gap-2 text-[12.8px]">
+                          {nexta ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-[#0369A1]">
+                              <Zap className="h-3.5 w-3.5" /> Nexta{nexta.entregadorNome && ` · ${nexta.entregadorNome}`}
+                            </span>
+                          ) : (
+                            <>
+                              <Avatar nome={motoboy?.nome ?? '?'} fotoUrl={motoboy?.fotoUrl ?? null} tamanho={22} />
+                              <span className="font-semibold text-[var(--adm-texto)]">{driverName(order.entregadorId)}</span>
+                              {motoboy?.telefone && (
+                                <a href={`tel:${motoboy.telefone}`} title={`Ligar para ${motoboy.telefone}`} className="text-[var(--adm-texto-suave)] hover:text-[var(--adm-azul)]">
+                                  <Phone className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="mb-1.5 text-xs text-text-subtle">{endereco(order)}</div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
-                        {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && (
-                          <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>
-                        )}
-                        <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                      <div className="flex flex-shrink-0 gap-2">
+                        <Button variant="success" className="min-h-[36px] flex-1 px-4 text-[12px] sm:flex-none" onClick={() => deliver(order.id)}>
+                          Entregue
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="min-h-[36px] border-danger text-danger hover:bg-danger-bg"
+                          onClick={() => naoEntregue(order.id)}
+                        >
+                          Não entregue
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex flex-shrink-0 gap-2">
-                      <Button variant="success" className="min-h-[36px] flex-1 px-4 text-[12px] sm:flex-none" onClick={() => deliver(order.id)}>
-                        Entregue
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="min-h-[36px] border-danger text-danger hover:bg-danger-bg"
-                        onClick={() => naoEntregue(order.id)}
-                      >
-                        Não entregue
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
             )}
@@ -1451,27 +1642,25 @@ export default function LogisticaPage() {
             )}
 
             {tab === 'concluidos' && (
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-menuzia border border-border bg-white">
-              <div className="sticky top-0 z-20 flex items-center justify-between bg-text-main px-4 py-3 text-white">
-                <div className="flex items-center gap-2">
-                  <ClipboardCheck className="h-4 w-4" strokeWidth={2.5} />
-                  <h3 className="text-sm font-bold">Pedidos do dia</h3>
-                </div>
-                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">
-                  {filtrosAtivos ? `${concluidosFiltrados.length} de ${concluidos.length}` : concluidos.length}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+              <CabecalhoSecao
+                icone={<ClipboardCheck className="h-4 w-4" strokeWidth={2.2} />}
+                tom="verde"
+                titulo="Pedidos do dia"
+                contador={filtrosAtivos ? concluidosFiltrados.length : concluidos.length}
+                descricao={filtrosAtivos ? `${concluidosFiltrados.length} de ${concluidos.length} com os filtros aplicados` : 'Entregas e retiradas finalizadas ou canceladas hoje.'}
+              />
+              <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-[var(--adm-borda)] px-4 py-3">
                 <input
                   value={filtroBusca}
                   onChange={(e) => setFiltroBusca(e.target.value)}
                   placeholder="Buscar por cliente ou bairro"
-                  className="min-w-[180px] flex-1 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                  className="h-[36px] min-w-[180px] flex-1 rounded-[4px] border border-[var(--adm-borda)] px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
                 />
                 <select
                   value={filtroStatus}
                   onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)}
-                  className="rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                  className="h-[36px] rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
                 >
                   <option value="todos">Todos os status</option>
                   <option value="entregue">Concluído</option>
@@ -1482,54 +1671,47 @@ export default function LogisticaPage() {
                   onChange={(e) => setFiltroValorMin(e.target.value)}
                   placeholder="Valor mín."
                   inputMode="decimal"
-                  className="w-24 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                  className="h-[36px] w-24 rounded-[4px] border border-[var(--adm-borda)] px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
                 />
                 <input
                   value={filtroValorMax}
                   onChange={(e) => setFiltroValorMax(e.target.value)}
                   placeholder="Valor máx."
                   inputMode="decimal"
-                  className="w-24 rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] outline-none focus:border-primary"
+                  className="h-[36px] w-24 rounded-[4px] border border-[var(--adm-borda)] px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
                 />
                 {filtrosAtivos && (
-                  <button onClick={limparFiltros} className="text-xs font-semibold text-text-subtle hover:text-text-main">
+                  <button onClick={limparFiltros} className="text-[12px] font-semibold text-[var(--adm-azul)] hover:underline">
                     Limpar filtros
                   </button>
                 )}
               </div>
-              <div className="divide-y divide-border">
-                {concluidos.length === 0 && <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido finalizado hoje</div>}
+              <div className="min-h-0 flex-1 divide-y divide-[var(--adm-borda)] overflow-y-auto">
+                {concluidos.length === 0 && (
+                  <Vazio icone={<ClipboardCheck className="h-5 w-5" />} titulo="Nenhum pedido finalizado hoje" texto="Pedidos entregues e cancelados aparecem aqui ao longo do dia." />
+                )}
                 {concluidos.length > 0 && concluidosFiltrados.length === 0 && (
-                  <div className="p-6 text-center text-sm text-text-subtle">Nenhum pedido encontrado com esses filtros</div>
+                  <div className="p-6 text-center text-[13px] text-[var(--adm-texto-suave)]">Nenhum pedido encontrado com esses filtros</div>
                 )}
                 {concluidosFiltrados.map((order) => {
                   const entregue = order.status === 'entregue'
                   return (
-                    <div
-                      key={order.id}
-                      className={`flex flex-col gap-2 border-l-[3px] p-4 sm:flex-row sm:items-center sm:justify-between ${
-                        entregue ? 'border-l-status-ready bg-status-ready/5' : 'border-l-danger bg-danger/5'
-                      }`}
-                    >
-                      <div>
-                        <div className="mb-1 flex items-center gap-2">
-                          <span className="text-sm font-bold">#{order.numero}</span>
-                          <span className="text-sm font-medium">{order.clienteNome || 'Cliente'}</span>
-                          <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
-                          <Badge tone={entregue ? 'ok' : 'danger'}>{entregue ? 'Concluído' : 'Cancelado'}</Badge>
-                        </div>
-                        <div className="text-xs text-text-subtle">
-                          {order.tipo === 'entrega' ? (
-                            <>{endereco(order)} · entregador: <b className="text-text-main">{driverName(order.entregadorId)}</b></>
-                          ) : (
-                            'Retirada no balcão'
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                    // Uma linha por pedido: número, cliente, tipo, onde/quem, pagamento e valor.
+                    <div key={order.id} className="flex items-center gap-3 px-4 py-2.5 text-[12.8px] hover:bg-[var(--adm-superficie-2)]">
+                      <span className={`h-2 w-2 flex-shrink-0 rounded-full ${entregue ? 'bg-[#10B981]' : 'bg-danger'}`} title={entregue ? 'Concluído' : 'Cancelado'} />
+                      <span className="w-12 flex-shrink-0 font-bold tabular-nums">#{order.numero}</span>
+                      <span className="w-[160px] flex-shrink-0 truncate font-semibold">{order.clienteNome || 'Cliente'}</span>
+                      <span className="flex-shrink-0">
+                        <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[var(--adm-texto-suave)]">
+                        {order.tipo === 'entrega' ? `${endereco(order)} · ${driverName(order.entregadorId)}` : 'Retirada no balcão'}
+                      </span>
+                      {!entregue && <Badge tone="danger">Cancelado</Badge>}
+                      <span className="hidden flex-shrink-0 sm:inline">
                         <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
-                        <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
-                      </div>
+                      </span>
+                      <span className="w-[84px] flex-shrink-0 text-right font-bold tabular-nums text-price-text">{brl(order.total)}</span>
                     </div>
                   )
                 })}
@@ -1540,6 +1722,93 @@ export default function LogisticaPage() {
           )}
         </div>
       </div>
+
+      {/* Novo entregador: gaveta com o cadastro completo. Ao salvar, já abre o
+          link/QR de acesso — é a próxima coisa que o dono precisa mandar. */}
+      {addDriverOpen && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setAddDriverOpen(false)} />}
+      <aside
+        className={[
+          'fixed right-0 top-0 z-[60] flex h-screen w-[420px] max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300',
+          addDriverOpen ? 'translate-x-0' : 'invisible translate-x-full',
+        ].join(' ')}
+        aria-hidden={!addDriverOpen}
+      >
+        <div className="flex items-center justify-between border-b border-[var(--adm-borda)] px-5 py-4">
+          <div>
+            <h2 className="text-[15px] font-bold">Novo entregador</h2>
+            <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Depois de salvar você recebe o link de acesso dele.</p>
+          </div>
+          <button onClick={() => setAddDriverOpen(false)} aria-label="Fechar" className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-[4px] text-lg text-[var(--adm-texto-suave)] hover:bg-[var(--adm-hover)]">
+            ×
+          </button>
+        </div>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void addDriver()
+          }}
+        >
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+            <div className="flex items-center gap-3 rounded-[6px] bg-[var(--adm-superficie-2)] p-3">
+              <Avatar nome={novoDriver.nome || '?'} fotoUrl={null} tamanho={44} />
+              <div className="min-w-0 text-[12px] text-[var(--adm-texto-suave)]">
+                <p className="truncate text-[14px] font-bold text-[var(--adm-texto)]">{novoDriver.nome.trim() || 'Nome do entregador'}</p>
+                {[novoDriver.veiculo, novoDriver.placa].filter(Boolean).join(' · ') || 'A foto pode ser enviada depois, em Editar.'}
+              </div>
+            </div>
+            <CampoEntregador rotulo="Nome" obrigatorio>
+              <input
+                value={novoDriver.nome}
+                onChange={(e) => setNovoDriver((d) => ({ ...d, nome: e.target.value }))}
+                placeholder="Como a equipe chama ele"
+                maxLength={60}
+                className={CLASSE_CAMPO}
+              />
+            </CampoEntregador>
+            <CampoEntregador rotulo="WhatsApp" dica="Usado para ligar e para mandar o link de acesso.">
+              <input
+                value={novoDriver.telefone}
+                onChange={(e) => setNovoDriver((d) => ({ ...d, telefone: mascararTelefoneBR(e.target.value) }))}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+                className={CLASSE_CAMPO}
+              />
+            </CampoEntregador>
+            <div className="grid grid-cols-[1fr_130px] gap-3">
+              <CampoEntregador rotulo="Veículo">
+                <input
+                  value={novoDriver.veiculo}
+                  onChange={(e) => setNovoDriver((d) => ({ ...d, veiculo: e.target.value }))}
+                  placeholder="Ex.: Honda CG 160"
+                  maxLength={40}
+                  className={CLASSE_CAMPO}
+                />
+              </CampoEntregador>
+              <CampoEntregador rotulo="Placa">
+                <input
+                  value={novoDriver.placa}
+                  onChange={(e) => setNovoDriver((d) => ({ ...d, placa: e.target.value.toUpperCase() }))}
+                  placeholder="ABC1D23"
+                  maxLength={8}
+                  className={`${CLASSE_CAMPO} uppercase`}
+                />
+              </CampoEntregador>
+            </div>
+            {novoDriver.telefone && !telefoneCompleto(novoDriver.telefone) && (
+              <p className="text-[12px] text-[var(--adm-laranja)]">O telefone parece incompleto — confira o DDD e os dígitos.</p>
+            )}
+          </div>
+          <div className="flex gap-2.5 border-t border-[var(--adm-borda)] px-5 py-3.5">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setAddDriverOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary" className="flex-1" disabled={addingDriver || !novoDriver.nome.trim()}>
+              {addingDriver ? 'Salvando…' : 'Cadastrar'}
+            </Button>
+          </div>
+        </form>
+      </aside>
 
       {/* Fechamento de caixa */}
       {closingOpen && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setClosingOpen(false)} />}
