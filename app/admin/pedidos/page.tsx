@@ -219,7 +219,7 @@ const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: st
  * o botão precisa estar aqui. O corpo continua sendo um botão (abre os detalhes),
  * mas o container virou div — botão dentro de botão é HTML inválido.
  */
-function FluxoCard({ order, tone, onClick, onConcluir }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void }) {
+function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void; rotulo?: string }) {
   const t = FLUXO_TONE[tone]
   return (
     <div className={`rounded-menuzia border border-border border-l-[3px] shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`}>
@@ -233,7 +233,7 @@ function FluxoCard({ order, tone, onClick, onConcluir }: { order: Pedido; tone: 
                 Parado há {tempoParado(order.criadoEm, Date.now())}
               </Badge>
             )}
-            <Badge tone={t.badge}>{t.label}</Badge>
+            <Badge tone={t.badge}>{rotulo ?? t.label}</Badge>
           </div>
         </div>
         <div className="mt-1 text-xs text-text-subtle">
@@ -1188,7 +1188,14 @@ export default function PedidosPage() {
                 </SubSecao>
                 <SubSecao titulo="Concluídos" cor="text-price-text" vazio="Nada concluído hoje">
                   {concluded.filter((o) => o.status === 'entregue').map((o) => (
-                    <FluxoCard key={o.id} order={o} tone="done" onClick={() => setDetail(o)} />
+                    <FluxoCard
+                      key={o.id}
+                      order={o}
+                      tone="done"
+                      onClick={() => setDetail(o)}
+                      // Entrega sem entregador fecha na saída: ninguém confirmou que chegou.
+                      rotulo={fluxo.entregaSemEntregador && o.tipo === 'entrega' ? 'Saiu p/ entrega' : undefined}
+                    />
                   ))}
                 </SubSecao>
                 <SubSecao titulo="Não concluídos" cor="text-danger" vazio="Nenhum recusado hoje">
