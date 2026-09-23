@@ -41,6 +41,9 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   // Ligar e desligar módulo é decisão comercial do dono.
   ['/api/admin/modulos', 'ajustes.editar'],
   ['/api/admin/pdv', 'pedidos.balcao.criar'],
+  // PDV v2. Porta: abrir balcão / ver a conta. Cada ação confere a sua por dentro.
+  ['/api/admin/balcao', 'balcao.abrir'],
+  ['/api/admin/comandas', 'comanda.ver'],
   ['/api/admin/pedidos', 'pedidos.delivery.cancelar'],
   ['/api/admin/campanhas', 'campanhas.gerenciar'],
   ['/api/admin/fidelidade', 'fidelidade.gerenciar'],

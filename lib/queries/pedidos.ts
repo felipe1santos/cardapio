@@ -316,9 +316,25 @@ export async function listarPedidosRotas(supabase: SupabaseClient, restauranteId
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
 }
 
-export async function avancarStatusPedido(supabase: SupabaseClient, pedidoId: string, status: StatusPedido) {
-  const { error } = await supabase.from('pedidos').update({ status }).eq('id', pedidoId)
+/** Outra tela (ou a cozinha) mudou o pedido antes: o status esperado não bate mais. */
+export class ConflitoStatusPedido extends Error {
+  constructor() {
+    super('O pedido mudou em outra tela.')
+    this.name = 'ConflitoStatusPedido'
+  }
+}
+
+/**
+ * Avança o status. Com `de`, é compare-and-set: só grava se o pedido ainda estiver
+ * naquele status — duas abas do Kanban (ou Kanban e cozinha) não se atropelam, e o
+ * aceite automático não aceita duas vezes. Nenhuma linha afetada = ConflitoStatusPedido.
+ */
+export async function avancarStatusPedido(supabase: SupabaseClient, pedidoId: string, status: StatusPedido, de?: StatusPedido) {
+  let q = supabase.from('pedidos').update({ status }).eq('id', pedidoId)
+  if (de) q = q.eq('status', de)
+  const { data, error } = await q.select('id')
   if (error) throw error
+  if (de && (data?.length ?? 0) === 0) throw new ConflitoStatusPedido()
 }
 
 /** Claim atômico de um pedido pela cozinha: só pega se ainda estiver 'recebido'. Retorna se conseguiu. */
@@ -523,9 +539,8 @@ export async function atribuirEntregadorEmLoteSeguro(admin: SupabaseClient, rest
   if (error) throw error
 }
 
-export async function marcarPedidoEntregue(supabase: SupabaseClient, pedidoId: string) {
-  const { error } = await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId)
-  if (error) throw error
+export async function marcarPedidoEntregue(supabase: SupabaseClient, pedidoId: string, de?: StatusPedido) {
+  await avancarStatusPedido(supabase, pedidoId, 'entregue', de)
 }
 
 // Cancelamento não passa pelo cliente do navegador: vai por
@@ -971,9 +986,41 @@ async function telefoneClienteVerificado(admin: SupabaseClient, restauranteId: s
   return !!data?.verificado_em
 }
 
-export async function criarPedido(admin: SupabaseClient, restauranteId: string, input: NovoPedidoInput): Promise<{ id: string; numero: number }> {
+/** Linha de item já reprecificada pelo servidor — o que vai para `pedido_itens`. */
+export interface LinhaPedidoGravada {
+  item_id: string
+  nome: string
+  preco_unitario: number
+  quantidade: number
+  observacao: string
+  complementos: PedidoComplementoSnapshot[]
+  tamanho_nome: string
+  sabor_nome: string
+  borda_nome: string
+  massa_nome: string
+}
+
+export interface OpcoesCriarPedido {
+  /**
+   * Quem grava o pedido já calculado. Sem isto, o pedido e os itens são inseridos aqui,
+   * como sempre (vitrine, delivery, PDV antigo). A conta presencial do PDV v2 passa a
+   * função que chama `comanda_lancar`: o preço continua sendo calculado aqui — uma
+   * regra só —, mas pedido e itens nascem juntos numa transação, só em comanda aberta.
+   */
+  gravar?: (totais: { subtotal: number; total: number; clienteNome: string }, linhas: LinhaPedidoGravada[]) => Promise<{ id: string; numero: number }>
+}
+
+export async function criarPedido(
+  admin: SupabaseClient,
+  restauranteId: string,
+  input: NovoPedidoInput,
+  opcoes: OpcoesCriarPedido = {},
+): Promise<{ id: string; numero: number }> {
   if (input.itens.length === 0) throw new Error('Pedido sem itens')
   if (input.cupomCodigo && input.recompensaId) throw new Error('Use apenas um cupom ou prêmio por pedido.')
+  // Cupom e prêmio reservam uso antes do insert e devolvem se ele falhar — lógica que
+  // vive no caminho de gravação padrão. Conta presencial não usa nenhum dos dois.
+  if (opcoes.gravar && (input.cupomCodigo || input.recompensaId)) throw new Error('Cupom e prêmio não valem em conta presencial.')
   // Telefone é como a loja fala com o cliente e como ele volta à própria conta.
   // Número com dígito sobrando entrava e ficava gravado assim para sempre: a
   // confirmação ia para um número que não existe e ele nunca mais se reconhecia.
@@ -1325,6 +1372,10 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   if (input.pagamento === 'dinheiro') {
     const erroTroco = erroDoTroco(total, input.trocoPara)
     if (erroTroco) throw new Error(erroTroco)
+  }
+
+  if (opcoes.gravar) {
+    return opcoes.gravar({ subtotal, total, clienteNome: input.cliente.nome }, linhas)
   }
 
   // Telefone verificado? (server-authoritative). Pedidos feitos com o WhatsApp da

@@ -32,6 +32,14 @@ export const PERMISSOES = [
   'pedidos.mesa.solicitar_cancelamento',
   // Balcão (PDV)
   'pedidos.balcao.criar',
+  'balcao.abrir',
+  'balcao.lancar',
+  // Presencial (mesa e balcão) — motor de conta do PDV v2
+  'pedidos.presencial.transicionar',
+  'pedidos.presencial.atender',
+  'pedidos.presencial.cancelar_recebido',
+  'pedidos.presencial.cancelar',
+  'pedidos.presencial.solicitar_cancelamento',
   // Cozinha
   'cozinha.pedidos.ver',
   'cozinha.pedidos.atualizar_status',
@@ -43,6 +51,8 @@ export const PERMISSOES = [
   'comanda.transferir',
   'comanda.desconto',
   'comanda.estornar',
+  'comanda.resolver_forcado',
+  'comanda.reabrir',
   // Retaguarda
   'clientes.ver',
   'dashboard.faturamento',
@@ -83,6 +93,22 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
 
   // Garçom NÃO opera o balcão: o PDV é outro posto de trabalho.
   'pedidos.balcao.criar': ['dono', 'gerente', 'atendente'],
+  // PDV v2: abrir a comanda de balcão e lançar nela. O atendente é o operador de caixa;
+  // um papel `caixa` futuro entra nestas listas sem tocar em tela nem em função do banco.
+  'balcao.abrir': ['dono', 'gerente', 'atendente'],
+  'balcao.lancar': ['dono', 'gerente', 'atendente'],
+
+  // Presencial (mesa e balcão, PDV v2). A cozinha segue pela estação (token).
+  // Aceitar/preparar/pronto pelo PDV: quem opera o caixa acompanha a produção.
+  'pedidos.presencial.transicionar': ['dono', 'gerente', 'atendente'],
+  // Servir (mesa) ou entregar no balcão um pedido PRONTO. O garçom serve mesa.
+  'pedidos.presencial.atender': ['dono', 'gerente', 'atendente', 'garcom'],
+  // Cancelar direto só pedido ainda "recebido" numa conta sem pagamento — a função do
+  // banco confere as duas coisas. Fora disso, o atendente pede e a gestão decide.
+  'pedidos.presencial.cancelar_recebido': ['dono', 'gerente', 'atendente'],
+  // Cancelar em qualquer estado (motivo obrigatório; pago acima do novo total exige estorno).
+  'pedidos.presencial.cancelar': ['dono', 'gerente'],
+  'pedidos.presencial.solicitar_cancelamento': ['dono', 'gerente', 'atendente', 'garcom'],
 
   // Preparo é da cozinha. O garçom lança e serve; não simula produção.
   'cozinha.pedidos.ver': ['dono', 'gerente', 'cozinha'],
@@ -103,6 +129,9 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
   // Devolver dinheiro é decisão da gestão. (`comanda.fiado` saiu com o fiado: a forma
   // não é mais oferecida em lugar nenhum, então a permissão não tinha mais dono.)
   'comanda.estornar': ['dono', 'gerente'],
+  // Resolver à força o que impede o fechamento e reabrir conta fechada: gestão.
+  'comanda.resolver_forcado': ['dono', 'gerente'],
+  'comanda.reabrir': ['dono', 'gerente'],
 
   // Base de clientes é do delivery: telefone e endereço não são assunto do salão.
   'clientes.ver': ['dono', 'gerente', 'atendente'],

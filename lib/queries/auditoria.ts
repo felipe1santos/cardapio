@@ -60,6 +60,19 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'equipe.reativou': 'Reativou funcionário',
   'equipe.redefiniu_senha': 'Redefiniu a senha de um funcionário',
   'impressao.gerou_token': 'Gerou um token novo para o Assistente de Impressão',
+  // PDV v2 (balcão e conta presencial).
+  'balcao.abriu': 'Abriu comanda de balcão',
+  'balcao.lancou': 'Lançou pedido no balcão',
+  'pedido.transicao': 'Mudou a etapa do pedido na cozinha',
+  'pedido.atendido': 'Entregou o pedido ao cliente',
+  'pedido.resolucao_forcada': 'Resolveu pendência à força',
+  'pedido.cancelou': 'Cancelou pedido',
+  'comanda.reabriu': 'Reabriu a conta',
+  // Telemetria das rotas antigas do PDV durante a convivência com o v2.
+  'pdv_legado.pedido': 'PDV antigo: lançou pedido',
+  'pdv_legado.pagar': 'PDV antigo: recebeu pagamento',
+  'pdv_legado.fechar': 'PDV antigo: fechou conta',
+  'pdv_legado.cancelar': 'PDV antigo: cancelou pedido',
 }
 
 /** Grupos para o filtro da tela — o dono pensa por assunto, não por código de ação. */
@@ -67,7 +80,9 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'todos', label: 'Tudo', prefixos: [] },
   // Duas famílias: `mesa.*` (uma mesa) e `mesas.*` (configuração do salão).
   { id: 'mesa', label: 'Mesas', prefixos: ['mesa.', 'mesas.'] },
-  { id: 'conta', label: 'Contas e dinheiro', prefixos: ['conta.'] },
+  { id: 'conta', label: 'Contas e dinheiro', prefixos: ['conta.', 'comanda.'] },
+  { id: 'balcao', label: 'Balcão e pedidos', prefixos: ['balcao.', 'pedido.'] },
+  { id: 'pdv_legado', label: 'PDV antigo', prefixos: ['pdv_legado.'] },
   { id: 'chamado', label: 'Chamados', prefixos: ['chamado.'] },
   { id: 'equipe', label: 'Equipe', prefixos: ['equipe.'] },
   { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },

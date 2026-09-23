@@ -439,13 +439,13 @@ export function montarHistorico(
     const pedidoId = e.entidade_id && idsLancamento.has(e.entidade_id) ? e.entidade_id : null
     const numero = e.dados?.numero ?? lancamentos.find((l) => l.id === pedidoId)?.numero
     const oQue =
-      e.acao === 'mesa.enviou_cozinha' && numero !== undefined
+      (e.acao === 'mesa.enviou_cozinha' || e.acao === 'balcao.lancou') && numero !== undefined
         ? `Enviou o lançamento #${String(numero)} para a cozinha`
         : `${ROTULO_EVENTO[e.acao] ?? e.acao}${detalheDoEvento(e.dados)}`
     return { quando: e.criado_em, quem: e.usuario_nome, oQue, pedidoId, acao: e.acao }
   })
 
-  const comEnvio = new Set(linhas.filter((e) => e.acao === 'mesa.enviou_cozinha').map((e) => e.entidade_id))
+  const comEnvio = new Set(linhas.filter((e) => e.acao === 'mesa.enviou_cozinha' || e.acao === 'balcao.lancou').map((e) => e.entidade_id))
   for (const l of lancamentos) {
     if (comEnvio.has(l.id)) continue
     eventos.push({ quando: l.criadoEm, quem: l.criadoPorNome ?? '—', oQue: `Lançamento #${l.numero} enviado para a cozinha`, pedidoId: l.id, acao: 'mesa.enviou_cozinha' })

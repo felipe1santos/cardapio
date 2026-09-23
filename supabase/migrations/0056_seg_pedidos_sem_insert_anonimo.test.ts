@@ -43,7 +43,7 @@ describe('0056 — ninguém insere pedido direto no banco', () => {
     // inserir pedido de outro lugar, este teste precisa ser revisto junto.
     const insercoes = pedidos.match(/\.from\('pedidos'\)\s*\n?\s*\.insert/g) ?? []
     expect(insercoes.length).toBe(1)
-    expect(pedidos).toMatch(/export async function criarPedido\(admin: SupabaseClient/)
+    expect(pedidos).toMatch(/export async function criarPedido\(\s*admin: SupabaseClient/)
   })
 
   it('não mexe em dado nenhum', () => {

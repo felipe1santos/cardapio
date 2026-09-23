@@ -68,6 +68,15 @@ export function trocoPara(valor: number, recebido: number): number {
   return centavos(recebido - valor)
 }
 
+/** Etapa de cozinha em português, para mensagens de conflito. */
+const ROTULO_STATUS_COZINHA: Record<string, string> = {
+  recebido: 'aguardando aceite',
+  preparando: 'em preparo',
+  pronto: 'pronto',
+  entregue: 'entregue',
+  cancelado: 'cancelado',
+}
+
 /**
  * Traduz o erro que as funções do banco levantam (`raise exception 'codigo:detalhe'`)
  * para uma frase que o garçom entende. Código desconhecido não vaza para a tela.
@@ -125,6 +134,25 @@ export function mensagemDeErroConta(bruto: string | null | undefined): string {
     chamado_inexistente: 'Chamado não encontrado.',
     ja_assumido: `Outro atendente já assumiu este chamado${detalhe ? ` (${detalhe})` : ''}.`,
     chamado_encerrado: 'Este chamado já foi encerrado.',
+    // PDV v2 (0085).
+    nome_obrigatorio: 'Informe o nome do cliente.',
+    nome_longo: 'Nome do cliente com no máximo 60 caracteres.',
+    telefone_invalido: 'Telefone inválido. Use DDD + número, ou deixe em branco.',
+    chave_invalida: 'Operação sem identificador. Recarregue a tela e tente de novo.',
+    chave_em_outra_comanda: 'Este pagamento já foi usado em outra conta. Recarregue a tela e tente de novo.',
+    origem_invalida: 'Origem da operação inválida.',
+    pedido_inexistente: 'Pedido não encontrado nesta conta.',
+    conflito_status: `Outra tela mexeu neste pedido antes${ROTULO_STATUS_COZINHA[detalhe] ? ` — agora ele está "${ROTULO_STATUS_COZINHA[detalhe]}"` : ''}. A tela foi atualizada.`,
+    transicao_invalida: 'Esta mudança de etapa não é permitida.',
+    pedido_nao_pronto: `O pedido ainda não está pronto${ROTULO_STATUS_COZINHA[detalhe] ? ` (está "${ROTULO_STATUS_COZINHA[detalhe]}")` : ''}.`,
+    cancelamento_requer_gestao:
+      'Este pedido já começou a ser preparado ou a conta já recebeu pagamento. Peça o cancelamento à gerência.',
+    pendencias_abertas: 'Ainda há pedido na cozinha ou pronto sem entregar. Veja as pendências.',
+    ajuste_financeiro_necessario: `A conta já recebeu mais do que ficaria valendo (sobram ${reais}). Registre antes um estorno ou um ajuste.`,
+    nenhuma_acao: 'Escolha o que fazer com pelo menos um pedido.',
+    acao_invalida: 'Ação não permitida para este pedido.',
+    comanda_nao_fechada: 'Só dá para reabrir uma conta fechada.',
+    mesa_ocupada: 'A mesa já tem outra conta aberta. Feche ou transfira antes de reabrir esta.',
   }
   return mapa[codigo] ?? 'Não foi possível concluir a operação.'
 }
