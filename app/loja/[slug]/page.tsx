@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import type { Viewport } from 'next'
-import { getServerSupabase } from '@/lib/supabase/server'
+import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import { buscarRestaurantePorSlug } from '@/lib/queries/cardapio'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import { resolverPaleta } from '@/lib/paletas'
@@ -37,9 +37,11 @@ export const revalidate = 60
  * responde, e um `null` aqui apagaria a diferença entre "loja não existe" e
  * "banco fora do ar".
  */
-const carregarLoja = cache((slug: string) =>
-  getServerSupabase().then((supabase) => buscarRestaurantePorSlug(supabase, slug))
-)
+// Leitura ANÔNIMA, sem a sessão do visitante: desde a 0080 um usuário logado só
+// enxerga a própria loja em `restaurantes`. Com a sessão, um lojista logado que
+// abrisse a vitrine de outra loja veria "loja não encontrada". A vitrine é pública
+// e só usa colunas liberadas ao anônimo (0055) — o mesmo client do navegador.
+const carregarLoja = cache((slug: string) => buscarRestaurantePorSlug(getVitrineSupabase(), slug))
 
 /**
  * A barra do navegador (e a status bar do Android) usam a `theme-color`. O
