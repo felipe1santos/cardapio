@@ -25,19 +25,14 @@ export interface MesaComQr {
  */
 export function ListaQrMesas({
   mesas,
-  selecionadas,
-  onAlternar,
-  onTodas,
-  onNenhuma,
+  onAbrirQr,
   onCopiar,
   onBaixar,
   copiadoId,
 }: {
   mesas: MesaComQr[]
-  selecionadas: string[]
-  onAlternar: (id: string) => void
-  onTodas: () => void
-  onNenhuma: () => void
+  /** Tocar no QR abre a janela de impressão daquela mesa. */
+  onAbrirQr: (mesa: MesaComQr) => void
   onCopiar: (mesa: MesaComQr) => void
   onBaixar: (mesa: MesaComQr) => void
   copiadoId: string | null
@@ -51,36 +46,21 @@ export function ListaQrMesas({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-          {selecionadas.length} de {mesas.length} na folha
-        </span>
-        <div className="flex gap-3 text-[11px] font-semibold uppercase tracking-wide">
-          <button type="button" onClick={onTodas} className="text-primary hover:underline">
-            Todas
-          </button>
-          <button type="button" onClick={onNenhuma} className="text-text-subtle hover:text-text-main">
-            Nenhuma
-          </button>
-        </div>
-      </div>
-
+    <div>
       <ul className="divide-y divide-border overflow-hidden rounded-menuzia border border-border bg-white">
         {mesas.map((m) => {
-          const marcada = selecionadas.includes(m.id)
           return (
             <li key={m.id} className="flex items-center gap-3 p-2.5">
               {/* A miniatura é o próprio QR da mesa: dá para conferir na tela e
                   até escanear daqui, sem imprimir nada. */}
               <button
                 type="button"
-                onClick={() => m.url && onAlternar(m.id)}
+                onClick={() => m.url && onAbrirQr(m)}
                 disabled={!m.url}
-                title={m.url ? (marcada ? 'Tirar da folha' : 'Incluir na folha') : 'QR revogado'}
+                title={m.url ? `Imprimir o QR da ${rotuloMesa(m.nome)}` : 'QR revogado'}
+                aria-label={m.url ? `Imprimir o QR da ${rotuloMesa(m.nome)}` : 'QR revogado'}
                 className={[
-                  'flex h-[62px] w-[62px] flex-shrink-0 items-center justify-center overflow-hidden rounded-menuzia border-2 bg-white transition-colors',
-                  marcada ? 'border-primary' : 'border-border',
+                  'flex h-[62px] w-[62px] flex-shrink-0 items-center justify-center overflow-hidden rounded-menuzia border-2 border-border bg-white transition-colors',
                   m.url ? 'hover:border-primary' : 'cursor-not-allowed opacity-50',
                 ].join(' ')}
               >
