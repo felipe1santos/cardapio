@@ -11,6 +11,7 @@ import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-pr
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
+import { criarRastreador, type Rastreador } from '@/lib/vitrine-rastreio'
 import {
   buscarRestaurantePorSlug,
   listarBairrosVitrine,
@@ -2001,6 +2002,41 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [changeFor, setChangeFor] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+
+  // ── Analytics da vitrine ──────────────────────────────────────────────────
+  // Alimenta o funil do Dashboard (Visitas → Visualizações → Sacola →
+  // Checkout → Pedidos) e a lista de cliques. Ver lib/vitrine-rastreio.ts.
+  const rastreio = useRef<Rastreador | null>(null)
+  useEffect(() => {
+    if (!slug) return
+    const r = criarRastreador(slug)
+    rastreio.current = r
+    return () => {
+      r.encerrar()
+      if (rastreio.current === r) rastreio.current = null
+    }
+  }, [slug])
+
+  useEffect(() => {
+    if (productSheet) rastreio.current?.registrar('visualizacao', { itemId: productSheet.id })
+  }, [productSheet])
+
+  // Sacola: só conta quando a quantidade SOBE — restaurar a sacola salva ou
+  // tirar um item não é "adicionar".
+  const qtdSacolaAnterior = useRef<number | null>(null)
+  useEffect(() => {
+    if (!cartRestaurado) return
+    const antes = qtdSacolaAnterior.current
+    qtdSacolaAnterior.current = cartCount
+    if (antes !== null && cartCount > antes) {
+      rastreio.current?.registrar('sacola', { itemId: cart[cart.length - 1]?.itemId ?? null })
+    }
+  }, [cartCount, cartRestaurado, cart])
+
+  useEffect(() => {
+    if (checkoutOpen) rastreio.current?.registrar('checkout')
+  }, [checkoutOpen])
+
   // Confirmação pós-pedido + link wa.me para o cliente avisar a loja (conversa
   // bidirecional reduz risco de bloqueio dos disparos da loja).
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false)
@@ -2169,6 +2205,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
+      rastreio.current?.registrar('pedido')
       // Endereço confirmado: guarda no aparelho e no perfil (se logado) pra
       // próxima compra já vir preenchida.
       try {

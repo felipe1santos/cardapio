@@ -12,11 +12,21 @@ import { CartaoFunil } from '@/components/dashboard/cartao-funil'
 import { GraficoLinhas } from '@/components/dashboard/grafico-linhas'
 import { GraficoArea } from '@/components/dashboard/grafico-area'
 import { TabelaAnalitica, type ColunaTabela } from '@/components/dashboard/tabela-analitica'
+import { MiniGrafico } from '@/components/dashboard/mini-grafico'
 import { ICONES } from '@/lib/icones-painel'
 import {
+  carregarAnalyticsVitrine,
+  carregarTemposEntrega,
+  type AnalyticsVitrine,
+  type TempoEntrega,
+} from '@/lib/queries/analytics-vitrine'
+import {
+  diasDoIntervalo,
   filtrarPorIntervalo,
-  funilDePedidos,
+  formatarDuracao,
+  funilDaVitrine,
   intervaloAnterior,
+  resumoEntrega,
   intervaloDoPreset,
   recorteDeClientes,
   serieDePedidos,
@@ -29,7 +39,19 @@ import {
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
-const PAY_COR: Record<string, string> = { pix: 'var(--adm-serie-1)', cartao: 'var(--adm-grafico)', dinheiro: 'var(--adm-serie-2)' }
+const PAY_COR: Record<string, string> = { pix: 'var(--adm-serie-3)', cartao: 'var(--adm-serie-1)', dinheiro: 'var(--adm-serie-2)' }
+// Barras de categoria: uma cor por posição, para o cartão não virar uma coluna azul só.
+const CORES_CATEGORIA = ['var(--adm-serie-1)', 'var(--adm-serie-2)', 'var(--adm-serie-3)', 'var(--adm-serie-4)', 'var(--adm-serie-5)', '#9CA3AF']
+
+/** Cor de cada indicador: fundo claro da bolha + cor do ícone. */
+const TONS = {
+  verde: { fundo: '#DCFCE7', cor: '#16A34A' },
+  laranja: { fundo: '#FFEDD5', cor: '#EA580C' },
+  roxo: { fundo: '#F3E8FF', cor: '#9333EA' },
+  azul: { fundo: '#E0F2FE', cor: '#0369A1' },
+  ambar: { fundo: '#FEF3C7', cor: '#B45309' },
+} as const
+type Tom = keyof typeof TONS
 
 const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const brlCurto = (v: number) =>
@@ -55,18 +77,30 @@ function Indicador({
   valor,
   ajuda,
   delta,
+  tom = 'roxo',
+  serie,
+  inverso = false,
+  rodape,
 }: {
   icone: string[]
   rotulo: string
   valor: string
   ajuda?: string
   delta?: number | null
+  tom?: Tom
+  /** Série diária para o minigráfico. */
+  serie?: number[]
+  /** Métrica em que CAIR é bom (tempo de espera): inverte verde e vermelho. */
+  inverso?: boolean
+  rodape?: string
 }) {
   const texto = delta === undefined ? null : textoVariacao(delta ?? null)
   const subiu = (delta ?? 0) > 0
+  const bom = inverso ? !subiu : subiu
+  const t = TONS[tom]
   return (
-    <div className="flex min-w-[190px] flex-1 items-start gap-3">
-      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-grafico-claro)] text-[var(--adm-grafico-escuro)]">
+    <div className="flex min-w-[200px] flex-1 items-start gap-3">
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: t.fundo, color: t.cor }}>
         <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
           {icone.map((d) => (
             <path key={d} d={d} />
@@ -77,12 +111,16 @@ function Indicador({
         <p className="text-[12.8px] text-[var(--adm-texto-medio)]" title={ajuda}>
           {rotulo}
         </p>
-        <p className="mt-0.5 text-[22px] font-bold leading-tight text-[var(--adm-texto)]">{valor}</p>
+        <div className="mt-0.5 flex items-center gap-3">
+          <p className="text-[22px] font-bold leading-tight text-[var(--adm-texto)]">{valor}</p>
+          {serie && <MiniGrafico valores={serie} tendencia={delta === undefined || delta === null ? null : inverso ? -delta : delta} largura={64} altura={22} />}
+        </div>
+        {rodape && <p className="mt-0.5 text-[11px] text-[var(--adm-texto-suave)]">{rodape}</p>}
         {texto && (
           <p
             className={[
               'mt-0.5 flex items-center gap-1 text-[11px] font-semibold',
-              subiu ? 'text-[var(--adm-alta)]' : 'text-[var(--adm-baixa)]',
+              bom ? 'text-[var(--adm-alta)]' : 'text-[var(--adm-baixa)]',
             ].join(' ')}
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
@@ -157,6 +195,10 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {} })
   const [lojaLocal, setLojaLocal] = useState('')
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  // undefined = carregando; null = rastreio ainda não instalado no banco.
+  const [vitrine, setVitrine] = useState<AnalyticsVitrine | null | undefined>(undefined)
+  const [temposEntrega, setTemposEntrega] = useState<TempoEntrega[] | null>(null)
 
   useEffect(() => {
     let active = true
@@ -175,6 +217,8 @@ export default function DashboardPage() {
         ])
         if (!active) return
         setDados(dash)
+        setRestauranteId(id)
+        carregarTemposEntrega(supabase, id).then((t) => active && setTemposEntrega(t))
         if (loja) setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', '))
       } catch {
         setError('Não foi possível carregar o dashboard.')
@@ -187,6 +231,18 @@ export default function DashboardPage() {
     }
   }, [supabase])
 
+  // O funil da vitrine é agregado no banco (a tabela de eventos cresce a cada
+  // clique), então é buscado de novo a cada troca de período.
+  useEffect(() => {
+    if (!restauranteId) return
+    let ativo = true
+    setVitrine(undefined)
+    carregarAnalyticsVitrine(supabase, intervalo).then((v) => ativo && setVitrine(v))
+    return () => {
+      ativo = false
+    }
+  }, [supabase, restauranteId, intervalo])
+
   const m = useMemo(() => {
     const historico = dados.pedidos
     const pedidos = filtrarPorIntervalo(historico, intervalo)
@@ -198,7 +254,6 @@ export default function DashboardPage() {
     const ticket = pedidos.length ? receita / pedidos.length : 0
     const ticketAnterior = anteriores.length ? receitaAnterior / anteriores.length : 0
 
-    const funil = funilDePedidos(pedidos, anteriores)
     const clientes = recorteDeClientes(pedidos, historico, intervalo)
     const serie = serieDePedidos(pedidos, historico, intervalo, agora)
     const rotulos = serie.map((p) => dataCurta(p.ms))
@@ -213,6 +268,10 @@ export default function DashboardPage() {
     for (const p of pedidos) horas[new Date(p.criadoEm).getHours()]++
     const pico = horas.reduce((melhor, c, h) => (c > horas[melhor] ? h : melhor), 0)
     const horarioPico = pedidos.length ? `${pico}h – ${(pico + 1) % 24}h` : '—'
+
+    // Tempo de entrega: só pedidos com saída e chegada carimbadas (0078).
+    const entrega = temposEntrega ? resumoEntrega(temposEntrega, intervalo) : null
+    const entregaAnt = temposEntrega && anteriorIntervalo ? resumoEntrega(temposEntrega, anteriorIntervalo) : null
 
     const itensPorPedido = pedidos.length
       ? pedidos.reduce((s, p) => s + p.itens.reduce((t, i) => t + i.quantidade, 0), 0) / pedidos.length
@@ -263,10 +322,10 @@ export default function DashboardPage() {
       pct: receita ? Math.round(((porPagamento[k] ?? 0) / receita) * 100) : 0,
       valor: porPagamento[k] ?? 0,
     }))
-    const entrega = pedidos.filter((p) => p.tipo === 'entrega').length
+    const qtdEntrega = pedidos.filter((p) => p.tipo === 'entrega').length
     const canais = {
-      entrega: pedidos.length ? Math.round((entrega / pedidos.length) * 100) : 0,
-      retirada: pedidos.length ? Math.round(((pedidos.length - entrega) / pedidos.length) * 100) : 0,
+      entrega: pedidos.length ? Math.round((qtdEntrega / pedidos.length) * 100) : 0,
+      retirada: pedidos.length ? Math.round(((pedidos.length - qtdEntrega) / pedidos.length) * 100) : 0,
     }
 
     // Categorias
@@ -300,11 +359,15 @@ export default function DashboardPage() {
       bairro: v.bairro,
     }))
 
+    const rankingBairros = [...bairros].sort((a, b) => b.pedidos - a.pedidos || b.receita - a.receita).slice(0, 6)
+
     return {
       pedidos,
       receita,
       ticket,
-      funil,
+      entrega,
+      rankingBairros,
+      deltaEntrega: entrega?.rota != null && entregaAnt?.rota != null ? variacao(entrega.rota, entregaAnt.rota) : null,
       clientes,
       serie,
       rotulos,
@@ -322,7 +385,15 @@ export default function DashboardPage() {
       deltaTicket: variacao(ticket, ticketAnterior),
       deltaConclusao: variacao(conclusao, conclusaoAnt),
     }
-  }, [dados, intervalo, agora])
+  }, [dados, intervalo, agora, temposEntrega])
+
+  const funil = useMemo(() => {
+    if (vitrine === undefined) return null
+    // Sem o rastreio no banco o funil aparece zerado, não como esqueleto eterno.
+    if (vitrine === null) return funilDaVitrine({ funil: {}, funilAnterior: {}, porDia: [] }, diasDoIntervalo(intervalo, agora))
+    const maisAntigo = vitrine.porDia.map((p) => p.dia).sort()[0]
+    return funilDaVitrine(vitrine, diasDoIntervalo(intervalo, agora, maisAntigo))
+  }, [vitrine, intervalo, agora])
 
   const colunasProduto: ColunaTabela<LinhaProduto>[] = [
     { id: 'nome', titulo: 'Produto', valor: (l) => l.nome, destaque: true },
@@ -345,7 +416,26 @@ export default function DashboardPage() {
     },
   ]
 
+  const colunasClique: ColunaTabela<{ id: string; alvo: string; cliques: number; visitantes: number }>[] = [
+    { id: 'alvo', titulo: 'Onde clicaram', valor: (l) => l.alvo, destaque: true },
+    { id: 'cliques', titulo: 'Cliques', valor: (l) => l.cliques, alinhar: 'direita' },
+    { id: 'visitantes', titulo: 'Visitantes', valor: (l) => l.visitantes, alinhar: 'direita' },
+  ]
+  const colunasOrigem: ColunaTabela<{ id: string; origem: string; visitas: number; pedidos: number; conversao: number }>[] = [
+    { id: 'origem', titulo: 'Origem', valor: (l) => l.origem, destaque: true },
+    { id: 'visitas', titulo: 'Visitas', valor: (l) => l.visitas, alinhar: 'direita' },
+    { id: 'pedidos', titulo: 'Pedidos', valor: (l) => l.pedidos, alinhar: 'direita' },
+    {
+      id: 'conversao',
+      titulo: 'Conversão',
+      valor: (l) => l.conversao,
+      render: (l) => `${l.conversao.toFixed(1).replace('.', ',')}%`,
+      alinhar: 'direita',
+    },
+  ]
+
   const maiorCategoria = Math.max(1, ...m.categorias.map((c) => c.valor))
+  const maiorBairro = Math.max(1, ...m.rankingBairros.map((b) => b.pedidos))
 
   if (loading) {
     return (
@@ -385,12 +475,35 @@ export default function DashboardPage() {
           </p>
         )}
 
-        {/* Funil: por onde os pedidos do período passaram. */}
+        {/* Funil da vitrine: do visitante ao pedido fechado. */}
+        {vitrine === null ? (
+          <p className="rounded-[6px] border-[0.8px] border-[#fcd34d] bg-[var(--adm-laranja-claro)] px-3.5 py-2.5 text-[12.8px] text-[var(--adm-laranja)]">
+            O rastreio da vitrine ainda não foi ativado no banco — as métricas de visitas aparecem assim que ele for ligado.
+          </p>
+        ) : (
+          <p className="rounded-[6px] border-[0.8px] border-[#bae6fd] bg-[#f0f9ff] px-3.5 py-2.5 text-[12.8px] text-[#0369A1]">
+            Visitas, visualizações, sacola e checkout são contadas a partir da ativação do rastreio da vitrine (23/09/2026). Cada visitante conta uma vez por etapa.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {m.funil.map((etapa) => (
-            <CartaoFunil key={etapa.id} etapa={etapa} />
-          ))}
+          {funil
+            ? funil.map((etapa) => <CartaoFunil key={etapa.id} etapa={etapa} />)
+            : Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className="h-[236px] animate-pulse rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" />
+              ))}
         </div>
+
+        {/* Quanto o cliente demora entre uma etapa e a seguinte. */}
+        <Cartao className="p-4">
+          <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Análise de tempo</h3>
+          <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Tempo médio entre as etapas do funil de conversão</p>
+          <div className="mt-4 flex flex-wrap gap-6">
+            <Indicador icone={ICONES.visao} tom="roxo" rotulo="Visita → Visualização" valor={formatarDuracao(vitrine?.tempos.visita_visualizacao ?? null)} />
+            <Indicador icone={ICONES.sacola} tom="laranja" rotulo="Visualização → Sacola" valor={formatarDuracao(vitrine?.tempos.visualizacao_sacola ?? null)} />
+            <Indicador icone={ICONES.cartao} tom="azul" rotulo="Sacola → Checkout" valor={formatarDuracao(vitrine?.tempos.sacola_checkout ?? null)} />
+            <Indicador icone={ICONES.concluido} tom="verde" rotulo="Checkout → Pedido" valor={formatarDuracao(vitrine?.tempos.checkout_pedido ?? null)} />
+          </div>
+        </Cartao>
 
         {/* Faixa de resumo: dinheiro, ritmo e operação. */}
         <Cartao className="p-4">
@@ -398,19 +511,51 @@ export default function DashboardPage() {
           <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">
             Comparado com o período anterior de mesmo tamanho
           </p>
-          <div className="mt-4 flex flex-wrap gap-6">
-            <Indicador icone={ICONES.dinheiro} rotulo="Faturamento" valor={brl(m.receita)} delta={m.deltaReceita} />
-            <Indicador icone={ICONES.ticket} rotulo="Ticket médio" valor={brl(m.ticket)} delta={m.deltaTicket} />
+          <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+            <Indicador
+              icone={ICONES.dinheiro}
+              tom="verde"
+              rotulo="Faturamento"
+              valor={brl(m.receita)}
+              delta={m.deltaReceita}
+              serie={m.serie.map((p) => p.receita)}
+            />
+            <Indicador
+              icone={ICONES.ticket}
+              tom="laranja"
+              rotulo="Ticket médio"
+              valor={brl(m.ticket)}
+              delta={m.deltaTicket}
+              serie={m.serie.map((p) => (p.total ? p.receita / p.total : 0))}
+            />
+            <Indicador
+              icone={ICONES.entregador}
+              tom="roxo"
+              rotulo="Tempo médio de entrega"
+              ajuda="Da saída do motoboy até a entrega confirmada"
+              valor={formatarDuracao(m.entrega?.rota ?? null)}
+              rodape={
+                m.entrega === null
+                  ? 'Medição ainda não ativada'
+                  : m.entrega.amostra
+                    ? `${m.entrega.amostra} entrega${m.entrega.amostra > 1 ? 's' : ''} medida${m.entrega.amostra > 1 ? 's' : ''} · pedido → porta ${formatarDuracao(m.entrega.total)}`
+                    : 'Sem entregas rastreadas no período'
+              }
+              delta={m.deltaEntrega}
+              inverso
+            />
             <Indicador
               icone={ICONES.concluido}
+              tom="azul"
               rotulo="Taxa de conclusão"
               valor={`${Math.round(m.conclusao)}%`}
               ajuda="Pedidos entregues sobre o total do período"
               delta={m.deltaConclusao}
             />
-            <Indicador icone={ICONES.relogio} rotulo="Horário de pico" valor={m.horarioPico} />
+            <Indicador icone={ICONES.relogio} tom="ambar" rotulo="Horário de pico" valor={m.horarioPico} />
             <Indicador
               icone={ICONES.carrinho}
+              tom="laranja"
               rotulo="Itens por pedido"
               valor={m.itensPorPedido.toFixed(1).replace('.', ',')}
             />
@@ -480,9 +625,9 @@ export default function DashboardPage() {
             <GraficoLinhas
               rotulos={m.rotulos}
               series={[
-                { nome: 'Total de pedidos', cor: '#6cb2eb', valores: m.serie.map((p) => p.total) },
-                { nome: 'Pedidos de clientes novos', cor: '#faad63', valores: m.serie.map((p) => p.novos) },
-                { nome: 'Pedidos de clientes recorrentes', cor: '#a779e9', valores: m.serie.map((p) => p.recorrentes) },
+                { nome: 'Total de pedidos', cor: '#A855F7', valores: m.serie.map((p) => p.total) },
+                { nome: 'Pedidos de clientes novos', cor: '#F97316', valores: m.serie.map((p) => p.novos) },
+                { nome: 'Pedidos de clientes recorrentes', cor: '#10B981', valores: m.serie.map((p) => p.recorrentes) },
               ]}
             />
           </div>
@@ -498,7 +643,7 @@ export default function DashboardPage() {
             <p className="text-[22px] font-bold text-[var(--adm-texto)]">{brl(m.receita)}</p>
           </div>
           <div className="mt-3">
-            <GraficoArea valores={m.serie.map((p) => p.receita)} rotulos={m.rotulos} formatarValor={brlCurto} />
+            <GraficoArea valores={m.serie.map((p) => p.receita)} rotulos={m.rotulos} formatarValor={brlCurto} cor="#10B981" />
           </div>
         </Cartao>
 
@@ -521,19 +666,72 @@ export default function DashboardPage() {
           vazio="Nenhum pedido com endereço no período"
         />
 
+        {/* Comportamento na vitrine. */}
+        {vitrine && (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <TabelaAnalitica
+              titulo="Cliques na vitrine"
+              colunas={colunasClique}
+              linhas={vitrine.cliques.map((c) => ({ id: c.alvo, ...c }))}
+              ordemInicial="cliques"
+              busca={{ placeholder: 'Pesquise um botão', texto: (l) => l.alvo }}
+              vazio="Nenhum clique registrado no período"
+            />
+            <TabelaAnalitica
+              titulo="Origem das visitas"
+              colunas={colunasOrigem}
+              linhas={vitrine.origens.map((o) => ({
+                id: o.origem,
+                ...o,
+                conversao: o.visitas ? (o.pedidos / o.visitas) * 100 : 0,
+              }))}
+              ordemInicial="visitas"
+              vazio="Nenhuma visita registrada no período"
+            />
+          </div>
+        )}
+
         {/* Mapa + categorias. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Cartao className="p-4 lg:col-span-2">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Mapa de calor dos pedidos</h3>
-              <span className="text-[11px] text-[var(--adm-texto-suave)]">Regiões com mais entregas</span>
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Onde estão seus pedidos</h3>
+                <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Bolha maior = mais pedidos naquele ponto</p>
+              </div>
             </div>
-            <HeatmapCard
-              apiKey={MAPS_KEY}
-              center={lojaLocal}
-              points={m.heatPoints}
-              className="h-[300px] w-full border-[0.8px] border-[rgba(0,0,0,0.12)]"
-            />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_220px]">
+              <HeatmapCard
+                apiKey={MAPS_KEY}
+                center={lojaLocal}
+                points={m.heatPoints}
+                className="h-[320px] w-full rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)]"
+              />
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--adm-texto-suave)]">
+                  Bairros que mais pedem
+                </p>
+                {m.rankingBairros.length === 0 ? (
+                  <p className="mt-6 text-center text-[12px] text-[var(--adm-texto-suave)]">Sem pedidos com endereço.</p>
+                ) : (
+                  <ol className="mt-3 space-y-3">
+                    {m.rankingBairros.map((b, i) => (
+                      <li key={b.id}>
+                        <div className="flex items-baseline gap-2 text-[12.8px]">
+                          <span className="w-4 flex-shrink-0 text-[11px] font-bold text-[var(--adm-texto-suave)]">{i + 1}</span>
+                          <span className="min-w-0 flex-1 truncate font-semibold text-[var(--adm-texto)]">{b.bairro}</span>
+                          <span className="tabular-nums text-[var(--adm-texto-medio)]">{b.pedidos}</span>
+                        </div>
+                        <div className="ml-6 mt-1 h-1.5 overflow-hidden rounded-full bg-[#f1f2f4]">
+                          <div className="h-full rounded-full bg-[#F97316]" style={{ width: `${(b.pedidos / maiorBairro) * 100}%` }} />
+                        </div>
+                        <p className="ml-6 mt-0.5 text-[11px] text-[var(--adm-texto-suave)]">{brl(b.receita)}</p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            </div>
           </Cartao>
 
           <Cartao className="p-4">
@@ -542,7 +740,7 @@ export default function DashboardPage() {
               {m.categorias.length === 0 && (
                 <p className="py-6 text-center text-[12px] text-[var(--adm-texto-suave)]">Sem dados no período.</p>
               )}
-              {m.categorias.map((cat) => (
+              {m.categorias.map((cat, i) => (
                 <div key={cat.nome}>
                   <div className="mb-1 flex items-center justify-between text-[12px]">
                     <span className="font-semibold text-[var(--adm-texto)]">{cat.nome}</span>
@@ -550,8 +748,8 @@ export default function DashboardPage() {
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[#eef0f3]">
                     <div
-                      className="h-full rounded-full bg-[var(--adm-grafico)]"
-                      style={{ width: `${(cat.valor / maiorCategoria) * 100}%` }}
+                      className="h-full rounded-full"
+                      style={{ width: `${(cat.valor / maiorCategoria) * 100}%`, backgroundColor: CORES_CATEGORIA[i % CORES_CATEGORIA.length] }}
                     />
                   </div>
                 </div>
@@ -584,12 +782,12 @@ export default function DashboardPage() {
             <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Entrega e retirada</h3>
             <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Participação de cada canal nos pedidos</p>
             <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-[#eef0f3]">
-              <div className="h-full bg-[var(--adm-grafico)]" style={{ width: `${m.canais.entrega}%` }} />
-              <div className="h-full bg-[var(--adm-serie-2)]" style={{ width: `${m.canais.retirada}%` }} />
+              <div className="h-full bg-[var(--adm-serie-2)]" style={{ width: `${m.canais.entrega}%` }} />
+              <div className="h-full bg-[var(--adm-serie-1)]" style={{ width: `${m.canais.retirada}%` }} />
             </div>
             <div className="mt-3 flex flex-wrap justify-between gap-3 text-[12.8px]">
               <span className="flex items-center gap-2 font-semibold text-[var(--adm-texto)]">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-grafico)]" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-serie-2)]" aria-hidden="true">
                   {ICONES.moto.map((d) => (
                     <path key={d} d={d} />
                   ))}
@@ -597,7 +795,7 @@ export default function DashboardPage() {
                 Entrega · {m.canais.entrega}%
               </span>
               <span className="flex items-center gap-2 font-semibold text-[var(--adm-texto)]">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-serie-2)]" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-serie-1)]" aria-hidden="true">
                   {ICONES.loja.map((d) => (
                     <path key={d} d={d} />
                   ))}

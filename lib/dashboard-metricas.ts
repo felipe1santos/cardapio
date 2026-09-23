@@ -330,3 +330,115 @@ export function intervaloDeCampos(de: string, ate: string): Intervalo | null {
   const [inicio, fim] = a <= b ? [a, b] : [b, a]
   return { inicio, fim: fim + DIA }
 }
+
+/* ── Funil da vitrine ───────────────────────────────────────────────────── */
+
+export interface EtapaFunilVitrine extends EtapaFunil {
+  /** Participação da etapa SEGUINTE — é onde a rampa do bloco termina. */
+  pctProxima: number
+  /** Participação da mesma etapa no período anterior, para o rodapé. */
+  pctAnterior: number | null
+  /** Visitantes por dia, para o minigráfico. */
+  serie: number[]
+}
+
+const ETAPAS_VITRINE_ROTULO: { id: 'visita' | 'visualizacao' | 'sacola' | 'checkout' | 'pedido'; rotulo: string; descricao: string }[] = [
+  { id: 'visita', rotulo: 'Visitas', descricao: 'visitaram seu cardápio' },
+  { id: 'visualizacao', rotulo: 'Visualizações', descricao: 'abriram algum item' },
+  { id: 'sacola', rotulo: 'Sacola', descricao: 'adicionaram itens na sacola' },
+  { id: 'checkout', rotulo: 'Checkout', descricao: 'iniciaram o checkout' },
+  { id: 'pedido', rotulo: 'Pedidos', descricao: 'concluíram o pedido' },
+]
+
+/**
+ * Dias do intervalo, como chaves `yyyy-mm-dd` locais. "Tudo" começa no dia
+ * mais antigo com dado; o futuro não entra (a linha cairia a zero no fim).
+ */
+export function diasDoIntervalo(intervalo: Intervalo, agora: number, maisAntigo?: string): string[] {
+  const inicio = intervalo.inicio > 0 ? inicioDoDia(intervalo.inicio) : maisAntigo ? deCampoData(maisAntigo) ?? inicioDoDia(agora) : inicioDoDia(agora)
+  const fim = Math.min(intervalo.fim, inicioDoDia(agora) + DIA)
+  const dias: string[] = []
+  // Passo por data, não por +24h: o horário de verão deixaria um dia com 23h.
+  const d = new Date(inicio)
+  while (d.getTime() < fim && dias.length < 800) {
+    dias.push(paraCampoData(d.getTime()))
+    d.setDate(d.getDate() + 1)
+  }
+  return dias.length ? dias : [paraCampoData(inicioDoDia(agora))]
+}
+
+export function funilDaVitrine(
+  dados: {
+    funil: Record<string, number>
+    funilAnterior: Record<string, number>
+    porDia: { dia: string; tipo: string; qtd: number }[]
+  },
+  dias: string[],
+): EtapaFunilVitrine[] {
+  const base = dados.funil.visita || 0
+  const baseAnt = dados.funilAnterior.visita || 0
+  const pct = (q: number, b: number) => (b ? Math.round((q / b) * 100) : 0)
+  return ETAPAS_VITRINE_ROTULO.map((e, i) => {
+    const qtd = dados.funil[e.id] || 0
+    const ant = dados.funilAnterior[e.id] || 0
+    const proxima = ETAPAS_VITRINE_ROTULO[i + 1]
+    const porDia = new Map(dados.porDia.filter((p) => p.tipo === e.id).map((p) => [p.dia, p.qtd]))
+    return {
+      id: e.id,
+      rotulo: e.rotulo,
+      descricao: e.descricao,
+      qtd,
+      pct: i === 0 ? (qtd ? 100 : 0) : pct(qtd, base),
+      pctProxima: proxima ? pct(dados.funil[proxima.id] || 0, base) : pct(qtd, base),
+      pctAnterior: baseAnt ? (i === 0 ? 100 : pct(ant, baseAnt)) : null,
+      variacao: variacao(qtd, ant),
+      serie: dias.map((d) => porDia.get(d) ?? 0),
+    }
+  })
+}
+
+/** "45s", "1min 24s", "38min", "1h 05min". */
+export function formatarDuracao(segundos: number | null): string {
+  if (segundos === null || !Number.isFinite(segundos)) return '—'
+  const s = Math.max(0, Math.round(segundos))
+  if (s < 60) return `${s}s`
+  const min = Math.floor(s / 60)
+  if (min < 10) return `${min}min ${s % 60}s`
+  if (min < 60) return `${min}min`
+  return `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}min`
+}
+
+/* ── Tempo de entrega ───────────────────────────────────────────────────── */
+
+export interface ResumoEntrega {
+  /** Da saída do motoboy até a entrega, em segundos. */
+  rota: number | null
+  /** Do pedido feito até a entrega, em segundos. */
+  total: number | null
+  amostra: number
+}
+
+/**
+ * Tempos médios de entrega dos pedidos ENTREGUES dentro do intervalo. Rotas
+ * acima de 4h são pedido esquecido "em rota" e baixado no dia seguinte — não
+ * são entrega, e uma só puxaria a média para cima.
+ */
+export function resumoEntrega(
+  tempos: { criadoEm: string; emRotaEm: string; entregueEm: string }[],
+  intervalo: Intervalo,
+): ResumoEntrega {
+  let rota = 0
+  let total = 0
+  let n = 0
+  for (const t of tempos) {
+    const fim = new Date(t.entregueEm).getTime()
+    if (fim < intervalo.inicio || fim >= intervalo.fim) continue
+    const r = (fim - new Date(t.emRotaEm).getTime()) / 1000
+    const tot = (fim - new Date(t.criadoEm).getTime()) / 1000
+    if (r < 0 || r > 4 * 3600) continue
+    rota += r
+    total += Math.max(r, tot)
+    n++
+  }
+  return { rota: n ? rota / n : null, total: n ? total / n : null, amostra: n }
+}

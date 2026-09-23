@@ -22,37 +22,20 @@ interface HeatmapCardProps {
   className?: string
 }
 
-type Tema = 'claro' | 'escuro'
-
 const LIGHT_MAP_STYLE: google.maps.MapTypeStyle[] = [
-  { elementType: 'geometry', stylers: [{ color: '#f5f6f8' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#d1d5db' }] },
+  { elementType: 'geometry', stylers: [{ color: '#f4f5f7' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8a919c' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f4f5f7' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.neighborhood', elementType: 'labels.text.fill', stylers: [{ color: '#a3a9b3' }] },
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
   { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#e5e7eb' }] },
-  { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'simplified' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e5e7eb' }] },
+  { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'simplified' }] },
+  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e9ebef' }] },
   { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dbeafe' }] },
-]
-
-// Tema escuro (azul-petróleo profundo) — usado só quando o lojista alterna o seletor.
-const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
-  { elementType: 'geometry', stylers: [{ color: '#0b1220' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#5b6b86' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0b1220' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#243352' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0b1220' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#16233b' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#0e1830' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#64769a' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#1c2c49' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0a1526' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dde3ea' }] },
 ]
 
 const DEFAULT_CENTER = { lat: -14.235, lng: -51.925 } // Brasil (fallback)
@@ -72,56 +55,26 @@ interface Cluster {
   members: HotPoint[]
 }
 
-const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t)
+// Escala única em laranja (paleta oficial): mais pedidos = bolha maior e mais
+// opaca. Um tom só lê melhor que o arco-íris verde→vermelho de antes, que
+// sugeria "bom/ruim" onde só existe "pouco/muito".
+const COR_BOLHA = '249, 115, 22' // #F97316
 
-// Paleta do mais frio (verde, poucos pedidos) ao mais quente (vermelho, muitos).
-const STOPS: { r: number; g: number; b: number }[] = [
-  { r: 34, g: 197, b: 94 },   // verde   (#22C55E)
-  { r: 132, g: 204, b: 22 },  // verde-lima (#84CC16)
-  { r: 250, g: 204, b: 21 },  // amarelo (#FACC15)
-  { r: 249, g: 115, b: 22 },  // laranja (#F97316)
-  { r: 220, g: 38, b: 38 },   // vermelho (#DC2626)
-]
+// Quantos clusters ganham o nome do bairro escrito: o resto fica só com o
+// número, senão os rótulos se atropelam no zoom da cidade inteira.
+const ROTULOS_VISIVEIS = 5
 
-/** Cor do hotspot ao longo do espectro verde → vermelho conforme o volume (t em 0..1). */
-function heatColor(t: number): { r: number; g: number; b: number } {
-  const clamped = Math.min(1, Math.max(0, t))
-  const span = clamped * (STOPS.length - 1)
-  const i = Math.min(STOPS.length - 2, Math.floor(span))
-  const k = span - i
-  const a = STOPS[i]
-  const b = STOPS[i + 1]
-  return { r: lerp(a.r, b.r, k), g: lerp(a.g, b.g, k), b: lerp(a.b, b.b, k) }
-}
+const FONTE = "Inter, system-ui, sans-serif"
 
-// Nº de pedidos a partir do qual a escala alcança o vermelho pleno (trava absoluta para
-// que poucos pedidos fiquem verdes/amarelos e o vermelho só apareça com concentração real).
-const PEDIDOS_PARA_VERMELHO = 14
-
-// Distância (em pixels de tela) abaixo da qual dois pontos se fundem num cluster maior.
-// Como é em pixels, ao dar zoom os pontos se afastam e se separam sozinhos; ao afastar,
-// se juntam — dando a visão panorâmica da concentração por região.
-const RAIO_CLUSTER_PX = 48
-
-const PULSE_STYLE_ID = 'menuzia-hotspot-pulse'
-
-/** Injeta uma única vez a animação de pulsação lenta dos anéis. */
-function ensurePulseKeyframes() {
-  if (typeof document === 'undefined' || document.getElementById(PULSE_STYLE_ID)) return
-  const style = document.createElement('style')
-  style.id = PULSE_STYLE_ID
-  style.textContent =
-    '@keyframes menuziaHotRing{0%,100%{transform:translate(-50%,-50%) scale(0.85);opacity:.5}50%{transform:translate(-50%,-50%) scale(1.12);opacity:.95}}'
-  document.head.appendChild(style)
-}
-
-const LABEL_FONT = "ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace"
+// Distância (em pixels de tela) abaixo da qual dois pontos se fundem num cluster.
+// Em pixels: com zoom os pontos se separam sozinhos; afastando, se juntam.
+const RAIO_CLUSTER_PX = 56
 
 /** Legenda do cluster: rua quando é um ponto só; bairro dominante quando vários se juntam. */
 function rotuloCluster(c: Cluster): string {
   if (c.members.length === 1) {
     const m = c.members[0]
-    return (m.rua || m.bairro || '').toUpperCase()
+    return m.bairro || m.rua || ''
   }
   // Vários pontos: usa o bairro mais frequente entre os membros.
   const freq: Record<string, number> = {}
@@ -130,7 +83,7 @@ function rotuloCluster(c: Cluster): string {
     if (b) freq[b] = (freq[b] ?? 0) + m.weight
   }
   const dominante = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''
-  return dominante.toUpperCase()
+  return dominante
 }
 
 /** Agrupa pontos cujos pixels de tela estão a menos de RAIO_CLUSTER_PX uns dos outros. */
@@ -192,7 +145,6 @@ function getHotspotOverlay() {
     }
 
     onAdd() {
-      ensurePulseKeyframes()
       const container = document.createElement('div')
       container.style.position = 'absolute'
       container.style.top = '0'
@@ -202,46 +154,37 @@ function getHotspotOverlay() {
       this.getPanes()!.overlayLayer.appendChild(container)
     }
 
-    /** Constrói o pino do cluster (mesma forma de gota do Despacho de rotas): cor por
-     *  volume (verde→vermelho), nº de pedidos no centro, legenda da rua/bairro acima. */
-    private criarNo(c: Cluster, refMax: number): HTMLDivElement {
-      const colorT = Math.min(1, (c.weight - 1) / (PEDIDOS_PARA_VERMELHO - 1))
-      const { r, g, b } = heatColor(colorT)
-      const fill = `rgb(${r},${g},${b})`
-      const rel = refMax <= 1 ? 0 : Math.min(1, (c.weight - 1) / (refMax - 1))
-      const w = Math.round(36 + Math.sqrt(rel) * 16) // 36..52 px de largura
-      const h = Math.round((w * 46) / 40)
+    /** Bolha do cluster: halo translúcido + disco com o nº de pedidos; o nome do
+     *  bairro vai numa etiqueta branca abaixo, só nos maiores. */
+    private criarNo(c: Cluster, refMax: number, comRotulo: boolean): HTMLDivElement {
+      const rel = refMax <= 1 ? 1 : Math.min(1, (c.weight - 1) / (refMax - 1))
+      const d = Math.round(26 + Math.sqrt(rel) * 22) // 26..48 px
+      const halo = Math.round(d * 1.9)
+      const opac = (0.55 + rel * 0.45).toFixed(2)
 
       const wrap = document.createElement('div')
       wrap.style.position = 'absolute'
-      wrap.style.willChange = 'transform'
-      // ponta (base) do pino ancorada no ponto geográfico
-      wrap.style.transform = 'translate(-50%, -100%)'
+      wrap.style.transform = 'translate(-50%, -50%)'
+      wrap.style.width = `${halo}px`
+      wrap.style.height = `${halo}px`
+      wrap.style.display = 'flex'
+      wrap.style.alignItems = 'center'
+      wrap.style.justifyContent = 'center'
+      wrap.style.pointerEvents = 'auto'
 
       wrap.innerHTML = `
-        <svg width="${w}" height="${h}" viewBox="0 0 40 46" xmlns="http://www.w3.org/2000/svg" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">
-          <path d="M20 0C9.5 0 1 7.8 1 17.4 1 30.3 20 46 20 46s19-15.7 19-28.6C39 7.8 30.5 0 20 0z" fill="${fill}" stroke="#ffffff" stroke-width="2"/>
-          <text x="20" y="23" font-size="13" font-weight="800" text-anchor="middle" fill="#ffffff" font-family="Inter, sans-serif">${c.weight}</text>
-        </svg>`
+        <span style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle, rgba(${COR_BOLHA},0.22) 0%, rgba(${COR_BOLHA},0) 70%)"></span>
+        <span style="position:relative;display:flex;align-items:center;justify-content:center;width:${d}px;height:${d}px;border-radius:50%;background:rgba(${COR_BOLHA},${opac});border:2px solid #fff;box-shadow:0 2px 6px rgba(17,24,39,0.18);color:#fff;font:700 ${d > 36 ? 13 : 11}px/1 ${FONTE}">${c.weight}</span>`
 
-      // legenda (rua/bairro) acima do pino
       const rotulo = rotuloCluster(c)
-      if (rotulo) {
-        const label = document.createElement('div')
-        label.textContent = c.members.length > 1 ? `${rotulo} ·${c.members.length}` : rotulo
-        label.style.position = 'absolute'
-        label.style.left = '50%'
-        label.style.top = '-14px'
-        label.style.transform = 'translateX(-50%)'
-        label.style.whiteSpace = 'nowrap'
-        label.style.font = `700 10px/1 ${LABEL_FONT}`
-        label.style.letterSpacing = '0.06em'
-        label.style.color = '#111827'
-        label.style.textShadow = '0 1px 3px rgba(255,255,255,0.95), 0 0 2px rgba(255,255,255,0.9)'
+      if (comRotulo && rotulo) {
+        const label = document.createElement('span')
+        label.textContent = rotulo
+        label.style.cssText = `position:absolute;top:calc(50% + ${d / 2 + 4}px);left:50%;transform:translateX(-50%);white-space:nowrap;padding:3px 7px;border-radius:4px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(17,24,39,0.10);font:600 11px/1.2 ${FONTE};color:#1f2937`
         wrap.appendChild(label)
       }
 
-      wrap.title = `${c.weight} pedido${c.weight > 1 ? 's' : ''}${c.members.length > 1 ? ` · ${c.members.length} locais` : ''}`
+      wrap.title = `${rotulo ? rotulo + ' — ' : ''}${c.weight} pedido${c.weight > 1 ? 's' : ''}`
       return wrap
     }
 
@@ -254,8 +197,9 @@ function getHotspotOverlay() {
 
       this.container.innerHTML = ''
       this.nodes = []
+      const destaque = new Set([...clusters].sort((a, b) => b.weight - a.weight).slice(0, ROTULOS_VISIVEIS))
       for (const c of clusters) {
-        const el = this.criarNo(c, refMax)
+        const el = this.criarNo(c, refMax, destaque.has(c))
         this.container.appendChild(el)
         this.nodes.push({ el, lat: c.lat, lng: c.lng })
       }
@@ -304,7 +248,6 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
   const [error, setError] = useState<string | null>(null)
   const [resolvendo, setResolvendo] = useState(false)
   const [aplicado, setAplicado] = useState(false)
-  const [tema, setTema] = useState<Tema>('claro')
 
   // 1) Carrega o mapa
   useEffect(() => {
@@ -328,12 +271,6 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
       cancelled = true
     }
   }, [apiKey])
-
-  // Alterna o estilo do mapa (claro/escuro) sem recriar o mapa nem mexer nos pontos.
-  useEffect(() => {
-    if (!ready || !mapRef.current) return
-    mapRef.current.setOptions({ styles: tema === 'escuro' ? DARK_MAP_STYLE : LIGHT_MAP_STYLE })
-  }, [tema, ready])
 
   // 2) Centra na loja (geocode do CEP/endereço) e calcula a caixa de bias para os endereços
   useEffect(() => {
@@ -445,10 +382,13 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
     }
   }, [ready, centerResolved, points, desenhar])
 
-  // Auto-aplica uma vez quando o mapa estiver pronto e houver pedidos
+  // Desenha sozinho quando o mapa fica pronto e sempre que o período muda —
+  // o botão "Aplicar mapa" de antes era um passo que ninguém entendia.
   useEffect(() => {
-    if (ready && centerResolved && !aplicado && points.length > 0) renderizar()
-  }, [ready, centerResolved, aplicado, points.length, renderizar])
+    if (!ready || !centerResolved || aplicado) return
+    if (points.length > 0) renderizar()
+    else limparOverlays()
+  }, [ready, centerResolved, aplicado, points.length, renderizar, limparOverlays])
 
   // Se os pedidos do período mudarem, exige reaplicar
   useEffect(() => {
@@ -467,33 +407,14 @@ export function HeatmapCard({ apiKey, center, points, className }: HeatmapCardPr
     <div className={`relative overflow-hidden rounded-menuzia ${className ?? ''}`}>
       <div ref={containerRef} className="h-full w-full" />
 
-      <button
-        type="button"
-        onClick={renderizar}
-        disabled={resolvendo || points.length === 0}
-        className="absolute left-2 top-2 rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {resolvendo ? 'Calculando…' : aplicado ? 'Reaplicar mapa' : 'Aplicar mapa'}
-      </button>
-
-      {/* Seletor de tema do mapa (claro/escuro) */}
-      <div className="absolute right-2 top-2 inline-flex overflow-hidden rounded-menuzia border border-border bg-white/95 shadow backdrop-blur-sm">
-        {(['claro', 'escuro'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTema(t)}
-            className={`px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition ${
-              tema === t ? 'bg-text-main text-white' : 'text-text-subtle hover:bg-page'
-            }`}
-          >
-            {t === 'claro' ? 'Claro' : 'Escuro'}
-          </button>
-        ))}
-      </div>
+      {resolvendo && (
+        <span className="absolute left-2 top-2 rounded-[4px] border border-[var(--adm-borda)] bg-white/95 px-2 py-1 text-[11px] font-medium text-[var(--adm-texto-suave)] shadow-sm">
+          Localizando endereços…
+        </span>
+      )}
 
       {!resolvendo && points.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-page/70 px-6 text-center text-xs text-text-subtle">
+        <div className="absolute inset-0 flex items-center justify-center bg-white/70 px-6 text-center text-[12px] text-[var(--adm-texto-suave)]">
           {center?.trim()
             ? 'Sem pedidos com endereço neste período.'
             : 'Conclua o cadastro e informe o CEP da loja em Ajustes para visualizar os dados de pedidos por região.'}

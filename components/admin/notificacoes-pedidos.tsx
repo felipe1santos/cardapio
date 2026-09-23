@@ -118,12 +118,12 @@ export function ItemNotificacoes({ estado, onAtivar }: { estado: EstadoNotificac
         }}
         aria-expanded={estado === 'disponivel' ? undefined : explicando}
         className={[
-          'flex min-h-[40px] w-full items-center gap-3 rounded-[var(--adm-raio-sm)] px-[10px] text-left text-[14px] font-normal leading-none transition-colors',
+          'flex min-h-[36px] w-full items-center gap-3 border-l-[3px] border-transparent pl-[13px] pr-3 text-left text-[13.5px] font-normal leading-none transition-colors',
           'hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
           tom,
         ].join(' ')}
       >
-        <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden="true">
+        <svg viewBox="0 0 24 24" className="h-[19px] w-[19px] flex-shrink-0 fill-current" aria-hidden="true">
           {caminhos.map((d) => (
             <path key={d} d={d} />
           ))}

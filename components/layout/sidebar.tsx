@@ -110,7 +110,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onAbrirLoja}
-          className="flex flex-shrink-0 items-center gap-2.5 border-b border-[var(--adm-borda)] px-3 py-3 text-left transition-colors hover:bg-[var(--adm-superficie-2)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
+          className="flex flex-shrink-0 items-center gap-2.5 border-b border-[var(--adm-borda)] px-4 py-2.5 text-left transition-colors hover:bg-[var(--adm-superficie-2)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
           aria-label={`Ver os dados de ${loja.nome}`}
         >
           {loja.logoUrl ? (
@@ -118,15 +118,15 @@ export function Sidebar({
             <img
               src={loja.logoUrl}
               alt=""
-              className="h-9 w-9 flex-shrink-0 rounded-[var(--adm-raio-sm)] border border-[var(--adm-borda)] object-cover"
+              className="h-8 w-8 flex-shrink-0 rounded-[3px] border border-[var(--adm-borda)] object-cover"
             />
           ) : (
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm)] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul-escuro)]">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[3px] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul-escuro)]">
               {loja.nome.charAt(0).toUpperCase()}
             </span>
           )}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[14px] font-normal text-[var(--adm-menu-texto)]">{loja.nome}</span>
+            <span className="block truncate text-[13.5px] font-semibold text-[var(--adm-menu-texto)]">{loja.nome}</span>
             {(loja.bairro || loja.cidade) && (
               <span className="block truncate text-[12px] text-[var(--adm-menu-suave)]">
                 {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}
@@ -139,7 +139,7 @@ export function Sidebar({
         </button>
       )}
 
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-2.5">
+      <nav className="flex flex-1 flex-col overflow-y-auto py-2">
         {items.map((item) => {
           // Prefixo, não igualdade: seções com subpáginas (ex.: /admin/integracoes/nexta)
           // precisam manter o item do menu destacado.
@@ -150,15 +150,17 @@ export function Sidebar({
               key={item.href}
               href={item.href}
               className={[
-                'mx-2 flex min-h-[40px] items-center gap-3 rounded-[var(--adm-raio-sm)] px-[10px] text-left text-[14px] leading-none transition-colors',
+                // Linha reta de ponta a ponta, sem pílula: o item ativo é marcado
+                // pela borda esquerda na cor de marca (padrão Menuzia, CLAUDE.md §3).
+                'flex min-h-[36px] items-center gap-3 border-l-[3px] pl-[13px] pr-3 text-left text-[13.5px] leading-none transition-colors',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
                 isActive
-                  ? 'bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
-                  : 'font-normal text-[var(--adm-menu-texto)] hover:bg-[var(--adm-hover)]',
+                  ? 'border-[var(--adm-azul)] bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
+                  : 'border-transparent font-normal text-[var(--adm-menu-texto)] hover:bg-[var(--adm-hover)]',
               ].join(' ')}
             >
               {iconPath && (
-                <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className="h-[19px] w-[19px] flex-shrink-0 fill-current" aria-hidden="true">
                   {iconPath.map((d) => (
                     <path key={d} d={d} />
                   ))}
@@ -205,9 +207,9 @@ export function Sidebar({
           href={`/loja/${storeSlug}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="mx-2 mb-1 flex min-h-[40px] items-center gap-3 rounded-[var(--adm-raio-sm)] px-[10px] text-[14px] font-normal leading-none text-[var(--adm-menu-texto)] transition-colors hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
+          className="mb-1 flex min-h-[36px] items-center gap-3 border-l-[3px] border-transparent pl-[13px] pr-3 text-[13.5px] font-normal leading-none text-[var(--adm-menu-texto)] transition-colors hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
         >
-          <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-[19px] w-[19px] flex-shrink-0 fill-current" aria-hidden="true">
             {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
           </svg>
           <span className="truncate">Ver meu cardápio</span>
@@ -218,7 +220,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onAbrirPendencias}
-          className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-menuzia border border-danger/40 bg-danger/10 px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-vermelho-texto)] transition-colors hover:bg-danger/20"
+          className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-[3px] border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] font-semibold text-[var(--adm-vermelho-texto)] transition-colors hover:bg-danger/20"
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] flex-shrink-0 fill-current">
             {ICONES.aviso.map((d) => (<path key={d} d={d} />))}
@@ -230,7 +232,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onSignOut}
-          className="mx-3 mb-4 flex items-center justify-center gap-2 rounded-[var(--adm-raio-sm)] border border-[var(--adm-borda)] px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-texto-suave)] transition-colors hover:border-[var(--adm-borda-forte)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)]"
+          className="mx-3 mb-3 flex items-center justify-center gap-2 rounded-[3px] border border-[var(--adm-borda)] px-3 py-2 text-[12px] font-semibold text-[var(--adm-texto-suave)] transition-colors hover:border-[var(--adm-borda-forte)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)]"
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-current">
             {ICONES.sair.map((d) => (<path key={d} d={d} />))}

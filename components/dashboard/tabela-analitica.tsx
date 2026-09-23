@@ -137,7 +137,7 @@ export function TabelaAnalitica<T extends { id: string }>({
                     ].join(' ')}
                   >
                     {c.destaque ? (
-                      <span className="inline-flex max-w-full items-center truncate rounded-[4px] bg-[var(--adm-grafico-claro)] px-2 py-1 text-[12.8px] font-semibold text-[var(--adm-grafico-escuro)]">
+                      <span className="inline-flex max-w-full items-center truncate rounded-[4px] bg-[#f1f2f4] px-2 py-1 text-[12.8px] font-semibold text-[var(--adm-texto-forte)]">
                         {c.render ? c.render(linha) : c.valor(linha)}
                       </span>
                     ) : c.render ? (
