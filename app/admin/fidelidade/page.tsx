@@ -137,12 +137,13 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
-function ToggleSwitch({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function ToggleSwitch({ checked, onChange, disabled, rotulo }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; /** Nome lido em voz alta — obrigatório quando o texto ao lado não é do próprio botão. */ rotulo?: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={rotulo}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={[
@@ -167,7 +168,7 @@ function ToggleRow({ label, hint, checked, onChange }: { label: string; hint?: s
         <div className="text-[13px] font-medium text-text-main">{label}</div>
         {hint && <p className="mt-0.5 text-[11px] text-text-subtle">{hint}</p>}
       </div>
-      <ToggleSwitch checked={checked} onChange={onChange} />
+      <ToggleSwitch checked={checked} onChange={onChange} rotulo={label} />
     </div>
   )
 }
@@ -686,7 +687,7 @@ export default function FidelidadePage() {
                         <p className="break-words text-[14px] font-bold text-text-main">{c.nome}</p>
                         {c.descricao && <p className="mt-0.5 text-[11px] text-text-subtle">{c.descricao}</p>}
                       </div>
-                      <ToggleSwitch checked={c.ativa} onChange={() => toggleCampanhaAtiva(c)} />
+                      <ToggleSwitch checked={c.ativa} onChange={() => toggleCampanhaAtiva(c)} rotulo={`Ativar a campanha ${c.nome}`} />
                     </div>
                     <div className="mt-2 flex items-center gap-2 text-[13px]">
                       {c.premioTipo === 'item_gratis' && <ItemThumb nome={c.premioItemNome ?? 'Item'} imagemUrl={c.premioItemImagemUrl ?? null} />}
@@ -757,7 +758,7 @@ export default function FidelidadePage() {
                           <span className="font-semibold text-text-main">{c.recompensasResgatadas}</span> resgatados
                         </td>
                         <td className="px-4 py-3">
-                          <ToggleSwitch checked={c.ativa} onChange={() => toggleCampanhaAtiva(c)} />
+                          <ToggleSwitch checked={c.ativa} onChange={() => toggleCampanhaAtiva(c)} rotulo={`Ativar a campanha ${c.nome}`} />
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
@@ -815,7 +816,7 @@ export default function FidelidadePage() {
                       <span className="inline-flex items-center rounded border border-border bg-page px-2 py-0.5 font-mono text-[13px] font-bold tracking-wide text-text-main">
                         {c.codigo}
                       </span>
-                      <ToggleSwitch checked={c.ativo} onChange={() => toggleCupomAtivo(c)} />
+                      <ToggleSwitch checked={c.ativo} onChange={() => toggleCupomAtivo(c)} rotulo={`Ativar o cupom ${c.codigo}`} />
                     </div>
                     {c.descricao && <p className="mt-1.5 text-[11px] text-text-subtle">{c.descricao}</p>}
                     <div className="mt-2 flex items-center gap-2 text-[13px]">
@@ -913,7 +914,7 @@ export default function FidelidadePage() {
                           {c.usoUnicoPorCliente && <p className="mt-0.5 text-[11px]">1x por cliente</p>}
                         </td>
                         <td className="px-4 py-3">
-                          <ToggleSwitch checked={c.ativo} onChange={() => toggleCupomAtivo(c)} />
+                          <ToggleSwitch checked={c.ativo} onChange={() => toggleCupomAtivo(c)} rotulo={`Ativar o cupom ${c.codigo}`} />
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">

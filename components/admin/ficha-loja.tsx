@@ -88,7 +88,7 @@ export function FichaDaLoja({
             <div className="min-w-0">
               <h2 className="truncate text-[15px] font-bold text-[var(--adm-texto,#101828)]">{loja.nome}</h2>
               {(loja.bairro || loja.cidade) && (
-                <p className="truncate text-[12px] text-[var(--adm-texto-suave,#667085)]">
+                <p className="truncate text-[12px] text-[var(--adm-texto-suave,#5b6472)]">
                   {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}
                 </p>
               )}
@@ -98,7 +98,7 @@ export function FichaDaLoja({
             ref={fechar}
             onClick={onFechar}
             aria-label="Fechar"
-            className="toque-icone -mr-2 flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm,6px)] text-[var(--adm-texto-suave,#667085)] hover:bg-[var(--adm-superficie-2,#fafbfc)]"
+            className="toque-icone -mr-2 flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm,6px)] text-[var(--adm-texto-suave,#5b6472)] hover:bg-[var(--adm-superficie-2,#fafbfc)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -107,7 +107,7 @@ export function FichaDaLoja({
         <dl className="divide-y divide-[var(--adm-borda,#e5e7eb)] px-5">
           {linhas.map((l) => (
             <div key={l.rotulo} className="flex items-baseline justify-between gap-4 py-3">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--adm-texto-suave,#667085)]">
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--adm-texto-suave,#5b6472)]">
                 {l.rotulo}
               </dt>
               <dd className="min-w-0 truncate text-right text-[13px] text-[var(--adm-texto,#101828)]">{l.valor}</dd>
@@ -115,7 +115,7 @@ export function FichaDaLoja({
           ))}
           {urlCardapio && (
             <div className="flex items-baseline justify-between gap-4 py-3">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--adm-texto-suave,#667085)]">
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--adm-texto-suave,#5b6472)]">
                 Cardápio
               </dt>
               <dd className="min-w-0 truncate text-right">
@@ -135,7 +135,7 @@ export function FichaDaLoja({
         <div className="flex justify-end gap-2 border-t border-[var(--adm-borda,#e5e7eb)] px-5 py-4">
           <button
             onClick={onFechar}
-            className="rounded-[var(--adm-raio-sm,6px)] border border-[var(--adm-borda,#e5e7eb)] px-3.5 py-2 text-[12px] font-semibold text-[var(--adm-texto-suave,#667085)] hover:bg-[var(--adm-superficie-2,#fafbfc)]"
+            className="rounded-[var(--adm-raio-sm,6px)] border border-[var(--adm-borda,#e5e7eb)] px-3.5 py-2 text-[12px] font-semibold text-[var(--adm-texto-suave,#5b6472)] hover:bg-[var(--adm-superficie-2,#fafbfc)]"
           >
             Fechar
           </button>

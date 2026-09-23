@@ -72,12 +72,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'conta', label: 'Conta' },
 ]
 
-function ToggleSwitch({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function ToggleSwitch({ checked, onChange, disabled, rotulo }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; /** Nome lido em voz alta — obrigatório quando o texto ao lado não é do próprio botão. */ rotulo?: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={rotulo}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={[
@@ -102,7 +103,7 @@ function ToggleRow({ label, hint, checked, onChange, disabled }: { label: string
         <div className="text-[13px] font-medium text-text-main">{label}</div>
         {hint && <p className="mt-0.5 text-[11px] text-text-subtle">{hint}</p>}
       </div>
-      <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} />
+      <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} rotulo={label} />
     </div>
   )
 }

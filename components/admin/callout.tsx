@@ -31,7 +31,7 @@ export function Callout({
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-bold text-[var(--adm-texto,#101828)]">{titulo}</p>
         {children && (
-          <div className="mt-0.5 text-[12px] leading-relaxed text-[var(--adm-texto-suave,#667085)]">{children}</div>
+          <div className="mt-0.5 text-[12px] leading-relaxed text-[var(--adm-texto-suave,#5b6472)]">{children}</div>
         )}
       </div>
     </>

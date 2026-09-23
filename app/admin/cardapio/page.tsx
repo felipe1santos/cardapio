@@ -3088,7 +3088,7 @@ export default function CardapioPage() {
                               R$ {item.preco.toFixed(2).replace('.', ',')}
                             </span>
                           )}
-                          <button onClick={() => openEditItem(item)}
+                          <button onClick={() => openEditItem(item)} aria-label={`Editar ${item.nome}`}
                             className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
                             <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
                               <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z" />
@@ -3337,7 +3337,7 @@ export default function CardapioPage() {
               >
                 <span className="text-xl leading-none">{t.icon}</span>
                 {t.label}
-                <span className={['text-[9px] font-normal', t.active ? 'text-white/70' : 'text-text-subtle/70'].join(' ')}>{t.hint}</span>
+                <span className={['text-[10px] font-normal', t.active ? 'text-white' : 'text-text-subtle'].join(' ')}>{t.hint}</span>
               </button>
             ))}
           </div>

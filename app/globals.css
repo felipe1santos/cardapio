@@ -351,7 +351,8 @@ html:has(.font-loja) {
   --adm-borda: #e5e7eb;
   --adm-borda-forte: #d6dae1;
   --adm-texto: #101828;
-  --adm-texto-suave: #667085;
+  /* 5,1:1 ate sobre os fundos tingidos do painel; #667085 parava em 4,2:1. */
+  --adm-texto-suave: #5b6472;
   --adm-azul: #0b78d0;
   --adm-azul-escuro: #0961a8;
   --adm-azul-claro: #eff6ff;
@@ -429,6 +430,44 @@ html:has(.font-loja) {
 
   [data-admin-shell]:not([data-rota-kanban='sim']) main .text-primary {
     color: var(--adm-azul);
+  }
+
+  /* Texto secundário e de valor no contraste mínimo.
+     O #6B7280 da paleta cai para 4,17:1 sobre os fundos levemente tingidos que o
+     painel usa (linha de tabela marcada, cartão cinza) e o verde #16A34A não
+     passa de 3,3:1 nem sobre branco. Só o TEXTO escurece — fundo, borda e ícone
+     continuam os da identidade, e a vitrine não é tocada. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-text-subtle {
+    color: var(--adm-texto-suave);
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-price-text {
+    color: #15803d;
+  }
+
+  /* Etiquetas de estado (papel da equipe, status de item, faixa de pedido).
+     A cor de fundo é a da identidade — 10% da cor do estado — mas o texto em
+     cima dela ficava entre 2,3:1 e 3,9:1 em corpo de 10px. Um tom mais fundo da
+     MESMA cor resolve sem trocar o significado: laranja continua laranja.
+     O Kanban fica de fora: lá a cor do estado é lida de longe, em cartão. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-status-preparing {
+    color: #1d4ed8;
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-status-pending {
+    color: #c2410c;
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-status-ready {
+    color: #047857;
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-purple {
+    color: #7e22ce;
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-pink-600 {
+    color: #9d174d;
   }
 
   /* Texto de erro: #ef4444 sobre branco dá 3,76:1, abaixo do mínimo de 4,5:1
