@@ -1,152 +1,148 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import QRCode from 'qrcode'
-import { Check, Copy, Download, ExternalLink, Printer } from 'lucide-react'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { DrawerFolhaMesas } from '@/app/admin/mesas/qr'
-import { urlPublicaDaMesa, type Mesa } from '@/lib/queries/mesas'
-import { nomeArquivoQr } from '@/lib/qr-cardapio'
+import { Check, Copy, Download, ExternalLink } from 'lucide-react'
+import { rotuloMesa } from '@/lib/qr-cardapio'
 
-interface TokenQr {
+/** Uma mesa já com o link e o QR prontos para a tela. */
+export interface MesaComQr {
   id: string
   nome: string
   setor: string | null
-  ativa: boolean
-  token: string | null
+  /** `/mesa/<token>` já com a origem. Vazio quando o QR foi revogado. */
+  url: string
+  /** PNG do QR (data URL). Null enquanto gera. */
+  qrDataUrl: string | null
   qrRevogado: boolean
 }
 
 /**
- * QR das mesas, com o módulo Mesas e Comandas ligado.
+ * Lista das mesas com o QR à vista.
  *
- * Cada mesa tem o SEU link (`/mesa/<token>`), que abre o cardápio de autoatendimento da
- * mesa: o cliente escolhe e mostra ao garçom. É diferente do QR do delivery (a vitrine
- * `/loja/<slug>`), que continua disponível abaixo para divulgação e balcão.
- *
- * Os links vêm de `/api/admin/mesas/qr`, que só responde à gestão.
+ * Antes daqui só saía o link em texto, e o dono não tinha como conferir se
+ * aquele QR era mesmo o da mesa dele sem baixar o PNG. Ver a imagem ao lado do
+ * nome é o que torna a tela óbvia para quem não é técnico — e é o mesmo QR que
+ * vai para a folha impressa.
  */
-export function QrDasMesas({ mesas, nomeLoja, logoUrl }: { mesas: Mesa[]; nomeLoja: string; logoUrl: string | null }) {
-  const [tokens, setTokens] = useState<TokenQr[] | null>(null)
-  const [erro, setErro] = useState<string | null>(null)
-  const [copiado, setCopiado] = useState<string | null>(null)
-  const [folhaAberta, setFolhaAberta] = useState(false)
-  const origem = typeof window === 'undefined' ? '' : window.location.origin
-
-  useEffect(() => {
-    void (async () => {
-      const r = await fetch('/api/admin/mesas/qr', { cache: 'no-store' })
-      const corpo = (await r.json().catch(() => ({}))) as { mesas?: TokenQr[]; error?: string }
-      if (!r.ok) {
-        setErro(corpo.error ?? 'Não foi possível carregar os QR Codes das mesas.')
-        return
-      }
-      setTokens((corpo.mesas ?? []).filter((m) => m.ativa))
-    })()
-  }, [])
-
-  async function copiar(id: string, url: string) {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopiado(id)
-      setTimeout(() => setCopiado((atual) => (atual === id ? null : atual)), 1800)
-    } catch {
-      /* clipboard bloqueado: o link continua visível para copiar à mão */
-    }
-  }
-
-  async function baixar(nome: string, url: string) {
-    const dado = await QRCode.toDataURL(url, { width: 1024, margin: 1, errorCorrectionLevel: 'M' })
-    const a = document.createElement('a')
-    a.href = dado
-    a.download = nomeArquivoQr(`${nomeLoja}-${nome}`)
-    a.click()
+export function ListaQrMesas({
+  mesas,
+  selecionadas,
+  onAlternar,
+  onTodas,
+  onNenhuma,
+  onCopiar,
+  onBaixar,
+  copiadoId,
+}: {
+  mesas: MesaComQr[]
+  selecionadas: string[]
+  onAlternar: (id: string) => void
+  onTodas: () => void
+  onNenhuma: () => void
+  onCopiar: (mesa: MesaComQr) => void
+  onBaixar: (mesa: MesaComQr) => void
+  copiadoId: string | null
+}) {
+  if (mesas.length === 0) {
+    return (
+      <p className="rounded-menuzia border border-dashed border-border px-3 py-6 text-center text-[12px] text-text-subtle">
+        Nenhuma mesa cadastrada ainda. Cadastre em <strong>Mesas e Comandas</strong> para cada uma ganhar o seu QR.
+      </p>
+    )
   }
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="mb-1 text-[13px] font-bold text-text-main">QR Code das mesas</h3>
-          <p className="text-[12px] leading-relaxed text-text-subtle">
-            Cada mesa tem o seu QR. Ele abre o <strong className="text-text-main">cardápio da mesa</strong>: o cliente
-            escolhe os itens e mostra ao garçom — nada vai para a cozinha sem o garçom lançar.
-          </p>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+          {selecionadas.length} de {mesas.length} na folha
+        </span>
+        <div className="flex gap-3 text-[11px] font-semibold uppercase tracking-wide">
+          <button type="button" onClick={onTodas} className="text-primary hover:underline">
+            Todas
+          </button>
+          <button type="button" onClick={onNenhuma} className="text-text-subtle hover:text-text-main">
+            Nenhuma
+          </button>
         </div>
-        <Button onClick={() => setFolhaAberta(true)} disabled={!tokens || tokens.length === 0}>
-          <Printer size={13} />
-          Imprimir folha das mesas
-        </Button>
       </div>
 
-      {erro && <p className="mt-3 rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] text-danger" role="alert">{erro}</p>}
-      {!tokens && !erro && <p className="mt-3 text-[12px] text-text-subtle">Carregando…</p>}
-      {tokens && tokens.length === 0 && (
-        <p className="mt-3 rounded-menuzia border border-dashed border-border px-3 py-2.5 text-[12px] text-text-subtle">
-          Nenhuma mesa ativa. Cadastre as mesas em <strong>Mesas e Comandas</strong>, no menu lateral.
-        </p>
-      )}
-
-      {tokens && tokens.length > 0 && (
-        <ul className="mt-4 divide-y divide-border rounded-menuzia border border-border">
-          {tokens.map((m) => {
-            const url = m.token ? urlPublicaDaMesa(origem, m.token) : ''
-            return (
-              <li key={m.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                <span className="w-24 flex-shrink-0 text-[13px] font-semibold text-text-main">
-                  {m.nome}
-                  {m.setor && <span className="block text-[10px] font-normal text-text-subtle">{m.setor}</span>}
-                </span>
-                {m.qrRevogado || !url ? (
-                  <span className="flex-1 text-[12px] text-danger">QR revogado — gere um novo em Mesas e Comandas.</span>
+      <ul className="divide-y divide-border overflow-hidden rounded-menuzia border border-border bg-white">
+        {mesas.map((m) => {
+          const marcada = selecionadas.includes(m.id)
+          return (
+            <li key={m.id} className="flex items-center gap-3 p-2.5">
+              {/* A miniatura é o próprio QR da mesa: dá para conferir na tela e
+                  até escanear daqui, sem imprimir nada. */}
+              <button
+                type="button"
+                onClick={() => m.url && onAlternar(m.id)}
+                disabled={!m.url}
+                title={m.url ? (marcada ? 'Tirar da folha' : 'Incluir na folha') : 'QR revogado'}
+                className={[
+                  'flex h-[62px] w-[62px] flex-shrink-0 items-center justify-center overflow-hidden rounded-menuzia border-2 bg-white transition-colors',
+                  marcada ? 'border-primary' : 'border-border',
+                  m.url ? 'hover:border-primary' : 'cursor-not-allowed opacity-50',
+                ].join(' ')}
+              >
+                {m.qrDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.qrDataUrl} alt={`QR da ${rotuloMesa(m.nome)}`} className="h-full w-full object-contain p-0.5" />
                 ) : (
-                  <>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-subtle" title={url}>
-                      {url}
-                    </span>
-                    <span className="flex flex-shrink-0 gap-1">
-                      <button
-                        onClick={() => copiar(m.id, url)}
-                        aria-label={`Copiar o link da ${m.nome}`}
-                        className={[
-                          'flex min-h-[40px] items-center gap-1 rounded-menuzia px-2 text-[11px] font-semibold lg:min-h-[28px]',
-                          copiado === m.id ? 'text-status-ready' : 'text-primary hover:bg-primary/10',
-                        ].join(' ')}
-                      >
-                        {copiado === m.id ? <Check size={13} /> : <Copy size={13} />}
-                        {copiado === m.id ? 'Copiado!' : 'Copiar'}
-                      </button>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Abrir o cardápio da ${m.nome}`}
-                        className="flex min-h-[40px] items-center gap-1 rounded-menuzia px-2 text-[11px] font-semibold text-primary hover:bg-primary/10 lg:min-h-[28px]"
-                      >
-                        <ExternalLink size={13} />
-                        Abrir
-                      </a>
-                      <button
-                        onClick={() => baixar(m.nome, url)}
-                        aria-label={`Baixar o QR da ${m.nome}`}
-                        className="flex min-h-[40px] items-center gap-1 rounded-menuzia px-2 text-[11px] font-semibold text-primary hover:bg-primary/10 lg:min-h-[28px]"
-                      >
-                        <Download size={13} />
-                        PNG
-                      </button>
-                    </span>
-                  </>
+                  <span className="text-[10px] text-text-subtle">…</span>
                 )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
+              </button>
 
-      {folhaAberta && (
-        <DrawerFolhaMesas mesas={mesas.filter((m) => m.ativa)} nomeLoja={nomeLoja} logoUrl={logoUrl} onFechar={() => setFolhaAberta(false)} />
-      )}
-    </Card>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-text-main">{rotuloMesa(m.nome)}</span>
+                  {m.setor && <span className="text-[11px] text-text-subtle">{m.setor}</span>}
+                  {m.qrRevogado && (
+                    <span className="rounded-menuzia bg-danger-bg px-1.5 py-0.5 text-[10px] font-bold uppercase text-danger">
+                      QR revogado
+                    </span>
+                  )}
+                </div>
+                <p className="truncate font-mono text-[11px] text-text-subtle" title={m.url}>
+                  {m.url || 'Gere um QR novo em Mesas e Comandas'}
+                </p>
+              </div>
+
+              {m.url && (
+                <div className="flex flex-shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onCopiar(m)}
+                    title="Copiar link"
+                    aria-label={`Copiar link da ${rotuloMesa(m.nome)}`}
+                    className="toque-icone flex h-[32px] w-[32px] items-center justify-center rounded-menuzia border border-border text-text-subtle transition-colors hover:border-primary hover:text-primary"
+                  >
+                    {copiadoId === m.id ? <Check className="h-3.5 w-3.5 text-status-ready" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                  <a
+                    href={m.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir o cardápio desta mesa"
+                    aria-label={`Abrir o cardápio da ${rotuloMesa(m.nome)}`}
+                    className="toque-icone flex h-[32px] w-[32px] items-center justify-center rounded-menuzia border border-border text-text-subtle transition-colors hover:border-primary hover:text-primary"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => onBaixar(m)}
+                    title="Baixar o QR em PNG"
+                    aria-label={`Baixar o QR da ${rotuloMesa(m.nome)}`}
+                    className="toque-icone flex h-[32px] w-[32px] items-center justify-center rounded-menuzia border border-border text-text-subtle transition-colors hover:border-primary hover:text-primary"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }

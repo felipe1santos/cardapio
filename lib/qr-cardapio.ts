@@ -149,3 +149,30 @@ export function rotuloMesa(nome: string): string {
   const limpo = nome.trim()
   return /^\d+$/.test(limpo) ? `Mesa ${limpo}` : limpo
 }
+
+/**
+ * Tamanho do QR impresso, ajustável pelo lojista.
+ *
+ * Cada modelo nasce com um tamanho pensado para a folha (42, 65 e 110 mm), mas
+ * quem cola na mesa sabe melhor do que nós: porta-guardanapo pequeno pede QR
+ * menor, mesa alta de bar pede maior. O ajuste é limitado por modelo — passar do
+ * teto faz a etiqueta transbordar a célula e invadir a vizinha, que foi o
+ * motivo de o adesivo ser 6 por folha e não 8.
+ */
+export const LIMITES_TAMANHO: Record<ModeloEtiqueta, { min: number; max: number; passo: number }> = {
+  adesivo: { min: 30, max: 52, passo: 2 },
+  cartao: { min: 45, max: 80, passo: 5 },
+  cartaz: { min: 80, max: 140, passo: 5 },
+}
+
+/** Prende o tamanho pedido dentro do que o modelo aguenta. */
+export function tamanhoQrValido(modelo: ModeloEtiqueta, mm: number): number {
+  const { min, max } = LIMITES_TAMANHO[modelo]
+  if (!Number.isFinite(mm)) return modeloEtiqueta(modelo).qrMm
+  return Math.min(max, Math.max(min, Math.round(mm)))
+}
+
+/** O mesmo modelo, com o QR no tamanho que o lojista escolheu. */
+export function comTamanhoQr(modelo: ModeloInfo, mm: number): ModeloInfo {
+  return { ...modelo, qrMm: tamanhoQrValido(modelo.id, mm) }
+}

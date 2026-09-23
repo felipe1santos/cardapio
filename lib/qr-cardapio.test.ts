@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   MAX_ETIQUETAS,
   MODELOS_ETIQUETA,
+  LIMITES_TAMANHO,
+  tamanhoQrValido,
+  comTamanhoQr,
   descricaoDoModelo,
   modeloEtiqueta,
   montarEtiquetas,
@@ -126,5 +129,34 @@ describe('descricaoDoModelo', () => {
       expect(m.descricao.length).toBeGreaterThan(10)
       expect(m.descricaoDelivery.length).toBeGreaterThan(10)
     }
+  })
+})
+
+describe('tamanho do QR ajustável', () => {
+  it('cada modelo aceita ajuste dentro do que a célula aguenta', () => {
+    expect(tamanhoQrValido('adesivo', 42)).toBe(42)
+    expect(tamanhoQrValido('adesivo', 999)).toBe(LIMITES_TAMANHO.adesivo.max)
+    expect(tamanhoQrValido('adesivo', 1)).toBe(LIMITES_TAMANHO.adesivo.min)
+    expect(tamanhoQrValido('cartaz', 120)).toBe(120)
+  })
+
+  it('valor impossível cai no tamanho padrão do modelo', () => {
+    expect(tamanhoQrValido('cartao', Number.NaN)).toBe(modeloEtiqueta('cartao').qrMm)
+  })
+
+  it('o padrão de cada modelo está dentro dos limites dele', () => {
+    for (const m of MODELOS_ETIQUETA) {
+      const { min, max } = LIMITES_TAMANHO[m.id]
+      expect(m.qrMm).toBeGreaterThanOrEqual(min)
+      expect(m.qrMm).toBeLessThanOrEqual(max)
+    }
+  })
+
+  it('comTamanhoQr troca só o tamanho, preserva o resto', () => {
+    const base = modeloEtiqueta('cartao')
+    const ajustado = comTamanhoQr(base, 70)
+    expect(ajustado.qrMm).toBe(70)
+    expect(ajustado.porPagina).toBe(base.porPagina)
+    expect(ajustado.label).toBe(base.label)
   })
 })
