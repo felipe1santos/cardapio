@@ -2972,6 +2972,20 @@ export default function CardapioPage() {
                                 <span className="text-[13px] font-semibold">{item.nome}</span>
                               </div>
                               <div className="mt-0.5 text-[11px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
+                              {/* Mesmo alerta da grade: a tabela é a visão padrão no
+                                  desktop, e é nela que o lojista passa o olho. */}
+                              {(() => {
+                                const aviso = avisoDoItem({
+                                  preco: item.preco,
+                                  promocaoPreco: item.promocaoPreco,
+                                  tipoItem: item.tipoItem,
+                                  qtdTamanhos: item.tamanhos.length,
+                                  status: item.status,
+                                })
+                                return aviso ? (
+                                  <p className="mt-1 inline-block rounded-menuzia bg-warn-bg px-1.5 py-0.5 text-[11px] font-semibold text-warn">{aviso}</p>
+                                ) : null
+                              })()}
                             </div>
                           </div>
                         </td>
