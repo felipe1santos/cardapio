@@ -57,7 +57,7 @@ Ajustes › Impressão. Por isso a ordem.
 ### Verificação local (já executada nesta RC)
 
 ```bash
-node scripts/seguranca/verificar-isolamento-lojas.mjs   # 41/41
+node scripts/seguranca/verificar-isolamento-lojas.mjs   # 46/46
 node scripts/seguranca/verificar-rls-papeis.mjs         # 60/60
 node scripts/seguranca/verificar-checkpoint-s.mjs       # 15/15
 node scripts/seguranca/regressao-checkpoint-s.mjs       # 12/12
@@ -77,6 +77,28 @@ puder subir. Preferência sempre: corrigir para frente (grant da coluna que falt
 Sintoma típico que **não** pede rollback: uma tela quebrando com
 `permission denied for column X` — é coluna nova sem grant; resolver com
 `grant select (X) on public.restaurantes to authenticated`.
+
+### 0081 — funções do servidor e escrita anônima
+
+Varredura sistemática depois da 0080 (tabelas sem RLS, policies sem filtro de loja,
+views, funções SECURITY DEFINER executáveis de fora):
+
+- nenhuma tabela sem RLS; nenhuma view; as únicas leituras abertas entre lojas são o
+  catálogo público da vitrine (itens, grupos, complementos, pizza, taxas de entrega) —
+  intencional;
+- `restaurante_id_por_agente_token` (oráculo de token) e
+  `campanha_incrementar_enviados/erros` eram executáveis por `anon`/`authenticated`;
+  a 0081 deixa só `service_role`;
+- `anon` tinha INSERT/UPDATE/DELETE/TRUNCATE de tabela em ~38 tabelas (a RLS barrava);
+  a 0081 revoga — nada no produto escreve com a chave anônima.
+
+Sem ordem de deploy. Rollback: `docs/rollback/0081_seg_funcoes_definer_e_escrita_anon.down.sql`.
+
+Achado **fora do escopo** (mesma loja, não entre lojas), registrado para depois: as
+policies "Tenant members manage …" (cardápio, cupons, campanhas, entregadores,
+fidelidade, impressoras) valem para qualquer papel da loja, inclusive garçom.
+
+Verificação local: `verificar-isolamento-lojas.mjs` 46/46 (5 checagens novas da 0081).
 
 ---
 

@@ -124,6 +124,24 @@ for (const [nome, c, propria, alheia] of [
   ok('authenticated não tem SELECT nem UPDATE no token', !tokenLivre.sel && !tokenLivre.upd)
 }
 
+{
+  // 0081: funções SECURITY DEFINER só do servidor, e nenhuma escrita com a chave anônima.
+  for (const [nome, c] of [['visitante', visitante], ['dono A', donoA]]) {
+    const { error: eOraculo } = await c.rpc('restaurante_id_por_agente_token', { token: tokenA })
+    ok(`${nome} não consulta o oráculo de token por RPC (0081)`, Boolean(eOraculo), eOraculo?.message?.slice(0, 50))
+    const { error: eCampanha } = await c.rpc('campanha_incrementar_enviados', { p_campanha_id: crypto.randomUUID() })
+    ok(`${nome} não incrementa contador de campanha por RPC (0081)`, Boolean(eCampanha), eCampanha?.message?.slice(0, 50))
+  }
+  const escritaAnon = (
+    await db.query(`
+      select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relkind in ('r','p')
+         and (has_table_privilege('anon', c.oid, 'INSERT') or has_table_privilege('anon', c.oid, 'UPDATE')
+              or has_table_privilege('anon', c.oid, 'DELETE'))`)
+  ).rows.map((r) => r.relname)
+  ok('anon não tem INSERT/UPDATE/DELETE em nenhuma tabela (0081)', escritaAnon.length === 0, escritaAnon.join(', '))
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 secao('Assistente de Impressão (rota /api/agente/pedidos)')
 async function fila(token) {
