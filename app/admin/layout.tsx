@@ -49,6 +49,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [badges, setBadges] = useState<BadgesNav>({ novosPedidos: 0, logisticaPendente: 0 })
   const [storeSlug, setStoreSlug] = useState<string | null>(null)
+  /** Identificação da loja no topo do menu: nome, logo e onde ela fica. */
+  const [loja, setLoja] = useState<{ nome: string; logoUrl: string | null; bairro: string; cidade: string } | null>(null)
   // Loja que não trabalha com entregador fecha a entrega no próprio Kanban — o
   // módulo de Logística sai do menu. `true` até a config chegar: esconder e
   // reaparecer o item piscaria o menu a cada carregamento.
@@ -124,6 +126,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (!active || !c) return
           setStoreSlug(c.slug)
           setUsaLogistica(c.usaLogistica)
+          setLoja({ nome: c.nome, logoUrl: c.logoUrl, bairro: c.enderecoBairro, cidade: c.enderecoCidade })
         })
         .catch(() => {
           /* slug e logística ficam com o padrão; a flag de mesas tem leitura própria */
@@ -176,6 +179,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!active || !config) return
         setStoreSlug(config.slug)
         setUsaLogistica(config.usaLogistica)
+        setLoja({ nome: config.nome, logoUrl: config.logoUrl, bairro: config.enderecoBairro, cidade: config.enderecoCidade })
 
         const lista = avaliarSetup(await carregarDadosSetup(supabase, restauranteId, config))
         if (!active) return
@@ -243,12 +247,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <MenuLateralContext.Provider value={valorDoMenu}>
     {/* `data-painel`: gancho da camada de celular em globals.css (alvo de toque de
         40px abaixo de lg). Nada muda no desktop — a regra vive dentro de media query. */}
-    <div data-painel className="flex h-screen overflow-hidden">
+    <div
+      data-painel
+      data-admin-shell
+      data-rota-kanban={pathname === '/admin/pedidos' || pathname.startsWith('/admin/pedidos/') ? 'sim' : 'nao'}
+      className="flex h-screen overflow-hidden"
+    >
       {!focusMode && (
         <Sidebar
           items={items}
           activeHref={pathname}
           storeSlug={storeSlug}
+          loja={loja}
           onSignOut={handleSignOut}
           aberta={menuAberto}
           onFechar={() => setMenuAberto(false)}

@@ -20,7 +20,7 @@ export function TopBar({ title, breadcrumb, right, voltar }: TopBarProps) {
   // Abaixo de sm a barra cresce em vez de empurrar as ações fora da tela: com título e
   // dois ou três botões, 60px fixos não cabem num aparelho de 360px.
   return (
-    <header className="flex min-h-[60px] flex-shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-b border-border bg-main px-3 py-2 sm:h-[60px] sm:flex-nowrap sm:py-0 sm:px-5">
+    <header className="flex min-h-[var(--adm-topo,56px)] flex-shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-b border-[var(--adm-borda,#e5e7eb)] bg-[var(--adm-superficie,#fff)] px-3 py-2 sm:h-[var(--adm-topo,56px)] sm:flex-nowrap sm:py-0 sm:px-5">
       <div className="flex min-w-0 items-center gap-2">
         {voltar && (
           <button

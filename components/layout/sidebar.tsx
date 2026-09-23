@@ -13,10 +13,21 @@ export interface SidebarItem {
   novidade?: boolean
 }
 
+export interface LojaNoMenu {
+  nome: string
+  logoUrl: string | null
+  bairro: string
+  cidade: string
+}
+
 export interface SidebarProps {
   items: SidebarItem[]
   activeHref: string
   storeSlug?: string | null
+  /** Identificação da loja no topo do menu. Null enquanto a configuração carrega. */
+  loja?: LojaNoMenu | null
+  /** Abre a ficha da loja (modal do painel). */
+  onAbrirLoja?: () => void
   onSignOut?: () => void
   /** Total de pendências de configuração — mostra o atalho pra reabrir o alerta. */
   pendencias?: number
@@ -51,6 +62,8 @@ export function Sidebar({
   items,
   activeHref,
   storeSlug,
+  loja,
+  onAbrirLoja,
   onSignOut,
   pendencias = 0,
   onAbrirPendencias,
@@ -63,7 +76,7 @@ export function Sidebar({
       {aberta && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={onFechar} aria-hidden="true" />}
       <aside
         className={[
-          'z-40 flex h-screen w-[240px] flex-shrink-0 flex-col bg-sidebar-bg shadow-lg',
+          'z-40 flex h-screen w-[252px] flex-shrink-0 flex-col border-r border-[var(--adm-borda)] bg-[var(--adm-superficie)]',
           'fixed inset-y-0 left-0 transition-transform duration-200 lg:static lg:translate-x-0',
           // `invisible` e não só `-translate-x-full`: deslocada, ela continuaria no
           // caminho do Tab e do leitor de tela. `lg:visible` devolve a coluna fixa.
@@ -114,12 +127,12 @@ export function Sidebar({
                 </span>
               )}
               {item.novidade && (
-                <span className="flex-shrink-0 rounded px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#FCD34D', color: '#78350F' }}>
+                <span className="flex-shrink-0 rounded px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#EDE9FE', color: '#5B21B6' }}>
                   Novidade
                 </span>
               )}
               {item.badge !== undefined && item.badge > 0 && (
-                <span className="ml-auto flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
+                <span className="ml-auto flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-azul)] px-1 text-[11px] font-bold text-white">
                   {item.badge > 99 ? '99+' : item.badge}
                 </span>
               )}
@@ -143,7 +156,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onSignOut}
-          className="mx-3 mb-4 flex items-center justify-center gap-2 rounded-menuzia border border-white/10 px-3 py-2.5 text-[12px] font-semibold text-sidebar-text transition-colors hover:bg-sidebar-hover hover:text-white"
+          className="mx-3 mb-4 flex items-center justify-center gap-2 rounded-[var(--adm-raio-sm)] border border-[var(--adm-borda)] px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-texto-suave)] transition-colors hover:border-[var(--adm-borda-forte)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)]"
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-current">
             <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
@@ -196,7 +209,7 @@ function CopiarLinkCardapio({ slug }: { slug: string }) {
         onClick={() => void copiar()}
         title="Copiar o link do cardápio"
         aria-label={copiado ? 'Link do cardápio copiado' : 'Copiar o link do cardápio'}
-        className="grid h-[40px] w-[40px] place-items-center rounded-menuzia text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+        className="grid h-[40px] w-[40px] place-items-center rounded-[var(--adm-raio-sm)] text-[var(--adm-texto-suave)] transition-colors hover:bg-[var(--adm-azul-claro)] hover:text-[var(--adm-azul)]"
       >
         {copiado ? (
           <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current">

@@ -331,3 +331,60 @@ html:has(.font-loja) {
     min-height: 40px;
   }
 }
+
+/* ══ Tema do painel administrativo ══════════════════════════════════════════
+   Vale SÓ dentro de `[data-admin-shell]` — a raiz de app/admin/layout.tsx. A
+   vitrine, o cardápio da mesa, o portal do entregador e a tela da cozinha não
+   têm esse atributo e continuam exatamente como estavam.
+
+   A direção é a de um painel de trabalho: fundo claro, superfícies brancas,
+   azul só para ação e roxo como destaque pontual. O menu escuro saiu — ele
+   pesava a tela inteira e disputava atenção com o conteúdo.
+
+   O Kanban fica de fora das regras de forma (raio, cartão, botão): ele é a tela
+   de operação e o dono conhece aquele desenho de cor. Por isso o shell marca
+   `data-rota-kanban` e as regras de componente ignoram essa rota. */
+[data-admin-shell] {
+  --adm-bg: #f5f7fa;
+  --adm-superficie: #ffffff;
+  --adm-superficie-2: #fafbfc;
+  --adm-borda: #e5e7eb;
+  --adm-borda-forte: #d6dae1;
+  --adm-texto: #101828;
+  --adm-texto-suave: #667085;
+  --adm-azul: #0b78d0;
+  --adm-azul-escuro: #0961a8;
+  --adm-azul-claro: #eff6ff;
+  --adm-roxo: #6d28d9;
+  --adm-roxo-claro: #f5f3ff;
+  --adm-raio: 8px;
+  --adm-raio-sm: 6px;
+  --adm-sombra: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --adm-sombra-md: 0 6px 16px rgba(16, 24, 40, 0.08);
+  --adm-lateral: 252px;
+  --adm-topo: 56px;
+  background-color: var(--adm-bg);
+  color: var(--adm-texto);
+}
+
+/* Área de conteúdo: o cinza claro é o fundo, as seções é que são brancas. */
+[data-admin-shell] main {
+  background-color: var(--adm-bg);
+}
+
+/* Forma dos componentes. O Kanban fica de fora: ali o desenho já está firmado
+   na rotina de quem opera, e mudar o raio dos cards mexeria na leitura deles. */
+[data-admin-shell]:not([data-rota-kanban='sim']) .rounded-menuzia {
+  border-radius: var(--adm-raio-sm);
+}
+
+[data-admin-shell]:not([data-rota-kanban='sim']) main .bg-main,
+[data-admin-shell]:not([data-rota-kanban='sim']) main .bg-white {
+  box-shadow: var(--adm-sombra);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-admin-shell] * {
+    transition-duration: 0.01ms !important;
+  }
+}
