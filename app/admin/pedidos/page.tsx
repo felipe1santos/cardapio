@@ -739,8 +739,10 @@ export default function PedidosPage() {
       setConcluded((prev) => (prev.some((o) => o.id === p.id) ? prev : [{ ...p, status: 'entregue' }, ...prev]))
     }
     try {
-      if (novo === 'entregue') await marcarPedidoEntregue(supabase, p.id)
-      else await avancarStatusPedido(supabase, p.id, novo)
+      // Compare-and-set com o status que o card mostrava: aba velha perde para quem
+      // mexeu antes, cai no catch e o refetch devolve o card ao estado real.
+      if (novo === 'entregue') await marcarPedidoEntregue(supabase, p.id, p.status)
+      else await avancarStatusPedido(supabase, p.id, novo, p.status)
       notificarPedido(p.id, novo)
     } catch {
       setError('Não foi possível atualizar o pedido.')

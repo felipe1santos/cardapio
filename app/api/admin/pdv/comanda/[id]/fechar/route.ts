@@ -1,23 +1,31 @@
 import { NextResponse } from 'next/server'
-import { getServerSupabase } from '@/lib/supabase/server'
-import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
-import { fecharComanda } from '@/lib/queries/comandas'
+import { contextoLegado } from '@/lib/pdv-legado'
+import { ehUuid } from '@/lib/pdv-v2'
+import * as conta from '@/lib/servicos/conta-presencial'
 
+/**
+ * "Fechar conta" do PDV ANTIGO (loja sem `pdv_v2`).
+ *
+ * Antes fazia `update comandas set status='fechada'` direto, sem conferir saldo nem
+ * registrar quem fechou. Agora passa pela mesma função de fechamento do salão: exige
+ * saldo zero (pagamentos registrados), nenhum cancelamento pendente, grava autor e
+ * total final, e trava a comanda contra lançamento simultâneo.
+ */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await getServerSupabase()
-  const restauranteId = await buscarRestauranteIdDoUsuario(session)
-  if (!restauranteId) {
-    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-  }
+  const ctx = await contextoLegado('fechar')
+  if ('erro' in ctx) return ctx.erro
+  if (!ehUuid(id)) return NextResponse.json({ error: 'Conta inválida' }, { status: 400 })
 
-  const admin = getAdminSupabase()
-  try {
-    await fecharComanda(admin, restauranteId, id)
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro ao fechar conta'
-    return NextResponse.json({ error: message }, { status: 400 })
+  const eu = { restauranteId: ctx.sessao.restauranteId, userId: ctx.sessao.userId, nome: ctx.sessao.nome, papel: ctx.sessao.papel }
+  const c = await conta.buscarConta(ctx.admin, eu.restauranteId, id)
+  if (!c) return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 })
+
+  const r = await conta.fechar(ctx.admin, eu, c, 'pdv')
+  if (!r.ok) {
+    await ctx.registrar('recusado', { codigo: r.codigo })
+    return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
   }
+  await ctx.registrar('ok')
+  return NextResponse.json({ ok: true })
 }

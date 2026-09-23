@@ -3,6 +3,7 @@ import type { Permissao } from '@/lib/auth/permissoes'
 import { contextoSalao, type ContextoSalao } from '@/lib/auth/salao'
 import { ehFormaOferecida, formatarResumoPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
+import * as servicoConta from '@/lib/servicos/conta-presencial'
 import {
   ajustarValores,
   buscarConta,
@@ -11,9 +12,7 @@ import {
   cancelarPedido,
   decidirCancelamento,
   estornarPagamento,
-  fecharConta,
   historicoDaConta,
-  registrarPagamento,
   solicitarCancelamento,
   transferirItens,
   transferirMesa,
@@ -164,17 +163,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!Number.isFinite(valor) || valor <= 0) return NextResponse.json({ error: 'Informe um valor maior que zero.' }, { status: 400 })
       if (recebido !== null && !Number.isFinite(recebido)) return NextResponse.json({ error: 'Valor recebido inválido.' }, { status: 400 })
 
-      const r = await registrarPagamento(admin, {
-        restauranteId: sessao.restauranteId, comandaId: conta!.comandaId, forma, valor, recebido, chave,
-        atorId: sessao.userId, atorNome: sessao.nome, observacao,
-      })
-      if (!r.ok) return falhou(r)
-      if (!r.valor.idempotente) {
-        await auditar('conta.pagamento', conta!.comandaId, {
-          resumo: formatarResumoPagamento(forma, valor, r.valor.troco ?? 0) + (observacao ? ` · ${observacao}` : ''),
-          pagamento_id: r.valor.id,
-        })
-      }
+      // Mesmo serviço do PDV: grava canal (mesa) e origem (salao) e audita igual.
+      const r = await servicoConta.pagar(
+        admin,
+        { restauranteId: sessao.restauranteId, userId: sessao.userId, nome: sessao.nome, papel: sessao.papel },
+        { id: conta!.comandaId, tipo: 'mesa', mesaNome: mesa.nome, numero: conta!.numero, senha: null, clienteNome: null },
+        { forma, valor, recebido, chave, observacao },
+        aceitas,
+        'salao',
+      )
+      if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
       return NextResponse.json({ ok: true, ...r.valor })
     }
 
@@ -248,19 +246,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     case 'fechar': {
-      const r = await fecharConta(admin, { restauranteId: sessao.restauranteId, comandaId: conta!.comandaId, atorId: sessao.userId, atorNome: sessao.nome })
-      if (!r.ok) return falhou(r)
-      const v = r.valor
-      const situacaoTaxa =
-        v.taxa_situacao === 'removida' ? 'taxa de serviço removida'
-          : v.taxa_situacao === 'alterada' ? `taxa de serviço alterada para ${v.taxa_percentual}% (padrão ${v.taxa_padrao}%)`
-            : v.taxa_situacao === 'aceita' ? `taxa de serviço de ${v.taxa_percentual}% aceita`
-              : 'sem taxa de serviço'
-      await auditar('conta.fechou', conta!.comandaId, {
-        resumo: `total R$ ${Number(v.total).toFixed(2)} · ${situacaoTaxa}`,
-        de: 'aberta', para: 'fechada', taxa_situacao: v.taxa_situacao, numero: conta!.numero,
-      })
-      return NextResponse.json({ ok: true, ...v })
+      // Mesmo fechamento do PDV. Loja sem `pdv_v2`: fecha como sempre fechou. Com a
+      // flag: pedido na cozinha ou pronto sem servir bloqueia, e a resposta traz as
+      // pendências para a tela mostrar.
+      const r = await servicoConta.fechar(
+        admin,
+        { restauranteId: sessao.restauranteId, userId: sessao.userId, nome: sessao.nome, papel: sessao.papel },
+        { id: conta!.comandaId, tipo: 'mesa', mesaNome: mesa.nome, numero: conta!.numero, senha: null, clienteNome: null },
+        'salao',
+      )
+      if (!r.ok) {
+        const pend = 'pendencias' in r ? r.pendencias : undefined
+        return NextResponse.json({ error: r.erro, codigo: r.codigo, pendencias: pend }, { status: r.status })
+      }
+      return NextResponse.json({ ok: true, ...(r.valor as Record<string, unknown>) })
     }
 
     case 'transferir_mesa': {
