@@ -1963,6 +1963,18 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
             <InstalarAppButton />
           </Card>
 
+          {/* Várias impressoras e pré-conta (0.1.26+) */}
+          <Card>
+            <h3 className="mb-1 text-[13px] font-bold text-text-main">Várias impressoras e pré-conta</h3>
+            <p className="mb-2 text-[12px] leading-relaxed text-text-subtle">
+              Pareie cada computador com um código, escolha a impressora da Cozinha e a do Caixa (pré-conta), teste e
+              acompanhe o histórico. Gerente também tem acesso.
+            </p>
+            <a href="/admin/impressao" className="inline-block rounded-menuzia border-2 border-primary px-3 py-1.5 text-[12px] font-bold text-primary hover:bg-primary hover:text-white">
+              Abrir Impressão
+            </a>
+          </Card>
+
           {/* Assistente de Impressão */}
           <Card>
             <h3 className="mb-1 text-[13px] font-bold text-text-main">Assistente de Impressão Menuzia</h3>

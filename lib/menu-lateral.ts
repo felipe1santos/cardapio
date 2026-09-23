@@ -26,6 +26,7 @@ export const NAV_ITEMS = [
   { href: '/admin/fidelidade', label: 'Fidelidade' },
   { href: '/admin/integracoes', label: 'Integrações' },
   { href: '/admin/equipe', label: 'Equipe' },
+  { href: '/admin/impressao', label: 'Impressão' },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ] as const
 
@@ -49,6 +50,7 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/fidelidade': 'fidelidade.gerenciar',
   '/admin/integracoes': 'integracoes.gerenciar',
   '/admin/equipe': 'equipe.gerenciar',
+  '/admin/impressao': 'impressao.configurar',
   '/admin/ajustes': 'ajustes.editar',
 }
 

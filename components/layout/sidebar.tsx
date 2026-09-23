@@ -63,6 +63,7 @@ const NAV_ICONS: Record<string, string[]> = {
   '/admin/fidelidade': ICONES.fidelidade,
   '/admin/integracoes': ICONES.integracoes,
   '/admin/equipe': ICONES.equipe,
+  '/admin/impressao': ICONES.impressora,
   '/admin/ajustes': ICONES.ajustes,
 }
 
