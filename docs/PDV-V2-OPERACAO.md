@@ -142,3 +142,121 @@ fica sem impressão.
 **Rollback da rotação:** não existe voltar ao token antigo (ele está comprometido). Se
 o pareamento falhar, gerar outro token e parear de novo; em último caso a loja imprime
 pelo navegador (Kanban) até resolver.
+
+---
+
+## 3. PDV v2 — o que entra nesta RC
+
+Balcão como comanda avulsa e mesa sobre o mesmo motor de conta. Tudo atrás da flag
+`restaurantes.pdv_v2` (default `false`). Nenhuma loja real é ligada por migration.
+
+| Peça | Onde |
+|---|---|
+| Modelo (comanda de balcão, senha, flag) | `0082_pdv_comanda_balcao.sql` |
+| Estados separados, transição segura, número sob trava, lançamento só em conta aberta, tabela de reserva de impressão | `0083_pdv_pedidos_estados.sql` |
+| Pagamento com canal/origem (backfill aditivo) | `0084_pdv_pagamentos_canal.sql` |
+| Funções do motor (abrir, lançar, pagar, atender, transicionar, pendências, fechar, resolver, reabrir, cancelar) | `0085_pdv_rpcs_conta_presencial.sql` |
+| Realtime de comandas/pagamentos + reserva atômica da fila de impressão | `0086_pdv_realtime_e_reserva_impressao.sql` |
+| Serviço único (PDV e salão) | `lib/servicos/conta-presencial.ts` |
+| Rotas novas | `/api/admin/balcao/comandas`, `/api/admin/comandas/[id]`, `/api/admin/pdv/lancamento` |
+| Tela | `components/pdv/central-balcao.tsx`, `components/pdv/conta-presencial.tsx`, `app/admin/pdv/page.tsx` |
+| Assistente de Impressão 0.1.24 (NÃO publicado) | `printer-agent/` — senha só no balcão + `X-Agente-Instancia` |
+
+### O que muda para quem NÃO liga a flag (vale no deploy)
+
+- Rotas antigas do PDV: permissão no handler, corpo em lista fechada, telemetria.
+- "Receber" do PDV antigo registra pagamento real (forma escolhida, valor restante).
+- "Fechar" do PDV antigo exige saldo zero e grava autor/total.
+- "Cancelar" do PDV antigo exige motivo; atendente só cancela direto pedido recebido de
+  conta sem pagamento.
+- Cancelar pelo Kanban um pedido que tem conta segue a mesma regra.
+- Kanban avança status com compare-and-set (aba velha não sobrescreve). Visual igual.
+- Banco: cancelado/entregue não voltam; presencial não vai para em_rota; cancelar
+  zera reimpressão; "Entregue" presencial registra o atendimento.
+- Fila de impressão: reserva por Assistente, inclui "pronto" não impresso, nunca
+  cancelado nem pedido sem item. Com impressão automática desligada nada é reservado.
+
+## 4. Deploy (quando autorizado)
+
+Ordem obrigatória:
+
+1. **Etapa 0**: código (commits `c8c3a5f`, `529ff13`) → conferir → migration 0080 →
+   conferir (seção 1). 0081 a qualquer momento depois.
+2. **Migrations 0082–0086** (aditivas; código antigo funciona com elas — o fechamento
+   só muda com a flag). Aplicar em transação, uma por arquivo, registrando em
+   `schema_migrations`, com o mesmo procedimento usado na 0078/0079.
+   - A 0083 cria `pedidos_numero_unq` só se não houver duplicados (checado em
+     2026-09-23: 0 em 620). Se houver, avisa e segue sem o índice.
+3. **Deploy do código** da branch `rc/pdv-v2` (merge em `main`, Redeploy no Coolify).
+4. Verificação em produção (sem ligar flag):
+   - Kanban: aceitar, pronto, entregue, cancelar um pedido de teste;
+   - PDV antigo: lançar numa mesa de teste, receber (forma), fechar;
+   - Assistente imprimindo (pedido de teste);
+   - `select count(*) from impressao_reservas;` cresce e esvazia conforme imprime.
+
+**Se o deploy do código vier antes das migrations** (não recomendado): as rotas novas
+e a fila de impressão chamam funções que não existem → erro. Sempre migrations antes.
+
+## 5. Rollout da flag (loja por loja)
+
+```sql
+-- Ligar numa loja (só com autorização):
+update restaurantes set pdv_v2 = true where slug = '<slug>';
+-- Desligar (volta ao PDV antigo na hora, sem deploy):
+update restaurantes set pdv_v2 = false where slug = '<slug>';
+```
+
+1ª semana: só a loja MENUZIA. 2ª semana: 1–2 lojas piloto com salão. Depois as demais.
+
+**Atenção ao ligar numa loja com mesas:** o fechamento passa a bloquear conta com
+pedido na cozinha ou pronto sem servir — também no salão (garçom). O botão "Entregue"
+do Kanban e o "Servido/Entregue no balcão" do PDV registram o atendimento.
+
+### Telemetria das rotas antigas (critério para desligá-las)
+
+```sql
+select r.slug, e.acao, e.dados->>'resultado' resultado, date_trunc('day', e.criado_em) dia, count(*)
+  from eventos_auditoria e join restaurantes r on r.id = e.restaurante_id
+ where e.acao like 'pdv_legado.%' and e.criado_em > now() - interval '14 days'
+ group by 1,2,3,4 order by dia desc, 1;
+```
+
+Desligar as rotas antigas quando: 14 dias sem chamada em lojas com `pdv_v2 = true`,
+todas as lojas ativas com a flag há ≥ 7 dias e nenhum incidente aberto. Depois,
+rotas antigas passam a responder 410 para todos e saem na versão seguinte.
+
+### Assistente de Impressão 0.1.24
+
+Não publicado. Sem ele, o balcão imprime como hoje ("BALCAO (PDV)") sem a linha da
+senha, e a reserva vale para todos os Assistentes da loja (sem duplicidade; o
+reenvio do "impresso" de um Assistente que perdeu a rede espera a reserva de 90 s
+expirar). Publicar pelo procedimento de sempre (release manual via `gh`) quando
+autorizado; lojas atualizam instalando o setup novo.
+
+## 6. Rollback
+
+| Camada | Como |
+|---|---|
+| Fluxo do PDV numa loja | `pdv_v2 = false` (imediato) |
+| Código | reverter o deploy; migrations são aditivas e o código anterior roda com elas |
+| Trigger de transição (se bloquear algo não mapeado) | `drop trigger pedidos_transicao_valida on public.pedidos;` |
+| Banco completo | `docs/rollback/0082_0086_pdv_v2.down.sql` (não apaga dado gravado) |
+| Etapa 0 | seção 1 (0080) e `docs/rollback/0081_*.down.sql` |
+
+## 7. Provas locais desta RC
+
+```bash
+node scripts/seguranca/verificar-pdv-v2-banco.mjs     # 93/93 — funções, concorrência real
+node scripts/seguranca/verificar-conta-sql.mjs        # 74/74 — conta do salão (regressão)
+node scripts/seguranca/verificar-isolamento-lojas.mjs # 46/46
+node scripts/seguranca/verificar-rls-papeis.mjs       # 60/60
+node scripts/seguranca/regressao-checkpoint-s.mjs     # 12/12
+node scripts/seguranca/e2e-regressao-release.mjs      # 52/52 — delivery/PDV/vitrine
+node scripts/seguranca/e2e-pdv-v2.mjs                 # 67/67 — navegador real
+npx vitest run                                        # 1313 passam
+```
+
+Suítes antigas que falham por seletor desatualizado (a tela mudou em 19 e 21/09 no
+`main`, antes desta branch, e os testes não foram atualizados): `e2e-caixa-e-regras`
+(procura "Fiado", que saiu da tela), `e2e-release-mesas` (procura "Selecionar item",
+que saiu do cartão), `e2e-garcom` (dois botões "Fechar"). Não são regressão do PDV v2.
