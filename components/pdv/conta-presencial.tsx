@@ -30,7 +30,7 @@ import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde,
  * cada intenção leva a sua chave de idempotência).
  */
 
-type Permissoes = Record<AcaoConta | 'lancar' | 'cancelar_qualquer', boolean>
+type Permissoes = Record<AcaoConta | 'lancar' | 'cancelar_qualquer' | 'taxa' | 'pre_conta', boolean>
 
 interface Pendencias {
   pedidos: {
@@ -331,6 +331,7 @@ export function ContaPresencialModal({
                       + Lançar itens
                     </button>
                   )}
+                  {pode.pre_conta && <PreContaBloco comandaId={conta.id} />}
                   {pode.pagamento && conta.totais.restante > 0 && (
                     <button type="button" disabled={ocupado} onClick={() => setSub({ tipo: 'receber' })} data-testid="conta-receber" className="w-full rounded-menuzia bg-primary py-3.5 text-[14px] font-bold text-white transition-all hover:bg-primary-dark disabled:opacity-50">
                       Receber
@@ -357,6 +358,7 @@ export function ContaPresencialModal({
                   <p className="rounded-menuzia bg-white px-3 py-2 text-[12px] text-text-subtle">
                     {conta.status === 'fechada' ? `Fechada ${horaCurta(conta.fechadaEm)} por ${conta.fechadaPorNome ?? '—'}.` : 'Conta encerrada.'}
                   </p>
+                  {conta.status === 'fechada' && pode.pre_conta && <PreContaBloco comandaId={conta.id} />}
                   {conta.status === 'fechada' && pode.reabrir && (
                     <button type="button" onClick={() => setSub({ tipo: 'reabrir' })} data-testid="conta-reabrir" className="w-full rounded-menuzia border-2 border-warn bg-white py-3 text-[13px] font-bold text-warn hover:bg-warn hover:text-white">
                       Reabrir conta
@@ -467,6 +469,7 @@ export function ContaPresencialModal({
       {conta && sub?.tipo === 'ajustar' && (
         <AjustarModal
           conta={conta}
+          podeTaxa={Boolean(pode?.taxa)}
           ocupado={ocupado}
           onVoltar={() => setSub(null)}
           onSalvar={async (corpo) => {
@@ -1021,11 +1024,13 @@ function MotivoModal({
 
 function AjustarModal({
   conta,
+  podeTaxa,
   ocupado,
   onVoltar,
   onSalvar,
 }: {
   conta: ContaPresencial
+  podeTaxa: boolean
   ocupado: boolean
   onVoltar: () => void
   onSalvar: (corpo: Record<string, unknown>) => Promise<string | null>
@@ -1038,11 +1043,17 @@ function AjustarModal({
   return (
     <Moldura titulo="Desconto e taxa de serviço" onVoltar={onVoltar}>
       <div className="space-y-3 px-4 py-4">
+        {podeTaxa ? (
         <label className="block">
           <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Taxa de serviço (%)</span>
           <input value={taxa} inputMode="decimal" onChange={(e) => setTaxa(e.target.value)} className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px]" />
-          {conta.tipo === 'balcao' && <span className="mt-0.5 block text-[11px] text-text-subtle">Balcão nasce sem taxa de serviço.</span>}
+          {conta.tipo === 'balcao' && <span className="mt-0.5 block text-[11px] text-text-subtle">Balcão nasce sem taxa de serviço. Taxa manual só gerente ou dono.</span>}
         </label>
+        ) : (
+          <p className="rounded-menuzia bg-page px-3 py-2 text-[12px] text-text-subtle">
+            Taxa de serviço: {String(conta.taxaServicoPercentual).replace('.', ',')}%{conta.tipo === 'balcao' ? ' — no balcão, só gerente ou dono altera.' : '.'}
+          </p>
+        )}
         <div className="flex gap-2">
           {(['valor', 'percentual'] as const).map((t) => (
             <button key={t} type="button" onClick={() => setTipo(t)} className={['flex-1 rounded-menuzia border px-3 py-2 text-[12px] font-semibold', tipo === t ? 'border-primary bg-primary text-white' : 'border-border'].join(' ')}>
@@ -1066,7 +1077,7 @@ function AjustarModal({
             setErro(null)
             const d = lerValor(desconto || '0')
             const e = await onSalvar({
-              taxaServico: lerValor(taxa || '0'),
+              taxaServico: podeTaxa ? lerValor(taxa || '0') : undefined,
               descontoTipo: tipo,
               descontoValor: tipo === 'valor' ? d : 0,
               descontoPercentual: tipo === 'percentual' ? d : 0,
@@ -1080,5 +1091,109 @@ function AjustarModal({
         </button>
       </div>
     </Moldura>
+  )
+}
+
+interface ViaPreConta {
+  id: string
+  via: number
+  estado: string
+  erro: string | null
+  criadoEm: string
+  enviadoEm: string | null
+  criadoPorNome: string
+  impressora: string
+  computadorOnline: boolean
+  total: number
+}
+
+const ROTULO_VIA: Record<string, string> = {
+  pendente: 'Pendente',
+  reservado: 'Enviando…',
+  enviado_spooler: 'Aceito pela fila do Windows',
+  falhou: 'Falha ao enviar',
+  expirado: 'Expirado (não impresso)',
+  cancelado: 'Cancelado',
+}
+
+/**
+ * Pré-conta: documento para o cliente conferir o consumo. Manual, só por este botão.
+ * Não mexe na conta — nem pedido, nem pagamento, nem atendimento, nem cozinha. O
+ * servidor monta tudo; a tela manda só a chave. Mostra a última via e o estado real
+ * ("aceito pela fila do Windows" não quer dizer papel na mão).
+ */
+function PreContaBloco({ comandaId }: { comandaId: string }) {
+  const [vias, setVias] = useState<ViaPreConta[] | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState<{ texto: string; semCaixa: boolean } | null>(null)
+  const chave = useRef(novaChave())
+
+  const carregar = useCallback(async () => {
+    const r = await chamar<{ vias: ViaPreConta[] }>(`/api/admin/comandas/${comandaId}/pre-conta`)
+    if (r.ok && r.dados) setVias(r.dados.vias)
+  }, [comandaId])
+
+  useEffect(() => {
+    void carregar()
+  }, [carregar])
+
+  const ultima = vias?.[0] ?? null
+  const andando = ultima && (ultima.estado === 'pendente' || ultima.estado === 'reservado')
+  useEffect(() => {
+    if (!andando) return
+    const t = setInterval(() => void carregar(), 2000)
+    return () => clearInterval(t)
+  }, [andando, carregar])
+
+  async function imprimir(reimpressao: boolean) {
+    if (enviando) return
+    setEnviando(true)
+    setErro(null)
+    const r = await chamar(`/api/admin/comandas/${comandaId}/pre-conta`, {
+      method: 'POST',
+      body: JSON.stringify({ chave: chave.current, reimpressao }),
+    })
+    setEnviando(false)
+    // Chave nova só depois do envio: clique duplo e reenvio devolvem o mesmo trabalho.
+    chave.current = novaChave()
+    if (!r.ok) {
+      setErro({ texto: r.erro ?? 'Não foi possível enviar a pré-conta.', semCaixa: r.codigo === 'impressora_caixa_nao_configurada' })
+      return
+    }
+    await carregar()
+  }
+
+  return (
+    <div className="rounded-menuzia border border-border bg-white px-3 py-2" data-testid="pre-conta">
+      <button
+        type="button"
+        disabled={enviando}
+        onClick={() => void imprimir(Boolean(ultima))}
+        data-testid={ultima ? 'pre-conta-reimprimir' : 'pre-conta-imprimir'}
+        className="w-full rounded-menuzia border-2 border-sidebar-bg bg-white py-3 text-[14px] font-bold text-sidebar-bg transition-all hover:bg-sidebar-bg hover:text-white disabled:opacity-50"
+      >
+        {enviando ? 'Enviando…' : ultima ? 'Reimprimir pré-conta' : 'Imprimir pré-conta'}
+      </button>
+      {ultima && (
+        <p className="mt-1.5 text-[11px] leading-snug text-text-subtle" data-testid="pre-conta-estado">
+          {ultima.via}ª via · {horaCurta(ultima.criadoEm)} · {ultima.impressora} ·{' '}
+          <strong className={ultima.estado === 'enviado_spooler' ? 'text-price-text' : ultima.estado === 'falhou' || ultima.estado === 'expirado' ? 'text-danger' : 'text-text-main'}>
+            {ROTULO_VIA[ultima.estado] ?? ultima.estado}
+          </strong>
+          {andando && !ultima.computadorOnline && <span className="block text-danger">O computador desta impressora está offline. A pré-conta vence em 10 min.</span>}
+          {ultima.erro && ultima.estado !== 'enviado_spooler' && <span className="block text-danger">{ultima.erro}</span>}
+        </p>
+      )}
+      {erro && (
+        <p className="mt-1.5 text-[11px] font-semibold text-danger" data-testid="pre-conta-erro">
+          {erro.texto}
+          {erro.semCaixa && (
+            <a href="/admin/impressao" className="ml-1 underline">
+              Ajustes › Impressão
+            </a>
+          )}
+        </p>
+      )}
+    </div>
   )
 }
