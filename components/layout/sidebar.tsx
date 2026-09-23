@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { urlCardapio } from '@/lib/qr-cardapio'
+import { ItemNotificacoes } from '@/components/admin/notificacoes-pedidos'
+import type { EstadoNotificacao } from '@/lib/notificacoes-pedido'
 
 export interface SidebarItem {
   href: string
@@ -28,6 +30,8 @@ export interface SidebarProps {
   loja?: LojaNoMenu | null
   /** Abre a ficha da loja (modal do painel). */
   onAbrirLoja?: () => void
+  /** Aviso de pedido novo pelo navegador — estado real e o pedido de permissão. */
+  notificacoes?: { estado: EstadoNotificacao; onAtivar: () => void }
   onSignOut?: () => void
   /** Total de pendências de configuração — mostra o atalho pra reabrir o alerta. */
   pendencias?: number
@@ -64,6 +68,7 @@ export function Sidebar({
   storeSlug,
   loja,
   onAbrirLoja,
+  notificacoes,
   onSignOut,
   pendencias = 0,
   onAbrirPendencias,
@@ -83,15 +88,52 @@ export function Sidebar({
           aberta ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible',
         ].join(' ')}
       >
-      <div className="flex h-[60px] flex-shrink-0 items-center gap-1.5 rounded-br-[18px] bg-primary px-4 text-white">
-        <span className="text-lg font-bold lowercase tracking-wide">menuzia</span>
+      <div className="flex h-[var(--adm-topo)] flex-shrink-0 items-center gap-1.5 border-b border-[var(--adm-borda)] px-4">
+        <span className="text-[15px] font-bold lowercase tracking-tight text-[var(--adm-azul)]">menuzia</span>
         {storeSlug && <CopiarLinkCardapio slug={storeSlug} />}
-        <button className="-mr-2 ml-auto p-2.5 lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
+        <button className="-mr-2 ml-auto p-2.5 text-[var(--adm-texto-suave)] lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
           <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>
         </button>
       </div>
+
+      {/* Ficha da loja: quem abre o painel precisa saber QUAL loja está mexendo —
+          é a primeira coisa que o dono com duas operações procura. Mostra só o
+          que a configuração já carrega; clicar abre a ficha completa. */}
+      {loja && (
+        <button
+          type="button"
+          onClick={onAbrirLoja}
+          className="flex flex-shrink-0 items-center gap-2.5 border-b border-[var(--adm-borda)] px-3 py-3 text-left transition-colors hover:bg-[var(--adm-superficie-2)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
+          aria-label={`Ver os dados de ${loja.nome}`}
+        >
+          {loja.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={loja.logoUrl}
+              alt=""
+              className="h-9 w-9 flex-shrink-0 rounded-[var(--adm-raio-sm)] border border-[var(--adm-borda)] object-cover"
+            />
+          ) : (
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm)] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul)]">
+              {loja.nome.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-bold text-[var(--adm-texto)]">{loja.nome}</span>
+            {(loja.bairro || loja.cidade) && (
+              <span className="block truncate text-[11px] text-[var(--adm-texto-suave)]">
+                {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}
+              </span>
+            )}
+          </span>
+          <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[var(--adm-texto-suave)]" aria-hidden="true">
+            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+          </svg>
+        </button>
+      )}
+
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-2.5">
         {items.map((item) => {
           // Prefixo, não igualdade: seções com subpáginas (ex.: /admin/integracoes/nexta)
@@ -103,10 +145,11 @@ export function Sidebar({
               key={item.href}
               href={item.href}
               className={[
-                'mx-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-colors',
+                'mx-2 flex items-center gap-3 rounded-[var(--adm-raio-sm)] px-3 py-2.5 text-left text-[13px] transition-colors',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
                 isActive
-                  ? 'bg-sidebar-hover font-semibold text-primary'
-                  : 'text-white hover:bg-sidebar-hover hover:text-primary',
+                  ? 'bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul)]'
+                  : 'font-medium text-[var(--adm-texto)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-azul)]',
               ].join(' ')}
             >
               {iconPath && (
@@ -140,6 +183,30 @@ export function Sidebar({
           )
         })}
       </nav>
+
+      {/* Rodapé de apoio: o que fica fora da navegação de módulos. O aviso de
+          pedido novo mora aqui porque é uma preferência do aparelho, não uma
+          seção do painel. */}
+      {notificacoes && (
+        <div className="flex-shrink-0 border-t border-[var(--adm-borda)] pt-2">
+          <ItemNotificacoes estado={notificacoes.estado} onAtivar={notificacoes.onAtivar} />
+        </div>
+      )}
+
+      {storeSlug && (
+        <a
+          href={`/loja/${storeSlug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mx-2 mb-1 flex items-center gap-3 rounded-[var(--adm-raio-sm)] px-3 py-2.5 text-[13px] font-medium text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-azul)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
+        >
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-current" aria-hidden="true">
+            <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+          </svg>
+          <span className="truncate">Ver meu cardápio</span>
+        </a>
+      )}
+
       {pendencias > 0 && onAbrirPendencias && (
         <button
           type="button"

@@ -13,6 +13,8 @@ import { assinaturaPendencias, avaliarSetup, contarPorMenu, type PendenciaSetup 
 import { SetupAlerta } from '@/components/admin/setup-alerta'
 import { pode } from '@/lib/auth/permissoes'
 import { itensDoMenu } from '@/lib/menu-lateral'
+import { useAvisarPedido, useNotificacoesPedidos } from '@/components/admin/notificacoes-pedidos'
+import { FichaDaLoja } from '@/components/admin/ficha-loja'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -70,6 +72,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Gaveta do menu: só existe abaixo de `lg`, onde a sidebar sai do fluxo.
   const [menuAberto, setMenuAberto] = useState(false)
   const valorDoMenu = useMemo(() => ({ abrir: () => setMenuAberto(true) }), [])
+  // Notificação de pedido novo: estado do navegador + disparo. A permissão só é
+  // pedida no clique do item do menu (components/admin/notificacoes-pedidos.tsx).
+  const { estado: estadoNotificacoes, pedirPermissao } = useNotificacoesPedidos()
+  const avisarPedido = useAvisarPedido(() => router.push('/admin/pedidos'))
+  const [fichaAberta, setFichaAberta] = useState(false)
 
   // Navegou: a gaveta fecha. Sem isto, no celular o menu ficaria cobrindo a tela que o
   // toque acabou de abrir.
@@ -266,11 +273,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           // pendências" ao garçom seria só ruído — ele não tem acesso a Ajustes.
           pendencias={papel === null || pode(papel, 'ajustes.editar') ? pendencias.length : 0}
           onAbrirPendencias={() => setAlertaAberto(true)}
+          onAbrirLoja={() => setFichaAberta(true)}
+          notificacoes={{ estado: estadoNotificacoes, onAtivar: () => void pedirPermissao() }}
         />
       )}
       {/* `min-w-0`: sem isso o conteúdo largo (tabela, grade de mesas) empurra o flex
           e reaparece a rolagem horizontal que a gaveta veio resolver. */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+      {fichaAberta && loja && (
+        <FichaDaLoja
+          loja={{ ...loja, slug: storeSlug }}
+          urlCardapio={storeSlug && typeof window !== 'undefined' ? `${window.location.origin}/loja/${storeSlug}` : null}
+          onFechar={() => setFichaAberta(false)}
+          onEditar={() => {
+            setFichaAberta(false)
+            router.push('/admin/ajustes')
+          }}
+        />
+      )}
       {alertaAberto && (
         <SetupAlerta
           pendencias={pendencias}

@@ -16,10 +16,18 @@ describe('Sidebar', () => {
     }
   })
 
+  /**
+   * O menu ficou claro (tema do painel, 2026-09-23): o item ativo deixou de ser
+   * "azul sobre escuro" e passou a ser azul sobre uma pílula azul-clara. O que
+   * o teste guarda é o contraste do ativo contra os outros, não o nome da cor.
+   */
   it('marks the active item with the active styling', () => {
     render(<Sidebar items={ITEMS} activeHref="/pedidos" />)
     const active = screen.getByText('Painel de Pedidos').closest('a')
-    expect(active?.className).toContain('text-primary')
+    const inativo = screen.getByText('Dashboard').closest('a')
+    expect(active?.className).toContain('--adm-azul-claro')
+    expect(active?.className).toContain('font-semibold')
+    expect(inativo?.className).not.toContain('--adm-azul-claro')
   })
 
   it('renders the lowercase brand name', () => {
