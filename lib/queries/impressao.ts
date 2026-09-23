@@ -23,14 +23,13 @@ interface ConfigImpressaoRow {
   impressao_ativar_assistente: boolean
   impressao_automatica: boolean
   impressao_aceitar_pedidos_automaticamente: boolean
-  impressao_agente_token: string | null
 }
 
 const CONFIG_IMPRESSAO_SELECT = `
   impressao_mostrar_numero_item, impressao_mostrar_preco_complementos, impressao_mostrar_nome_complementos,
   impressao_fonte_maior_producao, impressao_multiplicar_opcoes_qtd, impressao_logo,
   impressao_ativar_assistente,
-  impressao_automatica, impressao_aceitar_pedidos_automaticamente, impressao_agente_token
+  impressao_automatica, impressao_aceitar_pedidos_automaticamente
 `
 
 function mapConfigImpressao(row: ConfigImpressaoRow): ConfigImpressao {
@@ -44,7 +43,9 @@ function mapConfigImpressao(row: ConfigImpressaoRow): ConfigImpressao {
     ativarAssistente: row.impressao_ativar_assistente,
     impressaoAutomatica: row.impressao_automatica,
     aceitarPedidosAutomaticamente: row.impressao_aceitar_pedidos_automaticamente,
-    agenteToken: row.impressao_agente_token,
+    // O token não viaja mais nesta leitura: desde a 0080 o navegador não tem acesso à
+    // coluna. Ajustes › Impressão busca pela rota do dono (/api/admin/impressao/token).
+    agenteToken: null,
   }
 }
 
@@ -73,10 +74,21 @@ export async function atualizarConfigImpressao(supabase: SupabaseClient, restaur
   return mapConfigImpressao(data as ConfigImpressaoRow)
 }
 
-/** Gera (ou regenera) o token de pareamento do Assistente de Impressão — o lojista cola esse token no agente desktop. */
-export async function gerarTokenAgente(supabase: SupabaseClient, restauranteId: string): Promise<string> {
+/**
+ * Token de pareamento do Assistente de Impressão. SÓ SERVIDOR (client de serviço):
+ * desde a 0080 o navegador não lê nem grava a coluna. Quem chama é a rota
+ * /api/admin/impressao/token, que exige o dono. Nunca logar o valor.
+ */
+export async function buscarTokenAgente(admin: SupabaseClient, restauranteId: string): Promise<string | null> {
+  const { data, error } = await admin.from('restaurantes').select('impressao_agente_token').eq('id', restauranteId).maybeSingle()
+  if (error) throw error
+  return (data?.impressao_agente_token as string | null | undefined) ?? null
+}
+
+/** Gera (ou regenera) o token — o anterior deixa de funcionar na hora. SÓ SERVIDOR. */
+export async function gerarTokenAgente(admin: SupabaseClient, restauranteId: string): Promise<string> {
   const token = crypto.randomUUID()
-  const { error } = await supabase.from('restaurantes').update({ impressao_agente_token: token }).eq('id', restauranteId)
+  const { error } = await admin.from('restaurantes').update({ impressao_agente_token: token }).eq('id', restauranteId)
   if (error) throw error
   return token
 }

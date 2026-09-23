@@ -49,6 +49,8 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/nexta/testar', 'integracoes.gerenciar'],
   ['/api/admin/nexta', 'logistica.operar'],
   ['/api/admin/whatsapp', 'integracoes.gerenciar'],
+  // Token do Assistente de Impressão: credencial. Só o dono vê e gera (0080).
+  ['/api/admin/impressao/token', 'ajustes.editar'],
 ]
 
 /** Permissão exigida por rota não mapeada: só a gestão entra. */

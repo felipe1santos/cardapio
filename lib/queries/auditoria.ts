@@ -59,6 +59,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'equipe.desativou': 'Desativou funcionário',
   'equipe.reativou': 'Reativou funcionário',
   'equipe.redefiniu_senha': 'Redefiniu a senha de um funcionário',
+  'impressao.gerou_token': 'Gerou um token novo para o Assistente de Impressão',
 }
 
 /** Grupos para o filtro da tela — o dono pensa por assunto, não por código de ação. */
@@ -69,6 +70,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'conta', label: 'Contas e dinheiro', prefixos: ['conta.'] },
   { id: 'chamado', label: 'Chamados', prefixos: ['chamado.'] },
   { id: 'equipe', label: 'Equipe', prefixos: ['equipe.'] },
+  { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },
 ]
 
 export function rotuloEvento(acao: string): string {

@@ -42,7 +42,6 @@ import { PALETAS, temaCores } from '@/lib/paletas'
 import {
   buscarConfigImpressao,
   atualizarConfigImpressao,
-  gerarTokenAgente,
   listarImpressoras,
   criarImpressora,
   atualizarImpressora,
@@ -1858,8 +1857,13 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
 
   useEffect(() => {
     if (loaded) return
-    Promise.all([buscarConfigImpressao(supabase, restauranteId), listarImpressoras(supabase, restauranteId), buscarConfigLoja(supabase, restauranteId)]).then(([cfg, lista, loja]) => {
-      setConfig(cfg)
+    // O token vem por rota de servidor (só dono, 0080); o navegador não lê a coluna.
+    const token = fetch('/api/admin/impressao/token', { cache: 'no-store' })
+      .then((r) => (r.ok ? (r.json() as Promise<{ token: string | null }>) : { token: null }))
+      .then((d) => d.token)
+      .catch(() => null)
+    Promise.all([buscarConfigImpressao(supabase, restauranteId), listarImpressoras(supabase, restauranteId), buscarConfigLoja(supabase, restauranteId), token]).then(([cfg, lista, loja, tk]) => {
+      setConfig(cfg ? { ...cfg, agenteToken: tk } : cfg)
       setImpressoras(lista)
       setNomeLoja(loja?.nome ?? '')
       setLogoUrl(loja?.logoUrl ?? null)
@@ -1899,7 +1903,9 @@ function TabImpressao({ restauranteId, active }: { restauranteId: string; active
   async function handleGerarToken() {
     setGerandoToken(true)
     try {
-      const token = await gerarTokenAgente(supabase, restauranteId)
+      const res = await fetch('/api/admin/impressao/token', { method: 'POST' })
+      if (!res.ok) throw new Error('falhou')
+      const { token } = (await res.json()) as { token: string }
       setConfig((prev) => (prev ? { ...prev, agenteToken: token } : prev))
     } catch {
       setError('Não foi possível gerar o token de pareamento.')
