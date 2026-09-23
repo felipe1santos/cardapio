@@ -345,14 +345,25 @@ html:has(.font-loja) {
    de operação e o dono conhece aquele desenho de cor. Por isso o shell marca
    `data-rota-kanban` e as regras de componente ignoram essa rota. */
 [data-admin-shell] {
-  --adm-bg: #f5f7fa;
+  /* Medidas tiradas da referência de painel escolhida pelo dono (2026-09-23):
+     conteúdo #fafbfc, cartão branco de borda 0,8px e canto de 6,4px SEM sombra,
+     menu de 250px, topo de 56px, título 19,2px/500, corpo 12,8px, rótulo de
+     menu 14px, botão de 36px em cinza neutro. A cor de marca segue AZUL Menuzia
+     — identidade é o que não se copia. */
+  --adm-bg: #fafbfc;
   --adm-superficie: #ffffff;
-  --adm-superficie-2: #fafbfc;
+  --adm-superficie-2: #f9fafb;
   --adm-borda: #e5e7eb;
+  --adm-borda-cartao: rgba(0, 0, 0, 0.12);
   --adm-borda-forte: #d6dae1;
-  --adm-texto: #101828;
+  --adm-texto: #1f2937;
+  --adm-texto-forte: #374151;
+  --adm-texto-medio: #4b5563;
   /* 5,1:1 ate sobre os fundos tingidos do painel; #667085 parava em 4,2:1. */
   --adm-texto-suave: #5b6472;
+  --adm-menu-texto: rgba(0, 0, 0, 0.78);
+  --adm-menu-suave: rgba(0, 0, 0, 0.6);
+  --adm-hover: rgba(0, 0, 0, 0.04);
   --adm-azul: #0b78d0;
   --adm-azul-escuro: #0961a8;
   --adm-azul-claro: #eff6ff;
@@ -363,14 +374,21 @@ html:has(.font-loja) {
   --adm-vermelho-texto: #b91c1c;
   --adm-roxo: #6d28d9;
   --adm-roxo-claro: #f5f3ff;
-  --adm-raio: 8px;
-  --adm-raio-sm: 6px;
-  --adm-sombra: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --adm-raio: 6px;
+  --adm-raio-sm: 5px;
+  --adm-sombra: none;
   --adm-sombra-md: 0 6px 16px rgba(16, 24, 40, 0.08);
-  --adm-lateral: 252px;
+  --adm-lateral: 250px;
   --adm-topo: 56px;
   background-color: var(--adm-bg);
   color: var(--adm-texto);
+}
+
+/* A família do painel é a Mulish (referência), carregada em app/layout.tsx.
+   Fora daqui nada muda: vitrine em Montserrat, resto em Inter. O Kanban também
+   fica de fora — não se mexe no desenho dele. */
+[data-admin-shell]:not([data-rota-kanban='sim']) {
+  font-family: var(--font-painel), var(--font-inter), system-ui, sans-serif;
 }
 
 /* Área de conteúdo: o cinza claro é o fundo, as seções é que são brancas. */
@@ -384,9 +402,21 @@ html:has(.font-loja) {
   border-radius: var(--adm-raio-sm);
 }
 
+/* Cartão da referência: branco, borda fina de 0,8px e canto de 6px, SEM sombra.
+   A sombra era o que mais afastava o painel do desenho pedido. */
 [data-admin-shell]:not([data-rota-kanban='sim']) main .bg-main,
 [data-admin-shell]:not([data-rota-kanban='sim']) main .bg-white {
-  box-shadow: var(--adm-sombra);
+  box-shadow: none;
+}
+
+[data-admin-shell]:not([data-rota-kanban='sim']) main .border-border {
+  border-color: var(--adm-borda-cartao);
+}
+
+/* Corpo do painel em 12,8px, como na referência (lá o root é 80%; aqui a base é
+   outra, então o tamanho vai explícito). */
+[data-admin-shell]:not([data-rota-kanban='sim']) main {
+  font-size: 12.8px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -404,11 +434,23 @@ html:has(.font-loja) {
    O Kanban também fica de fora (`data-rota-kanban`), porque a cor dos botões
    dele carrega significado de operação: verde é "pronto", escuro é "despachar". */
 @media screen {
+  /* Campo da referência: 36px de altura, fundo #f9fafb, borda 0,8px #e5e7eb,
+     canto de 4,8px e texto de 12,8px. Mesma caixa do botão — é isso que dá o
+     alinhamento da barra de ferramentas. */
   [data-admin-shell]:not([data-rota-kanban='sim']) main input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
   [data-admin-shell]:not([data-rota-kanban='sim']) main select,
   [data-admin-shell]:not([data-rota-kanban='sim']) main textarea {
-    border-radius: var(--adm-raio-sm);
+    border-radius: 4.8px;
+    border-width: 0.8px;
     border-color: var(--adm-borda);
+    background-color: var(--adm-superficie-2);
+    font-size: 12.8px;
+    color: var(--adm-texto-medio);
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  [data-admin-shell]:not([data-rota-kanban='sim']) main select {
+    min-height: 36px;
   }
 
   [data-admin-shell]:not([data-rota-kanban='sim']) main input:focus,
@@ -417,6 +459,30 @@ html:has(.font-loja) {
     border-color: var(--adm-azul);
     box-shadow: 0 0 0 3px rgba(11, 120, 208, 0.12);
     outline: none;
+  }
+
+  /* Botão da referência: 36px de altura, canto de 4,8px, texto de 12,8px em
+     peso 700 e CAIXA NORMAL. O botão em caixa alta de 11px era o que mais
+     denunciava a diferença de desenho entre as duas telas. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main button,
+  [data-admin-shell]:not([data-rota-kanban='sim']) main a[class*='rounded-menuzia'] {
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .rounded-menuzia.text-\[11px\] {
+    font-size: 12.8px;
+    font-weight: 700;
+    border-radius: 4.8px;
+    padding-left: 12.8px;
+    padding-right: 12.8px;
+  }
+
+  /* Ação secundária: cinza neutro com borda, não um bloco de cor. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .bg-white.border-border,
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .bg-border {
+    background-color: var(--adm-superficie-2);
+    color: var(--adm-texto-medio);
   }
 
   /* Botão primário: o azul da ação é o mesmo do menu e dos links. */
@@ -477,9 +543,26 @@ html:has(.font-loja) {
     color: var(--adm-vermelho-texto);
   }
 
-  /* Cabeçalho de tabela: discreto, para a linha de dado ser o que se lê. */
+  /* Faixa cinza do cabeçalho, como na referência. */
   [data-admin-shell]:not([data-rota-kanban='sim']) main thead {
-    background-color: var(--adm-superficie-2);
+    background-color: var(--adm-borda);
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main tbody td {
+    font-size: 12.8px;
+    color: var(--adm-texto-medio);
+  }
+
+  /* Cabeçalho de tabela — depois das regras de cor de texto, senão o cinza
+     genérico ganharia dele. Faixa #e5e7eb, 12,8px/700 em #374151, respiro 16px. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main thead th[class] {
+    background-color: var(--adm-borda);
+    font-size: 12.8px;
+    font-weight: 700;
+    color: var(--adm-texto-forte);
+    text-transform: none;
+    letter-spacing: normal;
+    padding: 16px;
   }
 
   /* Foco de teclado visível em tudo que recebe foco dentro do painel. */

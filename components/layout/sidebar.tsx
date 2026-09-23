@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { urlCardapio } from '@/lib/qr-cardapio'
 import { ItemNotificacoes } from '@/components/admin/notificacoes-pedidos'
 import type { EstadoNotificacao } from '@/lib/notificacoes-pedido'
+import { ICONES } from '@/lib/icones-painel'
 
 export interface SidebarItem {
   href: string
@@ -45,22 +46,26 @@ export interface SidebarProps {
   onFechar?: () => void
 }
 
-const NAV_ICONS: Record<string, string> = {
-  // Mesa com duas cadeiras (Material "table_restaurant", simplificado).
-  '/admin/mesas': 'M21.96 9.73l-1.43-5A.996.996 0 0019.57 4H4.43c-.45 0-.84.3-.96.73l-1.43 5c-.18.63.3 1.27.96 1.27h2.2L4 20h2l.67-5h10.67l.66 5h2l-1.2-9h2.2c.66 0 1.14-.64.96-1.27zM6.93 13l.27-2h9.6l.27 2H6.93z',
-  // Grupo de pessoas (Material "groups", simplificado).
-  '/admin/equipe': 'M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58A2.01 2.01 0 000 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0020 14c-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z',
-  '/admin/dashboard': 'M3,3v8h8V3H3z M5,5h4v4H5V5z M13,3v8h8V3H13z M15,5h4v4h-4V5z M3,13v8h8v-8H3z M5,15h4v4H5V15z M13,13v8h8v-8H13z M15,15h4v4h-4V15z',
-  '/admin/pedidos': 'M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1zm14 14H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V6h12v2z',
-  '/admin/pdv': 'M20 3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h6v2H8v2h8v-2h-2v-2h6c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 13H4V5h16v11z',
-  '/admin/logistica': 'M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zM18 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
-  '/admin/cardapio': 'M21,5c-1.11-0.35-2.33-0.5-3.5-0.5c-1.95,0-4.05,0.4-5.5,1.5c-1.45-1.1-3.55-1.5-5.5-1.5S2.45,4.9,1,6v14.65 c0,0.25,0.25,0.5,0.5,0.5c0.1,0,0.15-0.05,0.25-0.05C3.1,20.45,5.05,20,6.5,20c1.95,0,4.05,0.4,5.5,1.5c1.35-0.85,3.8-1.5,5.5-1.5 c1.65,0,3.35,0.3,4.75,1.05c0.1,0.05,0.15,0.05,0.25,0.05c0.25,0,0.5-0.25,0.5-0.5V6C22.4,5.55,21.75,5.25,21,5z M21,18.5 c-1.1-0.35-2.3-0.5-3.5-0.5c-1.7,0-4.15,0.65-5.5,1.5V8c1.35-0.85,3.8-1.5,5.5-1.5c1.2,0,2.4,0.15,3.5,0.5V18.5z',
-  '/admin/clientes': 'M16,11c1.66,0,2.99-1.34,2.99-3S17.66,5,16,5c-1.66,0-3,1.34-3,3S14.34,11,16,11z M8,11c1.66,0,2.99-1.34,2.99-3 S9.66,5,8,5C6.34,5,5,6.34,5,8S6.34,11,8,11z M8,13c-2.33,0-7,1.17-7,3.5V19h14v-2.5C15,14.17,10.33,13,8,13z M16,13 c-0.29,0-0.62,0.02-0.97,0.05C16.19,13.89,17,15.02,17,16.5V19h6v-2.5C23,14.17,18.33,13,16,13z',
-  '/admin/campanhas': 'M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.61-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.62zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.54.8 1.07 1.2 1.61.96-.72 2.21-1.65 3.2-2.41zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z',
-  '/admin/fidelidade': 'M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z',
-  '/admin/integracoes': 'M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zm-3-4h8v2H8v-2z',
-  '/admin/ajustes': 'M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z',
+/**
+ * Ícone de cada seção, no conjunto Material (ver lib/icones-painel.ts). É o
+ * mesmo desenho que a referência de painel usa — o traço cheio de 24px, não o
+ * contorno fino.
+ */
+const NAV_ICONS: Record<string, string[]> = {
+  '/admin/dashboard': ICONES.dashboard,
+  '/admin/pedidos': ICONES.pedidos,
+  '/admin/pdv': ICONES.pdv,
+  '/admin/mesas': ICONES.mesas,
+  '/admin/logistica': ICONES.logistica,
+  '/admin/cardapio': ICONES.cardapio,
+  '/admin/clientes': ICONES.clientes,
+  '/admin/campanhas': ICONES.campanhas,
+  '/admin/fidelidade': ICONES.fidelidade,
+  '/admin/integracoes': ICONES.integracoes,
+  '/admin/equipe': ICONES.equipe,
+  '/admin/ajustes': ICONES.ajustes,
 }
+
 
 export function Sidebar({
   items,
@@ -81,7 +86,7 @@ export function Sidebar({
       {aberta && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={onFechar} aria-hidden="true" />}
       <aside
         className={[
-          'z-40 flex h-screen w-[252px] flex-shrink-0 flex-col border-r border-[var(--adm-borda)] bg-[var(--adm-superficie)]',
+          'z-40 flex h-screen w-[var(--adm-lateral)] flex-shrink-0 flex-col border-r border-[var(--adm-borda)] bg-[var(--adm-superficie)]',
           'fixed inset-y-0 left-0 transition-transform duration-200 lg:static lg:translate-x-0',
           // `invisible` e não só `-translate-x-full`: deslocada, ela continuaria no
           // caminho do Tab e do leitor de tela. `lg:visible` devolve a coluna fixa.
@@ -93,7 +98,7 @@ export function Sidebar({
         {storeSlug && <CopiarLinkCardapio slug={storeSlug} />}
         <button className="-mr-2 ml-auto p-2.5 text-[var(--adm-texto-suave)] lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
           <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            {ICONES.fechar.map((d) => (<path key={d} d={d} />))}
           </svg>
         </button>
       </div>
@@ -121,15 +126,15 @@ export function Sidebar({
             </span>
           )}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-bold text-[var(--adm-texto)]">{loja.nome}</span>
+            <span className="block truncate text-[14px] font-normal text-[var(--adm-menu-texto)]">{loja.nome}</span>
             {(loja.bairro || loja.cidade) && (
-              <span className="block truncate text-[11px] text-[var(--adm-texto-suave)]">
+              <span className="block truncate text-[12px] text-[var(--adm-menu-suave)]">
                 {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}
               </span>
             )}
           </span>
           <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[var(--adm-texto-suave)]" aria-hidden="true">
-            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            {ICONES.seta.map((d) => (<path key={d} d={d} />))}
           </svg>
         </button>
       )}
@@ -145,16 +150,18 @@ export function Sidebar({
               key={item.href}
               href={item.href}
               className={[
-                'mx-2 flex items-center gap-3 rounded-[var(--adm-raio-sm)] px-3 py-2.5 text-left text-[13px] transition-colors',
+                'mx-2 flex min-h-[40px] items-center gap-3 rounded-[var(--adm-raio-sm)] px-[10px] text-left text-[14px] leading-none transition-colors',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
                 isActive
                   ? 'bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
-                  : 'font-medium text-[var(--adm-texto)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-azul)]',
+                  : 'font-normal text-[var(--adm-menu-texto)] hover:bg-[var(--adm-hover)]',
               ].join(' ')}
             >
               {iconPath && (
-                <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 fill-current">
-                  <path d={iconPath} />
+                <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden="true">
+                  {iconPath.map((d) => (
+                    <path key={d} d={d} />
+                  ))}
                 </svg>
               )}
               <span className="truncate">{item.label}</span>
@@ -198,10 +205,10 @@ export function Sidebar({
           href={`/loja/${storeSlug}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="mx-2 mb-1 flex items-center gap-3 rounded-[var(--adm-raio-sm)] px-3 py-2.5 text-[13px] font-medium text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-azul)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
+          className="mx-2 mb-1 flex min-h-[40px] items-center gap-3 rounded-[var(--adm-raio-sm)] px-[10px] text-[14px] font-normal leading-none text-[var(--adm-menu-texto)] transition-colors hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
         >
-          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-current" aria-hidden="true">
-            <path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+          <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden="true">
+            {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
           </svg>
           <span className="truncate">Ver meu cardápio</span>
         </a>
@@ -214,7 +221,7 @@ export function Sidebar({
           className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-menuzia border border-danger/40 bg-danger/10 px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-vermelho-texto)] transition-colors hover:bg-danger/20"
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] flex-shrink-0 fill-current">
-            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+            {ICONES.aviso.map((d) => (<path key={d} d={d} />))}
           </svg>
           {pendencias} {pendencias === 1 ? 'pendência' : 'pendências'}
         </button>
@@ -226,7 +233,7 @@ export function Sidebar({
           className="mx-3 mb-4 flex items-center justify-center gap-2 rounded-[var(--adm-raio-sm)] border border-[var(--adm-borda)] px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-texto-suave)] transition-colors hover:border-[var(--adm-borda-forte)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)]"
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-current">
-            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+            {ICONES.sair.map((d) => (<path key={d} d={d} />))}
           </svg>
           Sair
         </button>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, BellOff, BellRing } from 'lucide-react'
+import { ICONES } from '@/lib/icones-painel'
 import {
   AJUDA_ESTADO,
   ROTULO_ESTADO,
@@ -95,14 +95,14 @@ export function useAvisarPedido(aoAbrirPedidos: () => void) {
 /** Item do menu lateral, com o estado real do navegador. */
 export function ItemNotificacoes({ estado, onAtivar }: { estado: EstadoNotificacao; onAtivar: () => void }) {
   const [explicando, setExplicando] = useState(false)
-  const Icone = estado === 'ativas' ? BellRing : estado === 'negadas' ? BellOff : Bell
+  const caminhos = estado === 'ativas' ? ICONES.sinoAtivo : estado === 'negadas' ? ICONES.sinoMudo : ICONES.sino
 
   const tom =
     estado === 'ativas'
-      ? 'text-[var(--adm-azul)]'
+      ? 'text-[var(--adm-azul-escuro)]'
       : estado === 'negadas'
         ? 'text-[var(--adm-vermelho-texto)]'
-        : 'text-[var(--adm-texto)]'
+        : 'text-[var(--adm-menu-texto)]'
 
   return (
     <div className="mx-2">
@@ -118,12 +118,16 @@ export function ItemNotificacoes({ estado, onAtivar }: { estado: EstadoNotificac
         }}
         aria-expanded={estado === 'disponivel' ? undefined : explicando}
         className={[
-          'flex w-full items-center gap-3 rounded-[var(--adm-raio-sm)] px-3 py-2.5 text-left text-[13px] font-medium transition-colors',
-          'hover:bg-[var(--adm-superficie-2)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
+          'flex min-h-[40px] w-full items-center gap-3 rounded-[var(--adm-raio-sm)] px-[10px] text-left text-[14px] font-normal leading-none transition-colors',
+          'hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
           tom,
         ].join(' ')}
       >
-        <Icone className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2} />
+        <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden="true">
+          {caminhos.map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </svg>
         <span className="min-w-0 flex-1 truncate">{ROTULO_ESTADO[estado]}</span>
         {estado === 'ativas' && (
           <span className="h-2 w-2 flex-shrink-0 rounded-full bg-status-ready" aria-hidden="true" />

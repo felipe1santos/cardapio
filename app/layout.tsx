@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Mulish } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
@@ -24,6 +24,24 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+/**
+ * Mulish: a fonte do painel administrativo (2026-09-23).
+ *
+ * A referência de layout escolhida pelo dono usa Muli — o nome antigo desta
+ * mesma família, hoje publicada como Mulish e sob licença aberta (SIL OFL).
+ * Ela vale SÓ dentro de [data-admin-shell], fora do Kanban: a vitrine segue em
+ * Montserrat e o restante do sistema em Inter, como manda o CLAUDE.md §3.
+ *
+ * Auto-hospedada pelo next/font, pelo mesmo motivo da Inter: nada de ida ao
+ * fonts.googleapis.com bloqueando a primeira pintura.
+ */
+const mulish = Mulish({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-painel",
+});
+
 export const metadata: Metadata = {
   title: "Menuzia",
   description: "Cardápio digital e gestão de delivery",
@@ -45,7 +63,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={inter.variable}>
+    <html lang="pt-BR" className={`${inter.variable} ${mulish.variable}`}>
       <body className="antialiased">
         {children}
         <PwaRegister />

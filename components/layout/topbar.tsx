@@ -3,6 +3,7 @@
 import { useContext } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { MenuLateralContext } from './menu-lateral-contexto'
+import { ICONES } from '@/lib/icones-painel'
 
 export interface TopBarProps {
   title: string
@@ -40,13 +41,17 @@ export function TopBar({ title, breadcrumb, right, voltar }: TopBarProps) {
             aria-label="Abrir o menu"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+              {ICONES.menu.map((d) => (<path key={d} d={d} />))}
             </svg>
           </button>
         )}
+        {/* Título da referência: uma linha só, 19,2px em peso 500. O caminho
+            ("Visão geral › Desempenho") saiu da vista e ficou para o leitor de
+            tela: com o menu à esquerda dizendo onde a pessoa está, a segunda
+            linha era ruído em cima da tela toda. */}
         <div className="min-w-0">
-          <div className="truncate text-[16px] font-semibold text-text-main">{title}</div>
-          <div className="mt-0.5 truncate text-xs text-text-subtle">{breadcrumb}</div>
+          <h1 className="truncate text-[19.2px] font-medium leading-tight text-[var(--adm-texto,#1f2937)]">{title}</h1>
+          <span className="sr-only">{breadcrumb}</span>
         </div>
       </div>
       {right && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:flex-shrink-0 sm:gap-2">{right}</div>}
