@@ -14,6 +14,7 @@ import { QrDasMesas } from '@/components/admin/qr-mesas-lista'
 import {
   MAX_ETIQUETAS,
   MODELOS_ETIQUETA,
+  descricaoDoModelo,
   modeloEtiqueta,
   montarEtiquetas,
   nomeArquivoQr,
@@ -254,6 +255,15 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
 
             <Card>
               <h4 className="mb-3 text-[13px] font-bold text-text-main">Modelo da etiqueta</h4>
+              {/* Loja com mesas tem dois QRs, e este NÃO é o da mesa. Sem este aviso o
+                  lojista imprime a folha do delivery, cola na mesa, e o cliente que
+                  escaneia cai na vitrine de entrega em vez do cardápio da mesa. */}
+              {moduloMesas && (
+                <p className="mb-3 rounded-menuzia border border-warn bg-warn-bg px-3 py-2 text-[11px] font-semibold leading-relaxed text-warn">
+                  Esta folha é do QR do delivery — não cole nas mesas. Para as mesas, use
+                  “Imprimir folha das mesas”, aqui em cima: cada mesa tem o QR dela.
+                </p>
+              )}
               <div className="space-y-2">
                 {MODELOS_ETIQUETA.map((m) => (
                   <button
@@ -275,7 +285,7 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[13px] font-semibold text-text-main">{m.label}</span>
-                      <span className="block text-[11px] leading-relaxed text-text-subtle">{m.descricao}</span>
+                      <span className="block text-[11px] leading-relaxed text-text-subtle">{descricaoDoModelo(m, moduloMesas ? 'delivery' : 'mesa')}</span>
                     </span>
                   </button>
                 ))}

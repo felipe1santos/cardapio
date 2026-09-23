@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   MAX_ETIQUETAS,
   MODELOS_ETIQUETA,
+  descricaoDoModelo,
   modeloEtiqueta,
   montarEtiquetas,
   nomeArquivoQr,
@@ -99,5 +100,31 @@ describe('rotuloMesa', () => {
   it('mantém o nome quando ele já diz o que é', () => {
     expect(rotuloMesa('Mesa 3')).toBe('Mesa 3')
     expect(rotuloMesa('Varanda')).toBe('Varanda')
+  })
+})
+
+/**
+ * Loja com mesas tem DOIS QRs: o de cada mesa (`/mesa/<token>`, autoatendimento)
+ * e o do delivery (`/loja/<slug>`, vitrine). Em produção o lojista imprimiu a
+ * folha do delivery — que dizia "para colar direto no tampo da mesa" — colou na
+ * mesa, e o cliente que escaneou caiu na vitrine de entrega.
+ */
+describe('descricaoDoModelo', () => {
+  it('a folha do delivery não manda colar na mesa', () => {
+    for (const m of MODELOS_ETIQUETA) {
+      const texto = descricaoDoModelo(m, 'delivery')
+      expect(texto, `modelo ${m.id}`).not.toMatch(/mesa|guardanapo/i)
+    }
+  })
+
+  it('a folha das mesas continua falando de mesa', () => {
+    expect(descricaoDoModelo(modeloEtiqueta('adesivo'), 'mesa')).toMatch(/mesa/i)
+  })
+
+  it('todo modelo tem os dois textos', () => {
+    for (const m of MODELOS_ETIQUETA) {
+      expect(m.descricao.length).toBeGreaterThan(10)
+      expect(m.descricaoDelivery.length).toBeGreaterThan(10)
+    }
   })
 })

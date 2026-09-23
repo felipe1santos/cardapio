@@ -21,6 +21,7 @@ import {
 import { listarMesasComEstado, type MesaComEstado } from '@/lib/queries/comandas'
 import { listarChamadosAbertos, type Chamado } from '@/lib/queries/chamados'
 import { esperaTexto } from '@/lib/chamados'
+import { avisoDeComandasEsquecidas, comandaEsquecida, tempoAberta } from '@/lib/comanda-esquecida'
 import { pode } from '@/lib/auth/permissoes'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { ConfigConta } from './config-conta'
@@ -189,6 +190,13 @@ export default function MesasPage() {
     })
   }, [mesas, busca, filtro, setorFiltro])
 
+  // Conta aberta há mais de um dia: a mesa fica ocupada para a equipe até alguém
+  // fechar, e ninguém fecha porque ninguém vê (lib/comanda-esquecida.ts).
+  const avisoComandas = useMemo(
+    () => avisoDeComandasEsquecidas(mesas.map((m) => ({ abertaEm: m.abertaEm })), agora),
+    [mesas, agora],
+  )
+
   // Setores cadastrados, na ordem em que aparecem no salão. Só vira filtro com 2 ou mais.
   const setores = useMemo(() => [...new Set(mesas.map((m) => m.setor || 'Sem setor'))], [mesas])
 
@@ -286,6 +294,14 @@ export default function MesasPage() {
         {avisoAcao && (
           <p className="mb-4 rounded-menuzia border border-danger bg-danger-bg px-4 py-2.5 text-[13px] text-danger">
             {avisoAcao}
+          </p>
+        )}
+
+        {/* Conta que ninguém fechou mantém a mesa ocupada para sempre — havia mesa
+            aberta desde junho. Nada fecha sozinho: a tela cobra (lib/comanda-esquecida.ts). */}
+        {avisoComandas && (
+          <p role="status" className="mb-4 rounded-menuzia border border-warn bg-warn-bg px-4 py-2.5 text-[13px] font-medium text-warn">
+            {avisoComandas}
           </p>
         )}
 
@@ -393,6 +409,13 @@ export default function MesasPage() {
                       <span className="text-[10px] font-medium opacity-80">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')}</span>
                     )}
                   </div>
+                  {/* Conta de dias atrás: o "3h20" do relógio normal não diz que a mesa
+                      está presa. Aqui a etiqueta grita, com o tempo em dias. */}
+                  {contaAberta && comandaEsquecida({ abertaEm: mesa.abertaEm }, agora) && (
+                    <span className="mt-1 inline-flex w-fit items-center rounded-menuzia bg-white/95 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger shadow-sm">
+                      Aberta há {tempoAberta(mesa.abertaEm!, agora)}
+                    </span>
+                  )}
                   {chamadoDaMesa && (
                     <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-menuzia bg-danger px-1.5 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm motion-safe:animate-pulse">
                       <BellRing className="h-3 w-3" />

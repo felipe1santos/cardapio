@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
+import { avisoDoItem, erroDoItem } from '@/lib/item-cadastro'
 import { Pause, Play } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -2238,6 +2239,19 @@ export default function CardapioPage() {
   /** Salva o item (create ou update). `fechar` controla se o drawer fecha — o wizard salva a cada etapa sem fechar. */
   async function saveItem(fechar = true): Promise<boolean> {
     if (!restauranteId || !form.nome.trim()) return false
+    // Item de graça na vitrine e "promoção" sem desconto: dois cadastros que o
+    // cliente sente antes do lojista perceber (lib/item-cadastro.ts).
+    const problema = erroDoItem({
+      preco: parsePreco(form.preco),
+      promocaoPreco: form.promocaoPreco.trim() ? parsePreco(form.promocaoPreco) : null,
+      tipoItem: form.tipoItem,
+      qtdTamanhos: (form.id ? items.find((i) => i.id === form.id)?.tamanhos.length : 0) ?? 0,
+      status: form.status,
+    })
+    if (problema) {
+      setError(problema)
+      return false
+    }
     setSaving(true)
     setError(null)
     try {
@@ -3032,6 +3046,20 @@ export default function CardapioPage() {
                           <div className="text-sm font-semibold">{item.nome}</div>
                         </div>
                         <div className="flex-1 text-xs leading-relaxed text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
+                        {/* Cadastro que o cliente sente antes do lojista perceber: item de
+                            graça na vitrine, promoção que não desconta (lib/item-cadastro.ts). */}
+                        {(() => {
+                          const aviso = avisoDoItem({
+                            preco: item.preco,
+                            promocaoPreco: item.promocaoPreco,
+                            tipoItem: item.tipoItem,
+                            qtdTamanhos: item.tamanhos.length,
+                            status: item.status,
+                          })
+                          return aviso ? (
+                            <p className="rounded-menuzia bg-warn-bg px-2 py-1 text-[11px] font-semibold leading-snug text-warn">{aviso}</p>
+                          ) : null
+                        })()}
                         <div className="mt-1 flex items-center justify-between">
                           {item.promocaoPreco !== null ? (
                             <span className="flex flex-col">

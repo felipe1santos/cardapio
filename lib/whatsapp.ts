@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
@@ -11,11 +12,14 @@ function brl(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-/** Converte o telefone digitado no checkout para o formato esperado pela Evolution API (DDI + DDD + número, só dígitos). */
+/**
+ * Telefone no formato da Evolution API (DDI + DDD + número, só dígitos).
+ *
+ * A regra mora em lib/telefone-br.ts: ela decide pelo COMPRIMENTO, e não pelo
+ * prefixo, porque "começa com 55" também é o DDD de Santa Maria/RS.
+ */
 export function formatarTelefoneWhatsapp(telefone: string): string | null {
-  const digitos = telefone.replace(/\D/g, '')
-  if (digitos.length < 10) return null
-  return digitos.startsWith('55') ? digitos : `55${digitos}`
+  return telefoneWhatsapp(telefone)
 }
 
 /** Resumo completo do pedido — enviado quando o pedido é ACEITO (recebido → preparando). */

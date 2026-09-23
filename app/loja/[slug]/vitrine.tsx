@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Megaphone, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
+import { erroDoTroco } from '@/lib/troco'
 import { ETIQUETAS_ITEM, tagDoItem } from '@/lib/etiqueta-item'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
@@ -2225,6 +2226,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (checkoutStep === 0 && cart.length === 0) {
       setCheckoutError('Sua sacola está vazia.')
       return
+    }
+    // Troco pedido tem que cobrir a conta: senão o entregador sai sem o troco
+    // combinado e o caixa dele fecha errado (lib/troco.ts). O servidor confere de
+    // novo — aqui o cliente descobre antes de mandar o pedido.
+    if (checkoutStep === 1 && payMethod === 'Dinheiro') {
+      const erroTroco = erroDoTroco(total, parseMoney(changeFor))
+      if (erroTroco) {
+        setCheckoutError(erroTroco)
+        return
+      }
     }
     if (checkoutStep === 2) {
       if (!cliente.nome.trim()) {

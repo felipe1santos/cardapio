@@ -17,6 +17,16 @@ export interface ModeloInfo {
   colunas: number
   /** Lado do QR impresso, em mm — a folha usa mm para sair no tamanho real. */
   qrMm: number
+  /**
+   * Descrição quando a folha é do QR do DELIVERY numa loja que usa mesas.
+   *
+   * O texto padrão manda colar no tampo da mesa e pôr no porta-guardanapo —
+   * conselho certo para quem só tem delivery, e errado para quem tem o módulo
+   * de mesas: ali cada mesa tem o QR dela (`/mesa/<token>`), e a etiqueta do
+   * delivery colada na mesa faz o cliente cair na vitrine de entrega em vez do
+   * cardápio de autoatendimento. Foi exatamente o que aconteceu em produção.
+   */
+  descricaoDelivery: string
 }
 
 export const MODELOS_ETIQUETA: ModeloInfo[] = [
@@ -24,6 +34,7 @@ export const MODELOS_ETIQUETA: ModeloInfo[] = [
     id: 'adesivo',
     label: 'Adesivo',
     descricao: '6 por folha · QR de 42 mm — para colar direto no tampo da mesa.',
+    descricaoDelivery: '6 por folha · QR de 42 mm — para o balcão, a embalagem ou o cartão de visita.',
     // 8 por folha não cabia: com logo, título, mesa e frase o conteúdo
     // transbordava a célula e invadia a etiqueta de baixo.
     porPagina: 6,
@@ -34,6 +45,7 @@ export const MODELOS_ETIQUETA: ModeloInfo[] = [
     id: 'cartao',
     label: 'Cartão de mesa',
     descricao: '4 por folha · QR de 65 mm — para display de acrílico ou porta-guardanapo.',
+    descricaoDelivery: '4 por folha · QR de 65 mm — para display de acrílico no caixa ou na recepção.',
     porPagina: 4,
     colunas: 2,
     qrMm: 65,
@@ -42,6 +54,7 @@ export const MODELOS_ETIQUETA: ModeloInfo[] = [
     id: 'cartaz',
     label: 'Cartaz',
     descricao: '1 por folha · QR de 110 mm — para balcão, parede ou vitrine.',
+    descricaoDelivery: '1 por folha · QR de 110 mm — para balcão, parede ou vitrine.',
     porPagina: 1,
     colunas: 1,
     qrMm: 110,
@@ -50,6 +63,17 @@ export const MODELOS_ETIQUETA: ModeloInfo[] = [
 
 export function modeloEtiqueta(id: ModeloEtiqueta): ModeloInfo {
   return MODELOS_ETIQUETA.find((m) => m.id === id) ?? MODELOS_ETIQUETA[0]
+}
+
+/**
+ * O texto do modelo conforme PARA ONDE o QR aponta.
+ *
+ * Loja com mesas tem dois QRs, e só um deles pode ir para a mesa. Descrever o
+ * do delivery como "cole no tampo da mesa" é o próprio painel mandando fazer
+ * errado — e o cliente que escaneia cai na vitrine de entrega.
+ */
+export function descricaoDoModelo(modelo: ModeloInfo, destino: 'mesa' | 'delivery'): string {
+  return destino === 'delivery' ? modelo.descricaoDelivery : modelo.descricao
 }
 
 /** Limite de etiquetas por impressão — evita mandar 5 mil folhas por engano. */

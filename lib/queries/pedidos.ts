@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { erroDoTroco } from '@/lib/troco'
+import { motivoTelefoneInvalido, telefoneWhatsapp } from '@/lib/telefone-br'
 import { resolverFrete } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_ESGOTADO, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
@@ -917,11 +919,13 @@ export interface NovoPedidoInput {
  * partir do banco (nunca confia no total enviado pelo cliente). Roda no
  * servidor com um client service_role. Retorna o número sequencial do pedido.
  */
-/** Normaliza o telefone para o mesmo formato gravado em `clientes.telefone` (DDI 55 + dígitos). */
+/**
+ * Normaliza o telefone para o mesmo formato gravado em `clientes.telefone`
+ * (DDI 55 + dígitos), pela regra de lib/telefone-br.ts — que decide pelo
+ * comprimento, e não pelo prefixo (o DDD 55 é do Rio Grande do Sul).
+ */
 function normalizarTelefoneCliente(telefone: string): string | null {
-  const digitos = telefone.replace(/\D/g, '')
-  if (digitos.length < 10) return null
-  return digitos.startsWith('55') ? digitos : `55${digitos}`
+  return telefoneWhatsapp(telefone)
 }
 
 /** True se o telefone do cliente foi confirmado por OTP (clientes.verificado_em preenchido). */
@@ -940,6 +944,13 @@ async function telefoneClienteVerificado(admin: SupabaseClient, restauranteId: s
 export async function criarPedido(admin: SupabaseClient, restauranteId: string, input: NovoPedidoInput): Promise<{ id: string; numero: number }> {
   if (input.itens.length === 0) throw new Error('Pedido sem itens')
   if (input.cupomCodigo && input.recompensaId) throw new Error('Use apenas um cupom ou prêmio por pedido.')
+  // Telefone é como a loja fala com o cliente e como ele volta à própria conta.
+  // Número com dígito sobrando entrava e ficava gravado assim para sempre: a
+  // confirmação ia para um número que não existe e ele nunca mais se reconhecia.
+  {
+    const motivo = motivoTelefoneInvalido(input.cliente.telefone)
+    if (motivo) throw new Error(motivo)
+  }
 
   const { data: lojaRow, error: lojaError } = await admin
     .from('restaurantes')
@@ -1277,6 +1288,14 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   // Desconto trava no subtotal (nunca negativa o pedido); a taxa entra por cima já com
   // frete grátis por subtotal e/ou entrega_gratis de cupom/prêmio aplicados.
   const total = Math.max(0, subtotal - desconto) + taxaEntrega
+
+  // "Troco para" menor que a conta: o entregador chega sem o troco combinado e o
+  // fechamento de caixa fica negativo. O checkout também avisa, mas quem decide é
+  // aqui — o total só existe depois de frete, cupom e prêmio (lib/troco.ts).
+  if (input.pagamento === 'dinheiro') {
+    const erroTroco = erroDoTroco(total, input.trocoPara)
+    if (erroTroco) throw new Error(erroTroco)
+  }
 
   // Telefone verificado? (server-authoritative). Pedidos feitos com o WhatsApp da
   // loja offline entram pelo fallback do checkout com o cliente não verificado.
