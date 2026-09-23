@@ -116,7 +116,7 @@ export function Sidebar({
               className="h-9 w-9 flex-shrink-0 rounded-[var(--adm-raio-sm)] border border-[var(--adm-borda)] object-cover"
             />
           ) : (
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm)] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul)]">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm)] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul-escuro)]">
               {loja.nome.charAt(0).toUpperCase()}
             </span>
           )}
@@ -148,7 +148,7 @@ export function Sidebar({
                 'mx-2 flex items-center gap-3 rounded-[var(--adm-raio-sm)] px-3 py-2.5 text-left text-[13px] transition-colors',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
                 isActive
-                  ? 'bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul)]'
+                  ? 'bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
                   : 'font-medium text-[var(--adm-texto)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-azul)]',
               ].join(' ')}
             >
@@ -162,7 +162,7 @@ export function Sidebar({
                   que resolve o problema, pra o dono saber onde clicar. */}
               {item.alerta !== undefined && item.alerta > 0 && (
                 <span
-                  className="animate-alerta-menu flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
+                  className="animate-alerta-menu flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-vermelho)] px-1 text-[10px] font-bold text-white"
                   title={`${item.alerta} ${item.alerta === 1 ? 'pendência de configuração' : 'pendências de configuração'}`}
                   aria-label={`${item.alerta} ${item.alerta === 1 ? 'pendência de configuração' : 'pendências de configuração'}`}
                 >
@@ -211,7 +211,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onAbrirPendencias}
-          className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-menuzia border border-danger/40 bg-danger/10 px-3 py-2.5 text-[12px] font-semibold text-danger transition-colors hover:bg-danger/20"
+          className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-menuzia border border-danger/40 bg-danger/10 px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-vermelho-texto)] transition-colors hover:bg-danger/20"
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] flex-shrink-0 fill-current">
             <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />

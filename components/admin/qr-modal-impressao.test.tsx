@@ -48,3 +48,23 @@ describe('janela de impressão de QR', () => {
     expect(document.getElementById('qr-print-root')).toBeNull()
   })
 })
+
+/**
+ * Teclado: quem abriu a janela pelo QR precisa voltar para o mesmo ponto ao
+ * fechar. Sem devolver o foco, ele cai no <body> e o próximo Tab recomeça do
+ * topo do painel.
+ */
+describe('janela de impressão de QR — foco', () => {
+  it('ao fechar, o foco volta para quem abriu', () => {
+    const gatilho = document.createElement('button')
+    document.body.appendChild(gatilho)
+    gatilho.focus()
+
+    const { unmount } = abrir()
+    expect(document.activeElement).not.toBe(gatilho)
+
+    unmount()
+    expect(document.activeElement).toBe(gatilho)
+    gatilho.remove()
+  })
+})

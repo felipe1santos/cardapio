@@ -355,6 +355,11 @@ html:has(.font-loja) {
   --adm-azul: #0b78d0;
   --adm-azul-escuro: #0961a8;
   --adm-azul-claro: #eff6ff;
+  /* Vermelho de aviso em duas forcas: fundo solido e texto sobre fundo claro.
+     O #ef4444 da paleta nao alcanca 4,5:1 em corpo pequeno — marcador de
+     pendencia e mensagem de erro sao exatamente isso. */
+  --adm-vermelho: #dc2626;
+  --adm-vermelho-texto: #b91c1c;
   --adm-roxo: #6d28d9;
   --adm-roxo-claro: #f5f3ff;
   --adm-raio: 8px;
@@ -424,6 +429,13 @@ html:has(.font-loja) {
 
   [data-admin-shell]:not([data-rota-kanban='sim']) main .text-primary {
     color: var(--adm-azul);
+  }
+
+  /* Texto de erro: #ef4444 sobre branco dá 3,76:1, abaixo do mínimo de 4,5:1
+     para corpo pequeno — e mensagem de erro é justo o que precisa ser lida.
+     Só a cor do TEXTO muda; fundo, borda e ícone continuam os mesmos. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-danger {
+    color: var(--adm-vermelho-texto);
   }
 
   /* Cabeçalho de tabela: discreto, para a linha de dado ser o que se lê. */

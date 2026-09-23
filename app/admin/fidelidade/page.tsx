@@ -192,8 +192,8 @@ function DiasChips({ dias, onChange }: { dias: number[]; onChange: (dias: number
             // Mesmo tamanho de dedo do gestor de cardápio: 21px é alvo de mouse.
             'flex h-6 w-6 max-lg:h-10 max-lg:w-10 max-lg:text-[13px] select-none items-center justify-center rounded-menuzia border text-[11px] font-bold transition-colors',
             ativos.has(dia)
-              ? 'border-[#0688D4] bg-[#0688D4] text-white'
-              : 'border-border bg-white text-text-subtle hover:border-[#0688D4]',
+              ? 'border-[var(--adm-azul)] bg-[var(--adm-azul)] text-white'
+              : 'border-border bg-white text-text-subtle hover:border-[var(--adm-azul)]',
           ].join(' ')}
         >
           {label}

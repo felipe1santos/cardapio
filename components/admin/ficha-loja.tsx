@@ -35,13 +35,19 @@ export function FichaDaLoja({
   const fechar = useRef<HTMLButtonElement>(null)
 
   // Esc fecha, e o foco entra na janela — quem navega por teclado não fica preso atrás.
+  // Ao sair, o foco VOLTA para o botão que abriu: sem isso ele cai no <body> e a
+  // próxima tecla Tab recomeça do topo da página, longe de onde a pessoa estava.
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onFechar()
     }
+    const abriu = document.activeElement as HTMLElement | null
     window.addEventListener('keydown', aoTeclar)
     fechar.current?.focus()
-    return () => window.removeEventListener('keydown', aoTeclar)
+    return () => {
+      window.removeEventListener('keydown', aoTeclar)
+      if (abriu?.isConnected) abriu.focus()
+    }
   }, [onFechar])
 
   if (typeof document === 'undefined') return null

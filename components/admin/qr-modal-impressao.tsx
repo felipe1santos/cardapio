@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -84,6 +84,8 @@ export function ModalImpressaoQr({
   const [maisOpcoes, setMaisOpcoes] = useState(false)
   const [selecionadas, setSelecionadas] = useState<string[]>(() => pecas.map((p) => p.id))
   const [imprimindo, setImprimindo] = useState(false)
+  /** Primeiro ponto de foco da janela — quem chegou pelo teclado entra nela. */
+  const fechar = useRef<HTMLButtonElement>(null)
 
   /**
    * A seleção acompanha a lista que chegou.
@@ -135,15 +137,20 @@ export function ModalImpressaoQr({
     [imprimindo, montar, info.porPagina],
   )
 
-  // Esc fecha; enquanto o modal está aberto, a página atrás não rola.
+  // Esc fecha; enquanto o modal está aberto, a página atrás não rola. Ao fechar,
+  // o foco volta para o QR ou o botão que abriu — sem isso o Tab seguinte
+  // recomeça do topo da página.
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => e.key === 'Escape' && onFechar()
+    const abriu = document.activeElement as HTMLElement | null
+    fechar.current?.focus()
     window.addEventListener('keydown', aoTeclar)
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', aoTeclar)
       document.body.style.overflow = overflow
+      if (abriu?.isConnected) abriu.focus()
     }
   }, [onFechar])
 
@@ -185,6 +192,7 @@ export function ModalImpressaoQr({
             {subtitulo && <p className="mt-0.5 text-[12px] text-text-subtle">{subtitulo}</p>}
           </div>
           <button
+            ref={fechar}
             onClick={onFechar}
             aria-label="Fechar"
             className="toque-icone -mr-2 flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-menuzia text-text-subtle hover:bg-page hover:text-text-main"

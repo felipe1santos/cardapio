@@ -101,7 +101,7 @@ export function ItemNotificacoes({ estado, onAtivar }: { estado: EstadoNotificac
     estado === 'ativas'
       ? 'text-[var(--adm-azul)]'
       : estado === 'negadas'
-        ? 'text-danger'
+        ? 'text-[var(--adm-vermelho-texto)]'
         : 'text-[var(--adm-texto)]'
 
   return (

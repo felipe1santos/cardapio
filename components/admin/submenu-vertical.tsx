@@ -55,13 +55,13 @@ export function SubmenuVertical<T extends string>({
               'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
               'lg:w-full lg:justify-start',
               selecionado
-                ? 'bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul)]'
+                ? 'bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
                 : 'font-medium text-[var(--adm-texto-suave)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)]',
             ].join(' ')}
           >
             <span className="truncate">{item.label}</span>
             {item.contador !== undefined && item.contador > 0 && (
-              <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--adm-azul-claro)] px-1 text-[10px] font-bold text-[var(--adm-azul)]">
+              <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--adm-azul-claro)] px-1 text-[10px] font-bold text-[var(--adm-azul-escuro)]">
                 {item.contador}
               </span>
             )}

@@ -255,6 +255,7 @@ function CampoFotoCategoria({
       <input
         type="file"
         accept="image/*"
+        aria-label={`Escolher imagem — ${rotulo}`}
         disabled={enviando}
         onChange={(e) => {
           const file = e.target.files?.[0]
@@ -332,8 +333,8 @@ function DayToggles({ days, onChange }: { days: number[]; onChange: (days: numbe
             // `lg` a pílula cresce nos dois eixos (a de altura vem da camada do painel).
             'flex h-6 w-6 max-lg:h-10 max-lg:w-10 max-lg:text-[13px] select-none items-center justify-center rounded-menuzia border text-[11px] font-bold transition-colors',
             active.has(day)
-              ? 'border-[#0688D4] bg-[#0688D4] text-white'
-              : 'border-border bg-white text-text-subtle hover:border-[#0688D4]',
+              ? 'border-[var(--adm-azul)] bg-[var(--adm-azul)] text-white'
+              : 'border-border bg-white text-text-subtle hover:border-[var(--adm-azul)]',
           ].join(' ')}
         >
           {label}
@@ -2720,10 +2721,10 @@ export default function CardapioPage() {
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button variant="primary" className="!bg-[#0688D4] hover:!bg-[#0574B4]" onClick={openNewItem} disabled={!activeGroupId}>
+          <Button variant="primary" onClick={openNewItem} disabled={!activeGroupId}>
             + Novo item
           </Button>
-          <Button variant="primary" className="!bg-[#0688D4] hover:!bg-[#0574B4]" onClick={openCreateCategoria}>
+          <Button variant="primary" onClick={openCreateCategoria}>
             + Categoria
           </Button>
           <div className="flex-1" />
@@ -2907,7 +2908,7 @@ export default function CardapioPage() {
               )}
             </div>
             <div className="flex gap-1.5 border-t border-border p-2.5">
-              <Button variant="primary" className="flex-1 !bg-[#0688D4] hover:!bg-[#0574B4]" onClick={openCreateCategoria}>
+              <Button variant="primary" className="flex-1" onClick={openCreateCategoria}>
                 + Categoria
               </Button>
             </div>
@@ -2946,7 +2947,7 @@ export default function CardapioPage() {
                   <thead>
                     <tr>
                       <th className="sticky top-0 w-9 border-b border-border bg-[#F9FAFB] px-3.5 py-2.5">
-                        <input type="checkbox" className="h-4 w-4 accent-primary" checked={allSelected} onChange={toggleAll} />
+                        <input type="checkbox" aria-label="Selecionar todos os itens da lista" className="h-4 w-4 accent-primary" checked={allSelected} onChange={toggleAll} />
                       </th>
                       <th className="sticky top-0 border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Item</th>
                       <th className="sticky top-0 w-[120px] border-b border-border bg-[#F9FAFB] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preço</th>
@@ -2959,7 +2960,7 @@ export default function CardapioPage() {
                     {visibleItems.map((item) => (
                       <tr key={item.id} className={selected.has(item.id) ? 'bg-primary/10' : 'hover:bg-[#F9FAFB]'}>
                         <td className="border-b border-border px-3.5 py-3">
-                          <input type="checkbox" className="h-4 w-4 accent-primary" checked={selected.has(item.id)} onChange={() => toggleRow(item.id)} />
+                          <input type="checkbox" aria-label={`Selecionar ${item.nome}`} className="h-4 w-4 accent-primary" checked={selected.has(item.id)} onChange={() => toggleRow(item.id)} />
                         </td>
                         <td className="border-b border-border px-3.5 py-3">
                           <div className="flex items-center gap-3">
