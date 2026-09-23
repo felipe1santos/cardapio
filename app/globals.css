@@ -388,3 +388,52 @@ html:has(.font-loja) {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Componentes do painel no tema claro ────────────────────────────────────
+   Escrito como CAMADA sobre os componentes, e não dentro deles: o mesmo
+   `<Button>` e o mesmo `<Card>` são usados pela tela da cozinha e pelo portal do
+   entregador, que NÃO fazem parte desta reforma. Escopar por
+   `[data-admin-shell]` garante que só o painel muda.
+
+   O Kanban também fica de fora (`data-rota-kanban`), porque a cor dos botões
+   dele carrega significado de operação: verde é "pronto", escuro é "despachar". */
+@media screen {
+  [data-admin-shell]:not([data-rota-kanban='sim']) main input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  [data-admin-shell]:not([data-rota-kanban='sim']) main select,
+  [data-admin-shell]:not([data-rota-kanban='sim']) main textarea {
+    border-radius: var(--adm-raio-sm);
+    border-color: var(--adm-borda);
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main input:focus,
+  [data-admin-shell]:not([data-rota-kanban='sim']) main select:focus,
+  [data-admin-shell]:not([data-rota-kanban='sim']) main textarea:focus {
+    border-color: var(--adm-azul);
+    box-shadow: 0 0 0 3px rgba(11, 120, 208, 0.12);
+    outline: none;
+  }
+
+  /* Botão primário: o azul da ação é o mesmo do menu e dos links. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .bg-primary {
+    background-color: var(--adm-azul);
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .bg-primary:hover {
+    background-color: var(--adm-azul-escuro);
+  }
+
+  [data-admin-shell]:not([data-rota-kanban='sim']) main .text-primary {
+    color: var(--adm-azul);
+  }
+
+  /* Cabeçalho de tabela: discreto, para a linha de dado ser o que se lê. */
+  [data-admin-shell]:not([data-rota-kanban='sim']) main thead {
+    background-color: var(--adm-superficie-2);
+  }
+
+  /* Foco de teclado visível em tudo que recebe foco dentro do painel. */
+  [data-admin-shell] main :is(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--adm-azul);
+    outline-offset: 2px;
+  }
+}

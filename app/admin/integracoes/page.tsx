@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ChevronRight, ShieldCheck } from 'lucide-react'
+import { ChevronRight, ShieldCheck, Plug } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
+import { Callout } from '@/components/admin/callout'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FacebookIcon, GoogleIcon, WhatsAppIcon } from '@/components/ui/brand-icons'
@@ -399,6 +400,14 @@ export default function IntegracoesPage() {
 
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="mx-auto max-w-[1040px] space-y-8">
+          {/* Recado de entrada da seção: explica o que são estas conexões antes
+              de o dono sair ligando coisa. Sem botão — o projeto ainda não tem um
+              canal de suporte próprio para receber pedido de integração nova. */}
+          <Callout titulo="Conecte a Menuzia às ferramentas que você já usa" icone={Plug}>
+            Cada integração é ligada por você, com as chaves da sua conta. Ligar ou desligar aqui não altera pedidos
+            nem cardápio — só o que a Menuzia conversa com o outro sistema.
+          </Callout>
+
           {/* Seção 1 — Integrações do app */}
           <section>
             <SectionTitle>Integrações do app</SectionTitle>

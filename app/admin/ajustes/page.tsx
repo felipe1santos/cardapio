@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { InstalarAppButton } from '@/components/instalar-app-button'
 import { TabQrCode } from '@/components/admin/ajustes-qrcode'
+import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario, listarGrupos, type LayoutCardapio } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
@@ -2772,36 +2773,31 @@ export default function AjustesPage() {
       <TopBar title="Ajustes" breadcrumb="Configurações da loja" />
 
       {/* Tab bar */}
-      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-4 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={[
-              'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-              tab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
-            ].join(' ')}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Submenu: coluna no desktop, trilho rolável no celular. Mesmos destinos
+          e mesmos nomes de antes — com oito abas, a fila horizontal empurrava as
+          últimas para fora da tela. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        <SubmenuVertical itens={TABS} ativo={tab} onSelecionar={setTab} titulo="Seções dos ajustes" />
 
-      {/* Tab content — all mounted, only active is visible (preserves form state on tab switch) */}
-      {!restauranteId ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-text-subtle">Carregando…</div>
-      ) : (
-        <>
-          <TabLoja restauranteId={restauranteId} active={tab === 'loja'} />
-          <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
-          <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
-          <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
-          <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
-          <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
-          <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
-          <TabConta active={tab === 'conta'} />
-        </>
-      )}
+        {/* Conteúdo — todas as abas montadas, só a ativa visível (preserva o
+            estado do formulário ao trocar de seção). */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {!restauranteId ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-text-subtle">Carregando…</div>
+          ) : (
+            <>
+              <TabLoja restauranteId={restauranteId} active={tab === 'loja'} />
+              <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
+              <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
+              <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
+              <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
+              <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
+              <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
+              <TabConta active={tab === 'conta'} />
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
