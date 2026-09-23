@@ -103,10 +103,15 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
           .filter((m) => m.ativa)
           .map(async (m) => {
             const url = m.token ? urlPublicaDaMesa(origem, m.token) : ''
-            const qrDataUrl = url
-              ? await QRCode.toDataURL(url, { width: 1024, margin: 1, errorCorrectionLevel: 'M' }).catch(() => null)
-              : null
-            return { id: m.id, nome: m.nome, setor: m.setor, url, qrDataUrl, qrRevogado: m.qrRevogado }
+            // Duas resoluções: a grande vai para o papel, a pequena para a tela
+            // (lista e prévia). Com 13 mesas, 52 imagens de 1024px travavam a janela.
+            const [qrDataUrl, qrPreview] = url
+              ? await Promise.all([
+                  QRCode.toDataURL(url, { width: 1024, margin: 1, errorCorrectionLevel: 'M' }).catch(() => null),
+                  QRCode.toDataURL(url, { width: 240, margin: 1, errorCorrectionLevel: 'M' }).catch(() => null),
+                ])
+              : [null, null]
+            return { id: m.id, nome: m.nome, setor: m.setor, url, qrDataUrl, qrPreview, qrRevogado: m.qrRevogado }
           }),
       )
       if (vivo) setMesasQr(comQr)
@@ -150,10 +155,16 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
     if (!impressao) return []
     if (impressao.tipo === 'mesa') {
       const m = impressao.mesa
-      return [{ id: m.id, nome: rotuloMesa(m.nome), url: m.url, qrDataUrl: m.qrDataUrl }]
+      return [{ id: m.id, nome: rotuloMesa(m.nome), url: m.url, qrDataUrl: m.qrDataUrl, qrPreview: m.qrPreview }]
     }
     if (impressao.tipo === 'mesas') {
-      return mesasImprimiveis.map((m) => ({ id: m.id, nome: rotuloMesa(m.nome), url: m.url, qrDataUrl: m.qrDataUrl }))
+      return mesasImprimiveis.map((m) => ({
+        id: m.id,
+        nome: rotuloMesa(m.nome),
+        url: m.url,
+        qrDataUrl: m.qrDataUrl,
+        qrPreview: m.qrPreview,
+      }))
     }
     return [{ id: 'delivery', nome: null, url: urlDelivery, qrDataUrl: qrDelivery }]
   }, [impressao, mesasImprimiveis, urlDelivery, qrDelivery])

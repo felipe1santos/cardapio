@@ -10,8 +10,10 @@ export interface MesaComQr {
   setor: string | null
   /** `/mesa/<token>` já com a origem. Vazio quando o QR foi revogado. */
   url: string
-  /** PNG do QR (data URL). Null enquanto gera. */
+  /** PNG de 1024px — o que vai para o papel e para o download. */
   qrDataUrl: string | null
+  /** PNG pequeno, para a tela não carregar 1024px por mesa. */
+  qrPreview?: string | null
   qrRevogado: boolean
 }
 
@@ -64,9 +66,9 @@ export function ListaQrMesas({
                   m.url ? 'hover:border-primary' : 'cursor-not-allowed opacity-50',
                 ].join(' ')}
               >
-                {m.qrDataUrl ? (
+                {(m.qrPreview ?? m.qrDataUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.qrDataUrl} alt={`QR da ${rotuloMesa(m.nome)}`} className="h-full w-full object-contain p-0.5" />
+                  <img src={(m.qrPreview ?? m.qrDataUrl)!} alt={`QR da ${rotuloMesa(m.nome)}`} className="h-full w-full object-contain p-0.5" />
                 ) : (
                   <span className="text-[10px] text-text-subtle">…</span>
                 )}

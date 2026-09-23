@@ -36,7 +36,16 @@ export interface PecaQr {
   /** Nome que sai impresso na etiqueta ("Mesa 01"). Null = etiqueta sem nome. */
   nome: string | null
   url: string
+  /** PNG de 1024px — é o que vai para o papel. */
   qrDataUrl: string | null
+  /**
+   * PNG pequeno, só para a tela.
+   *
+   * A prévia de 13 mesas em 4 folhas chega a 52 imagens; em 1024px cada, o
+   * navegador engasga e a janela trava. No papel a resolução importa, na tela
+   * não — o QR aparece com 2 cm.
+   */
+  qrPreview?: string | null
 }
 
 const CLASSE_PRINT = 'imprimindo-qr'
@@ -103,18 +112,28 @@ export function ModalImpressaoQr({
     [comSelecao, pecas, selecionadas],
   )
 
-  const etiquetas: Etiqueta[] = useMemo(() => {
-    const lista: Etiqueta[] = []
-    const n = Math.max(1, copias)
-    for (const p of escolhidas) {
-      for (let i = 0; i < n; i++) {
-        lista.push({ id: `${p.id}-${i}`, mesa: p.nome, qrDataUrl: p.qrDataUrl, url: p.url })
+  const montar = useCallback(
+    (paraTela: boolean): Etiqueta[] => {
+      const lista: Etiqueta[] = []
+      const n = Math.max(1, copias)
+      for (const p of escolhidas) {
+        const imagem = paraTela ? (p.qrPreview ?? p.qrDataUrl) : p.qrDataUrl
+        for (let i = 0; i < n; i++) {
+          lista.push({ id: `${p.id}-${i}`, mesa: p.nome, qrDataUrl: imagem, url: p.url })
+        }
       }
-    }
-    return lista.slice(0, MAX_ETIQUETAS)
-  }, [escolhidas, copias])
+      return lista.slice(0, MAX_ETIQUETAS)
+    },
+    [escolhidas, copias],
+  )
 
+  const etiquetas = useMemo(() => montar(true), [montar])
   const paginas = useMemo(() => paginarEtiquetas(etiquetas, info.porPagina), [etiquetas, info.porPagina])
+  // A folha que vai para a impressora é montada só na hora, com o QR grande.
+  const paginasImpressao = useMemo(
+    () => (imprimindo ? paginarEtiquetas(montar(false), info.porPagina) : []),
+    [imprimindo, montar, info.porPagina],
+  )
 
   // Esc fecha; enquanto o modal está aberto, a página atrás não rola.
   useEffect(() => {
@@ -382,7 +401,7 @@ export function ModalImpressaoQr({
         createPortal(
           <div id="qr-print-root" className="hidden">
             <FolhaQr
-              paginas={paginas}
+              paginas={paginasImpressao}
               modelo={info}
               titulo={tituloImpresso || nomeLoja}
               frase={frase}
