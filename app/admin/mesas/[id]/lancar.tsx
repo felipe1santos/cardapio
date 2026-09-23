@@ -516,7 +516,7 @@ export function ConfiguradorGarcom({
         <div className="flex min-h-[56px] flex-shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <div className="min-w-0">
             <div className="truncate text-[15px] font-semibold text-text-main">{item.nome}</div>
-            {item.descricao && <div className="line-clamp-1 text-[11px] text-text-subtle">{item.descricao}</div>}
+            {item.descricao && <div className="line-clamp-1 text-[11px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>}
           </div>
           <button onClick={onCancelar} className="-mr-2 grid h-[44px] w-[44px] flex-shrink-0 place-items-center text-text-subtle hover:text-text-main" aria-label="Fechar">
             <X className="h-5 w-5" />

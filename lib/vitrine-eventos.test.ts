@@ -45,8 +45,12 @@ describe('limparRotulo', () => {
     expect(limparRotulo('CEP 29100-000')).toBe('CEP #')
     expect(limparRotulo('fulano@x.com')).toBeNull()
   })
-  it('mantém preço e quantidade curtos', () => {
-    expect(limparRotulo('Adicionar  R$ 32,90')).toBe('Adicionar R$ 32,90')
+  it('tira valores e contadores para o mesmo botão somar numa linha só', () => {
+    expect(limparRotulo('Adicionar  R$ 32,90')).toBe('Adicionar')
+    expect(limparRotulo('Continuar para pagamento R$ 1.017,40')).toBe('Continuar para pagamento')
+    expect(limparRotulo('Bacon + R$ 3,50')).toBe('Bacon')
+    expect(limparRotulo('Sacola 12 R$ 22,40')).toBe('Sacola')
+    expect(limparRotulo('Coca-Cola 600ml')).toBe('Coca-Cola 600ml')
   })
   it('corta rótulo longo', () => {
     expect(limparRotulo('a'.repeat(80))?.length).toBe(48)

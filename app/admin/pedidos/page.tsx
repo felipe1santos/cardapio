@@ -1007,7 +1007,7 @@ export default function PedidosPage() {
                           <div className="min-w-0 flex-[3]">
                             <div className="mb-1 flex items-center gap-1.5">
                               <span className="text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</span>
-                              {!order.telefoneVerificado && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">☎ não verif.</Badge>}
+                              {!order.telefoneVerificado && order.origem !== 'pdv' && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">☎ não verif.</Badge>}
                             </div>
                             {order.tipo === 'entrega' && order.enderecoBairro && (
                               <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
@@ -1242,7 +1242,7 @@ export default function PedidosPage() {
                     <span className="text-text-subtle">Telefone</span>
                     <span className="flex items-center gap-1.5 font-medium">
                       {detail.clienteTelefone}
-                      {!detail.telefoneVerificado && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">não verif.</Badge>}
+                      {!detail.telefoneVerificado && detail.origem !== 'pdv' && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">não verif.</Badge>}
                     </span>
                   </div>
                 )}

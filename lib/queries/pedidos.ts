@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { erroDoTroco } from '@/lib/troco'
-import { motivoTelefoneDoPedido, telefoneWhatsapp } from '@/lib/telefone-br'
+import { motivoTelefoneDoPedido, soDigitos, telefoneWhatsapp } from '@/lib/telefone-br'
 import { resolverFrete } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_ESGOTADO, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
@@ -1329,7 +1329,12 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
 
   // Telefone verificado? (server-authoritative). Pedidos feitos com o WhatsApp da
   // loja offline entram pelo fallback do checkout com o cliente não verificado.
-  const telefoneVerificado = await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone)
+  // Balcão e mesa não pedem telefone: não há o que confirmar, e marcar "não verificado"
+  // acendia o alerta vermelho do Kanban em toda venda do PDV.
+  const telefoneVerificado =
+    input.origem === 'pdv' && !soDigitos(input.cliente.telefone)
+      ? true
+      : await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone)
 
   const { data: pedido, error: pedidoError } = await admin
     .from('pedidos')

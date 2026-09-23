@@ -6,6 +6,7 @@ import { ChefHat, Clock, GripVertical, Map as MapIcon, PackageCheck } from 'luci
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
 import { rotuloOrigemPedido } from '@/lib/pedido-origem'
+import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -301,7 +302,9 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
 
                 {/* Descrição do item — como montar (fonte maior pra leitura na bancada) */}
                 {item.descricao && (
-                  <p className="mt-1.5 text-[14px] leading-relaxed text-text-subtle">{item.descricao}</p>
+                  // A descrição carrega a marcação de negrito/cor da vitrine
+                  // (**…**, [[cor]]…[[/]]); na bancada vale só o texto.
+                  <p className="mt-1.5 text-[14px] leading-relaxed text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</p>
                 )}
 
                 {/* Complementos (adicionais) — verde escuro, fonte maior */}

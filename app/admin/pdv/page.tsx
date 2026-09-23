@@ -1105,7 +1105,9 @@ export default function PdvPage() {
       origem: 'pdv' as const,
       mesa: mesaSelecionada?.nome,
       mesaId: mesaSelecionada?.id,
-      cliente: { nome: nomeCliente.trim() || 'Cliente Balcão', telefone: '' },
+      // Sem nome digitado, o card do Kanban mostra onde o pedido está: a mesa, ou o
+      // balcão. Antes toda venda saía "Cliente Balcão", até a da MESA 01.
+      cliente: { nome: nomeCliente.trim() || mesaSelecionada?.nome || 'Cliente Balcão', telefone: '' },
       endereco: { rua: '', numero: '', complemento: '', bairro: '', cep: '' },
       pagamento: 'dinheiro' as const,
       trocoPara: null,

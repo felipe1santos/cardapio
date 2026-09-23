@@ -44,8 +44,13 @@ export function limparRotulo(bruto: string | null | undefined): string | null {
   if (!bruto) return null
   const texto = bruto
     .replace(/\s+/g, ' ')
+    // Valor e contador mudam a cada sacola ("Continuar para pagamento R$ 17,40",
+    // "Sacola 2"): sem tirar, o mesmo botão virava uma linha por preço no painel.
+    .replace(/\+?\s*R\$\s*[\d.,]+/g, '')
+    .replace(/\s\d{1,3}(?=\s|$)/g, '')
     .replace(/[+(]?\d[\d\s().-]{3,}\d/g, '#')
     .replace(/\S+@\S+/g, '#')
+    .replace(/\s+/g, ' ')
     .trim()
   if (!texto || texto === '#') return null
   return texto.length > 48 ? `${texto.slice(0, 47)}…` : texto
