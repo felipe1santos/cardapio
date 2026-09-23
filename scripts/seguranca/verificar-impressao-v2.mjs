@@ -255,6 +255,9 @@ const t2 = (tRes.json?.trabalhos ?? []).find((t) => t.id === pc2.json.id)
 ok('2ª via reservada para A', !!t2)
 for (let i = 0; i < 4; i++) {
   await A.post(`/api/agente/trabalhos/${pc2.json.id}/resultado`, { ok: false, erro: "Impressora 'Impressora 02' nao encontrada no Windows." })
+  if (i === 0) ok('depois da falha, espera antes de tentar de novo', !((await A.get('/api/agente/trabalhos')).json?.trabalhos ?? []).some((t) => t.id === pc2.json.id))
+  // Simula a passagem da espera (10 s × tentativas) sem dormir no teste.
+  await db.query(`update impressao_trabalhos set reservado_ate = now() - interval '1 second' where id = $1`, [pc2.json.id])
   await A.get('/api/agente/trabalhos')
 }
 const r5 = await A.post(`/api/agente/trabalhos/${pc2.json.id}/resultado`, { ok: false, erro: 'sem papel' })
