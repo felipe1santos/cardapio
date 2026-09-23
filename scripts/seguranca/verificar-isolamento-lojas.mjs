@@ -51,12 +51,16 @@ const tokenB = crypto.randomUUID()
 await db.query('update restaurantes set impressao_agente_token = $2 where id = $1', [lojaA, tokenA])
 await db.query('update restaurantes set impressao_agente_token = $2 where id = $1', [lojaB, tokenB])
 // Um pedido novo em cada loja para a fila de impressão ter conteúdo.
+// Com item: desde a 0086 pedido sem item nunca entra na fila. Reservas antigas de
+// execuções anteriores do teste são limpas para a fila começar do zero.
 for (const loja of [lojaA, lojaB]) {
-  await db.query(
+  const { rows } = await db.query(
     `insert into pedidos (restaurante_id, tipo, status, total, canal, cliente_nome, cliente_telefone, impresso)
-     values ($1,'retirada','recebido',10,'delivery','Cliente Teste Isolamento','5500000000000',false)`,
+     values ($1,'retirada','recebido',10,'delivery','Cliente Teste Isolamento','5500000000000',false) returning id`,
     [loja],
   )
+  await db.query(`insert into pedido_itens (pedido_id, nome, preco_unitario, quantidade) values ($1,'Item Teste',10,1)`, [rows[0].id])
+  await db.query('delete from impressao_reservas where restaurante_id = $1', [loja])
 }
 
 async function cliente(email) {
