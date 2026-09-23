@@ -131,3 +131,59 @@ export async function compararPngs(pares) {
   await browser.close()
   return out
 }
+
+/** Pré-conta em 58 e 80 mm: mesa completa (cancelados, pagamentos, acentos, nomes longos) e balcão. */
+export async function renderizarPreConta(dir) {
+  const { montarPreConta, montarTeste, colsPreConta } = require(join(RAIZ, 'printer-agent', 'src', 'pre-conta.js'))
+  mkdirSync(dir, { recursive: true })
+  const mesa = {
+    versao: 1, loja: 'Cantina Demonstração', tipo: 'mesa', mesa: 'Varanda 02', comanda_numero: 57, senha: null, cliente_nome: null,
+    aberta_em: '2026-09-23T22:02:00Z', impresso_em: '2026-09-23T22:40:00Z', operador: 'Conceição Atendente', via: 1,
+    itens: [
+      { quantidade: 2, nome: 'X-Burguer Artesanal com Queijo Coalho Grelhado e Cebola Caramelizada', tamanho: null, sabor: null, borda: null, massa: null,
+        complementos: [{ nome: 'Bacon', preco: 4 }, { nome: 'Bacon', preco: 4 }, { nome: 'Ovo', preco: 0 }], preco_unitario: 40, subtotal: 80 },
+      { quantidade: 1, nome: 'Pizza', tamanho: 'Média', sabor: 'Calabresa / Frango com Catupiry', borda: 'Cheddar', massa: 'Fina', complementos: [], preco_unitario: 55.9, subtotal: 55.9 },
+      { quantidade: 3, nome: 'Água com Gás', tamanho: null, sabor: null, borda: null, massa: null, complementos: [], preco_unitario: 7, subtotal: 21 },
+    ],
+    cancelados: [{ quantidade: 1, nome: 'Suco de Maçã' }, { quantidade: 2, nome: 'Pão de Queijo' }],
+    subtotal: 156.9, taxa_percentual: 10, taxa: 15.69, desconto: 12.5, total: 160.09, pago: 60, restante: 100.09,
+    pagamentos: [{ forma: 'dinheiro', valor: 40 }, { forma: 'pix', valor: 20 }],
+  }
+  const balcao = { ...mesa, tipo: 'balcao', mesa: null, comanda_numero: 12, senha: 128, cliente_nome: 'João da Conceição', via: 2,
+    itens: mesa.itens.slice(1), cancelados: [], subtotal: 76.9, taxa_percentual: 0, taxa: 0, desconto: 0, total: 76.9, pago: 0, restante: 76.9, pagamentos: [] }
+  const teste = { loja: 'Cantina Demonstração', impressora: 'Caixa 02', nome_sistema: 'ELGIN i9 (USB)', computador: 'PC Caixa', largura_mm: 58, operador: 'Gerente Demo', impresso_em: '2026-09-23T22:40:00Z' }
+  const pdfs = []
+  const saidas = []
+  for (const paperMm of [58, 80]) {
+    for (const [nome, texto] of [['mesa', montarPreConta(mesa)], ['balcao', montarPreConta(balcao)], ['teste', montarTeste({ ...teste, largura_mm: paperMm })]]) {
+      const png = join(dir, `pre-conta-${nome}-${paperMm}mm.png`)
+      renderizarPng(texto, { cols: colsPreConta(paperMm), paperMm, saida: png })
+      pdfs.push({ png, pdf: png.replace(/\.png$/, '.pdf'), paperMm })
+      saidas.push(png)
+    }
+  }
+  await pngsParaPdf(pdfs)
+  return saidas
+}
+
+/** Renderiza o baseline de novo e compara com um anterior (texto idêntico; pixel dentro do ruído do GDI). */
+export async function compararComBaseline(dirAntes, dirDepois, tolerancia = 20) {
+  const antes = JSON.parse(readFileSync(join(dirAntes, 'baseline.json'), 'utf8'))
+  const depois = await baselineRecibo(dirDepois)
+  writeFileSync(join(dirDepois, 'baseline.json'), JSON.stringify(depois, null, 2))
+  const textoDiferente = Object.keys(antes).filter((k) => antes[k].texto_sha256 !== depois[k]?.texto_sha256)
+  const pares = Object.keys(antes).map((k) => [join(dirAntes, `cozinha-${k}.png`), join(dirDepois, `cozinha-${k}.png`)])
+  const px = await compararPngs(pares)
+  const foraDaTolerancia = px.filter((r) => !r.mesmoTamanho || r.diferentes > tolerancia)
+  return { total: pares.length, textoDiferente, foraDaTolerancia, maxPixels: Math.max(...px.map((r) => r.diferentes)) }
+}
+
+if (process.argv[1]?.endsWith('renderizar-virtual.mjs') && process.argv[3] === 'pre-conta') {
+  const s = await renderizarPreConta(join(process.argv[2], 'pre-conta'))
+  console.log(`pré-conta: ${s.length} renderizações (PNG + PDF) em ${join(process.argv[2], 'pre-conta')}`)
+}
+if (process.argv[1]?.endsWith('renderizar-virtual.mjs') && process.argv[3] === 'comparar') {
+  const r = await compararComBaseline(join(process.argv[4], 'cozinha'), join(process.argv[2], 'cozinha'))
+  console.log(JSON.stringify(r))
+  process.exit(r.textoDiferente.length || r.foraDaTolerancia.length ? 1 : 0)
+}
