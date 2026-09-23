@@ -45,6 +45,22 @@ function deveAbrirAlerta(restauranteId: string, lista: PendenciaSetup[], pathnam
   }
 }
 
+/**
+ * Identidade da loja para o topo do menu. Loja sem nome cadastrado (linha antiga,
+ * cadastro pela metade) devolve `null`: sem nome o bloco não diz nada, e a inicial
+ * do nome — desenhada quando não há logo — derrubava o painel inteiro.
+ */
+function identidadeDaLoja(config: {
+  nome?: string | null
+  logoUrl?: string | null
+  enderecoBairro?: string | null
+  enderecoCidade?: string | null
+}) {
+  const nome = (config.nome ?? '').trim()
+  if (!nome) return null
+  return { nome, logoUrl: config.logoUrl ?? null, bairro: config.enderecoBairro ?? '', cidade: config.enderecoCidade ?? '' }
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -133,7 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (!active || !c) return
           setStoreSlug(c.slug)
           setUsaLogistica(c.usaLogistica)
-          setLoja({ nome: c.nome, logoUrl: c.logoUrl, bairro: c.enderecoBairro, cidade: c.enderecoCidade })
+          setLoja(identidadeDaLoja(c))
         })
         .catch(() => {
           /* slug e logística ficam com o padrão; a flag de mesas tem leitura própria */
@@ -186,7 +202,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!active || !config) return
         setStoreSlug(config.slug)
         setUsaLogistica(config.usaLogistica)
-        setLoja({ nome: config.nome, logoUrl: config.logoUrl, bairro: config.enderecoBairro, cidade: config.enderecoCidade })
+        setLoja(identidadeDaLoja(config))
 
         const lista = avaliarSetup(await carregarDadosSetup(supabase, restauranteId, config))
         if (!active) return
@@ -216,13 +232,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     const channel = supabase
       .channel(`nav-badges-${restauranteId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, carregar)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` },
+        (payload) => {
+          carregar()
+          // Aviso do navegador: só para pedido NOVO que ainda espera aceite. Mudança
+          // de status do que já está na cozinha não vira notificação.
+          const novo = payload.eventType === 'INSERT' ? (payload.new as Record<string, unknown> | null) : null
+          if (!novo || novo.status !== 'recebido') return
+          avisarPedido({
+            id: String(novo.id),
+            numero: typeof novo.numero === 'number' ? novo.numero : null,
+            canal: typeof novo.canal === 'string' ? novo.canal : null,
+          })
+        },
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase, restauranteId])
+  }, [supabase, restauranteId, avisarPedido])
 
   const alertasPorMenu = contarPorMenu(pendencias)
 

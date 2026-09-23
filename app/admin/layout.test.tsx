@@ -10,12 +10,23 @@ const push = vi.fn()
 
 let rotaAtual = '/admin/dashboard'
 
+/** Último callback registrado no canal Realtime dos pedidos — o teste dispara por ele. */
+let aoMudarPedido: ((payload: Record<string, unknown>) => void) | null = null
+
 vi.mock('next/navigation', () => ({ usePathname: () => rotaAtual, useRouter: () => ({ push }) }))
 vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabase: () => ({
     // O layout abre um canal Realtime assim que conhece a loja.
-    channel: () => ({ on: () => ({ subscribe: () => ({}) }) }),
+    channel: () => ({
+      on: (_evento: string, _cfg: unknown, cb: (payload: Record<string, unknown>) => void) => {
+        aoMudarPedido = cb
+        return { subscribe: () => ({}) }
+      },
+    }),
     removeChannel: () => {},
+    // Leitura do módulo Mesas (`auth_modulo_mesas`). Sem ela o efeito rejeita e
+    // o vitest derruba a execução com erro não tratado.
+    rpc: async () => ({ data: false, error: null }),
     auth: { signOut: vi.fn() },
   }),
 }))
@@ -62,6 +73,7 @@ function dadosSetup(over: Partial<DadosSetup> = {}): DadosSetup {
 
 beforeEach(() => {
   rotaAtual = '/admin/dashboard'
+  aoMudarPedido = null
   localStorage.clear()
   push.mockClear()
   vi.mocked(carregarDadosSetup).mockClear()
@@ -82,6 +94,31 @@ describe('AdminLayout', () => {
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.getByText('Painel de Pedidos')).toBeInTheDocument()
     expect(screen.getByText('Conteúdo da página')).toBeInTheDocument()
+  })
+
+  /**
+   * Loja sem nome cadastrado existe (cadastro pela metade). O bloco de identidade
+   * do menu desenha a inicial do nome quando não há logo — e derrubava o painel
+   * inteiro. Sem nome, o bloco some; o painel continua de pé.
+   */
+  it('loja sem nome: painel de pé, sem bloco de identidade', async () => {
+    vi.mocked(buscarRestauranteIdDoUsuario).mockResolvedValue('loja-1')
+    vi.mocked(buscarConfigLoja).mockResolvedValue({ ...CONFIG, nome: '  ' } as never)
+
+    render(<AdminLayout><p>Conteúdo da página</p></AdminLayout>)
+
+    await waitFor(() => expect(buscarConfigLoja).toHaveBeenCalled())
+    expect(screen.getByText('Conteúdo da página')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Ver os dados de/ })).toBeNull()
+  })
+
+  it('loja com nome: bloco de identidade abre a ficha', async () => {
+    vi.mocked(buscarRestauranteIdDoUsuario).mockResolvedValue('loja-1')
+    vi.mocked(buscarConfigLoja).mockResolvedValue({ ...CONFIG, nome: 'Fire House' } as never)
+
+    render(<AdminLayout><p>Conteúdo da página</p></AdminLayout>)
+
+    expect(await screen.findByRole('button', { name: 'Ver os dados de Fire House' })).toBeInTheDocument()
   })
 })
 
@@ -196,5 +233,77 @@ describe('AdminLayout — checklist de configuração', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /1 pendência/i }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Aviso de pedido novo pelo navegador. O layout não abre canal novo: usa o
+ * Realtime que já assina para os badges do menu. O que se guarda aqui é QUEM
+ * vira notificação (INSERT ainda em "recebido") e que o conteúdo não carrega
+ * dado de cliente.
+ */
+describe('AdminLayout — aviso de pedido novo', () => {
+  const criadas: { titulo: string; corpo: string }[] = []
+
+  beforeEach(() => {
+    criadas.length = 0
+    class NotificacaoFake {
+      static permission: NotificationPermission = 'granted'
+      static requestPermission = vi.fn(async () => 'granted' as NotificationPermission)
+      onclick: (() => void) | null = null
+      close = vi.fn()
+      constructor(titulo: string, opcoes?: NotificationOptions) {
+        criadas.push({ titulo, corpo: opcoes?.body ?? '' })
+      }
+    }
+    vi.stubGlobal('Notification', NotificacaoFake)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function montarComCanal() {
+    vi.mocked(buscarRestauranteIdDoUsuario).mockResolvedValue('loja-1')
+    render(<AdminLayout><p>Página</p></AdminLayout>)
+    await waitFor(() => expect(aoMudarPedido).not.toBeNull())
+  }
+
+  it('pedido novo em "recebido" avisa, sem dado do cliente', async () => {
+    await montarComCanal()
+
+    aoMudarPedido!({ eventType: 'INSERT', new: { id: 'p1', numero: 42, canal: 'delivery', status: 'recebido', cliente_nome: 'Ana' } })
+
+    expect(criadas).toHaveLength(1)
+    expect(criadas[0].titulo).toBe('Pedido #42 chegou')
+    expect(criadas[0].corpo).not.toContain('Ana')
+  })
+
+  it('não avisa em UPDATE nem em pedido que já saiu de "recebido"', async () => {
+    await montarComCanal()
+
+    aoMudarPedido!({ eventType: 'UPDATE', new: { id: 'p2', numero: 43, status: 'recebido' } })
+    aoMudarPedido!({ eventType: 'INSERT', new: { id: 'p3', numero: 44, status: 'preparando' } })
+
+    expect(criadas).toHaveLength(0)
+  })
+
+  it('o mesmo pedido duas vezes avisa uma vez só', async () => {
+    await montarComCanal()
+
+    const evento = { eventType: 'INSERT', new: { id: 'p4', numero: 45, canal: 'mesa', status: 'recebido' } }
+    aoMudarPedido!(evento)
+    aoMudarPedido!(evento)
+
+    expect(criadas).toHaveLength(1)
+  })
+
+  it('sem permissão concedida, nada é disparado', async () => {
+    ;(Notification as unknown as { permission: NotificationPermission }).permission = 'default'
+    await montarComCanal()
+
+    aoMudarPedido!({ eventType: 'INSERT', new: { id: 'p5', numero: 46, status: 'recebido' } })
+
+    expect(criadas).toHaveLength(0)
   })
 })
