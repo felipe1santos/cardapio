@@ -260,3 +260,103 @@ Suítes antigas que falham por seletor desatualizado (a tela mudou em 19 e 21/09
 `main`, antes desta branch, e os testes não foram atualizados): `e2e-caixa-e-regras`
 (procura "Fiado", que saiu da tela), `e2e-release-mesas` (procura "Selecionar item",
 que saiu do cartão), `e2e-garcom` (dois botões "Fechar"). Não são regressão do PDV v2.
+
+---
+
+## 8. Impressão com várias impressoras e pré-conta (RC local)
+
+### O que existe agora
+
+| Peça | Onde |
+|---|---|
+| B1: diagnóstico do Assistente não reserva pedidos | `0087_impressao_listagem_sem_reserva.sql`, `GET /api/agente/diagnostico` |
+| Computador = agente com credencial própria (só hash no banco), código de pareamento de uso único (10 min) | `0088_impressao_agentes.sql`, `lib/impressao/credenciais.ts`, `POST /api/agente/parear` |
+| Impressoras descobertas por computador; funções Cozinha e Caixa; roteamento da cozinha por função (opt-in) | `0089_impressao_dispositivos_e_funcoes.sql`, `POST /api/agente/impressoras` |
+| Fila de trabalhos (pré-conta, teste), snapshot imutável montado no banco, reserva SKIP LOCKED, 5 tentativas, vencimento 10 min | `0090_impressao_trabalhos.sql`, `GET /api/agente/trabalhos`, `POST /api/agente/trabalhos/[id]/resultado` |
+| Espera crescente entre tentativas (10/20/30/40 s) | `0091_impressao_espera_entre_tentativas.sql` |
+| Tela Impressão (dono e gerente) | `/admin/impressao`, `components/impressao/painel-impressao.tsx`, `/api/admin/impressao/*` |
+| Botão pré-conta no PDV (mesa e balcão) | `components/pdv/conta-presencial.tsx` (`PreContaBloco`), `/api/admin/comandas/[id]/pre-conta` |
+| Formatador próprio da pré-conta; filas por impressora | `printer-agent/src/pre-conta.js`, `printer-agent/src/fila-dispositivos.js` |
+| Permissões | `impressao.configurar` (dono, gerente), `comanda.pre_conta` (dono, gerente, atendente), `comanda.taxa` (dono, gerente) |
+
+A ficha da cozinha continua na fila de sempre (`pedidos.impresso` + reservas). O
+`recibo.js` não mudou: golden de texto (`printer-agent/test/golden-recibo.json`) e
+render virtual comparado com o baseline — texto idêntico em 40 renderizações, até
+4 pixels de diferença (o mesmo ruído do GDI entre duas renderizações iguais).
+
+### O que o sistema sabe (e o que não sabe) sobre o papel
+
+"Aceito pela fila do Windows" (`enviado_spooler`) quer dizer que o Windows recebeu o
+trabalho. A impressora térmica comum **não informa** falta de papel, tampa aberta ou
+offline: nesses casos o trabalho fica na fila do Windows e sai quando a impressora
+volta. O sistema detecta só impressora **ausente** do Windows (erro "não encontrada").
+Por isso a tela nunca diz "impresso".
+
+### Versões do Assistente
+
+| Versão | Situação |
+|---|---|
+| 0.1.23 | publicada (GitHub Release), link atual em Ajustes |
+| 0.1.24 | **nunca publicar** — já existe um binário antigo com esse número (15/07) |
+| 0.1.25 | correção do B1 (compatível); não empacotada separadamente — vai dentro da 0.1.26 |
+| 0.1.26 | pareamento por código, várias impressoras, pré-conta — **instalador local, não publicado** |
+
+Instalador local: `printer-agent/dist/AssistenteImpressaoMenuzia-Setup-0.1.26.exe`
+SHA-256 `82EBF4C9022F44E0E30212FC62A845B0D598AC79388E50B99309A213BAD7E140`.
+
+### Ordem de deploy (quando autorizado)
+
+1. PDV v2 (seções 1–5) primeiro: 0080 → código → 0081 → 0082–0086.
+2. Migrations 0087–0091 (aditivas).
+3. Código do servidor (inclui as rotas novas do agente).
+4. **Só depois** publicar o Assistente 0.1.26 e trocar o link em Ajustes. Agente 0.1.26
+   num servidor antigo: o diagnóstico cai na rota de sempre (compatível); pareamento e
+   pré-conta simplesmente não existem ainda — a cozinha segue imprimindo.
+5. Loja piloto: instalar 0.1.26 no computador piloto, parear, atribuir funções,
+   imprimir teste. Roteamento da cozinha por função só depois de validar a pré-conta.
+
+### Instalação no computador piloto (teste físico)
+
+1. Anotar a versão atual do Assistente (canto do título) e o token em uso — não trocar o token.
+2. Rodar `AssistenteImpressaoMenuzia-Setup-0.1.26.exe` (instala por cima; mantém a configuração).
+3. Conferir que a cozinha continua saindo como antes (modo compatível, nada configurado ainda).
+4. No painel › Impressão (gerente ou dono): "+ Parear computador"; no Assistente: cartão
+   "Várias impressoras", digitar o código, nome do computador, "Parear com código".
+5. No painel: conferir as impressoras do computador; apelidos (Cozinha 01 / Caixa 02),
+   largura 58/80; "Imprimir teste" em cada uma **com alguém ao lado**.
+6. Funções: Caixa → impressora do caixa. (Cozinha pode ficar no modo de sempre.)
+
+### Roteiro físico (com alguém ao lado das impressoras, só dados de demonstração)
+
+1. Identificar fisicamente a Impressora 01 e a 02; confirmar 58 ou 80 mm de cada.
+2. Lançar um pedido de demonstração → ficha sai só na 01; nada na 02.
+3. Abrir a conta no PDV → "Imprimir pré-conta" → sai só na 02; nada na 01.
+4. Conferir no papel: acentos, quebra de linhas longas, valores, taxa, desconto, pago,
+   restante, via, aviso "NÃO É DOCUMENTO FISCAL", corte, densidade e legibilidade.
+5. Tirar o papel da 02 (ou desligá-la) → lançar pedido: a cozinha (01) continua.
+6. Recolocar/ligar a 02 → o trabalho que ficou na fila do Windows sai.
+7. Registrar o resultado; fotografar só papel de demonstração.
+
+### Roteamento da cozinha por função (opcional)
+
+Desligado por padrão. Ligar em Impressão › Funções só quando: impressora de Cozinha
+num computador pareado e online, e nenhum Assistente antigo (token) consultou a fila
+nos últimos 2 minutos. Ligado, **só** o computador da Cozinha consome a fila da ficha
+(com reserva); todos os outros recebem lista vazia — nunca há duas filas imprimindo o
+mesmo pedido. Desfazer: desmarcar, ou tirar a função Cozinha (desliga sozinho).
+
+### Rollback
+
+| Camada | Como |
+|---|---|
+| Computador piloto | reinstalar a 0.1.23 (GitHub Release `printer-agent-v0.1.23`); o token da loja continua valendo |
+| Pré-conta numa loja | tirar a função Caixa (o botão avisa "sem impressora de Caixa") |
+| Roteamento da cozinha | desmarcar em Impressão, ou tirar a função Cozinha |
+| Computador comprometido | "Revogar" em Impressão (só ele para; os outros seguem) |
+| Banco | `docs/rollback/0087_0091_impressao.down.sql` (não apaga dado) |
+
+### Pendências
+
+- Publicar 0.1.26 e trocar o link de download em Ajustes (código em `app/admin/ajustes/page.tsx`) — só com autorização.
+- Garçom fora desta versão (decisão).
+- Rotação dos 4 tokens antigos segue pendente (seção 2); o pareamento por código é o caminho para aposentar o token da loja.
