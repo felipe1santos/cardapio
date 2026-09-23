@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { Lock, Bike, MapPin, Check, PackageCheck } from 'lucide-react'
 import { enderecoCompletoPedido, type CaixaEntregador, type FormaPagamento, type Pedido } from '@/lib/queries/pedidos'
 import { RouteMap } from '@/components/maps/route-map'
+import { mascararTelefoneBR } from '@/lib/telefone'
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
 const PAY_LABEL: Record<FormaPagamento, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
@@ -249,7 +250,7 @@ export default function EntregadorPortalPage() {
                   <div className="text-sm font-semibold">{order.clienteNome || 'Cliente'}</div>
                   {order.clienteTelefone && (
                     <a href={`tel:${order.clienteTelefone}`} className="mt-0.5 inline-block text-[13px] font-medium text-primary">
-                      {order.clienteTelefone}
+                      {mascararTelefoneBR(order.clienteTelefone)}
                     </a>
                   )}
 
@@ -272,7 +273,11 @@ export default function EntregadorPortalPage() {
                     </span>
                     {order.formaPagamento === 'dinheiro' && (
                       <span className="rounded-menuzia bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-warn">
-                        {order.trocoPara !== null ? `Levar troco p/ ${brl(order.trocoPara)}` : 'Sem troco'}
+                        {/* O motoboy precisa saber quanto LEVAR, não a nota do cliente: "troco p/ R$ 50"
+                            numa conta de R$ 22,40 obrigava a fazer a conta na calçada. */}
+                        {order.trocoPara !== null
+                          ? `Levar ${brl(Math.max(0, order.trocoPara - order.total))} de troco · cliente paga c/ ${brl(order.trocoPara)}`
+                          : 'Sem troco'}
                       </span>
                     )}
                     {!order.pago && (

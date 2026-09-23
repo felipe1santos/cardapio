@@ -1,5 +1,6 @@
 'use client'
 
+import { mascararTelefoneBR } from '@/lib/telefone'
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import {
@@ -1241,7 +1242,7 @@ export default function PedidosPage() {
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-text-subtle">Telefone</span>
                     <span className="flex items-center gap-1.5 font-medium">
-                      {detail.clienteTelefone}
+                      {mascararTelefoneBR(detail.clienteTelefone)}
                       {!detail.telefoneVerificado && detail.origem !== 'pdv' && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">não verif.</Badge>}
                     </span>
                   </div>

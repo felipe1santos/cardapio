@@ -748,6 +748,16 @@ function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto, semMat
  * permite pintar o cabeçalho (capa, logo, nome, status) na primeira renderização
  * em vez de esperar a query de `restaurantes` voltar.
  */
+/**
+ * Nome da forma de pagamento para o cliente. O id "Cartão na entrega" é chave
+ * (PAY_MAP, estado) e não muda; numa retirada o texto vira "na retirada" — o
+ * cliente que vai buscar no balcão lia "na entrega" e achava que tinha errado.
+ */
+function rotuloPagamento(id: string, tipo: 'entrega' | 'retirada'): string {
+  if (tipo === 'retirada' && id === 'Cartão na entrega') return 'Cartão na retirada'
+  return id
+}
+
 export default function Vitrine({ slug, restauranteInicial }: { slug: string; restauranteInicial: RestauranteVitrine }) {
   const supabase = useMemo(() => getVitrineSupabase(), [])
 
@@ -1226,7 +1236,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const paleta = resolverPaleta(restaurante?.corTema ?? 'azul')
 
   // ── Conta do cliente (login por código enviado via WhatsApp) ───────────────
-  const [clienteSessao, setClienteSessao] = useState<{ telefone: string; token: string } | null>(null)
+  // `verificado: false` = entrou pelo fallback (WhatsApp da loja fora do ar), sem
+  // digitar código. Sessão antiga sem o campo conta como confirmada, como era.
+  const [clienteSessao, setClienteSessao] = useState<{ telefone: string; token: string; verificado?: boolean } | null>(null)
   const [perfilCliente, setPerfilCliente] = useState<ClientePerfil | null>(null)
   const [contaOpen, setContaOpen] = useState(false)
   const [contaStep, setContaStep] = useState<'telefone' | 'codigo'>('telefone')
@@ -1285,7 +1297,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         setEnderecoSalvoOrigem(true)
       }
       if (salvo?.nome || salvo?.telefone) {
-        setCliente((c) => ({ nome: c.nome || salvo.nome || '', telefone: c.telefone || salvo.telefone || '' }))
+        setCliente((c) => ({ nome: c.nome || salvo.nome || '', telefone: c.telefone || mascararTelefoneBR(salvo.telefone || '') }))
       }
     } catch { /* dado inválido, ignora */ }
   }, [slug, comCidadePadrao])
@@ -1307,7 +1319,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         setContaNome(data.nome)
         setContaEndereco(comCidadePadrao(data.endereco))
         setContaEditando(!data.nome && !data.endereco.rua)
-        setCliente((c) => ({ nome: data.nome || c.nome, telefone: data.telefone }))
+        setCliente((c) => ({ nome: data.nome || c.nome, telefone: mascararTelefoneBR(data.telefone) }))
         if (data.endereco.rua || data.endereco.bairro) {
           setEndereco(comCidadePadrao(data.endereco))
           setEnderecoSalvoOrigem(true)
@@ -1520,9 +1532,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       // Fallback: WhatsApp da loja offline — o servidor já logou o cliente sem
       // confirmar o código. Entra direto, sem o passo de digitar o código.
       if (data.fallback) {
-        localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token }))
+        localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token, verificado: false }))
         localStorage.setItem(`menuzia_telefone_${slug}`, data.telefone)
-        setClienteSessao({ telefone: data.telefone, token: data.token })
+        setClienteSessao({ telefone: data.telefone, token: data.token, verificado: false })
         setPerfilCliente(data)
         setContaNome(data.nome)
         setContaEndereco(data.endereco)
@@ -1550,9 +1562,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       })
       const data: ClientePerfil & { error?: string } = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Código inválido.')
-      localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token }))
+      localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token, verificado: true }))
       localStorage.setItem(`menuzia_telefone_${slug}`, data.telefone)
-      setClienteSessao({ telefone: data.telefone, token: data.token })
+      setClienteSessao({ telefone: data.telefone, token: data.token, verificado: true })
       setPerfilCliente(data)
       setContaNome(data.nome)
       setContaEndereco(data.endereco)
@@ -1579,7 +1591,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       const data: ClientePerfil & { error?: string } = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível salvar.')
       setPerfilCliente(data)
-      setCliente((c) => ({ nome: data.nome, telefone: data.telefone || c.telefone }))
+      setCliente((c) => ({ nome: data.nome, telefone: data.telefone ? mascararTelefoneBR(data.telefone) : c.telefone }))
       setEndereco(comCidadePadrao(data.endereco))
       setContaSaved(true)
       setContaEditando(false)
@@ -2164,7 +2176,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (desconto > 0) linhas.push(`Desconto${cupomAplicado ? ` (cupom ${cupomAplicado.codigo})` : ' (prêmio fidelidade)'}: -${brl(desconto)}`)
     if (beneficio?.tipo === 'item_gratis') linhas.push(`Item grátis: ${beneficio.itemNome ?? 'prêmio'}`)
     linhas.push(`Total: ${brl(total)}`)
-    linhas.push(`Pagamento: ${payMethod}`)
+    linhas.push(`Pagamento: ${rotuloPagamento(payMethod, tipoPedido)}`)
     linhas.push(tipoPedido === 'retirada' ? 'Retirada no local' : 'Entrega')
     if (cliente.nome.trim()) linhas.push(`Cliente: ${cliente.nome.trim()}`)
     return linhas.join('\n')
@@ -4317,13 +4329,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 },
                 {
                   id: 'Cartão na entrega',
-                  descricao: 'Crédito ou débito na maquininha',
+                  descricao: tipoPedido === 'retirada' ? 'Crédito ou débito na maquininha, ao retirar' : 'Crédito ou débito na maquininha',
                   icon: <CreditCard className="h-6 w-6 text-[#1D4ED8]" strokeWidth={1.8} />,
                   chip: 'bg-[#E0EAFF]',
                 },
                 {
                   id: 'Dinheiro',
-                  descricao: 'Pague em espécie na entrega',
+                  descricao: tipoPedido === 'retirada' ? 'Pague em espécie ao retirar' : 'Pague em espécie na entrega',
                   icon: <Banknote className="h-6 w-6 text-[#16A34A]" strokeWidth={1.8} />,
                   chip: 'bg-[#DCFCE7]',
                 },
@@ -4332,7 +4344,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   className={['mb-3 flex w-full items-center gap-3.5 rounded-lg border-2 p-4 text-left transition-all active:scale-[0.99]', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)] shadow-sm' : 'border-border bg-white hover:border-text-subtle/40'].join(' ')}>
                   <span className={['flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg', opt.chip].join(' ')}>{opt.icon}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold text-text-main">{opt.id}</span>
+                    <span className="block text-[15px] font-bold text-text-main">{rotuloPagamento(opt.id, tipoPedido)}</span>
                     <span className="mt-0.5 block text-[12px] text-text-subtle">{opt.descricao}</span>
                   </span>
                   <span className={['flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
@@ -4688,11 +4700,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     {payMethod === 'Pix' ? <PixIcon className="h-[22px] w-[22px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[22px] w-[22px] text-[#16A34A]" strokeWidth={1.8} /> : <CreditCard className="h-[22px] w-[22px] text-[#1D4ED8]" strokeWidth={1.8} />}
                   </span>
                   <div className="text-[14px]">
-                    <div className="font-semibold">{payMethod}</div>
+                    <div className="font-semibold">{rotuloPagamento(payMethod, tipoPedido)}</div>
                     {payMethod === 'Dinheiro' && changeFor && <div className="text-text-subtle">Troco para R$ {changeFor}</div>}
                     {payMethod === 'Dinheiro' && !changeFor && <div className="text-text-subtle">Sem troco</div>}
                     {payMethod === 'Pix' && <div className="text-text-subtle">Pagamento instantâneo</div>}
-                    {payMethod === 'Cartão na entrega' && <div className="text-text-subtle">Na maquininha, na entrega</div>}
+                    {payMethod === 'Cartão na entrega' && <div className="text-text-subtle">{tipoPedido === 'retirada' ? 'Na maquininha, ao retirar' : 'Na maquininha, na entrega'}</div>}
                   </div>
                 </div>
               </div>
@@ -4822,8 +4834,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 <>
                   <div className="mb-4 flex items-center justify-between rounded border border-border p-3.5">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Telefone confirmado</p>
-                      <p className="text-sm font-bold">{perfilCliente.telefone}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                        {clienteSessao?.verificado === false ? 'Seu telefone' : 'Telefone confirmado'}
+                      </p>
+                      <p className="text-sm font-bold">{mascararTelefoneBR(perfilCliente.telefone)}</p>
                     </div>
                     <button onClick={sairConta} className="text-[13px] font-semibold text-danger">Sair</button>
                   </div>
@@ -4905,8 +4919,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 <>
                   <div className="mb-4 flex items-center justify-between rounded border border-border p-3.5">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Telefone confirmado</p>
-                      <p className="text-sm font-bold">{perfilCliente.telefone}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                        {clienteSessao?.verificado === false ? 'Seu telefone' : 'Telefone confirmado'}
+                      </p>
+                      <p className="text-sm font-bold">{mascararTelefoneBR(perfilCliente.telefone)}</p>
                     </div>
                     <button onClick={sairConta} className="text-[13px] font-semibold text-danger">Sair</button>
                   </div>
