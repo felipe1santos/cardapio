@@ -53,6 +53,10 @@ export const PERMISSOES = [
   'comanda.estornar',
   'comanda.resolver_forcado',
   'comanda.reabrir',
+  'comanda.taxa',
+  'comanda.pre_conta',
+  // Impressão
+  'impressao.configurar',
   // Retaguarda
   'clientes.ver',
   'dashboard.faturamento',
@@ -132,6 +136,14 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
   // Resolver à força o que impede o fechamento e reabrir conta fechada: gestão.
   'comanda.resolver_forcado': ['dono', 'gerente'],
   'comanda.reabrir': ['dono', 'gerente'],
+  // Taxa de serviço MANUAL (balcão nasce em 0%). Separada do desconto: o atendente não
+  // recebe esta chave nem quando a loja deixa o caixa dar desconto.
+  'comanda.taxa': ['dono', 'gerente'],
+  // Pré-conta (conferência de consumo) e a reimpressão dela — toda via é auditada.
+  'comanda.pre_conta': ['dono', 'gerente', 'atendente'],
+
+  // Computadores, impressoras, funções, teste e histórico de impressão.
+  'impressao.configurar': ['dono', 'gerente'],
 
   // Base de clientes é do delivery: telefone e endereço não são assunto do salão.
   'clientes.ver': ['dono', 'gerente', 'atendente'],

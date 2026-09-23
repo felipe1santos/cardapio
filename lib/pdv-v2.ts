@@ -192,12 +192,18 @@ export function ehAcaoConta(v: unknown): v is AcaoConta {
 }
 
 /** O que a tela pode mostrar, calculado uma vez com as regras da loja. */
-export function permissoesDaConta(pode: (p: Permissao) => boolean, tipo: TipoComanda): Record<AcaoConta | 'lancar' | 'cancelar_qualquer', boolean> {
+export function permissoesDaConta(
+  pode: (p: Permissao) => boolean,
+  tipo: TipoComanda,
+): Record<AcaoConta | 'lancar' | 'cancelar_qualquer' | 'taxa' | 'pre_conta', boolean> {
   const base = Object.fromEntries(ACOES_CONTA.map((a) => [a, pode(PERMISSAO_DA_ACAO[a])])) as Record<AcaoConta, boolean>
   return {
     ...base,
     lancar: tipo === 'balcao' ? pode('balcao.lancar') : pode('balcao.lancar') || pode('pedidos.mesa.enviar_cozinha'),
     cancelar_qualquer: pode('pedidos.presencial.cancelar'),
+    // Taxa manual: balcão só com `comanda.taxa` (dono/gerente); mesa segue o salão.
+    taxa: tipo === 'balcao' ? pode('comanda.taxa') : pode('comanda.taxa') || pode('comanda.desconto'),
+    pre_conta: pode('comanda.pre_conta'),
   }
 }
 

@@ -27,6 +27,7 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/fidelidade', 'fidelidade.gerenciar'],
   ['/admin/integracoes', 'integracoes.gerenciar'],
   ['/admin/ajustes', 'ajustes.editar'],
+  ['/admin/impressao', 'impressao.configurar'],
 ]
 
 /**
@@ -54,6 +55,8 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/whatsapp', 'integracoes.gerenciar'],
   // Token do Assistente de Impressão: credencial. Só o dono vê e gera (0080).
   ['/api/admin/impressao/token', 'ajustes.editar'],
+  // Computadores, impressoras, funções e testes: dono e gerente.
+  ['/api/admin/impressao', 'impressao.configurar'],
 ]
 
 /** Permissão exigida por rota não mapeada: só a gestão entra. */

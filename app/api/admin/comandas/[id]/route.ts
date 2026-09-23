@@ -95,6 +95,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const valor = num(corpo.descontoValor)
       const pct = num(corpo.descontoPercentual)
       for (const n of [taxa, valor, pct]) if (n !== null && !Number.isFinite(n)) return NextResponse.json({ error: 'Valor inválido.' }, { status: 400 })
+      // Balcão nasce em 0% e só dono/gerente aplicam taxa manual (`comanda.taxa`) — o
+      // atendente não, nem quando a loja deixa o caixa dar desconto. Mesa segue a regra
+      // do salão (`comanda.desconto` + `salao_caixa_desconto`).
+      const mudaTaxa = taxa !== null && Math.round(taxa * 100) !== Math.round(c.taxaServicoPercentual * 100)
+      if (mudaTaxa && c.tipo === 'balcao' && !ctx.pode('comanda.taxa')) {
+        return NextResponse.json({ error: 'No balcão, só gerente ou dono aplica taxa de serviço.', codigo: 'sem_permissao_taxa' }, { status: 403 })
+      }
       const aj = await ajustarValores(ctx.admin, {
         restauranteId: eu.restauranteId, comandaId: c.id, taxa, descontoTipo: tipo ?? (valor !== null ? 'valor' : null),
         descontoValor: valor, descontoPercentual: pct, motivo: texto(corpo.motivo) || null, atorId: eu.userId, atorNome: eu.nome,
