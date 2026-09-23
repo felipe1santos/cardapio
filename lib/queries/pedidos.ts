@@ -716,6 +716,11 @@ export async function contarBadgesNav(supabase: SupabaseClient, restauranteId: s
 
 export interface PedidoDashboard {
   total: number
+  /**
+   * Quem pediu. O pedido não guarda id de cliente — quem identifica a pessoa é o
+   * telefone, e é ele que vira a chave. Null em balcão/mesa sem telefone.
+   */
+  clienteChave: string | null
   tipo: TipoPedido
   status: StatusPedido
   formaPagamento: FormaPagamento
@@ -735,7 +740,7 @@ export interface DadosDashboard {
 export async function carregarDashboard(supabase: SupabaseClient, restauranteId: string): Promise<DadosDashboard> {
   const { data: pedidos, error } = await supabase
     .from('pedidos')
-    .select('total, tipo, status, forma_pagamento, criado_em, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+    .select('total, tipo, status, forma_pagamento, criado_em, cliente_telefone, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
   if (error) throw error
@@ -756,6 +761,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     status: StatusPedido
     forma_pagamento: FormaPagamento
     criado_em: string
+    cliente_telefone: string | null
     endereco_rua: string | null
     endereco_numero: string | null
     endereco_bairro: string | null
@@ -767,6 +773,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     status: p.status,
     formaPagamento: p.forma_pagamento,
     criadoEm: p.criado_em,
+    clienteChave: (p.cliente_telefone ?? '').replace(/\D/g, '') || null,
     enderecoRua: p.endereco_rua ?? '',
     enderecoNumero: p.endereco_numero ?? '',
     enderecoBairro: p.endereco_bairro ?? '',

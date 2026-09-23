@@ -4,6 +4,7 @@ import { useContext } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { MenuLateralContext } from './menu-lateral-contexto'
 import { ICONES } from '@/lib/icones-painel'
+import { AcoesTopo } from '@/components/admin/acoes-topo'
 
 export interface TopBarProps {
   title: string
@@ -54,7 +55,10 @@ export function TopBar({ title, breadcrumb, right, voltar }: TopBarProps) {
           <span className="sr-only">{breadcrumb}</span>
         </div>
       </div>
-      {right && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:flex-shrink-0 sm:gap-2">{right}</div>}
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:flex-shrink-0 sm:gap-2">
+        {right}
+        <AcoesTopo />
+      </div>
     </header>
   )
 }

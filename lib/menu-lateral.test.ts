@@ -47,7 +47,13 @@ describe('menu lateral: limpeza', () => {
     expect(itensDoMenu({ papel: 'dono', moduloMesas: true, usaLogistica: true }).some((i) => (i.label as string) === 'Auditoria')).toBe(false)
   })
 
-  it('nenhum item leva o selo "novidade"', () => {
-    expect(NAV_ITEMS.some((i) => 'novidade' in i)).toBe(false)
+  /**
+   * O selo "Novo" é marcação temporária de seção recém-lançada. Hoje vale só
+   * para Campanhas (disparo de mensagem); espalhá-lo por todo item tiraria o
+   * efeito de chamar atenção.
+   */
+  it('só Campanhas leva o selo de novidade', () => {
+    const comSelo = NAV_ITEMS.filter((i) => 'novidade' in i).map((i) => i.href)
+    expect(comSelo).toEqual(['/admin/campanhas'])
   })
 })

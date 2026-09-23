@@ -8,7 +8,11 @@ import { pode, type Permissao } from '@/lib/auth/permissoes'
  * configuração do módulo.
  *
  * Auditoria não tem item no menu: a tela continua em /admin/auditoria para quem tem
- * permissão (link direto), só não ocupa espaço na barra. Nenhum item leva selo "novidade".
+ * permissão (link direto), só não ocupa espaço na barra.
+ *
+ * O selo "Novo" existe para chamar atenção a uma seção recém-lançada — hoje só
+ * Campanhas (disparo de mensagem) o usa. É marcação temporária: quando deixar de
+ * ser novidade, tira-se a chave daqui.
  */
 export const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
@@ -18,7 +22,7 @@ export const NAV_ITEMS = [
   { href: '/admin/logistica', label: 'Logística' },
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
-  { href: '/admin/campanhas', label: 'Campanhas' },
+  { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
   { href: '/admin/fidelidade', label: 'Fidelidade' },
   { href: '/admin/integracoes', label: 'Integrações' },
   { href: '/admin/equipe', label: 'Equipe' },

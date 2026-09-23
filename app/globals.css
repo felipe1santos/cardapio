@@ -372,6 +372,20 @@ html:has(.font-loja) {
      pendencia e mensagem de erro sao exatamente isso. */
   --adm-vermelho: #dc2626;
   --adm-vermelho-texto: #b91c1c;
+  /* Cores de gráfico. O azul #2779bd foi escolhido pelo dono no lugar do roxo
+     da referência; as três séries e os tons de alta/baixa vêm do mesmo sistema
+     de cor da tela que serviu de modelo. */
+  --adm-grafico: #2779bd;
+  --adm-grafico-escuro: #1c5c90;
+  --adm-grafico-claro: #e8f2fa;
+  --adm-serie-1: #6cb2eb;
+  --adm-serie-2: #faad63;
+  --adm-serie-3: #a779e9;
+  --adm-alta: #1f7a47;
+  --adm-baixa: #b02a25;
+  /* 4,7:1 sobre o creme do botão de suporte; o #d97706 parava em 3:1. */
+  --adm-laranja: #b45309;
+  --adm-laranja-claro: #fff7ed;
   --adm-roxo: #6d28d9;
   --adm-roxo-claro: #f5f3ff;
   --adm-raio: 6px;

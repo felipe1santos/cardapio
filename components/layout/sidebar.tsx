@@ -177,8 +177,8 @@ export function Sidebar({
                 </span>
               )}
               {item.novidade && (
-                <span className="flex-shrink-0 rounded px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: '#EDE9FE', color: '#5B21B6' }}>
-                  Novidade
+                <span className="flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10px] font-bold text-[var(--adm-alta)]">
+                  Novo
                 </span>
               )}
               {item.badge !== undefined && item.badge > 0 && (
