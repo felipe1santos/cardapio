@@ -140,7 +140,7 @@ interface ItemRow {
   tipo_item: TipoItem
   disponivel_delivery: boolean | null
   disponivel_salao: boolean | null
-  item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null; pausado: boolean }[]
+  item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null; pausado: boolean; posicao?: number | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number; permite_quantidade: boolean }[]
   tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
   pizza_sabores: {
@@ -155,6 +155,10 @@ interface ItemRow {
 }
 
 function mapItem(row: ItemRow): ItemCardapio {
+  // O PostgREST devolve o recurso embutido sem ordem garantida: sem isto os
+  // adicionais apareciam embaralhados na vitrine e no PDV ("Sem tomate" antes
+  // de "Sem alface", a carne extra no fim). A posição é a que o admin grava.
+  const complementosOrdenados = [...(row.item_complementos ?? [])].sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0))
   const grupos: GrupoItemComplementos[] = (row.grupos_item_complementos ?? [])
     .sort((a, b) => a.posicao - b.posicao)
     .map((g) => ({
@@ -165,7 +169,7 @@ function mapItem(row: ItemRow): ItemCardapio {
       maxEscolhas: g.max_escolhas,
       posicao: g.posicao,
       permiteQuantidade: g.permite_quantidade ?? false,
-      complementos: (row.item_complementos ?? [])
+      complementos: complementosOrdenados
         .filter((c) => c.grupo_id === g.id)
         .map((c) => ({ id: c.id, nome: c.nome, preco: Number(c.preco), presetOrigemId: c.preset_origem_id, imagemUrl: c.imagem_url ?? null, pausado: c.pausado ?? false })),
     }))
@@ -189,7 +193,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     disponivelDelivery: row.disponivel_delivery ?? true,
     disponivelSalao: row.disponivel_salao ?? true,
     grupos,
-    complementos: (row.item_complementos ?? [])
+    complementos: complementosOrdenados
       .filter((c) => !c.grupo_id)
       .map((c) => ({ id: c.id, nome: c.nome, preco: Number(c.preco), presetOrigemId: c.preset_origem_id, imagemUrl: c.imagem_url ?? null, pausado: c.pausado ?? false })),
     tamanhos: (row.tamanhos_item ?? [])
@@ -358,7 +362,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
   disponivel_delivery, disponivel_salao,
-  item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado ),
+  item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
   tamanhos_item ( id, nome, preco, posicao ),
   pizza_sabores ( id, nome, descricao, imagem_url, status, posicao, pizza_sabor_precos ( tamanho_padrao_id, preco ) )

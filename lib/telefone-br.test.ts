@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { motivoTelefoneInvalido, telefoneBrValido, telefoneWhatsapp } from './telefone-br'
+import { motivoTelefoneDoPedido, motivoTelefoneInvalido, telefoneBrValido, telefoneWhatsapp } from './telefone-br'
 
 describe('telefoneWhatsapp', () => {
   it('celular com DDD ganha o DDI', () => {
@@ -52,5 +52,20 @@ describe('telefoneBrValido e motivo', () => {
     expect(motivoTelefoneInvalido('27999998888')).toBeNull()
     expect(motivoTelefoneInvalido('2799999')).toMatch(/Faltam dígitos/)
     expect(motivoTelefoneInvalido('55279950921011')).toMatch(/dígitos demais/)
+  })
+})
+
+describe('motivoTelefoneDoPedido', () => {
+  it('PDV e mesa sem telefone passam', () => {
+    expect(motivoTelefoneDoPedido('', 'pdv')).toBeNull()
+    expect(motivoTelefoneDoPedido('   ', 'pdv')).toBeNull()
+  })
+  it('PDV com telefone digitado ainda é conferido', () => {
+    expect(motivoTelefoneDoPedido('2799', 'pdv')).toMatch(/Faltam dígitos/)
+    expect(motivoTelefoneDoPedido('27999998888', 'pdv')).toBeNull()
+  })
+  it('cardápio continua exigindo telefone', () => {
+    expect(motivoTelefoneDoPedido('', 'cardapio')).toMatch(/Faltam dígitos/)
+    expect(motivoTelefoneDoPedido('', undefined)).toMatch(/Faltam dígitos/)
   })
 })

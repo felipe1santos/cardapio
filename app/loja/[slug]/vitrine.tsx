@@ -2856,7 +2856,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   ) : (
                     <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-bold leading-[16px] text-[#B91C1C]">
                       <span className="h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[#B91C1C]" />
-                      <span className="truncate">{horarioTexto ? `Fechada · abre ${horarioTexto.toLowerCase()}` : 'Fechada agora'}</span>
+                      <span className="truncate">{/* Abertura no mesmo dia já vem como "Abre 18:30" (a pílula do rodapé usa
+                          assim); aqui o verbo é nosso, então tira o dele pra não virar "abre abre". */}
+                      {horarioTexto ? `Fechada · abre ${horarioTexto.toLowerCase().replace(/^abre\s+/, '')}` : 'Fechada agora'}</span>
                     </span>
                   )}
                   {/* 14/700 no celular: a referência mantém o nome da loja no

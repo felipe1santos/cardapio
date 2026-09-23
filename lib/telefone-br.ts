@@ -52,3 +52,18 @@ export function motivoTelefoneInvalido(valor: string): string | null {
   if (d.length > 13) return 'Esse telefone tem dígitos demais. Use DDD + número, como (27) 99999-8888.'
   return TELEFONE_INVALIDO
 }
+
+/**
+ * Telefone de um pedido novo, pela origem.
+ *
+ * No cardápio o telefone é obrigatório: é por ele que a loja fala com o cliente
+ * e que ele volta à conta. No PDV e no salão ele é OPCIONAL — venda de balcão e
+ * mesa não têm telefone, e as duas rotas mandam `telefone: ''`. A varredura de
+ * 2026-09-22 passou a exigir telefone de todo pedido e travou o PDV e o
+ * lançamento do garçom inteiros; aqui o PDV só é cobrado se digitou algum
+ * número. `origem` é decidida pelo servidor (a rota pública recusa o campo).
+ */
+export function motivoTelefoneDoPedido(telefone: string, origem: 'cardapio' | 'pdv' | undefined): string | null {
+  if (origem === 'pdv' && !soDigitos(telefone)) return null
+  return motivoTelefoneInvalido(telefone)
+}

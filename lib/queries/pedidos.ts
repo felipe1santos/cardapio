@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { erroDoTroco } from '@/lib/troco'
-import { motivoTelefoneInvalido, telefoneWhatsapp } from '@/lib/telefone-br'
+import { motivoTelefoneDoPedido, telefoneWhatsapp } from '@/lib/telefone-br'
 import { resolverFrete } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_ESGOTADO, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
@@ -978,7 +978,7 @@ export async function criarPedido(admin: SupabaseClient, restauranteId: string, 
   // Número com dígito sobrando entrava e ficava gravado assim para sempre: a
   // confirmação ia para um número que não existe e ele nunca mais se reconhecia.
   {
-    const motivo = motivoTelefoneInvalido(input.cliente.telefone)
+    const motivo = motivoTelefoneDoPedido(input.cliente.telefone, input.origem)
     if (motivo) throw new Error(motivo)
   }
 
