@@ -215,6 +215,13 @@ export interface PedidoParaImprimir {
   pago: boolean
   origem: string
   mesa: string | null
+  /**
+   * Canal do pedido e senha do balcão (PDV v2). O recibo só usa a senha quando o canal
+   * é balcão; delivery e mesa saem exatamente como antes. Assistente antigo ignora os
+   * dois campos.
+   */
+  canal: string
+  senha: number | null
   subtotal: number
   taxaEntrega: number
   total: number
@@ -232,23 +239,45 @@ export interface PedidoParaImprimir {
   }[]
 }
 
-/** Pedidos recém-chegados ainda não impressos, prontos pra virar recibo no agente desktop. */
-export async function listarPedidosParaImprimir(admin: SupabaseClient, restauranteId: string): Promise<PedidoParaImprimir[]> {
-  // Com o aceite automático ligado, o pedido pode virar "preparando" antes de o
-  // agente varrer — por isso pedidos recentes em preparo e não impressos também
-  // entram na fila (janela de 6h para não reimprimir histórico antigo).
-  const preparadoDesde = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+/** Por quanto tempo um pedido entregue a um Assistente fica fora da fila dos outros. */
+export const RESERVA_IMPRESSAO_SEGUNDOS = 90
+
+/**
+ * Pedidos a imprimir, JÁ RESERVADOS para quem pediu (0086, `impressao_reservar`).
+ *
+ * A regra de quem entra na fila vive na função do banco: novo não impresso; em preparo
+ * ou pronto não impresso nas últimas 6h (o pronto ficava de fora e um pedido que pulou
+ * etapas nunca saía no papel); reimpressão pedida; nunca cancelado; nunca pedido sem
+ * item. A reserva, sob trava por loja, garante que dois Assistentes (ou dois ciclos)
+ * não recebem o mesmo pedido. `instancia` identifica o Assistente (cabeçalho
+ * `X-Agente-Instancia`); sem ela (versão antiga), a reserva vale para todos.
+ */
+export async function listarPedidosParaImprimir(
+  admin: SupabaseClient,
+  restauranteId: string,
+  instancia: string | null = null,
+): Promise<PedidoParaImprimir[]> {
+  const { data: reservados, error: erroReserva } = await admin.rpc('impressao_reservar', {
+    p_restaurante: restauranteId,
+    p_instancia: instancia,
+    p_segundos: RESERVA_IMPRESSAO_SEGUNDOS,
+  })
+  if (erroReserva) throw erroReserva
+  const ids = ((reservados ?? []) as (string | { impressao_reservar: string })[]).map((r) => (typeof r === 'string' ? r : r.impressao_reservar))
+  if (ids.length === 0) return []
+
   const { data, error } = await admin
     .from('pedidos')
     .select(
       `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
-       observacao, pago, origem, mesa, subtotal, taxa_entrega, total, criado_em,
+       observacao, pago, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
+       comandas ( senha ),
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
     .eq('restaurante_id', restauranteId)
-    // Pedidos novos não impressos (incluindo os já aceitos automaticamente),
-    // OU qualquer pedido com reimpressão pedida manualmente.
-    .or(`and(status.eq.recebido,impresso.eq.false),and(status.eq.preparando,impresso.eq.false,criado_em.gte.${preparadoDesde}),reimprimir.eq.true`)
+    .in('id', ids)
+    // Cancelado entre a reserva e a leitura: não sai.
+    .neq('status', 'cancelado')
     .order('criado_em', { ascending: true })
   if (error) throw error
 
@@ -269,6 +298,8 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
     pago: Boolean(p.pago),
     origem: p.origem ?? 'cardapio',
     mesa: p.mesa ?? null,
+    canal: (p.canal as string | null) ?? 'delivery',
+    senha: p.canal === 'balcao' ? ((Array.isArray(p.comandas) ? p.comandas[0] : p.comandas) as { senha: number | null } | null)?.senha ?? null : null,
     subtotal: Number(p.subtotal),
     taxaEntrega: Number(p.taxa_entrega),
     total: Number(p.total),
@@ -287,13 +318,12 @@ export async function listarPedidosParaImprimir(admin: SupabaseClient, restauran
   }))
 }
 
-/** Marca como impresso, escopado ao restaurante do token — impede um token marcar pedido de outra loja. */
+/**
+ * Marca como impresso e libera a reserva, escopado ao restaurante do token — impede um
+ * token marcar pedido de outra loja (0086, `impressao_confirmar`).
+ */
 export async function marcarPedidoImpresso(admin: SupabaseClient, pedidoId: string, restauranteId: string) {
-  const { error } = await admin
-    .from('pedidos')
-    .update({ impresso: true, reimprimir: false })
-    .eq('id', pedidoId)
-    .eq('restaurante_id', restauranteId)
+  const { error } = await admin.rpc('impressao_confirmar', { p_restaurante: restauranteId, p_pedido: pedidoId })
   if (error) throw error
 }
 

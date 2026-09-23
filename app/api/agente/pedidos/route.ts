@@ -6,7 +6,9 @@ import { lerAgenteToken } from '@/lib/agente-token'
 /**
  * Endpoint consultado periodicamente pelo Assistente de Impressão (agente
  * desktop, sem login de usuário). Autentica pelo token de pareamento gerado
- * em Ajustes > Impressão, e devolve os pedidos novos prontos pra imprimir.
+ * em Ajustes > Impressão, e devolve os pedidos novos prontos pra imprimir —
+ * já RESERVADOS para este Assistente (0086): outro Assistente da mesma loja não
+ * recebe o mesmo pedido enquanto a reserva vale.
  */
 export async function GET(request: Request) {
   const token = lerAgenteToken(request)
@@ -20,12 +22,18 @@ export async function GET(request: Request) {
   // "conectada". Best-effort — não derruba a resposta dos pedidos se falhar.
   registrarHeartbeatAgente(admin, restauranteId, request.headers.get('x-impressora-id')).catch(() => {})
 
-  const [config, impressoras, pedidos, loja] = await Promise.all([
+  // Identificador da instância (Assistente 0.1.24+). Só letras, números e hífen.
+  const bruto = request.headers.get('x-agente-instancia') ?? ''
+  const instancia = /^[A-Za-z0-9-]{8,64}$/.test(bruto) ? bruto : null
+
+  const [config, impressoras, loja] = await Promise.all([
     buscarConfigImpressao(admin, restauranteId),
     listarImpressoras(admin, restauranteId),
-    listarPedidosParaImprimir(admin, restauranteId),
     buscarLojaImpressao(admin, restauranteId),
   ])
+  // Impressão automática desligada: o Assistente não imprime nada, então nada é
+  // reservado — senão a fila ficaria presa em reservas de quem não vai imprimir.
+  const pedidos = config?.impressaoAutomatica ? await listarPedidosParaImprimir(admin, restauranteId, instancia) : []
 
   return NextResponse.json({ config, impressoras, pedidos, loja })
 }

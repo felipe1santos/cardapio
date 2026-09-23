@@ -46,6 +46,8 @@ function montarReciboLinhas(pedido, config, lojaNome = '', temLogoImagem = false
   H(`PEDIDO #${pedido.numero}`)
   C(pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA')
   if (pedido.origem === 'pdv') C(pedido.mesa ? `MESA ${pedido.mesa}` : 'BALCAO (PDV)')
+  // Senha do balcão (PDV v2): SÓ quando o canal é balcão. Delivery e mesa não mudam.
+  if (pedido.canal === 'balcao' && pedido.senha) H(`SENHA ${pedido.senha}`)
   if (pedido.criadoEm) {
     const dt = new Date(pedido.criadoEm)
     if (!isNaN(dt.getTime())) {

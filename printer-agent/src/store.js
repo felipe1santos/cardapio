@@ -74,4 +74,22 @@ function esquecerImpressoLocal(pedidoId) {
   }
 }
 
-module.exports = { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal }
+// ── Identidade desta instalação ─────────────────────────────────────────────
+//
+// O servidor reserva cada pedido para quem o recebeu (0086): dois Assistentes da
+// mesma loja não imprimem o mesmo pedido. Com este id, o MESMO Assistente continua
+// vendo a própria reserva e consegue reavisar "impresso" sem esperar ela expirar.
+// Gerado uma vez e guardado junto da config; não é segredo (não autentica nada).
+function instanciaAgente() {
+  const atual = carregarConfig()
+  if (typeof atual.instancia === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(atual.instancia)) return atual.instancia
+  const nova = require('crypto').randomUUID()
+  try {
+    salvarConfig({ instancia: nova })
+  } catch {
+    /* sem disco: segue com um id desta execução */
+  }
+  return nova
+}
+
+module.exports = { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal, instanciaAgente }

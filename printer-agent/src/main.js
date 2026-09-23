@@ -4,7 +4,7 @@ Menu.setApplicationMenu(null)
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
-const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal } = require('./store')
+const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal, instanciaAgente } = require('./store')
 const { listarImpressorasWindows, imprimirTexto } = require('./printer')
 const { montarRecibo } = require('./recibo')
 
@@ -135,7 +135,9 @@ async function cicloDePolling() {
   const auth = { Authorization: `Bearer ${config.token}` }
   // Heartbeat: informa ao servidor qual impressora (config do painel) está em uso,
   // pra o painel acender ela como "conectada". Vai junto da consulta de pedidos (5s).
-  const headers = { ...auth, 'X-Impressora-Id': config.impressoraCloudId || '' }
+  // X-Agente-Instancia: o servidor reserva o pedido para esta instalação (0086) —
+  // outro Assistente da loja não recebe o mesmo pedido enquanto a reserva vale.
+  const headers = { ...auth, 'X-Impressora-Id': config.impressoraCloudId || '', 'X-Agente-Instancia': instanciaAgente() }
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers })
