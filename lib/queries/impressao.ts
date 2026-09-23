@@ -257,13 +257,13 @@ export async function listarPedidosParaImprimir(
   restauranteId: string,
   instancia: string | null = null,
 ): Promise<PedidoParaImprimir[]> {
-  const { data: reservados, error: erroReserva } = await admin.rpc('impressao_reservar', {
-    p_restaurante: restauranteId,
-    p_instancia: instancia,
-    p_segundos: RESERVA_IMPRESSAO_SEGUNDOS,
-  })
+  // Sem identidade (Assistente antigo, ou botões de diagnóstico): lista sem gravar
+  // nada (0087). Reservar sem saber quem pediu escondia pedidos de todos (B1).
+  const { data: reservados, error: erroReserva } = instancia
+    ? await admin.rpc('impressao_reservar', { p_restaurante: restauranteId, p_instancia: instancia, p_segundos: RESERVA_IMPRESSAO_SEGUNDOS })
+    : await admin.rpc('impressao_elegiveis', { p_restaurante: restauranteId })
   if (erroReserva) throw erroReserva
-  const ids = ((reservados ?? []) as (string | { impressao_reservar: string })[]).map((r) => (typeof r === 'string' ? r : r.impressao_reservar))
+  const ids = ((reservados ?? []) as (string | Record<string, string>)[]).map((r) => (typeof r === 'string' ? r : Object.values(r)[0]))
   if (ids.length === 0) return []
 
   const { data, error } = await admin

@@ -115,6 +115,19 @@ function criarJanela() {
  * confirma — erro de rede e resposta de erro contam como "não avisado", para
  * que a memória local segure o pedido em vez de deixá-lo voltar para a fila.
  */
+/**
+ * Diagnóstico (testar pareamento, buscar impressoras, testar impressora): só lê a
+ * configuração da loja e NUNCA consome a fila — antes esses botões chamavam
+ * /api/agente/pedidos e podiam reservar pedidos reais (B1). Servidor antigo sem a rota
+ * (404): cai na rota de sempre, que nele não reserva nada.
+ */
+async function consultarDiagnostico(token) {
+  const headers = { Authorization: `Bearer ${token}` }
+  const res = await fetch(`${API_BASE_URL}/api/agente/diagnostico`, { headers })
+  if (res.status !== 404) return res
+  return fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers })
+}
+
 async function avisarImpresso(pedidoId, auth) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedidoId}/imprimir`, { method: 'POST', headers: auth })
@@ -278,7 +291,7 @@ function descreverErro(err) {
 ipcMain.handle('testar-pareamento', async (_e, { token }) => {
   if (!token) return { ok: false, erro: 'Cole o token de pareamento antes de testar.' }
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${token}` } })
+    const res = await consultarDiagnostico(token)
     if (res.status === 401) return { ok: false, erro: 'Token inválido — copie de novo em Ajustes > Impressão no painel.' }
     if (!res.ok) return { ok: false, erro: `O servidor respondeu HTTP ${res.status}.` }
     return { ok: true }
@@ -289,7 +302,7 @@ ipcMain.handle('testar-pareamento', async (_e, { token }) => {
 
 ipcMain.handle('buscar-impressoras-cloud', async (_e, { token }) => {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${token}` } })
+    const res = await consultarDiagnostico(token)
     if (!res.ok) return { erro: `HTTP ${res.status}` }
     const data = await res.json()
     return data.impressoras ?? []
@@ -310,7 +323,7 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
     let lojaNome = ''
     let logoPath = null
     try {
-      const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${config.token}` } })
+      const res = await consultarDiagnostico(config.token)
       if (res.ok) {
         const data = await res.json()
         const impressoras = data.impressoras ?? []
