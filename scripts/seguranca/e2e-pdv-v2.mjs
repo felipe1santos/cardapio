@@ -96,6 +96,25 @@ await foto(pa, '01-pdv-antigo-flag-desligada')
 ok('rota v2 da Central devolve 404 com a flag desligada', (await api(pa, '/api/admin/balcao/comandas')).status === 404)
 ok('rota antiga "pagar" sem forma é recusada (não inventa dinheiro)', (await api(pa, `/api/admin/pdv/comanda/${uuid()}/pagar`, 'POST', {})).status === 400)
 ok('telemetria da rota antiga registrada', !!(await um(`select 1 from eventos_auditoria where restaurante_id=$1 and acao='pdv_legado.pagar' and criado_em > now() - interval '1 minute'`, [loja])))
+{
+  // Fluxo antigo completo, como a tela antiga chama: lançar na mesa, receber, fechar.
+  const mesaLeg = await um(
+    `select m.id, m.nome from mesas m where m.restaurante_id=$1 and m.ativa and m.bloqueada_em is null
+       and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by m.ordem desc limit 1`, [loja])
+  const l = await api(pa, '/api/admin/pdv/pedido', 'POST', {
+    tipo: 'retirada', origem: 'pdv', mesa: mesaLeg.nome, mesaId: mesaLeg.id, cliente: { nome: '', telefone: '' },
+    pagamento: 'dinheiro', trocoPara: null, itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [], observacao: '' }], total: 0.01,
+  })
+  ok('PDV antigo lança na mesa (corpo antigo aceito, preço do servidor)', l.status === 201)
+  const cLeg = await um(`select id from comandas where mesa_id=$1 and status='aberta'`, [mesaLeg.id])
+  ok('fechar sem pagar é recusado (saldo pela função do banco)', (await api(pa, `/api/admin/pdv/comanda/${cLeg.id}/fechar`, 'POST')).status === 409)
+  ok('cancelar sem motivo é recusado', (await api(pa, `/api/admin/pdv/pedido/${l.json.id}/cancelar`, 'POST', {})).status === 400)
+  ok('receber com a forma registra pagamento real', (await api(pa, `/api/admin/pdv/comanda/${cLeg.id}/pagar`, 'POST', { forma: 'pix' })).status === 200)
+  const pgLeg = await um(`select forma, valor, canal, origem from pagamentos_comanda where comanda_id=$1`, [cLeg.id])
+  const totLeg = await um('select total from comanda_totais($1)', [cLeg.id])
+  ok('pagamento do PDV antigo: pix, valor total com taxa, canal mesa, origem pdv', pgLeg?.forma === 'pix' && Number(pgLeg.valor) === Number(totLeg.total) && pgLeg.canal === 'mesa' && pgLeg.origem === 'pdv')
+  ok('fecha como antes (pedido na cozinha não bloqueia com a flag desligada)', (await api(pa, `/api/admin/pdv/comanda/${cLeg.id}/fechar`, 'POST')).status === 200)
+}
 
 await db.query(`update restaurantes set pdv_v2=true where id=$1`, [loja])
 
