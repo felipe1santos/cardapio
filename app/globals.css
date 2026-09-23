@@ -592,3 +592,26 @@ html:has(.font-loja) {
     outline-offset: 2px;
   }
 }
+
+/* Indicador global de gravação do painel (components/admin/indicador-salvar.tsx):
+   o cartão entra com um leve "pop" e o check se desenha. */
+@keyframes indicador-entrada {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes indicador-check {
+  0% { stroke-dasharray: 24; stroke-dashoffset: 24; }
+  100% { stroke-dasharray: 24; stroke-dashoffset: 0; }
+}
+.animate-indicador-entrada {
+  animation: indicador-entrada 160ms ease-out both;
+}
+.animate-indicador-check {
+  animation: indicador-check 320ms ease-out 60ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-indicador-entrada,
+  .animate-indicador-check {
+    animation: none;
+  }
+}

@@ -40,6 +40,7 @@ import {
   type StatusEntregador,
 } from '@/lib/queries/pedidos'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
+import { atualizarConfigLoja, buscarFluxoLoja } from '@/lib/queries/ajustes'
 
 type Tab = 'despacho' | 'concluidos' | 'entregadores'
 
@@ -489,6 +490,10 @@ export default function LogisticaPage() {
 
   const [novoDriver, setNovoDriver] = useState({ nome: '', telefone: '', veiculo: '', placa: '' })
   const [statusMudando, setStatusMudando] = useState<string | null>(null)
+  // Entrega sem entregador (0079). null enquanto a config não chegou.
+  const [semEntregador, setSemEntregador] = useState<boolean | null>(null)
+  const [confirmandoModo, setConfirmandoModo] = useState(false)
+  const [salvandoModo, setSalvandoModo] = useState(false)
   const [addingDriver, setAddingDriver] = useState(false)
   const [addDriverOpen, setAddDriverOpen] = useState(false)
 
@@ -538,7 +543,12 @@ export default function LogisticaPage() {
         return
       }
       setRestauranteId(id)
-      await refetch(id)
+      await Promise.all([
+        refetch(id),
+        buscarFluxoLoja(supabase, id)
+          .then((f) => active && setSemEntregador(f.entregaSemEntregador))
+          .catch(() => active && setSemEntregador(false)),
+      ])
       setLoading(false)
     })()
     return () => {
@@ -982,6 +992,30 @@ export default function LogisticaPage() {
     }
   }
 
+  /**
+   * Liga/desliga a entrega sem entregador. Ligar com entrega na rua esconderia
+   * esses pedidos (a tela vira só o aviso do modo), então é bloqueado até eles
+   * serem concluídos.
+   */
+  async function mudarModoEntrega(ligar: boolean) {
+    if (!restauranteId) return
+    if (ligar && (inRoute.length > 0 || comNexta.length > 0)) {
+      setError(`Há ${inRoute.length + comNexta.length} entrega(s) em rota. Conclua antes de passar a entregar sem entregador.`)
+      setConfirmandoModo(false)
+      return
+    }
+    setSalvandoModo(true)
+    try {
+      await atualizarConfigLoja(supabase, restauranteId, { entregaSemEntregador: ligar })
+      setSemEntregador(ligar)
+      setConfirmandoModo(false)
+    } catch {
+      setError('Não foi possível mudar o modo de entrega.')
+    } finally {
+      setSalvandoModo(false)
+    }
+  }
+
   function abrirNovoEntregador() {
     setNovoDriver({ nome: '', telefone: '', veiculo: '', placa: '' })
     setAddDriverOpen(true)
@@ -1060,6 +1094,46 @@ export default function LogisticaPage() {
       <>
         <TopBar title="Logística" breadcrumb="Logística › Despacho de entregas" />
         <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando logística…</div>
+      </>
+    )
+  }
+
+  if (semEntregador) {
+    return (
+      <>
+        <TopBar title="Logística" breadcrumb="Logística › Entrega sem entregador" />
+        <div className="flex flex-1 flex-col items-center overflow-y-auto p-5">
+          {error && (
+            <div className="mb-4 w-full max-w-[640px] rounded-[6px] border-[0.8px] border-danger bg-danger-bg px-3.5 py-2.5 text-[12.8px] font-semibold text-danger">{error}</div>
+          )}
+          <section className="w-full max-w-[640px] rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: TONS_PAINEL.verde.fundo, color: TONS_PAINEL.verde.cor }}>
+                <Bike className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-[16px] font-bold text-[var(--adm-texto)]">Você está entregando sem entregador</h2>
+                <p className="mt-1 text-[13px] leading-relaxed text-[var(--adm-texto-medio)]">
+                  Os pedidos de entrega saem direto do <b>Painel de Pedidos</b>. Quando o pedido estiver pronto, toque em{' '}
+                  <b>“Saiu p/ entrega”</b>: o cliente recebe no WhatsApp que o pedido saiu e o pedido é concluído.
+                </p>
+              </div>
+            </div>
+            <ul className="mt-5 space-y-2 border-t border-[var(--adm-borda)] pt-4 text-[12.8px] text-[var(--adm-texto-medio)]">
+              <li>• Não há cadastro de motoboy, rota nem rastreio.</li>
+              <li>• Não existe a etapa “entregue”: ninguém confirma a entrega, então o pedido fecha na saída.</li>
+              <li>• Fidelidade e relatórios contam o pedido normalmente.</li>
+            </ul>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <a href="/admin/pedidos" className="inline-flex items-center rounded-[4px] bg-[var(--adm-azul)] px-4 py-2 text-[12.8px] font-semibold text-white hover:brightness-95">
+                Ir para o Painel de Pedidos
+              </a>
+              <Button variant="outline" onClick={() => mudarModoEntrega(false)} disabled={salvandoModo}>
+                {salvandoModo ? 'Salvando…' : 'Voltar a usar entregadores'}
+              </Button>
+            </div>
+          </section>
+        </div>
       </>
     )
   }
@@ -1154,13 +1228,35 @@ export default function LogisticaPage() {
               )
             })}
           </div>
+          <div className="mb-1.5 flex flex-shrink-0 items-center gap-2">
+          {semEntregador === false && !confirmandoModo && (
+            <button
+              onClick={() => setConfirmandoModo(true)}
+              className="inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--adm-texto-medio)] transition-colors hover:border-[var(--adm-borda-forte)] hover:text-[var(--adm-texto)]"
+              title="Para quem não quer cadastrar motoboy nem acompanhar rota"
+            >
+              <Bike className="h-3.5 w-3.5" /> Entregar sem entregador
+            </button>
+          )}
+          {confirmandoModo && (
+            <span className="inline-flex flex-wrap items-center gap-2 rounded-[4px] border border-[#fcd34d] bg-warn-bg px-2.5 py-1 text-[12px] text-[var(--adm-laranja)]">
+              Pedido sai do Kanban e fecha, sem motoboy nem rota.
+              <button onClick={() => mudarModoEntrega(true)} disabled={salvandoModo} className="font-bold underline-offset-2 hover:underline">
+                {salvandoModo ? 'Salvando…' : 'Confirmar'}
+              </button>
+              <button onClick={() => setConfirmandoModo(false)} className="font-medium text-[var(--adm-texto-suave)] hover:underline">
+                Cancelar
+              </button>
+            </span>
+          )}
           <button
             onClick={alternarResumo}
-            className="mb-1.5 hidden flex-shrink-0 items-center gap-1 rounded-[4px] px-2 py-1 text-[12px] font-medium text-[var(--adm-texto-suave)] transition-colors hover:bg-[var(--adm-hover)] hover:text-[var(--adm-texto)] sm:inline-flex"
+            className="hidden flex-shrink-0 items-center gap-1 rounded-[4px] px-2 py-1 text-[12px] font-medium text-[var(--adm-texto-suave)] transition-colors hover:bg-[var(--adm-hover)] hover:text-[var(--adm-texto)] sm:inline-flex"
           >
             {resumoVisivel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {resumoVisivel ? 'Ocultar resumo' : 'Mostrar resumo'}
           </button>
+          </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

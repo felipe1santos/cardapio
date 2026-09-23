@@ -15,6 +15,7 @@ import { pode } from '@/lib/auth/permissoes'
 import { itensDoMenu } from '@/lib/menu-lateral'
 import { useAvisarPedido, useNotificacoesPedidos } from '@/components/admin/notificacoes-pedidos'
 import { FichaDaLoja } from '@/components/admin/ficha-loja'
+import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -73,6 +74,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // módulo de Logística sai do menu. `true` até a config chegar: esconder e
   // reaparecer o item piscaria o menu a cada carregamento.
   const [usaLogistica, setUsaLogistica] = useState(true)
+  // Entrega sem entregador: pronto não passa pela Logística, então não é pendência dela.
+  const [semEntregador, setSemEntregador] = useState(false)
   // Módulo Mesas e Comandas. Começa FALSE ao contrário da logística: a seção é nova, e
   // aparecer por um instante em loja que não a usa seria estranho.
   const [moduloMesas, setModuloMesas] = useState(false)
@@ -149,6 +152,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (!active || !c) return
           setStoreSlug(c.slug)
           setUsaLogistica(c.usaLogistica)
+          setSemEntregador(c.entregaSemEntregador)
           setLoja(identidadeDaLoja(c))
         })
         .catch(() => {
@@ -202,6 +206,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!active || !config) return
         setStoreSlug(config.slug)
         setUsaLogistica(config.usaLogistica)
+        setSemEntregador(config.entregaSemEntregador)
         setLoja(identidadeDaLoja(config))
 
         const lista = avaliarSetup(await carregarDadosSetup(supabase, restauranteId, config))
@@ -262,7 +267,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const alerta = alertasPorMenu[item.href]
     const base = alerta ? { ...item, alerta } : item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
-    if (item.href === '/admin/logistica') return { ...base, badge: badges.logisticaPendente }
+    if (item.href === '/admin/logistica') return { ...base, badge: semEntregador ? 0 : badges.logisticaPendente }
     return base
   })
 
@@ -311,6 +316,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* `min-w-0`: sem isso o conteúdo largo (tabela, grade de mesas) empurra o flex
           e reaparece a rolagem horizontal que a gaveta veio resolver. */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+      {/* "Salvando… / Salvo" no centro da tela para toda gravação feita pelo usuário. */}
+      <IndicadorSalvar />
       {fichaAberta && loja && (
         <FichaDaLoja
           loja={{ ...loja, slug: storeSlug }}

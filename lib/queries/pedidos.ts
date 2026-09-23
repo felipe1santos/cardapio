@@ -1457,10 +1457,18 @@ export interface PedidoCliente {
   observacao: string
   criadoEm: string
   itens: PedidoClienteItem[]
+  /**
+   * Entrega de loja sem entregador (0079): o pedido fecha na saída, sem ninguém
+   * confirmar. A vitrine mostra "Saiu para entrega" como etapa final em vez de
+   * um "Entregue!" que não aconteceu de verdade.
+   */
+  saidaSemConfirmacao?: boolean
 }
 
 /** Histórico + acompanhamento dos pedidos de um cliente da vitrine (identificado pelo telefone da sessão). */
 export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<PedidoCliente[]> {
+  const { data: loja } = await admin.from('restaurantes').select('entrega_sem_entregador').eq('id', restauranteId).maybeSingle()
+  const semEntregador = Boolean(loja?.entrega_sem_entregador)
   const { data, error } = await admin
     .from('pedidos')
     .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
@@ -1503,6 +1511,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
     formaPagamento: p.forma_pagamento,
     observacao: p.observacao ?? '',
     criadoEm: p.criado_em,
+    saidaSemConfirmacao: semEntregador && p.tipo === 'entrega',
     itens: (p.pedido_itens ?? []).map((i) => ({
       nome: i.nome,
       quantidade: i.quantidade,

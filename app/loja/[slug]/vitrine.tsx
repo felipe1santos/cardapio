@@ -81,6 +81,12 @@ const STATUS_PEDIDO_INFO: Record<string, { label: string; cls: string }> = {
   cancelado: { label: 'Cancelado', cls: 'bg-[#ef4444] text-white' },
 }
 
+/** Selo do pedido; na loja sem entregador, o concluído aparece como "Saiu para entrega". */
+function infoStatusPedido(p: { status: string; saidaSemConfirmacao?: boolean }): { label: string; cls: string } {
+  if (p.saidaSemConfirmacao && p.status === 'entregue') return { label: 'Saiu para entrega', cls: 'bg-[#15803D] text-white' }
+  return STATUS_PEDIDO_INFO[p.status] ?? { label: p.status, cls: 'bg-[#F3F4F6] text-text-subtle' }
+}
+
 const PEDIDO_ATIVO = new Set(['recebido', 'preparando', 'pronto', 'em_rota'])
 
 /**
@@ -103,11 +109,14 @@ export function pedidoEstaEmAndamento(pedido: { status: string; criadoEm: string
 }
 
 /** Timeline vertical do acompanhamento do pedido, espelhando o status do Kanban/Logística. */
-function PedidoTimeline({ status, tipo }: { status: string; tipo: string }) {
+function PedidoTimeline({ status, tipo, semConfirmacao = false }: { status: string; tipo: string; semConfirmacao?: boolean }) {
   const steps = tipo === 'retirada'
     ? [{ k: 'recebido', l: 'Pedido recebido' }, { k: 'preparando', l: 'Preparando seu pedido' }, { k: 'pronto', l: 'Pronto para retirada' }, { k: 'entregue', l: 'Retirado!' }]
     : [{ k: 'recebido', l: 'Pedido recebido' }, { k: 'preparando', l: 'Preparando seu pedido' }, { k: 'pronto', l: 'Pronto para despacho' }, { k: 'em_rota', l: 'Saiu para entrega' }, { k: 'entregue', l: 'Entregue!' }]
-  const statusIdx = steps.findIndex((s) => s.k === status)
+      // Loja sem entregador: ninguém confirma a entrega, então a última etapa é a saída.
+      .filter((s) => !(semConfirmacao && s.k === 'entregue'))
+  // Pedido concluído com a etapa "entregue" escondida: todas as etapas feitas.
+  const statusIdx = semConfirmacao && status === 'entregue' ? steps.length : steps.findIndex((s) => s.k === status)
   return (
     <div className="mt-3 border-t border-border pt-3.5">
       {steps.map((step, i) => {
@@ -3409,7 +3418,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             ) : (
               <div className="space-y-4 pb-4">
                 {meusPedidos.map((p) => {
-                  const info = STATUS_PEDIDO_INFO[p.status] ?? { label: p.status, cls: 'bg-[#F3F4F6] text-text-subtle' }
+                  const info = infoStatusPedido(p)
                   const ativo = pedidoEstaEmAndamento(p, agoraAcompanhamento)
                   const data = new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                   const resumo = p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')
@@ -3454,7 +3463,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           <span className="text-[15px] font-bold text-[#16A34A]">{brl(p.total)}</span>
                         </div>
                       </div>
-                      {ativo && <div className="px-4 pb-4"><PedidoTimeline status={p.status} tipo={p.tipo} /></div>}
+                      {ativo && <div className="px-4 pb-4"><PedidoTimeline status={p.status} tipo={p.tipo} semConfirmacao={p.saidaSemConfirmacao} /></div>}
                       {p.status === 'cancelado' && (
                         <div className="border-t border-danger/30 bg-danger-bg px-4 py-2.5 text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
                       )}
@@ -3483,7 +3492,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {/* ── Modal: detalhes do pedido ─────────────────────────────────── */}
         {pedidoDetalhe && (() => {
           const p = pedidoDetalhe
-          const info = STATUS_PEDIDO_INFO[p.status] ?? { label: p.status, cls: 'bg-[#F3F4F6] text-text-subtle' }
+          const info = infoStatusPedido(p)
           const ativo = pedidoEstaEmAndamento(p, agoraAcompanhamento)
           const pontos = Math.max(0, Math.floor(p.subtotal))
           const waDigits = (restaurante?.telefone ?? '').replace(/\D/g, '')
@@ -3505,7 +3514,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       {new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  {ativo && <div className="mt-4"><PedidoTimeline status={p.status} tipo={p.tipo} /></div>}
+                  {ativo && <div className="mt-4"><PedidoTimeline status={p.status} tipo={p.tipo} semConfirmacao={p.saidaSemConfirmacao} /></div>}
                   {p.status === 'cancelado' && (
                     <div className="mt-4 rounded bg-danger-bg px-3 py-2 text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
                   )}

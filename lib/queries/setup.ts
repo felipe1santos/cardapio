@@ -99,6 +99,7 @@ export async function carregarDadosSetup(
       horarioFuncionamento: config.horarioFuncionamento,
       statusLoja: config.statusLoja,
       usaLogistica: config.usaLogistica,
+      entregaSemEntregador: config.entregaSemEntregador,
       aceitaEntrega: config.aceitaEntrega,
       aceitaRetirada: config.aceitaRetirada,
     },

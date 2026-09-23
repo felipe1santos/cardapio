@@ -140,6 +140,12 @@ describe('avaliarSetup', () => {
     semLogistica.entregadoresCadastrados = 0
     semLogistica.config.usaLogistica = false
     expect(ids(semLogistica)).not.toContain('sem-entregador')
+
+    // Loja que entrega sem motoboy (0079) também não tem por que cadastrar um.
+    const semEntregador = lojaOk()
+    semEntregador.entregadoresCadastrados = 0
+    semEntregador.config.entregaSemEntregador = true
+    expect(ids(semEntregador)).not.toContain('sem-entregador')
   })
 
   it('acusa item disponível com preço zerado', () => {

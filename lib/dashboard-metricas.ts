@@ -421,7 +421,8 @@ export interface ResumoEntrega {
 /**
  * Tempos médios de entrega dos pedidos ENTREGUES dentro do intervalo. Rotas
  * acima de 4h são pedido esquecido "em rota" e baixado no dia seguinte — não
- * são entrega, e uma só puxaria a média para cima.
+ * são entrega, e uma só puxaria a média para cima. Abaixo de 1 min também não
+ * conta (saída sem entregador fecha o pedido na hora).
  */
 export function resumoEntrega(
   tempos: { criadoEm: string; emRotaEm: string; entregueEm: string }[],
@@ -435,7 +436,9 @@ export function resumoEntrega(
     if (fim < intervalo.inicio || fim >= intervalo.fim) continue
     const r = (fim - new Date(t.emRotaEm).getTime()) / 1000
     const tot = (fim - new Date(t.criadoEm).getTime()) / 1000
-    if (r < 0 || r > 4 * 3600) continue
+    // Menos de 1 min não é entrega: é a loja sem entregador (0079), que fecha o
+    // pedido no mesmo toque da saída — contaria como entrega de segundos.
+    if (r < 60 || r > 4 * 3600) continue
     rota += r
     total += Math.max(r, tot)
     n++

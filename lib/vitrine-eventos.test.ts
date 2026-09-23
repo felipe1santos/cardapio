@@ -113,6 +113,7 @@ describe('resumoEntrega', () => {
         { criadoEm: t(12, 0), emRotaEm: t(12, 30), entregueEm: t(12, 50) }, // 20 min de rota
         { criadoEm: t(13, 0), emRotaEm: t(13, 20), entregueEm: t(13, 50) }, // 30 min
         { criadoEm: t(1, 0), emRotaEm: t(1, 10), entregueEm: t(9, 0) }, // esquecido: fora
+        { criadoEm: t(14, 0), emRotaEm: '2026-09-23T17:30:00.000Z', entregueEm: '2026-09-23T17:30:02.000Z' }, // sem entregador: fecha na saída, fora
         { criadoEm: '2026-09-20T12:00:00Z', emRotaEm: '2026-09-20T12:10:00Z', entregueEm: '2026-09-20T12:30:00Z' }, // outro dia
       ],
       intervalo,

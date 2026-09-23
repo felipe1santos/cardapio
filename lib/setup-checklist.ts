@@ -38,6 +38,8 @@ export interface ConfigSetup {
   horarioFuncionamento: HorarioFuncionamento | null
   statusLoja: StatusLoja
   usaLogistica: boolean
+  /** Entrega sem motoboy (0079): entregador cadastrado não é pendência. Opcional pra config antiga. */
+  entregaSemEntregador?: boolean
   aceitaEntrega: boolean
   aceitaRetirada: boolean
 }
@@ -176,12 +178,12 @@ export function avaliarSetup(dados: DadosSetup): PendenciaSetup[] {
     })
   }
 
-  if (c.usaLogistica && dados.entregadoresCadastrados === 0) {
+  if (c.usaLogistica && !c.entregaSemEntregador && dados.entregadoresCadastrados === 0) {
     pendencias.push({
       id: 'sem-entregador',
       severidade: 'atencao',
       titulo: 'Nenhum entregador cadastrado',
-      descricao: 'O pedido pronto vai parar na Logística e não tem pra quem despachar. Cadastre um entregador ou desligue o módulo de Logística.',
+      descricao: 'O pedido pronto vai parar na Logística e não tem pra quem despachar. Cadastre um entregador ou, na Logística, passe a entregar sem entregador.',
       href: '/admin/logistica',
     })
   }

@@ -115,22 +115,28 @@ export async function enviarWhatsapp(numero: string, texto: string, instance: st
 }
 
 /** Busca o pedido, monta a mensagem apropriada para o status e envia via WhatsApp. Best-effort. */
-export async function notificarPedido(admin: SupabaseClient, pedidoId: string, status: StatusPedido): Promise<void> {
+/**
+ * O que aconteceu com o aviso. Os chamadores antigos ignoram o retorno; a saída
+ * sem entregador usa para dizer ao operador se o cliente foi mesmo avisado.
+ */
+export type ResultadoNotificacao = 'enviada' | 'falhou' | 'sem_whatsapp' | 'sem_telefone' | 'sem_pedido' | 'sem_mensagem'
+
+export async function notificarPedido(admin: SupabaseClient, pedidoId: string, status: StatusPedido): Promise<ResultadoNotificacao> {
   const dados = await buscarPedidoParaNotificacao(admin, pedidoId)
-  if (!dados) return
+  if (!dados) return 'sem_pedido'
 
   const { pedido, restauranteNome, evolutionInstance } = dados
-  if (!evolutionInstance) return
+  if (!evolutionInstance) return 'sem_whatsapp'
 
   const numero = formatarTelefoneWhatsapp(pedido.clienteTelefone)
-  if (!numero) return
+  if (!numero) return 'sem_telefone'
 
   const texto = status === 'preparando'
     ? montarResumoPedido(pedido, restauranteNome)
     : montarMensagemStatus(pedido, status)
-  if (!texto) return
+  if (!texto) return 'sem_mensagem'
 
-  await enviarWhatsapp(numero, texto, evolutionInstance)
+  return (await enviarWhatsapp(numero, texto, evolutionInstance)) ? 'enviada' : 'falhou'
 }
 
 /** Envia imagem com legenda (caption) via Evolution API. */

@@ -48,6 +48,12 @@ export interface ConfigLoja {
   statusLoja: StatusLoja
   /** Loja usa o módulo de Logística (despacho por entregador) para fechar entregas. */
   usaLogistica: boolean
+  /**
+   * Entrega sem motoboy (0079): "Saiu para entrega" avisa o cliente e conclui o
+   * pedido. Independente de `usaLogistica`, que tem loja real usando no fluxo
+   * de duas etapas.
+   */
+  entregaSemEntregador: boolean
   /** Canais de venda oferecidos na vitrine. */
   aceitaEntrega: boolean
   aceitaRetirada: boolean
@@ -93,12 +99,13 @@ interface ConfigRow {
   horario_funcionamento: HorarioFuncionamento | null
   status_loja: StatusLoja
   usa_logistica: boolean | null
+  entrega_sem_entregador?: boolean | null
   aceita_entrega: boolean | null
   aceita_retirada: boolean | null
   modulo_mesas_ativo: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -139,6 +146,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     // O `?? default` cobre a janela entre o deploy do código e a migration
     // rodar: coluna ausente/nula mantém o comportamento antigo.
     usaLogistica: row.usa_logistica ?? true,
+    entregaSemEntregador: row.entrega_sem_entregador ?? false,
     aceitaEntrega: row.aceita_entrega ?? true,
     aceitaRetirada: row.aceita_retirada ?? false,
     // Coluna ausente (migration ainda não aplicada) = módulo desligado. Nenhuma loja
@@ -186,6 +194,7 @@ export interface ConfigLojaPatch {
   imagemGrande?: boolean
   horarioFuncionamento?: HorarioFuncionamento
   usaLogistica?: boolean
+  entregaSemEntregador?: boolean
   aceitaEntrega?: boolean
   aceitaRetirada?: boolean
 }
@@ -266,6 +275,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.imagemGrande !== undefined) row.imagem_grande = patch.imagemGrande
   if (patch.horarioFuncionamento !== undefined) row.horario_funcionamento = patch.horarioFuncionamento
   if (patch.usaLogistica !== undefined) row.usa_logistica = patch.usaLogistica
+  if (patch.entregaSemEntregador !== undefined) row.entrega_sem_entregador = patch.entregaSemEntregador
   if (patch.aceitaEntrega !== undefined) row.aceita_entrega = patch.aceitaEntrega
   if (patch.aceitaRetirada !== undefined) row.aceita_retirada = patch.aceitaRetirada
 
@@ -276,12 +286,13 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
 
 export interface FluxoLoja {
   usaLogistica: boolean
+  entregaSemEntregador: boolean
   aceitaEntrega: boolean
   aceitaRetirada: boolean
 }
 
 /** Default usado enquanto a config não chegou (ou se a leitura falhar): mantém o comportamento anterior à migration 0049. */
-export const FLUXO_LOJA_PADRAO: FluxoLoja = { usaLogistica: true, aceitaEntrega: true, aceitaRetirada: false }
+export const FLUXO_LOJA_PADRAO: FluxoLoja = { usaLogistica: true, entregaSemEntregador: false, aceitaEntrega: true, aceitaRetirada: false }
 
 /**
  * Leitura leve dos canais de venda e do fluxo de conclusão. O Kanban precisa
@@ -291,13 +302,14 @@ export const FLUXO_LOJA_PADRAO: FluxoLoja = { usaLogistica: true, aceitaEntrega:
 export async function buscarFluxoLoja(supabase: SupabaseClient, restauranteId: string): Promise<FluxoLoja> {
   const { data, error } = await supabase
     .from('restaurantes')
-    .select('usa_logistica, aceita_entrega, aceita_retirada')
+    .select('usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada')
     .eq('id', restauranteId)
     .maybeSingle()
   if (error) throw error
   if (!data) return FLUXO_LOJA_PADRAO
   return {
     usaLogistica: data.usa_logistica ?? FLUXO_LOJA_PADRAO.usaLogistica,
+    entregaSemEntregador: data.entrega_sem_entregador ?? FLUXO_LOJA_PADRAO.entregaSemEntregador,
     aceitaEntrega: data.aceita_entrega ?? FLUXO_LOJA_PADRAO.aceitaEntrega,
     aceitaRetirada: data.aceita_retirada ?? FLUXO_LOJA_PADRAO.aceitaRetirada,
   }

@@ -295,6 +295,8 @@ export default function PedidosPage() {
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Recado curto depois da saída sem entregador: diz se o cliente foi avisado.
+  const [avisoSaida, setAvisoSaida] = useState<{ tom: 'ok' | 'alerta'; texto: string } | null>(null)
   const [orders, setOrders] = useState<Pedido[]>([])
   const [transit, setTransit] = useState<Pedido[]>([])
   const [concluded, setConcluded] = useState<Pedido[]>([])
@@ -650,7 +652,7 @@ export default function PedidosPage() {
         // Sem Logística, a coluna "Entregas & concluídos" deixa de ser um extra:
         // é onde o pedido em rota vive até ser marcado como entregue. Abre por
         // padrão, mas respeita quem já escolheu explicitamente.
-        if (!f.usaLogistica && localStorage.getItem('menuzia:kanban-col4') === null) setShowCol4(true)
+        if ((!f.usaLogistica || f.entregaSemEntregador) && localStorage.getItem('menuzia:kanban-col4') === null) setShowCol4(true)
       } catch {
         /* sem config — mantém o fluxo com Logística, que é como sempre foi */
       }
@@ -745,6 +747,44 @@ export default function PedidosPage() {
       refetch(restauranteId)
     }
   }
+
+  /**
+   * Entrega sem entregador: um toque avisa o cliente ("saiu para entrega") e
+   * conclui o pedido, tudo no servidor (/api/admin/pedidos/[id]/saiu-entrega).
+   * Não passa por moverPara: lá o cliente receberia também a mensagem de
+   * "entregue", que ninguém confirmou.
+   */
+  async function saiuSemEntregador(p: Pedido) {
+    if (!restauranteId) return
+    cancelarAutoAceite(p.id)
+    setOrders((prev) => prev.filter((o) => o.id !== p.id))
+    setConcluded((prev) => (prev.some((o) => o.id === p.id) ? prev : [{ ...p, status: 'entregue' }, ...prev]))
+    try {
+      const res = await fetch(`/api/admin/pedidos/${p.id}/saiu-entrega`, { method: 'POST' })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; mensagem?: string; concluido?: boolean }
+      if (!res.ok) throw new Error(data.error ?? 'Não foi possível registrar a saída.')
+      const avisado = data.mensagem === 'enviada'
+      setAvisoSaida({
+        tom: avisado ? 'ok' : 'alerta',
+        texto: avisado
+          ? `Pedido #${p.numero} saiu para entrega — cliente avisado no WhatsApp.`
+          : data.mensagem === 'sem_whatsapp'
+            ? `Pedido #${p.numero} saiu para entrega. O WhatsApp da loja não está conectado, então o cliente não foi avisado.`
+            : `Pedido #${p.numero} saiu para entrega, mas o aviso ao cliente não saiu (telefone inválido ou WhatsApp fora do ar).`,
+      })
+      if (!data.concluido) refetch(restauranteId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível registrar a saída.')
+      refetch(restauranteId)
+    }
+  }
+
+  // O recado some sozinho; um novo substitui o anterior.
+  useEffect(() => {
+    if (!avisoSaida) return
+    const t = setTimeout(() => setAvisoSaida(null), 6000)
+    return () => clearTimeout(t)
+  }, [avisoSaida])
 
   async function avancar(p: Pedido) {
     await moverPara(p, proximoStatusKanban(p.status, p.tipo, fluxo.usaLogistica))
@@ -934,6 +974,16 @@ export default function PedidosPage() {
         {error && (
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
+        {avisoSaida && (
+          <div
+            role="status"
+            className={`rounded-menuzia border px-3.5 py-2.5 text-[13px] font-medium ${
+              avisoSaida.tom === 'ok' ? 'border-[#86efac] bg-[#f0fdf4] text-[#15803d]' : 'border-[#fcd34d] bg-warn-bg text-[var(--adm-laranja)]'
+            }`}
+          >
+            {avisoSaida.texto}
+          </div>
+        )}
 
         {avisoParados && (
           <div
@@ -1076,12 +1126,22 @@ export default function PedidosPage() {
                               Entregue
                             </Button>
                           )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && fluxo.usaLogistica && (
+                          {order.status === 'pronto' && order.tipo === 'entrega' && fluxo.entregaSemEntregador && (
+                            <Button
+                              variant="dispatch"
+                              className="flex-1"
+                              onClick={() => saiuSemEntregador(order)}
+                              title="Avisa o cliente no WhatsApp e conclui o pedido"
+                            >
+                              Saiu p/ entrega
+                            </Button>
+                          )}
+                          {order.status === 'pronto' && order.tipo === 'entrega' && !fluxo.entregaSemEntregador && fluxo.usaLogistica && (
                             <span className="flex flex-1 items-center justify-center rounded-menuzia bg-page text-[11px] font-semibold uppercase text-text-subtle">
                               Na logística
                             </span>
                           )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && !fluxo.usaLogistica && (
+                          {order.status === 'pronto' && order.tipo === 'entrega' && !fluxo.entregaSemEntregador && !fluxo.usaLogistica && (
                             <>
                               <Button variant="dispatch" className="flex-1" onClick={() => avancar(order)}>
                                 Saiu p/ entrega
@@ -1296,7 +1356,7 @@ export default function PedidosPage() {
               {/* Escape para quem usa a Logística no dia a dia mas entregou este
                   pedido na mão (o dono levou, o cliente passou pra buscar). Sem
                   isso o pedido fica preso esperando um entregador que não existe. */}
-              {fluxo.usaLogistica && detail.tipo === 'entrega' && (detail.status === 'pronto' || detail.status === 'em_rota') && (
+              {fluxo.usaLogistica && !fluxo.entregaSemEntregador && detail.tipo === 'entrega' && (detail.status === 'pronto' || detail.status === 'em_rota') && (
                 <button
                   onClick={() => { const p = detail; setDetail(null); moverPara(p, 'entregue') }}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-menuzia border border-status-ready px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-status-ready transition-colors hover:bg-status-ready/10"
