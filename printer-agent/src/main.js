@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, safeStorage } = require('electron')
 // Remove a barra de menu nativa (File/Edit/View/Window/Help) — deixa a janela limpa.
 Menu.setApplicationMenu(null)
 const path = require('path')
@@ -7,6 +7,8 @@ const os = require('os')
 const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal, instanciaAgente } = require('./store')
 const { listarImpressorasWindows, imprimirTexto } = require('./printer')
 const { montarRecibo } = require('./recibo')
+const { montarPreConta, montarTeste, colsPreConta } = require('./pre-conta')
+const { FilasPorDispositivo } = require('./fila-dispositivos')
 
 // Diagnóstico: grava no MESMO arquivo que o print.ps1 (%TEMP%\menuzia-print.log).
 function logArquivo(msg) {
@@ -91,7 +93,7 @@ const abrirOculto = process.argv.includes('--hidden')
 function criarJanela() {
   mainWindow = new BrowserWindow({
     width: 480,
-    height: 640,
+    height: 760,
     resizable: false,
     show: !abrirOculto,
     webPreferences: {
@@ -139,13 +141,15 @@ async function avisarImpresso(pedidoId, auth) {
 
 async function cicloDePolling() {
   const config = carregarConfig()
-  if (!config.token) return
+  const credencial = lerCredencial()
+  if (!config.token && !credencial) return
   // Se um ciclo anterior ainda está imprimindo (impressora lenta), não começa outro —
   // senão dois ciclos veriam impresso=false e imprimiriam o mesmo pedido em duplicidade.
   if (cicloRodando) return
   cicloRodando = true
 
-  const auth = { Authorization: `Bearer ${config.token}` }
+  // Computador pareado (0.1.26+) usa a própria credencial; senão, o token antigo da loja.
+  const auth = { Authorization: `Bearer ${credencial || config.token}`, 'X-Agente-Versao': app.getVersion() }
   // Heartbeat: informa ao servidor qual impressora (config do painel) está em uso,
   // pra o painel acender ela como "conectada". Vai junto da consulta de pedidos (5s).
   // X-Agente-Instancia: o servidor reserva o pedido para esta instalação (0086) —
@@ -163,7 +167,10 @@ async function cicloDePolling() {
     const lojaNome = data.loja?.nome ?? ''
 
     if (!configImpressao?.impressaoAutomatica) return
-    if (!config.impressoraWindows) return
+    // Roteamento da cozinha por função (opção da loja): o servidor diz em QUAL impressora
+    // deste computador a ficha sai. Sem isso, o modo de sempre: a impressora escolhida aqui.
+    const destino = data.destinoCozinha || null
+    if (!destino && !config.impressoraWindows) return
     if (!pedidos || pedidos.length === 0) return
 
     const impressoras = data.impressoras ?? []
@@ -175,10 +182,12 @@ async function cicloDePolling() {
       impressoras.find((i) => i.id === config.impressoraCloudId) ||
       impressoras.find((i) => i.ativa) ||
       impressoras[0]
-    const larguraBase = impressoraCfg?.largura ?? 48
-    const cols = colsParaFonte(impressoraCfg?.tamanhoFonte, larguraBase)
+    // Com destino da função Cozinha, largura/fonte/cópias vêm da impressora atribuída.
+    const larguraBase = destino ? (Number(destino.larguraMm) <= 58 ? 32 : 48) : (impressoraCfg?.largura ?? 48)
+    const cols = colsParaFonte(destino ? destino.tamanhoFonte : impressoraCfg?.tamanhoFonte, larguraBase)
     const paperMm = larguraBase <= 40 ? 58 : 80
-    const copias = impressoraCfg?.copias ?? 1
+    const copias = destino ? (destino.copias ?? 1) : (impressoraCfg?.copias ?? 1)
+    const impressoraAlvo = destino ? destino.nomeSistema : config.impressoraWindows
     logArquivo(`CICLO: impressora='${impressoraCfg?.nome ?? '(nenhuma cadastrada)'}' tamanhoFonte='${impressoraCfg?.tamanhoFonte}' largura=${larguraBase} (${paperMm}mm) -> cols=${cols}; imprimirLogo=${configImpressao.imprimirLogo}`)
 
     // Logo: baixa uma vez por ciclo (vale pra todos os pedidos da rodada).
@@ -203,7 +212,7 @@ async function cicloDePolling() {
         }
 
         const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
-        const saida = await imprimirTexto(config.impressoraWindows, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
+        const saida = await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
         mostrarDiagnostico(saida)
 
         // A partir daqui o papel pode já ter saído: registra local ANTES de
@@ -225,6 +234,117 @@ async function cicloDePolling() {
   } finally {
     cicloRodando = false
   }
+}
+
+// ─── Computador pareado (0.1.26+): credencial própria, várias impressoras ────
+//
+// A credencial deste computador vem do pareamento por código (Ajustes › Impressão) e
+// fica no config.json CIFRADA pelo Windows (safeStorage/DPAPI, amarrada ao usuário do
+// PC). Nunca vai para log nem para a tela.
+
+function lerCredencial() {
+  const cfg = carregarConfig()
+  if (!cfg.credencialCifrada) return null
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return null
+    return safeStorage.decryptString(Buffer.from(cfg.credencialCifrada, 'base64'))
+  } catch {
+    return null
+  }
+}
+
+function salvarCredencial(credencial, nome) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('O Windows não liberou a proteção de dados deste usuário.')
+  salvarConfig({ credencialCifrada: safeStorage.encryptString(credencial).toString('base64'), agenteNome: nome })
+}
+
+function apagarCredencial() {
+  salvarConfig({ credencialCifrada: '', agenteNome: '' })
+}
+
+function cabecalhosAgente() {
+  const credencial = lerCredencial()
+  return credencial ? { Authorization: `Bearer ${credencial}`, 'X-Agente-Versao': app.getVersion() } : null
+}
+
+let trabalhosTimer = null
+let descobertaTimer = null
+let consultandoTrabalhos = false
+
+async function informarResultado(id, ok, erro) {
+  const headers = cabecalhosAgente()
+  if (!headers) return
+  await fetch(`${API_BASE_URL}/api/agente/trabalhos/${id}/resultado`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ok, erro }),
+  })
+}
+
+// Uma fila por impressora do Windows: a do caixa travada não segura a da cozinha.
+const filas = new FilasPorDispositivo(
+  async (t) => {
+    const largura = Number(t.larguraMm) <= 58 ? 58 : 80
+    const texto = t.tipo === 'pre_conta' ? montarPreConta(t.snapshot) : montarTeste(t.snapshot)
+    const saida = await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
+    mostrarDiagnostico(saida)
+    log(`${t.tipo === 'pre_conta' ? `Pré-conta (${t.via}ª via)` : 'Teste'} enviado para "${t.nomeSistema}" — aceito pela fila do Windows.`)
+  },
+  async (id, ok, erro) => {
+    if (!ok) log(`Falha ao enviar trabalho para a impressora: ${erro}`)
+    await informarResultado(id, ok, erro)
+  },
+)
+
+async function consultarTrabalhos() {
+  const headers = cabecalhosAgente()
+  if (!headers || consultandoTrabalhos) return
+  consultandoTrabalhos = true
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/agente/trabalhos`, { headers })
+    if (res.status === 401) {
+      log('Este computador foi desconectado da loja (credencial revogada). Pareie de novo em Ajustes › Impressão.')
+      return
+    }
+    if (!res.ok) return
+    const data = await res.json()
+    if (Array.isArray(data.trabalhos) && data.trabalhos.length) filas.receber(data.trabalhos)
+  } catch (err) {
+    logArquivo(`TRABALHOS: ${descreverErro(err)}`)
+  } finally {
+    consultandoTrabalhos = false
+  }
+}
+
+/** Manda ao servidor as impressoras instaladas neste Windows (ficam ligadas a este computador). */
+async function informarImpressoras() {
+  const headers = cabecalhosAgente()
+  if (!headers) return
+  try {
+    const nomes = await listarImpressorasWindows()
+    await fetch(`${API_BASE_URL}/api/agente/impressoras`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ impressoras: nomes }),
+    })
+  } catch (err) {
+    logArquivo(`DESCOBERTA: ${descreverErro(err)}`)
+  }
+}
+
+function iniciarTrabalhos() {
+  if (trabalhosTimer) return
+  trabalhosTimer = setInterval(consultarTrabalhos, 3000)
+  descobertaTimer = setInterval(informarImpressoras, 60_000)
+  informarImpressoras()
+  consultarTrabalhos()
+}
+
+function pararTrabalhos() {
+  if (trabalhosTimer) clearInterval(trabalhosTimer)
+  if (descobertaTimer) clearInterval(descobertaTimer)
+  trabalhosTimer = null
+  descobertaTimer = null
 }
 
 function iniciarPolling() {
@@ -261,6 +381,7 @@ app.whenReady().then(() => {
   }
   criarJanela()
   iniciarPolling()
+  iniciarTrabalhos()
 })
 
 app.on('before-quit', () => { app.isQuitting = true })
@@ -289,9 +410,9 @@ function descreverErro(err) {
 }
 
 ipcMain.handle('testar-pareamento', async (_e, { token }) => {
-  if (!token) return { ok: false, erro: 'Cole o token de pareamento antes de testar.' }
+  if (!token && !lerCredencial()) return { ok: false, erro: 'Cole o token de pareamento antes de testar.' }
   try {
-    const res = await consultarDiagnostico(token)
+    const res = await consultarDiagnostico(token || lerCredencial())
     if (res.status === 401) return { ok: false, erro: 'Token inválido — copie de novo em Ajustes > Impressão no painel.' }
     if (!res.ok) return { ok: false, erro: `O servidor respondeu HTTP ${res.status}.` }
     return { ok: true }
@@ -302,7 +423,7 @@ ipcMain.handle('testar-pareamento', async (_e, { token }) => {
 
 ipcMain.handle('buscar-impressoras-cloud', async (_e, { token }) => {
   try {
-    const res = await consultarDiagnostico(token)
+    const res = await consultarDiagnostico(token || lerCredencial())
     if (!res.ok) return { erro: `HTTP ${res.status}` }
     const data = await res.json()
     return data.impressoras ?? []
@@ -323,7 +444,7 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
     let lojaNome = ''
     let logoPath = null
     try {
-      const res = await consultarDiagnostico(config.token)
+      const res = await consultarDiagnostico(config.token || lerCredencial())
       if (res.ok) {
         const data = await res.json()
         const impressoras = data.impressoras ?? []
@@ -356,4 +477,40 @@ ipcMain.handle('testar-impressora', async (_e, { impressoraWindows }) => {
   } catch (err) {
     return { ok: false, erro: err.message }
   }
+})
+
+// ─── pareamento por código (0.1.26+) ─────────────────────────────────────────
+ipcMain.handle('estado-agente', () => {
+  const cfg = carregarConfig()
+  return { pareado: Boolean(lerCredencial()), nome: cfg.agenteNome || '', sugestaoNome: os.hostname() }
+})
+
+ipcMain.handle('parear-codigo', async (_e, { codigo, nome }) => {
+  const c = String(codigo || '').trim()
+  if (!c) return { ok: false, erro: 'Digite o código de pareamento.' }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/agente/parear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo: c, nome: String(nome || os.hostname()).slice(0, 60), versao: app.getVersion() }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return { ok: false, erro: data.error || `O servidor respondeu HTTP ${res.status}.` }
+    salvarCredencial(data.credencial, data.nome)
+    log(`Computador pareado como "${data.nome}". As impressoras deste Windows serão informadas ao painel.`)
+    pararTrabalhos()
+    iniciarTrabalhos()
+    pararPolling()
+    iniciarPolling()
+    return { ok: true, nome: data.nome }
+  } catch (err) {
+    return { ok: false, erro: `Sem conexão com ${API_BASE_URL} (${descreverErro(err)}).` }
+  }
+})
+
+ipcMain.handle('desparear', () => {
+  apagarCredencial()
+  pararTrabalhos()
+  log('Este computador saiu do modo de várias impressoras. Continua no modo antigo (token), se houver.')
+  return { ok: true }
 })

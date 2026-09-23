@@ -219,3 +219,41 @@ window.agente.onLog(({ ts, mensagem }) => {
 })
 
 init()
+
+// ─── Várias impressoras (0.1.26+) ──────────────────────────────────────────
+async function atualizarCartaoVarias() {
+  const e = await window.agente.estadoAgente()
+  document.getElementById('variasPareado').style.display = e.pareado ? 'block' : 'none'
+  document.getElementById('variasForm').style.display = e.pareado ? 'none' : 'block'
+  document.getElementById('agenteNome').textContent = e.nome || ''
+  // Pareado: o Passo 2 (impressora da cozinha no modo de sempre) fica liberado sem token.
+  if (e.pareado) document.getElementById('cardImpressora').classList.remove('locked')
+  const nome = document.getElementById('nomeComputador')
+  if (!nome.value) nome.value = e.sugestaoNome || ''
+}
+
+document.getElementById('parearCodigo').addEventListener('click', async () => {
+  const botao = document.getElementById('parearCodigo')
+  const status = document.getElementById('statusVarias')
+  botao.disabled = true
+  const r = await window.agente.parearCodigo({
+    codigo: document.getElementById('codigoPareamento').value,
+    nome: document.getElementById('nomeComputador').value,
+  })
+  botao.disabled = false
+  status.innerHTML = ''
+  const div = document.createElement('div')
+  div.className = 'feedback ' + (r.ok ? 'ok' : 'erro')
+  div.textContent = r.ok ? 'Pareado como "' + r.nome + '".' : r.erro
+  status.appendChild(div)
+  document.getElementById('codigoPareamento').value = ''
+  await atualizarCartaoVarias()
+})
+
+document.getElementById('desparear').addEventListener('click', async () => {
+  if (!confirm('Desfazer o pareamento neste computador? Ele para de receber pré-contas e testes.')) return
+  await window.agente.desparear()
+  await atualizarCartaoVarias()
+})
+
+atualizarCartaoVarias()

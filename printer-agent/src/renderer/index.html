@@ -97,6 +97,24 @@
     <div id="status"></div>
   </div>
 
+  <!-- Várias impressoras (0.1.26+): computador pareado por código -->
+  <div class="card" id="cardVarias">
+    <span class="step-tag">Novo · Várias impressoras e pré-conta</span>
+    <div id="variasPareado" style="display:none">
+      <p style="margin:0">Este computador está pareado como <b id="agenteNome"></b>. As impressoras deste Windows aparecem no painel em <b>Impressão</b>, onde o gerente escolhe a da Cozinha e a do Caixa.</p>
+      <div class="actions" style="margin-top:10px"><button id="desparear" class="secondary">Desfazer pareamento neste computador</button></div>
+    </div>
+    <div id="variasForm">
+      <label>Código de pareamento</label>
+      <input id="codigoPareamento" placeholder="XXXX-XXXX (painel › Impressão › Parear computador)" autocomplete="off" />
+      <label>Nome deste computador</label>
+      <input id="nomeComputador" placeholder="Ex.: PC Caixa" maxlength="60" />
+      <button id="parearCodigo">Parear com código</button>
+      <p class="hint">O código vale 10 minutos e uma única vez. Quem gera é o dono ou o gerente.</p>
+    </div>
+    <div id="statusVarias"></div>
+  </div>
+
   <label>Registro de impressão</label>
   <div id="log"></div>
 
