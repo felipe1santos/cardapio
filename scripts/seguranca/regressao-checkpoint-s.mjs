@@ -69,8 +69,12 @@ console.log('\n── PAINEL (authenticated, via PostgREST) ──')
   ok('Painel NÃO apaga pedido direto', !!error, error?.message?.slice(0, 60))
 }
 {
-  const { data, error } = await comoDono.from('restaurantes').select('impressao_agente_token').eq('id', loja).maybeSingle()
-  ok('Dono AINDA lê o token do agente (Ajustes)', !error && !!data, error?.message)
+  // Desde a 0080 o token é credencial fora do navegador — até para o dono. Ele lê por
+  // /api/admin/impressao/token (coberto em verificar-isolamento-lojas.mjs).
+  const { error } = await comoDono.from('restaurantes').select('impressao_agente_token').eq('id', loja).maybeSingle()
+  ok('Navegador NÃO lê o token do agente, nem o dono (0080)', !!error && /permission/i.test(error.message), error?.message?.slice(0, 60))
+  const { error: eCfg } = await comoDono.from('restaurantes').select('impressao_automatica, nome').eq('id', loja).maybeSingle()
+  ok('Dono continua lendo a configuração da própria loja', !eCfg, eCfg?.message)
 }
 
 console.log('\n── SERVIDOR (service_role) ──')
