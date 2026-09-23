@@ -76,6 +76,19 @@ export function ModalImpressaoQr({
   const [selecionadas, setSelecionadas] = useState<string[]>(() => pecas.map((p) => p.id))
   const [imprimindo, setImprimindo] = useState(false)
 
+  /**
+   * A seleção acompanha a lista que chegou.
+   *
+   * Sem isto, fechar a janela de UMA mesa e abrir a de TODAS reaproveitava a
+   * instância do componente (o React não desmontou entre um clique e outro) e a
+   * folha do lote saía com uma etiqueta só — a seleção era a da janela anterior.
+   */
+  const chavePecas = pecas.map((p) => p.id).join('|')
+  useEffect(() => {
+    setSelecionadas(pecas.map((p) => p.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chavePecas])
+
   const limites = LIMITES_TAMANHO[modelo]
   const info = useMemo(() => comTamanhoQr(modeloEtiqueta(modelo), tamanho), [modelo, tamanho])
 

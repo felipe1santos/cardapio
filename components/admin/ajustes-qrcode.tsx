@@ -292,6 +292,7 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
 
       {impressao && (
         <ModalImpressaoQr
+          key={impressao.tipo === 'mesa' ? impressao.mesa.id : impressao.tipo}
           titulo={
             impressao.tipo === 'mesa'
               ? `Imprimir o QR da ${rotuloMesa(impressao.mesa.nome)}`
