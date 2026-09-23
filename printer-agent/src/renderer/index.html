@@ -57,6 +57,7 @@
   </style>
 </head>
 <body>
+  <div id="faixaTeste" style="display:none;background:#F59E0B;color:#111827;font-weight:700;text-align:center;padding:8px;margin:-20px -20px 14px;font-size:12px">VERSÃO DE TESTE LOCAL — fala só com o servidor desta máquina (127.0.0.1). Não imprime pedidos reais.</div>
   <h1>Assistente de Impressão Menuzia <span id="versao" style="font-size:11px;font-weight:600;color:#0E7490;background:#CFFAFE;padding:2px 7px;border-radius:3px;vertical-align:middle;"></span></h1>
   <p class="sub">Pode fechar esta janela — o agente continua imprimindo em segundo plano e abre sozinho ao ligar o PC.</p>
 
@@ -66,7 +67,7 @@
 
     <label>Servidor Menuzia</label>
     <div class="fixed-url">
-      <span class="lock-icon">🔒</span> <b>https://app.menuzia.com.br</b>
+      <span class="lock-icon">🔒</span> <b id="servidorUrl">https://app.menuzia.com.br</b>
     </div>
     <p class="hint">Endereço fixo do sistema — não precisa preencher nada aqui.</p>
 

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('agente', {
   buscarImpressorasCloud: (token) => ipcRenderer.invoke('buscar-impressoras-cloud', { token }),
   testarImpressora: (args) => ipcRenderer.invoke('testar-impressora', args),
   versao: () => ipcRenderer.invoke('versao'),
+  ambiente: () => ipcRenderer.invoke('ambiente'),
   estadoAgente: () => ipcRenderer.invoke('estado-agente'),
   parearCodigo: (args) => ipcRenderer.invoke('parear-codigo', args),
   desparear: () => ipcRenderer.invoke('desparear'),

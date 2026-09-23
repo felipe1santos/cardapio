@@ -48,7 +48,30 @@ async function baixarLogo(url) {
 
 // URL fixa do Menuzia — a mesma para todas as lojas. A loja é identificada pelo token
 // de pareamento, não pela URL. Só mude isto se o domínio do sistema mudar.
-const API_BASE_URL = 'https://app.menuzia.com.br'
+//
+// Variante de TESTE LOCAL (build `npm run dist:teste-local`): o electron-builder grava
+// `menuziaAmbiente` no package.json empacotado. Só ela aponta para outro servidor — e só
+// para loopback —, com identidade, pastas e configuração próprias, sem início automático.
+// O build normal não tem esse campo: produção, exatamente como sempre.
+const AMBIENTE = (() => {
+  try {
+    return require('../package.json').menuziaAmbiente || null
+  } catch {
+    return null
+  }
+})()
+const EH_TESTE_LOCAL = AMBIENTE?.variante === 'teste-local'
+const API_BASE_URL = EH_TESTE_LOCAL ? AMBIENTE.apiBaseUrl : 'https://app.menuzia.com.br'
+if (EH_TESTE_LOCAL) {
+  // Trava dura: a variante de teste nunca fala com nada fora desta máquina.
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(String(API_BASE_URL))) {
+    app.quit()
+    process.exit(1)
+  }
+  // Pasta de dados própria ANTES de qualquer leitura de configuração: não enxerga a do
+  // Assistente instalado na loja (token, impressora escolhida, pedidos já impressos).
+  app.setPath('userData', path.join(app.getPath('appData'), 'menuzia-impressao-teste-local'))
+}
 
 // Trava de instância única: sem isto, abrir o atalho várias vezes acumula vários
 // processos rodando ao mesmo tempo — e durante uma atualização eles travam os
@@ -376,7 +399,8 @@ app.whenReady().then(() => {
   // Auto-start: registra o agente pra abrir junto com o Windows (oculto), assim a loja
   // não precisa lembrar de abrir o programa toda vez que liga o PC. Só no app empacotado
   // — em dev não queremos sujar a inicialização do sistema.
-  if (app.isPackaged) {
+  // A variante de teste local nunca se registra para abrir com o Windows.
+  if (app.isPackaged && !EH_TESTE_LOCAL) {
     app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
   }
   criarJanela()
@@ -388,6 +412,7 @@ app.on('before-quit', () => { app.isQuitting = true })
 app.on('window-all-closed', () => { /* mantém rodando em segundo plano */ })
 
 ipcMain.handle('versao', () => app.getVersion())
+ipcMain.handle('ambiente', () => ({ testeLocal: EH_TESTE_LOCAL, servidor: API_BASE_URL }))
 ipcMain.handle('carregar-config', () => carregarConfig())
 
 ipcMain.handle('salvar-config', (_e, patch) => {

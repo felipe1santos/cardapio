@@ -41,6 +41,7 @@ next-env.d.ts
 # printer-agent (Electron app, separate package)
 /printer-agent/node_modules
 /printer-agent/dist
+/printer-agent/dist-teste-local
 
 # subagent-driven-development scratch (briefs, reports, review packages, ledger)
 /.superpowers/

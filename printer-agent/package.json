@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "dist:teste-local": "electron-builder --win --config electron-builder-teste-local.json"
   },
   "devDependencies": {
     "electron": "^31.0.0",

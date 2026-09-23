@@ -257,3 +257,11 @@ document.getElementById('desparear').addEventListener('click', async () => {
 })
 
 atualizarCartaoVarias()
+
+// Variante de teste local: faixa amarela e o endereço real do servidor.
+window.agente.ambiente().then((a) => {
+  if (!a || !a.testeLocal) return
+  document.getElementById('faixaTeste').style.display = 'block'
+  document.getElementById('servidorUrl').textContent = a.servidor
+  document.title = 'Menuzia Impressão — TESTE LOCAL'
+}).catch(() => {})

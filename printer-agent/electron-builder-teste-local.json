@@ -1,0 +1,25 @@
+{
+  "appId": "com.menuzia.printeragent.testelocal",
+  "productName": "Menuzia Impressao TESTE LOCAL",
+  "directories": { "output": "dist-teste-local" },
+  "extraMetadata": {
+    "name": "menuzia-impressao-teste-local",
+    "productName": "Menuzia Impressao TESTE LOCAL",
+    "version": "0.1.26-rc.1",
+    "menuziaAmbiente": { "variante": "teste-local", "apiBaseUrl": "http://127.0.0.1:3999" }
+  },
+  "win": { "target": "nsis" },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "allowElevation": false,
+    "runAfterFinish": false,
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Menuzia Impressao TESTE LOCAL",
+    "artifactName": "MenuziaImpressao-TESTE-LOCAL-${version}.${ext}"
+  },
+  "files": ["src/**/*", "!src/**/*.test.ts", "package.json"],
+  "asarUnpack": ["src/*.ps1"]
+}
