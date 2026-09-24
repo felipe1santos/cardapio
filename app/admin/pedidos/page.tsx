@@ -1029,6 +1029,7 @@ export default function PedidosPage() {
                     return (
                       <div
                         key={order.id}
+                        data-testid={`pedido-${order.numero}`}
                         className={[
                           'rounded-menuzia border border-border border-l-[4px] bg-white p-3.5 shadow-md transition-shadow hover:shadow-lg',
                           accent[coluna],
@@ -1241,18 +1242,19 @@ export default function PedidosPage() {
       >
         {detail && (
           <>
-            <div className="flex items-start justify-between gap-3 border-b border-border px-4.5 py-4">
-              <div className="min-w-0">
-                <h2 className="text-[15px] font-bold">Pedido #{detail.numero}</h2>
+            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border px-4.5 py-4">
+              <div className="min-w-0 flex-1">
+                <h2 className="whitespace-nowrap text-[15px] font-bold">Pedido #{detail.numero}</h2>
                 <p className="mt-0.5 truncate text-xs text-text-subtle" title={detail.clienteNome || undefined}>{detail.clienteNome || 'Cliente'}</p>
               </div>
-              <div className="flex flex-shrink-0 items-start gap-2">
-                {/* Origem, atendimento e mesa no canto — o mesmo vocabulário do card. */}
+              {/* Origem, atendimento e mesa no canto — o mesmo vocabulário do card. No
+                  celular descem para a linha de baixo, ainda à direita, sem espremer o título. */}
+              <div className="max-sm:order-3 max-sm:w-full sm:flex-shrink-0">
                 <EtiquetasPedido pedido={detail} />
-                <button onClick={() => setDetail(null)} aria-label="Fechar detalhes" className="toque-icone flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
-                  ×
-                </button>
               </div>
+              <button onClick={() => setDetail(null)} aria-label="Fechar detalhes" className="toque-icone flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+                ×
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4.5">
               {detail.status === 'cancelado' && (
