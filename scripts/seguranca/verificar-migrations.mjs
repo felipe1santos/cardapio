@@ -31,7 +31,8 @@ exigirLoopback(DB_URL)
 /** Congelada de propósito — ver o cabeçalho. */
 const FORA = ['0054']
 /** Última migration aplicada em produção hoje. */
-const ULTIMA_EM_PRODUCAO = '0056'
+// Sobrescrevível: a produção já passou da 0056 (em 2026-09-24 estava na 0079).
+const ULTIMA_EM_PRODUCAO = process.env.ULTIMA_EM_PRODUCAO ?? '0056'
 
 const dir = join(process.cwd(), 'supabase', 'migrations')
 const arquivos = readdirSync(dir)
