@@ -133,6 +133,7 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
             descricao: s.descricao,
             precos: Object.fromEntries(s.precos.map((x) => [x.tamanhoPadraoId, x.preco])),
           })),
+        pizzaTamanhosOcultos: i.pizzaTamanhosOcultos ?? [],
         precoAPartirDe: precoAPartirDe(itemPrecificavel(i), pizza),
         // Etiqueta do cadastro (mais pedido, novo, promoção…): o mesmo cardápio na
         // mesa mostrava o item sem nenhum destaque (lib/etiqueta-item.ts).

@@ -147,7 +147,12 @@ export function precoDeVitrine(item: ItemCardapio): { valor: number; aPartirDe: 
     return { valor: Math.min(...item.tamanhos.map((t) => t.preco)), aPartirDe: true }
   }
   if (item.tipoItem === 'pizza') {
-    const precos = item.sabores.filter((s) => s.status === 'disponivel').flatMap((s) => s.precos.map((p) => p.preco))
+    // Só preço de verdade (> 0) em tamanho que a pizza vende: tamanho desligado (0097)
+    // ou ainda sem preço não pode virar o "a partir de".
+    const ocultos = item.pizzaTamanhosOcultos ?? []
+    const precos = item.sabores
+      .filter((s) => s.status === 'disponivel')
+      .flatMap((s) => s.precos.filter((p) => p.preco > 0 && !ocultos.includes(p.tamanhoPadraoId)).map((p) => p.preco))
     return { valor: precos.length ? Math.min(...precos) : item.preco, aPartirDe: true }
   }
   return { valor: item.promocaoPreco ?? item.preco, aPartirDe: false }

@@ -6,6 +6,7 @@ import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
 import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
+import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
 export type TipoItem = 'simples' | 'pizza' | 'marmita'
@@ -112,6 +113,11 @@ export interface ItemCardapio {
   complementos: ComplementoItem[]
   tamanhos: TamanhoItem[]
   sabores: PizzaSabor[]
+  /**
+   * Pizza: tamanhos da loja que ESTE item não vende (0097). Vazio/ausente = regra
+   * antiga. Quem decide o que aparece é `tamanhosVendidosDaPizza` (lib/pizza-tamanhos).
+   */
+  pizzaTamanhosOcultos?: string[]
 }
 
 export interface PresetComplementos {
@@ -140,6 +146,7 @@ interface ItemRow {
   tipo_item: TipoItem
   disponivel_delivery: boolean | null
   disponivel_salao: boolean | null
+  pizza_tamanhos_ocultos?: string[] | null
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null; pausado: boolean; posicao?: number | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number; permite_quantidade: boolean }[]
   tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
@@ -192,6 +199,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     // continua valendo nos dois canais, como sempre valeu.
     disponivelDelivery: row.disponivel_delivery ?? true,
     disponivelSalao: row.disponivel_salao ?? true,
+    pizzaTamanhosOcultos: row.pizza_tamanhos_ocultos ?? [],
     grupos,
     complementos: complementosOrdenados
       .filter((c) => !c.grupo_id)
@@ -361,7 +369,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
-  disponivel_delivery, disponivel_salao,
+  disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
   tamanhos_item ( id, nome, preco, posicao ),
@@ -590,6 +598,42 @@ export async function removerGrupoItem(supabase: SupabaseClient, grupoId: string
 
 // ─── Tamanhos do item (ex.: marmitex P/M/G) ───────────────────────────────────
 
+/** Nome vazio ou repetido no mesmo item (0097). O pedido casa o tamanho do item pelo nome. */
+async function prepararNomeDoItem(
+  supabase: SupabaseClient,
+  tabela: 'tamanhos_item' | 'pizza_sabores',
+  nomeBruto: string,
+  alvo: { itemId: string } | { id: string },
+): Promise<string> {
+  const nome = nomeBruto.trim()
+  const rotulo = tabela === 'tamanhos_item' ? 'um tamanho' : 'um sabor'
+  if (!nome) throw new ErroCadastroCardapio('Informe o nome.')
+  let itemId: string
+  if ('itemId' in alvo) {
+    itemId = alvo.itemId
+  } else {
+    const { data, error } = await supabase.from(tabela).select('item_id, nome').eq('id', alvo.id).maybeSingle()
+    if (error) throw error
+    if (!data) throw new ErroCadastroCardapio('Cadastro não encontrado. Recarregue a página.')
+    // Mesmo nome de antes (pausar, trocar foto, mudar preço): nada a conferir.
+    if (chaveNomeCatalogo(data.nome) === chaveNomeCatalogo(nome)) return nome
+    itemId = data.item_id
+  }
+  const { data: existentes, error } = await supabase.from(tabela).select('id, nome').eq('item_id', itemId)
+  if (error) throw error
+  if (nomeRepetidoNoCatalogo(existentes ?? [], nome, 'id' in alvo ? alvo.id : undefined)) {
+    throw new ErroCadastroCardapio(`Este item já tem ${rotulo} chamado "${nome}".`)
+  }
+  return nome
+}
+
+function traduzirNomeDoItem(erro: unknown, tabela: 'tamanhos_item' | 'pizza_sabores', nome: string): never {
+  if (ehViolacaoDeUnicidade(erro)) {
+    throw new ErroCadastroCardapio(`Este item já tem ${tabela === 'tamanhos_item' ? 'um tamanho' : 'um sabor'} chamado "${nome}".`)
+  }
+  throw erro
+}
+
 export async function criarTamanho(
   supabase: SupabaseClient,
   itemId: string,
@@ -597,18 +641,20 @@ export async function criarTamanho(
   preco: number,
   posicao: number
 ): Promise<TamanhoItem> {
+  nome = await prepararNomeDoItem(supabase, 'tamanhos_item', nome, { itemId })
   const { data, error } = await supabase
     .from('tamanhos_item')
     .insert({ item_id: itemId, nome, preco, posicao })
     .select('id, nome, preco, posicao')
     .single()
-  if (error) throw error
+  if (error) traduzirNomeDoItem(error, 'tamanhos_item', nome)
   return { id: data.id, nome: data.nome, preco: Number(data.preco), posicao: data.posicao }
 }
 
 export async function atualizarTamanho(supabase: SupabaseClient, tamanhoId: string, nome: string, preco: number) {
+  nome = await prepararNomeDoItem(supabase, 'tamanhos_item', nome, { id: tamanhoId })
   const { error } = await supabase.from('tamanhos_item').update({ nome, preco }).eq('id', tamanhoId)
-  if (error) throw error
+  if (error) traduzirNomeDoItem(error, 'tamanhos_item', nome)
 }
 
 export async function removerTamanho(supabase: SupabaseClient, tamanhoId: string) {
@@ -622,12 +668,13 @@ export async function criarSabor(supabase: SupabaseClient, itemId: string, nome:
   if (nomeTemSeparador(nome)) {
     throw new Error('O nome do sabor não pode ter " / " (barra com espaços) — é o separador usado em pizza meio a meio.')
   }
+  nome = await prepararNomeDoItem(supabase, 'pizza_sabores', nome, { itemId })
   const { data, error } = await supabase
     .from('pizza_sabores')
     .insert({ item_id: itemId, nome, posicao })
     .select('id, nome, descricao, imagem_url, status, posicao')
     .single()
-  if (error) throw error
+  if (error) traduzirNomeDoItem(error, 'pizza_sabores', nome)
   return { id: data.id, nome: data.nome, descricao: data.descricao, imagemUrl: data.imagem_url, status: data.status, posicao: data.posicao, precos: [] }
 }
 
@@ -650,11 +697,12 @@ export async function atualizarSabor(supabase: SupabaseClient, saborId: string, 
       throw new Error('O nome do sabor não pode ter " / " (barra com espaços) — é o separador usado em pizza meio a meio.')
     }
   }
+  const nome = await prepararNomeDoItem(supabase, 'pizza_sabores', input.nome, { id: saborId })
   const { error } = await supabase
     .from('pizza_sabores')
-    .update({ nome: input.nome, descricao: input.descricao, status: input.status, imagem_url: input.imagemUrl })
+    .update({ nome, descricao: input.descricao, status: input.status, imagem_url: input.imagemUrl })
     .eq('id', saborId)
-  if (error) throw error
+  if (error) traduzirNomeDoItem(error, 'pizza_sabores', nome)
 }
 
 export async function removerSabor(supabase: SupabaseClient, saborId: string) {
@@ -668,6 +716,20 @@ export async function definirPrecoSabor(supabase: SupabaseClient, saborId: strin
     .from('pizza_sabor_precos')
     .upsert({ sabor_id: saborId, tamanho_padrao_id: tamanhoPadraoId, preco }, { onConflict: 'sabor_id,tamanho_padrao_id' })
   if (error) throw error
+}
+
+/**
+ * Liga/desliga tamanhos numa pizza (0097). Só grava a lista de desligados: nenhum
+ * preço é apagado ou zerado, então religar devolve exatamente o que havia.
+ */
+export async function definirTamanhosOcultosPizza(supabase: SupabaseClient, itemId: string, ocultos: string[]) {
+  const { data, error } = await supabase
+    .from('itens_cardapio')
+    .update({ pizza_tamanhos_ocultos: [...new Set(ocultos)] })
+    .eq('id', itemId)
+    .select('id')
+  if (error) throw error
+  if (!data || data.length === 0) throw new ErroCadastroCardapio('Não foi possível salvar: sem permissão ou item removido.')
 }
 
 // ─── Preset complement groups ─────────────────────────────────────────────────

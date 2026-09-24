@@ -6,6 +6,7 @@ import { descricaoEmTextoPuro, pedacosDaDescricao } from '@/lib/descricao-rica'
 import { etiquetaDoItem } from '@/lib/etiqueta-item'
 import { adicionarNaSelecao } from '@/lib/selecao-mesa'
 import { precificarLinha, type ItemPrecificavel, type OpcaoDaLinha, type PizzaDaLoja, type TipoOpcao } from '@/lib/selecao-preco'
+import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
 
 /**
  * Cardápio presencial da mesa.
@@ -53,6 +54,8 @@ export interface ItemDaMesa {
   tipoItem: string
   /** Sabores disponíveis. `precos` = id do tamanho padrão → preço da pizza inteira. */
   sabores: { nome: string; descricao: string; precos: Record<string, number> }[]
+  /** Pizza: tamanhos da loja desligados neste item (0097). */
+  pizzaTamanhosOcultos?: string[]
   /** Menor preço possível (tamanho/sabor mais barato) — o "a partir de" do cartão. */
   precoAPartirDe: number
   /** Etiqueta do cadastro ('mais_pedido', 'novo'…). Null = sem etiqueta marcada. */
@@ -965,11 +968,10 @@ function Configurador({
   const tamanhosPizza = useMemo(
     () => {
       if (!ehPizza) return []
-      // Mesma regra do PDV e da vitrine: tamanho sem sabor com preço não é vendido.
-      const comPreco = pizza.tamanhos.filter((t) => item.sabores.some((s) => (s.precos[t.id] ?? 0) > 0))
-      return comPreco.length > 0 ? comPreco : pizza.tamanhos
+      // Mesma regra do PDV e da vitrine (lib/pizza-tamanhos).
+      return tamanhosVendidosDaPizza(pizza.tamanhos, item.sabores, item.pizzaTamanhosOcultos)
     },
-    [ehPizza, pizza.tamanhos, item.sabores],
+    [ehPizza, pizza.tamanhos, item.sabores, item.pizzaTamanhosOcultos],
   )
   const tamanhoPizza = tamanhosPizza.find((t) => (escolhas.tamanho ?? [])[0] === t.id)
   const precificavel = useMemo<ItemPrecificavel>(
@@ -978,6 +980,7 @@ function Configurador({
       tipoItem: item.tipoItem,
       tamanhos: item.tamanhos,
       sabores: item.sabores,
+      tamanhosOcultos: item.pizzaTamanhosOcultos,
       grupos: item.grupos.map((g) => ({ nome: g.nome, complementos: g.complementos })),
     }),
     [item],

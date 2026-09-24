@@ -3,7 +3,7 @@ import { precoPizzaSabores, separarSabores, juntarSabores, type RegraPrecoPizza 
 export interface SaborCatalogo {
   nome: string
   status: string
-  /** tamanho_padrao_id → preço. Sabor sem entrada pro tamanho não é vendido nele. */
+  /** tamanho_padrao_id → preço. Sem entrada, ou com preço 0, o sabor não é vendido nele. */
   precoPorTamanho: Map<string, number>
 }
 
@@ -64,7 +64,9 @@ export function resolverPizza({ itemNome, tamanho, saborTexto, catalogo, regra }
       throw new Error(`Sabor "${pedido}" não está disponível no item "${itemNome}".`)
     }
     const preco = sabor.precoPorTamanho.get(tamanho.id)
-    if (preco === undefined) {
+    // Preço 0 é "ainda não precificado": nenhuma tela oferece esse sabor nesse tamanho,
+    // então aceitar aqui só serviria para uma pizza sair de graça por POST direto.
+    if (preco === undefined || !(preco > 0)) {
       throw new Error(`O sabor "${sabor.nome}" não é vendido no tamanho "${tamanho.nome}".`)
     }
     nomes.push(sabor.nome)

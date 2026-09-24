@@ -26,6 +26,7 @@ import {
 } from '@/lib/queries/pizza'
 import { type NovoPedidoItemInput, type Pedido } from '@/lib/queries/pedidos'
 import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
+import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
 import { Button } from '@/components/ui/button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -154,12 +155,7 @@ function SeletorModal({
   // vendido, e oferecê-lo ao operador só leva a uma lista de sabores vazia.
   // Brotinho e Promocional têm preço em um tamanho só.
   const tamanhosDoItem = isPizza
-    ? (() => {
-        const comPreco = tamanhosPizza.filter((t) =>
-          item.sabores.some((s) => (s.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0) > 0),
-        )
-        return comPreco.length > 0 ? comPreco : tamanhosPizza
-      })()
+    ? tamanhosVendidosDaPizza(tamanhosPizza, item.sabores, item.pizzaTamanhosOcultos)
     : tamanhosPizza
 
   // Pizza — o tamanho escolhido decide quantos sabores cabem (maxSabores) e quais
