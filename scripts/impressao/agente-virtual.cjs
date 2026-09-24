@@ -41,9 +41,42 @@ let removidas = new Set((process.env.AGENTE_REMOVIDAS || '').split('|').filter(B
 const RAIZ = path.resolve(__dirname, '..', '..')
 const PS1 = path.join(RAIZ, 'printer-agent', 'src', 'print.ps1')
 
-// ── fetch: produção → servidor local ────────────────────────────────────────
+// ── fetch: produção → servidor local + LOG DE ROTEAMENTO ─────────────────────
+// O log é tirado do protocolo (o que o servidor entregou e o que o agente respondeu),
+// nunca dos cabeçalhos: credencial e token não entram em arquivo nenhum.
 const fetchReal = global.fetch
-global.fetch = (url, init) => fetchReal(String(url).replace('https://app.menuzia.com.br', BASE), init)
+const trabalhos = new Map() // job_id → { tipo, destino, tentativa }
+const fichas = new Map() // pedido_id → { destino }
+const artefatosPendentes = new Map() // destino → [artefato] (fila por impressora: ordem garantida)
+const logRoteamento = (o) => fs.appendFileSync(path.join(SAIDA, 'roteamento.jsonl'), JSON.stringify({ horario: new Date().toISOString(), agente: path.basename(path.dirname(SAIDA)), ...o }) + '\n')
+const pegarArtefato = (destino) => (artefatosPendentes.get(destino) ?? []).shift() ?? null
+global.fetch = async (url, init) => {
+  const u = String(url).replace('https://app.menuzia.com.br', BASE)
+  const metodo = (init && init.method) || 'GET'
+  const res = await fetchReal(u, init)
+  try {
+    if (metodo === 'GET' && /\/api\/agente\/trabalhos$/.test(u) && res.ok) {
+      const j = await res.clone().json()
+      for (const t of j.trabalhos ?? []) trabalhos.set(t.id, { tipo: t.tipo, destino: t.nomeSistema, tentativa: t.tentativas })
+    } else if (metodo === 'GET' && /\/api\/agente\/pedidos$/.test(u) && res.ok) {
+      const j = await res.clone().json()
+      const cfg = JSON.parse(fs.readFileSync(path.join(DIR, 'config.json'), 'utf8'))
+      const destino = j.destinoCozinha?.nomeSistema ?? cfg.impressoraWindows ?? '?'
+      for (const p of j.pedidos ?? []) fichas.set(p.id, { destino })
+    } else if (metodo === 'POST' && /\/api\/agente\/trabalhos\/[^/]+\/resultado$/.test(u)) {
+      const id = u.split('/').slice(-2)[0]
+      const corpo = JSON.parse(init.body)
+      const t = trabalhos.get(id) ?? {}
+      logRoteamento({ job_id: id, tipo: t.tipo === 'teste_impressora' ? 'teste' : t.tipo, destino: t.destino, tentativa: t.tentativa,
+        resultado: corpo.ok ? 'aceito_pelo_spooler' : `falha: ${corpo.erro}`, artefato: corpo.ok ? pegarArtefato(t.destino) : null })
+    } else if (metodo === 'POST' && /\/api\/agente\/pedidos\/[^/]+\/imprimir$/.test(u)) {
+      const id = u.split('/').slice(-2)[0]
+      const f = fichas.get(id) ?? {}
+      logRoteamento({ job_id: id, tipo: 'ficha_cozinha', destino: f.destino, tentativa: 1, resultado: res.ok ? 'impresso_confirmado' : `falha HTTP ${res.status}`, artefato: pegarArtefato(f.destino) })
+    }
+  } catch { /* log é observação: nunca derruba o agente */ }
+  return res
+}
 
 // ── Electron simulado ───────────────────────────────────────────────────────
 const handlers = {}
@@ -81,24 +114,37 @@ const electron = {
 }
 
 // ── impressoras virtuais (no lugar de printer.js) ───────────────────────────
+// Cada impressão vira, na pasta da impressora: <n>-<tipo>-<mm>mm.txt (texto legível) e
+// .png (o bitmap exato do print.ps1 -DebugPng). O PDF sai no fim, pelo script da demo.
 let seq = 0
+const textoLegivel = (t) => t.split('\n').map((l) => {
+  const m = l.match(/^\x01(\w)(?:\x02(.*))?$/)
+  if (!m) return l
+  const campos = (m[2] ?? '').split('\x02')
+  if (m[1] === 'R') return '-'.repeat(32)
+  if (m[1] === 'H') return `==== ${campos[0]} ====`
+  return campos.join('   ')
+}).join('\n')
 const impressoraVirtual = {
   listarImpressorasWindows: async () => impressorasWindows.filter((n) => !removidas.has(n)),
   imprimirTexto: async (nome, texto, copias, cols, _logo, paperMm, fonteMaior) => {
     if (!impressorasWindows.includes(nome) || removidas.has(nome)) throw new Error(`Impressora '${nome}' nao encontrada no Windows.`)
-    const tipo = texto.includes('PRÉ-CONTA') ? 'pre_conta' : texto.includes('TESTE DE IMPRESSORA') ? 'teste' : 'cozinha'
+    const tipo = texto.includes('PRÉ-CONTA') ? 'pre_conta' : texto.includes('TESTE DE IMPRESSORA') ? 'teste' : 'ficha_cozinha'
     const n = ++seq
-    const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias, cols, paperMm, fonteMaior: Boolean(fonteMaior), texto }
-    if (process.env.RENDER === '1') {
-      const txt = path.join(SAIDA, `t${n}.txt`)
-      const png = path.join(SAIDA, `${tipo}-${n}-${nome.replace(/[^A-Za-z0-9]+/g, '_')}-${paperMm}mm.png`)
-      fs.writeFileSync(txt, texto, 'utf8')
-      execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PS1, '-FilePath', txt, '-PrinterName', 'Microsoft Print to PDF',
-        '-Cols', String(cols), '-PaperWidthMm', String(paperMm), ...(fonteMaior ? ['-FonteMaior', '1'] : []), '-DebugPng', png], { stdio: 'pipe' })
-      fs.unlinkSync(txt)
-      registro.png = png
-    }
+    const pasta = path.join(SAIDA, nome.replace(/[^A-Za-z0-9]+/g, '_'))
+    fs.mkdirSync(pasta, { recursive: true })
+    const base = path.join(pasta, `${String(n).padStart(2, '0')}-${tipo}-${paperMm}mm`)
+    fs.writeFileSync(`${base}.txt`, textoLegivel(texto), 'utf8')
+    const bruto = `${base}.marcado.tmp`
+    fs.writeFileSync(bruto, texto, 'utf8')
+    execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PS1, '-FilePath', bruto, '-PrinterName', 'Microsoft Print to PDF',
+      '-Cols', String(cols), '-PaperWidthMm', String(paperMm), ...(fonteMaior ? ['-FonteMaior', '1'] : []), '-DebugPng', `${base}.png`], { stdio: 'pipe' })
+    fs.unlinkSync(bruto)
+    const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias, cols, paperMm, fonteMaior: Boolean(fonteMaior), texto, png: `${base}.png`, txt: `${base}.txt` }
     fs.appendFileSync(path.join(SAIDA, 'impressos.jsonl'), JSON.stringify(registro) + '\n')
+    const fila = artefatosPendentes.get(nome) ?? []
+    fila.push(`${base}.png`)
+    artefatosPendentes.set(nome, fila)
     return 'MENUZIA: virtual ok'
   },
 }

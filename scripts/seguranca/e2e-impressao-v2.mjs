@@ -160,12 +160,12 @@ const comandaMesa = l1.json.comandaId
 await esperar(2500)
 const l2 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: comandaMesa, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })
 const fichas = await aguardar(() => {
-  const c = A.impressos().filter((x) => x.tipo === 'cozinha')
+  const c = A.impressos().filter((x) => x.tipo === 'ficha_cozinha')
   return c.length >= 2 ? c : null
 }, 40000)
 ok('as duas fichas saíram', (fichas ?? []).length === 2, `${(fichas ?? []).length}`)
 ok('só na Impressora 01 (80 mm, destino da função)', (fichas ?? []).every((f) => f.impressora === 'Impressora 01' && f.paperMm === 80))
-ok('nada da cozinha na Impressora 02', !A.impressos().some((x) => x.tipo === 'cozinha' && x.impressora === 'Impressora 02'))
+ok('nada da cozinha na Impressora 02', !A.impressos().some((x) => x.tipo === 'ficha_cozinha' && x.impressora === 'Impressora 02'))
 ok('pedidos marcados impressos pela fila de sempre', (await q('select impresso from pedidos where id = any($1::uuid[])', [[l1.json.id, l2.json.id]])).every((p) => p.impresso))
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -184,7 +184,7 @@ ok('nenhuma pré-conta na Impressora 01', !A.impressos().some((x) => x.tipo === 
 const t1 = pc1[0].texto.replace(/[\x01\x02]/g, ' ')
 ok('conteúdo: PRÉ-CONTA, não fiscal, mesa, taxa 10%, desconto, pago e restante', ['PRÉ-CONTA', 'NÃO É DOCUMENTO FISCAL', mesa.nome.toUpperCase(), 'Taxa de serviço (10%)', 'Desconto', 'Já pago', 'Pix: R$ 20,00', 'RESTANTE A PAGAR', '1ª via'].every((t) => t1.includes(t)))
 ok('motivo do desconto não sai no papel', !t1.includes('Cortesia interna'))
-ok('pré-conta não disparou ficha da cozinha de novo', A.impressos().filter((x) => x.tipo === 'cozinha').length === 2)
+ok('pré-conta não disparou ficha da cozinha de novo', A.impressos().filter((x) => x.tipo === 'ficha_cozinha').length === 2)
 
 secao('14–16. Conta muda e reimpressão: 2ª via com valores novos')
 await api(pAt, `/api/admin/comandas/${comandaMesa}`, 'POST', { acao: 'pagamento', forma: 'debito', valor: 10, chave: uuid() })
@@ -212,7 +212,7 @@ await pAt.keyboard.press('Escape').catch(() => {})
 secao('18–20. Balcão: taxa 0% e taxa manual do gerente')
 const bal = await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Conceição Demonstração', chave: uuid() })
 await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: bal.json.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: AGUA.id, quantidade: 1, complementos: [] }] })
-await aguardar(() => A.impressos().filter((x) => x.tipo === 'cozinha').length >= 3, 30000)
+await aguardar(() => A.impressos().filter((x) => x.tipo === 'ficha_cozinha').length >= 3, 30000)
 await api(pAt, `/api/admin/comandas/${bal.json.id}/pre-conta`, 'POST', { chave: uuid() })
 const pb1 = await aguardar(() => A.impressos().filter((x) => x.tipo === 'pre_conta')[2], 30000)
 const tb1 = (pb1?.texto ?? '').replace(/[\x01\x02]/g, ' ')
@@ -231,7 +231,7 @@ const pcQueda = await api(pAt, `/api/admin/comandas/${bal.json.id}/pre-conta`, '
 const falhou = await aguardar(async () => (await um('select erro, estado from impressao_trabalhos where id=$1', [pcQueda.json.id]))?.erro, 20000)
 ok('pré-conta com Impressora 02 fora: erro registrado e trabalho pendente', /nao encontrada/.test(falhou ?? ''))
 const k3 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: bal.json.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
-const kOk = await aguardar(() => A.impressos().find((x) => x.tipo === 'cozinha' && x.n > antesQueda), 30000)
+const kOk = await aguardar(() => A.impressos().find((x) => x.tipo === 'ficha_cozinha' && x.n > antesQueda), 30000)
 ok('enquanto a 02 está fora, a ficha da cozinha sai na 01', kOk?.impressora === 'Impressora 01', k3.status)
 await pAt.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pAt)
@@ -289,7 +289,7 @@ const escolher = (pred) => imps.find(pred)
 const pdfs = [
   ['pre-conta-mesa-58mm', escolher((x) => x.tipo === 'pre_conta' && x.paperMm === 58)],
   ['pre-conta-balcao-80mm', escolher((x) => x.tipo === 'pre_conta' && x.paperMm === 80)],
-  ['cozinha-80mm', escolher((x) => x.tipo === 'cozinha')],
+  ['cozinha-80mm', escolher((x) => x.tipo === 'ficha_cozinha')],
 ].filter(([, x]) => x?.png)
 await pngsParaPdf(pdfs.map(([nome, x]) => ({ png: x.png, pdf: join(ART, `${nome}.pdf`), paperMm: x.paperMm })))
 console.log(`\nArtefatos virtuais em: ${ART}`)
