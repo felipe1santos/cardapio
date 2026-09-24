@@ -18,6 +18,7 @@ import {
   type Entregador,
   type Pedido,
 } from '@/lib/queries/pedidos'
+import { formatarReal } from '@/lib/moeda'
 
 /**
  * Valor sentinela do "entregador" Nexta na seleção. O Nexta ocupa o mesmo lugar de um
@@ -26,7 +27,8 @@ import {
  */
 const NEXTA_ID = 'nexta'
 
-const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+// Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
+const brl = formatarReal
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
 function tempoDesde(iso: string) {

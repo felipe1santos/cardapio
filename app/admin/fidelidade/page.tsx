@@ -13,10 +13,12 @@ import type {
   CupomComStats,
   CupomInput,
 } from '@/lib/queries/fidelidade'
+import { formatarReal } from '@/lib/moeda'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+// Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
+const brl = formatarReal
 
 const INPUT_CLS =
   'w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm text-text-main outline-none focus:border-primary placeholder:text-text-subtle/60'

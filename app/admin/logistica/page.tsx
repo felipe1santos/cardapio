@@ -42,6 +42,7 @@ import {
 } from '@/lib/queries/pedidos'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { atualizarConfigLoja, buscarFluxoLoja } from '@/lib/queries/ajustes'
+import { formatarReal } from '@/lib/moeda'
 
 type Tab = 'despacho' | 'concluidos' | 'entregadores'
 
@@ -74,7 +75,8 @@ function inicioDoDiaISO() {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
 }
 
-const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+// Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
+const brl = formatarReal
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
 

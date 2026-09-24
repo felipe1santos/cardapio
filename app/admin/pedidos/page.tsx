@@ -48,6 +48,7 @@ import {
   type Pedido,
   type StatusPedido,
 } from '@/lib/queries/pedidos'
+import { formatarReal } from '@/lib/moeda'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -100,7 +101,8 @@ const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
   { label: 'Entregue', status: 'entregue' },
 ]
 
-const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+// Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
+const brl = formatarReal
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
 function tempoDecorrido(iso: string, now: number) {
