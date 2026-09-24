@@ -189,8 +189,7 @@ export function ModalSuporte({
             <button
               type="submit"
               disabled={ocupado}
-              aria-disabled={vazio || undefined}
-              className="min-h-[40px] rounded-menuzia bg-status-ready px-4 text-[11px] font-semibold uppercase tracking-wide text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-60 lg:min-h-[36px]"
+              className={`min-h-[40px] rounded-menuzia bg-status-ready px-4 text-[11px] font-semibold uppercase tracking-wide text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-[36px] ${vazio ? 'opacity-60' : ''}`}
               data-testid="suporte-enviar"
             >
               Enviar para o WhatsApp
