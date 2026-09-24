@@ -16,7 +16,6 @@ import {
   HandPlatter,
   ClipboardList,
   Clock,
-  Truck,
   Banknote,
   PrinterCheck,
   Eye,
@@ -289,7 +288,7 @@ function StatCard({
 
 const IconCheck = <ClipboardList className="h-5 w-5" strokeWidth={2} />
 const IconClock = <Clock className="h-5 w-5" strokeWidth={2} />
-const IconTruck = <Truck className="h-5 w-5" strokeWidth={2} />
+const IconCapacete = <Capacete className="h-5 w-5" strokeWidth={2} />
 const IconMoney = <Banknote className="h-5 w-5" strokeWidth={2} />
 
 export default function PedidosPage() {
@@ -1004,7 +1003,7 @@ export default function PedidosPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard tint="orange" value={abertos} label="Pedidos abertos" icon={IconCheck} />
             <StatCard tint="blue" value={`${tempoMedioMin} min`} label="Tempo médio" icon={IconClock} />
-            <StatCard tint="indigo" value={emEntrega} label="Em entrega" icon={IconTruck} />
+            <StatCard tint="indigo" value={emEntrega} label="Em entrega" icon={IconCapacete} />
             <StatCard tint="green" value={brl(faturamentoTurno)} label="Faturamento do turno" icon={IconMoney} priceColor />
           </div>
         )}

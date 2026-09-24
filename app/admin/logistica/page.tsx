@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import QRCode from 'qrcode'
-import { Bike, Clock, Package, Truck, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { Bike, Clock, Package, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { Capacete } from '@/components/icones/capacete'
 import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { TopBar } from '@/components/layout/topbar'
 import { CartaoNumero, TONS_PAINEL, type TomPainel } from '@/components/admin/cartao-numero'
@@ -1520,9 +1521,9 @@ export default function LogisticaPage() {
             <div className={`min-h-0 flex-1 flex-col gap-4 overflow-y-auto ${colunaMobile === 'rota' ? 'flex' : 'hidden'} lg:flex`}>
             {comNexta.length === 0 && inRoute.length === 0 && (
               <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
-                <CabecalhoSecao icone={<Truck className="h-4 w-4" strokeWidth={2.2} />} tom="roxo" titulo="Em rota" contador={0} />
+                <CabecalhoSecao icone={<Capacete className="h-4 w-4" strokeWidth={2.2} />} tom="roxo" titulo="Em rota" contador={0} />
                 <Vazio
-                  icone={<Truck className="h-5 w-5" />}
+                  icone={<Capacete className="h-5 w-5" />}
                   titulo="Nenhum pedido em rota"
                   texto="Os pedidos que você despachar aparecem aqui até serem entregues."
                 />
@@ -1665,7 +1666,7 @@ export default function LogisticaPage() {
             <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
               <CabecalhoSecao
                 fixo
-                icone={<Truck className="h-4 w-4" strokeWidth={2.2} />}
+                icone={<Capacete className="h-4 w-4" strokeWidth={2.2} />}
                 tom="roxo"
                 titulo="Em rota"
                 contador={inRoute.length}
