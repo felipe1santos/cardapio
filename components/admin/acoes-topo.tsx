@@ -6,7 +6,8 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarStatusAgente } from '@/lib/queries/impressao'
 import { ICONES } from '@/lib/icones-painel'
-import { ROTULO_IMPRESSORA, estadoDaImpressora, linkDoSuporte, type EstadoImpressora } from '@/lib/suporte'
+import { ROTULO_IMPRESSORA, estadoDaImpressora, type EstadoImpressora } from '@/lib/suporte'
+import { ModalSuporte } from '@/components/admin/modal-suporte'
 
 /**
  * Ações fixas do canto superior direito do painel: estado da impressão, botão
@@ -22,7 +23,9 @@ export function AcoesTopo() {
   const router = useRouter()
   const [impressora, setImpressora] = useState<EstadoImpressora>('sem-agente')
   const [email, setEmail] = useState<string | null>(null)
-  const [nomeLoja, setNomeLoja] = useState<string | null>(null)
+  // Quem pede ajuda: loja, nome exibido e perfil, lidos quando o modal abre.
+  const [suporteAberto, setSuporteAberto] = useState(false)
+  const [quem, setQuem] = useState<{ loja: string | null; usuario: string | null; papel: string | null }>({ loja: null, usuario: null, papel: null })
   const [menuAberto, setMenuAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
 
@@ -49,14 +52,23 @@ export function AcoesTopo() {
     }
   }, [supabase])
 
-  useEffect(() => {
+  async function abrirSuporte() {
+    setSuporteAberto(true)
+    // Só colunas liberadas por grant (0062). Se falhar, a mensagem vai com "—".
     try {
-      const guardado = localStorage.getItem('menuzia:nome-loja')
-      if (guardado) setNomeLoja(guardado)
+      const { data } = await supabase.auth.getUser()
+      if (!data.user) return
+      const { data: u } = await supabase.from('usuarios').select('nome, papel, restaurante_id').eq('id', data.user.id).maybeSingle()
+      let loja: string | null = null
+      if (u?.restaurante_id) {
+        const { data: r } = await supabase.from('restaurantes').select('nome').eq('id', u.restaurante_id).maybeSingle()
+        loja = (r?.nome as string | undefined) ?? null
+      }
+      setQuem({ loja, usuario: (u?.nome as string | undefined) ?? null, papel: (u?.papel as string | undefined) ?? null })
     } catch {
-      /* armazenamento bloqueado: a mensagem do suporte vai sem o nome */
+      /* sem rede ou sem sessão: segue com o que tiver */
     }
-  }, [])
+  }
 
   useEffect(() => {
     if (!menuAberto) return
@@ -95,14 +107,13 @@ export function AcoesTopo() {
       </button>
 
       {/* Suporte: laranja, o mesmo destaque que a referência dá ao "Dúvidas?". */}
-      <a
-        href={linkDoSuporte(nomeLoja)}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        onClick={() => void abrirSuporte()}
+        aria-haspopup="dialog"
         aria-label="Dúvidas? Falar com o suporte"
         title="Dúvidas? Falar com o suporte"
-        // `toque-botao`: link com cara de botão ganha o piso de 40px no toque (globals.css).
-        className="toque-botao flex h-[36px] items-center gap-1.5 rounded-[4.8px] border-[0.8px] border-[#f3c38a] bg-[var(--adm-laranja-claro)] px-3 text-[12.8px] font-bold text-[var(--adm-laranja)] transition-colors hover:bg-[#ffedd5]"
+        className="flex h-[36px] items-center gap-1.5 rounded-[4.8px] border-[0.8px] border-[#f3c38a] bg-[var(--adm-laranja-claro)] px-3 text-[12.8px] font-bold text-[var(--adm-laranja)] transition-colors hover:bg-[#ffedd5]"
       >
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
           {ICONES.suporte.map((d) => (
@@ -110,7 +121,8 @@ export function AcoesTopo() {
           ))}
         </svg>
         <span className="hidden sm:inline">Dúvidas?</span>
-      </a>
+      </button>
+      <ModalSuporte aberto={suporteAberto} onFechar={() => setSuporteAberto(false)} loja={quem.loja} usuario={quem.usuario} papel={quem.papel} />
 
       {/* Conta. */}
       <div ref={caixa} className="relative">
