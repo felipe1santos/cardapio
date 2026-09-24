@@ -34,14 +34,16 @@ import { PainelChamados, useRelogio } from './chamados'
  */
 const TOM_ESTADO: Record<EstadoMesa, { bloco: string; texto: string; ponto: string }> = {
   livre: { bloco: 'bg-status-ready', texto: 'text-white', ponto: 'bg-status-ready' },
-  // Mesmo laranja do painel de mesas do PDV: mesa sentada esperando alguém anotar.
-  aguardando: { bloco: 'bg-status-pending', texto: 'text-white', ponto: 'bg-status-pending' },
+  // Azul claro: mesa aberta (com nome do cliente) esperando alguém anotar — ocupada.
+  aguardando: { bloco: 'bg-status-preparing', texto: 'text-white', ponto: 'bg-status-preparing' },
   ocupada: { bloco: 'bg-primary', texto: 'text-white', ponto: 'bg-primary' },
+  // Laranja: conta fechada, mesa esperando limpeza (0095). Não aceita atendimento.
+  limpeza: { bloco: 'bg-status-pending', texto: 'text-white', ponto: 'bg-status-pending' },
   bloqueada: { bloco: 'bg-sidebar-bg', texto: 'text-white', ponto: 'bg-sidebar-bg' },
   inativa: { bloco: 'bg-border', texto: 'text-text-subtle', ponto: 'bg-text-subtle' },
 }
 
-const ORDEM_FILTROS: (EstadoMesa | 'todas')[] = ['todas', 'livre', 'aguardando', 'ocupada', 'bloqueada', 'inativa']
+const ORDEM_FILTROS: (EstadoMesa | 'todas')[] = ['todas', 'livre', 'aguardando', 'ocupada', 'limpeza', 'bloqueada', 'inativa']
 
 interface MesaNaTela extends Mesa {
   estado: EstadoMesa
@@ -397,7 +399,7 @@ export default function MesasPage() {
               // Abrir a mesa é o que o garçom faz. Mesa inativa ou bloqueada não recebe
               // lançamento, então o bloco não vira atalho.
               const abre = mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || contaAberta)
-              const acao = !atende ? 'Ver conta' : contaAberta ? 'Toque p/ abrir' : 'Toque p/ lançar'
+              const acao = mesa.estado === 'limpeza' ? 'Toque p/ liberar' : !atende ? 'Ver conta' : contaAberta ? 'Toque p/ abrir' : 'Toque p/ lançar'
               const conteudo = (
                 <>
                   <div className="flex items-start justify-between gap-1">

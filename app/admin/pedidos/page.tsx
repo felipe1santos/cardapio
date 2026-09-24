@@ -1047,8 +1047,9 @@ export default function PedidosPage() {
                             )}
                             {/* Salão e balcão não são a mesma coisa: quem lê o card precisa
                                 saber se o prato vai para uma mesa ou para o balcão. */}
-                            {origemDoCard(order).tom === 'salao' && <Badge tone="ready">Salão</Badge>}
-                            {origemDoCard(order).tom === 'balcao' && <Badge tone="alert">PDV</Badge>}
+                            {origemDoCard(order).posto === 'Salão' && <Badge tone="ready">Salão</Badge>}
+                            {origemDoCard(order).posto === 'PDV' && <Badge tone="alert">PDV</Badge>}
+                            {origemDoCard(order).posto === 'Delivery' && <Badge tone="paused">Delivery</Badge>}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold tabular-nums ${timerTone(tempo.mins)}`}>{tempo.label}</span>
@@ -1060,6 +1061,10 @@ export default function PedidosPage() {
                           <div className="min-w-0 flex-[3]">
                             <div className="mb-1 flex items-center gap-1.5">
                               <span className="text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</span>
+                              {/* PDV identificado (0094): telefone discreto; endereço fica no detalhe. */}
+                              {order.origem === 'pdv' && order.clienteTelefone && (
+                                <span className="truncate text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
+                              )}
                               {!order.telefoneVerificado && order.origem !== 'pdv' && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">☎ não verif.</Badge>}
                             </div>
                             {order.tipo === 'entrega' && order.enderecoBairro && (
@@ -1084,7 +1089,7 @@ export default function PedidosPage() {
                           {/* Direita: boxes de pagamento ~25% (espaço acima para tags futuras) */}
                           <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1.5">
                             {/* slot para tags futuras (ex.: agendado, atrasado) */}
-                            <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle">
+                            <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle" title={origemDoCard(order).texto ?? undefined}>
                               {origemDoCard(order).texto ? (
                                 <span className="text-[11px] font-semibold normal-case tracking-normal text-text-subtle">
                                   {origemDoCard(order).texto}

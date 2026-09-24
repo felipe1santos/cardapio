@@ -19,6 +19,8 @@ import {
 import type { ContaPresencial, PedidoConta } from '@/lib/servicos/conta-presencial'
 import type { EventoHistorico } from '@/lib/queries/conta'
 import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde, novaChave, tempoCurto } from './util'
+import { FecharContaModal } from './fechar-conta'
+import { IdentificarModal } from './atendimento'
 
 /**
  * Conta presencial no PDV v2 — a mesma tela para mesa e balcão (spec 13.3), com
@@ -31,6 +33,9 @@ import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde,
  */
 
 type Permissoes = Record<AcaoConta | 'lancar' | 'cancelar_qualquer' | 'taxa' | 'pre_conta', boolean>
+
+/** Telefone guardado normalizado (55 + DDD + número) → máscara local para a tela. */
+const telefoneLocal = (t: string) => mascararTelefone(t.replace(/^55(?=\d{10,11}$)/, ''))
 
 interface Pendencias {
   pedidos: {
@@ -63,6 +68,8 @@ type Subtela =
   | { tipo: 'estorno'; pagamentoId: string }
   | { tipo: 'reabrir' }
   | { tipo: 'ajustar' }
+  | { tipo: 'fechar' }
+  | { tipo: 'identificar'; aviso?: string }
 
 const TOM_COZINHA: Record<string, 'pending' | 'preparing' | 'ready' | 'ok' | 'danger'> = {
   recebido: 'pending',
@@ -152,18 +159,15 @@ export function ContaPresencialModal({
     [comandaId, carregar, ocupado],
   )
 
+  // "Fechar conta" (0096): decisões da cozinha, pagamentos e fechamento numa tela só,
+  // numa transação só. Conta antiga de mesa sem nome pede o nome antes.
   async function fechar() {
-    const r = await agir({ acao: 'fechar' })
-    if (!r) return
-    if (r.ok) {
-      onEncerrada?.()
+    setAviso(null)
+    if (dados?.conta.semNome) {
+      setSub({ tipo: 'identificar', aviso: 'Esta conta foi aberta sem o nome do cliente. Informe o nome antes de fechar.' })
       return
     }
-    const pend = r.corpo?.pendencias as Pendencias | undefined
-    if (pend) {
-      setAviso(null)
-      setSub({ tipo: 'pendencias', dados: pend })
-    }
+    setSub({ tipo: 'fechar' })
   }
 
   async function abrirPendencias() {
@@ -179,8 +183,8 @@ export function ContaPresencialModal({
 
   const titulo = conta
     ? conta.tipo === 'balcao'
-      ? `Balcão · Senha ${conta.senha} · ${conta.clienteNome}`
-      : `${conta.mesaNome ?? 'Mesa'}${conta.numero ? ` · Comanda ${conta.numero}` : ''}`
+      ? `${conta.entrega ? 'Entrega' : 'Balcão'} · Senha ${conta.senha} · ${conta.clienteNome}`
+      : `${conta.mesaNome ?? 'Mesa'}${conta.numero ? ` · Comanda ${conta.numero}` : ''}${conta.clienteNome ? ` · ${conta.clienteNome}` : ''}`
     : 'Conta'
 
   return (
@@ -190,7 +194,7 @@ export function ContaPresencialModal({
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-              {conta?.tipo === 'balcao' ? 'Comanda de balcão' : 'Conta da mesa'}
+              {conta?.tipo === 'balcao' ? (conta.entrega ? 'PDV · Entrega manual' : 'Comanda de balcão') : 'Conta da mesa'}
               {conta && !aberta && <span className="ml-2 text-danger">· {conta.status === 'fechada' ? 'Fechada' : conta.status}</span>}
             </p>
             <h2 className="truncate text-[18px] font-bold text-text-main" data-testid="conta-titulo">{titulo}</h2>
@@ -198,12 +202,18 @@ export function ContaPresencialModal({
               <p className="text-[12px] text-text-subtle">
                 Aberta {horaCurta(conta.abertaEm)} ({tempoCurto(conta.abertaEm, agora)})
                 {conta.abertaPorNome ? ` por ${conta.abertaPorNome}` : conta.responsavelNome ? ` · Resp. ${conta.responsavelNome}` : ''}
-                {conta.clienteTelefone ? ` · ${mascararTelefone(conta.clienteTelefone)}` : ''}
+                {conta.clienteTelefone ? ` · ${telefoneLocal(conta.clienteTelefone)}` : ''}
+                {conta.clienteVinculado ? ' · cliente cadastrado' : ''}
                 {conta.reabertaEm ? ` · reaberta ${horaCurta(conta.reabertaEm)} por ${conta.reabertaPorNome}` : ''}
               </p>
             )}
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
+            {conta && aberta && pode?.identificar && (
+              <button type="button" onClick={() => setSub({ tipo: 'identificar' })} data-testid="conta-identificar" className="rounded-menuzia border border-border px-3 py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
+                Cliente
+              </button>
+            )}
             {conta && (
               <button type="button" onClick={() => setSub({ tipo: 'historico' })} className="rounded-menuzia border border-border px-3 py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
                 Histórico
@@ -239,6 +249,16 @@ export function ContaPresencialModal({
           >
             {aviso.texto}
           </p>
+        )}
+        {conta?.semNome && aberta && (
+          <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-menuzia bg-warn-bg px-3 py-2 text-[12px] font-semibold text-text-main" data-testid="conta-sem-nome">
+            <span className="flex-1">Conta aberta sem o nome do cliente. Informe o nome antes de lançar ou fechar.</span>
+            {pode?.identificar && (
+              <button type="button" onClick={() => setSub({ tipo: 'identificar' })} className="rounded-menuzia bg-white px-2.5 py-1.5 text-[11px] font-bold text-text-main">
+                Informar nome
+              </button>
+            )}
+          </div>
         )}
         {erro && !conta && <p className="m-4 rounded-menuzia bg-danger-bg px-3 py-2 text-[13px] text-danger">{erro}</p>}
         {!conta && !erro && <p className="p-8 text-center text-[13px] text-text-subtle">Carregando…</p>}
@@ -290,7 +310,8 @@ export function ContaPresencialModal({
               <div className="rounded-menuzia border border-border bg-white px-3 py-3 text-[13px]" data-testid="conta-totais">
                 <Linha rotulo="Subtotal" valor={conta.totais.subtotal} />
                 {(conta.totais.taxaServico > 0 || conta.tipo === 'mesa') && <Linha rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={conta.totais.taxaServico} />}
-                {conta.totais.desconto > 0 && <Linha rotulo="Desconto" valor={-conta.totais.desconto} />}
+                {conta.entrega && <Linha rotulo={`Taxa de entrega${conta.entrega.taxaManual ? ' (manual)' : ''}`} valor={conta.entrega.taxa} />}
+                {conta.totais.desconto > 0 && <Linha rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={-conta.totais.desconto} />}
                 <div className="my-1.5 border-t border-border" />
                 <Linha rotulo="Total" valor={conta.totais.total} forte />
                 <Linha rotulo="Pago" valor={conta.totais.pago} />
@@ -301,6 +322,25 @@ export function ContaPresencialModal({
                   </span>
                 </div>
               </div>
+
+              {conta.entrega && (
+                <div className="rounded-menuzia border border-border bg-white px-3 py-2 text-[12px]" data-testid="conta-entrega">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Entrega</p>
+                  <p className="mt-1 text-text-main">
+                    {conta.entrega.rua}, {conta.entrega.numero}
+                    {conta.entrega.complemento ? ` · ${conta.entrega.complemento}` : ''}
+                  </p>
+                  <p className="text-text-subtle">
+                    {conta.entrega.bairro}
+                    {conta.entrega.cidade ? ` · ${conta.entrega.cidade}` : ''}
+                    {conta.entrega.cep ? ` · CEP ${conta.entrega.cep}` : ''}
+                  </p>
+                  {conta.entrega.referencia && <p className="text-text-subtle">Ref.: {conta.entrega.referencia}</p>}
+                  {conta.entrega.observacao && <p className="text-text-subtle">Obs.: {conta.entrega.observacao}</p>}
+                </div>
+              )}
+
+              {aberta && pode.aplicar_cupom && <CupomBloco conta={conta} ocupado={ocupado} onAgir={agir} />}
 
               {conta.pagamentos.length > 0 && (
                 <div className="rounded-menuzia border border-border bg-white px-3 py-2">
@@ -331,7 +371,7 @@ export function ContaPresencialModal({
                       + Lançar itens
                     </button>
                   )}
-                  {pode.pre_conta && <PreContaBloco comandaId={conta.id} />}
+                  {pode.pre_conta && !conta.entrega && <PreContaBloco comandaId={conta.id} />}
                   {pode.pagamento && conta.totais.restante > 0 && (
                     <button type="button" disabled={ocupado} onClick={() => setSub({ tipo: 'receber' })} data-testid="conta-receber" className="w-full rounded-menuzia bg-primary py-3.5 text-[14px] font-bold text-white transition-all hover:bg-primary-dark disabled:opacity-50">
                       Receber
@@ -358,7 +398,7 @@ export function ContaPresencialModal({
                   <p className="rounded-menuzia bg-white px-3 py-2 text-[12px] text-text-subtle">
                     {conta.status === 'fechada' ? `Fechada ${horaCurta(conta.fechadaEm)} por ${conta.fechadaPorNome ?? '—'}.` : 'Conta encerrada.'}
                   </p>
-                  {conta.status === 'fechada' && pode.pre_conta && <PreContaBloco comandaId={conta.id} />}
+                  {conta.status === 'fechada' && pode.pre_conta && !conta.entrega && <PreContaBloco comandaId={conta.id} />}
                   {conta.status === 'fechada' && pode.reabrir && (
                     <button type="button" onClick={() => setSub({ tipo: 'reabrir' })} data-testid="conta-reabrir" className="w-full rounded-menuzia border-2 border-warn bg-white py-3 text-[13px] font-bold text-warn hover:bg-warn hover:text-white">
                       Reabrir conta
@@ -383,6 +423,38 @@ export function ContaPresencialModal({
             setSub(null)
             if (fecharDepois) await fechar()
             return true
+          }}
+        />
+      )}
+      {conta && dados && sub?.tipo === 'fechar' && (
+        <FecharContaModal
+          conta={conta}
+          formas={dados.formasPagamento}
+          podeForcar={Boolean(pode?.resolver)}
+          podePagar={Boolean(pode?.pagamento)}
+          onVoltar={() => {
+            setSub(null)
+            void carregar()
+          }}
+          onFechada={(emLimpeza) => {
+            setSub(null)
+            setAviso({ tom: 'ok', texto: emLimpeza ? 'Conta fechada. Mesa em limpeza.' : 'Conta fechada.' })
+            onEncerrada?.()
+          }}
+        />
+      )}
+      {conta && sub?.tipo === 'identificar' && (
+        <IdentificarModal
+          comandaId={conta.id}
+          titulo="Cliente do atendimento"
+          aviso={sub.aviso}
+          nomeAtual={conta.clienteNome}
+          telefoneAtual={conta.clienteTelefone}
+          onFechar={() => setSub(null)}
+          onSalvo={(nome) => {
+            setSub(null)
+            setAviso({ tom: 'ok', texto: `Cliente: ${nome}.` })
+            void carregar()
           }}
         />
       )}
@@ -1195,5 +1267,48 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
         </p>
       )}
     </div>
+  )
+}
+
+/** Cupom da conta: mesmas regras do delivery, uso contado no fechamento. */
+function CupomBloco({ conta, ocupado, onAgir }: {
+  conta: ContaPresencial
+  ocupado: boolean
+  onAgir: (corpo: Record<string, unknown>, sucesso?: string) => Promise<unknown>
+}) {
+  const [codigo, setCodigo] = useState('')
+  if (conta.cupomCodigo) {
+    return (
+      <div className="flex items-center justify-between rounded-menuzia border border-border bg-white px-3 py-2 text-[12px]" data-testid="conta-cupom">
+        <span className="text-text-main">
+          Cupom <strong>{conta.cupomCodigo}</strong>
+        </span>
+        <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'remover_cupom' }, 'Cupom removido.')} className="text-[11px] font-semibold text-danger hover:underline disabled:opacity-50">
+          Remover
+        </button>
+      </div>
+    )
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!codigo.trim()) return
+        void onAgir({ acao: 'aplicar_cupom', codigo }, 'Cupom aplicado.').then(() => setCodigo(''))
+      }}
+      className="flex gap-2"
+    >
+      <input
+        value={codigo}
+        onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+        placeholder={conta.clienteTelefone ? 'Cupom' : 'Cupom (exige telefone)'}
+        maxLength={40}
+        data-testid="conta-cupom-codigo"
+        className="min-w-0 flex-1 rounded-menuzia border border-border bg-white px-3 py-2 text-[12px] uppercase focus:border-primary focus:outline-none"
+      />
+      <button type="submit" disabled={ocupado || !codigo.trim()} data-testid="conta-cupom-aplicar" className="rounded-menuzia border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary disabled:opacity-50">
+        Aplicar
+      </button>
+    </form>
   )
 }

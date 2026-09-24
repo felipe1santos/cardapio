@@ -24,6 +24,8 @@ export interface ComandaAberta {
   id: string
   senha: number
   nome: string
+  /** Aberto com dados de entrega (entrega manual). */
+  entrega?: boolean
 }
 
 export function CentralBalcao({
@@ -213,7 +215,10 @@ export function CentralBalcao({
                     >
                       <span className="text-[20px] font-extrabold leading-none text-text-main">{l.senha}</span>
                       <span className="min-w-0">
-                        <span className="block truncate text-[14px] font-semibold text-text-main">{l.nome}</span>
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-[14px] font-semibold text-text-main">{l.nome}</span>
+                          {l.entrega && <Badge tone="alert">Entrega</Badge>}
+                        </span>
                         {l.telefone && <span className="block text-[11px] text-text-subtle">{telefoneParcial(l.telefone)}</span>}
                         <span className="mt-0.5 block text-[11px] text-text-subtle lg:hidden">
                           {dim.texto.cozinha} · {dim.texto.atendimento}
@@ -245,13 +250,31 @@ export function CentralBalcao({
   )
 }
 
+const CAMPO =
+  'w-full rounded-menuzia border border-border px-3 py-2.5 text-[15px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
+const ROTULO = 'mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle'
+
+const ENTREGA_VAZIA = { cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', referencia: '', observacao: '', taxa: '' }
+
+/**
+ * Card preto: venda rápida, pedido avulso, pedido por telefone e — abrindo "Adicionar
+ * dados de entrega" — entrega manual. Um formulário só; nome sempre obrigatório.
+ */
 function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; onAberta: (c: ComandaAberta) => void }) {
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
+  const [comEntrega, setComEntrega] = useState(false)
+  const [entrega, setEntrega] = useState(ENTREGA_VAZIA)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   // Uma chave por intenção de abrir: clique duplo e reenvio devolvem a mesma comanda.
   const chave = useRef(novaChave())
+  const campo = (k: keyof typeof ENTREGA_VAZIA) => ({
+    value: entrega[k],
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setEntrega((x) => ({ ...x, [k]: e.target.value })),
+    'data-testid': `entrega-${k}`,
+    className: CAMPO,
+  })
 
   async function abrir(e: React.FormEvent) {
     e.preventDefault()
@@ -260,60 +283,138 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
       setErro('Informe o nome do cliente.')
       return
     }
+    if (comEntrega && (!entrega.rua.trim() || !entrega.numero.trim() || !entrega.bairro.trim())) {
+      setErro('Para entrega, informe rua, número e bairro.')
+      return
+    }
+    if (comEntrega && !telefone.trim()) {
+      setErro('Para entrega, informe o telefone do cliente.')
+      return
+    }
     setEnviando(true)
     setErro(null)
     const r = await chamar<{ id: string; senha: number }>('/api/admin/balcao/comandas', {
       method: 'POST',
-      body: JSON.stringify({ nome, telefone: telefone || undefined, chave: chave.current }),
+      body: JSON.stringify({
+        nome,
+        telefone: telefone || undefined,
+        chave: chave.current,
+        entrega: comEntrega ? { ...entrega, taxa: entrega.taxa.trim() === '' ? null : entrega.taxa } : undefined,
+      }),
     })
     setEnviando(false)
     if (!r.ok || !r.dados) {
       setErro(r.erro)
       return
     }
-    onAberta({ id: r.dados.id, senha: r.dados.senha, nome: nome.trim() })
+    onAberta({ id: r.dados.id, senha: r.dados.senha, nome: nome.trim(), entrega: comEntrega })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Novo pedido de balcão">
-      <form onSubmit={abrir} className="w-full max-w-md overflow-hidden rounded-menuzia bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Novo atendimento de balcão">
+      <form onSubmit={abrir} noValidate className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-[15px] font-bold text-text-main">Novo pedido de balcão</h2>
+          <h2 className="text-[15px] font-bold text-text-main">Novo atendimento de balcão</h2>
           <button type="button" onClick={onCancelar} className="rounded p-1 text-text-subtle hover:bg-page hover:text-text-main" aria-label="Fechar">
             <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
             </svg>
           </button>
         </div>
-        <div className="space-y-3 px-4 py-4">
+        <div className="space-y-3 overflow-y-auto px-4 py-4">
           <label className="block">
-            <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+            <span className={ROTULO}>
               Nome do cliente <span className="text-danger">*</span>
             </span>
-            <input
-              autoFocus
-              value={nome}
-              maxLength={60}
-              onChange={(e) => setNome(e.target.value)}
-              data-testid="balcao-nome"
-              className="w-full rounded-menuzia border border-border px-3 py-2.5 text-[15px] text-text-main focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+            <input autoFocus value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)} data-testid="balcao-nome" className={CAMPO} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Telefone (opcional)</span>
+            <span className={ROTULO}>Telefone {comEntrega ? <span className="text-danger">*</span> : '(opcional)'}</span>
             <input
               value={telefone}
               inputMode="tel"
               onChange={(e) => setTelefone(mascararTelefone(e.target.value))}
               placeholder="(27) 99999-8888"
               data-testid="balcao-telefone"
-              className="w-full rounded-menuzia border border-border px-3 py-2.5 text-[15px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className={CAMPO}
             />
           </label>
           <p className="text-[12px] text-text-subtle">
-            Não cria cadastro de cliente: nome e telefone ficam só neste atendimento. A senha é gerada ao abrir.
+            Com telefone, o atendimento entra no histórico do cliente (cadastro desta loja). Sem telefone, o nome fica só neste atendimento.
           </p>
-          {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
+
+          <button
+            type="button"
+            onClick={() => setComEntrega((v) => !v)}
+            aria-expanded={comEntrega}
+            data-testid="balcao-entrega-toggle"
+            className="flex w-full items-center justify-between rounded-menuzia border border-border px-3 py-2.5 text-left text-[13px] font-semibold text-text-main hover:bg-page"
+          >
+            <span>{comEntrega ? 'Dados de entrega' : 'Adicionar dados de entrega'}</span>
+            <span className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">{comEntrega ? 'Remover' : 'Opcional'}</span>
+          </button>
+
+          {comEntrega && (
+            <div className="space-y-3 rounded-menuzia border border-border bg-page/40 p-3" data-testid="balcao-entrega">
+              <div className="grid grid-cols-3 gap-2">
+                <label className="col-span-1 block">
+                  <span className={ROTULO}>CEP</span>
+                  <input inputMode="numeric" placeholder="29000-000" {...campo('cep')} />
+                </label>
+                <label className="col-span-2 block">
+                  <span className={ROTULO}>
+                    Bairro <span className="text-danger">*</span>
+                  </span>
+                  <input {...campo('bairro')} />
+                </label>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="col-span-2 block">
+                  <span className={ROTULO}>
+                    Rua <span className="text-danger">*</span>
+                  </span>
+                  <input {...campo('rua')} />
+                </label>
+                <label className="col-span-1 block">
+                  <span className={ROTULO}>
+                    Número <span className="text-danger">*</span>
+                  </span>
+                  <input {...campo('numero')} />
+                </label>
+              </div>
+              <label className="block">
+                <span className={ROTULO}>Complemento</span>
+                <input {...campo('complemento')} />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className={ROTULO}>Cidade</span>
+                  <input {...campo('cidade')} />
+                </label>
+                <label className="block">
+                  <span className={ROTULO}>Taxa de entrega</span>
+                  <input inputMode="decimal" placeholder="Tabela da loja" {...campo('taxa')} />
+                </label>
+              </div>
+              <label className="block">
+                <span className={ROTULO}>Ponto de referência</span>
+                <input {...campo('referencia')} />
+              </label>
+              <label className="block">
+                <span className={ROTULO}>Observação da entrega</span>
+                <input {...campo('observacao')} />
+              </label>
+              <p className="text-[12px] text-text-subtle">
+                Taxa vazia usa a tabela de frete da loja. O pedido vai para a cozinha e, pronto, para a logística.
+              </p>
+            </div>
+          )}
+
+          {erro && (
+            <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger" data-testid="balcao-erro">
+              {erro}
+            </p>
+          )}
         </div>
         <div className="flex gap-2 border-t border-border px-4 py-3">
           <button type="button" onClick={onCancelar} className="flex-1 rounded-menuzia border border-border py-3 text-[13px] font-semibold text-text-subtle hover:text-text-main">

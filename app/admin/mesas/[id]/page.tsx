@@ -38,6 +38,7 @@ import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { PainelChamados, useRelogio } from '../chamados'
 import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaOpcao } from './conta'
 import { CardProduto, ConfiguradorGarcom, PainelLancamento, SelecaoDoCliente, SemItens, brl, type DadosPizza } from './lancar'
+import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 
 /**
  * Painel do garçom para uma mesa.
@@ -131,6 +132,11 @@ export default function MesaDetalhePage() {
   // Chave do lançamento em montagem. Gerada uma vez e trocada só depois de um envio que
   // deu certo: clique duplo e reenvio carregam a MESMA chave e não duplicam o pedido.
   const [chaveLancamento, setChaveLancamento] = useState<string>(() => crypto.randomUUID())
+  // PDV v2 (0094/0095): mesa livre abre com o nome do cliente; conta antiga sem nome pede
+  // o nome; mesa em limpeza mostra quem estava e o botão de liberar.
+  const [abrindoMesa, setAbrindoMesa] = useState(false)
+  const [identificandoComanda, setIdentificandoComanda] = useState<string | null>(null)
+  const [vendoLimpeza, setVendoLimpeza] = useState(false)
 
   const carregar = useCallback(async () => {
     const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
@@ -415,6 +421,14 @@ export default function MesaDetalhePage() {
         }),
       })
       const corpo = await res.json()
+      if (!res.ok && corpo.codigo === 'mesa_sem_atendimento') {
+        setAbrindoMesa(true)
+        return
+      }
+      if (!res.ok && corpo.codigo === 'comanda_sem_nome' && corpo.comandaId) {
+        setIdentificandoComanda(corpo.comandaId as string)
+        return
+      }
       if (!res.ok) {
         // Item que saiu do cardápio entre o cliente marcar e o garçom lançar: o servidor
         // diz QUAIS linhas travaram. A tela marca essas e não mexe no resto do
@@ -553,6 +567,57 @@ export default function MesaDetalhePage() {
           </p>
         )}
 
+        {abrindoMesa && (
+          <AbrirMesaModal
+            mesa={mesa}
+            onFechar={() => setAbrindoMesa(false)}
+            onAberta={() => {
+              setAbrindoMesa(false)
+              void estadoConta.recarregar().then(() => enviarParaCozinha())
+            }}
+            onOcupada={() => {
+              setAbrindoMesa(false)
+              void estadoConta.recarregar()
+              setErro('Outro atendente acabou de abrir esta mesa. Confira a conta e envie de novo.')
+            }}
+          />
+        )}
+        {identificandoComanda && (
+          <IdentificarModal
+            comandaId={identificandoComanda}
+            titulo="Nome do cliente"
+            aviso="Esta conta foi aberta sem o nome do cliente. Informe o nome para lançar."
+            nomeAtual={null}
+            telefoneAtual={null}
+            onFechar={() => setIdentificandoComanda(null)}
+            onSalvo={() => {
+              setIdentificandoComanda(null)
+              void enviarParaCozinha()
+            }}
+          />
+        )}
+        {vendoLimpeza && mesa.limpeza && (
+          <LimpezaModal
+            mesa={mesa}
+            podeLiberar
+            onFechar={() => setVendoLimpeza(false)}
+            onLiberada={() => {
+              setVendoLimpeza(false)
+              void carregar()
+            }}
+          />
+        )}
+        {mesa.limpeza && !estadoConta.dados?.conta && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-menuzia border border-status-pending/40 bg-white px-4 py-3 text-[13px] text-text-main" data-mesa-limpeza>
+            <span className="flex-1">
+              Conta fechada{mesa.limpeza.clienteNome ? ` (${mesa.limpeza.clienteNome})` : ''}. Mesa em limpeza: não abre atendimento até ser liberada.
+            </span>
+            <Button variant="success" onClick={() => setVendoLimpeza(true)} data-testid="mesa-ver-limpeza">
+              Liberar mesa
+            </Button>
+          </div>
+        )}
+
         {/* ── Resumo da mesa: o estado de relance, na cor do salão ─────────── */}
         {(() => {
           const conta = estadoConta.dados?.conta ?? null
@@ -562,7 +627,7 @@ export default function MesaDetalhePage() {
             aberta: !!conta,
             qtdPedidos: conta?.lancamentos?.length ?? 0,
           })
-          const cor = { livre: 'bg-status-ready', aguardando: 'bg-status-pending', ocupada: 'bg-primary', bloqueada: 'bg-sidebar-bg', inativa: 'bg-border' }[estado]
+          const cor = { livre: 'bg-status-ready', aguardando: 'bg-status-preparing', ocupada: 'bg-primary', limpeza: 'bg-status-pending', bloqueada: 'bg-sidebar-bg', inativa: 'bg-border' }[estado]
           const estadoTexto = ROTULO_ESTADO[estado]
           return (
             <div className={`mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-menuzia px-4 py-3 text-white shadow-sm sm:mb-4 ${cor}`} data-resumo-mesa>

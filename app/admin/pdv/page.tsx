@@ -29,6 +29,7 @@ import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza 
 import { Button } from '@/components/ui/button'
 import { CentralBalcao } from '@/components/pdv/central-balcao'
 import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
+import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -114,8 +115,9 @@ function tempoDecorrido(iso: string): string {
 /** Cor do bloco por estado — as mesmas do mapa do salão, para as telas combinarem. */
 const COR_ESTADO_MESA: Record<EstadoMesa, string> = {
   livre: 'bg-status-ready',
-  aguardando: 'bg-status-pending',
+  aguardando: 'bg-status-preparing',
   ocupada: 'bg-primary',
+  limpeza: 'bg-status-pending',
   bloqueada: 'bg-sidebar-bg',
   inativa: 'bg-border',
 }
@@ -805,6 +807,10 @@ export default function PdvPage() {
   const [contaAberta, setContaAberta] = useState<string | null>(null)
   /** Onde o lançamento v2 cai: comanda existente (balcão/mesa) ou mesa livre. */
   const [alvoV2, setAlvoV2] = useState<{ comandaId?: string; mesaId?: string; rotulo: string } | null>(null)
+  // Identificação do atendimento (0094) e limpeza (0095).
+  const [abrindoMesa, setAbrindoMesa] = useState<MesaComEstado | null>(null)
+  const [mesaLimpeza, setMesaLimpeza] = useState<MesaComEstado | null>(null)
+  const [identificando, setIdentificando] = useState<{ comandaId: string; titulo: string; aviso?: string } | null>(null)
   // Chave do lançamento: nasce quando a montagem começa e só troca depois de um envio
   // que deu certo — reenvio (rede caiu, clique duplo) devolve o mesmo pedido.
   const chaveLancamento = useRef(novaChave())
@@ -964,14 +970,20 @@ export default function PdvPage() {
   // direto cadastrar um novo pedido.
   function clicarMesa(mesa: MesaComEstado) {
     if (pdvV2) {
-      // v2: mesa ocupada abre a conta (pagamento real, pendências); livre vai lançar.
+      // v2: mesa ocupada abre a conta (pagamento real, pendências); em limpeza mostra quem
+      // estava e o botão de liberar; livre pede o nome do cliente antes de lançar.
       if (mesa.comandaAberta) {
         setMesaSelecionada(mesa)
         setContaAberta(mesa.comandaAberta.id)
-      } else {
-        selecionarMesa(mesa)
-        setAlvoV2({ mesaId: mesa.id, rotulo: mesa.nome })
+        return
       }
+      const estado = mesaEstadoVisual(mesa)
+      if (estado === 'limpeza') return setMesaLimpeza(mesa)
+      if (estado === 'bloqueada' || estado === 'inativa') {
+        setLaunchMsg({ type: 'err', text: `${mesa.nome} está ${estado === 'bloqueada' ? 'bloqueada' : 'desativada'}.` })
+        return
+      }
+      setAbrindoMesa(mesa)
       return
     }
     if (mesa.comandaAberta) {
@@ -1156,6 +1168,10 @@ export default function PdvPage() {
     })
     setLaunching(false)
     if (!r.ok || !r.dados) {
+      // Conta antiga de mesa aberta sem nome: pede o nome e o operador reenvia.
+      if (r.codigo === 'comanda_sem_nome' && alvoV2.comandaId) {
+        setIdentificando({ comandaId: alvoV2.comandaId, titulo: 'Nome do cliente', aviso: 'Esta conta foi aberta sem o nome do cliente. Informe o nome para lançar.' })
+      }
       setLaunchMsg({ type: 'err', text: r.erro ?? 'Erro ao lançar pedido.' })
       return
     }
@@ -1506,6 +1522,52 @@ export default function PdvPage() {
         )
       })()}
 
+      {pdvV2 && abrindoMesa && (
+        <AbrirMesaModal
+          mesa={abrindoMesa}
+          onFechar={() => setAbrindoMesa(null)}
+          onAberta={(comandaId, nome) => {
+            const m = abrindoMesa
+            setAbrindoMesa(null)
+            selecionarMesa(m)
+            chaveLancamento.current = novaChave()
+            setAlvoV2({ comandaId, mesaId: m.id, rotulo: `${m.nome} · ${nome}` })
+            void recarregarMesas()
+          }}
+          onOcupada={(comandaId) => {
+            setAbrindoMesa(null)
+            void recarregarMesas()
+            if (comandaId) setContaAberta(comandaId)
+          }}
+        />
+      )}
+      {pdvV2 && mesaLimpeza && (
+        <LimpezaModal
+          mesa={mesaLimpeza}
+          podeLiberar
+          onFechar={() => setMesaLimpeza(null)}
+          onLiberada={() => {
+            setMesaLimpeza(null)
+            void recarregarMesas()
+          }}
+        />
+      )}
+      {pdvV2 && identificando && (
+        <IdentificarModal
+          comandaId={identificando.comandaId}
+          titulo={identificando.titulo}
+          aviso={identificando.aviso}
+          nomeAtual={null}
+          telefoneAtual={null}
+          onFechar={() => setIdentificando(null)}
+          onSalvo={(nome) => {
+            setIdentificando(null)
+            setLaunchMsg({ type: 'ok', text: `Nome registrado: ${nome}. Envie o pedido de novo.` })
+            setAlvoV2((a) => (a ? { ...a, rotulo: `${a.rotulo.split(' · ')[0]} · ${nome}` } : a))
+          }}
+        />
+      )}
+
       {/* PDV v2: conta presencial (mesa ou balcão) */}
       {pdvV2 && contaAberta && (
         <ContaPresencialModal
@@ -1522,7 +1584,9 @@ export default function PdvPage() {
             chaveLancamento.current = novaChave()
             setAlvoV2({
               comandaId: c.id,
-              rotulo: c.tipo === 'balcao' ? `Balcão · Senha ${c.senha} · ${c.clienteNome}` : (c.mesaNome ?? 'Mesa'),
+              rotulo: c.tipo === 'balcao'
+                ? `${c.entrega ? 'Entrega' : 'Balcão'} · Senha ${c.senha} · ${c.clienteNome}`
+                : `${c.mesaNome ?? 'Mesa'}${c.clienteNome ? ` · ${c.clienteNome}` : ''}`,
             })
             setMesaEscolhida(true)
             setPainelMesas(false)
@@ -1580,7 +1644,7 @@ export default function PdvPage() {
             onAbrirConta={(id) => setContaAberta(id)}
             onNovaComanda={(c) => {
               chaveLancamento.current = novaChave()
-              setAlvoV2({ comandaId: c.id, rotulo: `Balcão · Senha ${c.senha} · ${c.nome}` })
+              setAlvoV2({ comandaId: c.id, rotulo: `${c.entrega ? 'Entrega' : 'Balcão'} · Senha ${c.senha} · ${c.nome}` })
               setMesaSelecionada(null)
               setMesaEscolhida(true)
               setComanda([])
@@ -1595,7 +1659,7 @@ export default function PdvPage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-[18px] font-bold text-text-main">Mesas</h1>
               <div className="flex flex-wrap items-center gap-4">
-                {(['livre', 'aguardando', 'ocupada'] as const).map((estado) => (
+                {(['livre', 'aguardando', 'ocupada', 'limpeza'] as const).map((estado) => (
                   <span key={estado} className="flex items-center gap-1.5" title={AJUDA_ESTADO[estado]}>
                     <span className={['h-3 w-3 rounded-full', COR_ESTADO_MESA[estado]].join(' ')} />
                     <span className="text-[11px] font-semibold text-text-subtle">{ROTULO_ESTADO[estado]}</span>
@@ -1630,6 +1694,8 @@ export default function PdvPage() {
                     key={mesa.id}
                     type="button"
                     onClick={() => clicarMesa(mesa)}
+                    data-testid={`mesa-${mesa.nome}`}
+                    data-estado={estado}
                     className={[
                       'flex aspect-square flex-col justify-between rounded-menuzia p-3 text-left text-white shadow-sm transition-all hover:brightness-105 active:scale-[0.97]',
                       cor,
@@ -1645,10 +1711,15 @@ export default function PdvPage() {
                     </div>
                     <div>
                       <span className="block text-[24px] font-extrabold leading-none">{mesa.nome}</span>
+                      {mesa.comandaAberta?.clienteNome && (
+                        <span className="mt-1 block truncate text-[12px] font-semibold text-white/90">{mesa.comandaAberta.clienteNome}</span>
+                      )}
                       {mesa.comandaAberta ? (
                         <span className="mt-1.5 block text-[13px] font-bold text-white/95">
                           {formatBRL(mesa.total)} · {mesa.qtdPedidos} ped
                         </span>
+                      ) : estado === 'limpeza' ? (
+                        <span className="mt-1.5 block text-[11px] text-white/85">Toque p/ liberar</span>
                       ) : (
                         <span className="mt-1.5 block text-[11px] text-white/75">Toque p/ abrir</span>
                       )}
