@@ -431,3 +431,78 @@ chamam funções novas.
 - Dashboard ainda não separa faturamento por canal (`pedidos.origem/canal` já gravados).
 - Entrega manual paga na entrega: o entregador vê o pedido na logística como hoje; o
   pagamento é registrado na conta (pelo caixa) ao voltar.
+
+## 10. Publicação de 2026-09-24 (registro)
+
+| Etapa | O quê | Commit / deploy | Horário (UTC) |
+|---|---|---|---|
+| 1 | Código intermediário: main + Etapa 0 (token do Assistente só pelo servidor, vitrine anônima) | `529ff13` · Coolify `dsscsk4w8osgg4cs8g4gsk0k` | 17:42–17:48 |
+| 2 | Migrations 0080 → 0097, uma transação por arquivo (`scripts/seguranca/aplicar-pdv-cardapio-producao.mjs`) | — | 17:50:09–17:50:13 |
+| 3 | Código integrado (PDV v2 + impressão + cardápio/tamanhos), branch `integracao/pdv-v2-cardapio` | `7343178` · Coolify `ls8c00gwgowoggw880wskws0` | 17:51–17:55 |
+| Flag | `pdv_v2 = true` só na loja `menuzia` | — | 17:57:46 |
+
+Antes: preflights só leitura (`preflight-tamanhos.mjs --producao`, `preflight-pdv-v2-impressao.mjs --producao`)
+sem bloqueio; `verificar-migrations.mjs` com `ULTIMA_EM_PRODUCAO=0079` 61/61. A 0083 foi corrigida
+antes de ir: aborta com número de pedido repetido em vez de seguir sem o índice.
+Depois: schema de produção igual ao local (colunas, índices, constraints e triggers), cardápio
+idêntico ao baseline (md5), Assistente 0.1.23 imprimindo pelo token, `impressao_cozinha_por_funcao`
+desligado em todas, Assistente 0.1.26 não publicado. Rollback: `docs/rollback/0080…0097` (voltar o
+código antes do SQL).
+
+## 11. Balcão: Retirada ou Entrega (RC local, NÃO publicado)
+
+### O que muda
+
+- O card preto exige escolher **RETIRADA** ou **ENTREGA** antes de qualquer campo. Nome sempre
+  obrigatório; telefone sempre opcional (histórico, fidelidade e cupom só com telefone).
+- **Retirada:** sem endereço (o que vier é descartado no servidor), sem frete, não entra na
+  Logística; pronto → "Entregue" no Kanban, como sempre.
+- **Entrega:** CEP, rua, número, bairro, cidade e UF obrigatórios; complemento, referência e taxa
+  opcionais. O CEP busca o endereço (ViaCEP, a mesma fonte do checkout); sem taxa digitada, vale
+  a tabela de frete da loja (taxa digitada fica marcada como manual). A UF vai junto da cidade no
+  pedido ("Vitória/ES"), porque o endereço do delivery não tem coluna de estado — o formato do
+  pedido não muda.
+- Origem (PDV), canal (balcão), tipo e taxa final são decididos no servidor
+  (`sanearAberturaBalcao` + `abrirBalcao`). Chamada antiga sem `modalidade` é lida pelo que veio.
+- Mesa não tem essa escolha.
+
+### Regra da Logística (0098)
+
+Quando um pedido **canal balcão + tipo entrega** fica **pronto**, um gatilho no banco decide
+(vale para Kanban, cozinha por token e rotas):
+
+| Configuração da loja (já existente) | Destino |
+|---|---|
+| `usa_logistica = true` e `entrega_sem_entregador = false` | fica em "pronto" → módulo Logística despacha |
+| `usa_logistica = false` | concluído na hora (`entregue`, atendimento `concluido`) |
+| `entrega_sem_entregador = true` | concluído na hora |
+
+Nenhuma flag nova. Cada decisão vai para `eventos_auditoria` (`acao = 'pedido.entrega_balcao_destino'`,
+`dados.caminho = 'logistica' | 'conclusao_automatica'`, `dados.motivo`). Delivery, mesa e retirada
+não mudam. O carimbo de "pronto" é mantido para o tempo de cozinha.
+
+### Kanban e Detalhes
+
+- Card: sem forma de pagamento e sem "telefone não verificado" (ambos nos Detalhes); relógio no
+  cronômetro; RETIRADA / ENTREGA (capacete) / MESA em destaque; preço numa linha; nome longo trunca.
+- Pronto p/ despacho: "NA LOGÍSTICA" com capacete só com a Logística ligada; Detalhes mais estreito;
+  nenhum botão quebra linha.
+- Detalhes: origem (PDV, CARDÁPIO, SALÃO), atendimento e mesa no canto superior direito.
+- Capacete de motoboy no lugar do caminhão no menu (Material) e nas telas de Logística (padrão lucide).
+
+### Opções do item conferidas no servidor em todo canal
+
+O pedido da vitrine e do PDV antigo não conferiam grupo obrigatório, mínimo, máximo nem adicional
+pausado (só o salão e o PDV v2 conferiam). Agora `criarPedido` aplica a mesma regra
+(`lib/opcoes-item`) e recusa opção pausada.
+
+### Ordem de deploy (quando autorizado)
+
+A 0098 e o código são independentes: código antigo + 0098 só passa a concluir/rotear a entrega do
+balcão; código novo sem a 0098 deixa a entrega pronta em "pronto" (comportamento de hoje).
+Recomendado: 0098 → código. Rollback: `docs/rollback/0098_balcao_entrega_destino.down.sql`.
+
+### Testes (local)
+
+`verificar-balcao-entrega-banco.mjs` (12), `e2e-balcao-entrega.mjs` (30), `e2e-responsivo-kanban.mjs`
+(6 telas, 24), `e2e-cadastro-matriz.mjs` (45) e os anteriores (ver relatório da RC).
