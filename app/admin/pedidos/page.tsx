@@ -33,7 +33,7 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
-import { etiquetasDoPedido, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
+import { etiquetasDoPedido, referenciaDoLancamento, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
 import { EtiquetaAtendimento, EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
 import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
@@ -1064,51 +1064,36 @@ export default function PedidosPage() {
                             <EtiquetaAtendimento atendimento={etiquetasDoPedido(order).atendimento} compacta />
                           </div>
                         </div>
-                        <div className="mb-3 flex gap-2">
-                          {/* Esquerda: informações do pedido (~75%) */}
-                          <div className="min-w-0 flex-[3]">
-                            <div className="mb-1 flex min-w-0 items-center gap-1.5">
+                        <div className="mb-2 min-w-0">
+                          {/* Nome (ou mesa) à esquerda e preço à direita, na MESMA linha. Origem e
+                              atendimento já estão nas etiquetas de cima; senha, comanda e quem lançou
+                              ficam nos Detalhes. O nome trunca, o preço nunca quebra. */}
+                          <div className="flex min-w-0 items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
                               <span className="min-w-0 truncate text-[13px] font-semibold" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
                               {/* PDV identificado (0094): telefone discreto; endereço fica no detalhe. */}
                               {order.origem === 'pdv' && order.clienteTelefone && (
                                 <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
                               )}
                             </div>
-                            {order.tipo === 'entrega' && order.enderecoBairro && (
-                              <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
-                            )}
-                            <ul className="space-y-0.5 text-xs text-text-subtle">
-                              {resumoItens(order).map((line) => (
-                                <li key={line}>{line}</li>
-                              ))}
-                            </ul>
-                            {order.status === 'preparando' && order.preparandoPor && (
-                              <div className="mt-1.5 text-[11px] text-text-subtle">Em preparo por: {order.preparandoPor}</div>
-                            )}
-                            {order.preparadoPor && (
-                              <div className="mt-1.5 text-[11px] text-text-subtle">Preparado por: {order.preparadoPor}</div>
-                            )}
-                          </div>
-
-                          {/* Divisória interna invisível (mantém o espaçamento) */}
-                          <div className="w-px self-stretch bg-transparent" />
-
-                          {/* Direita: boxes de pagamento ~25% (espaço acima para tags futuras) */}
-                          <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1.5">
-                            {/* Onde e quem lançou (mesa/balcão). Forma de pagamento fica nos Detalhes. */}
-                            {origemDoCard(order).texto && (
-                              <div
-                                className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[11px] font-semibold text-text-subtle"
-                                title={`${origemDoCard(order).texto}${origemDoCard(order).responsavel ? ` · ${origemDoCard(order).responsavel}` : ''}`}
-                              >
-                                {origemDoCard(order).texto}
-                                {origemDoCard(order).responsavel ? ` · ${origemDoCard(order).responsavel}` : ''}
-                              </div>
-                            )}
-                            <div className="whitespace-nowrap rounded-menuzia bg-price-bg px-1.5 py-1.5 text-center text-[12px] font-bold tabular-nums text-price-text" data-testid="card-preco">
+                            <div className="flex-shrink-0 whitespace-nowrap rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[12px] font-bold tabular-nums text-price-text" data-testid="card-preco">
                               {brl(order.total)}
                             </div>
                           </div>
+                          {order.tipo === 'entrega' && order.enderecoBairro && (
+                            <div className="mt-0.5 truncate text-xs text-text-subtle">{order.enderecoBairro}</div>
+                          )}
+                          <ul className="mt-1 space-y-0.5 text-xs text-text-subtle">
+                            {resumoItens(order).map((line) => (
+                              <li key={line}>{line}</li>
+                            ))}
+                          </ul>
+                          {order.status === 'preparando' && order.preparandoPor && (
+                            <div className="mt-1 text-[11px] text-text-subtle">Em preparo por: {order.preparandoPor}</div>
+                          )}
+                          {order.preparadoPor && (
+                            <div className="mt-1 text-[11px] text-text-subtle">Preparado por: {order.preparadoPor}</div>
+                          )}
                         </div>
                         <div className="flex gap-2 [&>*]:whitespace-nowrap">
                           <Button variant="secondary" className="flex-[0.7] px-2" onClick={() => setDetail(order)} data-testid="card-detalhes">
@@ -1328,6 +1313,13 @@ export default function PedidosPage() {
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cliente & pagamento</div>
               <div className="mb-5 space-y-1.5 rounded-menuzia border border-border p-3 text-sm">
                 <div className="flex justify-between"><span className="text-text-subtle">Cliente</span><span className="font-medium">{detail.clienteNome || '—'}</span></div>
+                {/* Senha do balcão / comanda da mesa e quem lançou (saiu do corpo do card). */}
+                {referenciaDoLancamento(detail) && (
+                  <div className="flex justify-between gap-3" data-testid="detalhes-lancamento">
+                    <span className="flex-shrink-0 text-text-subtle">Lançamento</span>
+                    <span className="text-right font-medium">{referenciaDoLancamento(detail)}</span>
+                  </div>
+                )}
                 {detail.clienteTelefone && (
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-text-subtle">Telefone</span>

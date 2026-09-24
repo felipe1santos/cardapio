@@ -64,6 +64,21 @@ export function rotuloOrigemPedido(pedido: PedidoParaRotulo): RotuloOrigem {
 }
 
 /**
+ * Senha do balcão ou número da comanda de mesa, e quem lançou — "Senha 12 · Lançado por
+ * Ana". Saiu do corpo do card do Kanban (que ficou só com nome, preço e itens) e fica
+ * nos Detalhes. Delivery não tem nenhum dos dois: null.
+ */
+export function referenciaDoLancamento(pedido: PedidoParaRotulo): string | null {
+  const canal = pedido.canal ?? (pedido.origem === 'pdv' ? (pedido.mesa ? 'mesa' : 'balcao') : 'delivery')
+  if (canal !== 'mesa' && canal !== 'balcao') return null
+  const ref = canal === 'balcao'
+    ? (pedido.comandaSenha ? `Senha ${pedido.comandaSenha}` : null)
+    : (pedido.comandaNumero ? `Comanda ${pedido.comandaNumero}` : null)
+  const quem = pedido.criadoPorNome?.trim() ? `Lançado por ${pedido.criadoPorNome.trim()}` : null
+  return [ref, quem].filter(Boolean).join(' · ') || null
+}
+
+/**
  * Lojas cadastram a mesa só como número ("4", "07"). Sozinho na tela da cozinha isso
  * pode ser confundido com número de pedido, então ganha o prefixo.
  */
