@@ -85,6 +85,40 @@ describe('pré-conta', () => {
     expect(brl(1234.5)).toBe('R$ 1.234,50')
     expect(texto(montarPreContaLinhas(mesa))).toContain('Cantina Demonstração'.toUpperCase())
   })
+  it('montagem repetida: mesmo texto, mesma ordem de itens, adicionais e pagamentos', () => {
+    const vezes = Array.from({ length: 50 }, () => texto(montarPreContaLinhas(structuredClone(mesa))))
+    expect(new Set(vezes).size).toBe(1)
+    const t0 = vezes[0]
+    // Ordem vem do snapshot do servidor e o formatador não reordena nada.
+    expect(t0.indexOf('2x X-Burguer')).toBeLessThan(t0.indexOf('1x Pizza'))
+    expect(t0.indexOf('Pix: R$ 30,00')).toBeLessThan(t0.indexOf('Dinheiro: R$ 20,00'))
+  })
+  it('pagamentos saem na ordem recebida, nunca por nome da forma', () => {
+    const invertido = texto(montarPreContaLinhas({ ...mesa, pagamentos: [{ forma: 'pix', valor: 30 }, { forma: 'dinheiro', valor: 15 }, { forma: 'pix', valor: 5 }] }))
+    const a = invertido.indexOf('Pix: R$ 30,00')
+    const b = invertido.indexOf('Dinheiro: R$ 15,00')
+    const c = invertido.indexOf('Pix: R$ 5,00')
+    expect(a).toBeGreaterThan(0)
+    expect(b).toBeGreaterThan(a)
+    expect(c).toBeGreaterThan(b)
+  })
+  it('adicionais na ordem do snapshot, repetidos agrupados na 1ª aparição', () => {
+    const comps = [{ nome: 'Ao ponto', preco: 0 }, { nome: 'Bacon', preco: 4 }, { nome: 'Cheddar', preco: 3 }, { nome: 'Bacon', preco: 4 }]
+    const t = texto(montarPreContaLinhas({ ...mesa, itens: [{ ...mesa.itens[0], complementos: comps }] }))
+    const ordem = ['+ Ao ponto', '+ 2x Bacon (R$ 8,00)', '+ Cheddar (R$ 3,00)'].map((s) => t.indexOf(s))
+    expect(ordem.every((i) => i > 0)).toBe(true)
+    expect([...ordem].sort((x, y) => x - y)).toEqual(ordem)
+  })
+  it('1ª e 2ª via: mesma composição, só muda a identificação da via', () => {
+    const semVia = (s: string) => s.split('\n').filter((l) => !/ª via|ª VIA/.test(l)).join('\n')
+    const v1 = texto(montarPreContaLinhas({ ...mesa, via: 1 }))
+    const v2 = texto(montarPreContaLinhas({ ...mesa, via: 2 }))
+    expect(v1).not.toBe(v2)
+    expect(semVia(v1)).toBe(semVia(v2))
+    for (const valor of ['Subtotal', 'R$ 131,00', 'R$ 13,10', '-R$ 5,00', 'R$ 139,10', 'R$ 50,00', 'R$ 89,10']) {
+      expect(v2).toContain(valor)
+    }
+  })
   it('colunas por papel: 58 mm = 32, 80 mm = 48', () => {
     expect(colsPreConta(58)).toBe(32)
     expect(colsPreConta(80)).toBe(48)

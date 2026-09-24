@@ -274,6 +274,8 @@ que saiu do cartão), `e2e-garcom` (dois botões "Fechar"). Não são regressão
 | Impressoras descobertas por computador; funções Cozinha e Caixa; roteamento da cozinha por função (opt-in) | `0089_impressao_dispositivos_e_funcoes.sql`, `POST /api/agente/impressoras` |
 | Fila de trabalhos (pré-conta, teste), snapshot imutável montado no banco, reserva SKIP LOCKED, 5 tentativas, vencimento 10 min | `0090_impressao_trabalhos.sql`, `GET /api/agente/trabalhos`, `POST /api/agente/trabalhos/[id]/resultado` |
 | Espera crescente entre tentativas (10/20/30/40 s) | `0091_impressao_espera_entre_tentativas.sql` |
+| Observação do item na pré-conta | `0092_impressao_pre_conta_observacao.sql` |
+| Ordem determinística da pré-conta: itens na ordem do lançamento (`pedido_itens.lancamento_seq`, só itens novos; antigos desempatam por id), adicionais na ordem do cadastro, pagamentos um a um pela hora de recebimento | `0093_impressao_pre_conta_ordem.sql`, `scripts/seguranca/verificar-pre-conta-ordem.mjs` |
 | Tela Impressão (dono e gerente) | `/admin/impressao`, `components/impressao/painel-impressao.tsx`, `/api/admin/impressao/*` |
 | Botão pré-conta no PDV (mesa e balcão) | `components/pdv/conta-presencial.tsx` (`PreContaBloco`), `/api/admin/comandas/[id]/pre-conta` |
 | Formatador próprio da pré-conta; filas por impressora | `printer-agent/src/pre-conta.js`, `printer-agent/src/fila-dispositivos.js` |
@@ -307,7 +309,7 @@ SHA-256 `82EBF4C9022F44E0E30212FC62A845B0D598AC79388E50B99309A213BAD7E140`.
 ### Ordem de deploy (quando autorizado)
 
 1. PDV v2 (seções 1–5) primeiro: 0080 → código → 0081 → 0082–0086.
-2. Migrations 0087–0091 (aditivas).
+2. Migrations 0087–0093 (aditivas; a 0093 só acrescenta coluna nula com default de sequência, sem reescrever `pedido_itens`).
 3. Código do servidor (inclui as rotas novas do agente).
 4. **Só depois** publicar o Assistente 0.1.26 e trocar o link em Ajustes. Agente 0.1.26
    num servidor antigo: o diagnóstico cai na rota de sempre (compatível); pareamento e
@@ -353,7 +355,7 @@ mesmo pedido. Desfazer: desmarcar, ou tirar a função Cozinha (desliga sozinho)
 | Pré-conta numa loja | tirar a função Caixa (o botão avisa "sem impressora de Caixa") |
 | Roteamento da cozinha | desmarcar em Impressão, ou tirar a função Cozinha |
 | Computador comprometido | "Revogar" em Impressão (só ele para; os outros seguem) |
-| Banco | `docs/rollback/0087_0091_impressao.down.sql` (não apaga dado) |
+| Banco | `docs/rollback/0087_0091_impressao.down.sql` e `docs/rollback/0092_0093_pre_conta.down.sql` (não apagam dado) |
 
 ### Pendências
 

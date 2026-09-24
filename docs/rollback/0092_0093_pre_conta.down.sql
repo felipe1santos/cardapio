@@ -1,0 +1,13 @@
+-- Rollback da montagem da pré-conta (0092 observação, 0093 ordem). Não apaga dado gravado.
+--
+-- Snapshots já impressos são imutáveis e continuam como saíram. Voltar só afeta as
+-- próximas pré-contas.
+--
+-- 1. Ordem (0093): reexecutar o bloco `create or replace function
+--    public.impressao_snapshot_pre_conta` de supabase/migrations/0092_impressao_pre_conta_observacao.sql
+--    (mantém a observação; ordem volta a ser por id e pagamentos agrupados por forma).
+-- 2. Observação (0092): reexecutar o mesmo bloco de supabase/migrations/0090_impressao_trabalhos.sql.
+--
+-- 3. A coluna pedido_itens.lancamento_seq FICA (é histórico e nada antigo a lê). Se for
+--    preciso parar de numerar itens novos, só tirar o default — não derrubar a coluna:
+-- alter table public.pedido_itens alter column lancamento_seq drop default;
