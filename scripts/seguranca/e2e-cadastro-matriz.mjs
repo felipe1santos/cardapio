@@ -29,7 +29,6 @@ const criados = []
 const PNG = { name: 'foto.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHUlEQVR4nGP8z4APMOGVZRhVMKpgVMGoglEFQ0kBAKpcAR+E1d8pAAAAAElFTkSuQmCC', 'base64') }
 
 const loja = await um(`select id from restaurantes where slug = 'cantina-demo'`)
-const vizinha = await um(`select id from restaurantes where slug = 'vizinha-demo'`)
 const browser = await chromium.launch()
 async function logar(usuario, w = 1366, h = 900) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: 'pt-BR', isMobile: w < 900, hasTouch: w < 900 })
@@ -256,7 +255,7 @@ try {
   const chave = uuid()
   const linhaAcai = [{ itemId: acai.id, quantidade: 1, complementos: ['Leite Ninho'], tamanhoNome: '300 ml' }]
   const l1 = await api(at, '/api/admin/pdv/lancamento', 'POST', { comandaId: cb.j?.id, chave, itens: linhaAcai })
-  const l2 = await api(at, '/api/admin/pdv/lancamento', 'POST', { comandaId: cb.j?.id, chave, itens: linhaAcai })
+  await api(at, '/api/admin/pdv/lancamento', 'POST', { comandaId: cb.j?.id, chave, itens: linhaAcai })
   ok('PDV lança o açaí (15 + 3)', l1.s === 201 && Number((await linhaDoPedido(l1.j?.id))?.preco_unitario) === 18, `${l1.s} ${l1.j?.error ?? ''}`)
   ok('idempotência: mesma chave não duplica o pedido', Number((await um(`select count(*) n from pedidos where comanda_id = $1`, [cb.j?.id])).n) === 1)
   ok('PDV: opção pausada/obrigatória também conferida', (await api(at, '/api/admin/pdv/lancamento', 'POST', { comandaId: cb.j?.id, chave: uuid(), itens: [{ itemId: acai.id, quantidade: 1, complementos: [], tamanhoNome: '300 ml' }] })).s >= 400)
