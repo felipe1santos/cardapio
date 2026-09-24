@@ -2,32 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
-import { avisoDoItem, erroDoItem } from '@/lib/item-cadastro'
-import { Pause, Play } from 'lucide-react'
+import { avisoDoItem, erroDoItem, statusAoCriarItem } from '@/lib/item-cadastro'
+import { ArrowDown, ArrowUp, Clock, CupSoda, Images, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Trash2 } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import {
   adicionarComplemento,
-  adicionarItemPreset,
-  adicionarOrderBump,
   atualizarComplemento,
   atualizarGrupo,
   atualizarGrupoItem,
   atualizarItem,
-  atualizarItemPreset,
-  atualizarOrderBumpMax,
-  atualizarRegrasPreset,
-  buscarOrderBumpConfig,
   buscarRestauranteIdDoUsuario,
   criarGrupo,
   criarGrupoItem,
   criarItem,
-  criarPreset,
-  criarTamanho,
   definirStatusEmLote,
   enviarImagemItem,
   enviarImagemItemComThumb,
@@ -35,65 +25,42 @@ import {
   importarPresetNoItem,
   listarGrupos,
   listarItens,
-  listarOrderBumps,
   listarPresets,
   removerComplemento,
   removerGrupo,
   reordenarGrupos,
   removerGrupoItem,
-  removerItemPreset,
-  removerOrderBump,
-  removerPreset,
-  removerTamanho,
-  renomearPreset,
-  reordenarOrderBumps,
-  toggleOrderBumpAtivo,
-  atualizarTamanho,
   type GrupoCardapio,
   type GrupoItemComplementos,
   type ItemCardapio,
   type ComplementoItem,
-  type OrderBumpEntry,
   type PresetComplementos,
   type StatusItem,
-  type TamanhoItem,
   type TipoItem,
   type TagItem,
   TAGS_ITEM,
-  type PizzaSabor,
-  criarSabor,
-  atualizarSabor,
-  removerSabor,
-  definirPrecoSabor,
 } from '@/lib/queries/cardapio'
 import {
-  buscarRegraPrecoPizza,
   listarTamanhosPadraoPizza,
-  criarTamanhoPadraoPizza,
-  atualizarTamanhoPadraoPizza,
-  removerTamanhoPadraoPizza,
   listarTamanhosPadraoMarmita,
-  criarTamanhoPadraoMarmita,
-  atualizarTamanhoPadraoMarmita,
-  removerTamanhoPadraoMarmita,
-  listarBordasPizza,
-  criarBordaPizza,
-  atualizarBordaPizza,
-  removerBordaPizza,
-  listarMassasPizza,
-  criarMassaPizza,
-  atualizarMassaPizza,
-  removerMassaPizza,
   type TamanhoPadraoPizza,
   type TamanhoPadraoMarmita,
-  type BordaPizza,
-  type MassaPizza,
 } from '@/lib/queries/pizza'
 import { BulkUploadModal, type BulkUploadTarget } from './bulk-upload-modal'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { enviarImagemCategoria } from '@/lib/queries/ajustes'
 import { DescricaoEditor } from '@/components/admin/descricao-editor'
+import { pode } from '@/lib/auth/permissoes'
+import { mensagemErroCardapio } from '@/lib/nomes-catalogo'
+import { AbasCardapio, abaDaUrl, type AbaCardapio } from '@/components/cardapio/abas-cardapio'
+import { GruposComplementos } from '@/components/cardapio/grupos-complementos'
+import { TamanhosLoja } from '@/components/cardapio/tamanhos-loja'
+import { PecaTambem } from '@/components/cardapio/peca-tambem'
+import { PizzaTamanhosPrecos } from '@/components/cardapio/pizza-tamanhos-precos'
+import { TamanhosDoItem } from '@/components/cardapio/tamanhos-do-item'
+import { FoodIcon } from '@/components/cardapio/icone-comida'
+import { Aviso, BotaoIcone, FaixaErro, ItemThumb } from '@/components/cardapio/ui'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -109,7 +76,6 @@ const STATUS_OPTIONS: { value: StatusItem; label: string }[] = [
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type View = 'table' | 'grid'
-type CardapioTab = 'itens' | 'complementos' | 'tamanhos' | 'orderbump'
 type Drawer = null | 'edit' | 'preset' | 'categoria'
 
 interface ItemFormState {
@@ -130,11 +96,6 @@ interface ItemFormState {
   disponivelSalao: boolean
 }
 
-const TIPO_ITEM_OPTIONS: { value: TipoItem; label: string }[] = [
-  { value: 'simples', label: 'Simples (lanche, bebida, etc.)' },
-  { value: 'pizza', label: 'Pizza (sabores + tamanho)' },
-  { value: 'marmita', label: 'Marmita (tamanhos com peso)' },
-]
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -341,100 +302,6 @@ function DayToggles({ days, onChange }: { days: number[]; onChange: (days: numbe
         </button>
       ))}
     </div>
-  )
-}
-
-function ItemThumb({ item, size = 42 }: { item: ItemCardapio; size?: number }) {
-  // Miniatura nas listagens do admin; item sem thumb cai na full.
-  const src = item.imagemThumbUrl ?? item.imagemUrl
-  if (src) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={item.nome} loading="lazy" decoding="async" width={size} height={size} className="flex-shrink-0 rounded-menuzia object-cover" style={{ width: size, height: size }} />
-    )
-  }
-  return (
-    <div className="flex flex-shrink-0 items-center justify-center rounded-menuzia bg-gradient-to-br from-slate-100 to-slate-200" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 24 24" className="h-[55%] w-[55%] fill-text-subtle/60">
-        <path d="M12 6c-3.87 0-7 2.46-7 5.5 0 .5.09.98.26 1.43.07.2.27.32.49.27.21-.05.34-.26.3-.47A4 4 0 017 11.5C7 9.57 9.24 8 12 8s5 1.57 5 3.5c0 .42-.07.82-.2 1.2-.05.21.08.42.29.47.22.05.42-.07.49-.27.17-.45.26-.93.26-1.4C19 8.46 15.87 6 12 6zM4 15h16v2H4zm0 3h16v2H4z" />
-      </svg>
-    </div>
-  )
-}
-
-// ─── Food Icons ───────────────────────────────────────────────────────────────
-
-type FoodIconType = 'bacon' | 'tomate' | 'cebola' | 'alface' | 'queijo' | 'pimenta' | 'pepino' | 'cogumelo' | 'default'
-
-function detectFoodIcon(name: string): FoodIconType {
-  const n = name.toLowerCase()
-  if (n.includes('bacon')) return 'bacon'
-  if (n.includes('tomate') || n.includes('tomato')) return 'tomate'
-  if (n.includes('cebola') || n.includes('onion')) return 'cebola'
-  if (n.includes('alface') || n.includes('lettuce')) return 'alface'
-  if (n.includes('queijo') || n.includes('cheddar') || n.includes('mussarela') || n.includes('mozza')) return 'queijo'
-  if (n.includes('pimenta') || n.includes('pepper') || n.includes('chili') || n.includes('jalap')) return 'pimenta'
-  if (n.includes('pepino') || n.includes('cucumber')) return 'pepino'
-  if (n.includes('cogumelo') || n.includes('mushroom')) return 'cogumelo'
-  return 'default'
-}
-
-function FoodIcon({ name, size = 40 }: { name: string; size?: number }) {
-  const type = detectFoodIcon(name)
-  return (
-    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden>
-      {type === 'bacon' && <>
-        <path d="M5 14 Q12.5 10 20 14 Q27.5 18 35 14" stroke="#EF4444" strokeWidth="4" fill="none" strokeLinecap="round" />
-        <path d="M5 21 Q12.5 17 20 21 Q27.5 25 35 21" stroke="#FCA5A5" strokeWidth="4" fill="none" strokeLinecap="round" />
-        <path d="M5 28 Q12.5 24 20 28 Q27.5 32 35 28" stroke="#EF4444" strokeWidth="4" fill="none" strokeLinecap="round" />
-      </>}
-      {type === 'tomate' && <>
-        <circle cx="20" cy="23" r="14" fill="#EF4444" />
-        <path d="M20 9 L20 5 M14 8 Q17 5 20 7 Q23 5 26 8" stroke="#16A34A" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-        <circle cx="15" cy="20" r="2.5" fill="#FCA5A5" opacity="0.5" />
-      </>}
-      {type === 'cebola' && <>
-        <ellipse cx="20" cy="25" rx="13" ry="10" fill="#FDE68A" />
-        <ellipse cx="20" cy="25" rx="9" ry="7" fill="#FCD34D" />
-        <ellipse cx="20" cy="25" rx="5" ry="4" fill="#FBBF24" />
-        <path d="M20 15 Q22 9 20 5 Q18 9 20 15Z" fill="#86EFAC" />
-      </>}
-      {type === 'alface' && <>
-        <circle cx="20" cy="21" r="13" fill="#4ADE80" />
-        <path d="M7 21 Q10 16 14 21 Q17 26 20 21 Q23 16 26 21 Q30 26 33 21" stroke="#22C55E" strokeWidth="2.5" fill="none" />
-        <circle cx="20" cy="21" r="5" fill="#BBF7D0" />
-      </>}
-      {type === 'queijo' && <>
-        <path d="M5 31 L20 9 L35 31 Z" fill="#FCD34D" />
-        <path d="M5 31 L35 31 L35 37 L5 37 Z" fill="#FBBF24" />
-        <circle cx="20" cy="27" r="2" fill="#FEF08A" />
-        <circle cx="14" cy="30" r="1.5" fill="#FEF08A" />
-        <circle cx="26" cy="30" r="1.5" fill="#FEF08A" />
-      </>}
-      {type === 'pimenta' && <>
-        <path d="M23 4 Q27 7 27 13 Q27 23 19 31 Q15 34 13 31 Q11 28 14 26 Q19 23 19 16 Q19 9 23 4Z" fill="#DC2626" />
-        <path d="M22 4 Q26 2 28 5" stroke="#86EFAC" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-        <ellipse cx="20" cy="18" rx="3" ry="5" fill="#EF4444" opacity="0.4" />
-      </>}
-      {type === 'pepino' && <>
-        <ellipse cx="20" cy="20" rx="8" ry="14" fill="#4ADE80" />
-        <ellipse cx="20" cy="20" rx="5" ry="11" fill="#BBF7D0" />
-        <circle cx="20" cy="13" r="1.5" fill="#4ADE80" />
-        <circle cx="20" cy="20" r="1.5" fill="#4ADE80" />
-        <circle cx="20" cy="27" r="1.5" fill="#4ADE80" />
-      </>}
-      {type === 'cogumelo' && <>
-        <path d="M6 25 Q6 12 20 10 Q34 12 34 25Z" fill="#D4A27F" />
-        <rect x="14" y="25" width="12" height="8" rx="2" fill="#E8C9A0" />
-        <circle cx="14" cy="19" r="2" fill="#B8875A" />
-        <circle cx="20" cy="16" r="2" fill="#B8875A" />
-        <circle cx="26" cy="19" r="2" fill="#B8875A" />
-      </>}
-      {type === 'default' && <>
-        <circle cx="20" cy="20" r="14" fill="#EDE9FE" />
-        <path d="M20 12 L20 28 M12 20 L28 20" stroke="#7C3AED" strokeWidth="3" strokeLinecap="round" />
-      </>}
-    </svg>
   )
 }
 
@@ -727,1316 +594,11 @@ function GrupoItemCard({
   )
 }
 
-const SABOR_STATUS_CYCLE: StatusItem[] = ['disponivel', 'pausado', 'esgotado']
-const SABOR_STATUS_LABEL: Record<StatusItem, string> = { disponivel: 'Ativo', pausado: 'Inativo', esgotado: 'Em falta' }
-
-/** Cabeçalho de seção do formulário de item — azul-escuro do design pedido (#1e3a8a). */
-function SectionHeader({ children }: { children: string; tone?: string }) {
+/** Cabeçalho de seção do formulário de item. */
+function SectionHeader({ children }: { children: string }) {
   return (
-    <div className="-mx-4.5 mb-3 mt-5 border-y border-[#1e3a8a]/15 bg-[#1e3a8a]/5 px-4.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#1e3a8a]">
+    <div className="-mx-4.5 mb-3 mt-1 border-b border-[var(--adm-borda)] px-4.5 pb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--adm-texto-medio)]">
       {children}
-    </div>
-  )
-}
-
-function SaborCard({
-  sabor,
-  tamanhos,
-  restauranteId,
-  onRefresh,
-}: {
-  sabor: PizzaSabor
-  tamanhos: TamanhoPadraoPizza[]
-  restauranteId: string
-  onRefresh: () => Promise<void>
-}) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [editingHeader, setEditingHeader] = useState(false)
-  const [nome, setNome] = useState(sabor.nome)
-  const [descricao, setDescricao] = useState(sabor.descricao)
-  const [precoInputs, setPrecoInputs] = useState<Record<string, string>>(() =>
-    Object.fromEntries(tamanhos.map((t) => [t.id, String(sabor.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0)]))
-  )
-  const [uploading, setUploading] = useState(false)
-  const [editingPrecos, setEditingPrecos] = useState(false)
-  // Erro do último salvamento. Engolir em silêncio fazia "pausar" e "trocar
-  // foto" parecerem sem efeito quando a query recusava a operação.
-  const [erro, setErro] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  function falhou(err: unknown, padrao: string) {
-    setErro(err instanceof Error && err.message ? err.message : padrao)
-  }
-
-  async function saveHeader() {
-    const trimmed = nome.trim() || sabor.nome
-    setErro(null)
-    try {
-      await atualizarSabor(supabase, sabor.id, { nome: trimmed, descricao, status: sabor.status, imagemUrl: sabor.imagemUrl })
-      setEditingHeader(false)
-      await onRefresh()
-    } catch (err) { falhou(err, 'Não foi possível salvar o sabor.') }
-  }
-
-  async function cycleStatus() {
-    const next = SABOR_STATUS_CYCLE[(SABOR_STATUS_CYCLE.indexOf(sabor.status) + 1) % SABOR_STATUS_CYCLE.length]
-    setErro(null)
-    try {
-      await atualizarSabor(supabase, sabor.id, { nome: sabor.nome, descricao: sabor.descricao, status: next, imagemUrl: sabor.imagemUrl })
-      await onRefresh()
-    } catch (err) { falhou(err, 'Não foi possível mudar o status do sabor.') }
-  }
-
-  async function removeSabor() {
-    if (!confirm(`Remover o sabor "${sabor.nome}"?`)) return
-    setErro(null)
-    try {
-      await removerSabor(supabase, sabor.id)
-      await onRefresh()
-    } catch (err) { falhou(err, 'Não foi possível remover o sabor.') }
-  }
-
-  async function savePreco(tamanhoId: string) {
-    const val = Number((precoInputs[tamanhoId] ?? '0').replace(',', '.'))
-    const preco = Number.isFinite(val) && val >= 0 ? val : 0
-    setErro(null)
-    try {
-      await definirPrecoSabor(supabase, sabor.id, tamanhoId, preco)
-      await onRefresh()
-    } catch (err) { falhou(err, 'Não foi possível salvar o preço do sabor.') }
-  }
-
-  async function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setErro(null)
-    try {
-      const url = await enviarImagemItem(supabase, restauranteId, file, 'thumb')
-      await atualizarSabor(supabase, sabor.id, { nome: sabor.nome, descricao: sabor.descricao, status: sabor.status, imagemUrl: url })
-      await onRefresh()
-    } catch (err) { falhou(err, 'Não foi possível enviar a foto do sabor.') }
-    finally { setUploading(false) }
-  }
-
-  return (
-    <div className="mb-3 overflow-hidden rounded-menuzia border border-border bg-white">
-      <div className="flex items-center gap-2.5 border-b border-border bg-page px-3 py-2.5">
-        {sabor.imagemUrl
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={sabor.imagemUrl} alt={sabor.nome} loading="lazy" decoding="async" width={32} height={32} className="h-8 w-8 flex-shrink-0 rounded-menuzia object-cover" />
-          : <div className="h-8 w-8 flex-shrink-0 rounded-menuzia bg-gradient-to-br from-slate-100 to-slate-200" />
-        }
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFoto} />
-        <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="text-[11px] text-text-subtle hover:text-primary">
-          {uploading ? '…' : 'Foto'}
-        </button>
-        {editingHeader ? (
-          <input value={nome} onChange={(e) => setNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveHeader()}
-            autoFocus className="flex-1 rounded-menuzia border border-primary px-2 py-1 text-[13px] outline-none" />
-        ) : (
-          <span className="flex-1 text-[13px] font-semibold text-text-main">{sabor.nome}</span>
-        )}
-        <button
-          onClick={cycleStatus}
-          className={[
-            'rounded-menuzia px-1.5 py-0.5 text-[10px] font-bold',
-            sabor.status === 'disponivel' ? 'bg-price-bg text-price-text' : sabor.status === 'pausado' ? 'bg-warn/10 text-warn' : 'bg-danger-bg text-danger',
-          ].join(' ')}
-        >
-          {SABOR_STATUS_LABEL[sabor.status]}
-        </button>
-        {editingHeader ? (
-          <button onClick={saveHeader} className="text-[11px] font-semibold text-primary hover:underline">Salvar</button>
-        ) : (
-          <button onClick={() => setEditingHeader(true)} className="text-[11px] text-text-subtle hover:text-primary">Editar</button>
-        )}
-        <button onClick={removeSabor} className="text-[11px] text-text-subtle hover:text-danger">Remover</button>
-      </div>
-      {erro && (
-        <div className="flex items-start gap-2 border-b border-border bg-danger-bg px-3 py-2 text-[11.5px] leading-snug text-danger">
-          <span className="flex-1">{erro}</span>
-          <button onClick={() => setErro(null)} className="font-bold">✕</button>
-        </div>
-      )}
-      {editingHeader && (
-        <div className="border-b border-border px-3 py-2">
-          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição do sabor (opcional)"
-            className="w-full rounded-menuzia border border-border px-2.5 py-1.5 text-[12px] outline-none focus:border-primary" />
-        </div>
-      )}
-      <div className="p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Preços por tamanho</span>
-          {tamanhos.length > 0 && (
-            <button onClick={() => setEditingPrecos((v) => !v)} className="text-[11px] font-semibold text-[#1e3a8a] hover:underline">
-              {editingPrecos ? 'Concluir' : 'Editar preços'}
-            </button>
-          )}
-        </div>
-        {tamanhos.length === 0 ? (
-          <p className="text-[11px] text-text-subtle">Cadastre tamanhos de pizza na aba &ldquo;Tamanhos&rdquo; pra definir preços aqui.</p>
-        ) : editingPrecos ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {tamanhos.map((t) => (
-              <div key={t.id}>
-                <div className="mb-1 text-[11px] font-medium text-text-subtle">{t.nome} ({t.fatias} fatias)</div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[12px] text-text-subtle">R$</span>
-                  <input
-                    value={precoInputs[t.id] ?? '0'}
-                    onChange={(e) => setPrecoInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                    onBlur={() => savePreco(t.id)}
-                    onKeyDown={(e) => e.key === 'Enter' && savePreco(t.id)}
-                    className="w-full rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {tamanhos.map((t) => {
-              const preco = sabor.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0
-              return (
-                <span key={t.id} className={['rounded-menuzia px-2 py-1 text-[12px] font-semibold', preco > 0 ? 'bg-price-bg text-price-text' : 'bg-[#fee2e2] text-[#ef4444]'].join(' ')}>
-                  {t.nome}: R$ {preco.toFixed(2).replace('.', ',')}
-                </span>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Preset Group Card (for Grupos de Complementos tab) ──────────────────────
-
-interface PresetItemEdit {
-  id: string
-  nome: string
-  preco: string
-  editing: boolean
-  imagemUrl: string | null
-  pausado: boolean
-}
-
-function PresetGroupCard({
-  preset,
-  restauranteId,
-  onDeleted,
-  onRenamed,
-  onChanged,
-}: {
-  preset: PresetComplementos
-  restauranteId: string
-  onDeleted: (id: string) => void
-  onRenamed: (id: string, nome: string) => void
-  /** Propaga regras/itens editados pro state da página — o drawer de importar lê de lá. */
-  onChanged: (id: string, patch: Partial<PresetComplementos>) => void
-}) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [nome, setNome] = useState(preset.nome)
-  const [editingNome, setEditingNome] = useState(false)
-  const [obrigatorio, setObrigatorio] = useState(preset.obrigatorio)
-  const [minEsc, setMinEsc] = useState(preset.minEscolhas)
-  const [maxEsc, setMaxEsc] = useState(preset.maxEscolhas)
-  const [permiteQuantidade, setPermiteQuantidade] = useState(preset.permiteQuantidade)
-  const [items, setItems] = useState<PresetItemEdit[]>(
-    preset.itens.map((i) => ({ id: i.id, nome: i.nome, preco: String(i.preco), editing: false, imagemUrl: i.imagemUrl, pausado: i.pausado }))
-  )
-  const [newNome, setNewNome] = useState('')
-  const [newPreco, setNewPreco] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [pausaSavingId, setPausaSavingId] = useState<string | null>(null)
-  const [bulkOpen, setBulkOpen] = useState(false)
-  const nomeRef = useRef<HTMLInputElement>(null)
-
-  function startEditNome() {
-    setEditingNome(true)
-    setTimeout(() => nomeRef.current?.focus(), 0)
-  }
-
-  async function saveNome() {
-    const trimmed = nome.trim()
-    if (!trimmed) { setNome(preset.nome); setEditingNome(false); return }
-    try {
-      await renomearPreset(supabase, preset.id, trimmed)
-      onRenamed(preset.id, trimmed)
-    } catch {
-      setNome(preset.nome)
-    }
-    setEditingNome(false)
-  }
-
-  /** Converte o state local de itens pro formato do preset (pro state da página). */
-  function itensDe(lista: PresetItemEdit[]): PresetComplementos['itens'] {
-    return lista.map((i) => {
-      const val = parseFloat(i.preco.replace(',', '.'))
-      return { id: i.id, nome: i.nome, preco: Number.isFinite(val) && val >= 0 ? val : 0, imagemUrl: i.imagemUrl, pausado: i.pausado }
-    })
-  }
-
-  async function saveRules(newObrigatorio: boolean, newMin: number, newMax: number, newPermiteQuantidade?: boolean) {
-    try {
-      const pq = newPermiteQuantidade ?? permiteQuantidade
-      await atualizarRegrasPreset(supabase, preset.id, newObrigatorio, newMin, newMax, pq)
-      onChanged(preset.id, { obrigatorio: newObrigatorio, minEscolhas: newMin, maxEscolhas: newMax, permiteQuantidade: pq })
-    } catch { /* silencioso */ }
-  }
-
-  async function deletePreset() {
-    if (!confirm(`Excluir o grupo "${nome}"? Os complementos já importados nos itens não serão afetados.`)) return
-    try {
-      await removerPreset(supabase, preset.id)
-      onDeleted(preset.id)
-    } catch { /* silencioso */ }
-  }
-
-  async function addItem() {
-    if (!newNome.trim()) return
-    const val = parseFloat(newPreco.replace(',', '.'))
-    const preco = Number.isFinite(val) && val >= 0 ? val : 0
-    setSaving(true)
-    try {
-      const created = await adicionarItemPreset(supabase, preset.id, newNome.trim(), preco, items.length)
-      const next = [...items, { id: created.id, nome: created.nome, preco: String(created.preco), editing: false, imagemUrl: created.imagemUrl, pausado: created.pausado }]
-      setItems(next)
-      onChanged(preset.id, { itens: itensDe(next) })
-      setNewNome('')
-      setNewPreco('')
-    } catch { /* silencioso */ }
-    finally { setSaving(false) }
-  }
-
-  async function saveItem(id: string) {
-    const item = items.find((i) => i.id === id)
-    if (!item) return
-    const val = parseFloat(item.preco.replace(',', '.'))
-    const preco = Number.isFinite(val) && val >= 0 ? val : 0
-    try {
-      await atualizarItemPreset(supabase, id, item.nome.trim(), preco, item.imagemUrl)
-      const next = items.map((i) => (i.id === id ? { ...i, nome: item.nome.trim(), preco: String(preco), editing: false } : i))
-      setItems(next)
-      onChanged(preset.id, { itens: itensDe(next) })
-    } catch { /* silencioso */ }
-  }
-
-  /** Ação rápida: pausa um complemento ativo ou retoma um pausado (some/volta na vitrine). */
-  async function togglePausado(id: string) {
-    const item = items.find((i) => i.id === id)
-    if (!item || pausaSavingId) return
-    const val = parseFloat(item.preco.replace(',', '.'))
-    const preco = Number.isFinite(val) && val >= 0 ? val : 0
-    const novo = !item.pausado
-    setPausaSavingId(id)
-    try {
-      await atualizarItemPreset(supabase, id, item.nome.trim(), preco, item.imagemUrl, novo)
-      const next = items.map((i) => (i.id === id ? { ...i, pausado: novo } : i))
-      setItems(next)
-      onChanged(preset.id, { itens: itensDe(next) })
-    } catch { /* silencioso */ }
-    finally { setPausaSavingId(null) }
-  }
-
-  async function deleteItem(id: string) {
-    try {
-      await removerItemPreset(supabase, id)
-      const next = items.filter((i) => i.id !== id)
-      setItems(next)
-      onChanged(preset.id, { itens: itensDe(next) })
-    } catch { /* silencioso */ }
-  }
-
-  const hint = ruleHint({ obrigatorio, minEscolhas: minEsc, maxEscolhas: maxEsc })
-
-  return (
-    <div className="overflow-hidden rounded-menuzia border border-purple-300 bg-white shadow-sm">
-      {/* Card header — roxo forte, marca visual do grupo */}
-      <div className="flex items-center gap-3 border-b border-purple-800 bg-purple-700 px-4 py-3.5">
-        <div className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-menuzia bg-white shadow-sm">
-          <FoodIcon name={nome} size={32} />
-        </div>
-        <div className="min-w-0 flex-1">
-          {editingNome ? (
-            <input
-              ref={nomeRef}
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              onBlur={saveNome}
-              onKeyDown={(e) => e.key === 'Enter' && saveNome()}
-              className="w-full rounded-menuzia border border-purple-300 bg-white px-2.5 py-1.5 text-sm font-semibold text-purple-900 outline-none"
-            />
-          ) : (
-            <h4 className="truncate text-[15px] font-bold text-white">{nome}</h4>
-          )}
-        </div>
-        <span className="flex-shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white">
-          {items.length} iten{items.length !== 1 ? 's' : ''}
-        </span>
-        <button onClick={() => setBulkOpen(true)} title="Subir fotos em massa" className="flex-shrink-0 text-[11px] font-semibold text-purple-200 transition-colors hover:text-white">
-          📁 Fotos
-        </button>
-        <button onClick={startEditNome} title="Renomear" className="flex-shrink-0 text-[11px] font-semibold text-purple-200 transition-colors hover:text-white">
-          Renomear
-        </button>
-        <button onClick={deletePreset} title="Excluir" className="flex-shrink-0 text-[11px] font-semibold text-purple-200 transition-colors hover:text-[#FCA5A5]">
-          Excluir
-        </button>
-      </div>
-
-      {/* Rules section */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-purple-100 bg-purple-50/40 px-4 py-2.5">
-        <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-text-main">
-          <input
-            type="checkbox"
-            checked={obrigatorio}
-            onChange={(e) => {
-              const v = e.target.checked
-              setObrigatorio(v)
-              saveRules(v, minEsc, maxEsc)
-            }}
-            className="h-3.5 w-3.5 accent-purple-600"
-          />
-          Obrigatório
-        </label>
-        {obrigatorio && (
-          <label className="flex items-center gap-1.5 text-[12px] text-text-subtle">
-            Mín
-            <input
-              type="number"
-              min="0"
-              max={maxEsc || undefined}
-              value={minEsc}
-              onChange={(e) => {
-                const v = Math.max(0, Number(e.target.value))
-                setMinEsc(v)
-                saveRules(obrigatorio, v, maxEsc)
-              }}
-              className="w-14 rounded-menuzia border border-purple-200 px-2 py-1 text-center text-[12px] outline-none focus:border-purple-400"
-            />
-          </label>
-        )}
-        <label className={`flex items-center gap-1.5 text-[12px] text-text-subtle ${maxEsc === 0 ? 'opacity-40' : ''}`}>
-          Máx
-          <input
-            type="number"
-            min="1"
-            value={maxEsc === 0 ? '' : maxEsc}
-            disabled={maxEsc === 0}
-            onChange={(e) => {
-              const v = Math.max(1, Number(e.target.value))
-              setMaxEsc(v)
-              saveRules(obrigatorio, minEsc, v)
-            }}
-            className="w-14 rounded-menuzia border border-purple-200 px-2 py-1 text-center text-[12px] outline-none focus:border-purple-400 disabled:bg-purple-50"
-          />
-        </label>
-        <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-text-main">
-          <input
-            type="checkbox"
-            checked={maxEsc === 0}
-            onChange={(e) => {
-              const v = e.target.checked ? 0 : Math.max(1, preset.maxEscolhas)
-              setMaxEsc(v)
-              saveRules(obrigatorio, minEsc, v)
-            }}
-            className="h-3.5 w-3.5 accent-purple-600"
-          />
-          Sem máximo
-        </label>
-        <span className="ml-auto text-[11px] italic text-text-subtle">{hint}</span>
-        <label className="mt-1 flex w-full cursor-pointer items-center gap-2 text-[12px] font-medium text-text-main">
-          <input
-            type="checkbox"
-            checked={permiteQuantidade}
-            onChange={(e) => {
-              const v = e.target.checked
-              setPermiteQuantidade(v)
-              saveRules(obrigatorio, minEsc, maxEsc, v)
-            }}
-            className="h-3.5 w-3.5 accent-primary"
-          />
-          Permitir quantidade por opção
-        </label>
-        <p className="-mt-1 w-full rounded-menuzia bg-[#E0F2FE] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-[#1e3a8a]">
-          Na vitrine o cliente escolhe a quantidade de cada opção (− 1 +) em vez de só marcar.
-        </p>
-      </div>
-
-      {/* Item list */}
-      <div className="px-4 py-3">
-        {items.length === 0 && (
-          <p className="mb-3 text-[12px] text-text-subtle">Nenhum item ainda. Adicione abaixo para compor este grupo.</p>
-        )}
-        {items.map((item) =>
-          item.editing ? (
-            <div key={item.id} className="mb-1.5 flex items-center gap-2">
-              <input
-                value={item.nome}
-                onChange={(e) => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, nome: e.target.value } : i)))}
-                onKeyDown={(e) => e.key === 'Enter' && saveItem(item.id)}
-                className="flex-1 rounded-menuzia border border-purple-400 bg-purple-50 px-2.5 py-1.5 text-sm outline-none"
-                autoFocus
-              />
-              <input
-                value={item.preco}
-                onChange={(e) => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, preco: e.target.value } : i)))}
-                onKeyDown={(e) => e.key === 'Enter' && saveItem(item.id)}
-                placeholder="0,00"
-                className="w-24 rounded-menuzia border border-purple-400 bg-purple-50 px-2.5 py-1.5 text-right text-sm outline-none"
-              />
-              <button onClick={() => saveItem(item.id)} className="text-[12px] font-semibold text-purple-600 hover:underline">Salvar</button>
-              <button onClick={() => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, editing: false } : i)))} className="text-[12px] text-text-subtle hover:text-danger">✕</button>
-            </div>
-          ) : (
-            <div
-              key={item.id}
-              className={`mb-1.5 flex items-center gap-2 rounded-menuzia border border-purple-100 bg-purple-50/60 px-3 py-2 ${item.pausado ? 'opacity-60' : ''}`}
-            >
-              <div className="relative h-9 w-9 flex-shrink-0">
-                <label className="relative h-9 w-9 flex-shrink-0 cursor-pointer overflow-hidden rounded-menuzia border border-purple-200 bg-white block">
-                  {item.imagemUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.imagemUrl} alt={item.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center text-[14px] text-text-subtle/50">＋</span>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      const val = parseFloat(item.preco.replace(',', '.'))
-                      const preco = Number.isFinite(val) && val >= 0 ? val : 0
-                      try {
-                        const url = await enviarImagemItem(supabase, restauranteId, file, 'thumb')
-                        await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, url)
-                        const next = items.map((i) => (i.id === item.id ? { ...i, imagemUrl: url } : i))
-                        setItems(next)
-                        onChanged(preset.id, { itens: itensDe(next) })
-                      } catch { /* silencioso */ }
-                    }}
-                  />
-                </label>
-                {item.imagemUrl && (
-                  <button
-                    onClick={async () => {
-                      const val = parseFloat(item.preco.replace(',', '.'))
-                      const preco = Number.isFinite(val) && val >= 0 ? val : 0
-                      try {
-                        await atualizarItemPreset(supabase, item.id, item.nome.trim(), preco, null)
-                        const next = items.map((i) => (i.id === item.id ? { ...i, imagemUrl: null } : i))
-                        setItems(next)
-                        onChanged(preset.id, { itens: itensDe(next) })
-                      } catch { /* silencioso */ }
-                    }}
-                    className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold leading-none text-white shadow-sm hover:bg-[#DC2626]"
-                    title="Remover foto"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-              <span className="flex-1 text-[13px] font-medium text-text-main">{item.nome}</span>
-              {item.pausado && (
-                <span className="flex-shrink-0 rounded-menuzia bg-warn-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn">
-                  Pausado
-                </span>
-              )}
-              {Number(item.preco) > 0 ? (
-                <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 tabular-nums text-[12px] font-bold text-price-text">+ R$ {Number(item.preco).toFixed(2).replace('.', ',')}</span>
-              ) : (
-                <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">Grátis</span>
-              )}
-              <button
-                onClick={() => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, editing: true } : i)))}
-                className="text-[11px] text-text-subtle hover:text-purple-600"
-              >Editar</button>
-              <button
-                onClick={() => togglePausado(item.id)}
-                disabled={pausaSavingId === item.id}
-                title={item.pausado ? 'Retomar complemento' : 'Pausar complemento'}
-                className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-menuzia border border-purple-200 bg-white text-text-subtle hover:border-purple-400 hover:text-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {item.pausado
-                  ? <Play className="h-[13px] w-[13px]" strokeWidth={2} />
-                  : <Pause className="h-[13px] w-[13px]" strokeWidth={2} />}
-              </button>
-              <button onClick={() => deleteItem(item.id)} className="text-[11px] text-text-subtle hover:text-danger">✕</button>
-            </div>
-          )
-        )}
-
-        {/* Add new item row */}
-        <div className="mt-2.5 flex items-center gap-2">
-          <input
-            value={newNome}
-            onChange={(e) => setNewNome(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addItem()}
-            placeholder="Ex: Bacon extra"
-            className="flex-1 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-purple-400 placeholder:text-text-subtle/60"
-          />
-          <input
-            value={newPreco}
-            onChange={(e) => setNewPreco(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addItem()}
-            placeholder="0,00"
-            className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-[13px] outline-none focus:border-purple-400 placeholder:text-text-subtle/60"
-          />
-          <button
-            onClick={addItem}
-            disabled={saving || !newNome.trim()}
-            className="rounded-menuzia border border-purple-300 bg-purple-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50"
-          >
-            + Item
-          </button>
-        </div>
-      </div>
-
-      {bulkOpen && (
-        <BulkUploadModal
-          restauranteId={restauranteId}
-          target={{ tipo: 'complemento', presetId: preset.id, nome: nome, posicaoInicial: items.length }}
-          onClose={(criados) => {
-            setBulkOpen(false)
-            if (criados.length === 0) return
-            const next = [
-              ...items,
-              ...criados.map((c) => ({ id: c.id, nome: c.nome, preco: c.preco.toFixed(2).replace('.', ','), editing: false, imagemUrl: c.imagemUrl, pausado: false })),
-            ]
-            setItems(next)
-            onChanged(preset.id, { itens: itensDe(next) })
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-// ─── Grupos de Complementos tab ───────────────────────────────────────────────
-
-function GruposComplementos({
-  restauranteId,
-  presets,
-  setPresets,
-}: {
-  restauranteId: string
-  presets: PresetComplementos[]
-  setPresets: React.Dispatch<React.SetStateAction<PresetComplementos[]>>
-}) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [newNome, setNewNome] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function createGroup() {
-    if (!newNome.trim()) return
-    setCreating(true)
-    setError(null)
-    try {
-      const p = await criarPreset(supabase, restauranteId, newNome.trim())
-      setPresets((prev) => [...prev, p])
-      setNewNome('')
-    } catch {
-      setError('Não foi possível criar o grupo de complementos.')
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto p-5">
-      <div className="mb-5 flex flex-col gap-2">
-        <h2 className="text-[15px] font-bold text-text-main">Grupos de complementos</h2>
-        <p className="max-w-3xl rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-[12px] font-medium leading-relaxed text-[#1e3a8a]">
-          Crie grupos reutilizáveis de adicionais (ex.: <em>Adicionais de Burger</em>, <em>Molhos</em>). Defina se a escolha é{' '}
-          <strong>obrigatória</strong> e quantos itens o cliente pode selecionar. No editor de cada item, importe um grupo com
-          1 clique — os complementos são copiados com as regras, mas sem afetar o grupo original.
-        </p>
-      </div>
-
-      {/* Create new group */}
-      <div className="mb-6 flex items-center gap-3 rounded-menuzia border border-purple-200 bg-purple-50/60 p-3.5">
-        <input
-          value={newNome}
-          onChange={(e) => setNewNome(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && createGroup()}
-          placeholder="Nome do novo grupo (ex: Adicionais de Burger)"
-          className="flex-1 rounded-menuzia border border-purple-200 bg-white px-3 py-2 text-sm outline-none focus:border-purple-500 placeholder:text-text-subtle/60"
-        />
-        <button
-          onClick={createGroup}
-          disabled={creating || !newNome.trim()}
-          className="flex-shrink-0 rounded-menuzia bg-purple-600 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
-        >
-          {creating ? 'Criando…' : '+ Criar grupo'}
-        </button>
-      </div>
-
-      {presets.length === 0 && (
-        <div className="rounded-menuzia border border-dashed border-purple-200 bg-purple-50/30 px-6 py-14 text-center text-[13px] text-text-subtle">
-          Nenhum grupo criado ainda. Use o campo acima para criar o primeiro grupo de complementos.
-        </div>
-      )}
-
-      {error && <p className="mb-4 rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {presets.map((preset) => (
-          <PresetGroupCard
-            key={preset.id}
-            preset={preset}
-            restauranteId={restauranteId}
-            onDeleted={(id) => setPresets((prev) => prev.filter((p) => p.id !== id))}
-            onRenamed={(id, nome) => setPresets((prev) => prev.map((p) => (p.id === id ? { ...p, nome } : p)))}
-            onChanged={(id, patch) => setPresets((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Tamanhos Tab (catálogos da loja: tamanhos de pizza/marmita, bordas, massas) ──
-
-interface LinhaCatalogo {
-  id: string
-  nome: string
-  extra: string
-  extra2?: string
-}
-
-function ListaCatalogo({
-  titulo,
-  hint,
-  itens,
-  extraLabel,
-  extraPlaceholder,
-  extraType,
-  extraIsPrice = false,
-  formatExtra,
-  extra2Label,
-  extra2Placeholder,
-  formatExtra2,
-  onAdd,
-  onUpdate,
-  onRemove,
-}: {
-  titulo: string
-  hint: string
-  itens: LinhaCatalogo[]
-  extraLabel: string
-  extraPlaceholder: string
-  extraType: 'text' | 'number'
-  /** Quando o valor extra é um preço, exibe no verde padrão de valores. */
-  extraIsPrice?: boolean
-  formatExtra: (extra: string) => string
-  /** Segundo campo opcional (ex.: "máx. sabores" no tamanho de pizza). */
-  extra2Label?: string
-  extra2Placeholder?: string
-  formatExtra2?: (extra2: string) => string
-  onAdd: (nome: string, extra: string, extra2?: string) => Promise<void>
-  onUpdate: (id: string, nome: string, extra: string, extra2?: string) => Promise<void>
-  onRemove: (id: string) => Promise<void>
-}) {
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editNome, setEditNome] = useState('')
-  const [editExtra, setEditExtra] = useState('')
-  const [editExtra2, setEditExtra2] = useState('')
-  const [newNome, setNewNome] = useState('')
-  const [newExtra, setNewExtra] = useState('')
-  const [newExtra2, setNewExtra2] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  function startEdit(linha: LinhaCatalogo) {
-    setEditingId(linha.id)
-    setEditNome(linha.nome)
-    setEditExtra(linha.extra)
-    setEditExtra2(linha.extra2 ?? '')
-  }
-
-  async function saveEdit() {
-    if (!editingId || !editNome.trim()) return
-    setBusy(true)
-    try {
-      await onUpdate(editingId, editNome.trim(), editExtra, extra2Label !== undefined ? editExtra2 : undefined)
-      setEditingId(null)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function add() {
-    if (!newNome.trim()) return
-    setBusy(true)
-    try {
-      await onAdd(newNome.trim(), newExtra, extra2Label !== undefined ? newExtra2 : undefined)
-      setNewNome('')
-      setNewExtra('')
-      setNewExtra2('')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Card>
-      {/* Cabeçalho da seção — título forte + observação em azul */}
-      <div className="-mx-4.5 -mt-4.5 mb-3 rounded-t-menuzia border-b border-[#1e3a8a]/10 bg-[#1e3a8a] px-4.5 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-[13px] font-bold uppercase tracking-wide text-white">{titulo}</h3>
-          <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white">
-            {itens.length} salvo{itens.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-      </div>
-      <p className="mb-3 rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-[12px] font-medium leading-relaxed text-[#1e3a8a]">{hint}</p>
-
-      {/* Lista do que já foi definido */}
-      {itens.length === 0 && (
-        <div className="mb-3 rounded-menuzia border border-dashed border-[#1e3a8a]/25 bg-[#EFF6FF] px-4 py-6 text-center text-[12px] font-medium text-[#1e3a8a]">
-          Nada definido ainda — preencha os campos abaixo e clique em <strong>Adicionar</strong>.
-        </div>
-      )}
-      <div className="mb-3 flex flex-col gap-1.5">
-        {itens.map((linha) =>
-          editingId === linha.id ? (
-            <div key={linha.id} className="flex items-center gap-2 rounded-menuzia border border-[#1e3a8a]/30 bg-[#EFF6FF] px-3 py-2">
-              <input
-                value={editNome}
-                onChange={(e) => setEditNome(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                autoFocus
-                className="min-w-0 flex-1 rounded-menuzia border border-[#1e3a8a]/30 bg-white px-2.5 py-1.5 text-sm text-[#1e3a8a] outline-none focus:border-[#1e3a8a]"
-              />
-              <input
-                type={extraType}
-                value={editExtra}
-                onChange={(e) => setEditExtra(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                placeholder={extraPlaceholder}
-                className="w-24 rounded-menuzia border border-[#1e3a8a]/30 bg-white px-2.5 py-1.5 text-right text-sm text-[#1e3a8a] outline-none focus:border-[#1e3a8a]"
-              />
-              {extra2Label !== undefined && (
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={editExtra2}
-                  onChange={(e) => setEditExtra2(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                  placeholder={extra2Placeholder}
-                  className="w-24 rounded-menuzia border border-[#1e3a8a]/30 bg-white px-2.5 py-1.5 text-right text-sm text-[#1e3a8a] outline-none focus:border-[#1e3a8a]"
-                />
-              )}
-              <button onClick={saveEdit} disabled={busy}
-                className="rounded-menuzia bg-[#1e3a8a] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-50">
-                Salvar
-              </button>
-              <button onClick={() => setEditingId(null)} className="text-[12px] text-text-subtle hover:text-text-main">Cancelar</button>
-            </div>
-          ) : (
-            <div key={linha.id} className="group flex items-center gap-2.5 rounded-menuzia border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 transition-colors hover:border-[#1e3a8a]/40">
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#1e3a8a]">{linha.nome}</span>
-              {extraIsPrice ? (
-                <span className="rounded-menuzia bg-price-bg px-2 py-0.5 tabular-nums text-[12px] font-bold text-price-text">{formatExtra(linha.extra)}</span>
-              ) : (
-                <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">{formatExtra(linha.extra)}</span>
-              )}
-              {/* Mesmo gate dos inputs de extra2: badge e campo aparecem juntos
-                  ou não aparecem. `formatExtra2` é só a formatação. */}
-              {extra2Label !== undefined && (
-                <span className="rounded-menuzia bg-[#DBEAFE] px-2 py-0.5 tabular-nums text-[12px] font-bold text-[#1e3a8a]">
-                  {formatExtra2 ? formatExtra2(linha.extra2 ?? '') : (linha.extra2 ?? '')}
-                </span>
-              )}
-              <button onClick={() => startEdit(linha)}
-                className="rounded-menuzia border border-[#1e3a8a]/25 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#1e3a8a] transition-colors hover:bg-[#1e3a8a] hover:text-white">
-                Editar
-              </button>
-              <button onClick={() => onRemove(linha.id)}
-                className="rounded-menuzia bg-[#fee2e2] px-2 py-1 text-[11px] font-semibold text-[#ef4444] transition-colors hover:bg-[#ef4444] hover:text-white">
-                ✕
-              </button>
-            </div>
-          )
-        )}
-      </div>
-
-      {/* Adicionar novo */}
-      <div className="rounded-menuzia border border-border bg-page p-2.5">
-        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Adicionar {titulo.toLowerCase().replace(/s$/, '').split(' de ')[0]}</div>
-        <div className="flex items-center gap-2">
-          <input value={newNome} onChange={(e) => setNewNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
-            placeholder="Nome (ex: Grande)" className="min-w-0 flex-1 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
-          <input type={extraType} value={newExtra} onChange={(e) => setNewExtra(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
-            placeholder={extraPlaceholder} className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
-          {extra2Label !== undefined && (
-            <input type="number" min="1" step="1" value={newExtra2} onChange={(e) => setNewExtra2(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
-              placeholder={extra2Placeholder} className="w-24 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-right text-sm outline-none focus:border-primary" />
-          )}
-          <Button variant="primary" onClick={add} disabled={busy || !newNome.trim()}>+ Adicionar</Button>
-        </div>
-        <p className="mt-1.5 text-[11px] text-text-subtle">{extraLabel} fica no campo da direita. Aperte Enter ou clique em Adicionar pra salvar.</p>
-      </div>
-    </Card>
-  )
-}
-
-function TamanhosTab({
-  restauranteId,
-  tamanhosPizza,
-  setTamanhosPizza,
-  tamanhosMarmita,
-  setTamanhosMarmita,
-}: {
-  restauranteId: string
-  // Catálogos vivem no state da página: o wizard de cadastro de item lê de lá,
-  // então mudanças feitas aqui aparecem no cadastro sem recarregar.
-  tamanhosPizza: TamanhoPadraoPizza[]
-  setTamanhosPizza: React.Dispatch<React.SetStateAction<TamanhoPadraoPizza[]>>
-  tamanhosMarmita: TamanhoPadraoMarmita[]
-  setTamanhosMarmita: React.Dispatch<React.SetStateAction<TamanhoPadraoMarmita[]>>
-}) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [loaded, setLoaded] = useState(false)
-  const [bordas, setBordas] = useState<BordaPizza[]>([])
-  const [massas, setMassas] = useState<MassaPizza[]>([])
-  const [regraPizza, setRegraPizza] = useState<'media' | 'maior'>('media')
-
-  useEffect(() => {
-    if (loaded) return
-    Promise.all([
-      listarBordasPizza(supabase, restauranteId),
-      listarMassasPizza(supabase, restauranteId),
-      buscarRegraPrecoPizza(supabase, restauranteId),
-    ]).then(([b, ma, regra]) => {
-      setBordas(b)
-      setMassas(ma)
-      setRegraPizza(regra)
-      setLoaded(true)
-    })
-  }, [supabase, restauranteId, loaded])
-
-  if (!loaded) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-text-subtle">Carregando…</div>
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto p-5">
-      <div className="mb-5">
-        <h2 className="text-[15px] font-bold text-text-main">Tamanhos</h2>
-        <p className="mt-1.5 max-w-2xl rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-[12px] font-medium leading-relaxed text-[#1e3a8a]">
-          Defina aqui o que significa Pequena/Média/Grande na sua loja — cada item de pizza ou marmita reaproveita
-          esses tamanhos no cadastro. Bordas e massas cadastradas aqui ficam disponíveis em todas as pizzas automaticamente.
-        </p>
-        <div className="mt-3 flex items-center gap-3">
-          <span className="text-[12px] font-semibold text-text-main">Pizza com mais de um sabor cobra:</span>
-          {(['media', 'maior'] as const).map((regra) => (
-            <button
-              key={regra}
-              onClick={async () => {
-                const anterior = regraPizza
-                setRegraPizza(regra)
-                const { error } = await supabase.from('restaurantes').update({ pizza_calculo_preco: regra }).eq('id', restauranteId)
-                if (error) {
-                  setRegraPizza(anterior)
-                  alert('Não foi possível salvar a regra de preço. Tente novamente.')
-                }
-              }}
-              className={[
-                'rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                regraPizza === regra ? 'border-primary bg-primary text-white' : 'border-border bg-main text-text-subtle',
-              ].join(' ')}
-            >
-              {regra === 'media' ? 'Média dos sabores' : 'Sabor mais caro'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <ListaCatalogo
-          titulo="Tamanhos de pizza"
-          hint='Ex.: "Pequena" com 4 fatias e 1 sabor, "Grande" com 8 fatias e até 3 sabores. Cada sabor define o preço para cada um desses tamanhos.'
-          itens={tamanhosPizza.map((t) => ({ id: t.id, nome: t.nome, extra: String(t.fatias), extra2: String(t.maxSabores) }))}
-          extraLabel="Fatias"
-          extraPlaceholder="Ex: 8"
-          extraType="number"
-          formatExtra={(e) => `${e} fatias`}
-          extra2Label="Máx. sabores"
-          extra2Placeholder="Ex: 3"
-          formatExtra2={(e) => (Number(e) > 1 ? `até ${e} sabores` : '1 sabor')}
-          onAdd={async (nome, extra, extra2) => {
-            const novo = await criarTamanhoPadraoPizza(supabase, restauranteId, nome, Number(extra) || 0, tamanhosPizza.length, Math.max(1, Number(extra2) || 1))
-            setTamanhosPizza((prev) => [...prev, novo])
-          }}
-          onUpdate={async (id, nome, extra, extra2) => {
-            const maxSab = Math.max(1, Number(extra2) || 1)
-            await atualizarTamanhoPadraoPizza(supabase, id, nome, Number(extra) || 0, maxSab)
-            setTamanhosPizza((prev) => prev.map((t) => (t.id === id ? { ...t, nome, fatias: Number(extra) || 0, maxSabores: maxSab } : t)))
-          }}
-          onRemove={async (id) => {
-            if (!confirm('Excluir este tamanho de pizza? Preços de sabores cadastrados pra ele também serão excluídos.')) return
-            await removerTamanhoPadraoPizza(supabase, id)
-            setTamanhosPizza((prev) => prev.filter((t) => t.id !== id))
-          }}
-        />
-        <ListaCatalogo
-          titulo="Tamanhos de marmita"
-          hint='Ex.: "Pequena" 500g, "Grande" 700g. Ao criar um item de marmita, importe esses tamanhos com 1 clique e só ajuste o preço.'
-          itens={tamanhosMarmita.map((t) => ({ id: t.id, nome: t.nome, extra: t.peso }))}
-          extraLabel="Peso"
-          extraPlaceholder="Ex: 500g"
-          extraType="text"
-          formatExtra={(e) => e}
-          onAdd={async (nome, extra) => {
-            const novo = await criarTamanhoPadraoMarmita(supabase, restauranteId, nome, extra, tamanhosMarmita.length)
-            setTamanhosMarmita((prev) => [...prev, novo])
-          }}
-          onUpdate={async (id, nome, extra) => {
-            await atualizarTamanhoPadraoMarmita(supabase, id, nome, extra)
-            setTamanhosMarmita((prev) => prev.map((t) => (t.id === id ? { ...t, nome, peso: extra } : t)))
-          }}
-          onRemove={async (id) => {
-            if (!confirm('Excluir este tamanho de marmita?')) return
-            await removerTamanhoPadraoMarmita(supabase, id)
-            setTamanhosMarmita((prev) => prev.filter((t) => t.id !== id))
-          }}
-        />
-        <ListaCatalogo
-          titulo="Bordas de pizza"
-          hint="Oferecidas como opção (com preço extra) em todas as pizzas da loja."
-          itens={bordas.map((b) => ({ id: b.id, nome: b.nome, extra: String(b.preco) }))}
-          extraLabel="Preço extra (R$)"
-          extraPlaceholder="Ex: 8,00"
-          extraType="text"
-          extraIsPrice
-          formatExtra={(e) => `+ R$ ${(Number(e) || 0).toFixed(2).replace('.', ',')}`}
-          onAdd={async (nome, extra) => {
-            const preco = Number(extra.replace(',', '.')) || 0
-            const novo = await criarBordaPizza(supabase, restauranteId, nome, preco, bordas.length)
-            setBordas((prev) => [...prev, novo])
-          }}
-          onUpdate={async (id, nome, extra) => {
-            const preco = Number(extra.replace(',', '.')) || 0
-            await atualizarBordaPizza(supabase, id, nome, preco)
-            setBordas((prev) => prev.map((b) => (b.id === id ? { ...b, nome, preco } : b)))
-          }}
-          onRemove={async (id) => {
-            if (!confirm('Excluir esta borda?')) return
-            await removerBordaPizza(supabase, id)
-            setBordas((prev) => prev.filter((b) => b.id !== id))
-          }}
-        />
-        <ListaCatalogo
-          titulo="Massas de pizza"
-          hint="Oferecidas como opção (com preço extra) em todas as pizzas da loja."
-          itens={massas.map((m) => ({ id: m.id, nome: m.nome, extra: String(m.preco) }))}
-          extraLabel="Preço extra (R$)"
-          extraPlaceholder="Ex: 5,00"
-          extraType="text"
-          extraIsPrice
-          formatExtra={(e) => `+ R$ ${(Number(e) || 0).toFixed(2).replace('.', ',')}`}
-          onAdd={async (nome, extra) => {
-            const preco = Number(extra.replace(',', '.')) || 0
-            const novo = await criarMassaPizza(supabase, restauranteId, nome, preco, massas.length)
-            setMassas((prev) => [...prev, novo])
-          }}
-          onUpdate={async (id, nome, extra) => {
-            const preco = Number(extra.replace(',', '.')) || 0
-            await atualizarMassaPizza(supabase, id, nome, preco)
-            setMassas((prev) => prev.map((m) => (m.id === id ? { ...m, nome, preco } : m)))
-          }}
-          onRemove={async (id) => {
-            if (!confirm('Excluir esta massa?')) return
-            await removerMassaPizza(supabase, id)
-            setMassas((prev) => prev.filter((m) => m.id !== id))
-          }}
-        />
-      </div>
-    </div>
-  )
-}
-
-// ─── Order Bump Tab ────────────────────────────────────────────────────────────
-
-/** Por que um item configurado no order bump não vai aparecer pro cliente agora — null = disponível normalmente. */
-function motivoIndisponivelAgora(item: ItemCardapio, grupoMap: Map<string, GrupoCardapio>): string | null {
-  if (item.status === 'pausado') return 'Item pausado'
-  if (item.status === 'esgotado') return 'Item esgotado'
-  if (!itemDisponivelHoje(item.diasDisponiveis)) return 'Indisponível hoje (dia da semana)'
-  const grupo = item.grupoId ? grupoMap.get(item.grupoId) : undefined
-  if (grupo && !grupoEstaAtivoAgora(grupo)) return 'Categoria fora do horário agora'
-  return null
-}
-
-function OrderBumpTab({ restauranteId, items, groups }: { restauranteId: string; items: ItemCardapio[]; groups: GrupoCardapio[] }) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [bumps, setBumps] = useState<OrderBumpEntry[]>([])
-  const [maxItems, setMaxItems] = useState(4)
-  const [loadingTab, setLoadingTab] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoadingTab(true)
-      try {
-        const [bumpsData, config] = await Promise.all([
-          listarOrderBumps(supabase, restauranteId),
-          buscarOrderBumpConfig(supabase, restauranteId),
-        ])
-        if (!cancelled) {
-          setBumps(bumpsData)
-          setMaxItems(config.max)
-        }
-      } catch {
-        if (!cancelled) setError('Não foi possível carregar as configurações de order bump.')
-      } finally {
-        if (!cancelled) setLoadingTab(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
-  }, [supabase, restauranteId])
-
-  const grupoMap = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups])
-  const bumpItemIds = useMemo(() => new Set(bumps.map((b) => b.itemId)), [bumps])
-  const availableItems = useMemo(() => items.filter((item) => !bumpItemIds.has(item.id)), [items, bumpItemIds])
-  const filteredAvailable = useMemo(
-    () => (search.trim() ? availableItems.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) : availableItems),
-    [availableItems, search]
-  )
-
-  async function add(item: ItemCardapio) {
-    setError(null)
-    try {
-      const entry = await adicionarOrderBump(supabase, restauranteId, item.id, bumps.length)
-      setBumps((prev) => [...prev, entry])
-    } catch {
-      setError('Não foi possível adicionar o produto ao order bump.')
-    }
-  }
-
-  async function remove(id: string) {
-    try {
-      await removerOrderBump(supabase, id)
-      setBumps((prev) => prev.filter((b) => b.id !== id).map((b, i) => ({ ...b, posicao: i })))
-    } catch {
-      setError('Não foi possível remover o produto.')
-    }
-  }
-
-  async function toggle(id: string, current: boolean) {
-    try {
-      await toggleOrderBumpAtivo(supabase, id, !current)
-      setBumps((prev) => prev.map((b) => (b.id === id ? { ...b, ativo: !current } : b)))
-    } catch {
-      setError('Não foi possível atualizar o status.')
-    }
-  }
-
-  async function move(index: number, dir: -1 | 1) {
-    const next = [...bumps]
-    const target = index + dir
-    if (target < 0 || target >= next.length) return
-    ;[next[index], next[target]] = [next[target], next[index]]
-    const reordered = next.map((b, i) => ({ ...b, posicao: i }))
-    setBumps(reordered)
-    try {
-      await reordenarOrderBumps(supabase, reordered.map((b) => ({ id: b.id, posicao: b.posicao })))
-    } catch {
-      setError('Não foi possível reordenar.')
-    }
-  }
-
-  async function saveMax(val: number) {
-    const clamped = Math.max(1, Math.min(8, val))
-    setMaxItems(clamped)
-    try {
-      await atualizarOrderBumpMax(supabase, restauranteId, clamped)
-    } catch { /* silent */ }
-  }
-
-  const fmtBrl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-
-  if (loadingTab) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-text-subtle">Carregando order bumps…</div>
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto p-5">
-      <div className="mb-5">
-        <h2 className="text-[15px] font-bold text-text-main">Order Bump</h2>
-        <p className="mt-0.5 max-w-2xl text-[12px] leading-relaxed text-text-subtle">
-          Produtos sugeridos ao cliente na seção &ldquo;Peça também&rdquo; durante o checkout. Um clique adiciona o item ao carrinho
-          automaticamente. Ordene para controlar quais aparecem primeiro.
-        </p>
-      </div>
-
-      {error && (
-        <div className="mb-4 rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
-      )}
-
-      {/* Config */}
-      <div className="mb-6 flex flex-wrap items-center gap-3.5 rounded-menuzia border border-border bg-white px-4 py-3.5">
-        <span className="text-[13px] font-medium text-text-subtle">Exibir no máximo</span>
-        <input
-          type="number"
-          min={1}
-          max={8}
-          value={maxItems}
-          onChange={(e) => saveMax(Number(e.target.value))}
-          className="w-[60px] rounded-menuzia border border-border px-2 py-1.5 text-center text-sm font-bold outline-none focus:border-primary"
-        />
-        <span className="text-[13px] font-medium text-text-subtle">produtos no checkout</span>
-        <span className="ml-auto rounded-menuzia bg-alert-bg px-2.5 py-1 text-[11px] font-semibold text-alert-text">
-          Máx. 8 produtos
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
-        {/* Configured bumps */}
-        <div>
-          <div className="mb-3 flex items-center gap-2">
-            <h3 className="text-[13px] font-semibold uppercase tracking-wide text-text-subtle">Produtos configurados</h3>
-            {bumps.length > 0 && (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{bumps.length}</span>
-            )}
-            {bumps.length > maxItems && (
-              <span className="ml-auto text-[11px] font-medium text-warn">Apenas os primeiros {maxItems} serão exibidos</span>
-            )}
-          </div>
-
-          {bumps.length === 0 ? (
-            <div className="rounded-menuzia border border-dashed border-border bg-page px-6 py-14 text-center text-[13px] text-text-subtle">
-              Nenhum produto configurado ainda. Adicione produtos pela lista à direita →
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {bumps.map((bump, index) => {
-                const item = items.find((i) => i.id === bump.itemId)
-                if (!item) return null
-                const overLimit = index >= maxItems
-                const motivoIndisponivel = motivoIndisponivelAgora(item, grupoMap)
-                return (
-                  <div
-                    key={bump.id}
-                    className={[
-                      'flex items-center gap-3 rounded-menuzia border bg-white p-3 transition-opacity',
-                      !bump.ativo ? 'opacity-50' : '',
-                    ].join(' ')}
-                  >
-                    <span className="w-5 flex-shrink-0 text-center text-[12px] font-bold text-text-subtle">{index + 1}</span>
-                    <ItemThumb item={item} size={40} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-semibold">{item.nome}</div>
-                      <div className="mt-0.5 text-[11px] text-text-subtle">{fmtBrl(item.preco)}</div>
-                    </div>
-                    {motivoIndisponivel && (
-                      <span
-                        title={`Este produto não vai aparecer no "Peça também" agora: ${motivoIndisponivel}. O toggle abaixo é só a configuração do order bump — a disponibilidade real do produto é definida no cadastro do item/categoria.`}
-                        className="flex-shrink-0 cursor-help rounded-menuzia bg-danger-bg px-2 py-0.5 text-[10px] font-bold text-danger"
-                      >
-                        {motivoIndisponivel}
-                      </span>
-                    )}
-                    {overLimit && (
-                      <span
-                        title={`Este produto está cadastrado, mas não será exibido no checkout porque só os primeiros ${maxItems} aparecem. Aumente o limite ou mova o produto para cima.`}
-                        className="flex-shrink-0 cursor-help rounded-menuzia bg-warn/10 px-2 py-0.5 text-[10px] font-bold text-warn"
-                      >
-                        Fora do limite de exibição ({maxItems})
-                      </span>
-                    )}
-                    {/* Ativo toggle */}
-                    <button
-                      onClick={() => toggle(bump.id, bump.ativo)}
-                      title={bump.ativo ? 'Desativar' : 'Ativar'}
-                      className={[
-                        'relative h-6 w-11 flex-shrink-0 rounded-full transition-colors',
-                        bump.ativo ? 'bg-primary' : 'bg-border',
-                      ].join(' ')}
-                    >
-                      <span
-                        className={[
-                          'absolute top-0.5 block h-5 w-5 rounded-full bg-white shadow transition-transform',
-                          bump.ativo ? 'translate-x-[22px]' : 'translate-x-0.5',
-                        ].join(' ')}
-                      />
-                    </button>
-                    <button
-                      onClick={() => move(index, -1)}
-                      disabled={index === 0}
-                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-menuzia border border-border text-xs text-text-subtle hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      onClick={() => move(index, 1)}
-                      disabled={index === bumps.length - 1}
-                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-menuzia border border-border text-xs text-text-subtle hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      onClick={() => remove(bump.id)}
-                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-white text-base leading-none text-danger hover:border-danger hover:bg-danger-bg"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Available items to add */}
-        <div>
-          <h3 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-text-subtle">Adicionar produto</h3>
-          <div className="mb-3 flex items-center gap-2 rounded-menuzia border border-border bg-white px-2.5 py-2">
-            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-text-subtle">
-              <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-            </svg>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar produto…"
-              className="w-full border-none bg-transparent font-sans text-[13px] text-text-main outline-none placeholder:text-text-subtle/60"
-            />
-          </div>
-          <div className="max-h-[500px] space-y-1.5 overflow-y-auto">
-            {filteredAvailable.length === 0 ? (
-              <div className="py-8 text-center text-[12px] text-text-subtle">
-                {search ? 'Nenhum produto encontrado.' : 'Todos os produtos já foram adicionados.'}
-              </div>
-            ) : (
-              filteredAvailable.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => add(item)}
-                  className="flex w-full items-center gap-2.5 rounded-menuzia border border-border bg-white p-2.5 text-left transition-colors hover:border-primary hover:bg-page"
-                >
-                  <ItemThumb item={item} size={34} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium">{item.nome}</div>
-                    <div className="text-[11px] text-text-subtle">{fmtBrl(item.preco)}</div>
-                  </div>
-                  <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-menuzia bg-primary/10 text-sm font-bold text-primary">
-                    +
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
@@ -2057,7 +619,35 @@ export default function CardapioPage() {
   const [tamanhosPizzaCatalogo, setTamanhosPizzaCatalogo] = useState<TamanhoPadraoPizza[]>([])
   const [tamanhosMarmitaCatalogo, setTamanhosMarmitaCatalogo] = useState<TamanhoPadraoMarmita[]>([])
 
-  const [cardapioTab, setCardapioTab] = useState<CardapioTab>('itens')
+  // Aba na URL (?tab=), como na Logística: recarregar ou mandar o link abre a mesma aba.
+  const [cardapioTab, setCardapioTab] = useState<AbaCardapio>('itens')
+  useEffect(() => {
+    setCardapioTab(abaDaUrl(new URLSearchParams(window.location.search).get('tab')))
+  }, [])
+  function irParaAba(aba: AbaCardapio) {
+    setCardapioTab(aba)
+    const url = new URL(window.location.href)
+    if (aba === 'itens') url.searchParams.delete('tab')
+    else url.searchParams.set('tab', aba)
+    // replaceState: trocar de aba não merece entrada no histórico nem remontar a página.
+    window.history.replaceState(null, '', url)
+  }
+  // Papel de quem está logado: só dono/gerente mexem nos catálogos da loja (0066).
+  // Enquanto não sabe, mostra — o erro de permissão aparece na tela se for o caso.
+  const [papel, setPapel] = useState<string | null>(null)
+  useEffect(() => {
+    let ativo = true
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user || !ativo) return
+      const { data: u } = await supabase.from('usuarios').select('papel').eq('id', data.user.id).maybeSingle()
+      if (ativo && u) setPapel(u.papel as string)
+    })
+    return () => { ativo = false }
+  }, [supabase])
+  const podeEditarCatalogo = papel === null || pode(papel, 'cardapio.editar')
+  // Item novo de marmita/açaí nasce pausado até ganhar um tamanho com preço.
+  const [pausadoAteTerPreco, setPausadoAteTerPreco] = useState(false)
+  const [avisoItem, setAvisoItem] = useState<string | null>(null)
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [editingGroupName, setEditingGroupName] = useState('')
@@ -2104,12 +694,6 @@ export default function CardapioPage() {
   // State for creating a new complement group inside the item drawer
   const [creatingGrupo, setCreatingGrupo] = useState(false)
   const [newGrupoForm, setNewGrupoForm] = useState({ nome: '', obrigatorio: false, min: 0, max: 1 })
-  const [creatingTamanho, setCreatingTamanho] = useState(false)
-  const [newTamanhoForm, setNewTamanhoForm] = useState({ nome: '', preco: '' })
-  const [editingTamanhoId, setEditingTamanhoId] = useState<string | null>(null)
-  const [editingTamanhoForm, setEditingTamanhoForm] = useState({ nome: '', preco: '' })
-  const [creatingSabor, setCreatingSabor] = useState(false)
-  const [newSaborNome, setNewSaborNome] = useState('')
   // Açaí = item simples COM tamanhos/volumes (sem novo tipo no banco).
   const [temTamanhos, setTemTamanhos] = useState(false)
   // Wizard do cadastro de item: 1 O básico · 2 Tamanhos/Sabores · 3 Complementos · 4 Exibição.
@@ -2201,6 +785,8 @@ export default function CardapioPage() {
     setNewGrupoForm({ nome: '', obrigatorio: false, min: 0, max: 1 })
     setTemTamanhos(false)
     setFormStep(1)
+    setPausadoAteTerPreco(false)
+    setAvisoItem(null)
     setDrawer('edit')
   }
 
@@ -2211,6 +797,8 @@ export default function CardapioPage() {
     // açaí/sized: item simples que já tem tamanhos cadastrados
     setTemTamanhos(item.tipoItem === 'simples' && item.tamanhos.length > 0)
     setFormStep(1)
+    setPausadoAteTerPreco(false)
+    setAvisoItem(null)
     setDrawer('edit')
   }
 
@@ -2237,18 +825,27 @@ export default function CardapioPage() {
     }
   }
 
+  const temVariacoes = form.tipoItem === 'pizza' || form.tipoItem === 'marmita' || (form.tipoItem === 'simples' && temTamanhos)
+
   /** Salva o item (create ou update). `fechar` controla se o drawer fecha — o wizard salva a cada etapa sem fechar. */
   async function saveItem(fechar = true): Promise<boolean> {
     if (!restauranteId || !form.nome.trim()) return false
     // Item de graça na vitrine e "promoção" sem desconto: dois cadastros que o
     // cliente sente antes do lojista perceber (lib/item-cadastro.ts).
-    const problema = erroDoItem({
+    // Tamanho a R$ 0 não conta: o tamanho substitui o preço-base, então marmita só
+    // com tamanhos zerados sai de graça do mesmo jeito (lib/item-cadastro.ts).
+    const tamanhosAtuais = form.id ? items.find((i) => i.id === form.id)?.tamanhos ?? [] : []
+    const validar = {
       preco: parsePreco(form.preco),
       promocaoPreco: form.promocaoPreco.trim() ? parsePreco(form.promocaoPreco) : null,
       tipoItem: form.tipoItem,
-      qtdTamanhos: (form.id ? items.find((i) => i.id === form.id)?.tamanhos.length : 0) ?? 0,
+      qtdTamanhos: tamanhosAtuais.filter((t) => t.preco > 0).length,
       status: form.status,
-    })
+    }
+    // Marmita/açaí NOVO sem preço: grava pausado em vez de travar — o tamanho só
+    // pode ser cadastrado depois que o item existe.
+    const inicial = form.id ? { status: form.status, pausadoAteTerPreco: false } : statusAoCriarItem({ ...validar, cobraPorTamanho: temVariacoes })
+    const problema = erroDoItem({ ...validar, status: inicial.status })
     if (problema) {
       setError(problema)
       return false
@@ -2261,7 +858,7 @@ export default function CardapioPage() {
         nome: form.nome.trim(),
         descricao: form.descricao.trim(),
         preco: parsePreco(form.preco),
-        status: form.status,
+        status: inicial.status as StatusItem,
         diasDisponiveis: form.diasDisponiveis,
         promocaoPreco: form.promocaoPreco.trim() ? parsePreco(form.promocaoPreco) : null,
         maisVendido: form.maisVendido,
@@ -2281,12 +878,16 @@ export default function CardapioPage() {
         }
         setItems((prev) => [...prev, final])
         // Update form with the new item id so complementos can be added
-        setForm((prev) => ({ ...prev, id: final.id }))
+        setForm((prev) => ({ ...prev, id: final.id, status: final.status }))
+        if (inicial.pausadoAteTerPreco) {
+          setPausadoAteTerPreco(true)
+          setAvisoItem('Item salvo como PAUSADO: ele volta a aparecer quando tiver um tamanho com preço.')
+        }
       }
       if (fechar) setDrawer(null)
       return true
-    } catch {
-      setError('Não foi possível salvar o item. Tente novamente.')
+    } catch (e) {
+      setError(mensagemErroCardapio(e, 'Não foi possível salvar o item. Tente novamente.'))
       return false
     } finally {
       setSaving(false)
@@ -2294,7 +895,6 @@ export default function CardapioPage() {
   }
 
   // ── Navegação do wizard de cadastro ──────────────────────────────────────
-  const temVariacoes = form.tipoItem === 'pizza' || form.tipoItem === 'marmita' || (form.tipoItem === 'simples' && temTamanhos)
 
   /** Avança pra próxima etapa; a etapa 1 salva o básico antes (cria o item se for novo). */
   async function wizardNext() {
@@ -2304,7 +904,17 @@ export default function CardapioPage() {
       setFormStep(temVariacoes ? 2 : 3)
       return
     }
-    if (formStep === 2) { setFormStep(3); return }
+    if (formStep === 2) {
+      // Pausado só por falta de preço e agora com tamanho precificado: volta a vender.
+      const precificado = (currentItem?.tamanhos ?? []).some((t) => t.preco > 0)
+      if (pausadoAteTerPreco && precificado) {
+        setForm((prev) => ({ ...prev, status: 'disponivel' }))
+        setPausadoAteTerPreco(false)
+        setAvisoItem('Pronto: com tamanho com preço, o item volta a ficar disponível ao concluir.')
+      }
+      setFormStep(3)
+      return
+    }
     if (formStep === 3) { setFormStep(4); return }
     await saveItem(true) // etapa final: persiste exibição/disponibilidade e fecha
   }
@@ -2566,76 +1176,6 @@ export default function CardapioPage() {
     }
   }
 
-  async function createTamanho() {
-    if (!form.id || !newTamanhoForm.nome.trim()) return
-    const preco = Number(newTamanhoForm.preco.replace(',', '.')) || 0
-    const posicao = currentItem?.tamanhos.length ?? 0
-    try {
-      await criarTamanho(supabase, form.id, newTamanhoForm.nome.trim(), preco, posicao)
-      setCreatingTamanho(false)
-      setNewTamanhoForm({ nome: '', preco: '' })
-      await refreshItems()
-    } catch {
-      setError('Não foi possível criar o tamanho.')
-    }
-  }
-
-  function startEditTamanho(tamanho: TamanhoItem) {
-    setEditingTamanhoId(tamanho.id)
-    setEditingTamanhoForm({ nome: tamanho.nome, preco: String(tamanho.preco).replace('.', ',') })
-  }
-
-  async function saveEditTamanho() {
-    if (!editingTamanhoId || !editingTamanhoForm.nome.trim()) return
-    const preco = Number(editingTamanhoForm.preco.replace(',', '.')) || 0
-    try {
-      await atualizarTamanho(supabase, editingTamanhoId, editingTamanhoForm.nome.trim(), preco)
-      setEditingTamanhoId(null)
-      await refreshItems()
-    } catch {
-      setError('Não foi possível atualizar o tamanho.')
-    }
-  }
-
-  async function deleteTamanho(tamanho: TamanhoItem) {
-    if (!confirm(`Excluir o tamanho "${tamanho.nome}"?`)) return
-    try {
-      await removerTamanho(supabase, tamanho.id)
-      await refreshItems()
-    } catch {
-      setError('Não foi possível excluir o tamanho.')
-    }
-  }
-
-  async function importarTamanhosMarmita() {
-    if (!form.id) return
-    const existentes = new Set((currentItem?.tamanhos ?? []).map((t) => t.nome))
-    const faltantes = tamanhosMarmitaCatalogo.filter((t) => !existentes.has(t.nome))
-    if (faltantes.length === 0) return
-    try {
-      for (const [i, t] of faltantes.entries()) {
-        await criarTamanho(supabase, form.id, `${t.nome} (${t.peso})`, 0, (currentItem?.tamanhos.length ?? 0) + i)
-      }
-      await refreshItems()
-    } catch {
-      setError('Não foi possível importar os tamanhos da loja.')
-    }
-  }
-
-  async function createSaborNoItem() {
-    if (!form.id || !newSaborNome.trim()) return
-    try {
-      await criarSabor(supabase, form.id, newSaborNome.trim(), currentItem?.sabores.length ?? 0)
-      setNewSaborNome('')
-      setCreatingSabor(false)
-      await refreshItems()
-    } catch (err) {
-      // A mensagem da query diz a regra (ex.: nome não pode ter " / ") — trocar
-      // por um texto genérico deixaria o lojista sem saber o que corrigir.
-      setError(err instanceof Error ? err.message : 'Não foi possível criar o sabor.')
-    }
-  }
-
   async function removeComplementoFromItem(complementoId: string) {
     try {
       await removerComplemento(supabase, complementoId)
@@ -2651,136 +1191,39 @@ export default function CardapioPage() {
 
   const currentItem = form.id ? items.find((item) => item.id === form.id) ?? null : null
 
-  if (loading) {
+  const activeGroupIdObj = groups.find((g) => g.nome === activeGroup) ?? null
+
+  /** Ações da categoria: ordem, editar, horário, fotos em massa e excluir — tocáveis, não só no hover. */
+  function acoesCategoria(group: GrupoCardapio, compacto = false) {
+    const cls = compacto ? 'h-6 w-6 border-transparent bg-transparent' : ''
+    const ic = compacto ? 'h-3 w-3' : 'h-3.5 w-3.5'
     return (
       <>
-        <TopBar title="Gestor de Cardápio" breadcrumb="Cardápio" />
-        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando cardápio…</div>
+        <BotaoIcone rotulo="Subir categoria (ordem na vitrine)" className={cls} disabled={groups[0]?.id === group.id} onClick={() => moveCategoria(group, -1)}>
+          <ArrowUp className={ic} />
+        </BotaoIcone>
+        <BotaoIcone rotulo="Descer categoria (ordem na vitrine)" className={cls} disabled={groups[groups.length - 1]?.id === group.id} onClick={() => moveCategoria(group, 1)}>
+          <ArrowDown className={ic} />
+        </BotaoIcone>
+        <BotaoIcone rotulo="Editar categoria (nome e foto)" className={cls} onClick={() => startEditCategoria(group)}>
+          <Pencil className={ic} />
+        </BotaoIcone>
+        <BotaoIcone rotulo="Horário automático da categoria" className={cls} onClick={() => startScheduleCategoria(group)}>
+          <Clock className={ic} />
+        </BotaoIcone>
+        <BotaoIcone rotulo="Subir fotos em massa" className={cls} onClick={() => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome })}>
+          <Images className={ic} />
+        </BotaoIcone>
+        <BotaoIcone rotulo="Excluir categoria" perigo className={cls} onClick={() => deleteCategoria(group)}>
+          <Trash2 className={ic} />
+        </BotaoIcone>
       </>
     )
   }
 
-  if (error && !restauranteId) {
+  function formEdicaoCategoria(group: GrupoCardapio) {
     return (
-      <>
-        <TopBar title="Gestor de Cardápio" breadcrumb="Cardápio" />
-        <div className="flex flex-1 items-center justify-center p-5">
-          <div className="max-w-md rounded-menuzia border border-border bg-white p-5 text-center">
-            <h2 className="text-sm font-bold text-danger">Não foi possível carregar o cardápio</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error}</p>
-          </div>
-        </div>
-      </>
-    )
-  }
-
-  return (
-    <>
-      <TopBar
-        title="Gestor de Cardápio"
-        breadcrumb={
-          cardapioTab === 'itens'
-            ? `Cardápio › ${activeGroup ?? 'Sem categorias'}`
-            : cardapioTab === 'complementos'
-            ? 'Cardápio › Grupos de complementos'
-            : cardapioTab === 'tamanhos'
-            ? 'Cardápio › Tamanhos'
-            : 'Cardápio › Order Bump'
-        }
-      />
-
-      {/* Tab bar */}
-      <div className="flex flex-shrink-0 gap-0.5 border-b border-border bg-main px-5 pt-3.5 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
-        {([
-          { id: 'itens' as CardapioTab, label: 'Itens do cardápio' },
-          { id: 'complementos' as CardapioTab, label: 'Grupos de complementos' },
-          { id: 'tamanhos' as CardapioTab, label: 'Tamanhos' },
-          { id: 'orderbump' as CardapioTab, label: 'Order Bump' },
-        ]).map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setCardapioTab(t.id)}
-            className={[
-              'max-lg:flex-shrink-0 max-lg:whitespace-nowrap rounded-t-menuzia border-b-2 px-4 pb-3 pt-2 text-[13px] font-semibold transition-colors',
-              cardapioTab === t.id ? 'border-tab-active bg-tab-active text-white' : 'border-transparent text-text-subtle hover:text-text-main',
-            ].join(' ')}
-          >
-            {t.label}
-            {t.id === 'complementos' && presets.length > 0 && (
-              <span className="ml-2 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700">{presets.length}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Tab: Itens do cardápio ── */}
-      <div className={cardapioTab !== 'itens' ? 'hidden' : 'flex flex-1 flex-col gap-4 overflow-hidden p-5'}>
-        {error && (
-          <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
-        )}
-
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button variant="primary" onClick={openNewItem} disabled={!activeGroupId}>
-            + Novo item
-          </Button>
-          <Button variant="primary" onClick={openCreateCategoria}>
-            + Categoria
-          </Button>
-          <div className="flex-1" />
-          <div className="flex min-w-[220px] items-center gap-2 rounded-menuzia border border-border bg-white px-2.5 py-1.5">
-            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-text-subtle">
-              <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-            </svg>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Pesquise pelo nome..."
-              className="w-full border-none font-sans text-[13px] text-text-main outline-none"
-            />
-          </div>
-          {/* No celular a lista é sempre em cartões — a tabela de 6 colunas não cabe —,
-              então o par de botões some para não prometer uma visão que não existe lá. */}
-          <div className="flex overflow-hidden rounded-menuzia border border-border bg-white max-lg:hidden">
-            <button type="button" onClick={() => setView('table')} title="Tabela"
-              className={`flex items-center px-2.5 py-1.5 ${view === 'table' ? 'bg-primary text-white' : 'text-text-subtle'}`}>
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M3 5h18v2H3zm0 6h18v2H3zm0 6h18v2H3z" /></svg>
-            </button>
-            <button type="button" onClick={() => setView('grid')} title="Grade"
-              className={`flex items-center px-2.5 py-1.5 ${view === 'grid' ? 'bg-primary text-white' : 'text-text-subtle'}`}>
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z" /></svg>
-            </button>
-          </div>
-          <div className="relative">
-            <Button variant="secondary" onClick={() => setActionsOpen((open) => !open)} disabled={selected.size === 0}>
-              Ação
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M7 10l5 5 5-5z" /></svg>
-            </Button>
-            {actionsOpen && (
-              <div className="absolute right-0 top-[calc(100%+4px)] z-40 min-w-[160px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
-                <button onClick={() => applyBulkStatus('esgotado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Esgotar</button>
-                <button onClick={() => applyBulkStatus('pausado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Pausar</button>
-                <button onClick={deleteSelected} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-danger hover:bg-page">Excluir</button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Layout: categories + content. No celular os dois viram uma coluna só: a
-            lateral de 280px ao lado da lista deixava os itens espremidos fora da tela. */}
-        <div className="flex flex-1 gap-4 overflow-hidden max-lg:flex-col max-lg:overflow-y-auto">
-          {/* Categories panel */}
-          <aside className="flex w-[280px] flex-shrink-0 flex-col overflow-hidden rounded-menuzia border border-border bg-white max-lg:max-h-[46vh] max-lg:w-full">
-            <div className="border-b border-border px-3.5 py-3">
-              <h3 className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Categorias</h3>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              {groups.length === 0 && (
-                <div className="px-2 py-6 text-center text-xs text-text-subtle">Nenhuma categoria cadastrada ainda.</div>
-              )}
-              {groups.map((group) =>
-                editingGroupId === group.id ? (
-                  <div key={group.id} className="space-y-2 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
+                  <div className="space-y-2 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
                     <div className="flex items-center gap-1">
                       <input
                         autoFocus
@@ -2829,8 +1272,12 @@ export default function CardapioPage() {
                       onRemover={() => { setCatFichaUrl(null); setCatFichaFoco(FOCO_PADRAO) }}
                     />
                   </div>
-                ) : schedulingGroupId === group.id ? (
-                  <div key={group.id} className="space-y-1.5 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
+    )
+  }
+
+  function formHorarioCategoria() {
+    return (
+                  <div className="space-y-1.5 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
                     <label className="flex items-center gap-1.5 text-xs font-medium text-text-main">
                       <input
                         type="checkbox"
@@ -2866,67 +1313,205 @@ export default function CardapioPage() {
                       <button onClick={saveScheduleCategoria} className="rounded-menuzia bg-primary px-2 py-1 text-[11px] font-semibold text-white hover:bg-primary-dark">Salvar</button>
                     </div>
                   </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <>
+        <TopBar title="Gestor de Cardápio" breadcrumb="Cardápio" />
+        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando cardápio…</div>
+      </>
+    )
+  }
+
+  if (error && !restauranteId) {
+    return (
+      <>
+        <TopBar title="Gestor de Cardápio" breadcrumb="Cardápio" />
+        <div className="flex flex-1 items-center justify-center p-5">
+          <div className="max-w-md rounded-menuzia border border-border bg-white p-5 text-center">
+            <h2 className="text-sm font-bold text-danger">Não foi possível carregar o cardápio</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error}</p>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <TopBar
+        title="Gestor de Cardápio"
+        breadcrumb={
+          cardapioTab === 'itens'
+            ? `Cardápio › ${activeGroup ?? 'Sem categorias'}`
+            : cardapioTab === 'complementos'
+            ? 'Cardápio › Grupos de complementos'
+            : cardapioTab === 'tamanhos'
+            ? 'Cardápio › Tamanhos'
+            : 'Cardápio › Peça também'
+        }
+      />
+
+      <AbasCardapio
+        ativa={cardapioTab}
+        onTrocar={irParaAba}
+        contadores={{ itens: items.length, complementos: presets.length, tamanhos: tamanhosPizzaCatalogo.length + tamanhosMarmitaCatalogo.length }}
+      />
+
+      {/* ── Tab: Itens do cardápio ── */}
+      <div className={cardapioTab !== 'itens' ? 'hidden' : 'flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 max-lg:overflow-y-auto max-lg:p-3'}>
+        <FaixaErro mensagem={error} onFechar={() => setError(null)} className="flex-shrink-0" />
+
+        {/* Celular/tablet: categorias em chips roláveis, sem ocupar meia tela. */}
+        <div className="flex flex-shrink-0 flex-col gap-2 lg:hidden">
+          <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Categorias">
+            {groups.map((group) => {
+              const ativa = group.nome === activeGroup
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativa}
+                  onClick={() => setActiveGroup(group.nome)}
+                  className={`flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+                    ativa ? 'border-[var(--adm-azul)] bg-[var(--adm-azul)] text-white' : 'border-[var(--adm-borda)] bg-white text-[var(--adm-texto-medio)]'
+                  }`}
+                >
+                  {group.nome}
+                  <span className={`rounded-full px-1.5 text-[11px] font-bold ${ativa ? 'bg-white/25 text-white' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'}`}>{groupCounts.get(group.id) ?? 0}</span>
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={openCreateCategoria}
+              className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-[var(--adm-borda-forte)] bg-white px-3 py-1.5 text-[13px] font-semibold text-[var(--adm-azul)]"
+            >
+              <Plus className="h-3.5 w-3.5" /> Categoria
+            </button>
+          </div>
+          {activeGroupIdObj && editingGroupId !== activeGroupIdObj.id && schedulingGroupId !== activeGroupIdObj.id && (
+            <div className="flex items-center justify-between gap-2 rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white px-3 py-1.5">
+              <span className="min-w-0 truncate text-[12px] text-[var(--adm-texto-suave)]">
+                Categoria <b className="text-[var(--adm-texto)]">{activeGroupIdObj.nome}</b>
+                {activeGroupIdObj.horarioAtivoInicio && activeGroupIdObj.horarioAtivoFim ? ` · ${activeGroupIdObj.horarioAtivoInicio}–${activeGroupIdObj.horarioAtivoFim}` : ''}
+              </span>
+              <div className="flex flex-shrink-0 items-center gap-1">{acoesCategoria(activeGroupIdObj)}</div>
+            </div>
+          )}
+          {activeGroupIdObj && editingGroupId === activeGroupIdObj.id && formEdicaoCategoria(activeGroupIdObj)}
+          {activeGroupIdObj && schedulingGroupId === activeGroupIdObj.id && formHorarioCategoria()}
+        </div>
+
+        <div className="flex min-h-0 flex-1 gap-4 max-lg:flex-none">
+          {/* Categorias (desktop) */}
+          <aside className="flex w-[260px] flex-shrink-0 flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white max-lg:hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-[var(--adm-borda)] px-3.5 py-2.5">
+              <h3 className="flex items-center gap-2 text-[13px] font-bold text-[var(--adm-texto-forte)]">
+                Categorias
+                <span className="rounded-full bg-[#f1f2f4] px-2 py-[1px] text-[11px] font-bold text-[var(--adm-texto-medio)]">{groups.length}</span>
+              </h3>
+              <button type="button" onClick={openCreateCategoria} className="flex items-center gap-1 rounded-[4px] px-2 py-1 text-[12px] font-semibold text-[var(--adm-azul)] hover:bg-[var(--adm-azul-claro)]">
+                <Plus className="h-3.5 w-3.5" /> Nova
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {groups.length === 0 && (
+                <div className="px-2 py-6 text-center text-xs text-text-subtle">Nenhuma categoria cadastrada ainda.</div>
+              )}
+              {groups.map((group) =>
+                editingGroupId === group.id ? (
+                  <div key={group.id}>{formEdicaoCategoria(group)}</div>
+                ) : schedulingGroupId === group.id ? (
+                  <div key={group.id}>{formHorarioCategoria()}</div>
                 ) : (
                   <div
                     key={group.id}
                     className={[
-                      'group flex w-full items-center justify-between rounded-menuzia border-l-[3px] px-3 py-1 text-left text-sm font-medium transition-colors',
+                      'group mb-0.5 flex w-full items-center justify-between gap-1 rounded-[4px] border-l-[3px] pl-2.5 pr-1 text-left text-[13px] transition-colors',
                       group.nome === activeGroup
-                        ? 'border-l-primary bg-primary/10 font-semibold text-primary-dark'
-                        : 'border-l-transparent text-text-main hover:bg-page',
+                        ? 'border-l-[var(--adm-azul)] bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
+                        : 'border-l-transparent font-medium text-[var(--adm-texto)] hover:bg-[var(--adm-hover)]',
                     ].join(' ')}
                   >
-                    <button onClick={() => setActiveGroup(group.nome)} className="flex flex-1 items-center gap-2 py-1.5 text-left">
-                      <span>{group.nome}</span>
+                    <button onClick={() => setActiveGroup(group.nome)} className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left">
+                      <span className="truncate">{group.nome}</span>
                       {group.horarioAtivoInicio && group.horarioAtivoFim && (
-                        <span title={`Ativa das ${group.horarioAtivoInicio} às ${group.horarioAtivoFim}`} className="text-[11px] text-primary-dark">🕐</span>
+                        <Clock className="h-3.5 w-3.5 flex-shrink-0 text-[var(--adm-azul)]" aria-label={`Ativa das ${group.horarioAtivoInicio} às ${group.horarioAtivoFim}`} />
                       )}
-                      <span className={['rounded-full px-2 py-0.5 text-[11px] font-bold', group.nome === activeGroup ? 'bg-white text-primary-dark' : 'bg-page text-text-subtle'].join(' ')}>
+                      <span className={['ml-auto rounded-full px-2 py-[1px] text-[11px] font-bold', group.nome === activeGroup ? 'bg-white text-[var(--adm-azul-escuro)]' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'].join(' ')}>
                         {groupCounts.get(group.id) ?? 0}
                       </span>
                     </button>
-                    <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        onClick={() => moveCategoria(group, -1)}
-                        disabled={groups[0]?.id === group.id}
-                        title="Mover pra cima (muda a ordem na vitrine)"
-                        className="toque-icone rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
-                      >↑</button>
-                      <button
-                        onClick={() => moveCategoria(group, 1)}
-                        disabled={groups[groups.length - 1]?.id === group.id}
-                        title="Mover pra baixo (muda a ordem na vitrine)"
-                        className="toque-icone rounded-menuzia px-1 py-1 text-text-subtle hover:bg-white hover:text-primary-dark disabled:opacity-30"
-                      >↓</button>
-                      <button onClick={() => startEditCategoria(group)} title="Editar categoria (nome e foto de capa)" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">✎</button>
-                      <button onClick={() => startScheduleCategoria(group)} title="Ativação automática por horário" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">🕐</button>
-                      <button onClick={() => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome })} title="Subir fotos em massa" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-primary-dark">📁</button>
-                      <button onClick={() => deleteCategoria(group)} title="Excluir categoria" className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white hover:text-danger">🗑</button>
+                    {/* Ações sempre visíveis na categoria aberta; nas outras, ao passar o mouse
+                        ou focar pelo teclado (antes só existiam no hover). */}
+                    <span className={`flex flex-shrink-0 items-center gap-0.5 ${group.nome === activeGroup ? '' : 'opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100'}`}>
+                      {group.nome === activeGroup ? acoesCategoria(group, true) : (
+                        <button type="button" onClick={() => startEditCategoria(group)} title="Editar categoria" aria-label={`Editar ${group.nome}`} className="toque-icone flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--adm-texto-suave)] hover:bg-white hover:text-[var(--adm-azul)]">
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      )}
                     </span>
                   </div>
                 )
               )}
             </div>
-            <div className="flex gap-1.5 border-t border-border p-2.5">
-              <Button variant="primary" className="flex-1" onClick={openCreateCategoria}>
-                + Categoria
-              </Button>
-            </div>
           </aside>
 
-          {/* Content panel */}
-          <section className="flex flex-1 flex-col overflow-hidden rounded-menuzia border border-border bg-white max-lg:flex-none max-lg:overflow-visible">
-            <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-border px-4 py-3">
-              <div className="text-[13px] text-text-subtle">
-                Total de <b className="text-text-main">{visibleItems.length} itens</b> em <b className="text-text-main">{activeGroup ?? '—'}</b>
+          {/* Itens */}
+          <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white max-lg:overflow-visible">
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--adm-borda)] px-3.5 py-2.5">
+              <div className="mr-auto min-w-0">
+                <h2 className="truncate text-[14px] font-bold text-[var(--adm-texto-forte)]">{activeGroup ?? 'Sem categoria'}</h2>
+                <p className="text-[11.5px] text-[var(--adm-texto-suave)]">
+                  {visibleItems.length} {visibleItems.length === 1 ? 'item' : 'itens'}
+                  {selected.size > 0 && <> · <b className="text-[var(--adm-azul)]">{selected.size} selecionado(s)</b></>}
+                </p>
+              </div>
+              <div className="relative min-w-[180px] flex-1 sm:max-w-[260px] max-sm:order-last max-sm:basis-full">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--adm-texto-suave)]" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar item…"
+                  aria-label="Buscar item pelo nome"
+                  className="w-full rounded-[4px] border border-[var(--adm-borda)] bg-white py-1.5 pl-8 pr-2.5 text-[13px] text-[var(--adm-texto)] outline-none focus:border-[var(--adm-azul)]"
+                />
+              </div>
+              {/* No celular a lista é sempre em cartões — a tabela não cabe —, então o
+                  par de botões some para não prometer uma visão que não existe lá. */}
+              <div className="flex overflow-hidden rounded-[4px] border border-[var(--adm-borda)] bg-white max-lg:hidden">
+                <button type="button" onClick={() => setView('table')} title="Tabela" aria-pressed={view === 'table'}
+                  className={`flex items-center px-2.5 py-1.5 ${view === 'table' ? 'bg-[var(--adm-azul)] text-white' : 'text-text-subtle'}`}>
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M3 5h18v2H3zm0 6h18v2H3zm0 6h18v2H3z" /></svg>
+                </button>
+                <button type="button" onClick={() => setView('grid')} title="Grade" aria-pressed={view === 'grid'}
+                  className={`flex items-center px-2.5 py-1.5 ${view === 'grid' ? 'bg-[var(--adm-azul)] text-white' : 'text-text-subtle'}`}>
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z" /></svg>
+                </button>
               </div>
               {selected.size > 0 && (
-                <div className="flex items-center gap-3 rounded-menuzia bg-sidebar-bg px-3.5 py-2 text-white">
-                  <span><b className="text-primary">{selected.size}</b> selecionado(s)</span>
-                  <Button variant="secondary" className="bg-[#374151] text-white hover:bg-[#4B5563]" onClick={() => applyBulkStatus('esgotado')}>Esgotar</Button>
-                  <Button variant="secondary" className="bg-[#374151] text-white hover:bg-[#4B5563]" onClick={() => applyBulkStatus('pausado')}>Pausar</Button>
+                <div className="relative">
+                  <Button variant="secondary" onClick={() => setActionsOpen((open) => !open)}>
+                    Ação
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M7 10l5 5 5-5z" /></svg>
+                  </Button>
+                  {actionsOpen && (
+                    <div className="absolute right-0 top-[calc(100%+4px)] z-40 min-w-[160px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
+                      <button onClick={() => applyBulkStatus('disponivel')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Deixar disponível</button>
+                      <button onClick={() => applyBulkStatus('pausado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Pausar</button>
+                      <button onClick={() => applyBulkStatus('esgotado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Esgotar</button>
+                      <button onClick={deleteSelected} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-danger hover:bg-page">Excluir</button>
+                    </div>
+                  )}
                 </div>
               )}
+              <Button variant="primary" onClick={openNewItem} disabled={!activeGroupId} data-testid="novo-item">
+                <Plus className="h-3.5 w-3.5" /> Novo item
+              </Button>
             </div>
             <div className="flex-1 overflow-y-auto max-lg:overflow-visible">
               {!activeGroupId && (
@@ -2980,7 +1565,8 @@ export default function CardapioPage() {
                                   preco: item.preco,
                                   promocaoPreco: item.promocaoPreco,
                                   tipoItem: item.tipoItem,
-                                  qtdTamanhos: item.tamanhos.length,
+                                  qtdTamanhos: item.tamanhos.filter((t) => t.preco > 0).length,
+                                  qtdTamanhosSemPreco: item.tamanhos.filter((t) => !(t.preco > 0)).length,
                                   status: item.status,
                                 })
                                 return aviso ? (
@@ -3068,7 +1654,8 @@ export default function CardapioPage() {
                             preco: item.preco,
                             promocaoPreco: item.promocaoPreco,
                             tipoItem: item.tipoItem,
-                            qtdTamanhos: item.tamanhos.length,
+                            qtdTamanhos: item.tamanhos.filter((t) => t.preco > 0).length,
+                                  qtdTamanhosSemPreco: item.tamanhos.filter((t) => !(t.preco > 0)).length,
                             status: item.status,
                           })
                           return aviso ? (
@@ -3115,8 +1702,9 @@ export default function CardapioPage() {
       {/* ── Tab: Tamanhos ── */}
       <div className={cardapioTab !== 'tamanhos' ? 'hidden' : 'flex flex-1 flex-col overflow-hidden'}>
         {restauranteId && (
-          <TamanhosTab
+          <TamanhosLoja
             restauranteId={restauranteId}
+            itens={items}
             tamanhosPizza={tamanhosPizzaCatalogo}
             setTamanhosPizza={setTamanhosPizzaCatalogo}
             tamanhosMarmita={tamanhosMarmitaCatalogo}
@@ -3125,9 +1713,9 @@ export default function CardapioPage() {
         )}
       </div>
 
-      {/* ── Tab: Order Bump ── */}
-      <div className={cardapioTab !== 'orderbump' ? 'hidden' : 'flex flex-1 flex-col overflow-hidden'}>
-        {restauranteId && <OrderBumpTab restauranteId={restauranteId} items={items} groups={groups} />}
+      {/* ── Tab: Peça também (antes "Order Bump") ── */}
+      <div className={cardapioTab !== 'peca-tambem' ? 'hidden' : 'flex flex-1 flex-col overflow-hidden'}>
+        {restauranteId && cardapioTab === 'peca-tambem' && <PecaTambem restauranteId={restauranteId} itens={items} grupos={groups} />}
       </div>
 
       {/* Overlay + drawers */}
@@ -3223,8 +1811,8 @@ export default function CardapioPage() {
             <div className="py-10 text-center text-sm text-text-subtle">
               Nenhum grupo criado ainda. Vá para a aba{' '}
               <button
-                onClick={() => { setDrawer(null); setCardapioTab('complementos') }}
-                className="font-semibold text-purple-600 underline hover:text-purple-700"
+                onClick={() => { setDrawer(null); irParaAba('complementos') }}
+                className="font-semibold text-[var(--adm-azul)] underline"
               >
                 Grupos de complementos
               </button>{' '}
@@ -3232,13 +1820,13 @@ export default function CardapioPage() {
             </div>
           )}
           {presets.map((preset) => (
-            <div key={preset.id} className="mb-3 overflow-hidden rounded-menuzia border border-purple-200 bg-purple-50/40">
-              <div className="flex items-center gap-3 border-b border-purple-100 px-3.5 py-3">
-                <div className="flex h-[36px] w-[36px] items-center justify-center rounded-menuzia bg-white shadow-sm">
+            <div key={preset.id} className="mb-3 overflow-hidden rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white">
+              <div className="flex items-center gap-3 border-b border-[var(--adm-borda)] px-3.5 py-3">
+                <div className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-[#F3E8FF]">
                   <FoodIcon name={preset.nome} size={26} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="truncate text-sm font-semibold text-purple-900">{preset.nome}</h4>
+                  <h4 className="truncate text-sm font-semibold text-[var(--adm-texto)]">{preset.nome}</h4>
                   <div className="mt-0.5 flex items-center gap-2">
                     <span className={`text-[10px] font-bold ${preset.obrigatorio ? 'text-danger' : 'text-text-subtle'}`}>
                       {preset.obrigatorio ? 'Obrigatório' : 'Opcional'}
@@ -3246,11 +1834,11 @@ export default function CardapioPage() {
                     <span className="text-[10px] text-text-subtle">· {ruleHint(preset)}</span>
                   </div>
                 </div>
-                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-bold text-purple-700">{preset.itens.length} iten{preset.itens.length !== 1 ? 's' : ''}</span>
+                <span className="rounded-full bg-[#f1f2f4] px-2 py-0.5 text-[11px] font-bold text-[var(--adm-texto-medio)]">{preset.itens.length} {preset.itens.length === 1 ? 'opção' : 'opções'}</span>
               </div>
               <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
                 {preset.itens.map((entry) => (
-                  <span key={entry.id} className="rounded-menuzia bg-purple-100 px-2 py-1 text-[11px] font-medium text-purple-700">
+                  <span key={entry.id} className="rounded-[4px] bg-[#f1f2f4] px-2 py-1 text-[11px] font-medium text-[var(--adm-texto-medio)]">
                     {entry.nome}{entry.preco === 0 ? ' · Grátis' : ''}
                   </span>
                 ))}
@@ -3258,9 +1846,9 @@ export default function CardapioPage() {
               <div className="px-3.5 pb-3.5">
                 <button
                   onClick={() => importPreset(preset)}
-                  className="w-full rounded-menuzia bg-purple-600 py-2 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-purple-700"
+                  className="w-full rounded-[4px] bg-[var(--adm-azul)] py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-[var(--adm-azul-escuro)]"
                 >
-                  Importar com 1 clique
+                  Importar neste item
                 </button>
               </div>
             </div>
@@ -3272,7 +1860,7 @@ export default function CardapioPage() {
       </aside>
 
       {/* Drawer: editar/criar item */}
-      <aside className={modalClass(drawer === 'edit', 'w-[560px] max-w-[94vw]')}>
+      <aside className={modalClass(drawer === 'edit', formStep === 2 && form.tipoItem === 'pizza' ? 'w-[980px] max-w-[96vw]' : 'w-[600px] max-w-[94vw]')}>
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
             <h2 className="text-[15px] font-bold">{form.id ? 'Editar item' : 'Novo item'}</h2>
@@ -3285,7 +1873,7 @@ export default function CardapioPage() {
           <div className="flex items-center gap-1">
             {[
               { n: 1, label: 'O básico' },
-              ...(temVariacoes ? [{ n: 2, label: form.tipoItem === 'pizza' ? 'Sabores' : temTamanhos ? 'Volumes' : 'Tamanhos' }] : []),
+              ...(temVariacoes ? [{ n: 2, label: form.tipoItem === 'pizza' ? 'Tamanhos e preços' : temTamanhos ? 'Volumes' : 'Tamanhos' }] : []),
               { n: 3, label: 'Complementos' },
               { n: 4, label: 'Exibição' },
             ].map((s, i, arr) => {
@@ -3303,11 +1891,11 @@ export default function CardapioPage() {
                   >
                     <span className={[
                       'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
-                      formStep === s.n ? 'bg-[#1e3a8a] text-white' : form.id && formStep > s.n ? 'bg-status-ready text-white' : 'bg-border text-text-subtle',
+                      formStep === s.n ? 'bg-[var(--adm-azul)] text-white' : form.id && formStep > s.n ? 'bg-status-ready text-white' : 'bg-border text-text-subtle',
                     ].join(' ')}>
                       {form.id && formStep > s.n ? '✓' : i + 1}
                     </span>
-                    <span className={['text-[10px] font-semibold', formStep === s.n ? 'text-[#1e3a8a]' : 'text-text-subtle'].join(' ')}>{s.label}</span>
+                    <span className={['text-[10.5px] font-semibold', formStep === s.n ? 'text-[var(--adm-azul)]' : 'text-text-subtle'].join(' ')}>{s.label}</span>
                   </button>
                   {i < arr.length - 1 && <span className="h-px w-2 flex-shrink-0 bg-border" />}
                 </div>
@@ -3316,28 +1904,37 @@ export default function CardapioPage() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4.5">
+          <FaixaErro mensagem={drawer === 'edit' ? error : null} onFechar={() => setError(null)} className="mb-3" />
+          {avisoItem && (
+            <Aviso tom="azul" className="mb-3">
+              <span className="flex items-start justify-between gap-2">
+                <span>{avisoItem}</span>
+                <button type="button" data-toque-livre onClick={() => setAvisoItem(null)} className="font-bold" aria-label="Dispensar aviso">✕</button>
+              </span>
+            </Aviso>
+          )}
           {/* ── ETAPA 1: o básico ─────────────────────────────────────── */}
           {formStep === 1 && (<>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Que tipo de item você vai cadastrar?</div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              { key: 'simples', icon: '🍔', label: 'Lanche / Simples', hint: 'Um preço só', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'simples' })); setTemTamanhos(false) }, active: form.tipoItem === 'simples' && !temTamanhos },
-              { key: 'acai', icon: '🍧', label: 'Açaí / Volumes', hint: 'Preço por volume', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'simples' })); setTemTamanhos(true) }, active: form.tipoItem === 'simples' && temTamanhos },
-              { key: 'pizza', icon: '🍕', label: 'Pizza', hint: 'Sabor × tamanho', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'pizza' })); setTemTamanhos(false) }, active: form.tipoItem === 'pizza' },
-              { key: 'marmita', icon: '🍱', label: 'Marmita', hint: 'Preço por tamanho', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'marmita' })); setTemTamanhos(false) }, active: form.tipoItem === 'marmita' },
+              { key: 'simples', icon: <Sandwich className="h-5 w-5" />, label: 'Lanche / Simples', hint: 'Um preço só', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'simples' })); setTemTamanhos(false) }, active: form.tipoItem === 'simples' && !temTamanhos },
+              { key: 'acai', icon: <CupSoda className="h-5 w-5" />, label: 'Açaí / Volumes', hint: 'Preço por volume', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'simples' })); setTemTamanhos(true) }, active: form.tipoItem === 'simples' && temTamanhos },
+              { key: 'pizza', icon: <Pizza className="h-5 w-5" />, label: 'Pizza', hint: 'Sabor × tamanho', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'pizza' })); setTemTamanhos(false) }, active: form.tipoItem === 'pizza' },
+              { key: 'marmita', icon: <Soup className="h-5 w-5" />, label: 'Marmita', hint: 'Preço por tamanho', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'marmita' })); setTemTamanhos(false) }, active: form.tipoItem === 'marmita' },
             ].map((t) => (
               <button
                 key={t.key}
                 type="button"
                 onClick={t.onClick}
                 className={[
-                  'flex flex-col items-center gap-1 rounded-menuzia border-2 px-2 py-3 text-[11px] font-semibold transition-colors',
-                  t.active ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white' : 'border-border bg-white text-text-subtle hover:border-[#1e3a8a]/50',
+                  'flex flex-col items-center gap-1 rounded-[6px] border px-2 py-3 text-[12px] font-semibold transition-colors',
+                  t.active ? 'border-[var(--adm-azul)] bg-[var(--adm-azul-claro)] text-[var(--adm-azul-escuro)] ring-1 ring-[var(--adm-azul)]' : 'border-[var(--adm-borda)] bg-white text-[var(--adm-texto-medio)] hover:border-[var(--adm-azul)]',
                 ].join(' ')}
               >
-                <span className="text-xl leading-none">{t.icon}</span>
+                <span className={t.active ? 'text-[var(--adm-azul)]' : 'text-[var(--adm-texto-suave)]'}>{t.icon}</span>
                 {t.label}
-                <span className={['text-[10px] font-normal', t.active ? 'text-white' : 'text-text-subtle'].join(' ')}>{t.hint}</span>
+                <span className="text-[10.5px] font-normal text-[var(--adm-texto-suave)]">{t.hint}</span>
               </button>
             ))}
           </div>
@@ -3392,114 +1989,35 @@ export default function CardapioPage() {
             )}
           </div>
           {form.tipoItem === 'pizza' && (
-            <p className="mt-3 rounded-menuzia border border-dashed border-[#1e3a8a]/40 bg-[#1e3a8a]/5 p-2.5 text-[12px] text-text-main">
-              Pizza não tem preço base: o preço vem do <b>sabor em cada tamanho</b> — você define na próxima etapa.
-            </p>
+            <Aviso tom="azul" className="mt-3">
+              Pizza não tem preço base: o preço vem do <b>sabor em cada tamanho</b>. Na próxima etapa você monta a tabela de sabores × tamanhos.
+            </Aviso>
+          )}
+          {!form.id && form.tipoItem !== 'pizza' && temVariacoes && !(parsePreco(form.preco) > 0) && (
+            <Aviso tom="azul" className="mt-3">
+              Sem preço-base, o item é salvo <b>pausado</b> e volta a aparecer assim que um {temTamanhos ? 'volume' : 'tamanho'} tiver preço.
+            </Aviso>
           )}
           </>)}
 
-          {/* ── ETAPA 2: tamanhos e sabores ───────────────────────────── */}
-          {/* PIZZA — sabores × preço por tamanho */}
-          {formStep === 2 && form.tipoItem === 'pizza' && (
-            <div className="mt-4">
-              <SectionHeader tone="blue">Sabores e preço por tamanho</SectionHeader>
-              {!form.id ? (
-                <div className="rounded-menuzia border border-dashed border-[#1e3a8a]/40 bg-[#1e3a8a]/5 p-3.5 text-center">
-                  <p className="mb-2.5 text-[12px] text-text-main">A pizza não usa preço base: o preço vem do <b>sabor em cada tamanho</b>. Salve o item pra cadastrar os sabores e seus preços.</p>
-                  <button onClick={() => saveItem(false)} disabled={saving || !form.nome.trim()}
-                    className="rounded-menuzia bg-[#1e3a8a] px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-50">
-                    {saving ? 'Salvando…' : 'Salvar e adicionar sabores'}
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <p className="mb-3 text-[11px] text-text-subtle">
-                    Cada sabor tem seu preço por tamanho. Cadastre os tamanhos da pizza na aba &ldquo;Tamanhos&rdquo; antes de definir os preços.
-                  </p>
-                  {(currentItem?.sabores ?? []).map((sabor) => (
-                    <SaborCard key={sabor.id} sabor={sabor} tamanhos={tamanhosPizzaCatalogo} restauranteId={restauranteId!} onRefresh={refreshItems} />
-                  ))}
-                  {(currentItem?.sabores ?? []).length === 0 && !creatingSabor && (
-                    <div className="mb-3 rounded-menuzia border border-dashed border-border p-3 text-center text-[11px] text-text-subtle">Nenhum sabor cadastrado ainda.</div>
-                  )}
-                  {creatingSabor ? (
-                    <div className="mb-2 mt-2 flex items-center gap-2 rounded-menuzia border border-border bg-page p-2.5">
-                      <input autoFocus value={newSaborNome} onChange={(e) => setNewSaborNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createSaborNoItem()}
-                        placeholder="Nome do sabor (ex: Mussarela)" className="flex-1 rounded-menuzia border border-border px-2.5 py-1.5 text-[13px] outline-none focus:border-primary" />
-                      <button onClick={createSaborNoItem} disabled={!newSaborNome.trim()}
-                        className="rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-50">Adicionar</button>
-                      <button onClick={() => { setCreatingSabor(false); setNewSaborNome('') }}
-                        className="rounded-menuzia border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:bg-page">Cancelar</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setCreatingSabor(true)}
-                      className="mt-2 w-full rounded-menuzia border border-dashed border-border bg-white py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:border-[#1e3a8a] hover:text-[#1e3a8a]">+ Novo sabor</button>
-                  )}
-                </>
-              )}
-            </div>
+          {/* ── ETAPA 2: tamanhos e preços / tamanhos / volumes ─────────── */}
+          {formStep === 2 && form.tipoItem === 'pizza' && currentItem && restauranteId && (
+            <PizzaTamanhosPrecos
+              item={currentItem}
+              tamanhos={tamanhosPizzaCatalogo}
+              restauranteId={restauranteId}
+              podeEditarCatalogo={podeEditarCatalogo}
+              onTamanhoCriado={(t) => setTamanhosPizzaCatalogo((prev) => [...prev, t])}
+              onAtualizar={refreshItems}
+            />
           )}
-
-          {/* MARMITA / AÇAÍ — tamanhos com preço próprio */}
-          {formStep === 2 && (form.tipoItem === 'marmita' || (form.tipoItem === 'simples' && temTamanhos)) && (
-            <div className="mt-4">
-              <div className="-mx-4.5 mb-3 flex items-center justify-between border-y border-[#1e3a8a]/15 bg-[#1e3a8a]/5 px-4.5 py-2">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-[#1e3a8a]">{temTamanhos ? 'Tamanhos / Volumes' : 'Tamanhos'}</span>
-                {form.id && tamanhosMarmitaCatalogo.length > 0 && form.tipoItem === 'marmita' && (
-                  <button onClick={importarTamanhosMarmita} className="rounded-menuzia bg-[#1e3a8a] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white transition hover:brightness-110">Importar da loja</button>
-                )}
-              </div>
-              {!form.id ? (
-                <div className="rounded-menuzia border border-dashed border-[#1e3a8a]/40 bg-[#1e3a8a]/5 p-3.5 text-center">
-                  <p className="mb-2.5 text-[12px] text-text-main">O cliente escolhe um {temTamanhos ? 'volume' : 'tamanho'} e o preço dele substitui o preço base. Salve o item pra cadastrar os {temTamanhos ? 'volumes' : 'tamanhos'}.</p>
-                  <button onClick={() => saveItem(false)} disabled={saving || !form.nome.trim()}
-                    className="rounded-menuzia bg-[#1e3a8a] px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white transition hover:brightness-110 disabled:opacity-50">
-                    {saving ? 'Salvando…' : `Salvar e adicionar ${temTamanhos ? 'volumes' : 'tamanhos'}`}
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {(currentItem?.tamanhos ?? []).map((tamanho) =>
-                    editingTamanhoId === tamanho.id ? (
-                      <div key={tamanho.id} className="mb-1.5 flex items-center gap-2 rounded-menuzia border border-[#1e3a8a] bg-[#1e3a8a]/5 px-2.5 py-2">
-                        <input autoFocus value={editingTamanhoForm.nome} onChange={(e) => setEditingTamanhoForm((prev) => ({ ...prev, nome: e.target.value }))}
-                          placeholder="Nome" className="w-24 rounded-menuzia border border-border px-2 py-1 text-[13px] outline-none focus:border-primary" />
-                        <input value={editingTamanhoForm.preco} onChange={(e) => setEditingTamanhoForm((prev) => ({ ...prev, preco: e.target.value }))}
-                          placeholder="Preço" className="w-24 rounded-menuzia border border-border px-2 py-1 text-[13px] outline-none focus:border-primary" />
-                        <button onClick={saveEditTamanho} className="rounded-menuzia px-1.5 py-1 text-[#1e3a8a] hover:bg-white">✓</button>
-                        <button onClick={() => setEditingTamanhoId(null)} className="rounded-menuzia px-1.5 py-1 text-text-subtle hover:bg-white">✕</button>
-                      </div>
-                    ) : (
-                      <div key={tamanho.id} className="mb-1.5 flex items-center gap-2.5 rounded-menuzia border border-border px-2.5 py-2">
-                        <span className="flex-1 text-[13px] font-medium">{tamanho.nome}</span>
-                        <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">R$ {tamanho.preco.toFixed(2).replace('.', ',')}</span>
-                        <button onClick={() => startEditTamanho(tamanho)} title="Editar" className="flex h-[26px] w-[26px] items-center justify-center rounded-menuzia bg-page text-[13px] text-text-subtle hover:bg-border">✎</button>
-                        <button onClick={() => deleteTamanho(tamanho)} title="Excluir"
-                          className="flex h-[26px] w-[26px] items-center justify-center rounded-menuzia bg-[#fee2e2] text-[15px] text-[#ef4444] hover:bg-[#ef4444] hover:text-white">×</button>
-                      </div>
-                    )
-                  )}
-                  {(currentItem?.tamanhos ?? []).length === 0 && !creatingTamanho && (
-                    <div className="mb-3 rounded-menuzia border border-dashed border-border p-3 text-center text-[11px] text-text-subtle">Nenhum {temTamanhos ? 'volume' : 'tamanho'} cadastrado. Sem isso, o item usa só o preço base.</div>
-                  )}
-                  {creatingTamanho ? (
-                    <div className="mb-2 mt-2 flex items-center gap-2 rounded-menuzia border border-border bg-page p-2.5">
-                      <input autoFocus value={newTamanhoForm.nome} onChange={(e) => setNewTamanhoForm((prev) => ({ ...prev, nome: e.target.value }))}
-                        placeholder={temTamanhos ? 'Ex: 500ml' : 'Ex: G'} className="w-28 rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary" />
-                      <input value={newTamanhoForm.preco} onChange={(e) => setNewTamanhoForm((prev) => ({ ...prev, preco: e.target.value }))}
-                        placeholder="Preço (ex: 24,90)" className="w-28 rounded-menuzia border border-border px-2 py-1.5 text-[13px] outline-none focus:border-primary" />
-                      <button onClick={createTamanho} disabled={!newTamanhoForm.nome.trim()}
-                        className="rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-50">Adicionar</button>
-                      <button onClick={() => { setCreatingTamanho(false); setNewTamanhoForm({ nome: '', preco: '' }) }}
-                        className="rounded-menuzia border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle hover:bg-page">Cancelar</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setCreatingTamanho(true)}
-                      className="mt-2 w-full rounded-menuzia border border-dashed border-border bg-white py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle transition-colors hover:border-[#1e3a8a] hover:text-[#1e3a8a]">+ Novo {temTamanhos ? 'volume' : 'tamanho'}</button>
-                  )}
-                </>
-              )}
-            </div>
+          {formStep === 2 && (form.tipoItem === 'marmita' || (form.tipoItem === 'simples' && temTamanhos)) && currentItem && (
+            <TamanhosDoItem
+              item={currentItem}
+              rotulo={temTamanhos ? 'volume' : 'tamanho'}
+              catalogoMarmita={form.tipoItem === 'marmita' ? tamanhosMarmitaCatalogo : undefined}
+              onAtualizar={refreshItems}
+            />
           )}
 
           {/* ── ETAPA 4: exibição e disponibilidade ───────────────────── */}
@@ -3544,6 +2062,9 @@ export default function CardapioPage() {
           <div className="mt-4 flex gap-3">
             <div className="flex-1">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Status</div>
+              {pausadoAteTerPreco && (
+                <p className="mb-1.5 text-[11px] font-medium text-[#92400E]">Pausado até ter um {temTamanhos ? 'volume' : 'tamanho'} com preço.</p>
+              )}
               <select value={form.status} onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value as StatusItem }))}
                 className="w-full rounded-menuzia border border-border bg-white px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary">
                 {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -3600,7 +2121,7 @@ export default function CardapioPage() {
             <>
               <div className="flex items-center justify-between">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Grupos de complementos</div>
-                <button onClick={() => setDrawer('preset')} className="rounded-menuzia bg-purple-600 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-purple-700">
+                <button onClick={() => setDrawer('preset')} className="rounded-[4px] bg-[var(--adm-azul)] px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-[var(--adm-azul-escuro)]">
                   Importar grupo
                 </button>
               </div>
