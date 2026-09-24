@@ -42,6 +42,28 @@ try {
   await db.query('rollback')
 }
 
+// Com repetido no banco, a migration ABORTA com a lista e não altera nada.
+await db.query('begin')
+try {
+  const loja = (await q(`select id from restaurantes limit 1`))[0].id
+  await q('drop index if exists massas_pizza_nome_unico')
+  await q(`insert into massas_pizza (restaurante_id, nome, preco, posicao) values ($1, 'Verif Dup', 0, 98), ($1, ' VERIF dup ', 0, 99)`, [loja])
+  await db.query('savepoint antes')
+  let erro = null
+  try {
+    await db.query(readFileSync(new URL('../../supabase/migrations/0097_cardapio_tamanhos_unicos_e_pizza_ocultos.sql', import.meta.url), 'utf8'))
+  } catch (e) {
+    erro = e
+  }
+  await db.query('rollback to savepoint antes')
+  ok('migration aborta quando há repetido', /0097 abortada/.test(erro?.message ?? ''), erro?.message?.split('\n')[0])
+  ok('a mensagem aponta tabela e nome repetido', /massas_pizza: restaurante_id=.* nome "verif dup" aparece 2 vezes/.test(erro?.message ?? ''))
+  ok('os dois registros repetidos continuam lá (nada apagado)', Number((await q(`select count(*) n from massas_pizza where lower(btrim(nome))='verif dup'`))[0].n) === 2)
+  ok('o índice não foi recriado no aborto', (await q(`select 1 from pg_indexes where indexname='massas_pizza_nome_unico'`)).length === 0)
+} finally {
+  await db.query('rollback')
+}
+
 // Idempotência: reaplicar a migration não muda nada nem falha.
 await db.query('begin')
 try {
