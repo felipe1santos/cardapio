@@ -46,21 +46,40 @@ export interface EntregaManual {
   complemento: string
   bairro: string
   cidade: string
+  /** UF (2 letras). O delivery não tem coluna de estado: vai junto da cidade ("Vitória/ES"). */
+  estado: string
   referencia: string
   observacao: string
   /** Taxa digitada pelo operador; null = calcular pela tabela de frete da loja. */
   taxaInformada: number | null
 }
 
+/** Como o cliente do card preto recebe o pedido. Mesa não passa por aqui. */
+export type ModalidadeBalcao = 'retirada' | 'entrega'
+
 export type AberturaBalcao =
-  | { ok: true; nome: string; telefone: string | null; chave: string; entrega: EntregaManual | null }
+  | { ok: true; nome: string; telefone: string | null; chave: string; modalidade: ModalidadeBalcao; entrega: EntregaManual | null }
   | { ok: false; erro: string }
+
+export const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'] as const
+
+/** Cidade como vai para o pedido: com a UF junto, porque o endereço do delivery não tem estado. */
+export function cidadeComUf(cidade: string, estado: string): string {
+  const c = cidade.trim()
+  const uf = estado.trim().toUpperCase()
+  if (!uf) return c
+  return /\/[A-Z]{2}$/.test(c) ? c : `${c}/${uf}`
+}
 
 const txt = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '')
 
 /**
- * Corpo de "Novo atendimento de balcão": nome obrigatório, telefone opcional, chave e,
- * se o operador abriu "Adicionar dados de entrega", o endereço. Telefone é SEMPRE
+ * Corpo de "Novo atendimento de balcão": nome obrigatório, telefone opcional, chave e a
+ * ESCOLHA obrigatória entre retirada e entrega. Retirada não leva endereço (se vier, é
+ * descartado). Entrega exige CEP, rua, número, bairro, cidade e UF; complemento,
+ * referência e taxa são opcionais (sem taxa, sai da tabela de frete da loja).
+ * Chamada antiga sem `modalidade` (aba aberta antes do deploy) é lida pelo que veio:
+ * com endereço = entrega, sem = retirada. Telefone é SEMPRE
  * opcional aqui (inclusive na entrega): o pedido manual é operado por funcionário, e a
  * regra do checkout online não vale. Sem telefone: snapshot, sem cliente/fidelidade/cupom.
  * Origem, canal, tipo e valores de pedido NÃO são lidos daqui — são do servidor.
@@ -71,8 +90,15 @@ export function sanearAberturaBalcao(corpo: unknown): AberturaBalcao {
   if (!id.ok) return id
   if (!ehUuid(c.chave)) return { ok: false, erro: 'Operação sem identificador. Recarregue a tela.' }
 
+  const temEndereco = c.entrega !== undefined && c.entrega !== null
+  let modalidade: ModalidadeBalcao
+  if (c.modalidade === 'retirada' || c.modalidade === 'entrega') modalidade = c.modalidade
+  else if (c.modalidade === undefined || c.modalidade === null) modalidade = temEndereco ? 'entrega' : 'retirada'
+  else return { ok: false, erro: 'Escolha retirada ou entrega.' }
+
   let entrega: EntregaManual | null = null
-  if (c.entrega !== undefined && c.entrega !== null) {
+  if (modalidade === 'entrega') {
+    if (!temEndereco) return { ok: false, erro: 'Para entrega, informe o endereço.' }
     if (typeof c.entrega !== 'object' || Array.isArray(c.entrega)) return { ok: false, erro: 'Dados de entrega inválidos.' }
     const e = c.entrega as Record<string, unknown>
     entrega = {
@@ -82,19 +108,29 @@ export function sanearAberturaBalcao(corpo: unknown): AberturaBalcao {
       complemento: txt(e.complemento, 200),
       bairro: txt(e.bairro, 120),
       cidade: txt(e.cidade, 120),
+      estado: txt(e.estado, 2).toUpperCase(),
       referencia: txt(e.referencia, 200),
       observacao: txt(e.observacao, 300),
       taxaInformada: null,
     }
-    if (!entrega.rua || !entrega.numero || !entrega.bairro) return { ok: false, erro: 'Para entrega, informe rua, número e bairro.' }
-    if (entrega.cep && entrega.cep.length !== 8) return { ok: false, erro: 'CEP inválido.' }
+    const faltando = [
+      !entrega.cep && 'CEP',
+      !entrega.rua && 'rua',
+      !entrega.numero && 'número',
+      !entrega.bairro && 'bairro',
+      !entrega.cidade && 'cidade',
+      !entrega.estado && 'estado',
+    ].filter(Boolean)
+    if (faltando.length) return { ok: false, erro: `Para entrega, informe ${faltando.join(', ')}.` }
+    if (entrega.cep.length !== 8) return { ok: false, erro: 'CEP inválido.' }
+    if (!(UFS as readonly string[]).includes(entrega.estado)) return { ok: false, erro: 'Estado inválido. Use a sigla (ex.: ES).' }
     if (e.taxa !== undefined && e.taxa !== null && e.taxa !== '') {
       const taxa = typeof e.taxa === 'number' ? e.taxa : Number(String(e.taxa).replace(',', '.'))
       if (!Number.isFinite(taxa) || taxa < 0 || taxa > 999) return { ok: false, erro: 'Taxa de entrega inválida.' }
       entrega.taxaInformada = Math.round(taxa * 100) / 100
     }
   }
-  return { ok: true, nome: id.nome, telefone: id.telefone, chave: c.chave, entrega }
+  return { ok: true, nome: id.nome, telefone: id.telefone, chave: c.chave, modalidade, entrega }
 }
 
 /** Telefone para exibir na lista: DDD e os 4 últimos. O completo só dentro da comanda. */
