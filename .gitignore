@@ -49,3 +49,6 @@ next-env.d.ts
 # screenshots de conferência da vitrine (playwright)
 .shots/
 .tmp-*
+
+# Artefatos locais de teste (PDF/PNG/logs de demonstração) — nunca versionar
+artefatos-locais/
