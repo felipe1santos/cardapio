@@ -26,6 +26,35 @@
 -- Rollback: docs/rollback/0083_pdv_pedidos_estados.down.sql.
 -- ============================================================================
 
+-- 0. preflight: número de pedido repetido ------------------------------------------
+-- Roda ANTES de qualquer alteração. O índice único (restaurante_id, numero) é
+-- proteção obrigatória desta migration: se já houver número repetido na mesma loja,
+-- ela ABORTA com a lista e nada é alterado — não apaga, não renumera, não converte.
+-- (Antes: avisava com `raise warning`, terminava "com sucesso" e ficava sem o índice.)
+do $$
+declare
+  achado record;
+  problemas text := '';
+  total int := 0;
+begin
+  for achado in
+    select restaurante_id::text as loja, numero, count(*) as n
+      from public.pedidos
+     group by restaurante_id, numero
+    having count(*) > 1
+     order by 1, 2
+     limit 50
+  loop
+    total := total + 1;
+    problemas := problemas || format(E'\n  restaurante_id=%s numero=%s aparece %s vezes', achado.loja, achado.numero, achado.n);
+  end loop;
+  if total > 0 then
+    raise exception using
+      message = '0083 abortada: há número de pedido repetido na mesma loja. Nada foi alterado.' || problemas,
+      hint = 'Corrigir os números repetidos é decisão de dados, feita à parte e com autorização. Esta migration não apaga nem renumera pedidos.';
+  end if;
+end $$;
+
 -- 1. número do pedido -----------------------------------------------------------
 create or replace function public.set_pedido_numero()
 returns trigger
@@ -43,17 +72,10 @@ begin
 end;
 $$;
 
--- Índice único só se não houver duplicado (verificado em produção em 2026-09-23:
--- 0 duplicados em 620 pedidos). Se houver, a migration NÃO falha: avisa e segue —
--- corrigir duplicado é decisão de dados, fora desta migration.
-do $$
-begin
-  if exists (select 1 from public.pedidos group by restaurante_id, numero having count(*) > 1) then
-    raise warning 'pedidos.numero tem duplicados; índice único pedidos_numero_unq NÃO criado';
-  else
-    create unique index if not exists pedidos_numero_unq on public.pedidos (restaurante_id, numero);
-  end if;
-end $$;
+-- Índice único obrigatório. O preflight (seção 0) já garantiu que não há repetido;
+-- se ainda assim houver (corrida com um insert durante a migration), o CREATE falha
+-- e a transação inteira é desfeita.
+create unique index if not exists pedidos_numero_unq on public.pedidos (restaurante_id, numero);
 
 -- 2. dimensão de atendimento ------------------------------------------------------
 alter table public.pedidos add column if not exists atendimento_status text;

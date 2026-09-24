@@ -185,8 +185,10 @@ Ordem obrigatória:
 2. **Migrations 0082–0086** (aditivas; código antigo funciona com elas — o fechamento
    só muda com a flag). Aplicar em transação, uma por arquivo, registrando em
    `schema_migrations`, com o mesmo procedimento usado na 0078/0079.
-   - A 0083 cria `pedidos_numero_unq` só se não houver duplicados (checado em
-     2026-09-23: 0 em 620). Se houver, avisa e segue sem o índice.
+   - A 0083 confere número de pedido repetido ANTES de alterar qualquer coisa e, se
+     houver, ABORTA com a lista (nada é apagado ou renumerado). Sem repetido, cria
+     `pedidos_numero_unq` obrigatoriamente. Prova: `scripts/seguranca/verificar-0083-preflight.mjs`.
+     (Até 2026-09-24 ela avisava e seguia sem o índice — corrigido.)
 3. **Deploy do código** da branch `rc/pdv-v2` (merge em `main`, Redeploy no Coolify).
 4. Verificação em produção (sem ligar flag):
    - Kanban: aceitar, pronto, entregue, cancelar um pedido de teste;
