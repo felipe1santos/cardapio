@@ -23,12 +23,14 @@ import pg from 'pg'
 import { chromium } from 'playwright'
 import { createClient } from '@supabase/supabase-js'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, E2E_VIZINHA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
 const { DB_URL, API_URL, ANON_KEY } = chavesLocais()
 exigirLoopback(DB_URL, BASE, API_URL)
 
+exigirLojaIsolada() // a semente apaga os dados da loja semeada
 execFileSync(process.execPath, ['scripts/seguranca/semear-demo-mesas.mjs'], { stdio: 'ignore' })
 mkdirSync('.shots', { recursive: true })
 
@@ -47,7 +49,7 @@ await db.connect()
 const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
 await q(`update restaurantes set taxa_servico_padrao = 10, formas_pagamento_mesa = array['dinheiro','pix','credito','debito'] where id = $1`, [loja])
 const mesa = async (nome) => um(`select id, token from mesas where restaurante_id=$1 and nome=$2`, [loja, nome])
 const M01 = await mesa('Mesa 01')
@@ -61,7 +63,7 @@ const RISOTO = await item('Risoto de Funghi')
 const AGUA = await item('Água com Gás')
 const SUCO = await item('Suco de Laranja')
 const FILE = await item('Filé à Parmegiana')
-const outraLoja = await um(`select m.id from mesas m join restaurantes r on r.id = m.restaurante_id where r.slug <> 'cantina-demo' limit 1`)
+const outraLoja = await um(`select m.id from mesas m join restaurantes r on r.id = m.restaurante_id where r.slug = $1 limit 1`, [E2E_VIZINHA])
 
 const browser = await chromium.launch()
 
@@ -112,9 +114,9 @@ const agir = (page, mesaId, acao, corpo = {}) =>
   })
 const totais = async (page, mesaId) => (await conta(page, mesaId))?.conta?.totais
 
-const dono = await logar('dono.local')
-const garcom = await logar('garcom.local')
-const atendente = await logar('atendente.local')
+const dono = await logar(USU.dono)
+const garcom = await logar(USU.garcom)
+const atendente = await logar(USU.atendente)
 
 // Esta suíte exercita o garçom recebendo na mesa, que é a regra "garçom recebe" da loja
 // (desligada por padrão). O dono liga pela mesma rota da tela de configuração.
@@ -258,11 +260,13 @@ const pagamentos = async () => q(`select id, forma, valor, valor_recebido, troco
   ok('pago 30, falta 25', t.pago === 30 && t.restante === 25, `${t.pago} / ${t.restante}`)
 
   const fechar = await agir(garcom.page, M01.id, 'fechar')
-  ok('fechar com saldo é bloqueado', fechar.status === 400 && /falta receber/.test(fechar.json?.error ?? ''), fechar.json?.error)
+  // PDV v2 (lib/servicos/conta-presencial.ts): saldo_restante e valor_acima_do_restante são
+  // conflito de estado → 409 (antes 400). A recusa e a mensagem continuam as mesmas.
+  ok('fechar com saldo é bloqueado', fechar.status === 409 && /falta receber/.test(fechar.json?.error ?? ''), fechar.json?.error)
   ok('conta continua aberta', (await um(`select status from comandas where id=$1`, [comanda01.id])).status === 'aberta')
 
   const acima = await agir(garcom.page, M01.id, 'pagamento', { forma: 'credito', valor: 25.01, chave: uuid() })
-  ok('pagamento acima do que falta é recusado', acima.status === 400, acima.json?.error)
+  ok('pagamento acima do que falta é recusado', acima.status === 409 && /passa do que falta/.test(acima.json?.error ?? ''), acima.json?.error)
   const forma = await agir(garcom.page, M01.id, 'pagamento', { forma: 'bitcoin', valor: 1, chave: uuid() })
   ok('forma que não existe é recusada', forma.status === 400)
   const semChave = await agir(garcom.page, M01.id, 'pagamento', { forma: 'pix', valor: 1 })
@@ -274,7 +278,7 @@ const pagamentos = async () => q(`select id, forma, valor, valor_recebido, troco
     agir(dono.page, M01.id, 'pagamento', { forma: 'credito', valor: 25, chave: uuid() }),
   ])
   const statuses = [c1.status, c2.status].sort()
-  ok('concorrência: um passa, o outro é recusado', statuses[0] === 200 && statuses[1] === 400, statuses.join(','))
+  ok('concorrência: um passa, o outro é recusado', statuses[0] === 200 && statuses[1] === 409, statuses.join(','))
   t = await totais(garcom.page, M01.id)
   ok('nunca recebe mais que o total (pago 55, falta 0)', t.pago === 55 && t.restante === 0, `${t.pago} / ${t.restante}`)
 
@@ -375,10 +379,10 @@ secao('7. trocar de mesa')
   ok('mesma mesa é recusada', mesma.status === 400)
   const inativa = await agir(garcom.page, M03.id, 'transferir_mesa', { destinoMesaId: B01.id })
   ok('mesa desativada é recusada', inativa.status === 400 && /desativada/.test(inativa.json?.error ?? ''), inativa.json?.error)
-  if (outraLoja) {
-    const alheia = await agir(garcom.page, M03.id, 'transferir_mesa', { destinoMesaId: outraLoja.id })
-    ok('mesa de OUTRA loja é recusada', alheia.status === 400 && /não encontrada/.test(alheia.json?.error ?? ''), alheia.json?.error)
-  }
+  // A vizinha isolada sempre tem a "Mesa V1" (semente): o cenário não é mais pulado.
+  ok('existe mesa de outra loja para o teste', !!outraLoja)
+  const alheia = await agir(garcom.page, M03.id, 'transferir_mesa', { destinoMesaId: outraLoja?.id })
+  ok('mesa de OUTRA loja é recusada', alheia.status === 400 && /não encontrada/.test(alheia.json?.error ?? ''), alheia.json?.error)
 
   const comanda03 = (await um(`select id from comandas where mesa_id=$1 and status='aberta'`, [M03.id])).id
   const r = await agir(garcom.page, M03.id, 'transferir_mesa', { destinoMesaId: V01.id })
@@ -483,9 +487,9 @@ secao('8. permissões na API e no banco')
     const { error } = await c.auth.signInWithPassword({ email, password: SENHA })
     return error ? null : c
   }
-  const emailDono = (await um(`select email from usuarios where usuario='dono.local'`)).email
-  const sg = await clientePorPapel('garcom@demo.local')
-  const sa = await clientePorPapel('atendente@demo.local')
+  const emailDono = (await um(`select email from usuarios where usuario=$1`, [USU.dono])).email
+  const sg = await clientePorPapel(USU.garcomEmail)
+  const sa = await clientePorPapel(USU.atendenteEmail)
   const sd = await clientePorPapel(emailDono)
   ok('logins diretos no Supabase local', !!sg && !!sa && !!sd)
   const lerG = await sg.from('pagamentos_comanda').select('id')
@@ -541,7 +545,9 @@ secao('9. configuração da conta na loja')
   await dono.page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
   await dono.page.getByRole('button', { name: 'Conta e pagamentos' }).click()
   await dono.page.getByLabel('Taxa de serviço padrão').waitFor({ timeout: 15000 })
-  await esperar(800)
+  // O modal busca a configuração ao abrir (Salvar fica desabilitado até chegar); com a
+  // máquina carregada isso passava dos 800 ms fixos. Espera o campo ser preenchido.
+  for (let i = 0; i < 60 && (await dono.page.getByLabel('Taxa de serviço padrão').inputValue()) === ''; i++) await esperar(250)
   ok('modal mostra 12,5', (await dono.page.getByLabel('Taxa de serviço padrão').inputValue()) === '12,5')
   await dono.page.screenshot({ path: '.shots/etapa-f-07-config-conta.png' })
   const aud = await um(`select count(*)::int n from eventos_auditoria where restaurante_id=$1 and acao='mesas.configurou_conta'`, [loja])

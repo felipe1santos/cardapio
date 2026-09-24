@@ -17,12 +17,14 @@ import { mkdirSync } from 'node:fs'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
 const { DB_URL, API_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE, API_URL)
 
+exigirLojaIsolada() // a semente apaga os dados da loja semeada
 execFileSync(process.execPath, ['scripts/seguranca/semear-demo-mesas.mjs'], { stdio: 'ignore' })
 mkdirSync('.shots', { recursive: true })
 
@@ -37,7 +39,7 @@ const db = new pg.Client({ connectionString: DB_URL })
 await db.connect()
 const um = async (sql, p = []) => (await db.query(sql, p)).rows[0]
 
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
 const mesaLivre = await um(`select id, token, nome from mesas where restaurante_id=$1 and nome='Mesa 01'`, [loja])
 const mesaOcupada = await um(`select id, nome from mesas where restaurante_id=$1 and nome='Mesa 02'`, [loja])
 
@@ -213,7 +215,7 @@ for (const vp of VIEWPORTS) {
 
     // Configurador: é o lugar onde mais coisa disputa espaço.
     await page.locator('.mesa-categoria', { hasText: 'Burgers' }).click()
-    await page.locator('.mesa-card', { hasText: 'Burger da Casa' }).locator('text=Selecionar item').click()
+    await page.locator('.mesa-card', { hasText: 'Burger da Casa' }).first().click() // 648e0ed: o cartão inteiro abre o item
     await page.waitForTimeout(600)
     await page.screenshot({ path: `.shots/resp-${vp.nome}-cliente-configurador.png` })
     await conferir('cliente/configurador', page, vp)
@@ -252,7 +254,7 @@ for (const vp of VIEWPORTS) {
       hasTouch: vp.mobile,
       locale: 'pt-BR',
     })
-    const page = await logar(ctx, 'dono.local')
+    const page = await logar(ctx, USU.dono)
 
     /**
      * O checklist de configuração é um modal de interrupção que abre nas telas de
@@ -315,7 +317,7 @@ for (const vp of VIEWPORTS) {
       hasTouch: vp.mobile,
       locale: 'pt-BR',
     })
-    const page = await logar(ctx, 'atendente.local')
+    const page = await logar(ctx, USU.atendente)
     await page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
     await page.waitForTimeout(1200)
     await page.screenshot({ path: `.shots/resp-${vp.nome}-caixa-salao.png` })
@@ -368,7 +370,7 @@ secao('Acessibilidade mínima (390×844)')
 
   // Escolha obrigatória: o marcador é anunciado como radio/checkbox, não só visual.
   await page.locator('.mesa-categoria', { hasText: 'Burgers' }).click()
-  await page.locator('.mesa-card', { hasText: 'Burger da Casa' }).locator('text=Selecionar item').click()
+  await page.locator('.mesa-card', { hasText: 'Burger da Casa' }).first().click() // 648e0ed: o cartão inteiro abre o item
   await page.waitForTimeout(500)
   const papeis = await page.evaluate(() =>
     [...document.querySelectorAll('.mesa-opcao')].map((el) => el.getAttribute('role')))

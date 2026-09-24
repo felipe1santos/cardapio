@@ -27,4 +27,18 @@ export const USU = {
   atendenteEmail: S ? `atendente.${S}@demo.local` : 'atendente@demo.local',
   donoVizinha: S ? `dono.vizinha.${S}` : 'dono.vizinha',
   donoVizinhaEmail: S ? `dono.${S}@vizinha.local` : 'dono@vizinha.local',
+  // Funcionário cadastrado pela tela no e2e-checkpoint-e (login é único no sistema inteiro).
+  funcionarioNovo: S ? `maria.garcom.${S}` : 'maria.garcom',
+}
+
+/**
+ * Trava das suítes que semeiam a loja: só rodam numa loja isolada, com usuários próprios.
+ * Sem isso, a semente apagaria os dados de teste da cantina-demo/vizinha-demo.
+ */
+export function exigirLojaIsolada() {
+  if (!S || ['cantina-demo', 'vizinha-demo'].includes(E2E_LOJA) || ['cantina-demo', 'vizinha-demo'].includes(E2E_VIZINHA)) {
+    console.error('Esta suíte semeia (e APAGA dados de) a loja de teste. Rode numa loja isolada, por exemplo:\n'
+      + '  E2E_LOJA=cantina-e2e E2E_VIZINHA=vizinha-e2e E2E_SUFIXO=e2e node <script>')
+    process.exit(2)
+  }
 }

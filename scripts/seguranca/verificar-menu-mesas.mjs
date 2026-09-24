@@ -14,11 +14,13 @@ import { mkdirSync } from 'node:fs'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
 const { DB_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
+exigirLojaIsolada() // a semente apaga os dados da loja semeada
 execFileSync(process.execPath, ['scripts/seguranca/semear-demo-mesas.mjs'], { stdio: 'ignore' })
 mkdirSync('.shots', { recursive: true })
 
@@ -29,7 +31,7 @@ const ok = (nome, passou, detalhe) => {
 }
 const db = new pg.Client({ connectionString: DB_URL })
 await db.connect()
-const loja = (await db.query(`select id from restaurantes where slug='cantina-demo'`)).rows[0].id
+const loja = (await db.query(`select id from restaurantes where slug='${E2E_LOJA}'`)).rows[0].id
 const browser = await chromium.launch()
 
 async function logar(usuario, viewport) {
@@ -58,13 +60,13 @@ const DESKTOP = { width: 1360, height: 900 }
 const CELULAR = { width: 390, height: 844 }
 
 console.log('\n── módulo ligado ──')
-for (const [usuario, tela] of [['dono.local', DESKTOP], ['dono.local', CELULAR], ['garcom.local', CELULAR], ['atendente.local', DESKTOP]]) {
+for (const [usuario, tela] of [[USU.dono, DESKTOP], [USU.dono, CELULAR], [USU.garcom, CELULAR], [USU.atendente, DESKTOP]]) {
   const { ctx, page } = await logar(usuario, tela)
   await page.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' }).catch(() => {})
   const itens = await menu(page)
   const i = itens.indexOf('Mesas e Comandas')
   ok(`${usuario} (${tela.width}px) vê "Mesas e Comandas" no menu`, i >= 0, itens.slice(0, 6).join(' › '))
-  if (usuario !== 'garcom.local') ok(`${usuario} (${tela.width}px): logo depois do PDV`, i > 0 && itens[i - 1] === 'PDV', itens[i - 1])
+  if (usuario !== USU.garcom) ok(`${usuario} (${tela.width}px): logo depois do PDV`, i > 0 && itens[i - 1] === 'PDV', itens[i - 1])
   await page.locator('aside a', { hasText: 'Mesas e Comandas' }).first().click()
   await page.waitForURL('**/admin/mesas', { timeout: 15000 }).catch(() => {})
   ok(`${usuario} (${tela.width}px): o item leva ao salão`, new URL(page.url()).pathname === '/admin/mesas', new URL(page.url()).pathname)
@@ -73,7 +75,7 @@ for (const [usuario, tela] of [['dono.local', DESKTOP], ['dono.local', CELULAR],
 }
 
 {
-  const { ctx, page } = await logar('dono.local', DESKTOP)
+  const { ctx, page } = await logar(USU.dono, DESKTOP)
   await page.goto(`${BASE}/admin/ajustes`, { waitUntil: 'networkidle' })
   const ok1 = page.locator('button', { hasText: 'OK, entendi' })
   if (await ok1.count()) await ok1.first().click()
@@ -92,7 +94,7 @@ for (const [usuario, tela] of [['dono.local', DESKTOP], ['dono.local', CELULAR],
 console.log('\n── módulo desligado ──')
 await db.query(`update restaurantes set modulo_mesas_ativo = false where id = $1`, [loja])
 {
-  const { ctx, page } = await logar('dono.local', DESKTOP)
+  const { ctx, page } = await logar(USU.dono, DESKTOP)
   const itens = await menu(page)
   ok('dono não vê o item com o módulo desligado', !itens.includes('Mesas e Comandas'), itens.slice(0, 5).join(' › '))
   await page.goto(`${BASE}/admin/mesas`, { waitUntil: 'domcontentloaded' })
