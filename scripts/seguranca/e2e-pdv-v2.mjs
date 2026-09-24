@@ -191,7 +191,8 @@ await pa.getByTestId('fechar-modal').getByText('Aguardando aceite').waitFor()
 const txtPend = await pa.getByTestId('fechar-modal').innerText()
 ok('fechar mostra a pendência "Aguardando aceite" e não deixa confirmar sem decisão', /aguardando aceite/i.test(txtPend) && (await pa.getByTestId('fechar-confirmar').isDisabled()), txtPend.slice(0, 80))
 const idxPend = (await um('select numero from pedidos where comanda_id=$1', [cJoao.id])).numero
-ok('atendente não força entrega nem cancela pedido que não está pronto', (await pa.getByTestId(`fechar-pendencia-${idxPend}-entregue`).isDisabled()) && (await pa.getByTestId(`fechar-pendencia-${idxPend}-cancelar`).isDisabled()))
+// comanda.fechamento_resolver: o caixa decide a pendência dentro do fechamento.
+ok('atendente pode decidir a pendência no fechamento (entregue/cancelar)', !(await pa.getByTestId(`fechar-pendencia-${idxPend}-entregue`).isDisabled()) && !(await pa.getByTestId(`fechar-pendencia-${idxPend}-cancelar`).isDisabled()))
 await foto(pa, '08-pendencias-fechamento')
 await pa.getByRole('button', { name: 'Voltar sem fechar' }).click()
 await pa.getByRole('button', { name: 'Aceitar (preparar)' }).click()
@@ -316,20 +317,22 @@ ok('dois lançamentos na mesma comanda', Number((await um('select count(*) n fro
 await pa.getByTestId('pdv-ver-conta').click()
 await pa.getByTestId('conta-titulo').getByText(mesaLivre.nome).waitFor()
 await foto(pa, '13-conta-mesa')
-for (let i = 0; i < 2; i++) {
-  await pa.getByRole('button', { name: 'Aceitar (preparar)' }).first().click()
-  await esperar(500)
+// Cada clique espera o banco refletir a mudança antes do próximo (sob carga, um clique
+// antes do re-render caía no mesmo botão e só um pedido andava).
+const contar = async (sql) => Number((await um(`select count(*) n from pedidos where comanda_id=$1 and ${sql}`, [cm.id])).n)
+const passo = async (botao, sql, alvo) => {
+  while ((await contar(sql)) < alvo) {
+    const antes = await contar(sql)
+    await pa.getByRole('button', { name: botao }).first().click()
+    for (let t = 0; t < 40 && (await contar(sql)) === antes; t++) await esperar(250)
+  }
 }
-for (let i = 0; i < 2; i++) {
-  await pa.getByRole('button', { name: 'Marcar pronto' }).first().click()
-  await esperar(500)
-}
-await pa.getByRole('button', { name: 'Servido' }).first().click()
-await esperar(700)
+await passo('Aceitar (preparar)', "status in ('preparando','pronto','entregue')", 2)
+await passo('Marcar pronto', "status in ('pronto','entregue')", 2)
+await passo('Servido', "status = 'entregue'", 1)
 const fMesa = await api(pa, `/api/admin/comandas/${cm.id}`, 'POST', { acao: 'fechar' })
 ok('mesa com um pedido pronto e não servido não fecha', fMesa.status === 409 && fMesa.json?.pendencias?.pedidos?.some((p) => p.categoria === 'pronto_nao_atendido'))
-await pa.getByRole('button', { name: 'Servido' }).first().click()
-await esperar(700)
+await passo('Servido', "status = 'entregue'", 2)
 const contaMesa = (await api(pa, `/api/admin/comandas/${cm.id}`)).json.conta
 const esperadoMesa = Math.round((Number(FILE.preco) + Number(SUCO.preco)) * 1.1 * 100) / 100
 ok('total da mesa com 10% de serviço, do servidor', contaMesa.totais.total === esperadoMesa, `${contaMesa.totais.total} x ${esperadoMesa}`)

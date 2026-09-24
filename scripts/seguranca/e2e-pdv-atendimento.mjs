@@ -141,6 +141,30 @@ ok('7/8. pedido telefônico com dados de entrega completos pelo mesmo card', cEn
   && cEnt.entrega_bairro === 'Centro' && cEnt.entrega_cep === '29000000' && cEnt.entrega_complemento === 'Casa 2' && cEnt.entrega_cidade === 'Cidade Demo'
   && cEnt.entrega_referencia === 'Perto da praça' && cEnt.entrega_observacao === 'Tocar a campainha' && Number(cEnt.taxa_entrega) === 8.5 && cEnt.taxa_entrega_manual)
 ok('13. cliente novo criado na loja pelo telefone', !!cEnt.cliente_id && Number((await um(`select count(*) n from clientes where restaurante_id=$1 and telefone='5527988880001'`, [loja])).n) === 1)
+// Entrega manual SEM telefone (telefone é sempre opcional no card preto).
+await irPdv(pAt)
+await pAt.getByTestId('card-balcao').click()
+await pAt.getByTestId('balcao-novo').click()
+await pAt.getByTestId('balcao-nome').fill('Entrega Sem Telefone')
+await pAt.getByTestId('balcao-entrega-toggle').click()
+ok('   explicação discreta: telefone só para histórico, fidelidade e cupom', (await pAt.innerText('body')).includes('Telefone é necessário só para histórico do cliente, fidelidade e cupom'))
+await pAt.getByTestId('entrega-bairro').fill('Centro')
+await pAt.getByTestId('entrega-rua').fill('Rua Sem Telefone')
+await pAt.getByTestId('entrega-numero').fill('50')
+await pAt.getByTestId('entrega-taxa').fill('6')
+await pAt.getByTestId('balcao-abrir').click()
+await pAt.getByTestId('pdv-lancar').waitFor()
+const cSemTelEnt = await um(`select * from comandas where restaurante_id=$1 and cliente_nome='Entrega Sem Telefone' order by aberta_em desc limit 1`, [loja])
+ok('entrega manual sem telefone: criada com nome e endereço, sem cliente vinculado', cSemTelEnt?.entrega === true && cSemTelEnt.cliente_telefone === null
+  && cSemTelEnt.cliente_id === null && cSemTelEnt.entrega_rua === 'Rua Sem Telefone' && Number(cSemTelEnt.taxa_entrega) === 6)
+const lSemTelEnt = await lancar(pAt, { comandaId: cSemTelEnt.id }, [L(AGUA)])
+ok('   pedido de entrega sem telefone vai para a cozinha', lSemTelEnt.status === 201 && (await um('select tipo from pedidos where id=$1', [lSemTelEnt.json.id])).tipo === 'entrega')
+ok('   sem telefone: cupom recusado (exige identificação)', (await api(pAt, `/api/admin/comandas/${cSemTelEnt.id}`, 'POST', { acao: 'aplicar_cupom', codigo: 'BALCAO10' })).status === 400)
+await db.query("update pedidos set status='entregue' where id=$1", [lSemTelEnt.json.id])
+const rSemTel = (await api(pAt, `/api/admin/comandas/${cSemTelEnt.id}`)).json.conta.totais.restante
+ok('   entrega sem telefone fecha normalmente', (await api(pAt, `/api/admin/comandas/${cSemTelEnt.id}`, 'POST', { acao: 'fechar_completo', chave: uuid(), acoes: [], pagamentos: [{ forma: 'dinheiro', valor: rSemTel, chave: uuid() }] })).status === 200)
+ok('   sem telefone: nenhuma fidelidade e nenhum cadastro', (await um('select fidelidade_processado f from comandas where id=$1', [cSemTelEnt.id])).f === false
+  && Number((await um(`select count(*) n from clientes where restaurante_id=$1 and nome='Entrega Sem Telefone'`, [loja])).n) === 0)
 const lEnt = await lancar(pAt, { comandaId: cEnt.id }, [L(FILE)])
 const pEnt = await um('select * from pedidos where id=$1', [lEnt.json.id])
 ok('9. pedido manual entra na cozinha (recebido, na fila)', pEnt.status === 'recebido' && pEnt.impresso === false
@@ -225,8 +249,11 @@ ok('40. garçom não aplica cupom, não estorna, não força', [
   (await api(pGar, `/api/admin/comandas/${cM1.id}`, 'POST', { acao: 'aplicar_cupom', codigo: 'BALCAO10' })).status,
   (await api(pGar, `/api/admin/comandas/${cM1.id}`, 'POST', { acao: 'estorno', pagamentoId: uuid(), motivo: 'x' })).status,
 ].every((s) => s === 403))
-ok('   atendente não cancela no fechamento (decisão da gerência)', (await api(pAt, `/api/admin/comandas/${cM1.id}`, 'POST', {
-  acao: 'fechar_completo', chave: uuid(), acoes: [{ pedido_id: lM1.json.id, acao: 'cancelar', motivo: 'Tentativa indevida' }], pagamentos: [],
+ok('   atendente pode simular a decisão no fechamento (nada é aplicado)', (await api(pAt, `/api/admin/comandas/${cM1.id}`, 'POST', {
+  acao: 'simular_fechamento', acoes: [{ pedido_id: lM1.json.id, acao: 'cancelar', motivo: 'Só simulando' }],
+})).status === 200 && (await um('select status::text s from pedidos where id=$1', [lM1.json.id])).s === 'preparando')
+ok('   garçom não resolve pendência no fechamento', (await api(pGar, `/api/admin/comandas/${cM1.id}`, 'POST', {
+  acao: 'simular_fechamento', acoes: [{ pedido_id: lM1.json.id, acao: 'cancelar', motivo: 'Tentativa indevida' }],
 })).status === 403)
 await irPdv(pGer)
 await pGer.getByTestId(`mesa-${M1.nome}`).click()
@@ -280,6 +307,75 @@ ok('31. dois operadores fechando juntos: 200 + 409, um pagamento só', [fa.statu
   && Number((await um('select count(*) n from pagamentos_comanda where comanda_id=$1 and estornado_em is null', [cM2])).n) === 1, `${fa.status},${fb.status}`)
 
 // ════════════════════════════════════════════════════════════════════════════
+secao('Atendente resolve pendências no fechamento (comanda.fechamento_resolver)')
+const bx = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Caixa Resolve', chave: uuid() })).json
+const x1 = (await lancar(pAt, { comandaId: bx.id }, [L(AGUA)])).json
+const x2 = (await lancar(pAt, { comandaId: bx.id }, [L(FILE), L(SUCO)])).json
+const x3 = (await lancar(pAt, { comandaId: bx.id }, [L(SUCO)])).json
+await db.query("update pedidos set status='preparando' where id = any($1)", [[x2.id, x3.id]])
+await db.query("update pedidos set status='pronto' where id=$1", [x3.id])
+await irPdv(pAt)
+await pAt.getByTestId('card-balcao').click()
+await pAt.getByTestId(`balcao-linha-${bx.senha}`).click()
+await pAt.getByTestId('conta-fechar').click()
+await pAt.getByTestId(`fechar-pendencia-${x1.numero}`).waitFor()
+await pAt.getByTestId(`fechar-pendencia-${x1.numero}-entregue`).click()
+await pAt.getByTestId(`fechar-pendencia-${x2.numero}-cancelar`).click()
+await pAt.getByTestId(`fechar-motivo-${x2.numero}`).fill('Cliente desistiu do prato')
+await pAt.getByTestId(`fechar-pendencia-${x3.numero}-entregue`).click()
+await pAt.getByTestId('fechar-simulacao').waitFor()
+await pAt.getByTestId('fechar-pag-0-forma-pix').click()
+await pAt.waitForFunction(() => !document.querySelector('[data-testid="fechar-confirmar"]')?.disabled)
+await foto(pAt, 'a11-atendente-resolve-fechamento')
+await pAt.getByTestId('fechar-confirmar').dblclick()
+await pAt.getByTestId('conta-titulo').waitFor({ state: 'detached', timeout: 20000 }).catch(() => {})
+const stX = Object.fromEntries((await q('select id, status::text s, resolvido_forcado f, cancelado_observacao o from pedidos where comanda_id=$1', [bx.id])).map((p) => [p.id, p]))
+ok('1. atendente: pedido aguardando aceite marcado entregue', stX[x1.id].s === 'entregue' && stX[x1.id].f === true)
+ok('2/5. atendente: pedido em preparo cancelado com motivo', stX[x2.id].s === 'cancelado' && stX[x2.id].o === 'Cliente desistiu do prato')
+ok('3/4. atendente: pedido pronto marcado entregue (sem forçar)', stX[x3.id].s === 'entregue' && stX[x3.id].f === false)
+ok('   atendente paga e fecha a conta', (await um('select status from comandas where id=$1', [bx.id])).status === 'fechada')
+ok('9. clique duplo do atendente: um fechamento, um pagamento', Number((await um('select count(*) n from pagamentos_comanda where comanda_id=$1', [bx.id])).n) === 1
+  && Number((await um(`select count(*) n from eventos_auditoria where entidade_id=$1 and acao='conta.fechou'`, [bx.id])).n) === 1)
+const audX = (await um(`select usuario_nome u, dados from eventos_auditoria where entidade_id=$1 and acao='conta.fechamento_decisoes'`, [bx.id]))
+ok('   auditoria: operador, permissão, pedidos, itens, estado anterior, decisão, motivo e valores antes/depois',
+  audX?.u === 'Atendente Demo' && audX.dados.permissao === 'comanda.fechamento_resolver' && Object.keys(audX.dados.decisoes ?? {}).length === 3
+  && Object.values(audX.dados.decisoes).some((d) => d.estado_anterior === 'preparando' && d.decisao === 'cancelar' && d.motivo === 'Cliente desistiu do prato' && d.qtd_itens === 2)
+  && Number(audX.dados.total_antes) > Number(audX.dados.total_depois))
+ok('   cada decisão também auditada pelo banco com o papel atendente', !!(await um(`select 1 from eventos_auditoria where entidade_id=$1 and acao='pedido.cancelou' and dados->>'papel'='atendente'`, [x2.id])))
+// 7. pedido de outra comanda
+const by = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Outra Comanda', chave: uuid() })).json
+const yOutra = (await lancar(pAt, { comandaId: by.id }, [L(AGUA)])).json
+const bw = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Comanda Alvo', chave: uuid() })).json
+await lancar(pAt, { comandaId: bw.id }, [L(AGUA)])
+ok('7. atendente não mexe em pedido de outra comanda pelo fechamento', (await api(pAt, `/api/admin/comandas/${bw.id}`, 'POST', {
+  acao: 'fechar_completo', chave: uuid(), acoes: [{ pedido_id: yOutra.id, acao: 'cancelar', motivo: 'Pedido de outra conta' }], pagamentos: [],
+})).status === 400 && (await um('select status::text s from pedidos where id=$1', [yOutra.id])).s === 'recebido')
+// 6. excedente exige gerente
+const bz = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Excedente', chave: uuid() })).json
+const z1 = (await lancar(pAt, { comandaId: bz.id }, [L(FILE)])).json
+await db.query("update pedidos set status='preparando' where id=$1", [z1.id])
+await api(pAt, `/api/admin/comandas/${bz.id}`, 'POST', { acao: 'pagamento', forma: 'pix', valor: Number(FILE.preco), chave: uuid() })
+const exc = await api(pAt, `/api/admin/comandas/${bz.id}`, 'POST', { acao: 'fechar_completo', chave: uuid(), acoes: [{ pedido_id: z1.id, acao: 'cancelar', motivo: 'Cozinha sem o prato' }], pagamentos: [] })
+ok('6. cancelamento que deixa pago acima do total: bloqueado, nada aplicado', exc.status === 409 && exc.json?.codigo === 'ajuste_financeiro_necessario'
+  && (await um('select status::text s from pedidos where id=$1', [z1.id])).s === 'preparando')
+const pagZ = (await api(pAt, `/api/admin/comandas/${bz.id}`)).json.conta.pagamentos[0]
+ok('   atendente não estorna (exige gerente/dono)', (await api(pAt, `/api/admin/comandas/${bz.id}`, 'POST', { acao: 'estorno', pagamentoId: pagZ.id, motivo: 'Prato cancelado' })).status === 403)
+ok('   gerente estorna', (await api(pGer, `/api/admin/comandas/${bz.id}`, 'POST', { acao: 'estorno', pagamentoId: pagZ.id, motivo: 'Prato cancelado' })).status === 200)
+ok('   depois do estorno, o atendente conclui o fechamento', (await api(pAt, `/api/admin/comandas/${bz.id}`, 'POST', { acao: 'fechar_completo', chave: uuid(), acoes: [{ pedido_id: z1.id, acao: 'cancelar', motivo: 'Cozinha sem o prato' }], pagamentos: [] })).status === 200)
+ok('   atendente não reabre conta encerrada', (await api(pAt, `/api/admin/comandas/${bz.id}`, 'POST', { acao: 'reabrir', motivo: 'Tentativa do caixa' })).status === 403)
+// 9. dois operadores (atendente e gerente) fechando a mesma conta com pendência
+const bd = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Dois Operadores', chave: uuid() })).json
+const d1 = (await lancar(pAt, { comandaId: bd.id }, [L(AGUA)])).json
+const totD = (await api(pAt, `/api/admin/comandas/${bd.id}`)).json.conta.totais.restante
+const [da, dg] = await Promise.all([
+  api(pAt, `/api/admin/comandas/${bd.id}`, 'POST', { acao: 'fechar_completo', chave: uuid(), acoes: [{ pedido_id: d1.id, acao: 'entregue' }], pagamentos: [{ forma: 'pix', valor: totD, chave: uuid() }] }),
+  api(pGer, `/api/admin/comandas/${bd.id}`, 'POST', { acao: 'fechar_completo', chave: uuid(), acoes: [{ pedido_id: d1.id, acao: 'entregue' }], pagamentos: [{ forma: 'credito', valor: totD, chave: uuid() }] }),
+])
+ok('9. atendente e gerente fechando juntos: 200 + 409, um pagamento', [da.status, dg.status].sort().join(',') === '200,409'
+  && Number((await um('select count(*) n from pagamentos_comanda where comanda_id=$1', [bd.id])).n) === 1, `${da.status},${dg.status}`)
+ok('8. garçom continua sem fechar conta', (await api(pGar, `/api/admin/comandas/${bw.id}`, 'POST', { acao: 'fechar_completo', chave: uuid(), acoes: [], pagamentos: [] })).status === 403)
+
+// ════════════════════════════════════════════════════════════════════════════
 secao('Mesa em limpeza, QR e liberação')
 await irPdv(pGer)
 const estadoM1 = await pGer.getByTestId(`mesa-${M1.nome}`).getAttribute('data-estado')
@@ -289,12 +385,15 @@ ok('33. mesa em limpeza recusa novo atendimento', (await api(pAt, `/api/admin/me
 ok('33. … e novo pedido', (await lancar(pAt, { mesaId: M1.id }, [L(AGUA)])).status === 409)
 const qr = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage()
 await qr.goto(`${BASE}/mesa/${M1.token}`, { waitUntil: 'networkidle' })
-ok('34. QR informa indisponibilidade temporária (mesmo token)', (await qr.locator('[data-mesa-em-limpeza]').count()) === 1 && /em preparação/i.test(await qr.innerText('body')))
-await foto(qr, 'a08-qr-mesa-em-preparacao')
+ok('34. QR: "Esta mesa está em limpeza e ficará disponível em breve." (mesmo token)', (await qr.locator('[data-mesa-em-limpeza]').count()) === 1
+  && (await qr.innerText('body')).includes('Esta mesa está em limpeza e ficará disponível em breve.') && !/preparação/i.test(await qr.innerText('body')))
+await foto(qr, 'a08-qr-mesa-em-limpeza')
 ok('34. QR não abre sessão enquanto em limpeza', Number((await um(`select count(*) n from sessoes_mesa where mesa_id=$1 and status='aberta'`, [M1.id])).n) === 0)
 await pGer.getByTestId(`mesa-${M1.nome}`).click()
 const txtLimpeza = await pGer.getByTestId('limpeza-detalhe').innerText()
-ok('   ao tocar: último cliente, horário e quem fechou', txtLimpeza.includes('Fernanda Mesa') && txtLimpeza.includes('Gerente'))
+ok('   ao tocar: badge EM LIMPEZA, último cliente, horário e responsável pelo fechamento', txtLimpeza.includes('Fernanda Mesa') && txtLimpeza.includes('Gerente')
+  && txtLimpeza.includes('Responsável pelo fechamento') && /em limpeza/i.test(await pGer.getByTestId('limpeza-badge').innerText())
+  && (await pGer.getByTestId('mesa-liberar').innerText()).includes('Tornar mesa disponível'))
 await foto(pGer, 'a09-limpeza-detalhe')
 await pGer.getByTestId('mesa-liberar').click()
 await pGer.waitForFunction((n) => document.querySelector(`[data-testid="mesa-${n}"]`)?.getAttribute('data-estado') === 'livre', M1.nome, { timeout: 15000 })

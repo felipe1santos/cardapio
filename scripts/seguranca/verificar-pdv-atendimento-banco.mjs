@@ -126,6 +126,22 @@ ok('10. entrega manual segue para logística (pronto → em rota → entregue)',
 const lb = await lancar(b1.id, [['Café', 5, 1]])
 await db.query("update pedidos set status='preparando' where id=$1", [lb.id])
 await db.query("update pedidos set status='pronto' where id=$1", [lb.id])
+// Entrega manual SEM telefone: aceita; snapshot de nome e endereço, sem cliente.
+const es = await abrirBalcao('Entrega Sem Tel', null, { ...ENT, taxa: 5, taxa_manual: true })
+const ces = await um('select entrega, cliente_telefone, cliente_id, entrega_rua from comandas where id=$1', [es.id])
+ok('entrega manual sem telefone: aceita, com endereço e sem cliente vinculado', ces.entrega && ces.cliente_telefone === null && ces.cliente_id === null && ces.entrega_rua === 'Rua Demo')
+const les = await lancar(es.id, [['Lanche', 20, 1]])
+ok('   pedido de entrega sem telefone: tipo entrega, telefone vazio', (await um('select tipo, cliente_telefone from pedidos where id=$1', [les.id])).tipo === 'entrega'
+  && (await um('select cliente_telefone from pedidos where id=$1', [les.id])).cliente_telefone === '')
+const cupomSemTel = (await um(`insert into cupons (restaurante_id, codigo, ativo, tipo, valor, publico, uso_unico_por_cliente, max_usos)
+  values ($1,'SEMTEL',true,'desconto_valor',5,'todos',true,5) returning id`, [loja])).id
+ok('   sem telefone: cupom recusado', /cupom_exige_telefone/.test(await erro('select comanda_cupom_aplicar($1,$2,$3,null,$4,$5)', [loja, es.id, cupomSemTel, NOME, 'pdv'])))
+await db.query("update pedidos set status='entregue' where id=$1", [les.id])
+await fecharCompleto(es.id, [], [pag('dinheiro', Number((await totais(es.id)).total))])
+ok('   sem telefone: fecha, sem fidelidade', (await um('select comanda_fidelidade_marcar($1,$2) r', [loja, es.id])).r === null
+  && (await um('select fidelidade_processado f from comandas where id=$1', [es.id])).f === false)
+ok('entrega manual COM telefone: cliente vinculado na loja', !!(await um('select cliente_id from comandas where id=$1', [e1.id])).cliente_id
+  && (await um('select c.telefone from comandas co join clientes c on c.id = co.cliente_id where co.id=$1', [e1.id])).telefone === '5527999990002')
 ok('11. balcão sem entrega não vai para em rota', /transicao_invalida/.test(await erro("update pedidos set status='em_rota' where id=$1", [lb.id])))
 ok('15. histórico: pedidos com telefone normalizado do cliente', (await um('select cliente_telefone from pedidos where id=$1', [le2.id])).cliente_telefone === '5527999990002')
 
