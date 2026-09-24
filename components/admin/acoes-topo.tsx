@@ -99,7 +99,10 @@ export function AcoesTopo() {
         href={linkDoSuporte(nomeLoja)}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex h-[36px] items-center gap-1.5 rounded-[4.8px] border-[0.8px] border-[#f3c38a] bg-[var(--adm-laranja-claro)] px-3 text-[12.8px] font-bold text-[var(--adm-laranja)] transition-colors hover:bg-[#ffedd5]"
+        aria-label="Dúvidas? Falar com o suporte"
+        title="Dúvidas? Falar com o suporte"
+        // `toque-botao`: link com cara de botão ganha o piso de 40px no toque (globals.css).
+        className="toque-botao flex h-[36px] items-center gap-1.5 rounded-[4.8px] border-[0.8px] border-[#f3c38a] bg-[var(--adm-laranja-claro)] px-3 text-[12.8px] font-bold text-[var(--adm-laranja)] transition-colors hover:bg-[#ffedd5]"
       >
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
           {ICONES.suporte.map((d) => (
