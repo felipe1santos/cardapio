@@ -52,6 +52,7 @@ import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { enviarImagemCategoria } from '@/lib/queries/ajustes'
 import { DescricaoEditor } from '@/components/admin/descricao-editor'
 import { pode } from '@/lib/auth/permissoes'
+import { precoDeVitrine } from '@/lib/garcom-catalogo'
 import { mensagemErroCardapio } from '@/lib/nomes-catalogo'
 import { AbasCardapio, abaDaUrl, type AbaCardapio } from '@/components/cardapio/abas-cardapio'
 import { GruposComplementos } from '@/components/cardapio/grupos-complementos'
@@ -592,6 +593,17 @@ function GrupoItemCard({
       </div>
     </div>
   )
+}
+
+/**
+ * Preço na lista do gestor. Pizza e item com tamanho não têm preço-base de verdade:
+ * mostrar "R$ 0,00" assustava. Vira "a partir de", a mesma regra do painel do garçom.
+ */
+function PrecoDaLista({ item }: { item: ItemCardapio }) {
+  const p = precoDeVitrine(item)
+  if (!p.aPartirDe) return <>R$ {p.valor.toFixed(2).replace('.', ',')}</>
+  if (!(p.valor > 0)) return <span className="text-[12px] font-semibold text-[#92400E]">Sem preço</span>
+  return <><span className="text-[11px] font-normal">a partir de </span>R$ {p.valor.toFixed(2).replace('.', ',')}</>
 }
 
 /** Cabeçalho de seção do formulário de item. */
@@ -1394,8 +1406,8 @@ export default function CardapioPage() {
             </button>
           </div>
           {activeGroupIdObj && editingGroupId !== activeGroupIdObj.id && schedulingGroupId !== activeGroupIdObj.id && (
-            <div className="flex items-center justify-between gap-2 rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white px-3 py-1.5">
-              <span className="min-w-0 truncate text-[12px] text-[var(--adm-texto-suave)]">
+            <div className="flex items-center justify-end gap-2 rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white px-3 py-1.5 sm:justify-between">
+              <span className="min-w-0 truncate text-[12px] text-[var(--adm-texto-suave)] max-sm:hidden">
                 Categoria <b className="text-[var(--adm-texto)]">{activeGroupIdObj.nome}</b>
                 {activeGroupIdObj.horarioAtivoInicio && activeGroupIdObj.horarioAtivoFim ? ` · ${activeGroupIdObj.horarioAtivoInicio}–${activeGroupIdObj.horarioAtivoFim}` : ''}
               </span>
@@ -1583,7 +1595,7 @@ export default function CardapioPage() {
                               <span className="text-[11px] font-normal text-text-subtle line-through">R$ {item.preco.toFixed(2).replace('.', ',')}</span>
                             </div>
                           ) : (
-                            <>R$ {item.preco.toFixed(2).replace('.', ',')}</>
+                            <PrecoDaLista item={item} />
                           )}
                         </td>
                         <td className="border-b border-border px-3.5 py-3">
@@ -1672,7 +1684,7 @@ export default function CardapioPage() {
                             </span>
                           ) : (
                             <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-bold text-price-text">
-                              R$ {item.preco.toFixed(2).replace('.', ',')}
+                              <PrecoDaLista item={item} />
                             </span>
                           )}
                           <button onClick={() => openEditItem(item)} aria-label={`Editar ${item.nome}`}
