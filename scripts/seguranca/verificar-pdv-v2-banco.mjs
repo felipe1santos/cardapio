@@ -96,9 +96,9 @@ const b1 = await abrirBalcao('João')
 const b2 = await abrirBalcao('  Ana  ', '(27) 99999-0001')
 ok('senha sequencial começa em 1 e segue', b1.senha === 1 && b2.senha === 2, `${b1.senha}, ${b2.senha}`)
 const cb2 = await um('select tipo, mesa_id, cliente_nome, cliente_telefone, taxa_servico_percentual, status from comandas where id=$1', [b2.id])
-ok('comanda de balcão: tipo balcao, sem mesa, nome aparado, telefone só dígitos', cb2.tipo === 'balcao' && cb2.mesa_id === null && cb2.cliente_nome === 'Ana' && cb2.cliente_telefone === '27999990001')
+ok('comanda de balcão: tipo balcao, sem mesa, nome aparado, telefone normalizado (55 + DDD + número)', cb2.tipo === 'balcao' && cb2.mesa_id === null && cb2.cliente_nome === 'Ana' && cb2.cliente_telefone === '5527999990001')
 ok('balcão nasce com taxa 0 mesmo com padrão da loja em 10%', Number(cb2.taxa_servico_percentual) === 0)
-ok('mesa continua herdando a taxa padrão', Number((await um(`insert into comandas (restaurante_id, mesa_id) values ($1,$2) returning taxa_servico_percentual t`, [loja, mesa1])).t) === 10)
+ok('mesa continua herdando a taxa padrão', Number((await um(`insert into comandas (restaurante_id, mesa_id, cliente_nome) values ($1,$2,'Cliente Teste') returning taxa_servico_percentual t`, [loja, mesa1])).t) === 10)
 await db.query(`delete from comandas where restaurante_id=$1 and tipo='mesa'`, [loja])
 const chaveDupla = uuid()
 const d1 = await abrirBalcao('Pedro', null, chaveDupla)
@@ -106,7 +106,8 @@ const d2 = await abrirBalcao('Pedro', null, chaveDupla)
 ok('duplo clique no "Abrir" (mesma chave) não abre duas comandas', d1.id === d2.id && d2.idempotente === true)
 ok('nome é obrigatório', /nome_obrigatorio/.test(await erro('select comanda_balcao_abrir($1,$2,null,null,$3,$4)', [loja, '   ', NOME, uuid()])))
 ok('telefone inválido é recusado', /telefone_invalido/.test(await erro('select comanda_balcao_abrir($1,$2,$3,null,$4,$5)', [loja, 'X', '123', NOME, uuid()])))
-ok('nada criado em clientes', Number((await um('select count(*) n from clientes where restaurante_id=$1', [loja])).n) === 0)
+// 0094: telefone informado vincula ao cadastro da MESMA loja (cria uma vez, sem duplicar).
+ok('telefone vincula um cadastro em clientes, sem duplicar', Number((await um("select count(*) n from clientes where restaurante_id=$1 and telefone='5527999990001'", [loja])).n) === 1)
 const audAbriu = await um(`select dados from eventos_auditoria where restaurante_id=$1 and acao='balcao.abriu' and entidade_id=$2`, [loja, b2.id])
 ok('abertura auditada sem o telefone', !!audAbriu && !JSON.stringify(audAbriu.dados).includes('99999'))
 ok('balcão e mesa aceitam mais de um balcão aberto por loja', Number((await um(`select count(*) n from comandas where restaurante_id=$1 and tipo='balcao' and status='aberta'`, [loja])).n) >= 3)
@@ -269,9 +270,11 @@ ok('reabrir comanda aberta é recusado', /comanda_nao_fechada/.test(await erro('
 await fechar(cB.id)
 
 // mesa: reabrir com a mesa já ocupada por outra conta
-const cm = (await um(`insert into comandas (restaurante_id, mesa_id) values ($1,$2) returning id`, [loja, mesa1])).id
+const cm = (await um(`insert into comandas (restaurante_id, mesa_id, cliente_nome) values ($1,$2,'Cliente Teste') returning id`, [loja, mesa1])).id
 await fechar(cm)
-await um(`insert into comandas (restaurante_id, mesa_id) values ($1,$2) returning id`, [loja, mesa1])
+// 0095: conta de mesa fechada deixa a mesa em limpeza; liberar antes de abrir outra.
+await db.query('select mesa_liberar($1,$2,null,$3,$4)', [loja, mesa1, NOME, 'pdv'])
+await um(`insert into comandas (restaurante_id, mesa_id, cliente_nome) values ($1,$2,'Cliente Teste') returning id`, [loja, mesa1])
 ok('reabrir conta de mesa com a mesa ocupada é recusado', /mesa_ocupada/.test(await erro('select comanda_reabrir($1,$2,$3,null,$4,$5)', [loja, cm, 'engano no fechamento', NOME, 'pdv'])))
 
 // ════════════════════════════════════════════════════════════════════════════
