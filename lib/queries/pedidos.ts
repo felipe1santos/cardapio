@@ -1182,6 +1182,9 @@ export async function criarPedido(
     const compsDb = (item.item_complementos ?? []) as CompDb[]
     const gruposDb = (item.grupos_item_complementos ?? []) as GrupoDb[]
     const escolhidos = linha.complementos ?? []
+    // Pausado primeiro: a mensagem aponta a causa ("não está disponível"), não o grupo.
+    const pausado = escolhidos.find((n) => compsDb.some((c) => c.nome === n && c.pausado) && !compsDb.some((c) => c.nome === n && !c.pausado))
+    if (pausado) throw new Error(`${item.nome}: a opção "${pausado}" não está disponível.`)
     if (gruposDb.length > 0) {
       const regras: GrupoOpcoesRegra[] = gruposDb.map((g) => ({
         nome: g.nome,
@@ -1194,8 +1197,6 @@ export async function criarPedido(
       const erros = validarOpcoes(regras, escolhidos.filter((n) => !avulsos.has(n)))
       if (erros.length > 0) throw new Error(`${item.nome}: ${erros[0]}`)
     }
-    const pausado = escolhidos.find((n) => compsDb.some((c) => c.nome === n && c.pausado) && !compsDb.some((c) => c.nome === n && !c.pausado))
-    if (pausado) throw new Error(`${item.nome}: a opção "${pausado}" não está disponível.`)
 
     const complementos: PedidoComplementoSnapshot[] = []
     for (const nome of escolhidos) {
