@@ -88,6 +88,7 @@ function montarPreContaLinhas(s) {
       const preco = c.preco * c.qtd
       S(`+ ${c.qtd > 1 ? `${c.qtd}x ` : ''}${c.nome}${preco > 0 ? ` (${brl(preco)})` : ''}`)
     }
+    if (it.observacao) S(`Obs: ${it.observacao}`)
     if (idx < itens.length - 1) R()
   })
 

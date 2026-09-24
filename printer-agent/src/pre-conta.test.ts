@@ -22,7 +22,7 @@ const mesa = {
   versao: 1, loja: 'Cantina Demonstração', tipo: 'mesa', mesa: 'Mesa 01', comanda_numero: 57, senha: null, cliente_nome: null,
   aberta_em: '2026-09-23T22:02:00Z', impresso_em: '2026-09-23T22:40:00Z', operador: 'Carla Atendente', via: 1,
   itens: [
-    { quantidade: 2, nome: 'X-Burguer', tamanho: null, sabor: null, borda: null, massa: null, complementos: [{ nome: 'Bacon', preco: 4 }, { nome: 'Bacon', preco: 4 }], preco_unitario: 38, subtotal: 76 },
+    { quantidade: 2, nome: 'X-Burguer', tamanho: null, sabor: null, borda: null, massa: null, complementos: [{ nome: 'Bacon', preco: 4 }, { nome: 'Bacon', preco: 4 }], observacao: 'Sem cebola, pão bem tostado', preco_unitario: 38, subtotal: 76 },
     { quantidade: 1, nome: 'Pizza', tamanho: 'Média', sabor: 'Calabresa / Frango', borda: 'Cheddar', massa: 'Fina', complementos: [], preco_unitario: 55, subtotal: 55 },
   ],
   cancelados: [{ quantidade: 1, nome: 'Coca lata' }],
@@ -46,6 +46,7 @@ describe('pré-conta', () => {
     expect(t).toContain('1x Pizza (Média - Calabresa / Frango)')
     expect(t).toContain('+ Borda: Cheddar')
     expect(t).toContain('+ Massa: Fina')
+    expect(t).toContain('Obs: Sem cebola, pão bem tostado')
   })
   it('totais do servidor: subtotal, taxa com %, desconto, total, pago por forma e restante', () => {
     expect(t).toContain('Taxa de serviço (10%)')
