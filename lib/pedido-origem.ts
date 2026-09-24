@@ -72,3 +72,29 @@ export function rotuloDaMesa(nome: string | null | undefined): string {
   if (!limpo) return 'Mesa'
   return /^\d+$/.test(limpo) ? `Mesa ${limpo}` : limpo
 }
+
+export type OrigemEtiqueta = 'PDV' | 'CARDÁPIO' | 'SALÃO'
+export type AtendimentoEtiqueta = 'RETIRADA' | 'ENTREGA' | 'MESA'
+
+export interface EtiquetasPedido {
+  /** Quem registrou: o caixa (PDV), o cliente pela vitrine (CARDÁPIO) ou o garçom (SALÃO). */
+  origem: OrigemEtiqueta
+  /** Como o cliente recebe. */
+  atendimento: AtendimentoEtiqueta
+  /** "Mesa 4", só quando o atendimento é na mesa. */
+  mesa: string | null
+}
+
+/**
+ * As três etiquetas do canto do pedido (Detalhes) e do card do Kanban. Mesmo
+ * discriminador de `rotuloOrigemPedido`: `canal` primeiro; pedido antigo sem canal
+ * cai pela `origem`.
+ */
+export function etiquetasDoPedido(pedido: PedidoParaRotulo): EtiquetasPedido {
+  const canal = pedido.canal ?? (pedido.origem === 'pdv' ? (pedido.mesa ? 'mesa' : 'balcao') : 'delivery')
+  if (canal === 'mesa') {
+    return { origem: pedido.lancadoVia === 'pdv' ? 'PDV' : 'SALÃO', atendimento: 'MESA', mesa: rotuloDaMesa(pedido.mesa) }
+  }
+  const atendimento: AtendimentoEtiqueta = pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA'
+  return { origem: canal === 'balcao' ? 'PDV' : 'CARDÁPIO', atendimento, mesa: null }
+}

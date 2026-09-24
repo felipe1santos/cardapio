@@ -34,7 +34,8 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
-import { rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
+import { etiquetasDoPedido, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
+import { EtiquetaAtendimento, EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
 import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
@@ -1231,14 +1232,18 @@ export default function PedidosPage() {
       >
         {detail && (
           <>
-            <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
-              <div>
+            <div className="flex items-start justify-between gap-3 border-b border-border px-4.5 py-4">
+              <div className="min-w-0">
                 <h2 className="text-[15px] font-bold">Pedido #{detail.numero}</h2>
-                <p className="mt-0.5 text-xs text-text-subtle">{detail.clienteNome || 'Cliente'} · {detail.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</p>
+                <p className="mt-0.5 truncate text-xs text-text-subtle" title={detail.clienteNome || undefined}>{detail.clienteNome || 'Cliente'}</p>
               </div>
-              <button onClick={() => setDetail(null)} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
-                ×
-              </button>
+              <div className="flex flex-shrink-0 items-start gap-2">
+                {/* Origem, atendimento e mesa no canto — o mesmo vocabulário do card. */}
+                <EtiquetasPedido pedido={detail} />
+                <button onClick={() => setDetail(null)} aria-label="Fechar detalhes" className="toque-icone flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
+                  ×
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4.5">
               {detail.status === 'cancelado' && (
