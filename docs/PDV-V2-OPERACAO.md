@@ -377,25 +377,36 @@ Tudo vale só para loja com `pdv_v2` ligado. Loja sem a flag segue exatamente co
 | Fechar conta numa transação: decisões da cozinha (entregue/cancelar com motivo), pagamentos, cupom, fechamento; simulação; trava de fidelidade por conta | `0096_pdv_fechamento_completo.sql` |
 | Rotas | `POST /api/admin/balcao/comandas` (+ `entrega`), `POST /api/admin/mesas/[id]/atendimento` (`abrir`/`liberar`), `POST /api/admin/comandas/[id]` (`identificar`, `simular_fechamento`, `fechar_completo`, `aplicar_cupom`, `remover_cupom`) |
 | Telas | `components/pdv/central-balcao.tsx` (card preto), `components/pdv/atendimento.tsx` (abrir mesa, identificar, limpeza), `components/pdv/fechar-conta.tsx`, `app/mesa/[token]` (aviso de mesa em preparação) |
-| Provas locais | `verificar-pdv-atendimento-banco.mjs` (72), `e2e-pdv-atendimento.mjs` (72), `verificar-pdv-v2-banco.mjs` (93), `e2e-pdv-v2.mjs` (69) |
+| Permissão `comanda.fechamento_resolver` (dono, gerente, atendente) | `lib/auth/permissoes.ts` — sem migration: é regra de rota, o banco já prende a decisão à comanda |
+| Provas locais | `verificar-pdv-atendimento-banco.mjs`, `e2e-pdv-atendimento.mjs`, `verificar-pdv-v2-banco.mjs`, `e2e-pdv-v2.mjs` |
 
 ### Regras que mudam para a operação (com a flag)
 
 - **Card preto:** nome sempre obrigatório. "Adicionar dados de entrega" transforma o
   atendimento em `PDV · ENTREGA MANUAL`: pedido `tipo = entrega`, mesma cozinha, depois
-  logística. Entrega exige telefone. Taxa vazia = tabela de frete da loja; digitada =
-  manual (auditada). Pré-conta não se aplica a entrega.
+  logística. Telefone é SEMPRE opcional no card preto, inclusive na entrega: sem ele,
+  nome e endereço ficam como snapshot do atendimento, sem cadastro, sem fidelidade e sem
+  cupom (a tela explica isso). Taxa vazia = tabela de frete da loja; digitada = manual
+  (auditada). Pré-conta não se aplica a entrega.
 - **Mesa:** só abre com nome. Dois operadores ao mesmo tempo: um abre, o outro cai na
   conta dele. Conta antiga sem nome continua legível e pede o nome antes do próximo
   lançamento ou do fechamento (nenhum nome é inventado).
-- **Fechar conta:** cada pedido na cozinha precisa de decisão. "Entregue" em pedido
-  pronto = atendimento normal; antes de pronto, ou cancelar, exige gerente/dono
-  (`comanda.resolver_forcado`). Pago acima do novo total bloqueia tudo até estorno.
-- **Limpeza:** fechada, a mesa fica laranja. Liberar: quem tem `mesas.operar` ou
-  `balcao.abrir`. Liberar nunca desbloqueia nem reativa mesa.
+- **Fechar conta:** cada pedido na cozinha precisa de decisão ("Marcar como entregue"
+  ou "Cancelar" com motivo). Quem decide: gerente/dono (`comanda.resolver_forcado`) ou o
+  atendente/caixa pela permissão `comanda.fechamento_resolver`, que só vale DENTRO do
+  "Fechar conta" da comanda aberta (pedidos de outra comanda são recusados). O atendente
+  não reabre conta nem estorna: se um cancelamento deixar o pago acima do novo total,
+  nada é aplicado até gerente/dono estornar. Auditoria: um evento por decisão (banco) e
+  `conta.fechamento_decisoes` com operador, permissão, pedidos, itens, estado anterior,
+  decisão, motivo e totais antes/depois.
+- **Limpeza:** fechada, a mesa fica laranja, badge EM LIMPEZA, com último cliente, horário
+  e responsável pelo fechamento e o botão "Tornar mesa disponível" (`mesas.operar` ou
+  `balcao.abrir`). O QR (mesmo token) mostra "Esta mesa está em limpeza e ficará
+  disponível em breve." Liberar nunca desbloqueia nem reativa mesa.
 - **Cliente/fidelidade/cupom:** com telefone, conta entra no histórico do cliente;
   fidelidade conta uma vez por conta, no fechamento; cupom (mesmas regras do delivery,
   exige telefone) tem o uso contado no fechamento, uma vez. Item grátis só na vitrine.
+  Sem telefone: nada disso, e nunca vínculo por nome.
 - **Cores das mesas:** verde livre, azul ocupada (azul claro = aberta sem lançamento),
   laranja em limpeza, escuro bloqueada, cinza inativa.
 
