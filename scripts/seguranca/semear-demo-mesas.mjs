@@ -172,10 +172,10 @@ for (const [i, m] of mesas.entries()) {
   ids.push(rows[0])
 }
 
-// Mesa 02 ocupada: comanda aberta com dois lançamentos. Os itens entram de verdade — a
+// Mesa 02 ocupada: comanda aberta (com nome do cliente, 0094) e dois lançamentos. Os itens entram de verdade — a
 // conta soma itens (comanda_totais), não o total gravado no pedido.
 const comanda = (await db.query(
-  `insert into comandas (restaurante_id, mesa_id) values ($1,$2) returning id`, [loja, ids[1].id])).rows[0].id
+  `insert into comandas (restaurante_id, mesa_id, cliente_nome) values ($1,$2,'Cliente Demonstração') returning id`, [loja, ids[1].id])).rows[0].id
 for (const linhas of [[['Filé à Parmegiana', 68, 1]], [['Risoto de Funghi', 54, 1], ['Água com Gás', 7, 1]]]) {
   const total = linhas.reduce((t, [, preco, qtd]) => t + preco * qtd, 0)
   const pedido = (await db.query(

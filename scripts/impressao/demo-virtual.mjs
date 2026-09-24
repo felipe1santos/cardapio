@@ -67,6 +67,7 @@ for (const t of ['impressao_trabalhos', 'impressao_funcoes', 'impressao_disposit
   await db.query(`delete from ${t} where restaurante_id=$1`, [loja])
 }
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza demo virtual', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
+await db.query('update mesas set limpeza_desde=null, limpeza_comanda_id=null where restaurante_id=$1', [loja])
 await db.query(`update restaurantes set pdv_v2=true, modulo_mesas_ativo=true, impressao_automatica=true, impressao_cozinha_por_funcao=false,
   status_loja='aberto_manual', aceita_entrega=true, impressao_agente_visto_em=null, impressao_agente_token=null where id=$1`, [loja])
 await db.query('update pedidos set impresso=true, reimprimir=false where restaurante_id=$1', [loja])
@@ -80,6 +81,19 @@ if (!(await um('select 1 from tamanhos_item where item_id=$1', [SUCO.id]))) {
 }
 if (!(await um(`select 1 from massas_pizza where restaurante_id=$1 and nome='Fina'`, [loja]))) {
   await db.query(`insert into massas_pizza (restaurante_id, nome, preco, posicao) values ($1,'Tradicional',0,0), ($1,'Fina',3,1)`, [loja])
+}
+// Pizza de demonstração (o semeador das mesas recria o cardápio sem ela).
+if (!(await item('Pizza Grande'))) {
+  const tam = await um(`select id from tamanhos_padrao_pizza where restaurante_id=$1 and nome='Grande'`, [loja])
+    ?? await um(`insert into tamanhos_padrao_pizza (restaurante_id, nome, fatias, posicao, max_sabores) values ($1,'Grande',8,0,2) returning id`, [loja])
+  if (!(await um(`select 1 from bordas_pizza where restaurante_id=$1 and nome='Catupiry'`, [loja]))) {
+    await db.query(`insert into bordas_pizza (restaurante_id, nome, preco, posicao) values ($1,'Catupiry',10,0)`, [loja])
+  }
+  const pz = await um(`insert into itens_cardapio (restaurante_id, nome, preco, tipo_item, status) values ($1,'Pizza Grande',0,'pizza','disponivel') returning id`, [loja])
+  for (const [nome, preco] of [['Calabresa', 50], ['Portuguesa', 70]]) {
+    const sab = await um(`insert into pizza_sabores (item_id, nome, status, posicao) values ($1,$2,'disponivel',0) returning id`, [pz.id, nome])
+    await db.query(`insert into pizza_sabor_precos (sabor_id, tamanho_padrao_id, preco) values ($1,$2,$3)`, [sab.id, tam.id, preco])
+  }
 }
 const AGUA = await item('Água com Gás')
 const FILE = await item('Filé à Parmegiana')
@@ -204,13 +218,15 @@ const nK = (tipo) => K.impressos().filter((x) => !tipo || x.tipo === tipo).lengt
 const nC = (tipo) => C.impressos().filter((x) => !tipo || x.tipo === tipo).length
 const texto = (r) => (r?.texto ?? '').replace(/[\x01\x02]/g, ' ')
 const mesaLivre = () => um(`select m.id, m.nome from mesas m where restaurante_id=$1 and ativa and bloqueada_em is null and nome like 'Mesa%'
-  and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
+  and m.limpeza_desde is null and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
 const preConta = (comandaId, reimpressao = false, chave = uuid(), pagina = pAt) => api(pagina, `/api/admin/comandas/${comandaId}/pre-conta`, 'POST', { chave, reimpressao })
 const trabalho = (id) => um('select estado, tentativas, erro, via from impressao_trabalhos where id=$1', [id])
 
 /** Mesa completa: todos os tipos de linha exigidos na pré-conta. */
 async function mesaCompleta() {
   const mesa = await mesaLivre()
+  // 0094: mesa abre com o nome do cliente antes do primeiro lançamento.
+  await api(pAt, `/api/admin/mesas/${mesa.id}/atendimento`, 'POST', { acao: 'abrir', nome: 'Cliente Demonstração', chave: uuid() })
   const l = await lancar({ mesaId: mesa.id }, [
     { itemId: AGUA.id, quantidade: 1, complementos: [] },
     { itemId: SUCO.id, quantidade: 1, complementos: [], tamanhoNome: '500 ml' },

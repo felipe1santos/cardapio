@@ -53,6 +53,7 @@ for (const l of [loja, vizinha]) {
   await db.query('delete from impressao_reservas where restaurante_id=$1', [l])
 }
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza teste impressão', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
+await db.query('update mesas set limpeza_desde=null, limpeza_comanda_id=null where restaurante_id=$1', [loja])
 await db.query(`update restaurantes set pdv_v2=true, modulo_mesas_ativo=true, impressao_automatica=true, impressao_cozinha_por_funcao=false,
   impressao_agente_visto_em=null, salao_caixa_desconto=true where id=$1`, [loja])
 await db.query(`update restaurantes set pdv_v2=true where id=$1`, [vizinha])
@@ -170,7 +171,9 @@ const FILE = await item('Filé à Parmegiana')
 const AGUA = await item('Água com Gás')
 const SUCO = await item('Suco de Laranja')
 const mesa = await um(`select m.id, m.nome from mesas m where restaurante_id=$1 and ativa and bloqueada_em is null
-  and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
+  and m.limpeza_desde is null and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
+// 0094: mesa abre com o nome do cliente antes do primeiro lançamento.
+await api(pAt, `/api/admin/mesas/${mesa.id}/atendimento`, 'POST', { acao: 'abrir', nome: 'Cliente Demonstração', chave: uuid() })
 const l1 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { mesaId: mesa.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 2, complementos: [] }] })
 const comanda = l1.json.comandaId
 await esperar(300)

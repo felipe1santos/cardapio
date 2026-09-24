@@ -43,6 +43,7 @@ for (const t of ['impressao_trabalhos', 'impressao_funcoes', 'impressao_disposit
   await db.query(`delete from ${t} where restaurante_id=$1`, [loja])
 }
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza e2e impressão', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
+await db.query('update mesas set limpeza_desde=null, limpeza_comanda_id=null where restaurante_id=$1', [loja])
 await db.query(`update restaurantes set pdv_v2=true, modulo_mesas_ativo=true, impressao_automatica=true, impressao_cozinha_por_funcao=false,
   impressao_agente_visto_em=null, impressao_agente_token=null where id=$1`, [loja])
 await db.query('update pedidos set impresso=true, reimprimir=false where restaurante_id=$1', [loja])
@@ -154,7 +155,9 @@ await foto(pGer, 'imp-01-painel-configurado')
 // ════════════════════════════════════════════════════════════════════════════
 secao('5–8. Mesa 01 com dois pedidos em momentos diferentes: fichas só na Impressora 01')
 const mesa = await um(`select m.id, m.nome from mesas m where restaurante_id=$1 and ativa and bloqueada_em is null
-  and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
+  and m.limpeza_desde is null and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
+// 0094: mesa abre com o nome do cliente antes do primeiro lançamento.
+await api(pAt, `/api/admin/mesas/${mesa.id}/atendimento`, 'POST', { acao: 'abrir', nome: 'Cliente Demonstração', chave: uuid() })
 const l1 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { mesaId: mesa.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }] })
 const comandaMesa = l1.json.comandaId
 await esperar(2500)
