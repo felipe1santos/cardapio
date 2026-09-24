@@ -287,10 +287,6 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
       setErro('Para entrega, informe rua, número e bairro.')
       return
     }
-    if (comEntrega && !telefone.trim()) {
-      setErro('Para entrega, informe o telefone do cliente.')
-      return
-    }
     setEnviando(true)
     setErro(null)
     const r = await chamar<{ id: string; senha: number }>('/api/admin/balcao/comandas', {
@@ -329,7 +325,7 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
             <input autoFocus value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)} data-testid="balcao-nome" className={CAMPO} />
           </label>
           <label className="block">
-            <span className={ROTULO}>Telefone {comEntrega ? <span className="text-danger">*</span> : '(opcional)'}</span>
+            <span className={ROTULO}>Telefone (opcional)</span>
             <input
               value={telefone}
               inputMode="tel"
@@ -340,7 +336,7 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
             />
           </label>
           <p className="text-[12px] text-text-subtle">
-            Com telefone, o atendimento entra no histórico do cliente (cadastro desta loja). Sem telefone, o nome fica só neste atendimento.
+            Telefone é necessário só para histórico do cliente, fidelidade e cupom. Sem ele, nome{comEntrega ? ' e endereço ficam' : ' fica'} só neste atendimento.
           </p>
 
           <button

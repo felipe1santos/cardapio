@@ -18,6 +18,13 @@ const UUID = '11111111-2222-4333-8444-555555555555'
 const UUID2 = '11111111-2222-4333-8444-666666666666'
 
 describe('abertura do balcão', () => {
+  it('entrega manual sem telefone é aceita (telefone sempre opcional no card preto)', () => {
+    const r = sanearAberturaBalcao({ nome: 'Ana', chave: UUID, entrega: { rua: 'Rua A', numero: '1', bairro: 'Centro', taxa: '5,00' } })
+    expect(r).toMatchObject({ ok: true, telefone: null, entrega: { rua: 'Rua A', taxaInformada: 5 } })
+  })
+  it('entrega sem rua, número ou bairro é recusada', () => {
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, entrega: { rua: 'Rua A', numero: '', bairro: 'Centro' } }).ok).toBe(false)
+  })
   it('nome obrigatório, aparado e com espaços colapsados', () => {
     expect(sanearAberturaBalcao({ nome: '   ', chave: UUID })).toEqual({ ok: false, erro: 'Informe o nome do cliente.' })
     expect(sanearAberturaBalcao({ nome: '  João   da  Silva ', chave: UUID })).toMatchObject({ ok: true, nome: 'João da Silva', telefone: null })

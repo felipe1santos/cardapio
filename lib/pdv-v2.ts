@@ -60,8 +60,10 @@ const txt = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+
 
 /**
  * Corpo de "Novo atendimento de balcão": nome obrigatório, telefone opcional, chave e,
- * se o operador abriu "Adicionar dados de entrega", o endereço. Origem, canal, tipo e
- * valores de pedido NÃO são lidos daqui — são do servidor.
+ * se o operador abriu "Adicionar dados de entrega", o endereço. Telefone é SEMPRE
+ * opcional aqui (inclusive na entrega): o pedido manual é operado por funcionário, e a
+ * regra do checkout online não vale. Sem telefone: snapshot, sem cliente/fidelidade/cupom.
+ * Origem, canal, tipo e valores de pedido NÃO são lidos daqui — são do servidor.
  */
 export function sanearAberturaBalcao(corpo: unknown): AberturaBalcao {
   const c = (corpo && typeof corpo === 'object' ? corpo : {}) as Record<string, unknown>
@@ -91,7 +93,6 @@ export function sanearAberturaBalcao(corpo: unknown): AberturaBalcao {
       if (!Number.isFinite(taxa) || taxa < 0 || taxa > 999) return { ok: false, erro: 'Taxa de entrega inválida.' }
       entrega.taxaInformada = Math.round(taxa * 100) / 100
     }
-    if (!id.telefone) return { ok: false, erro: 'Para entrega, informe o telefone do cliente.' }
   }
   return { ok: true, nome: id.nome, telefone: id.telefone, chave: c.chave, entrega }
 }
