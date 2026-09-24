@@ -24,6 +24,7 @@ export interface EventoAuditoriaLinha {
 export const ROTULO_EVENTO: Record<string, string> = {
   'mesa.abriu': 'Abriu a mesa',
   'mesa.limpeza': 'Mesa em limpeza',
+  'conta.fechamento_decisoes': 'Resolveu pendências no fechamento',
   'balcao.entrega_ativada': 'Ativou dados de entrega',
   'comanda.identificou': 'Corrigiu nome/telefone do cliente',
   'pedido.entregue_forcado': 'Marcou como entregue no fechamento',

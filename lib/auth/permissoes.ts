@@ -52,6 +52,9 @@ export const PERMISSOES = [
   'comanda.desconto',
   'comanda.estornar',
   'comanda.resolver_forcado',
+  // Só DENTRO do "Fechar conta" da comanda aberta: dar como entregue ou cancelar (com
+  // motivo) o que ainda está na cozinha. Não vale para resolver/cancelar fora dele.
+  'comanda.fechamento_resolver',
   'comanda.reabrir',
   'comanda.taxa',
   'comanda.pre_conta',
@@ -135,6 +138,7 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
   'comanda.estornar': ['dono', 'gerente'],
   // Resolver à força o que impede o fechamento e reabrir conta fechada: gestão.
   'comanda.resolver_forcado': ['dono', 'gerente'],
+  'comanda.fechamento_resolver': ['dono', 'gerente', 'atendente'],
   'comanda.reabrir': ['dono', 'gerente'],
   // Taxa de serviço MANUAL (balcão nasce em 0%). Separada do desconto: o atendente não
   // recebe esta chave nem quando a loja deixa o caixa dar desconto.

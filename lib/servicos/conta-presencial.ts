@@ -825,10 +825,12 @@ export async function simularFechamento(admin: SupabaseClient, ator: Ator, coman
 export async function fecharCompleto(
   admin: SupabaseClient,
   ator: Ator,
-  conta: AlvoConta,
+  conta: ContaPresencial,
   a: { acoes: DecisaoFechamento[]; pagamentos: PagamentoFechamento[]; chave: string },
   formasAceitas: string[],
   origem: Origem,
+  /** Permissão usada para decidir pendências (null = nenhuma decisão forçada). Vai para a auditoria. */
+  permissaoDecisao: string | null = null,
 ) {
   for (const p of a.pagamentos) {
     if (!formasAceitas.includes(p.forma)) return falha('A loja não aceita esta forma de pagamento.')
@@ -845,7 +847,31 @@ export async function fecharCompleto(
     }
     return r
   }
-  if (!r.valor.idempotente) await processarFidelidadeComandaFechada(admin, ator.restauranteId, conta.id)
+  if (!r.valor.idempotente) {
+    if (a.acoes.length > 0) {
+      // Resumo do fechamento com decisões da cozinha: quem, com qual permissão, o que
+      // decidiu em cada pedido (estado anterior, itens, motivo) e a conta antes/depois.
+      // Cada decisão também tem o seu evento gravado pelo banco, na mesma transação.
+      // Objeto por pedido (a auditoria não grava listas): "#12" → decisão.
+      const decisoes: Record<string, Record<string, unknown>> = {}
+      for (const d of a.acoes) {
+        const p = conta.pedidos.find((x) => x.id === d.pedido_id)
+        const itens = (p?.itens ?? []).filter((i) => !i.cancelado && (!d.item_ids || d.item_ids.includes(i.id)))
+        decisoes[`#${p?.numero ?? d.pedido_id}`] = {
+          pedido_id: d.pedido_id, estado_anterior: p?.status ?? null, decisao: d.acao, motivo: d.motivo ?? null,
+          itens: itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', '), qtd_itens: itens.length, valor_pedido_antes: p?.total ?? null,
+        }
+      }
+      const antes = conta.totais
+      await auditar(admin, ator, 'conta.fechamento_decisoes', 'comanda', conta.id, {
+        resumo: `${a.acoes.length} decisão(ões) da cozinha no fechamento`,
+        papel: ator.papel, permissao: permissaoDecisao, decisoes, origem,
+        total_antes: antes?.total ?? null, pago_antes: antes?.pago ?? null,
+        total_depois: (r.valor as Record<string, unknown>).total ?? null, pago_depois: (r.valor as Record<string, unknown>).pago ?? null,
+      })
+    }
+    await processarFidelidadeComandaFechada(admin, ator.restauranteId, conta.id)
+  }
   return r
 }
 

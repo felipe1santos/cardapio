@@ -46,6 +46,7 @@ const ESPERADO: Record<Permissao, Papel[]> = {
   'comanda.desconto': ['dono', 'gerente'],
   'comanda.estornar': ['dono', 'gerente'],
   'comanda.resolver_forcado': ['dono', 'gerente'],
+  'comanda.fechamento_resolver': ['dono', 'gerente', 'atendente'],
   'comanda.reabrir': ['dono', 'gerente'],
   'comanda.taxa': ['dono', 'gerente'],
   'comanda.pre_conta': ['dono', 'gerente', 'atendente'],
@@ -109,7 +110,8 @@ describe('separação por canal', () => {
   it('atendente/caixa vê e cobra a conta, mas não lança, não atende chamado nem mexe na mesa', () => {
     const doSalao = PERMISSOES.filter((x) => x.startsWith('pedidos.mesa.') || x.startsWith('mesas.') || x.startsWith('comanda.'))
     // + pré-conta (decisão de 2026-09-23: dono, gerente e atendente imprimem e reimprimem).
-    const doCaixa = ['comanda.ver', 'comanda.fechar', 'comanda.pre_conta']
+    // + decidir pendências da cozinha DENTRO do fechamento (decisão de 2026-09-24).
+    const doCaixa = ['comanda.ver', 'comanda.fechar', 'comanda.pre_conta', 'comanda.fechamento_resolver']
     for (const p of doSalao) expect(pode('atendente', p), p).toBe(doCaixa.includes(p))
   })
 

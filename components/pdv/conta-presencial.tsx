@@ -32,7 +32,7 @@ import { IdentificarModal } from './atendimento'
  * cada intenção leva a sua chave de idempotência).
  */
 
-type Permissoes = Record<AcaoConta | 'lancar' | 'cancelar_qualquer' | 'taxa' | 'pre_conta', boolean>
+type Permissoes = Record<AcaoConta | 'lancar' | 'cancelar_qualquer' | 'taxa' | 'pre_conta' | 'resolver_no_fechamento', boolean>
 
 /** Telefone guardado normalizado (55 + DDD + número) → máscara local para a tela. */
 const telefoneLocal = (t: string) => mascararTelefone(t.replace(/^55(?=\d{10,11}$)/, ''))
@@ -430,7 +430,7 @@ export function ContaPresencialModal({
         <FecharContaModal
           conta={conta}
           formas={dados.formasPagamento}
-          podeForcar={Boolean(pode?.resolver)}
+          podeForcar={Boolean(pode?.resolver_no_fechamento)}
           podePagar={Boolean(pode?.pagamento)}
           onVoltar={() => {
             setSub(null)

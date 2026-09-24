@@ -149,14 +149,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           return NextResponse.json({ error: 'Há item que não pertence a este pedido.' }, { status: 400 })
         }
       }
-      // Cancelar, ou dar como entregue o que a cozinha ainda não aprontou, é decisão da
-      // gestão (comanda.resolver_forcado). "Entregue" em pedido pronto é o atendimento normal.
+      // Cancelar, ou dar como entregue o que a cozinha ainda não aprontou: gestão
+      // (comanda.resolver_forcado) ou o caixa DENTRO deste fechamento
+      // (comanda.fechamento_resolver). Só pedidos desta comanda (conferido acima e no banco);
+      // pago acima do novo total bloqueia e o estorno continua exclusivo da gestão.
       const forcada = s.acoes.some((d) => d.acao === 'cancelar' || c.pedidos.find((p) => p.id === d.pedido_id)?.status !== 'pronto')
-      if (forcada && !ctx.pode('comanda.resolver_forcado')) {
-        return NextResponse.json({ error: 'Cancelar ou dar como entregue um pedido que não está pronto exige gerente ou dono.', codigo: 'sem_permissao_resolver' }, { status: 403 })
+      if (forcada && !ctx.pode('comanda.resolver_forcado') && !ctx.pode('comanda.fechamento_resolver')) {
+        return NextResponse.json({ error: 'Sem permissão para resolver pendências no fechamento.', codigo: 'sem_permissao_resolver' }, { status: 403 })
       }
       if (acao === 'simular_fechamento') return responder(await conta.simularFechamento(ctx.admin, eu, c.id, s.acoes))
-      return responder(await conta.fecharCompleto(ctx.admin, eu, c, s, ctx.loja.formasPagamento, 'pdv'))
+      return responder(await conta.fecharCompleto(ctx.admin, eu, c, s, ctx.loja.formasPagamento, 'pdv', forcada && !ctx.pode('comanda.resolver_forcado') ? 'comanda.fechamento_resolver' : forcada ? 'comanda.resolver_forcado' : null))
     }
 
     case 'aplicar_cupom':

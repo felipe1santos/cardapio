@@ -268,7 +268,7 @@ export function ehAcaoConta(v: unknown): v is AcaoConta {
 export function permissoesDaConta(
   pode: (p: Permissao) => boolean,
   tipo: TipoComanda,
-): Record<AcaoConta | 'lancar' | 'cancelar_qualquer' | 'taxa' | 'pre_conta', boolean> {
+): Record<AcaoConta | 'lancar' | 'cancelar_qualquer' | 'taxa' | 'pre_conta' | 'resolver_no_fechamento', boolean> {
   const base = Object.fromEntries(ACOES_CONTA.map((a) => [a, pode(PERMISSAO_DA_ACAO[a])])) as Record<AcaoConta, boolean>
   return {
     ...base,
@@ -278,6 +278,8 @@ export function permissoesDaConta(
     taxa: tipo === 'balcao' ? pode('comanda.taxa') : pode('comanda.taxa') || pode('comanda.desconto'),
     pre_conta: pode('comanda.pre_conta'),
     identificar: base.identificar && (pode('balcao.abrir') || pode('pedidos.mesa.criar')),
+    // Decidir pendências da cozinha no "Fechar conta" (entregue/cancelar com motivo).
+    resolver_no_fechamento: pode('comanda.fechamento_resolver') || pode('comanda.resolver_forcado'),
   }
 }
 

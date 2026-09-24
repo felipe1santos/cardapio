@@ -275,7 +275,7 @@ export function FecharContaModal({
               <Linha rotulo="Saldo" valor={sim.restante} forte testid="fechar-restante" />
               {sim.excedente > 0 && (
                 <p className="mt-2 rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger" data-testid="fechar-excedente">
-                  Com esses cancelamentos a conta já recebeu {formatBRL(sim.excedente)} a mais do que vale. Estorne um pagamento (na conta) antes de fechar.
+                  Com esses cancelamentos a conta já recebeu {formatBRL(sim.excedente)} a mais do que vale. O estorno é feito por gerente ou dono, na conta, antes de fechar.
                 </p>
               )}
             </section>
