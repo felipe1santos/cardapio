@@ -10,13 +10,14 @@
 import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, E2E_LOJA_NOME, E2E_VIZINHA, E2E_VIZINHA_NOME, USU } from './e2e-ambiente.mjs'
 
 const { DB_URL, API_URL, SERVICE_KEY } = chavesLocais()
 exigirLoopback(DB_URL, API_URL)
 
-const EMAIL = 'dono@local.test'
+const EMAIL = USU.donoEmail
 const SENHA = 'demo-local-123456'
-const USUARIO = 'dono.local'
+const USUARIO = USU.dono
 
 const db = new pg.Client({ connectionString: DB_URL })
 await db.connect()
@@ -25,9 +26,9 @@ const admin = createClient(API_URL, SERVICE_KEY, { auth: { persistSession: false
 // ── loja, já com o módulo ligado ────────────────────────────────────────────
 const loja = (await db.query(`
   insert into restaurantes (nome, slug, status_loja, modulo_mesas_ativo, aceita_retirada, cor_tema)
-  values ('Cantina Demo', 'cantina-demo', 'aberto_manual', true, true, 'ciano')
+  values ($1, $2, 'aberto_manual', true, true, 'ciano')
   on conflict (slug) do update set modulo_mesas_ativo = true, status_loja = 'aberto_manual'
-  returning id`)).rows[0].id
+  returning id`, [E2E_LOJA_NOME, E2E_LOJA])).rows[0].id
 
 // Conta e pagamentos em um estado conhecido: os E2E conferem totais com taxa de
 // serviço, e um valor deixado por outra execução faz todos eles falharem por 3,75.
@@ -76,8 +77,8 @@ async function criarFuncionario(email, usuario, papel, nome) {
       autorizado = true, desativado_em = null, usuario = excluded.usuario, nome = excluded.nome`,
     [id, loja, papel, nome, email, usuario])
 }
-await criarFuncionario('garcom@demo.local', 'garcom.local', 'garcom', 'Garçom Demo')
-await criarFuncionario('atendente@demo.local', 'atendente.local', 'atendente', 'Atendente Demo')
+await criarFuncionario(USU.garcomEmail, USU.garcom, 'garcom', 'Garçom Demo')
+await criarFuncionario(USU.atendenteEmail, USU.atendente, 'atendente', 'Atendente Demo')
 
 // ── cardápio ────────────────────────────────────────────────────────────────
 // Item antes de categoria: apagar a categoria primeiro deixaria itens órfãos
@@ -197,11 +198,11 @@ await db.query('update mesas set ativa = false where id = $1', [ids[5].id])
 // Existe só para os testes tentarem alcançá-la e falharem. Uma mesa, um dono, nada mais.
 const lojaVizinha = (await db.query(`
   insert into restaurantes (nome, slug, status_loja, modulo_mesas_ativo, aceita_retirada, cor_tema)
-  values ('Vizinha Demo', 'vizinha-demo', 'aberto_manual', true, true, 'ciano')
+  values ($1, $2, 'aberto_manual', true, true, 'ciano')
   on conflict (slug) do update set modulo_mesas_ativo = true, status_loja = 'aberto_manual'
-  returning id`)).rows[0].id
+  returning id`, [E2E_VIZINHA_NOME, E2E_VIZINHA])).rows[0].id
 {
-  const email = 'dono@vizinha.local'
+  const email = USU.donoVizinhaEmail
   let id
   const { data, error } = await admin.auth.admin.createUser({ email, password: SENHA, email_confirm: true })
   if (error && !/already/i.test(error.message)) throw error
@@ -213,10 +214,10 @@ const lojaVizinha = (await db.query(`
   }
   await db.query(`
     insert into usuarios (id, restaurante_id, papel, nome, email, usuario, autorizado)
-    values ($1, $2, 'dono', 'Dono Vizinha', $3, 'dono.vizinha', true)
+    values ($1, $2, 'dono', 'Dono Vizinha', $3, $4, true)
     on conflict (id) do update set restaurante_id = excluded.restaurante_id, papel = 'dono',
       autorizado = true, desativado_em = null, usuario = excluded.usuario`,
-    [id, lojaVizinha, email])
+    [id, lojaVizinha, email, USU.donoVizinha])
 }
 await db.query('delete from pedidos where restaurante_id = $1', [lojaVizinha])
 await db.query('delete from sessoes_mesa where restaurante_id = $1', [lojaVizinha])

@@ -15,6 +15,7 @@ import { execFileSync } from 'node:child_process'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, USU } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
@@ -34,7 +35,7 @@ const db = new pg.Client({ connectionString: DB_URL })
 await db.connect()
 const q = async (sql, p = []) => (await db.query(sql, p)).rows
 
-const loja = (await q(`select id from restaurantes where slug='cantina-demo'`))[0].id
+const loja = (await q(`select id from restaurantes where slug='${E2E_LOJA}'`))[0].id
 const mesa01 = (await q(`select id, token from mesas where restaurante_id=$1 and nome='Mesa 01'`, [loja]))[0]
 const burger = (await q(`select id from itens_cardapio where restaurante_id=$1 and nome='Risoto de Funghi'`, [loja]))[0].id
 
@@ -90,7 +91,7 @@ ok('a seleção do cliente não criou pedido', antes.comandasMesa01 === 0, `coma
 
 // ── 1. garçom lança pela TELA ───────────────────────────────────────────────
 console.log('\n── garçom lança pela tela ──')
-const garcom = await logar('garcom.local')
+const garcom = await logar(USU.garcom)
 await garcom.page.goto(`${BASE}/admin/mesas/${mesa01.id}`, { waitUntil: 'networkidle' })
 await garcom.page.waitForSelector('text=Lançamento', { timeout: 20000 })
 
@@ -119,8 +120,8 @@ for (let i = 0; i < 30; i++) {
   if (n > antes.pedidos) break
   await new Promise((r) => setTimeout(r, 500))
 }
-// Fecha o modal de sucesso, senão ele cobre os próximos cliques.
-await garcom.page.locator('button', { hasText: 'Fechar' }).click()
+// Fecha o modal de sucesso ("Continuar nesta mesa", antes "Fechar"), senão ele cobre os próximos cliques.
+await garcom.page.locator('button', { hasText: 'Continuar nesta mesa' }).click()
 await garcom.page.waitForTimeout(300)
 
 const novos = await q(
@@ -171,7 +172,8 @@ console.log('\n── item com opções obrigatórias ──')
   await garcom.page.locator('button', { hasText: 'Burger da Casa' }).first().click()
   await garcom.page.waitForSelector('text=Escolha o ponto', { timeout: 10000 })
 
-  const botaoAdicionar = garcom.page.locator('button', { hasText: 'Adicionar ao lançamento' })
+  // Botão do configurador: "Adicionar · R$ …" (antes "Adicionar ao lançamento"); trava igual.
+  const botaoAdicionar = garcom.page.locator('button', { hasText: /^\s*Adicionar · / })
   ok('configurador trava o botão sem as obrigatórias', await botaoAdicionar.isDisabled())
   await garcom.page.screenshot({ path: '.shots/garcom-04-configurador-travado.png' })
 
@@ -195,16 +197,22 @@ console.log('\n── item com opções obrigatórias ──')
   ok('opções chegaram à cozinha', JSON.stringify(nomes) === JSON.stringify(['Bacon crocante', 'Mal passado', 'Suco de laranja']), nomes.join(', '))
   // 42 + bacon 8 + suco 12 = 62, reprecificado pelo servidor.
   ok('preço das opções recalculado pelo servidor', Number(pb.total) === 62, `total ${pb.total}`)
-  await garcom.page.locator('button', { hasText: 'Fechar' }).click().catch(() => {})
+  await garcom.page.locator('button', { hasText: 'Continuar nesta mesa' }).click().catch(() => {})
 }
 
 // ── 1c. o que o garçom enxerga ──────────────────────────────────────────────
 console.log('\n── o que o garçom enxerga ──')
 {
-  const g2 = await logar('garcom.local')
+  const g2 = await logar(USU.garcom)
   ok('garçom cai em Mesas depois do login, não no faturamento', g2.page.url().includes('/admin/mesas'), g2.page.url())
-  await g2.page.waitForTimeout(1500)
-  const menu = await g2.page.locator('nav, aside').first().innerText().catch(() => '')
+  // O papel é lido depois do login (~1 s; mais com a máquina carregada): antes disso o
+  // menu ainda não está filtrado. Espera ele estabilizar, com teto, em vez de 1,5 s fixos.
+  let menu = ''
+  for (let i = 0; i < 60; i++) {
+    menu = await g2.page.locator('nav, aside').first().innerText().catch(() => '')
+    if (menu.includes('Mesas e Comandas') && !menu.includes('Dashboard')) break
+    await g2.page.waitForTimeout(250)
+  }
   for (const proibido of ['Dashboard', 'Clientes', 'Campanhas', 'Fidelidade', 'Ajustes', 'Integrações', 'PDV']) {
     ok(`menu do garçom sem "${proibido}"`, !menu.includes(proibido))
   }
@@ -218,23 +226,18 @@ console.log('\n── o que o garçom enxerga ──')
   ok('garçom não vê botão de QR', (await g2.page.locator('button[title="Ver QR Code"]').count()) === 0)
   await g2.page.screenshot({ path: '.shots/garcom-06-salao-do-garcom.png' })
 
-  // Escopo no CARTÃO: um `div` com o texto "Varanda 02" casava também com a grade
-  // inteira, que contém os atalhos de todas as outras mesas.
-  const bloqueadaTemAtalho = await g2.page
-    .locator('div.flex-col.rounded-menuzia', {
-      has: g2.page.locator('span', { hasText: /^Varanda 02$/ }),
-    })
-    .locator('a', { hasText: /Lançar pedido|Abrir mesa/ })
-    .count()
+  // Desde a UX de celular/tablet o cartão INTEIRO é o atalho (um <a> com aria-label
+  // "Mesa — estado", texto "Toque p/ lançar"); mesa bloqueada vira <div> sem link.
+  const bloqueadaTemAtalho = await g2.page.locator('a[aria-label^="Varanda 02 —"]').count()
   ok('mesa bloqueada não oferece atalho de lançamento', bloqueadaTemAtalho === 0)
 
-  await g2.page.locator('a', { hasText: /Abrir mesa|Lançar pedido/ }).first().click()
+  await g2.page.locator('a[href^="/admin/mesas/"][aria-label*=" — "]').first().click()
   await g2.page.waitForURL(/\/admin\/mesas\/[0-9a-f-]{36}$/, { timeout: 20000 })
   await g2.page.waitForSelector('text=Lançamento', { timeout: 20000 })
   ok('garçom chega ao painel da mesa clicando no salão', /\/admin\/mesas\/[0-9a-f-]{36}$/.test(g2.page.url()))
   await g2.ctx.close()
 
-  const d = await logar('dono.local')
+  const d = await logar(USU.dono)
   ok('dono continua caindo no Dashboard', d.page.url().includes('/admin/dashboard'), d.page.url())
   await d.page.waitForTimeout(1500)
   const menuDono = await d.page.locator('nav, aside').first().innerText().catch(() => '')
@@ -252,7 +255,7 @@ console.log('\n── quem não pode lançar ──')
   ok('anônimo é recusado', r.status === 401, `HTTP ${r.status}`)
 }
 {
-  const atendente = await logar('atendente.local')
+  const atendente = await logar(USU.atendente)
   const r = await lancar(atendente.page, mesa01.id, burger)
   ok('atendente do delivery é recusado (sem permissão de mesa)', r.status === 403, `HTTP ${r.status}`)
   await atendente.ctx.close()
@@ -285,7 +288,7 @@ console.log('\n── delivery não aceita campo interno ──')
 // Recontado AQUI: as seções anteriores criam pedidos legítimos (o burger da 1b).
 const antesForjados = (await q(`select count(*)::int n from pedidos where restaurante_id=$1`, [loja]))[0].n
 for (const [campo, valor] of [['origem', 'pdv'], ['canal', 'mesa'], ['comandaId', p.comanda_id]]) {
-  const r = await fetch(`${BASE}/api/loja/cantina-demo/pedido`, {
+  const r = await fetch(`${BASE}/api/loja/${E2E_LOJA}/pedido`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       tipo: 'retirada', cliente: { nome: 'X', telefone: '5527999990000' },
