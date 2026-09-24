@@ -212,7 +212,7 @@ export function LimpezaModal({ mesa, podeLiberar, onFechar, onLiberada }: {
   const l = mesa.limpeza
   return (
     <Casca
-      titulo={`${mesa.nome} · em limpeza`}
+      titulo={mesa.nome}
       rotulo={`${mesa.nome} em limpeza`}
       onFechar={onFechar}
       rodape={
@@ -226,16 +226,19 @@ export function LimpezaModal({ mesa, podeLiberar, onFechar, onLiberada }: {
         </>
       }
     >
+      <span className="inline-block rounded-menuzia bg-status-pending px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white" data-testid="limpeza-badge">
+        Em limpeza
+      </span>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]" data-testid="limpeza-detalhe">
         <dt className="text-text-subtle">Último cliente</dt>
         <dd className="font-semibold text-text-main">{l?.clienteNome || '—'}</dd>
         <dt className="text-text-subtle">Conta fechada às</dt>
         <dd className="font-semibold text-text-main">{l ? horaCurta(l.desde) : '—'}</dd>
-        <dt className="text-text-subtle">Fechada por</dt>
+        <dt className="text-text-subtle">Responsável pelo fechamento</dt>
         <dd className="font-semibold text-text-main">{l?.fechadaPorNome || '—'}</dd>
       </dl>
       <p className="text-[12px] text-text-subtle">
-        Enquanto estiver em limpeza, a mesa não abre atendimento e o QR mostra que ela está em preparação.
+        Enquanto estiver em limpeza, a mesa não abre atendimento e o QR avisa que ela ficará disponível em breve.
       </p>
       <Erro texto={erro} id="limpeza-erro" />
     </Casca>

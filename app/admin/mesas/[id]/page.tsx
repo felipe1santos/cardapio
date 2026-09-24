@@ -613,7 +613,7 @@ export default function MesaDetalhePage() {
               Conta fechada{mesa.limpeza.clienteNome ? ` (${mesa.limpeza.clienteNome})` : ''}. Mesa em limpeza: não abre atendimento até ser liberada.
             </span>
             <Button variant="success" onClick={() => setVendoLimpeza(true)} data-testid="mesa-ver-limpeza">
-              Liberar mesa
+              Tornar mesa disponível
             </Button>
           </div>
         )}

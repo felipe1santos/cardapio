@@ -58,7 +58,7 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
   // Nada de sessão, seleção ou chamado até a equipe liberar a mesa.
   if (mesa.emLimpeza) {
     const loja = await buscarConfigLoja(admin, mesa.restauranteId)
-    return <MesaEmPreparacao mesaNome={mesa.mesaNome} lojaNome={loja?.nome ?? ''} logoUrl={loja?.logoUrl ?? null} />
+    return <MesaEmLimpeza mesaNome={mesa.mesaNome} lojaNome={loja?.nome ?? ''} logoUrl={loja?.logoUrl ?? null} />
   }
 
   const [loja, grupos, itens, sessao, pizza] = await Promise.all([
@@ -150,7 +150,7 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
   )
 }
 
-function MesaEmPreparacao({ mesaNome, lojaNome, logoUrl }: { mesaNome: string; lojaNome: string; logoUrl: string | null }) {
+function MesaEmLimpeza({ mesaNome, lojaNome, logoUrl }: { mesaNome: string; lojaNome: string; logoUrl: string | null }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg-page px-4" data-mesa-em-limpeza>
       <div className="w-full max-w-[380px] rounded-menuzia border border-border bg-white p-6 text-center shadow-sm">
@@ -159,10 +159,8 @@ function MesaEmPreparacao({ mesaNome, lojaNome, logoUrl }: { mesaNome: string; l
           <img src={logoUrl} alt="" className="mx-auto mb-4 h-14 w-14 rounded-full object-cover" />
         ) : null}
         <p className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">{lojaNome}</p>
-        <h1 className="mt-1 text-[18px] font-bold text-text-main">{mesaNome} em preparação</h1>
-        <p className="mt-3 text-[14px] leading-relaxed text-text-subtle">
-          Estamos arrumando esta mesa para você. Em instantes ela fica disponível — se precisar, chame alguém da equipe.
-        </p>
+        <h1 className="mt-1 text-[18px] font-bold text-text-main">{mesaNome}</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-text-main">Esta mesa está em limpeza e ficará disponível em breve.</p>
       </div>
     </main>
   )
