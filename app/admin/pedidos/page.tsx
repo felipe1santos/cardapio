@@ -36,6 +36,7 @@ import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/li
 import { notificarPedido } from '@/lib/notificar'
 import { etiquetasDoPedido, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
 import { EtiquetaAtendimento, EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
+import { Capacete } from '@/components/icones/capacete'
 import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
@@ -1036,7 +1037,7 @@ export default function PedidosPage() {
                         ].join(' ')}
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                             <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
                             {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
                             {/* Aberto há mais de 12h: o cronômetro em minutos não dá conta
@@ -1052,21 +1053,26 @@ export default function PedidosPage() {
                             {origemDoCard(order).posto === 'PDV' && <Badge tone="alert">PDV</Badge>}
                             {origemDoCard(order).posto === 'Delivery' && <Badge tone="paused">Delivery</Badge>}
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`rounded-menuzia px-2 py-0.5 text-[11px] font-bold tabular-nums ${timerTone(tempo.mins)}`}>{tempo.label}</span>
-                            <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
+                          <div className="flex flex-shrink-0 items-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center gap-1 whitespace-nowrap rounded-menuzia px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${timerTone(tempo.mins)}`}
+                              title="Tempo desde que o pedido chegou"
+                            >
+                              <Clock className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
+                              {tempo.label}
+                            </span>
+                            <EtiquetaAtendimento atendimento={etiquetasDoPedido(order).atendimento} compacta />
                           </div>
                         </div>
                         <div className="mb-3 flex gap-2">
                           {/* Esquerda: informações do pedido (~75%) */}
                           <div className="min-w-0 flex-[3]">
-                            <div className="mb-1 flex items-center gap-1.5">
-                              <span className="text-[13px] font-semibold">{order.clienteNome || 'Cliente'}</span>
+                            <div className="mb-1 flex min-w-0 items-center gap-1.5">
+                              <span className="min-w-0 truncate text-[13px] font-semibold" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
                               {/* PDV identificado (0094): telefone discreto; endereço fica no detalhe. */}
                               {order.origem === 'pdv' && order.clienteTelefone && (
-                                <span className="truncate text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
+                                <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
                               )}
-                              {!order.telefoneVerificado && order.origem !== 'pdv' && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">☎ não verif.</Badge>}
                             </div>
                             {order.tipo === 'entrega' && order.enderecoBairro && (
                               <div className="mb-2 text-xs text-text-subtle">{order.enderecoBairro}</div>
@@ -1089,24 +1095,23 @@ export default function PedidosPage() {
 
                           {/* Direita: boxes de pagamento ~25% (espaço acima para tags futuras) */}
                           <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1.5">
-                            {/* slot para tags futuras (ex.: agendado, atrasado) */}
-                            <div className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[10px] font-bold uppercase tracking-wide text-text-subtle" title={origemDoCard(order).texto ?? undefined}>
-                              {origemDoCard(order).texto ? (
-                                <span className="text-[11px] font-semibold normal-case tracking-normal text-text-subtle">
-                                  {origemDoCard(order).texto}
-                                  {origemDoCard(order).responsavel ? ` · ${origemDoCard(order).responsavel}` : ''}
-                                </span>
-                              ) : (
-                                PAY_LABEL[order.formaPagamento]
-                              )}
-                            </div>
-                            <div className="rounded-menuzia bg-price-bg px-1.5 py-1.5 text-center text-[11px] font-medium text-price-text">
+                            {/* Onde e quem lançou (mesa/balcão). Forma de pagamento fica nos Detalhes. */}
+                            {origemDoCard(order).texto && (
+                              <div
+                                className="truncate rounded-menuzia border border-border px-1.5 py-1 text-center text-[11px] font-semibold text-text-subtle"
+                                title={`${origemDoCard(order).texto}${origemDoCard(order).responsavel ? ` · ${origemDoCard(order).responsavel}` : ''}`}
+                              >
+                                {origemDoCard(order).texto}
+                                {origemDoCard(order).responsavel ? ` · ${origemDoCard(order).responsavel}` : ''}
+                              </div>
+                            )}
+                            <div className="whitespace-nowrap rounded-menuzia bg-price-bg px-1.5 py-1.5 text-center text-[12px] font-bold tabular-nums text-price-text" data-testid="card-preco">
                               {brl(order.total)}
                             </div>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="secondary" className="flex-1" onClick={() => setDetail(order)}>
+                        <div className="flex gap-2 [&>*]:whitespace-nowrap">
+                          <Button variant="secondary" className="flex-[0.7] px-2" onClick={() => setDetail(order)} data-testid="card-detalhes">
                             Detalhes
                           </Button>
                           {order.status === 'recebido' && (
@@ -1145,7 +1150,12 @@ export default function PedidosPage() {
                             </Button>
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && !fluxo.entregaSemEntregador && fluxo.usaLogistica && (
-                            <span className="flex flex-1 items-center justify-center rounded-menuzia bg-page text-[11px] font-semibold uppercase text-text-subtle">
+                            <span
+                              className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-menuzia border border-[#0369A1]/25 bg-alert-bg px-2 text-[11px] font-bold uppercase tracking-wide text-alert-text lg:min-h-0"
+                              data-testid="card-na-logistica"
+                              title="Despacho feito no módulo de Logística"
+                            >
+                              <Capacete className="h-3.5 w-3.5" strokeWidth={2.2} />
                               Na logística
                             </span>
                           )}
