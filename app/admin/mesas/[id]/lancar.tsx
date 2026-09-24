@@ -68,45 +68,51 @@ export function CardProduto({
   const preco = precoDeVitrine(item)
   const foto = item.imagemThumbUrl ?? item.imagemUrl
   const obrigatorio = temObrigatorio(item)
+  // Mesmo formato do PDV: a foto (e o card inteiro) é o botão de adicionar.
   return (
     <button
       onClick={onTocar}
       aria-label={`Adicionar ${item.nome}`}
+      data-card-produto
       className={[
-        'relative flex min-h-[76px] w-full items-center gap-3 rounded-menuzia border bg-main p-2.5 text-left transition-colors hover:border-primary',
+        'group relative flex w-full flex-col overflow-hidden rounded-menuzia border bg-main text-left transition-all hover:border-primary hover:shadow-md active:scale-[0.98]',
         noLancamento > 0 ? 'border-primary' : 'border-border',
       ].join(' ')}
     >
-      <span className="grid h-[56px] w-[56px] flex-shrink-0 place-items-center overflow-hidden rounded-menuzia bg-page">
+      <span className="relative block aspect-[4/3] w-full overflow-hidden bg-page">
         {foto ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={foto} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <img src={foto} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
         ) : (
-          <ImageOff className="h-4 w-4 text-text-subtle" aria-hidden />
+          <span className="grid h-full w-full place-items-center">
+            <ImageOff className="h-7 w-7 text-text-subtle/40" aria-hidden />
+          </span>
+        )}
+        {noLancamento > 0 && (
+          <span className="absolute right-1.5 top-1.5 grid h-[26px] min-w-[26px] place-items-center rounded-full bg-primary px-1.5 text-[12px] font-bold text-white shadow" aria-hidden>
+            {noLancamento}×
+          </span>
         )}
       </span>
-      <span className="min-w-0 flex-1">
+      <span className="flex flex-1 flex-col p-2.5">
         {categoria && <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-text-subtle">{categoria}</span>}
-        <span className="block truncate text-[13px] font-semibold text-text-main">{item.nome}</span>
+        <span className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-main group-hover:text-primary">{item.nome}</span>
         {item.descricao && (
-          <span className="line-clamp-1 text-[11px] leading-snug text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</span>
+          <span className="mt-0.5 hidden text-[12px] leading-snug text-text-subtle sm:line-clamp-1">{descricaoEmTextoPuro(item.descricao)}</span>
         )}
-        <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-[12px] font-bold text-price-text">
-            {preco.aPartirDe && <span className="font-normal text-text-subtle">a partir de </span>}
+        <span className="mt-auto flex flex-wrap items-center justify-between gap-1 pt-1.5">
+          <span className="text-[14px] font-bold text-price-text">
+            {preco.aPartirDe && <span className="text-[11px] font-normal text-text-subtle">a partir de </span>}
             {brl(preco.valor)}
           </span>
-          {obrigatorio && <Badge tone="alert">Escolher opções</Badge>}
+          {obrigatorio ? (
+            <Badge tone="alert">Opções</Badge>
+          ) : (
+            <span className="grid h-[28px] w-[28px] place-items-center rounded-full border border-primary/30 text-primary" aria-hidden>
+              <Plus className="h-4 w-4" />
+            </span>
+          )}
         </span>
-      </span>
-      <span
-        className={[
-          'grid h-[32px] min-w-[32px] flex-shrink-0 place-items-center rounded-menuzia px-1 text-[12px] font-bold',
-          noLancamento > 0 ? 'bg-primary text-white' : 'text-primary',
-        ].join(' ')}
-        aria-hidden
-      >
-        {noLancamento > 0 ? `${noLancamento}×` : <Plus className="h-4 w-4" />}
       </span>
     </button>
   )
@@ -264,11 +270,11 @@ export function PainelLancamento({
             >
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-semibold leading-snug text-text-main">{l.nome}</div>
-                  {escolha && <div className="text-[11px] text-text-subtle">{escolha}</div>}
-                  {l.observacao && <div className="text-[11px] italic text-text-subtle">Obs.: {l.observacao}</div>}
-                  {l.indisponivel && <div className="text-[11px] font-semibold text-danger">{l.indisponivel}</div>}
-                  <div className="mt-0.5 text-[11px] text-text-subtle">
+                  <div className="text-[14px] font-semibold leading-snug text-text-main xl:text-[13px]">{l.nome}</div>
+                  {escolha && <div className="text-[12px] leading-snug text-text-subtle xl:text-[11px]">{escolha}</div>}
+                  {l.observacao && <div className="text-[12px] italic leading-snug text-text-subtle xl:text-[11px]">Obs.: {l.observacao}</div>}
+                  {l.indisponivel && <div className="text-[12px] font-semibold text-danger xl:text-[11px]">{l.indisponivel}</div>}
+                  <div className="mt-0.5 text-[12px] text-text-subtle xl:text-[11px]">
                     {brl(l.preco)} cada · <strong className="text-price-text">{brl(l.preco * l.quantidade)}</strong>
                   </div>
                 </div>
@@ -276,27 +282,27 @@ export function PainelLancamento({
                   <button
                     aria-label={`Diminuir ${l.nome}`}
                     onClick={() => onQuantidade(l.chave, -1)}
-                    className="grid h-[36px] w-[36px] place-items-center text-primary"
+                    className="grid h-[40px] w-[40px] place-items-center text-primary xl:h-[36px] xl:w-[36px]"
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
-                  <span className="min-w-[20px] text-center text-[13px] font-bold" aria-label="Quantidade">
+                  <span className="min-w-[24px] text-center text-[15px] font-bold xl:text-[13px]" aria-label="Quantidade">
                     {l.quantidade}
                   </span>
                   <button
                     aria-label={`Aumentar ${l.nome}`}
                     onClick={() => onQuantidade(l.chave, 1)}
-                    className="grid h-[36px] w-[36px] place-items-center text-primary"
+                    className="grid h-[40px] w-[40px] place-items-center text-primary xl:h-[36px] xl:w-[36px]"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
               <div className="mt-1 flex gap-3">
-                <button onClick={() => onEditar(l.chave)} className="flex min-h-[32px] items-center gap-1 text-[11px] font-semibold text-primary">
+                <button onClick={() => onEditar(l.chave)} className="flex min-h-[36px] items-center gap-1 text-[12px] font-semibold text-primary">
                   <Pencil className="h-3 w-3" /> Editar
                 </button>
-                <button onClick={() => onRemover(l.chave)} className="flex min-h-[32px] items-center gap-1 text-[11px] font-semibold text-text-subtle hover:text-danger">
+                <button onClick={() => onRemover(l.chave)} className="flex min-h-[36px] items-center gap-1 text-[12px] font-semibold text-text-subtle hover:text-danger">
                   <Trash2 className="h-3 w-3" /> Remover
                 </button>
               </div>
@@ -307,7 +313,7 @@ export function PainelLancamento({
 
       <div className="flex-shrink-0 space-y-2 border-t border-border p-3 sm:p-4">
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
-        <div className="flex items-center justify-between text-[14px]">
+        <div className="flex items-center justify-between text-[15px]">
           <span className="text-text-subtle">
             {itens} {itens === 1 ? 'item' : 'itens'}
           </span>

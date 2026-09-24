@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowRightLeft, Check, Eye, History, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Check, Eye, History, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
 import { esperaTexto } from '@/lib/chamados'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,7 @@ import { PainelChamados, useRelogio } from '../chamados'
 import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaOpcao } from './conta'
 import { CardProduto, ConfiguradorGarcom, PainelLancamento, SelecaoDoCliente, SemItens, brl, type DadosPizza } from './lancar'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
+import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 
 /**
  * Painel do garçom para uma mesa.
@@ -526,12 +527,15 @@ export default function MesaDetalhePage() {
         breadcrumb={`Mesas e Comandas · ${mesa.setor || 'Salão'}`}
         voltar={{ rotulo: 'Salão', onClick: () => router.push('/admin/mesas') }}
         right={
-          permissoesConta.transferir_mesa && estadoConta.dados?.conta ? (
-            <Button variant="outline" onClick={() => setTransferindoMesa(true)} aria-label="Trocar de mesa" title="Trocar de mesa">
-              <ArrowRightLeft className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Trocar de mesa</span>
-            </Button>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {permissoesConta.transferir_mesa && estadoConta.dados?.conta ? (
+              <Button variant="outline" onClick={() => setTransferindoMesa(true)} aria-label="Trocar de mesa" title="Trocar de mesa">
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Trocar de mesa</span>
+              </Button>
+            ) : null}
+            <BotaoTelaCheia />
+          </div>
         }
       />
 
@@ -764,7 +768,7 @@ export default function MesaDetalhePage() {
             {lancaveis.length === 0 ? (
               <SemItens resumo={resumo} foraDoHorario={foraDoHorario} />
             ) : (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-3 2xl:grid-cols-4">
                 {visiveis.map((item) => (
                   <CardProduto
                     key={item.id}
@@ -828,19 +832,32 @@ export default function MesaDetalhePage() {
       {naAbaLancar && (
         <div
           data-barra-lancamento
-          className="flex flex-shrink-0 items-center gap-3 border-t border-border bg-main px-3 pt-2.5 pb-[max(env(safe-area-inset-bottom),0.625rem)] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] xl:hidden"
+          className="flex flex-shrink-0 items-center gap-2 border-t border-border bg-main px-3 pt-2.5 pb-[max(env(safe-area-inset-bottom),0.625rem)] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] sm:gap-3 xl:hidden"
         >
+          <button
+            onClick={() => router.push('/admin/mesas')}
+            aria-label="Voltar para as mesas"
+            data-voltar-mesas
+            className="flex h-[44px] flex-shrink-0 items-center gap-1 rounded-menuzia border border-border px-2.5 text-[13px] font-semibold text-text-main hover:border-primary hover:text-primary"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Mesas</span>
+          </button>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] text-text-subtle">
+            <div className="truncate text-[12px] text-text-subtle">
               {resumoLancamento.itens === 0
                 ? 'Lançamento vazio'
                 : `${resumoLancamento.itens} ${resumoLancamento.itens === 1 ? 'item' : 'itens'} no lançamento`}
             </div>
-            <div className="text-[15px] font-bold text-price-text">{brl(resumoLancamento.total)}</div>
+            <div className="text-[16px] font-bold text-price-text">{brl(resumoLancamento.total)}</div>
           </div>
           <Button className="min-h-[44px]" onClick={() => setFolhaAberta(true)}>
             <ShoppingBag className="h-4 w-4" />
-            Ver lançamento
+            <span className="hidden min-[400px]:inline">Ver lançamento</span>
+            <span className="min-[400px]:hidden">Ver</span>
+            {resumoLancamento.itens > 0 && (
+              <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-primary">{resumoLancamento.itens}</span>
+            )}
           </Button>
         </div>
       )}
@@ -914,10 +931,15 @@ export default function MesaDetalhePage() {
             <p className="mt-1 text-[13px] text-text-subtle">
               A cozinha recebeu e o pedido entrou na comanda da {mesa.nome}.
             </p>
-            <Button className="mt-4 w-full" onClick={() => setEnviado(null)}>
-              <X className="h-3.5 w-3.5" />
-              Fechar
-            </Button>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button className="min-h-[44px] w-full" onClick={() => router.push('/admin/mesas')} data-enviado-voltar-mesas>
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Voltar às mesas
+              </Button>
+              <Button variant="outline" className="min-h-[44px] w-full" onClick={() => setEnviado(null)}>
+                Continuar nesta mesa
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -31,6 +31,7 @@ import { CentralBalcao } from '@/components/pdv/central-balcao'
 import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
+import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -815,22 +816,6 @@ export default function PdvPage() {
   // que deu certo — reenvio (rede caiu, clique duplo) devolve o mesmo pedido.
   const chaveLancamento = useRef(novaChave())
 
-  // ── Tela cheia do navegador (Fullscreen API) ────────────────────────────────
-  const [telaCheia, setTelaCheia] = useState(false)
-  useEffect(() => {
-    const onChange = () => setTelaCheia(Boolean(document.fullscreenElement))
-    document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
-  }, [])
-  async function alternarTelaCheia() {
-    try {
-      if (!document.fullscreenElement) await document.documentElement.requestFullscreen()
-      else await document.exitFullscreen()
-    } catch {
-      /* o navegador pode bloquear o fullscreen — ignora silenciosamente */
-    }
-  }
-
   // ── Fetch mesas com estado de ocupação ────────────────────────────────────
   const recarregarMesas = useCallback(async () => {
     const res = await fetch('/api/admin/pdv/comanda')
@@ -1283,6 +1268,9 @@ export default function PdvPage() {
     .reduce((s, p) => s + p.total, 0)
 
   const subtotal = comanda.reduce((s, l) => s + precoLinha(l), 0)
+  // Unidades de cada item já no pedido (selo no card do cardápio).
+  const qtdNaComanda = new Map<string, number>()
+  for (const l of comanda) qtdNaComanda.set(l.item.id, (qtdNaComanda.get(l.item.id) ?? 0) + l.quantidade)
 
   // ── Loading / error states ─────────────────────────────────────────────────
 
@@ -1312,35 +1300,21 @@ export default function PdvPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const botaoTelaCheia = (
-    <button
-      type="button"
-      onClick={() => void alternarTelaCheia()}
-      title="Tela cheia (também: tecla F11)"
-      className="flex flex-shrink-0 items-center gap-1.5 rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[12px] font-semibold text-text-main transition-colors hover:border-primary hover:text-primary"
-    >
-      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-        {telaCheia ? (
-          <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-        ) : (
-          <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-        )}
-      </svg>
-      {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
-    </button>
-  )
+  // Tela cheia: componente compartilhado com Mesas e Comandas (só ícone no celular).
+  const botaoTelaCheia = <BotaoTelaCheia />
 
   const botaoSair = (
     <button
       type="button"
       onClick={() => setSairConfirm(true)}
       title="Sair do PDV e voltar ao menu principal"
-      className="flex flex-shrink-0 items-center gap-1.5 rounded-menuzia border border-danger/40 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-danger transition-colors hover:bg-danger hover:text-white"
+      aria-label="Sair do PDV"
+      className="flex h-[40px] min-w-[40px] flex-shrink-0 items-center justify-center gap-1.5 rounded-menuzia border border-danger/40 bg-white px-2.5 text-[12px] font-semibold text-danger transition-colors hover:bg-danger hover:text-white"
     >
       <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
         <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zM20 3h-9a2 2 0 0 0-2 2v4h2V5h9v14h-9v-4H9v4a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z" />
       </svg>
-      Sair
+      <span className="hidden sm:inline">Sair</span>
     </button>
   )
 
@@ -1655,28 +1629,39 @@ export default function PdvPage() {
           />
         ) : painelMesas ? (
           /* ═══ Painel de mesas ═══ */
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
               <h1 className="text-[18px] font-bold text-text-main">Mesas</h1>
-              <div className="flex flex-wrap items-center gap-4">
-                {(['livre', 'aguardando', 'ocupada', 'limpeza'] as const).map((estado) => (
-                  <span key={estado} className="flex items-center gap-1.5" title={AJUDA_ESTADO[estado]}>
-                    <span className={['h-3 w-3 rounded-full', COR_ESTADO_MESA[estado]].join(' ')} />
-                    <span className="text-[11px] font-semibold text-text-subtle">{ROTULO_ESTADO[estado]}</span>
-                  </span>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-4 md:flex">
+                  {(['livre', 'aguardando', 'ocupada', 'limpeza'] as const).map((estado) => (
+                    <span key={estado} className="flex items-center gap-1.5" title={AJUDA_ESTADO[estado]}>
+                      <span className={['h-3 w-3 rounded-full', COR_ESTADO_MESA[estado]].join(' ')} />
+                      <span className="text-[11px] font-semibold text-text-subtle">{ROTULO_ESTADO[estado]}</span>
+                    </span>
+                  ))}
+                </div>
                 {botaoTelaCheia}
                 {botaoSair}
               </div>
             </div>
+            {/* Legenda no celular: uma linha rolável, sem empurrar as mesas para baixo. */}
+            <div className="-mx-3 mb-3 flex gap-3 overflow-x-auto px-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+              {(['livre', 'aguardando', 'ocupada', 'limpeza'] as const).map((estado) => (
+                <span key={estado} className="flex flex-shrink-0 items-center gap-1.5">
+                  <span className={['h-2.5 w-2.5 rounded-full', COR_ESTADO_MESA[estado]].join(' ')} />
+                  <span className="text-[12px] font-semibold text-text-subtle">{ROTULO_ESTADO[estado]}</span>
+                </span>
+              ))}
+            </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {/* Balcão — venda avulsa */}
               <button
                 type="button"
                 onClick={() => (pdvV2 ? setTelaBalcao(true) : selecionarMesa(null))}
                 data-testid="card-balcao"
-                className="flex aspect-square flex-col justify-between rounded-menuzia bg-sidebar-bg p-3 text-left text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.97]"
+                className="flex aspect-[4/3] flex-col justify-between rounded-menuzia bg-sidebar-bg p-3 text-left text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.97] sm:aspect-square"
               >
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-white/60">{pdvV2 ? 'Comandas' : 'Avulso'}</span>
                 <div>
@@ -1697,7 +1682,7 @@ export default function PdvPage() {
                     data-testid={`mesa-${mesa.nome}`}
                     data-estado={estado}
                     className={[
-                      'flex aspect-square flex-col justify-between rounded-menuzia p-3 text-left text-white shadow-sm transition-all hover:brightness-105 active:scale-[0.97]',
+                      'flex aspect-[4/3] min-w-0 flex-col justify-between rounded-menuzia p-3 text-left text-white shadow-sm transition-all hover:brightness-105 active:scale-[0.97] sm:aspect-square',
                       cor,
                     ].join(' ')}
                   >
@@ -1710,7 +1695,7 @@ export default function PdvPage() {
                       )}
                     </div>
                     <div>
-                      <span className="block text-[24px] font-extrabold leading-none">{mesa.nome}</span>
+                      <span className="block truncate text-[21px] font-extrabold leading-none sm:text-[24px]">{mesa.nome}</span>
                       {mesa.comandaAberta?.clienteNome && (
                         <span className="mt-1 block truncate text-[12px] font-semibold text-white/90">{mesa.comandaAberta.clienteNome}</span>
                       )}
@@ -1740,27 +1725,8 @@ export default function PdvPage() {
         ) : (
           /* ═══ Atendimento: cardápio + comanda ═══ */
           <>
-            {/* Mobile tab bar */}
-            <div className="flex border-b border-border bg-white lg:hidden">
-              {(['cardapio', 'comanda'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setMobileTab(tab)}
-                  className={[
-                    'flex-1 py-2.5 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                    mobileTab === tab
-                      ? 'border-b-2 border-primary text-primary'
-                      : 'text-text-subtle hover:text-text-main',
-                  ].join(' ')}
-                >
-                  {tab === 'cardapio'
-                    ? 'Cardápio'
-                    : `Comanda${comanda.length > 0 ? ` (${comanda.length})` : ''}`}
-                </button>
-              ))}
-            </div>
-
+            {/* Celular/tablet: cardápio e pedido alternam pela barra fixa do rodapé
+                (resumo sempre visível) e pelo "Voltar ao cardápio" do pedido. */}
             <div className="flex flex-1 overflow-hidden">
               {/* ── Cardápio ─────────────────────────────────────────────────── */}
               <section
@@ -1774,17 +1740,18 @@ export default function PdvPage() {
                   <button
                     type="button"
                     onClick={voltarParaMesas}
-                    className="flex items-center gap-1.5 rounded-menuzia border-2 border-primary bg-primary px-4 py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.97]"
+                    data-testid="pdv-voltar-mesas"
+                    className="flex h-[40px] flex-shrink-0 items-center gap-1 rounded-menuzia bg-primary pl-2 pr-3 text-[13px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.97] sm:h-[44px] sm:pr-4 sm:text-[14px]"
                   >
                     <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                       <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
                     </svg>
                     {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
                   </button>
-                  <span className="text-[14px] font-bold text-text-main" data-testid="pdv-alvo">
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-text-main" data-testid="pdv-alvo">
                     {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
                   </span>
-                  <div className="ml-auto flex items-center gap-2">{botaoTelaCheia}{botaoSair}</div>
+                  <div className="flex flex-shrink-0 items-center gap-2">{botaoTelaCheia}{botaoSair}</div>
                 </div>
             {/* Search + category chips */}
             <div className="border-b border-border bg-white px-3 py-2.5 space-y-2">
@@ -1796,14 +1763,14 @@ export default function PdvPage() {
                   setGrupoFiltro(null)
                 }}
                 placeholder="Buscar item…"
-                className="w-full rounded-menuzia border border-border bg-white px-3 py-1.5 text-[13px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-[42px] w-full rounded-menuzia border border-border bg-white px-3 text-[14px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary lg:h-[36px] lg:text-[13px]"
               />
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <button
                   type="button"
                   onClick={() => { setGrupoFiltro(null); setBusca('') }}
                   className={[
-                    'flex-shrink-0 rounded-menuzia border px-4 py-2.5 text-[13px] font-semibold transition-colors',
+                    'h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3.5 text-[13px] font-semibold transition-colors sm:px-4',
                     grupoFiltro === null && !busca
                       ? 'border-primary bg-primary text-white'
                       : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
@@ -1817,7 +1784,7 @@ export default function PdvPage() {
                     type="button"
                     onClick={() => { setGrupoFiltro(g.id); setBusca('') }}
                     className={[
-                      'flex-shrink-0 rounded-menuzia border px-4 py-2.5 text-[13px] font-semibold transition-colors',
+                      'h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3.5 text-[13px] font-semibold transition-colors sm:px-4',
                       grupoFiltro === g.id
                         ? 'border-primary bg-primary text-white'
                         : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
@@ -1830,7 +1797,7 @@ export default function PdvPage() {
             </div>
 
             {/* Items grid */}
-            <div className="flex-1 overflow-y-auto p-3">
+            <div className="flex-1 overflow-y-auto p-3 pb-4">
               {itensFiltrados.length === 0 ? (
                 <div className="py-16 text-center text-[13px] text-text-subtle">
                   {busca || grupoFiltro ? 'Nenhum item encontrado.' : 'Cardápio vazio.'}
@@ -1842,8 +1809,17 @@ export default function PdvPage() {
                       key={item.id}
                       type="button"
                       onClick={() => addItem(item)}
-                      className="group flex flex-col overflow-hidden rounded-menuzia border border-border bg-white text-left transition-all hover:border-primary hover:shadow-md active:scale-[0.98]"
+                      aria-label={`Adicionar ${item.nome}`}
+                      className={[
+                        'group relative flex flex-col overflow-hidden rounded-menuzia border bg-white text-left transition-all hover:border-primary hover:shadow-md active:scale-[0.98]',
+                        (qtdNaComanda.get(item.id) ?? 0) > 0 ? 'border-primary' : 'border-border',
+                      ].join(' ')}
                     >
+                      {(qtdNaComanda.get(item.id) ?? 0) > 0 && (
+                        <span className="absolute right-1.5 top-1.5 z-10 grid h-[26px] min-w-[26px] place-items-center rounded-full bg-primary px-1.5 text-[12px] font-bold text-white shadow">
+                          {qtdNaComanda.get(item.id)}×
+                        </span>
+                      )}
                       {(item.imagemThumbUrl ?? item.imagemUrl) ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -1864,7 +1840,7 @@ export default function PdvPage() {
                         </div>
                       )}
                       <div className="flex flex-1 flex-col p-2.5">
-                        <p className="line-clamp-2 text-[13.5px] font-semibold leading-tight text-text-main group-hover:text-primary">
+                        <p className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-main group-hover:text-primary lg:text-[13.5px]">
                           {item.nome}
                         </p>
                         <div className="mt-auto flex items-center justify-between gap-1 pt-1.5">
@@ -1889,6 +1865,30 @@ export default function PdvPage() {
                 </div>
               )}
             </div>
+            {/* Resumo do pedido sempre à vista no celular/tablet. */}
+            <div className="flex flex-shrink-0 items-center gap-3 border-t border-border bg-white px-3 pt-2.5 pb-[max(env(safe-area-inset-bottom),0.625rem)] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:hidden" data-testid="pdv-barra-pedido">
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] text-text-subtle">
+                  {comanda.length === 0
+                    ? 'Nenhum item no pedido'
+                    : `${comanda.reduce((s, l) => s + l.quantidade, 0)} ${comanda.reduce((s, l) => s + l.quantidade, 0) === 1 ? 'item' : 'itens'} no pedido`}
+                </div>
+                <div className="text-[16px] font-bold text-text-main">{formatBRL(subtotal)}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileTab('comanda')}
+                data-testid="pdv-ver-pedido"
+                className="flex h-[44px] flex-shrink-0 items-center gap-2 rounded-menuzia bg-primary px-4 text-[14px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
+              >
+                Ver pedido
+                {comanda.length > 0 && (
+                  <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-white px-1 text-[12px] font-bold text-primary">
+                    {comanda.reduce((s, l) => s + l.quantidade, 0)}
+                  </span>
+                )}
+              </button>
+            </div>
           </section>
 
           {/* ── Column 3: Comanda ───────────────────────────────────────────── */}
@@ -1898,10 +1898,31 @@ export default function PdvPage() {
               mobileTab === 'comanda' ? 'flex flex-1' : 'hidden lg:flex',
             ].join(' ')}
           >
+            {/* Celular/tablet: voltar ao cardápio (o pedido continua montado). */}
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileTab('cardapio')}
+                data-testid="pdv-voltar-cardapio"
+                className="flex h-[40px] flex-shrink-0 items-center gap-1 rounded-menuzia border border-border bg-white pl-2 pr-3 text-[13px] font-bold text-text-main hover:border-primary hover:text-primary"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                </svg>
+                Cardápio
+              </button>
+              <button
+                type="button"
+                onClick={voltarParaMesas}
+                className="ml-auto flex h-[40px] flex-shrink-0 items-center rounded-menuzia border border-border bg-white px-3 text-[13px] font-bold text-text-main hover:border-primary hover:text-primary"
+              >
+                {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
+              </button>
+            </div>
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Comanda</p>
-              <span className="rounded-menuzia bg-primary/10 px-2.5 py-1 text-[13px] font-bold text-primary">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+              <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Pedido</p>
+              <span className="min-w-0 truncate rounded-menuzia bg-primary/10 px-2.5 py-1 text-[13px] font-bold text-primary">
                 {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
               </span>
             </div>
@@ -1915,6 +1936,25 @@ export default function PdvPage() {
                 ].join(' ')}
               >
                 {launchMsg.text}
+                {launchMsg.type === 'ok' && (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={voltarParaMesas}
+                      data-testid="pdv-pos-lancar-mesas"
+                      className="h-[38px] flex-1 rounded-menuzia bg-primary px-3 text-[13px] font-bold text-white hover:bg-primary-dark"
+                    >
+                      {pdvV2 && telaBalcao ? 'Voltar ao balcão' : 'Voltar às mesas'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileTab('cardapio')}
+                      className="h-[38px] flex-1 rounded-menuzia border border-price-text/40 bg-white px-3 text-[13px] font-bold text-price-text lg:hidden"
+                    >
+                      Continuar lançando
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2006,7 +2046,7 @@ export default function PdvPage() {
                       <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 14.9V17H9v2h6v-2h-2v-2.1a5.01 5.01 0 0 0 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zm-15 3V7h2v3.82C4.84 10.4 4 9.3 4 8zm7 5c-1.65 0-3-1.35-3-3V5h6v5c0 1.65-1.35 3-3 3zm8-5c0 1.3-.84 2.4-2 2.82V7h2v1z" />
                     </svg>
                     <p className="text-[14px] font-medium text-text-subtle">Nenhum item no novo pedido</p>
-                    <p className="mt-0.5 text-[12px] text-text-subtle/60">Toque nos itens do cardápio ao lado pra adicionar.</p>
+                    <p className="mt-0.5 text-[12px] text-text-subtle/60">Toque nos itens do cardápio para adicionar.</p>
                   </div>
                 </div>
               ) : (
@@ -2036,15 +2076,15 @@ export default function PdvPage() {
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-[13px] font-semibold leading-tight text-text-main">
+                            <p className="text-[14px] font-semibold leading-tight text-text-main lg:text-[13px]">
                               {linha.item.nome}
                             </p>
-                            <span className="flex-shrink-0 text-[13px] font-bold text-text-main">
+                            <span className="flex-shrink-0 text-[14px] font-bold text-text-main lg:text-[13px]">
                               {formatBRL(precoRef)}
                             </span>
                           </div>
                           {descricao && (
-                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-text-subtle">
+                            <p className="mt-0.5 line-clamp-3 text-[12px] leading-snug text-text-subtle lg:text-[11px]">
                               {descricao}
                             </p>
                           )}
@@ -2053,7 +2093,7 @@ export default function PdvPage() {
                               type="button"
                               aria-label="Diminuir quantidade"
                               onClick={() => alterarQtd(linha.uid, -1)}
-                              className="flex h-11 w-11 items-center justify-center rounded-menuzia border-2 border-border text-text-subtle transition-colors hover:border-danger hover:text-danger active:scale-95"
+                              className="flex h-[40px] w-[40px] items-center justify-center rounded-menuzia border-2 border-border text-text-subtle transition-colors hover:border-danger hover:text-danger active:scale-95"
                             >
                               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                                 <path d="M19 13H5v-2h14v2z" />
@@ -2066,7 +2106,7 @@ export default function PdvPage() {
                               type="button"
                               aria-label="Aumentar quantidade"
                               onClick={() => alterarQtd(linha.uid, 1)}
-                              className="flex h-11 w-11 items-center justify-center rounded-menuzia border-2 border-border text-text-subtle transition-colors hover:border-primary hover:text-primary active:scale-95"
+                              className="flex h-[40px] w-[40px] items-center justify-center rounded-menuzia border-2 border-border text-text-subtle transition-colors hover:border-primary hover:text-primary active:scale-95"
                             >
                               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
@@ -2076,7 +2116,7 @@ export default function PdvPage() {
                               type="button"
                               aria-label="Remover item"
                               onClick={() => removerLinha(linha.uid)}
-                              className="ml-auto flex h-11 w-11 items-center justify-center rounded-menuzia border-2 border-transparent text-text-subtle/40 transition-colors hover:border-danger hover:text-danger active:scale-95"
+                              className="ml-auto flex h-[40px] w-[40px] items-center justify-center rounded-menuzia border-2 border-transparent text-text-subtle/60 transition-colors hover:border-danger hover:text-danger active:scale-95"
                             >
                               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />

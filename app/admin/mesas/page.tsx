@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Settings, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
+import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
@@ -285,8 +286,11 @@ export default function MesasPage() {
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Nova mesa</span>
               </Button>
+              <BotaoTelaCheia />
             </>
-          ) : undefined
+          ) : (
+            <BotaoTelaCheia />
+          )
         }
       />
 
@@ -444,7 +448,7 @@ export default function MesasPage() {
                 </>
               )
               const classeBloco = [
-                'flex aspect-square min-w-0 flex-col rounded-menuzia p-3 text-left shadow-sm transition-all',
+                'flex aspect-[4/3] min-w-0 flex-col rounded-menuzia p-3 text-left shadow-sm transition-all sm:aspect-square',
                 tom.bloco,
                 tom.texto,
                 abre ? 'hover:brightness-105 active:scale-[0.97]' : '',
