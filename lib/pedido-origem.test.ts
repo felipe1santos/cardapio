@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rotuloOrigemPedido, rotuloDaMesa } from './pedido-origem'
+import { etiquetasDoPedido, referenciaDoLancamento, rotuloOrigemPedido, rotuloDaMesa } from './pedido-origem'
 
 describe('rótulo de origem do pedido', () => {
   it('pedido de mesa diz SALÃO, não PDV — é outro posto de trabalho', () => {
@@ -65,5 +65,49 @@ describe('etiquetas do atendimento identificado (0094)', () => {
   })
   it('delivery ganha só o posto (Delivery), sem texto que tome o lugar do pagamento', () => {
     expect(rotuloOrigemPedido({ canal: 'delivery', origem: 'cardapio' })).toMatchObject({ texto: null, posto: 'Delivery' })
+  })
+})
+
+describe('etiquetasDoPedido', () => {
+  it('delivery da vitrine: CARDÁPIO + ENTREGA ou RETIRADA', () => {
+    expect(etiquetasDoPedido({ canal: 'delivery', tipo: 'entrega' })).toEqual({ origem: 'CARDÁPIO', atendimento: 'ENTREGA', mesa: null })
+    expect(etiquetasDoPedido({ canal: 'delivery', tipo: 'retirada' })).toEqual({ origem: 'CARDÁPIO', atendimento: 'RETIRADA', mesa: null })
+  })
+  it('card preto (balcão): PDV + RETIRADA ou ENTREGA', () => {
+    expect(etiquetasDoPedido({ canal: 'balcao', tipo: 'retirada' })).toEqual({ origem: 'PDV', atendimento: 'RETIRADA', mesa: null })
+    expect(etiquetasDoPedido({ canal: 'balcao', tipo: 'entrega' })).toEqual({ origem: 'PDV', atendimento: 'ENTREGA', mesa: null })
+  })
+  it('mesa: SALÃO (garçom) ou PDV (caixa), atendimento MESA e o nome da mesa', () => {
+    expect(etiquetasDoPedido({ canal: 'mesa', mesa: '4', lancadoVia: 'salao' })).toEqual({ origem: 'SALÃO', atendimento: 'MESA', mesa: 'Mesa 4' })
+    expect(etiquetasDoPedido({ canal: 'mesa', mesa: 'Varanda 1', lancadoVia: 'pdv' })).toEqual({ origem: 'PDV', atendimento: 'MESA', mesa: 'Varanda 1' })
+    expect(etiquetasDoPedido({ canal: 'mesa', mesa: '7' }).origem).toBe('SALÃO')
+  })
+  it('pedido antigo sem canal cai pela origem', () => {
+    expect(etiquetasDoPedido({ origem: 'pdv', mesa: '2' })).toMatchObject({ origem: 'SALÃO', atendimento: 'MESA' })
+    expect(etiquetasDoPedido({ origem: 'pdv', tipo: 'retirada' })).toMatchObject({ origem: 'PDV', atendimento: 'RETIRADA' })
+    expect(etiquetasDoPedido({ origem: 'cardapio', tipo: 'entrega' })).toMatchObject({ origem: 'CARDÁPIO', atendimento: 'ENTREGA' })
+  })
+})
+
+describe('referenciaDoLancamento (Detalhes)', () => {
+  it('balcão: senha e quem lançou, retirada ou entrega manual', () => {
+    expect(referenciaDoLancamento({ canal: 'balcao', tipo: 'retirada', comandaSenha: 12, criadoPorNome: 'Ana' })).toBe('Senha 12 · Lançado por Ana')
+    expect(referenciaDoLancamento({ canal: 'balcao', tipo: 'entrega', comandaSenha: 3, criadoPorNome: ' Caixa 1 ' })).toBe('Senha 3 · Lançado por Caixa 1')
+  })
+  it('mesa: número da comanda e quem lançou (garçom ou caixa)', () => {
+    expect(referenciaDoLancamento({ canal: 'mesa', mesa: '4', comandaNumero: 7, criadoPorNome: 'Garçom Demo' })).toBe('Comanda 7 · Lançado por Garçom Demo')
+    expect(referenciaDoLancamento({ canal: 'mesa', mesa: '4', lancadoVia: 'pdv', comandaNumero: 7, comandaSenha: 9 })).toBe('Comanda 7')
+  })
+  it('só o que existe; nada = null', () => {
+    expect(referenciaDoLancamento({ canal: 'balcao', criadoPorNome: 'Ana' })).toBe('Lançado por Ana')
+    expect(referenciaDoLancamento({ canal: 'mesa', mesa: '4' })).toBeNull()
+  })
+  it('delivery não tem senha nem comanda', () => {
+    expect(referenciaDoLancamento({ canal: 'delivery', comandaSenha: 5, criadoPorNome: 'x' })).toBeNull()
+    expect(referenciaDoLancamento({ origem: 'cardapio' })).toBeNull()
+  })
+  it('pedido antigo sem canal cai pela origem', () => {
+    expect(referenciaDoLancamento({ origem: 'pdv', comandaSenha: 2 })).toBe('Senha 2')
+    expect(referenciaDoLancamento({ origem: 'pdv', mesa: '2', comandaNumero: 4 })).toBe('Comanda 4')
   })
 })

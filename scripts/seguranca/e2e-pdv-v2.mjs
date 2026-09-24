@@ -136,6 +136,7 @@ const clientes = [
 ]
 for (const [i, c] of clientes.entries()) {
   await pa.getByTestId('balcao-novo').click()
+  await pa.getByTestId('balcao-modalidade-retirada').click() // c771515: escolha antes do nome
   await pa.getByTestId('balcao-nome').fill(c.nome)
   if (c.tel) await pa.getByTestId('balcao-telefone').fill(c.tel)
   if (i === 0) await foto(pa, '04-nova-comanda-balcao')

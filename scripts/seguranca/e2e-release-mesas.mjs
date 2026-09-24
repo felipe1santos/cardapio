@@ -34,6 +34,7 @@ import pg from 'pg'
 import { chromium } from 'playwright'
 import { createClient } from '@supabase/supabase-js'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, E2E_LOJA_NOME, E2E_VIZINHA, USU } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
@@ -57,10 +58,10 @@ await db.connect()
 const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
 // Eventos de execuções anteriores (inclusive de antes da 0071) não entram nas contas.
 const INICIO = (await um('select now() as agora')).agora
-const vizinha = (await um(`select id from restaurantes where slug='vizinha-demo'`)).id
+const vizinha = (await um(`select id from restaurantes where slug='${E2E_VIZINHA}'`)).id
 const mesaPor = (nome, r = loja) => um(`select id, token, nome from mesas where restaurante_id=$1 and nome=$2`, [r, nome])
 const itemPor = (nome) => um(`select id, nome, preco from itens_cardapio where restaurante_id=$1 and nome=$2`, [loja, nome])
 
@@ -121,15 +122,16 @@ const agir = (page, mesaId, corpo) => api(page, `/api/admin/mesas/${mesaId}/cont
 /** Marca um item pelo caminho real do cliente: categoria → card → configurador. */
 async function marcar(page, categoria, item) {
   await page.locator('.mesa-categoria', { hasText: categoria }).click()
-  await page.locator('.mesa-card', { hasText: item }).locator('text=Selecionar item').click()
+  // Desde 648e0ed o cartão inteiro abre o item (saiu o botão "Selecionar item").
+  await page.locator('.mesa-card', { hasText: item }).first().click()
   await page.locator('.mesa-avancar', { hasText: 'Adicionar à seleção' }).click()
   await page.waitForTimeout(900)
 }
 
-const dono = await logar('dono.local')
-const garcom = await logar('garcom.local')
+const dono = await logar(USU.dono)
+const garcom = await logar(USU.garcom)
 // Atendente/caixa: vê o salão e cobra a conta; não lança, não atende chamado.
-const caixa = await logar('atendente.local')
+const caixa = await logar(USU.atendente)
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Cenário completo: do módulo desligado até a mesa voltar a livre')
@@ -153,7 +155,7 @@ passo(1, 'dono ativa o módulo')
 
   // Nem pelo console: o trigger da 0071 recusa a coluna vinda do JWT do usuário.
   const cliAtendente = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
-  await cliAtendente.auth.signInWithPassword({ email: 'atendente@demo.local', password: SENHA })
+  await cliAtendente.auth.signInWithPassword({ email: USU.atendenteEmail, password: SENHA })
   const { error: pelaConsole } = await cliAtendente.from('restaurantes').update({ modulo_mesas_ativo: true }).eq('id', loja)
   const aindaDesligado = await um(`select modulo_mesas_ativo from restaurantes where id=$1`, [loja])
   ok('atendente não liga o módulo direto pelo PostgREST', !!pelaConsole && aindaDesligado.modulo_mesas_ativo === false, pelaConsole?.message?.slice(0, 50))
@@ -221,7 +223,7 @@ const pc = await cliente.newPage()
 {
   await pc.goto(`${BASE}/mesa/${tokenInicial}`, { waitUntil: 'networkidle' })
   const texto = await pc.locator('body').innerText()
-  ok('cardápio abre sem login', texto.includes('Cantina Demo'))
+  ok('cardápio abre sem login', texto.includes(E2E_LOJA_NOME))
   ok('a mesa é identificada na tela', texto.includes('Mesa 99'))
   ok('o aviso de que nada foi enviado está visível', /Nada foi enviado para a cozinha/i.test(texto))
   await pc.screenshot({ path: '.shots/rc-01-cliente-cardapio.png' })
@@ -245,7 +247,7 @@ passo(6, 'cliente marca um produto simples')
 passo(7, 'cliente configura um produto com obrigatórios')
 {
   await pc.locator('.mesa-categoria', { hasText: 'Burgers' }).click()
-  await pc.locator('.mesa-card', { hasText: 'Burger da Casa' }).locator('text=Selecionar item').click()
+  await pc.locator('.mesa-card', { hasText: 'Burger da Casa' }).first().click() // cartão inteiro abre o item (648e0ed)
   await pc.waitForTimeout(400)
   const avancarTravado = await pc.locator('.mesa-avancar').first().isDisabled()
   ok('o botão de avançar nasce travado na etapa obrigatória', avancarTravado)
@@ -410,6 +412,12 @@ passo(16, 'a cozinha recebe o pedido identificado como salão')
     `update restaurantes set impressao_agente_token = $2 where id = $1 returning impressao_agente_token`,
     [loja, uuid()])
   const tokenAgente = tokenRows[0].impressao_agente_token
+  // Desde 1bae558 a fila só lista com "impressão automática" ligada — o Assistente 0.1.23
+  // já não imprimia sem ela (main.js), e listar reservaria pedido que ninguém imprime.
+  await db.query(`update restaurantes set impressao_automatica = false where id = $1`, [loja])
+  const semAuto = await fetch(`${BASE}/api/agente/pedidos`, { headers: { authorization: `Bearer ${tokenAgente}` } }).then((r) => r.json())
+  ok('com impressão automática desligada a fila vem vazia', (semAuto.pedidos ?? []).length === 0)
+  await db.query(`update restaurantes set impressao_automatica = true where id = $1`, [loja])
   const fila = await fetch(`${BASE}/api/agente/pedidos`, { headers: { authorization: `Bearer ${tokenAgente}` } }).then((r) => r.json())
   const naFila = (fila.pedidos ?? []).find((x) => x.id === pedido1)
   ok('o pedido está na fila de impressão', !!naFila)
@@ -505,7 +513,7 @@ passo(21, 'um item é transferido e outro é cancelado, com motivo')
   ok('a linha de origem cai de 3 para 2', naOrigem.quantidade === 2, naOrigem.quantidade)
   const noDestino = await q(
     `select pi.quantidade, pi.preco_unitario, p.impresso from pedido_itens pi
-       join pedidos p on p.id = pi.pedido_id where p.mesa='Mesa 03' and pi.nome='Água com Gás'`)
+       join pedidos p on p.id = pi.pedido_id where p.restaurante_id=$1 and p.mesa='Mesa 03' and pi.nome='Água com Gás'`, [loja])
   ok('nasce 1 água na Mesa 03 com o mesmo preço', noDestino.length === 1 && noDestino[0].quantidade === 1 && Number(noDestino[0].preco_unitario) === 7)
   ok('o item transferido NÃO vai para a fila de impressão (já foi produzido)', noDestino[0].impresso === true)
 
@@ -592,7 +600,9 @@ passo(23, 'a conta é dividida')
   await dono.page.locator('[role="tab"]', { hasText: 'Conta' }).click()
   await dono.page.waitForTimeout(1500)
   const texto = await dono.page.locator('body').innerText()
-  ok('a tela mostra a divisão por pessoa', /Dividir o que falta por 3/i.test(texto), texto.match(/Dividir o que falta por 3:[^\n]*/)?.[0])
+  // 7db7be6: a frase "Dividir o que falta por 3: …" virou o stepper "Dividir por [3]" com
+  // "R$ 50,00 para cada um" embaixo — mesma conta (150 / 3), outro texto.
+  ok('a tela mostra a divisão por pessoa', /Dividir por\s*3/i.test(texto) && /R\$\s*50,00\s*para cada um/i.test(texto), texto.match(/[^\n]*para cada um/)?.[0])
   await dono.page.screenshot({ path: '.shots/rc-06-conta-divisao.png' })
 }
 
@@ -613,7 +623,10 @@ passo(24, 'pagamento parcial em uma forma')
   const negativo = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: -10, chave: uuid() })
   ok('pagamento negativo é recusado', negativo.status === 400, negativo.json?.error)
   const acima = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'pix', valor: 500, chave: uuid() })
-  ok('pagamento acima do que falta é recusado', acima.status === 400, acima.json?.error)
+  // PDV v2 (lib/servicos/conta-presencial.ts): valor_acima_do_restante é conflito de estado → 409.
+  ok('pagamento acima do que falta é recusado', acima.status === 409 && /falta|restante/i.test(acima.json?.error ?? ''), `HTTP ${acima.status} ${acima.json?.error}`)
+  const t2 = (await conta(dono.page, MESA.id)).json.conta.totais
+  ok('a recusa não registra pagamento', t2.pago === 50 && t2.restante === 100, `pago ${t2.pago} / falta ${t2.restante}`)
   const inventada = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'bitcoin', valor: 10, chave: uuid() })
   ok('forma inventada pelo navegador é recusada', inventada.status === 400, inventada.json?.error)
   const fiado = await agir(caixa.page, MESA.id, { acao: 'pagamento', forma: 'fiado', valor: 10, chave: uuid(), observacao: 'João' })
@@ -665,8 +678,21 @@ passo(28, 'a mesa volta a livre')
   const rascunhos = await q(`select id from selecoes_mesa where mesa_id=$1 and encerrada_em is null`, [MESA.id])
   ok('nenhum rascunho público sobrou aberto', rascunhos.length === 0)
   await garcom.page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
-  const card = garcom.page.locator('div').filter({ hasText: /^Mesa 99/ }).first()
-  ok('o salão mostra a Mesa 99 como livre', /Livre/i.test(await card.innerText().catch(() => '')))
+  // 0095: conta fechada deixa a mesa "Em limpeza" até alguém liberar; o card inteiro é um
+  // link com aria-label "Mesa 99 — Estado" (7db7be6). O cenário continua: liberar → Livre.
+  const rotulo = () => garcom.page.locator('a[aria-label^="Mesa 99 —"]').first().getAttribute('aria-label').catch(() => '')
+  const antes = await rotulo()
+  if (/Em limpeza/.test(antes ?? '')) {
+    ok('fechada a conta, a Mesa 99 fica em limpeza', true, antes)
+    const lib = await garcom.page.evaluate(async (id) => {
+      const r = await fetch(`/api/admin/mesas/${id}/atendimento`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ acao: 'liberar' }) })
+      return { status: r.status, json: await r.json().catch(() => null) }
+    }, MESA.id)
+    ok('o garçom libera a mesa', lib.status === 200, `HTTP ${lib.status} ${lib.json?.error ?? ''}`)
+    await garcom.page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
+  }
+  const depois = await rotulo()
+  ok('o salão mostra a Mesa 99 como livre', /— Livre$/.test(depois ?? ''), depois)
 }
 
 passo(29, 'o QR continua apontando para a mesma mesa')
@@ -761,7 +787,7 @@ secao('Chamar garçom: limite de frequência e chamado abandonado')
 
   const anon = await fetch(`${BASE}/api/admin/mesas/chamados`).then((r) => r.status)
   ok('a fila de chamados do salão exige login', anon === 401, `HTTP ${anon}`)
-  const atendente = await logar('atendente.local')
+  const atendente = await logar(USU.atendente)
   const ra = await api(atendente.page, '/api/admin/mesas/chamados')
   ok('atendente do delivery não vê a fila do salão', ra.status === 403, `HTTP ${ra.status}`)
   await atendente.ctx.close()
@@ -780,7 +806,7 @@ secao('Catálogo único: uma fonte de verdade para os dois canais')
       where id = $1`, [item.id])
 
   const vitrine = await (await browser.newContext()).newPage()
-  await vitrine.goto(`${BASE}/loja/cantina-demo`, { waitUntil: 'networkidle' })
+  await vitrine.goto(`${BASE}/loja/${E2E_LOJA}`, { waitUntil: 'networkidle' })
   await vitrine.waitForTimeout(1500)
   const textoVitrine = await vitrine.locator('body').innerText()
   ok('delivery mostra o nome novo', textoVitrine.includes('Filé à Parmegiana Especial'))
@@ -850,7 +876,7 @@ secao('Loja fechada para delivery não fecha o salão')
   await q(`update restaurantes set status_loja='fechado_manual' where id=$1`, [loja])
   const r = await lancar(garcom.page, M.id, [{ itemId: AGUA.id, quantidade: 1, observacao: '', complementos: [] }])
   ok('garçom lança na mesa com o delivery pausado', r.status === 201, `HTTP ${r.status} ${r.json?.error ?? ''}`)
-  const publico = await fetch(`${BASE}/api/loja/cantina-demo/pedido`, {
+  const publico = await fetch(`${BASE}/api/loja/${E2E_LOJA}/pedido`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tipo: 'retirada', cliente: { nome: 'X', telefone: '11999999999' }, itens: [{ itemId: AGUA.id, quantidade: 1 }], pagamento: 'pix' }),
   })
@@ -884,12 +910,12 @@ secao('QR revogável')
   const qrCaixa = await api(caixa.page, '/api/admin/mesas/qr')
   ok('garçom e caixa não leem o token do QR', qrGarcom.status === 403 && qrCaixa.status === 403, `${qrGarcom.status}/${qrCaixa.status}`)
   const cliGarcom = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
-  await cliGarcom.auth.signInWithPassword({ email: 'garcom@demo.local', password: SENHA })
+  await cliGarcom.auth.signInWithPassword({ email: USU.garcomEmail, password: SENHA })
   const { data: mesasGarcom } = await cliGarcom.from('mesas').select('id, nome')
   const { error: erroToken } = await cliGarcom.from('mesas').select('token').limit(1)
   ok('pelo PostgREST o garçom vê as mesas, mas não a coluna token', (mesasGarcom ?? []).length > 0 && !!erroToken, erroToken?.message?.slice(0, 50))
   const cliDono = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
-  await cliDono.auth.signInWithPassword({ email: 'dono@local.test', password: SENHA })
+  await cliDono.auth.signInWithPassword({ email: USU.donoEmail, password: SENHA })
   const { error: escolheToken } = await cliDono.from('mesas').update({ token: '00000000-0000-4000-8000-000000000000' }).eq('id', M.id)
   ok('nem o dono escolhe o token pelo navegador', !!escolheToken, escolheToken?.message?.slice(0, 50))
 
@@ -1083,7 +1109,7 @@ secao('Isolamento entre lojas em toda superfície nova')
   // Consulta DIRETA ao PostgREST com o JWT do dono da Cantina: a RLS é a barreira real,
   // e é ela que precisa devolver vazio — não a rota.
   const cli = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
-  const { error: erroLogin } = await cli.auth.signInWithPassword({ email: 'dono@local.test', password: SENHA })
+  const { error: erroLogin } = await cli.auth.signInWithPassword({ email: USU.donoEmail, password: SENHA })
   ok('login direto no Supabase local para sondar a RLS', !erroLogin, erroLogin?.message)
 
   const { data: chamadosVistos } = await cli.from('chamados_mesa').select('id, restaurante_id')

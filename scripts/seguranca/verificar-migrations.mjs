@@ -286,6 +286,25 @@ await comBanco('menuzia_migr_prod', async (cliente) => {
     `insert into comandas (restaurante_id, mesa_id) values ($1,$2) returning numero`,
     [loja, (await cliente.query(`insert into mesas (restaurante_id, nome, ordem) values ($1,'Mesa Nova',1) returning id`, [loja])).rows[0].id])).rows[0]
   ok('comanda nova ganha número sequencial', Number.isInteger(nova.numero) && nova.numero >= 1, nova.numero)
+
+  // Rollback da 0098 (se ela estiver entre as da feature): tira só gatilho e função, sem
+  // tocar em dado; reaplicar a 0098 depois devolve o gatilho.
+  if (daFeature.some((f) => f.startsWith('0098'))) {
+    const foto = async () => (await cliente.query(
+      `select (select count(*) from pedidos)::int as pedidos, (select count(*) from comandas)::int as comandas,
+              (select count(*) from itens_cardapio)::int as itens, (select count(*) from eventos_auditoria)::int as auditoria,
+              (select md5(string_agg(id::text || status::text || total::text, ',' order by id)) from pedidos) as assinatura`)).rows[0]
+    const temGatilho = async () => (await cliente.query(`select count(*)::int n from pg_trigger where tgname = 'pedidos_balcao_entrega_destino'`)).rows[0].n === 1
+    const antes = await foto()
+    ok('0098 aplicada: gatilho de destino da entrega do balcão existe', await temGatilho())
+    await cliente.query(readFileSync(join(process.cwd(), 'docs', 'rollback', '0098_balcao_entrega_destino.down.sql'), 'utf8'))
+    const depois = await foto()
+    ok('rollback da 0098 remove gatilho e função', !(await temGatilho()) &&
+      (await cliente.query(`select to_regprocedure('public.pedido_entrega_balcao_destino()') is null as sumiu`)).rows[0].sumiu)
+    ok('rollback da 0098 não apaga nem altera dado', JSON.stringify(antes) === JSON.stringify(depois), JSON.stringify(depois))
+    await cliente.query(readFileSync(join(dir, daFeature.find((f) => f.startsWith('0098'))), 'utf8'))
+    ok('reaplicar a 0098 depois do rollback devolve o gatilho', await temGatilho())
+  }
 })
 
 const falhas = res.filter((r) => !r).length

@@ -1,28 +1,75 @@
 import { describe, expect, it } from 'vitest'
-import { ROTULO_IMPRESSORA, estadoDaImpressora, linkDoSuporte, numeroDoSuporte } from './suporte'
+import { ROTULO_IMPRESSORA, SUPORTE_MENUZIA, caminhoSeguro, estadoDaImpressora, linkDoSuporte, mensagemDoSuporte } from './suporte'
 
 const AGORA = new Date(2026, 8, 23, 15, 0, 0).getTime()
 
 describe('número do suporte', () => {
-  it('usa o da variável de ambiente quando existe', () => {
-    expect(numeroDoSuporte('55 27 99999-0000')).toBe('5527999990000')
-  })
-
-  it('número quebrado ou ausente cai no padrão em vez de gerar link morto', () => {
-    expect(numeroDoSuporte(undefined)).toBe('5527998925966')
-    expect(numeroDoSuporte('123')).toBe('5527998925966')
+  it('é o oficial da Menuzia, fixo (não o da Nexta nem de variável de ambiente)', () => {
+    expect(SUPORTE_MENUZIA.whatsapp).toBe('5527998534407')
+    expect(SUPORTE_MENUZIA.exibicao).toBe('(27) 99853-4407')
   })
 })
 
-describe('link do suporte', () => {
-  it('leva o nome da loja na mensagem', () => {
-    expect(decodeURIComponent(linkDoSuporte('Fire House'))).toContain('Minha loja é Fire House')
+describe('caminho seguro da tela', () => {
+  it('tira query string e fragmento', () => {
+    expect(caminhoSeguro('/admin/pedidos?token=abc&x=1#topo')).toBe('/admin/pedidos')
+  })
+  it('troca uuid, número e token longo por :id', () => {
+    expect(caminhoSeguro('/admin/mesas/3f2c1a9e-8b7d-4c6e-9f10-1234567890ab')).toBe('/admin/mesas/:id')
+    expect(caminhoSeguro('/admin/pedidos/4088')).toBe('/admin/pedidos/:id')
+    expect(caminhoSeguro('/cozinha/k9X2mQ7vL4pR8sT1wZ3y')).toBe('/cozinha/:id')
+  })
+  it('mantém os nomes de tela', () => {
+    expect(caminhoSeguro('/admin/ajustes')).toBe('/admin/ajustes')
+    expect(caminhoSeguro('/admin/integracoes/nexta')).toBe('/admin/integracoes/nexta')
+  })
+  it('vazio vira a raiz e segmento estranho vira :id', () => {
+    expect(caminhoSeguro(undefined)).toBe('/')
+    expect(caminhoSeguro('/admin/x%ZZ')).toBe('/admin/:id')
+    expect(caminhoSeguro('/admin/joão@mail')).toBe('/admin/:id')
+  })
+})
+
+describe('mensagem e link do suporte', () => {
+  const base = { loja: 'Fire House', usuario: 'Ana Souza', papel: 'gerente', caminho: '/admin/pedidos?aba=x', duvida: '  Como troco a taxa?  ' }
+
+  it('monta a mensagem no formato combinado', () => {
+    expect(mensagemDoSuporte(base)).toBe([
+      'Olá! Preciso de ajuda com o Menuzia.', '',
+      'Loja: Fire House', 'Usuário: Ana Souza', 'Perfil: Gerente', 'Tela: /admin/pedidos', '',
+      'Dúvida:', 'Como troco a taxa?',
+    ].join('\n'))
   })
 
-  it('loja sem nome manda a mensagem genérica', () => {
-    const texto = decodeURIComponent(linkDoSuporte('   '))
-    expect(texto).toContain('Preciso de ajuda com o painel')
-    expect(texto).not.toContain('undefined')
+  it('o link é wa.me do número oficial com o texto codificado', () => {
+    const url = linkDoSuporte(base)!
+    expect(url.startsWith('https://wa.me/5527998534407?text=')).toBe(true)
+    expect(decodeURIComponent(url.split('?text=')[1]!)).toBe(mensagemDoSuporte(base))
+    expect(url).not.toMatch(/[\s\n]/)
+  })
+
+  it('dúvida vazia ou só espaços não gera link', () => {
+    expect(linkDoSuporte({ ...base, duvida: '' })).toBeNull()
+    expect(linkDoSuporte({ ...base, duvida: '   \n ' })).toBeNull()
+  })
+
+  it('campos ausentes viram "—", sem "undefined"/"null"', () => {
+    const m = mensagemDoSuporte({ duvida: 'oi' })
+    expect(m).toContain('Loja: —')
+    expect(m).toContain('Usuário: —')
+    expect(m).not.toMatch(/undefined|null/)
+  })
+
+  it('não leva query string, fragmento nem id da URL', () => {
+    const m = mensagemDoSuporte({ ...base, caminho: '/admin/mesas/3f2c1a9e-8b7d-4c6e-9f10-1234567890ab?token=segredo#x' })
+    expect(m).not.toContain('segredo')
+    expect(m).not.toContain('3f2c1a9e')
+    expect(m).toContain('Tela: /admin/mesas/:id')
+  })
+
+  it('dúvida longa é cortada no limite', () => {
+    expect(mensagemDoSuporte({ duvida: 'a'.repeat(5000) }).endsWith('a'.repeat(1000))).toBe(true)
+    expect(mensagemDoSuporte({ duvida: 'a'.repeat(5000) })).not.toContain('a'.repeat(1001))
   })
 })
 

@@ -7,6 +7,7 @@ import {
   permissoesDaConta,
   resumirDimensoes,
   sanearAberturaBalcao,
+  cidadeComUf,
   sanearResolucao,
   situacaoFinanceira,
   telefoneParcial,
@@ -18,12 +19,31 @@ const UUID = '11111111-2222-4333-8444-555555555555'
 const UUID2 = '11111111-2222-4333-8444-666666666666'
 
 describe('abertura do balcão', () => {
+  const END = { cep: '29050-100', rua: 'Rua A', numero: '1', bairro: 'Centro', cidade: 'Vitória', estado: 'es' }
   it('entrega manual sem telefone é aceita (telefone sempre opcional no card preto)', () => {
-    const r = sanearAberturaBalcao({ nome: 'Ana', chave: UUID, entrega: { rua: 'Rua A', numero: '1', bairro: 'Centro', taxa: '5,00' } })
-    expect(r).toMatchObject({ ok: true, telefone: null, entrega: { rua: 'Rua A', taxaInformada: 5 } })
+    const r = sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'entrega', entrega: { ...END, taxa: '5,00' } })
+    expect(r).toMatchObject({ ok: true, telefone: null, modalidade: 'entrega', entrega: { rua: 'Rua A', cep: '29050100', estado: 'ES', taxaInformada: 5 } })
   })
-  it('entrega sem rua, número ou bairro é recusada', () => {
-    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, entrega: { rua: 'Rua A', numero: '', bairro: 'Centro' } }).ok).toBe(false)
+  it('entrega exige CEP, rua, número, bairro, cidade e estado — e diz o que falta', () => {
+    const r = sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'entrega', entrega: { rua: 'Rua A', numero: '', bairro: 'Centro' } })
+    expect(r).toEqual({ ok: false, erro: 'Para entrega, informe CEP, número, cidade, estado.' })
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'entrega', entrega: { ...END, estado: 'XX' } }).ok).toBe(false)
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'entrega', entrega: { ...END, cep: '123' } }).ok).toBe(false)
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'entrega' })).toEqual({ ok: false, erro: 'Para entrega, informe o endereço.' })
+  })
+  it('retirada não leva endereço (descarta o que vier) e complemento/referência são opcionais', () => {
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'retirada', entrega: END })).toMatchObject({ ok: true, modalidade: 'retirada', entrega: null })
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'entrega', entrega: END })).toMatchObject({ ok: true, entrega: { complemento: '', referencia: '' } })
+  })
+  it('modalidade desconhecida é recusada; chamada antiga sem modalidade é lida pelo que veio', () => {
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, modalidade: 'mesa' }).ok).toBe(false)
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID })).toMatchObject({ ok: true, modalidade: 'retirada', entrega: null })
+    expect(sanearAberturaBalcao({ nome: 'Ana', chave: UUID, entrega: END })).toMatchObject({ ok: true, modalidade: 'entrega' })
+  })
+  it('cidade vai para o pedido com a UF junto', () => {
+    expect(cidadeComUf('Vitória', 'es')).toBe('Vitória/ES')
+    expect(cidadeComUf('Vitória/ES', 'ES')).toBe('Vitória/ES')
+    expect(cidadeComUf('Vitória', '')).toBe('Vitória')
   })
   it('nome obrigatório, aparado e com espaços colapsados', () => {
     expect(sanearAberturaBalcao({ nome: '   ', chave: UUID })).toEqual({ ok: false, erro: 'Informe o nome do cliente.' })
@@ -42,7 +62,7 @@ describe('abertura do balcão', () => {
   })
   it('campos extras são ignorados — não há como mandar loja, taxa ou senha', () => {
     const r = sanearAberturaBalcao({ nome: 'Ana', chave: UUID, restauranteId: UUID2, senha: 1, taxa: 10 })
-    expect(r).toEqual({ ok: true, nome: 'Ana', telefone: null, chave: UUID, entrega: null })
+    expect(r).toEqual({ ok: true, nome: 'Ana', telefone: null, chave: UUID, modalidade: 'retirada', entrega: null })
   })
   it('telefone na lista aparece só em parte', () => {
     expect(telefoneParcial('27999990001')).toBe('(27) …0001')

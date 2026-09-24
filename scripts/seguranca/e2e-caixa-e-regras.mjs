@@ -6,7 +6,7 @@
  *   2. dono muda as regras do salão em "Conta e pagamentos";
  *   3. garçom PEDE o cancelamento de um item; a gestão aprova pela conta;
  *   4. dono dá desconto percentual pelo formulário; "cliente recusou a taxa";
- *   5. fiado exige de quem é a conta;
+ *   5. fiado não nasce mais (saiu da tela, da configuração e da rota — cd797ee);
  *   6. caixa (atendente) abre a mesa direto na conta, recebe e fecha;
  *   7. QR revogado sem substituto, e gerado de novo.
  *
@@ -20,6 +20,7 @@ import { mkdirSync } from 'node:fs'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, USU } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
@@ -41,7 +42,7 @@ await db.connect()
 const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
 const mesa02 = await um(`select id, nome from mesas where restaurante_id=$1 and nome='Mesa 02'`, [loja])
 const mesa01 = await um(`select id, nome from mesas where restaurante_id=$1 and nome='Mesa 01'`, [loja])
 
@@ -78,9 +79,9 @@ async function abrirConta(page, mesaId) {
   await page.locator('[data-testid="restante"]').waitFor({ timeout: 20000 })
 }
 
-const dono = await logar('dono.local')
-const garcom = await logar('garcom.local', CELULAR)
-const caixa = await logar('atendente.local', CELULAR)
+const dono = await logar(USU.dono)
+const garcom = await logar(USU.garcom, CELULAR)
+const caixa = await logar(USU.atendente, CELULAR)
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('1. módulo em Ajustes')
@@ -187,24 +188,38 @@ secao('4. desconto percentual e taxa recusada, pela tela')
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-secao('5. fiado só com de quem é a conta')
+// Regra atual (cd797ee): o fiado SAIU do pagamento da mesa. Antes este cenário provava
+// "fiado só com de quem é a conta"; agora prova que nenhum pagamento novo nasce fiado —
+// nem pela tela, nem pela configuração, nem por POST, nem em loja com fiado gravado de antes.
+secao('5. fiado não nasce mais (saiu da tela, da configuração e da rota)')
 {
-  // Fiado precisa estar entre as formas aceitas: o dono liga pela API da tela.
-  await dono.page.evaluate(async () => {
-    await fetch('/api/admin/mesas/configuracao', {
+  const d = dono.page
+  const cfg = await d.evaluate(async () => {
+    const put = await fetch('/api/admin/mesas/configuracao', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taxaServicoPadrao: 10, formasPagamento: ['dinheiro', 'pix', 'credito', 'debito', 'fiado'] }),
     })
+    const get = await (await fetch('/api/admin/mesas/configuracao')).json()
+    return { put: put.status, formas: get.formasPagamento, disponiveis: get.formasDisponiveis }
   })
-  const d = dono.page
+  ok('a configuração não oferece nem grava fiado', !cfg.formas.includes('fiado') && !cfg.disponiveis.includes('fiado'), JSON.stringify(cfg))
+
+  // Loja que tinha fiado gravado antes da mudança (legado): simulado direto no banco.
+  await q(`update restaurantes set formas_pagamento_mesa = array['dinheiro','pix','credito','debito','fiado'] where id = $1`, [loja])
   await abrirConta(d, mesa02.id)
-  await d.getByRole('radio', { name: 'Fiado' }).click()
-  await d.getByLabel('Valor do pagamento').fill('10')
-  ok('sem dizer de quem é, o fiado não registra', await d.getByRole('button', { name: 'Registrar pagamento' }).isDisabled())
-  await d.getByLabel('De quem é a conta').fill('Seu Jorge, 11 98888-0000')
-  await d.getByRole('button', { name: 'Registrar pagamento' }).click()
-  await d.getByText('Pagamento registrado.').waitFor({ timeout: 15000 })
-  ok('o fiado aparece na lista com a observação', (await d.getByText('Seu Jorge, 11 98888-0000').count()) === 1)
+  ok('o dono não vê a opção de fiado, mesmo com fiado gravado de antes', (await d.getByRole('radio', { name: 'Fiado' }).count()) === 0)
+  const antesPag = (await um(`select count(*)::int n from pagamentos_comanda p join comandas c on c.id = p.comanda_id where c.mesa_id = $1`, [mesa02.id])).n
+  const post = await d.evaluate(async ({ mesaId }) => {
+    const r = await fetch(`/api/admin/mesas/${mesaId}/conta`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'pagamento', forma: 'fiado', valor: 10, chave: crypto.randomUUID(), observacao: 'Seu Jorge, 11 98888-0000' }),
+    })
+    return r.status
+  }, { mesaId: mesa02.id })
+  ok('a rota recusa pagamento em fiado', post === 400, `HTTP ${post}`)
+  const depoisPag = (await um(`select count(*)::int n from pagamentos_comanda p join comandas c on c.id = p.comanda_id where c.mesa_id = $1`, [mesa02.id])).n
+  ok('e nenhum pagamento foi criado', depoisPag === antesPag, `${antesPag} → ${depoisPag}`)
+  await q(`update restaurantes set formas_pagamento_mesa = array['dinheiro','pix','credito','debito'] where id = $1`, [loja])
 
   await abrirConta(caixa.page, mesa02.id)
   ok('o caixa não vê a opção de fiado', (await caixa.page.getByRole('radio', { name: 'Fiado' }).count()) === 0)
@@ -218,7 +233,9 @@ secao('6. caixa recebe e fecha pela tela (celular)')
   ok('o caixa não vê o painel de chamados nem "Nova mesa"',
     (await c.getByRole('button', { name: 'Nova mesa' }).count()) === 0)
   await c.screenshot({ path: '.shots/cx-06-caixa-salao.png', fullPage: true })
-  await c.locator('a', { hasText: 'Ver conta' }).first().click()
+  // O cartão inteiro da mesa é o link (aria-label "Mesa 02 — Ocupada"); com conta aberta
+  // ele mostra o total, não mais o texto "Ver conta".
+  await c.locator(`a[aria-label^="${mesa02.nome} —"]`).first().click()
   await c.locator('[data-testid="restante"]').waitFor({ timeout: 20000 })
   ok('o caixa abre a mesa direto na conta', (await c.getByRole('tab', { name: 'Lançar pedido' }).count()) === 0)
   const restante = (await c.locator('[data-testid="restante"]').innerText()).trim()
@@ -245,7 +262,8 @@ secao('7. QR revogado pela tela')
   const d = dono.page
   await d.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
   await dispensarChecklist(d)
-  const cartao = d.locator('div.flex-col.rounded-menuzia', { has: d.locator('span', { hasText: /^Mesa 01$/ }) })
+  // Cartão = bloco da mesa (link com aria-label "Mesa 01 — …") + a fileira de botões da gestão.
+  const cartao = d.locator('div.min-w-0.flex-col.gap-1', { has: d.locator('a[aria-label^="Mesa 01 —"]') })
   await cartao.locator('button[title="Ver QR Code"]').click()
   await d.locator('img[alt="QR Code da Mesa 01"]').waitFor({ timeout: 15000 })
   const link = await d.getByLabel('Link da mesa').inputValue()
@@ -259,7 +277,8 @@ secao('7. QR revogado pela tela')
   ok('o link antigo morre na hora', (r?.status() ?? 0) === 404, `HTTP ${r?.status()}`)
   await d.screenshot({ path: '.shots/cx-08-qr-revogado.png' })
   await d.getByRole('button', { name: 'Fechar' }).first().click()
-  ok('o salão marca a mesa como "QR revogado"', (await cartao.getByText('QR revogado — gere um novo').count()) === 1)
+  // Selo do cartão: "QR revogado" (antes "QR revogado — gere um novo").
+  ok('o salão marca a mesa como "QR revogado"', (await cartao.getByText('QR revogado', { exact: true }).count()) === 1)
   await cartao.locator('button[title="Ver QR Code"]').click()
   await d.getByRole('button', { name: /Gerar novo/ }).click()
   await d.getByRole('button', { name: 'Revogar e gerar novo' }).click()

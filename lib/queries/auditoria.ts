@@ -84,6 +84,8 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'balcao.lancou': 'Lançou pedido no balcão',
   'pedido.transicao': 'Mudou a etapa do pedido na cozinha',
   'pedido.atendido': 'Entregou o pedido ao cliente',
+  // 0098: para onde foi a entrega do balcão quando ficou pronta (dados.caminho).
+  'pedido.entrega_balcao_destino': 'Entrega do balcão pronta: seguiu para a logística ou foi concluída',
   'pedido.resolucao_forcada': 'Resolveu pendência à força',
   'pedido.cancelou': 'Cancelou pedido',
   'comanda.reabriu': 'Reabriu a conta',

@@ -7,6 +7,7 @@ import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/l
 import { normalizarTelefone } from '@/lib/queries/clientes'
 import { itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
+import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 import { resolverPizza, type SaborCatalogo, type TamanhoCatalogo } from './pedidos-pizza'
 import type { RegraPrecoPizza } from '@/lib/pizza-preco'
@@ -1076,7 +1077,8 @@ export async function criarPedido(
     .select(`
       id, nome, preco, promocao_preco, status, tipo_item, dias_disponiveis,
       disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos,
-      item_complementos ( nome, preco ),
+      item_complementos ( nome, preco, pausado, grupo_id ),
+      grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas ),
       tamanhos_item ( nome, preco ),
       pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
     `)
@@ -1172,9 +1174,33 @@ export async function criarPedido(
       tamanhoNome = tamanho.nome
     }
 
+    // Opções conferidas no servidor em TODO canal (antes só o salão e o PDV v2
+    // conferiam): grupo obrigatório respondido, mínimo e máximo, e nada pausado.
+    // Mesma regra da ficha da vitrine e do garçom (lib/opcoes-item).
+    type CompDb = { nome: string; preco: number; pausado: boolean | null; grupo_id: string | null }
+    type GrupoDb = { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number }
+    const compsDb = (item.item_complementos ?? []) as CompDb[]
+    const gruposDb = (item.grupos_item_complementos ?? []) as GrupoDb[]
+    const escolhidos = linha.complementos ?? []
+    // Pausado primeiro: a mensagem aponta a causa ("não está disponível"), não o grupo.
+    const pausado = escolhidos.find((n) => compsDb.some((c) => c.nome === n && c.pausado) && !compsDb.some((c) => c.nome === n && !c.pausado))
+    if (pausado) throw new Error(`${item.nome}: a opção "${pausado}" não está disponível.`)
+    if (gruposDb.length > 0) {
+      const regras: GrupoOpcoesRegra[] = gruposDb.map((g) => ({
+        nome: g.nome,
+        obrigatorio: g.obrigatorio,
+        minEscolhas: g.min_escolhas,
+        maxEscolhas: g.max_escolhas,
+        opcoes: compsDb.filter((c) => c.grupo_id === g.id && !c.pausado).map((c) => c.nome),
+      }))
+      const avulsos = new Set(compsDb.filter((c) => !c.grupo_id && !c.pausado).map((c) => c.nome))
+      const erros = validarOpcoes(regras, escolhidos.filter((n) => !avulsos.has(n)))
+      if (erros.length > 0) throw new Error(`${item.nome}: ${erros[0]}`)
+    }
+
     const complementos: PedidoComplementoSnapshot[] = []
-    for (const nome of linha.complementos) {
-      const comp = (item.item_complementos ?? []).find((c: { nome: string; preco: number }) => c.nome === nome)
+    for (const nome of escolhidos) {
+      const comp = compsDb.find((c) => c.nome === nome && !c.pausado)
       if (comp) complementos.push({ nome: comp.nome, preco: Number(comp.preco) })
     }
     const precoUnitario = base + complementos.reduce((s, c) => s + c.preco, 0)

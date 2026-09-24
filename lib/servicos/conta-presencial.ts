@@ -4,7 +4,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { criarPedido, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
 import { montarHistorico, type EventoHistorico } from '@/lib/queries/conta'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
-import { situacaoFinanceira, type TipoComanda, type EntregaManual, type DecisaoFechamento, type PagamentoFechamento } from '@/lib/pdv-v2'
+import { cidadeComUf, situacaoFinanceira, type TipoComanda, type EntregaManual, type DecisaoFechamento, type PagamentoFechamento } from '@/lib/pdv-v2'
 import { resolverFrete } from '@/lib/frete'
 import { processarFidelidadeComandaFechada } from '@/lib/fidelidade'
 import { validarCupom, type CupomRegra } from '@/lib/fidelidade-regras'
@@ -273,6 +273,8 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
           complemento: (row.entrega_complemento as string | null) ?? '',
           bairro: (row.entrega_bairro as string | null) ?? '',
           cidade: (row.entrega_cidade as string | null) ?? '',
+          // A UF é gravada junto da cidade ("Vitória/ES"); conta antiga não tem.
+          estado: /\/([A-Z]{2})$/.exec(String(row.entrega_cidade ?? ''))?.[1] ?? '',
           referencia: (row.entrega_referencia as string | null) ?? '',
           observacao: (row.entrega_observacao as string | null) ?? '',
           taxa: Number(row.taxa_entrega ?? 0),
@@ -450,7 +452,9 @@ export async function abrirBalcao(
       taxa = frete.taxa
     }
     entrega = {
-      cep: e.cep, rua: e.rua, numero: e.numero, complemento: e.complemento, bairro: e.bairro, cidade: e.cidade,
+      cep: e.cep, rua: e.rua, numero: e.numero, complemento: e.complemento, bairro: e.bairro,
+      // O endereço do delivery não tem estado: a UF vai junto da cidade ("Vitória/ES").
+      cidade: cidadeComUf(e.cidade, e.estado),
       referencia: e.referencia, observacao: e.observacao, taxa, taxa_manual: manual,
     }
   }
@@ -529,7 +533,9 @@ async function conferirOpcoes(admin: SupabaseClient, itens: NovoPedidoItemInput[
     const grupos = porItem.get(linha.itemId)
     if (!grupos || grupos.length === 0) continue
     const erros = validarOpcoes(grupos, linha.complementos ?? [])
-    if (erros.length > 0) return erros[0]
+    // Opção pausada/inexistente primeiro: a mensagem aponta a causa, não o grupo que
+    // ficou sem resposta por causa dela (igual ao criarPedido).
+    if (erros.length > 0) return erros.find((e) => e.endsWith('não está disponível.')) ?? erros[0]
   }
   return null
 }

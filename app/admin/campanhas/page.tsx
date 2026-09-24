@@ -7,10 +7,12 @@ import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTipo, type TipoMensagem } from '@/lib/queries/campanhas'
+import { formatarReal } from '@/lib/moeda'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+// Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
+const brl = formatarReal
 
 function formatarDataHora(iso: string | null) {
   if (!iso) return '—'

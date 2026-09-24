@@ -10,6 +10,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { motivoRejeicaoTexto, nextaEntregaAtiva, nextaEventoTexto, nextaEventoTom } from '@/lib/nexta-eventos'
 import { listarNextaEntregasDetalhadas, type NextaConfigPublica, type NextaEntregaDetalhada } from '@/lib/queries/nexta'
+import { formatarReal } from '@/lib/moeda'
 
 // Mesma string de NEXTA_BASE_URL em lib/nexta.ts (server-only, não importável no client).
 // É fixa para todas as lojas e não editável — mostrada só para conferência.
@@ -92,7 +93,8 @@ function formDaConfig(c: NextaConfigPublica): Form {
   }
 }
 
-const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+// Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
+const brl = formatarReal
 
 type Periodo = 'hoje' | '7d' | '30d'
 

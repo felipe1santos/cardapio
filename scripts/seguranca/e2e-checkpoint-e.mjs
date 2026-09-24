@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
@@ -26,6 +27,7 @@ const { DB_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
 
 // Estado conhecido: cada suíte semeia a própria base (as outras deixam contas abertas).
+exigirLojaIsolada() // a semente apaga os dados da loja semeada
 execFileSync(process.execPath, ['scripts/seguranca/semear-demo-mesas.mjs'], { stdio: 'ignore' })
 
 // Decodificador de QR instalado FORA do projeto (scratchpad), só para esta prova.
@@ -45,7 +47,7 @@ await db.connect()
 const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
 const mesa01 = await um(`select id, token from mesas where restaurante_id=$1 and nome='Mesa 01'`, [loja])
 const item = async (nome) => (await um(`select id from itens_cardapio where restaurante_id=$1 and nome=$2`, [loja, nome])).id
 const contarPedidos = async () => (await um(`select count(*)::int n from pedidos where restaurante_id=$1`, [loja])).n
@@ -100,9 +102,11 @@ const AGUA = await item('Água com Gás')
 // ════════════════════════════════════════════════════════════════════════════
 secao('1. o QR leva mesmo à rota pública')
 {
-  const dono = await logar('dono.local')
+  const dono = await logar(USU.dono)
   await dono.page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
-  const cartao = dono.page.locator('div.flex-col.rounded-menuzia', { has: dono.page.locator('span', { hasText: /^Mesa 01$/ }) })
+  // 7db7be6: o cartão da mesa virou um link com aria-label "Mesa 01 — Estado"; os botões
+  // de gestão (QR, editar…) ficam logo abaixo, no mesmo bloco.
+  const cartao = dono.page.locator('div.min-w-0.flex-col.gap-1', { has: dono.page.locator('a[aria-label^="Mesa 01 —"]') })
   await cartao.locator('button[title="Ver QR Code"]').click()
   const img = dono.page.locator('img[alt="QR Code da Mesa 01"]')
   await img.waitFor({ timeout: 15000 })
@@ -117,7 +121,7 @@ secao('1. o QR leva mesmo à rota pública')
     const url = lido?.data ?? ''
     ok('a imagem do QR decodifica', !!lido, url)
     ok('o QR aponta para /mesa/<token da Mesa 01>', url.endsWith(`/mesa/${mesa01.token}`), url)
-    ok('o QR não carrega slug da loja nem id da mesa', !url.includes('cantina-demo') && !url.includes(mesa01.id))
+    ok('o QR não carrega slug da loja nem id da mesa', !url.includes(E2E_LOJA) && !url.includes(mesa01.id))
 
     // Abre o destino DECODIFICADO, num navegador sem login.
     const anon = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR' })
@@ -144,7 +148,7 @@ const abaA = await cliente.newPage()
 
   // Burger: obrigatórios + adicional + quantidade + observação.
   await abaA.locator('.mesa-categoria', { hasText: 'Burgers' }).click()
-  await abaA.locator('text=Selecionar item').first().click()
+  await abaA.locator('.mesa-card').first().click() // 648e0ed: o cartão inteiro abre o item
   const avancar = abaA.locator('.mesa-avancar')
   ok('configurador abre na etapa obrigatória com AVANÇAR travado', (await avancar.getAttribute('class')).includes('ativo') === false)
   await abaA.screenshot({ path: '.shots/checkpoint-03-cliente-configurador.png' })
@@ -163,7 +167,7 @@ const abaA = await cliente.newPage()
 
   // Segundo produto.
   await abaA.locator('.mesa-categoria', { hasText: 'Bebidas' }).click()
-  await abaA.locator('.mesa-card', { hasText: 'Água com Gás' }).locator('text=Selecionar item').click()
+  await abaA.locator('.mesa-card', { hasText: 'Água com Gás' }).first().click() // 648e0ed: o cartão inteiro abre o item
   await abaA.locator('.mesa-avancar', { hasText: 'Adicionar à seleção' }).click()
   await esperar(1200)
 
@@ -200,7 +204,7 @@ const abaB = await cliente.newPage()
 
   // Mexe na aba A; a aba B converge sozinha.
   await abaA.locator('.mesa-categoria', { hasText: 'Pratos' }).click()
-  await abaA.locator('.mesa-card', { hasText: 'Risoto de Funghi' }).locator('text=Selecionar item').click()
+  await abaA.locator('.mesa-card', { hasText: 'Risoto de Funghi' }).first().click() // 648e0ed: o cartão inteiro abre o item
   await abaA.locator('.mesa-avancar', { hasText: 'Adicionar à seleção' }).click()
   let sincronizou = false
   for (let i = 0; i < 16 && !sincronizou; i++) {
@@ -213,12 +217,14 @@ const abaB = await cliente.newPage()
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('3. garçom: referência, lançamento manual, fim do ciclo')
-const garcom = await logar('garcom.local')
+const garcom = await logar(USU.garcom)
 let pedidoCiclo
 {
   await garcom.page.goto(`${BASE}/admin/mesas/${mesa01.id}`, { waitUntil: 'networkidle' })
   await garcom.page.waitForSelector('text=Lançamento', { timeout: 20000 })
-  const bloco = await garcom.page.locator('div.border-warn').innerText()
+  // 7db7be6: vazio, o bloco "Não lançado" vira uma linha fina (borda warn/60); o seletor
+  // procura o bloco pelo fundo amarelo + rótulo, cheio ou vazio.
+  const bloco = await garcom.page.locator('div.bg-warn-bg', { hasText: 'Não lançado' }).first().innerText()
   ok('seleção aparece no bloco amarelo "Não lançado"', bloco.includes('NÃO LANÇADO') || bloco.includes('Não lançado'))
   ok('bloco mostra o que o cliente marcou', bloco.includes('Burger da Casa') && bloco.includes('Água com Gás') && bloco.includes('Risoto de Funghi'))
   await garcom.page.screenshot({ path: '.shots/checkpoint-06-garcom-selecao-referencia.png' })
@@ -247,9 +253,10 @@ let pedidoCiclo
   ok('a seleção antiga foi ENCERRADA (não apagada)', encerradas.length === abertasAntes.length && encerradas.every((s) => s.encerrada_em), `${encerradas.length} encerrada(s)`)
   ok('encerrar não apagou o pedido oficial', !!(await um(`select id from pedidos where id=$1`, [pedidoCiclo.id])))
 
-  await garcom.page.locator('button', { hasText: 'Fechar' }).click()
+  // 7db7be6: o botão do modal de sucesso "Fechar" virou "Continuar nesta mesa".
+  await garcom.page.locator('button', { hasText: 'Continuar nesta mesa' }).click()
   await esperar(800)
-  const blocoDepois = await garcom.page.locator('div.border-warn').innerText()
+  const blocoDepois = await garcom.page.locator('div.bg-warn-bg', { hasText: 'Não lançado' }).first().innerText()
   ok('no painel do garçom a seleção antiga sumiu', blocoDepois.includes('ainda não marcou'), blocoDepois.split('\n').slice(0, 2).join(' / '))
 
   // No celular do cliente: aviso + lista vazia, pela releitura periódica.
@@ -267,7 +274,7 @@ let pedidoCiclo
 
   // Novo ciclo: o cliente marca de novo e nasce um rascunho NOVO.
   await abaA.locator('.mesa-categoria', { hasText: 'Pratos' }).click()
-  await abaA.locator('.mesa-card', { hasText: 'Filé à Parmegiana' }).locator('text=Selecionar item').click()
+  await abaA.locator('.mesa-card', { hasText: 'Filé à Parmegiana' }).first().click() // 648e0ed: o cartão inteiro abre o item
   await abaA.locator('.mesa-avancar', { hasText: 'Adicionar à seleção' }).click()
   await esperar(1200)
   const novas = await selecoesAbertas()
@@ -297,7 +304,7 @@ secao('4. idempotência e concorrência')
 }
 {
   // 4c. dois garçons, MESMA chave (o mesmo lançamento chegou por dois caminhos).
-  const dono = await logar('dono.local')
+  const dono = await logar(USU.dono)
   const chave = crypto.randomUUID()
   const antes = await contarPedidos()
   const [a, b] = await Promise.all([
@@ -319,12 +326,12 @@ secao('4. idempotência e concorrência')
 
   // 4e. o cliente mexe na lista DEPOIS que o garçom abriu a tela.
   await abaA.locator('.mesa-categoria', { hasText: 'Bebidas' }).click()
-  await abaA.locator('.mesa-card', { hasText: 'Suco de Laranja' }).locator('text=Selecionar item').click()
+  await abaA.locator('.mesa-card', { hasText: 'Suco de Laranja' }).first().click() // 648e0ed: o cartão inteiro abre o item
   await abaA.locator('.mesa-avancar', { hasText: 'Adicionar à seleção' }).click()
   await esperar(1200)
   const vistaAntiga = (await selecoesAbertas()).map((s) => ({ id: s.id, versao: s.versao }))
   // cliente adiciona mais um: a versão sobe
-  await abaA.locator('.mesa-card', { hasText: 'Água com Gás' }).locator('text=Selecionar item').click()
+  await abaA.locator('.mesa-card', { hasText: 'Água com Gás' }).first().click() // 648e0ed: o cartão inteiro abre o item
   await abaA.locator('.mesa-avancar', { hasText: 'Adicionar à seleção' }).click()
   await esperar(1200)
   const atual = await selecoesAbertas()
@@ -387,13 +394,13 @@ secao('5. garçom digitando URL proibida')
 secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
 {
   // Reexecução: o funcionário da execução anterior ocupa o login. Banco LOCAL descartável.
-  const anterior = await um(`select id from usuarios where usuario='maria.garcom'`)
+  const anterior = await um(`select id from usuarios where usuario=$1 and restaurante_id=$2`, [USU.funcionarioNovo, loja])
   if (anterior) {
     await q(`delete from usuarios where id=$1`, [anterior.id])
     await q(`delete from auth.users where id=$1`, [anterior.id])
   }
 
-  const dono = await logar('dono.local')
+  const dono = await logar(USU.dono)
   await dono.page.goto(`${BASE}/admin/equipe`, { waitUntil: 'networkidle' })
   await dono.page.waitForSelector('text=Novo funcionário', { timeout: 15000 })
   // O dono vê o aviso de pendências de configuração em tela de gestão — comportamento
@@ -405,7 +412,7 @@ secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
   // Cadastro pela TELA.
   await dono.page.locator('button', { hasText: 'Novo funcionário' }).click()
   await dono.page.fill('input[placeholder="Ex.: João Silva"]', 'Maria Garçonete')
-  await dono.page.fill('input[placeholder="joao.silva"]', 'maria.garcom')
+  await dono.page.fill('input[placeholder="joao.silva"]', USU.funcionarioNovo)
   await dono.page.selectOption('select', 'garcom')
   await dono.page.fill('input[type="password"]', 'senha-inicial-1')
   await dono.page.screenshot({ path: '.shots/checkpoint-10-equipe-cadastro.png' })
@@ -413,18 +420,18 @@ secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
   await dono.page.waitForSelector('text=foi cadastrado', { timeout: 20000 })
   await dono.page.screenshot({ path: '.shots/checkpoint-11-equipe-lista.png' })
 
-  const maria = await um(`select id, papel, restaurante_id, desativado_em from usuarios where usuario='maria.garcom'`)
+  const maria = await um(`select id, papel, restaurante_id, desativado_em from usuarios where usuario=$1`, [USU.funcionarioNovo])
   ok('funcionário criado pela tela, na loja do dono, papel garçom', maria?.papel === 'garcom' && maria.restaurante_id === loja)
 
   const ofertas = await api(dono.page, '/api/admin/equipe')
   ok('dono vê as opções gerente/garçom/atendente e nunca dono', JSON.stringify([...ofertas.json.papeisOferecidos].sort()) === JSON.stringify(['atendente', 'garcom', 'gerente']))
 
   // Login repetido é impossível.
-  const dup = await api(dono.page, '/api/admin/equipe', 'POST', { nome: 'Outra', usuario: 'maria.garcom', papel: 'garcom', senha: 'qualquer123' })
+  const dup = await api(dono.page, '/api/admin/equipe', 'POST', { nome: 'Outra', usuario: USU.funcionarioNovo, papel: 'garcom', senha: 'qualquer123' })
   ok('login duplicado é recusado', dup.status === 409, dup.json?.error)
 
   // Maria entra e cai em Mesas.
-  const m = await logar('maria.garcom', 'senha-inicial-1')
+  const m = await logar(USU.funcionarioNovo, 'senha-inicial-1')
   ok('funcionária nova entra com login e senha', new URL(m.page.url()).pathname === '/admin/mesas', m.page.url())
 
   // Dono DESATIVA com a sessão dela aberta.
@@ -436,12 +443,12 @@ secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
   ok('e não consegue mais lançar pela API', apiDesativada.status === 401, `HTTP ${apiDesativada.status}`)
   await m.ctx.close()
 
-  const tentativa = await logar('maria.garcom', 'senha-inicial-1')
+  const tentativa = await logar(USU.funcionarioNovo, 'senha-inicial-1')
   ok('desativada não consegue logar de novo', new URL(tentativa.page.url()).pathname === '/login')
   await tentativa.ctx.close()
 
   // Travas: dono não se desativa; ninguém mexe em quem está acima.
-  const donoId = (await um(`select id from usuarios where usuario='dono.local'`)).id
+  const donoId = (await um(`select id from usuarios where usuario=$1`, [USU.dono])).id
   const auto = await api(dono.page, `/api/admin/equipe/${donoId}`, 'PATCH', { ativo: false })
   ok('dono não consegue desativar a própria conta', auto.status === 403, auto.json?.error)
   const garcomSession = await api(garcom.page, `/api/admin/equipe/${maria.id}`, 'PATCH', { ativo: true })
@@ -453,10 +460,10 @@ secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
   const rea = await api(dono.page, `/api/admin/equipe/${maria.id}`, 'PATCH', { ativo: true })
   ok('dono reativa', rea.status === 200)
 
-  const velha = await logar('maria.garcom', 'senha-inicial-1')
+  const velha = await logar(USU.funcionarioNovo, 'senha-inicial-1')
   ok('senha antiga não entra mais', new URL(velha.page.url()).pathname === '/login')
   await velha.ctx.close()
-  const nova = await logar('maria.garcom', 'senha-nova-2')
+  const nova = await logar(USU.funcionarioNovo, 'senha-nova-2')
   ok('senha nova entra', new URL(nova.page.url()).pathname === '/admin/mesas')
   await nova.ctx.close()
 

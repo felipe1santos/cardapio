@@ -18,6 +18,7 @@ import pg from 'pg'
 import { chromium } from 'playwright'
 import { createClient } from '@supabase/supabase-js'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, E2E_LOJA_NOME, E2E_VIZINHA, USU } from './e2e-ambiente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
@@ -40,8 +41,8 @@ const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 const admin = createClient(API_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
-const vizinha = (await um(`select id from restaurantes where slug='vizinha-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
+const vizinha = (await um(`select id from restaurantes where slug='${E2E_VIZINHA}'`)).id
 const itemPor = (nome, r = loja) => um(`select id, nome, preco from itens_cardapio where restaurante_id=$1 and nome=$2`, [r, nome])
 
 const browser = await chromium.launch()
@@ -80,15 +81,15 @@ const api = (page, url, metodo = 'GET', corpo) =>
     { url: url.startsWith('http') ? url : `${BASE}${url}`, metodo, corpo },
   )
 
-const dono = await logar('dono.local')
-const garcom = await logar('garcom.local')
-const atendente = await logar('atendente.local')
+const dono = await logar(USU.dono)
+const garcom = await logar(USU.garcom)
+const atendente = await logar(USU.atendente)
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Delivery: vitrine e checkout intactos')
 {
   const pagina = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR' })).newPage()
-  const resp = await pagina.goto(`${BASE}/loja/cantina-demo`, { waitUntil: 'networkidle' })
+  const resp = await pagina.goto(`${BASE}/loja/${E2E_LOJA}`, { waitUntil: 'networkidle' })
   ok('a vitrine carrega', resp?.status() === 200, `HTTP ${resp?.status()}`)
   await pagina.waitForTimeout(1800)
   const texto = await pagina.locator('body').innerText()
@@ -99,7 +100,7 @@ secao('Delivery: vitrine e checkout intactos')
 
   const AGUA = await itemPor('Água com Gás')
   const antes = await um(`select count(*)::int as n from pedidos where restaurante_id=$1 and canal='delivery'`, [loja])
-  const r = await fetch(`${BASE}/api/loja/cantina-demo/pedido`, {
+  const r = await fetch(`${BASE}/api/loja/${E2E_LOJA}/pedido`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -187,10 +188,10 @@ secao('Modo gaveta e banner da vitrine')
   for (const layout of ['categoria', 'gaveta']) {
     await q(`update restaurantes set layout_cardapio = $2 where id = $1`, [loja, layout])
     const pagina = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage()
-    const resp = await pagina.goto(`${BASE}/loja/cantina-demo`, { waitUntil: 'networkidle' })
+    const resp = await pagina.goto(`${BASE}/loja/${E2E_LOJA}`, { waitUntil: 'networkidle' })
     await pagina.waitForTimeout(1800)
     const texto = await pagina.locator('body').innerText()
-    ok(`layout "${layout}" carrega a vitrine`, resp?.status() === 200 && texto.includes('Cantina Demo'), `HTTP ${resp?.status()}`)
+    ok(`layout "${layout}" carrega a vitrine`, resp?.status() === 200 && texto.includes(E2E_LOJA_NOME), `HTTP ${resp?.status()}`)
     // No modo gaveta as categorias começam fechadas: o que tem de aparecer é a lista de
     // categorias, não os itens. Abrir uma gaveta é a prova de que o conteúdo está lá.
     if (layout === 'gaveta') {
@@ -237,7 +238,7 @@ secao('Pizza do Rosa: pizza com sabores e meio a meio')
   }
   await q(`update restaurantes set pizza_calculo_preco = 'maior' where id=$1`, [loja])
 
-  const r = await fetch(`${BASE}/api/loja/cantina-demo/pedido`, {
+  const r = await fetch(`${BASE}/api/loja/${E2E_LOJA}/pedido`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -325,7 +326,13 @@ secao('Kanban e cozinha: salão e balcão distinguíveis, delivery intocado')
   await dono.page.waitForTimeout(2500)
   const texto = await dono.page.locator('body').innerText()
   ok('o Kanban carrega com pedidos dos três canais', /#\d+/.test(texto))
-  ok('pedido de salão aparece como Salão', /Salão/.test(texto), texto.match(/Sal[ãa]o[^\n]{0,30}/)?.[0])
+  // O card não repete mais "Salão · Mesa …" no corpo (a5d517b): o salão é a etiqueta da
+  // primeira linha, em caixa alta por CSS. Confere a etiqueta no card do pedido de salão.
+  const pSalao = await um(`select numero from pedidos where restaurante_id=$1 and canal='mesa' and coalesce(lancado_via,'salao')='salao'
+    and status in ('recebido','preparando','pronto') order by criado_em desc limit 1`, [loja])
+  const etiquetaSalao = pSalao ? await dono.page.getByTestId(`pedido-${pSalao.numero}`)
+    .evaluate((c) => [...c.querySelectorAll('span')].some((s) => s.textContent.trim() === 'Salão')).catch(() => false) : false
+  ok('pedido de salão aparece como Salão', etiquetaSalao, `#${pSalao?.numero}`)
   ok('pedido de balcão continua aparecendo como PDV', /PDV/.test(texto))
   await dono.page.screenshot({ path: '.shots/rc-08-kanban-canais.png' })
 
