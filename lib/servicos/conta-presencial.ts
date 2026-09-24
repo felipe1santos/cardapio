@@ -533,7 +533,9 @@ async function conferirOpcoes(admin: SupabaseClient, itens: NovoPedidoItemInput[
     const grupos = porItem.get(linha.itemId)
     if (!grupos || grupos.length === 0) continue
     const erros = validarOpcoes(grupos, linha.complementos ?? [])
-    if (erros.length > 0) return erros[0]
+    // Opção pausada/inexistente primeiro: a mensagem aponta a causa, não o grupo que
+    // ficou sem resposta por causa dela (igual ao criarPedido).
+    if (erros.length > 0) return erros.find((e) => e.endsWith('não está disponível.')) ?? erros[0]
   }
   return null
 }
