@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 import type { RegraPrecoPizza } from '@/lib/pizza-preco'
 import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
+import { ERRO_MASSA_IGUAL_AO_PADRAO, massaIgualAoPadrao } from '@/lib/massa-padrao'
 
 export interface TamanhoPadraoPizza {
   id: string
@@ -68,6 +69,10 @@ async function prepararNome(
     if (chaveNomeCatalogo(data.nome) === chaveNomeCatalogo(nome)) return nome
     restauranteId = data.restaurante_id
   }
+  // Massa nova (ou renomeada) com o nome da opção padrão viraria uma segunda
+  // "Tradicional" na tela de pedido. Massa antiga com esse nome continua editável:
+  // a edição que não muda o nome sai pelo retorno acima.
+  if (tabela === 'massas_pizza' && massaIgualAoPadrao(nome)) throw new ErroCadastroCardapio(ERRO_MASSA_IGUAL_AO_PADRAO)
   const { data: existentes, error } = await supabase.from(tabela).select('id, nome').eq('restaurante_id', restauranteId)
   if (error) throw error
   if (nomeRepetidoNoCatalogo(existentes ?? [], nome, 'id' in alvo ? alvo.id : undefined)) {

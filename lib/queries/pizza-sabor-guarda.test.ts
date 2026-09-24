@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { atualizarSabor, criarSabor, criarTamanho } from './cardapio'
-import { atualizarTamanhoPadraoPizza, criarTamanhoPadraoMarmita, criarTamanhoPadraoPizza, removerBordaPizza } from './pizza'
+import { atualizarMassaPizza, atualizarTamanhoPadraoPizza, criarMassaPizza, criarTamanhoPadraoMarmita, criarTamanhoPadraoPizza, removerBordaPizza } from './pizza'
 
 /**
  * Supabase falso encadeável. `linha` responde a single/maybeSingle de leitura (o
@@ -135,6 +135,25 @@ describe('catálogos da loja', () => {
   it('exclusão barrada pelo RLS vira erro visível', async () => {
     const { client } = supabaseFake({ linhasAfetadas: 0 })
     await expect(removerBordaPizza(client, 'b')).rejects.toThrow(/sem permissão/)
+  })
+
+  it('massa nova com o nome da opção padrão é recusada (evita "Tradicional" duas vezes)', async () => {
+    const { client, insert } = supabaseFake()
+    await expect(criarMassaPizza(client, 'r', 'Tradicional', 0, 0)).rejects.toThrow(/já tem a opção de massa tradicional/)
+    await expect(criarMassaPizza(client, 'r', 'padrão', 5, 0)).rejects.toThrow(/já tem a opção de massa tradicional/)
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('massa antiga chamada "Tradicional" continua editável (preço) sem trocar o nome', async () => {
+    const { client, update } = supabaseFake({ linha: { nome: 'Tradicional', restaurante_id: 'r' } })
+    await atualizarMassaPizza(client, 'm1', 'Tradicional', 1)
+    expect(update).toHaveBeenCalledWith({ nome: 'Tradicional', preco: 1 })
+  })
+
+  it('renomear outra massa para "Tradicional" é recusado', async () => {
+    const { client, update } = supabaseFake({ linha: { nome: 'Fina', restaurante_id: 'r' } })
+    await expect(atualizarMassaPizza(client, 'm2', 'Tradicional', 0)).rejects.toThrow(/massa tradicional/)
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('tamanho do item (marmita/açaí) repetido é recusado', async () => {

@@ -5,6 +5,7 @@ import { Check, CircleDot, Layers2, Pencil, Pizza, Plus, Ruler, Scale, Trash2, X
 import type { TomPainel } from '@/components/admin/cartao-numero'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { mensagemErroCardapio, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
+import { massaIgualAoPadrao } from '@/lib/massa-padrao'
 import type { ItemCardapio } from '@/lib/queries/cardapio'
 import {
   atualizarBordaPizza,
@@ -471,7 +472,13 @@ export function TamanhosLoja({
                 exemploNome="Integral"
                 campos={[{ rotulo: 'Valor extra', placeholder: '0,00', tipo: 'preco', largura: 'w-28' }]}
                 exibir={([p]) => <Pilula preco>{(lerPreco(p) ?? 0) > 0 ? `+ ${brl(lerPreco(p) ?? 0)}` : 'Grátis'}</Pilula>}
-                linhas={massas.map((m) => ({ id: m.id, nome: m.nome, valores: [precoParaCampo(m.preco)] }))}
+                linhas={massas.map((m) => ({
+                  id: m.id,
+                  nome: m.nome,
+                  valores: [precoParaCampo(m.preco)],
+                  // Cadastro antigo com o nome da opção padrão: não é apagado, só não se repete no pedido.
+                  uso: massaIgualAoPadrao(m.nome) && !(m.preco > 0) ? 'igual à opção padrão · não se repete no pedido' : undefined,
+                }))}
                 onCriar={async (nome, [p]) => {
                   const novo = await criarMassaPizza(supabase, restauranteId, nome, lerPreco(p ?? '') ?? 0, massas.length)
                   setMassas((prev) => [...prev, novo])

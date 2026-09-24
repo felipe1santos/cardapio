@@ -13,6 +13,7 @@ import { buscarComandaAberta, listarPedidosDaComanda, calcularTotalComanda } fro
 import type { Pedido } from '@/lib/queries/pedidos'
 import { listarSelecoesAbertas, type SelecaoVista } from '@/lib/queries/mesa-sessao'
 import { buscarRegraPrecoPizza, listarBordasPizza, listarMassasPizza, listarTamanhosPadraoPizza } from '@/lib/queries/pizza'
+import { massasParaEscolha } from '@/lib/massa-padrao'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import {
   TEXTO_MOTIVO,
@@ -197,7 +198,8 @@ export default function MesaDetalhePage() {
         listarMassasPizza(supabase, restauranteId).catch(() => []),
         buscarRegraPrecoPizza(supabase, restauranteId).catch(() => 'media' as const),
       ])
-      setPizza({ tamanhos, bordas, massas, regra })
+      // Sem repetir a opção "Tradicional" do lançamento (lib/massa-padrao).
+      setPizza({ tamanhos, bordas, massas: massasParaEscolha(massas), regra })
     })()
   }, [supabase, restauranteId])
 

@@ -27,6 +27,7 @@ import {
 import { type NovoPedidoItemInput, type Pedido } from '@/lib/queries/pedidos'
 import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
+import { massasParaEscolha } from '@/lib/massa-padrao'
 import { Button } from '@/components/ui/button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -846,7 +847,8 @@ export default function PdvPage() {
         setGrupos(gruposData)
         setTamanhosPizza(tamanhosData)
         setBordasPizza(bordasData)
-        setMassasPizza(massasData)
+        // Sem repetir a opção "Padrão" (lib/massa-padrao).
+        setMassasPizza(massasParaEscolha(massasData))
         setRegraPizza(regraPizzaData)
         setRestauranteId(rid)
         await recarregarMesas()
