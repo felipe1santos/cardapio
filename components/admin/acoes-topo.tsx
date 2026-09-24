@@ -23,7 +23,7 @@ export function AcoesTopo() {
   const router = useRouter()
   const [impressora, setImpressora] = useState<EstadoImpressora>('sem-agente')
   const [email, setEmail] = useState<string | null>(null)
-  // Quem pede ajuda: loja, nome exibido e perfil, lidos quando o modal abre.
+  // Quem pede ajuda (modal de suporte): loja, nome exibido e perfil.
   const [suporteAberto, setSuporteAberto] = useState(false)
   const [quem, setQuem] = useState<{ loja: string | null; usuario: string | null; papel: string | null }>({ loja: null, usuario: null, papel: null })
   const [menuAberto, setMenuAberto] = useState(false)
@@ -35,8 +35,20 @@ export function AcoesTopo() {
       try {
         const { data } = await supabase.auth.getUser()
         if (ativo) setEmail(data.user?.email ?? null)
+        // Quem pede ajuda (modal de suporte): carregado já na montagem, para a mensagem
+        // não sair com "—" se a pessoa abrir e enviar antes da consulta voltar.
+        // Só colunas liberadas por grant (0062). Falhou: a mensagem vai com "—".
+        if (data.user) {
+          const { data: u } = await supabase.from('usuarios').select('nome, papel, restaurante_id').eq('id', data.user.id).maybeSingle()
+          let loja: string | null = null
+          if (u?.restaurante_id) {
+            const { data: r } = await supabase.from('restaurantes').select('nome').eq('id', u.restaurante_id).maybeSingle()
+            loja = (r?.nome as string | undefined) ?? null
+          }
+          if (ativo) setQuem({ loja, usuario: (u?.nome as string | undefined) ?? null, papel: (u?.papel as string | undefined) ?? null })
+        }
       } catch {
-        /* sessão indisponível: o menu de conta mostra só o Sair */
+        /* sessão indisponível: o menu de conta mostra só o Sair; o suporte vai com "—" */
       }
       try {
         const id = await buscarRestauranteIdDoUsuario(supabase)
@@ -52,23 +64,6 @@ export function AcoesTopo() {
     }
   }, [supabase])
 
-  async function abrirSuporte() {
-    setSuporteAberto(true)
-    // Só colunas liberadas por grant (0062). Se falhar, a mensagem vai com "—".
-    try {
-      const { data } = await supabase.auth.getUser()
-      if (!data.user) return
-      const { data: u } = await supabase.from('usuarios').select('nome, papel, restaurante_id').eq('id', data.user.id).maybeSingle()
-      let loja: string | null = null
-      if (u?.restaurante_id) {
-        const { data: r } = await supabase.from('restaurantes').select('nome').eq('id', u.restaurante_id).maybeSingle()
-        loja = (r?.nome as string | undefined) ?? null
-      }
-      setQuem({ loja, usuario: (u?.nome as string | undefined) ?? null, papel: (u?.papel as string | undefined) ?? null })
-    } catch {
-      /* sem rede ou sem sessão: segue com o que tiver */
-    }
-  }
 
   useEffect(() => {
     if (!menuAberto) return
@@ -109,7 +104,7 @@ export function AcoesTopo() {
       {/* Suporte: laranja, o mesmo destaque que a referência dá ao "Dúvidas?". */}
       <button
         type="button"
-        onClick={() => void abrirSuporte()}
+        onClick={() => setSuporteAberto(true)}
         aria-haspopup="dialog"
         aria-label="Dúvidas? Falar com o suporte"
         title="Dúvidas? Falar com o suporte"
