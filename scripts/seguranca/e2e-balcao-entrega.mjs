@@ -1,7 +1,7 @@
 // E2E local: card preto com Retirada/Entrega, destino da entrega pronta (Logística
 // ligada/desligada), Detalhes com etiquetas e card do Kanban. Só banco LOCAL e só
 // dados de teste (clientes "E2E Balcão …"); nada é apagado. As flags de logística da
-// loja voltam ao valor original no fim.
+// loja e a tabela de frete voltam ao valor original no fim.
 //   node scripts/seguranca/e2e-balcao-entrega.mjs [pasta-de-screenshots]
 import { chromium } from 'playwright'
 import pg from 'pg'
@@ -48,6 +48,7 @@ const api = (p, url, metodo = 'GET', corpo) => p.evaluate(async ({ url, metodo, 
   return { s: r.status, j }
 }, { url, metodo, corpo })
 const foto = async (p, nome) => { if (SHOTS) await p.screenshot({ path: join(SHOTS, `${nome}.png`) }) }
+let bairroCriado = null
 const ENDERECO = { cep: '29050-100', rua: 'Rua E2E', numero: '10', bairro: 'Centro', cidade: 'Vitória', estado: 'ES', complemento: '', referencia: 'Perto da praça' }
 
 try {
@@ -172,7 +173,9 @@ try {
   } else ok('preço adulterado no delivery: recusado', adult.s >= 400 && adult.s < 500, `${adult.s} ${adult.j?.error ?? ''}`)
 
   secao('Taxa automática (tabela de frete) x manual')
-  await q(`insert into taxas_entrega_bairro (restaurante_id, bairro, taxa) select $1, 'E2E Bairro Auto', 4.25 where not exists (select 1 from taxas_entrega_bairro where restaurante_id = $1 and bairro = 'E2E Bairro Auto')`, [loja.id])
+  // Linha temporária na tabela de frete: com a tabela de bairros não vazia e "fora da lista =
+  // bloquear", o delivery de outros bairros passaria a ser recusado. Removida no finally.
+  bairroCriado = (await q(`insert into taxas_entrega_bairro (restaurante_id, bairro, taxa) select $1, 'E2E Bairro Auto', 4.25 where not exists (select 1 from taxas_entrega_bairro where restaurante_id = $1 and bairro = 'E2E Bairro Auto') returning id`, [loja.id]))[0]?.id ?? null
   const auto = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: `E2E Balcão Auto ${SUF}`, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, bairro: 'E2E Bairro Auto' } })
   const ca = await um(`select taxa_entrega, taxa_entrega_manual from comandas where id = $1`, [auto.j?.id])
   ok('sem taxa digitada: taxa do bairro, marcada como automática', auto.s === 201 && Number(ca?.taxa_entrega) === 4.25 && ca?.taxa_entrega_manual === false, `${auto.s} ${JSON.stringify(ca)} ${auto.j?.error ?? ''}`)
@@ -306,6 +309,7 @@ try {
 } catch (e) {
   ok('execução', false, e.message.split('\n')[0])
 } finally {
+  if (bairroCriado) await q(`delete from taxas_entrega_bairro where id = $1`, [bairroCriado])
   await q(`update restaurantes set usa_logistica = $2, entrega_sem_entregador = $3 where id = $1`, [loja.id, flagsOriginais.usa, flagsOriginais.sem])
   await browser.close(); await db.end()
 }

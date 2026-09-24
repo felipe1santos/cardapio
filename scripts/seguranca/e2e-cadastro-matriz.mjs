@@ -139,7 +139,7 @@ try {
   // Exclusão (item criado só para isto)
   const EXC = `${P} Excluir`
   const exc = await um(`insert into itens_cardapio (restaurante_id, grupo_id, nome, descricao, preco, status, tipo_item) values ($1,$2,$3,'',5,'disponivel','simples') returning id`, [loja.id, cat.id, EXC])
-  await g.goto(`${BASE}/admin/cardapio`, { waitUntil: 'networkidle' })
+  await g.goto(`${BASE}/admin/cardapio`, { waitUntil: 'networkidle' }); await dispensar(g)
   await g.getByRole('button', { name: new RegExp(CATN) }).locator('visible=true').first().click(); await g.waitForTimeout(600)
   await g.getByLabel(`Selecionar ${EXC}`).locator('visible=true').first().check()
   await g.getByRole('button', { name: /^Ação/ }).locator('visible=true').first().click()
@@ -148,7 +148,7 @@ try {
 
   // ══════════════════════════════════════════════════════════════════════════
   secao('Complementos (grupo reutilizável)')
-  await g.goto(`${BASE}/admin/cardapio?tab=complementos`, { waitUntil: 'networkidle' })
+  await g.goto(`${BASE}/admin/cardapio?tab=complementos`, { waitUntil: 'networkidle' }); await dispensar(g)
   const GRUPO = `${P} Adicionais`
   await g.getByLabel('Nome do novo grupo').fill(GRUPO)
   await g.getByRole('button', { name: /Criar grupo/ }).click(); await g.waitForTimeout(1200)
@@ -173,7 +173,7 @@ try {
 
   // ══════════════════════════════════════════════════════════════════════════
   secao('Açaí / volumes com grupo obrigatório importado')
-  await g.goto(`${BASE}/admin/cardapio`, { waitUntil: 'networkidle' })
+  await g.goto(`${BASE}/admin/cardapio`, { waitUntil: 'networkidle' }); await dispensar(g)
   await g.getByRole('button', { name: new RegExp(CATN) }).locator('visible=true').first().click(); await g.waitForTimeout(500)
   await g.getByTestId('novo-item').click()
   await g.getByRole('button', { name: /Açaí \/ Volumes/ }).click()
@@ -220,7 +220,7 @@ try {
 
   // ══════════════════════════════════════════════════════════════════════════
   secao('Peça também')
-  await g.goto(`${BASE}/admin/cardapio?tab=orderbump`, { waitUntil: 'networkidle' })
+  await g.goto(`${BASE}/admin/cardapio?tab=orderbump`, { waitUntil: 'networkidle' }); await dispensar(g)
   ok('link antigo abre "Peça também"', (await g.getByTestId('aba-peca-tambem').getAttribute('aria-selected')) === 'true')
   for (const nome of [SIMPLES, ACAI]) {
     await g.getByLabel('Buscar produto').fill(nome)

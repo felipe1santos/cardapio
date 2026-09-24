@@ -513,7 +513,7 @@ passo(21, 'um item é transferido e outro é cancelado, com motivo')
   ok('a linha de origem cai de 3 para 2', naOrigem.quantidade === 2, naOrigem.quantidade)
   const noDestino = await q(
     `select pi.quantidade, pi.preco_unitario, p.impresso from pedido_itens pi
-       join pedidos p on p.id = pi.pedido_id where p.mesa='Mesa 03' and pi.nome='Água com Gás'`)
+       join pedidos p on p.id = pi.pedido_id where p.restaurante_id=$1 and p.mesa='Mesa 03' and pi.nome='Água com Gás'`, [loja])
   ok('nasce 1 água na Mesa 03 com o mesmo preço', noDestino.length === 1 && noDestino[0].quantidade === 1 && Number(noDestino[0].preco_unitario) === 7)
   ok('o item transferido NÃO vai para a fila de impressão (já foi produzido)', noDestino[0].impresso === true)
 
