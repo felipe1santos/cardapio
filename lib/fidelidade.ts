@@ -69,61 +69,92 @@ export async function processarFidelidadePedidoEntregue(admin: SupabaseClient, r
   try {
     const pedido = await marcarPedidoFidelidadeProcessado(admin, restauranteId, pedidoId)
     if (!pedido) return // já processado ou pedido não está `entregue` — idempotência.
+    // Pedido de conta presencial (PDV/salão) não conta sozinho: a conta inteira conta uma
+    // vez, quando é FECHADA (processarFidelidadeComandaFechada).
     if (!pedido.clienteTelefone || pedido.origem === 'pdv') return
-
-    const campanhas = await listarCampanhasFidelidadeAtivas(admin, restauranteId)
-    if (campanhas.length === 0) return
-
-    const diaSemanaPedido = diaSemanaSaoPaulo(pedido.criadoEm)
-    const telefone = pedido.clienteTelefone
-
-    const resultados: ResultadoCampanha[] = []
-    for (const campanha of campanhas) {
-      const progressoAtual = await buscarProgressoCliente(admin, restauranteId, campanha.id, telefone)
-      if (!pedidoContaParaCampanha(campanha, progressoAtual, diaSemanaPedido)) continue
-
-      const { novo, completou } = aplicarPedidoAoProgresso(campanha, progressoAtual, {
-        subtotal: pedido.subtotal,
-        qtdItens: pedido.qtdItens,
-      })
-      await salvarProgressoCliente(admin, restauranteId, campanha.id, telefone, novo)
-      if (completou) await criarRecompensaDisponivel(admin, restauranteId, campanha.id, telefone)
-
-      resultados.push({ campanha, progresso: novo, completou })
-    }
-
-    if (resultados.length === 0) return
-
-    const itemIds = [...new Set(
-      resultados
-        .filter((r) => r.campanha.premioTipo === 'item_gratis' && r.campanha.premioItemId)
-        .map((r) => r.campanha.premioItemId as string)
-    )]
-    const nomesItens = await buscarNomesItens(admin, itemIds)
-
-    const progressos: ProgressoParaMensagem[] = []
-    const recompensasNovas: RecompensaParaMensagem[] = []
-    for (const r of resultados) {
-      const premioLabel = premioLabelCampanha(r.campanha, nomesItens.get(r.campanha.premioItemId ?? ''))
-      if (r.completou) {
-        recompensasNovas.push({ premioLabel, diasSemanaResgate: r.campanha.diasSemanaResgate })
-      } else {
-        const resumo = resumoProgresso(r.campanha, r.progresso)
-        progressos.push({ faltaTexto: resumo.faltaTexto, premioLabel, fracao: fracaoProgresso(r.campanha, r.progresso) })
-      }
-    }
-
-    const { nome: nomeLoja, evolutionInstance } = await buscarDadosLoja(admin, restauranteId)
-    const mensagem = montarMensagemFidelidade(progressos, recompensasNovas, nomeLoja)
-    if (!mensagem || !evolutionInstance) return
-
-    const numero = formatarTelefoneWhatsapp(telefone)
-    if (!numero) return
-
-    await enviarWhatsapp(numero, mensagem, evolutionInstance)
+    await aplicarFidelidade(admin, restauranteId, pedido.clienteTelefone, {
+      subtotal: pedido.subtotal,
+      qtdItens: pedido.qtdItens,
+      criadoEm: pedido.criadoEm,
+    })
   } catch (err) {
     console.error('[fidelidade] erro ao processar progresso do pedido', pedidoId, err)
   }
+}
+
+/**
+ * Conta presencial (mesa, balcão, entrega manual) com telefone identificado: UMA vez por
+ * conta, no fechamento (conta paga) — nunca ao criar pedido, nunca por lançamento.
+ * Trava no banco (comanda_fidelidade_marcar): reabrir e fechar de novo não conta de novo.
+ */
+export async function processarFidelidadeComandaFechada(admin: SupabaseClient, restauranteId: string, comandaId: string): Promise<void> {
+  try {
+    const { data, error } = await admin.rpc('comanda_fidelidade_marcar', { p_restaurante: restauranteId, p_comanda: comandaId })
+    if (error) throw error
+    const c = data as { telefone: string; subtotal: number; qtd_itens: number; criado_em: string } | null
+    if (!c || !c.telefone || Number(c.subtotal) <= 0) return
+    await aplicarFidelidade(admin, restauranteId, c.telefone, { subtotal: Number(c.subtotal), qtdItens: Number(c.qtd_itens), criadoEm: c.criado_em })
+  } catch (err) {
+    console.error('[fidelidade] erro ao processar progresso da conta', comandaId, err)
+  }
+}
+
+/** Aplica uma compra (pedido de delivery ou conta presencial fechada) às campanhas ativas. */
+async function aplicarFidelidade(
+  admin: SupabaseClient,
+  restauranteId: string,
+  telefone: string,
+  compra: { subtotal: number; qtdItens: number; criadoEm: string },
+): Promise<void> {
+  const campanhas = await listarCampanhasFidelidadeAtivas(admin, restauranteId)
+  if (campanhas.length === 0) return
+
+  const diaSemanaPedido = diaSemanaSaoPaulo(compra.criadoEm)
+
+  const resultados: ResultadoCampanha[] = []
+  for (const campanha of campanhas) {
+    const progressoAtual = await buscarProgressoCliente(admin, restauranteId, campanha.id, telefone)
+    if (!pedidoContaParaCampanha(campanha, progressoAtual, diaSemanaPedido)) continue
+
+    const { novo, completou } = aplicarPedidoAoProgresso(campanha, progressoAtual, {
+      subtotal: compra.subtotal,
+      qtdItens: compra.qtdItens,
+    })
+    await salvarProgressoCliente(admin, restauranteId, campanha.id, telefone, novo)
+    if (completou) await criarRecompensaDisponivel(admin, restauranteId, campanha.id, telefone)
+
+    resultados.push({ campanha, progresso: novo, completou })
+  }
+
+  if (resultados.length === 0) return
+
+  const itemIds = [...new Set(
+    resultados
+      .filter((r) => r.campanha.premioTipo === 'item_gratis' && r.campanha.premioItemId)
+      .map((r) => r.campanha.premioItemId as string)
+  )]
+  const nomesItens = await buscarNomesItens(admin, itemIds)
+
+  const progressos: ProgressoParaMensagem[] = []
+  const recompensasNovas: RecompensaParaMensagem[] = []
+  for (const r of resultados) {
+    const premioLabel = premioLabelCampanha(r.campanha, nomesItens.get(r.campanha.premioItemId ?? ''))
+    if (r.completou) {
+      recompensasNovas.push({ premioLabel, diasSemanaResgate: r.campanha.diasSemanaResgate })
+    } else {
+      const resumo = resumoProgresso(r.campanha, r.progresso)
+      progressos.push({ faltaTexto: resumo.faltaTexto, premioLabel, fracao: fracaoProgresso(r.campanha, r.progresso) })
+    }
+  }
+
+  const { nome: nomeLoja, evolutionInstance } = await buscarDadosLoja(admin, restauranteId)
+  const mensagem = montarMensagemFidelidade(progressos, recompensasNovas, nomeLoja)
+  if (!mensagem || !evolutionInstance) return
+
+  const numero = formatarTelefoneWhatsapp(telefone)
+  if (!numero) return
+
+  await enviarWhatsapp(numero, mensagem, evolutionInstance)
 }
 
 /**

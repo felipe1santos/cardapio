@@ -153,6 +153,17 @@ export function mensagemDeErroConta(bruto: string | null | undefined): string {
     acao_invalida: 'Ação não permitida para este pedido.',
     comanda_nao_fechada: 'Só dá para reabrir uma conta fechada.',
     mesa_ocupada: 'A mesa já tem outra conta aberta. Feche ou transfira antes de reabrir esta.',
+    // Atendimento identificado, entrega manual, limpeza e fechamento (0094–0096).
+    comanda_sem_nome: 'Esta conta foi aberta sem o nome do cliente. Informe o nome antes de continuar.',
+    mesa_em_limpeza: 'Esta mesa está em limpeza. Libere a mesa antes de abrir um novo atendimento.',
+    taxa_entrega_invalida: 'Taxa de entrega inválida.',
+    endereco_incompleto: 'Endereço de entrega incompleto: informe rua, número e bairro.',
+    cupom_exige_telefone: 'Para usar cupom, informe o telefone do cliente.',
+    cupom_invalido: 'Cupom não encontrado ou inativo.',
+    cupom_item_gratis_pdv: 'Cupom de item grátis só vale no cardápio digital.',
+    cupom_so_entrega: 'Este cupom é de entrega grátis e esta conta não é de entrega.',
+    cupom_esgotado: 'O cupom atingiu o limite de usos. Remova o cupom para fechar a conta.',
+    cupom_ja_usado: 'Este cliente já usou este cupom.',
   }
   return mapa[codigo] ?? 'Não foi possível concluir a operação.'
 }

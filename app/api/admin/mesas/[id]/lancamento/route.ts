@@ -130,8 +130,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true, idempotente: true, ...jaExiste }, { status: 200 })
   }
 
+  // PDV v2 (0094): a mesa só recebe lançamento depois de aberta com o nome do cliente
+  // (POST /api/admin/mesas/[id]/atendimento). O banco recusa comanda sem nome de todo jeito.
+  const { data: loja } = await admin.from('restaurantes').select('pdv_v2').eq('id', sessao.restauranteId).maybeSingle()
+  const v2 = loja?.pdv_v2 === true
+  let identificacao: { nome: string; telefone: string } | null = null
+  if (v2) {
+    const { data: aberta } = await admin
+      .from('comandas')
+      .select('id, cliente_nome, cliente_telefone')
+      .eq('restaurante_id', sessao.restauranteId)
+      .eq('mesa_id', mesaId)
+      .eq('status', 'aberta')
+      .maybeSingle()
+    if (!aberta) {
+      return NextResponse.json({ error: 'Abra a mesa com o nome do cliente antes de lançar.', codigo: 'mesa_sem_atendimento' }, { status: 409 })
+    }
+    if (!String(aberta.cliente_nome ?? '').trim()) {
+      return NextResponse.json({ error: 'Esta conta foi aberta sem o nome do cliente. Informe o nome antes de continuar.', codigo: 'comanda_sem_nome', comandaId: aberta.id }, { status: 409 })
+    }
+    identificacao = { nome: aberta.cliente_nome as string, telefone: (aberta.cliente_telefone as string | null) ?? '' }
+  }
+
   try {
-    // A conta nasce aqui, no primeiro lançamento — não quando o cliente abriu o QR.
+    // Loja sem pdv_v2: a conta nasce aqui, no primeiro lançamento, como sempre.
     const { comanda, nasceuAgora } = await abrirOuObterComanda(admin, sessao.restauranteId, mesaId)
     const sessaoMesa = await abrirOuObterSessao(admin, sessao.restauranteId, mesaId)
 
@@ -164,7 +186,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     try {
       pedido = await criarPedido(admin, sessao.restauranteId, {
       tipo: 'retirada',
-      cliente: { nome: mesa.nome, telefone: '' },
+      cliente: identificacao ?? { nome: mesa.nome, telefone: '' },
       endereco: { rua: '', numero: '', complemento: '', bairro: '', cep: '' },
       pagamento: 'dinheiro',
       trocoPara: null,
@@ -176,6 +198,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       criadoPor: sessao.userId,
       criadoPorNome: sessao.nome,
       chaveIdempotencia: chave,
+      lancadoVia: v2 ? 'salao' : undefined,
     })
     } catch (err) {
       // Duas requisições com a mesma chave chegaram juntas: a primeira criou o pedido e

@@ -52,3 +52,18 @@ describe('rótulo de origem do pedido', () => {
     expect(rotuloOrigemPedido({ canal: 'mesa', mesa: '1', criadoPorNome: '   ' }).responsavel).toBeNull()
   })
 })
+
+describe('etiquetas do atendimento identificado (0094)', () => {
+  it('mesa lançada no PDV diz PDV · Mesa; pelo garçom, Salão · Mesa', () => {
+    expect(rotuloOrigemPedido({ canal: 'mesa', mesa: 'Mesa 01', lancadoVia: 'pdv' })).toMatchObject({ texto: 'PDV · Mesa 01', posto: 'PDV', tom: 'salao' })
+    expect(rotuloOrigemPedido({ canal: 'mesa', mesa: 'Mesa 01', lancadoVia: 'salao' })).toMatchObject({ texto: 'Salão · Mesa 01', posto: 'Salão' })
+    expect(rotuloOrigemPedido({ canal: 'mesa', mesa: 'Mesa 01' }).posto).toBe('Salão')
+  })
+  it('balcão mostra a senha; com dados de entrega vira Entrega manual', () => {
+    expect(rotuloOrigemPedido({ canal: 'balcao', tipo: 'retirada', comandaSenha: 12 }).texto).toBe('PDV · Balcão · Senha 12')
+    expect(rotuloOrigemPedido({ canal: 'balcao', tipo: 'entrega', comandaSenha: 13 }).texto).toBe('PDV · Entrega manual · Senha 13')
+  })
+  it('delivery ganha só o posto (Delivery), sem texto que tome o lugar do pagamento', () => {
+    expect(rotuloOrigemPedido({ canal: 'delivery', origem: 'cardapio' })).toMatchObject({ texto: null, posto: 'Delivery' })
+  })
+})

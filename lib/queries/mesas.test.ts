@@ -35,6 +35,7 @@ describe('mapMesaRow', () => {
       bloqueada: false,
       tokenGeradoEm: 'y',
       qrRevogado: false,
+      limpeza: null,
     })
   })
 
@@ -150,6 +151,7 @@ describe('resolverMesaPorToken', () => {
       mesaNome: 'Mesa 01',
       restauranteId: 'r1',
       slug: 'loja',
+      emLimpeza: false,
     })
   })
 

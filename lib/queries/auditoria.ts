@@ -23,6 +23,13 @@ export interface EventoAuditoriaLinha {
 /** Rótulo legível por ação. Ação sem rótulo aparece com o código cru, não em branco. */
 export const ROTULO_EVENTO: Record<string, string> = {
   'mesa.abriu': 'Abriu a mesa',
+  'mesa.limpeza': 'Mesa em limpeza',
+  'balcao.entrega_ativada': 'Ativou dados de entrega',
+  'comanda.identificou': 'Corrigiu nome/telefone do cliente',
+  'pedido.entregue_forcado': 'Marcou como entregue no fechamento',
+  'mesa.liberou': 'Liberou a mesa',
+  'conta.cupom_aplicado': 'Aplicou cupom na conta',
+  'conta.cupom_removido': 'Removeu cupom da conta',
   'mesa.enviou_cozinha': 'Enviou lançamento para a cozinha',
   'mesa.transferiu': 'Transferiu a conta de mesa',
   'mesa.mesclou': 'Juntou contas de duas mesas',

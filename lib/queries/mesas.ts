@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type EstadoMesa = 'livre' | 'aguardando' | 'ocupada' | 'bloqueada' | 'inativa'
+export type EstadoMesa = 'livre' | 'aguardando' | 'ocupada' | 'limpeza' | 'bloqueada' | 'inativa'
 
 export interface Mesa {
   id: string
@@ -13,6 +13,8 @@ export interface Mesa {
   tokenGeradoEm: string
   /** QR revogado sem substituto (0071): o link não abre até a gestão gerar outro. */
   qrRevogado: boolean
+  /** Conta fechada, mesa aguardando limpeza (0095, lojas com pdv_v2). */
+  limpeza: { desde: string; clienteNome: string | null; fechadaPorNome: string | null } | null
 }
 
 /**
@@ -41,10 +43,13 @@ interface MesaRow {
   bloqueada_em: string | null
   token_gerado_em: string
   qr_revogado_em: string | null
+  limpeza_desde?: string | null
+  limpeza_cliente_nome?: string | null
+  limpeza_fechada_por_nome?: string | null
 }
 
 const MESA_SELECT =
-  'id, restaurante_id, nome, ordem, ativa, criado_em, setor, capacidade, bloqueada_em, token_gerado_em, qr_revogado_em'
+  'id, restaurante_id, nome, ordem, ativa, criado_em, setor, capacidade, bloqueada_em, token_gerado_em, qr_revogado_em, limpeza_desde, limpeza_cliente_nome, limpeza_fechada_por_nome'
 
 export function mapMesaRow(row: MesaRow): Mesa {
   return {
@@ -57,6 +62,9 @@ export function mapMesaRow(row: MesaRow): Mesa {
     bloqueada: row.bloqueada_em !== null,
     tokenGeradoEm: row.token_gerado_em,
     qrRevogado: (row.qr_revogado_em ?? null) !== null,
+    limpeza: row.limpeza_desde
+      ? { desde: row.limpeza_desde, clienteNome: row.limpeza_cliente_nome ?? null, fechadaPorNome: row.limpeza_fechada_por_nome ?? null }
+      : null,
   }
 }
 
@@ -72,21 +80,27 @@ export function mapMesaRow(row: MesaRow): Mesa {
  * tudo de "Ocupada", então a mesma mesa tinha dois nomes conforme a tela — e o
  * garçom e o caixa não conseguiam falar da mesma mesa pelo nome do estado. Uma
  * regra só, usada pelas duas telas.
+ *
+ * `limpeza` (0095): conta fechada, mesa esperando a liberação. Fica abaixo de bloqueio e
+ * desativação (que nunca podem ser escondidos) e abaixo de conta aberta (que não existe
+ * em mesa em limpeza, mas se existir é ela que manda).
  */
 export function estadoDaMesa(
-  mesa: Pick<Mesa, 'ativa' | 'bloqueada'>,
+  mesa: Pick<Mesa, 'ativa' | 'bloqueada'> & { limpeza?: Mesa['limpeza'] },
   comanda: { aberta: boolean; qtdPedidos: number },
 ): EstadoMesa {
   if (!mesa.ativa) return 'inativa'
   if (mesa.bloqueada) return 'bloqueada'
-  if (!comanda.aberta) return 'livre'
-  return comanda.qtdPedidos > 0 ? 'ocupada' : 'aguardando'
+  if (comanda.aberta) return comanda.qtdPedidos > 0 ? 'ocupada' : 'aguardando'
+  if (mesa.limpeza) return 'limpeza'
+  return 'livre'
 }
 
 export const ROTULO_ESTADO: Record<EstadoMesa, string> = {
   livre: 'Livre',
   aguardando: 'Aguardando',
   ocupada: 'Ocupada',
+  limpeza: 'Em limpeza',
   bloqueada: 'Bloqueada',
   inativa: 'Inativa',
 }
@@ -96,6 +110,7 @@ export const AJUDA_ESTADO: Record<EstadoMesa, string> = {
   livre: 'Sem comanda aberta.',
   aguardando: 'Comanda aberta, nada lançado ainda.',
   ocupada: 'Comanda aberta com pedidos lançados.',
+  limpeza: 'Conta fechada. Libere a mesa depois da limpeza.',
   bloqueada: 'Fora de uso por decisão da gestão.',
   inativa: 'Mesa desativada no cadastro.',
 }
@@ -243,12 +258,12 @@ export async function regenerarTokenMesa(
 export async function resolverMesaPorToken(
   admin: SupabaseClient,
   token: string,
-): Promise<{ mesaId: string; mesaNome: string; restauranteId: string; slug: string } | null> {
+): Promise<{ mesaId: string; mesaNome: string; restauranteId: string; slug: string; emLimpeza: boolean } | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) return null
 
   const { data, error } = await admin
     .from('mesas')
-    .select('id, nome, ativa, bloqueada_em, qr_revogado_em, restaurante_id, restaurantes ( slug, modulo_mesas_ativo )')
+    .select('id, nome, ativa, bloqueada_em, qr_revogado_em, limpeza_desde, restaurante_id, restaurantes ( slug, modulo_mesas_ativo )')
     .eq('token', token)
     .maybeSingle()
   if (error) throw error
@@ -260,6 +275,7 @@ export async function resolverMesaPorToken(
     ativa: boolean | null
     bloqueada_em: string | null
     qr_revogado_em: string | null
+    limpeza_desde: string | null
     restaurante_id: string
     restaurantes: { slug: string; modulo_mesas_ativo: boolean } | null
   }
@@ -274,5 +290,7 @@ export async function resolverMesaPorToken(
     mesaNome: row.nome,
     restauranteId: row.restaurante_id,
     slug: row.restaurantes.slug,
+    // Em limpeza (0095) a mesa EXISTE e o QR continua o mesmo: a página avisa, não 404.
+    emLimpeza: (row.limpeza_desde ?? null) !== null,
   }
 }

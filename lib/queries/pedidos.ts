@@ -72,6 +72,10 @@ export interface Pedido {
   criadoPorNome: string | null
   /** Número da comanda do salão (0072). Null fora do salão ou para quem não lê comandas. */
   comandaNumero: number | null
+  /** Senha do balcão (0082). Null fora do balcão. */
+  comandaSenha: number | null
+  /** De onde saiu o lançamento de mesa (0094): 'pdv' | 'salao'. Null em pedido antigo. */
+  lancadoVia: 'pdv' | 'salao' | null
   canceladoMotivo: string | null
   canceladoObservacao: string | null
   canceladoPor: string | null
@@ -126,7 +130,8 @@ interface PedidoRow {
   mesa: string | null
   comanda_id: string | null
   criado_por_nome: string | null
-  comanda?: { numero: number | null } | null
+  comanda?: { numero: number | null; senha?: number | null } | null
+  lancado_via?: string | null
   cancelado_motivo: string | null
   cancelado_observacao: string | null
   cancelado_por: string | null
@@ -151,7 +156,7 @@ export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
-  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, comanda:comandas ( numero ),
+  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em,
   pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
@@ -191,6 +196,8 @@ export function mapPedido(row: PedidoRow): Pedido {
     mesa: row.mesa ?? null,
     criadoPorNome: row.criado_por_nome ?? null,
     comandaNumero: row.comanda?.numero ?? null,
+    comandaSenha: row.comanda?.senha ?? null,
+    lancadoVia: row.lancado_via === 'pdv' || row.lancado_via === 'salao' ? row.lancado_via : null,
     comandaId: row.comanda_id ?? null,
     canceladoMotivo: row.cancelado_motivo ?? null,
     canceladoObservacao: row.cancelado_observacao ?? null,
@@ -946,6 +953,8 @@ export interface NovoPedidoInput {
    * o insert falha com 23505 — quem chama devolve o pedido que já existe. Só servidor.
    */
   chaveIdempotencia?: string
+  /** De onde saiu o lançamento de mesa (0094): 'pdv' | 'salao'. Só servidor; etiqueta do Kanban. */
+  lancadoVia?: 'pdv' | 'salao'
   /**
    * Código de cupom digitado pelo cliente. Só o código viaja no payload — validação,
    * cálculo de desconto e travas de uso são todos server-side. Exclusivo com `recompensaId`.
@@ -1421,6 +1430,7 @@ export async function criarPedido(
       criado_por: input.criadoPor ?? null,
       criado_por_nome: input.criadoPorNome ?? null,
       chave_idempotencia: input.chaveIdempotencia ?? null,
+      lancado_via: input.lancadoVia ?? null,
       cupom_codigo: cupomAplicado?.codigo ?? null,
       recompensa_id: recompensaResgatada,
     })

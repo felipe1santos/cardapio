@@ -2,10 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { mensagemDeErroConta, formatarResumoPagamento, ehFormaOferecida, type FormaPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { criarPedido, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
-import { abrirOuObterComanda } from '@/lib/queries/comandas'
 import { montarHistorico, type EventoHistorico } from '@/lib/queries/conta'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
-import { situacaoFinanceira, type TipoComanda } from '@/lib/pdv-v2'
+import { situacaoFinanceira, type TipoComanda, type EntregaManual, type DecisaoFechamento, type PagamentoFechamento } from '@/lib/pdv-v2'
+import { resolverFrete } from '@/lib/frete'
+import { processarFidelidadeComandaFechada } from '@/lib/fidelidade'
+import { validarCupom, type CupomRegra } from '@/lib/fidelidade-regras'
+import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 
 /**
  * Serviço único da conta presencial — PDV (mesa e balcão) e salão usam as mesmas
@@ -34,6 +37,7 @@ const CONFLITO = new Set([
   'comanda_nao_aberta', 'conflito_status', 'pendencias_abertas', 'cancelamento_pendente', 'saldo_restante',
   'pagamento_excede_total', 'ajuste_financeiro_necessario', 'solicitacao_decidida', 'ja_cancelado',
   'chave_em_outra_comanda', 'mesa_ocupada', 'comanda_nao_fechada', 'pedido_nao_pronto', 'valor_acima_do_restante',
+  'comanda_sem_nome', 'mesa_em_limpeza', 'mesa_indisponivel', 'cupom_esgotado', 'cupom_ja_usado',
 ])
 
 export function traduzirErro(bruto: string | undefined): { codigo: string; detalhe: string; erro: string; status: number } {
@@ -115,6 +119,12 @@ export interface ContaPresencial {
   senha: number | null
   clienteNome: string | null
   clienteTelefone: string | null
+  /** Cadastro da loja vinculado pelo telefone (0094). */
+  clienteVinculado: boolean
+  /** Conta de mesa antiga aberta sem nome: pede o nome antes de lançar ou fechar. */
+  semNome: boolean
+  entrega: (Omit<EntregaManual, 'taxaInformada'> & { taxa: number; taxaManual: boolean }) | null
+  cupomCodigo: string | null
   mesaId: string | null
   mesaNome: string | null
   abertaEm: string
@@ -138,7 +148,7 @@ export interface ContaPresencial {
 }
 
 const COMANDA_COLS =
-  'id, tipo, status, numero, senha, cliente_nome, cliente_telefone, mesa_id, aberta_em, aberta_por_nome, responsavel_nome, pessoas, fechada_em, fechada_por_nome, reaberta_em, reaberta_por_nome, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo, mesas ( nome )'
+  'id, tipo, status, numero, senha, cliente_nome, cliente_telefone, cliente_id, entrega, entrega_cep, entrega_rua, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_referencia, entrega_observacao, taxa_entrega, taxa_entrega_manual, cupom_codigo, mesa_id, aberta_em, aberta_por_nome, responsavel_nome, pessoas, fechada_em, fechada_por_nome, reaberta_em, reaberta_por_nome, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo, mesas ( nome )'
 
 export async function buscarConta(admin: SupabaseClient, restauranteId: string, comandaId: string): Promise<ContaPresencial | null> {
   const { data: c } = await admin.from('comandas').select(COMANDA_COLS).eq('id', comandaId).eq('restaurante_id', restauranteId).maybeSingle()
@@ -253,6 +263,23 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     senha: (row.senha as number | null) ?? null,
     clienteNome: (row.cliente_nome as string | null) ?? null,
     clienteTelefone: (row.cliente_telefone as string | null) ?? null,
+    clienteVinculado: row.cliente_id !== null && row.cliente_id !== undefined,
+    semNome: row.tipo === 'mesa' && !String(row.cliente_nome ?? '').trim(),
+    entrega: row.entrega === true
+      ? {
+          cep: (row.entrega_cep as string | null) ?? '',
+          rua: (row.entrega_rua as string | null) ?? '',
+          numero: (row.entrega_numero as string | null) ?? '',
+          complemento: (row.entrega_complemento as string | null) ?? '',
+          bairro: (row.entrega_bairro as string | null) ?? '',
+          cidade: (row.entrega_cidade as string | null) ?? '',
+          referencia: (row.entrega_referencia as string | null) ?? '',
+          observacao: (row.entrega_observacao as string | null) ?? '',
+          taxa: Number(row.taxa_entrega ?? 0),
+          taxaManual: row.taxa_entrega_manual === true,
+        }
+      : null,
+    cupomCodigo: (row.cupom_codigo as string | null) ?? null,
     mesaId: (row.mesa_id as string | null) ?? null,
     mesaNome: mesa?.nome ?? null,
     abertaEm: row.aberta_em as string,
@@ -309,6 +336,7 @@ export interface LinhaCentral {
   senha: number
   nome: string
   telefone: string | null
+  entrega: boolean
   status: string
   abertaEm: string
   fechadaEm: string | null
@@ -334,7 +362,7 @@ export async function listarCentralBalcao(
   const desde = inicioDoDiaSaoPaulo()
   let q = admin
     .from('comandas')
-    .select('id, senha, cliente_nome, cliente_telefone, status, aberta_em, fechada_em')
+    .select('id, senha, cliente_nome, cliente_telefone, entrega, status, aberta_em, fechada_em')
     .eq('restaurante_id', restauranteId)
     .eq('tipo', 'balcao')
     .order('aberta_em', { ascending: true })
@@ -342,7 +370,7 @@ export async function listarCentralBalcao(
   q = escopo === 'abertas' ? q.eq('status', 'aberta') : q.neq('status', 'aberta').gte('fechada_em', desde)
   const { data: comandas, error } = await q
   if (error) throw error
-  const lista = (comandas ?? []) as { id: string; senha: number; cliente_nome: string; cliente_telefone: string | null; status: string; aberta_em: string; fechada_em: string | null }[]
+  const lista = (comandas ?? []) as { id: string; senha: number; cliente_nome: string; cliente_telefone: string | null; entrega: boolean; status: string; aberta_em: string; fechada_em: string | null }[]
   const ids = lista.map((c) => c.id)
 
   const [{ data: peds }, { data: pags }, { count: abertas }, { data: hoje }] = await Promise.all([
@@ -366,6 +394,7 @@ export async function listarCentralBalcao(
       senha: c.senha,
       nome: c.cliente_nome,
       telefone: c.cliente_telefone,
+      entrega: c.entrega === true,
       status: c.status,
       abertaEm: c.aberta_em,
       fechadaEm: c.fechada_em,
@@ -395,10 +424,80 @@ function auditar(admin: SupabaseClient, ator: Ator, acao: string, entidade: stri
   })
 }
 
-export async function abrirBalcao(admin: SupabaseClient, ator: Ator, a: { nome: string; telefone: string | null; chave: string }) {
+/**
+ * Card preto "Balcão": venda rápida, pedido avulso, pedido por telefone e — com os dados
+ * de entrega preenchidos — entrega manual. Sem taxa digitada, a taxa sai da tabela de
+ * frete da loja (a mesma regra do delivery); com taxa digitada, fica marcada como manual
+ * na conta e na auditoria.
+ */
+export async function abrirBalcao(
+  admin: SupabaseClient,
+  ator: Ator,
+  a: { nome: string; telefone: string | null; chave: string; entrega: EntregaManual | null },
+  origem: Origem = 'pdv',
+): Promise<Resultado<{ id: string; senha: number; numero: number; idempotente: boolean }>> {
+  let entrega: Record<string, unknown> | null = null
+  if (a.entrega) {
+    const e = a.entrega
+    let taxa = e.taxaInformada
+    const manual = taxa !== null
+    if (taxa === null) {
+      const frete = await resolverFrete(admin, ator.restauranteId, { cep: e.cep, rua: e.rua, numero: e.numero, bairro: e.bairro, cidade: e.cidade },
+        process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
+      if (!frete.entregavel) {
+        return falha(`${frete.motivo || 'A tabela de frete da loja não cobre este endereço.'} Informe a taxa de entrega manualmente.`, 400, 'frete_nao_entregavel')
+      }
+      taxa = frete.taxa
+    }
+    entrega = {
+      cep: e.cep, rua: e.rua, numero: e.numero, complemento: e.complemento, bairro: e.bairro, cidade: e.cidade,
+      referencia: e.referencia, observacao: e.observacao, taxa, taxa_manual: manual,
+    }
+  }
   return rpc<{ id: string; senha: number; numero: number; idempotente: boolean }>(admin, 'comanda_balcao_abrir', {
-    p_restaurante: ator.restauranteId, p_nome: a.nome, p_telefone: a.telefone, p_ator: ator.userId, p_ator_nome: ator.nome, p_chave: a.chave,
+    p_restaurante: ator.restauranteId, p_nome: a.nome, p_telefone: a.telefone, p_ator: ator.userId, p_ator_nome: ator.nome,
+    p_chave: a.chave, p_entrega: entrega, p_origem: origem,
   })
+}
+
+/**
+ * Abre o atendimento de uma mesa livre: nome obrigatório, telefone opcional. A mesa é
+ * travada no banco — dois operadores ao mesmo tempo: o segundo recebe `mesa_ocupada`
+ * com a conta do primeiro, nunca uma segunda sessão.
+ */
+export async function abrirMesa(
+  admin: SupabaseClient,
+  ator: Ator,
+  mesaId: string,
+  a: { nome: string; telefone: string | null; chave: string },
+  origem: Origem,
+): Promise<Resultado<{ id: string; numero: number; idempotente: boolean }>> {
+  const r = await rpc<{ id: string; numero: number; idempotente: boolean }>(admin, 'comanda_mesa_abrir', {
+    p_restaurante: ator.restauranteId, p_mesa: mesaId, p_nome: a.nome, p_telefone: a.telefone, p_ator: ator.userId,
+    p_ator_nome: ator.nome, p_chave: a.chave, p_origem: origem,
+  })
+  if (!r.ok && r.codigo === 'mesa_ocupada') {
+    return { ...r, erro: 'Outro operador acabou de abrir esta mesa. A conta dele foi aberta na tela.' }
+  }
+  if (!r.ok && r.codigo === 'mesa_inexistente') return { ...r, status: 404 }
+  return r
+}
+
+/** Corrige nome/telefone do atendimento (auditado; nunca grava o telefone na auditoria). */
+export async function identificar(admin: SupabaseClient, ator: Ator, comandaId: string, a: { nome: string; telefone: string | null }, origem: Origem) {
+  return rpc<{ id: string; idempotente: boolean }>(admin, 'comanda_identificar', {
+    p_restaurante: ator.restauranteId, p_comanda: comandaId, p_nome: a.nome, p_telefone: a.telefone, p_ator: ator.userId,
+    p_ator_nome: ator.nome, p_origem: origem,
+  })
+}
+
+/** Mesa em limpeza → livre (ou volta a mostrar bloqueio/desativação, que têm prioridade). */
+export async function liberarMesa(admin: SupabaseClient, ator: Ator, mesaId: string, origem: Origem) {
+  const r = await rpc<{ id: string; idempotente: boolean; estado: string }>(admin, 'mesa_liberar', {
+    p_restaurante: ator.restauranteId, p_mesa: mesaId, p_ator: ator.userId, p_ator_nome: ator.nome, p_origem: origem,
+  })
+  if (!r.ok && r.codigo === 'mesa_inexistente') return { ...r, status: 404 }
+  return r
 }
 
 /** Grupos obrigatórios conferidos no servidor — mesma regra do lançamento do salão. */
@@ -464,18 +563,19 @@ export async function lancar(
     if (!mesa) return falha('Mesa não encontrada nesta loja.', 404, 'mesa_inexistente')
     if (mesa.ativa === false) return falha('Mesa desativada.', 409, 'mesa_indisponivel')
     if (mesa.bloqueada_em !== null) return falha('Mesa bloqueada.', 409, 'mesa_indisponivel')
-    const { comanda, nasceuAgora } = await abrirOuObterComanda(admin, ator.restauranteId, alvo.mesaId)
-    comandaId = comanda.id
+    // PDV v2: a mesa só recebe lançamento depois de aberta com o nome do cliente
+    // (abrirMesa). Nada de comanda nascer sem nome pelo lançamento.
+    const { data: aberta } = await admin
+      .from('comandas')
+      .select('id')
+      .eq('restaurante_id', ator.restauranteId)
+      .eq('mesa_id', alvo.mesaId)
+      .eq('status', 'aberta')
+      .maybeSingle()
+    if (!aberta) return falha('Abra a mesa com o nome do cliente antes de lançar.', 409, 'mesa_sem_atendimento')
+    comandaId = aberta.id as string
     tipo = 'mesa'
     mesaNome = mesa.nome as string
-    if (nasceuAgora) {
-      await admin
-        .from('comandas')
-        .update({ responsavel_id: ator.userId, responsavel_nome: ator.nome, aberta_por: ator.userId, aberta_por_nome: ator.nome })
-        .eq('id', comanda.id)
-        .is('responsavel_id', null)
-      await auditar(admin, ator, 'mesa.abriu', 'comanda', comanda.id, { mesa: mesaNome, de: 'livre', para: 'ocupada', numero: comanda.numero ?? null, origem })
-    }
   } else if (comandaId) {
     const { data: c } = await admin.from('comandas').select('id, tipo, status, mesas ( nome )').eq('id', comandaId).eq('restaurante_id', ator.restauranteId).maybeSingle()
     if (!c) return falha('Conta não encontrada.', 404, 'comanda_inexistente')
@@ -516,6 +616,7 @@ export async function lancar(
             p_ator: ator.userId,
             p_ator_nome: ator.nome,
             p_chave: chave,
+            p_lancado_via: origem,
           })
           if (!r.ok) throw new Error('__rpc__')
           return { id: r.valor.id, numero: r.valor.numero }
@@ -621,6 +722,7 @@ export async function fechar(admin: SupabaseClient, ator: Ator, conta: AlvoConta
       : v.taxa_situacao === 'alterada' ? `taxa de serviço alterada para ${v.taxa_percentual}% (padrão ${v.taxa_padrao}%)`
         : v.taxa_situacao === 'aceita' ? `taxa de serviço de ${v.taxa_percentual}% aceita`
           : 'sem taxa de serviço'
+  await processarFidelidadeComandaFechada(admin, ator.restauranteId, conta.id)
   await auditar(admin, ator, 'conta.fechou', 'comanda', conta.id, {
     resumo: `total R$ ${Number(v.total).toFixed(2)} · ${situacaoTaxa}` + (conta.tipo === 'balcao' ? ` · Senha ${conta.senha} · ${conta.clienteNome}` : ''),
     de: 'aberta', para: 'fechada', taxa_situacao: v.taxa_situacao, numero: conta.numero, canal: conta.tipo, origem, mesa: conta.mesaNome,
@@ -640,6 +742,7 @@ export async function resolver(
     p_ator_nome: ator.nome, p_papel: ator.papel, p_origem: origem, p_fechar: a.fechar,
   })
   if (r.ok && r.valor.fechamento) {
+    await processarFidelidadeComandaFechada(admin, ator.restauranteId, conta.id)
     await auditar(admin, ator, 'conta.fechou', 'comanda', conta.id, {
       resumo: `total R$ ${Number(r.valor.fechamento.total).toFixed(2)} · com resolução de pendências`,
       de: 'aberta', para: 'fechada', motivo: a.motivo, numero: conta.numero, canal: conta.tipo, origem, mesa: conta.mesaNome,
@@ -704,4 +807,93 @@ export async function reimprimir(admin: SupabaseClient, ator: Ator, conta: Conta
   if (error) return falha('Erro ao pedir reimpressão.', 500, 'erro')
   await auditar(admin, ator, 'conta.reimprimiu', 'comanda', conta.id, { resumo: `#${ped.numero}`, origem })
   return { ok: true, valor: null }
+}
+
+// ─── fechamento completo (cozinha + pagamentos + fechamento numa transação) ──
+
+/** Recalcula no banco o que a conta vale depois das decisões — e desfaz. */
+export async function simularFechamento(admin: SupabaseClient, ator: Ator, comandaId: string, acoes: DecisaoFechamento[]) {
+  return rpc<{ subtotal: number; taxa: number; desconto: number; total: number; pago: number; restante: number; cancelados: number; excedente: number; taxa_entrega: number }>(
+    admin, 'comanda_fechamento_simular', { p_restaurante: ator.restauranteId, p_comanda: comandaId, p_acoes: acoes },
+  )
+}
+
+/**
+ * "Fechar conta": decisões da cozinha, pagamentos, cupom e fechamento — tudo ou nada,
+ * idempotente pela chave. Fidelidade depois do commit (uma vez por conta, travada no banco).
+ */
+export async function fecharCompleto(
+  admin: SupabaseClient,
+  ator: Ator,
+  conta: AlvoConta,
+  a: { acoes: DecisaoFechamento[]; pagamentos: PagamentoFechamento[]; chave: string },
+  formasAceitas: string[],
+  origem: Origem,
+) {
+  for (const p of a.pagamentos) {
+    if (!formasAceitas.includes(p.forma)) return falha('A loja não aceita esta forma de pagamento.')
+    if (p.forma === 'fiado' && !p.observacao) return falha('No fiado, informe de quem é a conta (nome e contato).')
+  }
+  const r = await rpc<Record<string, unknown> & { idempotente: boolean }>(admin, 'comanda_fechar_completo', {
+    p_restaurante: ator.restauranteId, p_comanda: conta.id, p_acoes: a.acoes, p_pagamentos: a.pagamentos,
+    p_ator: ator.userId, p_ator_nome: ator.nome, p_papel: ator.papel, p_origem: origem, p_chave: a.chave,
+  })
+  if (!r.ok) {
+    if (r.codigo === 'pendencias_abertas' || r.codigo === 'saldo_restante' || r.codigo === 'cancelamento_pendente') {
+      const p = await pendencias(admin, ator, conta.id)
+      return { ...r, pendencias: p.ok ? p.valor : null }
+    }
+    return r
+  }
+  if (!r.valor.idempotente) await processarFidelidadeComandaFechada(admin, ator.restauranteId, conta.id)
+  return r
+}
+
+// ─── cupom na conta ─────────────────────────────────────────────────────────
+
+/**
+ * Cupom da conta presencial com as MESMAS regras do delivery (validarCupom + histórico
+ * do telefone). O uso só é contado no fechamento (conta paga), uma vez por conta.
+ */
+export async function aplicarCupom(admin: SupabaseClient, ator: Ator, conta: ContaPresencial, codigoBruto: unknown, origem: Origem) {
+  const codigo = typeof codigoBruto === 'string' ? normalizarCodigoCupom(codigoBruto) : ''
+  if (!codigo) return falha('Informe o código do cupom.')
+  if (conta.status !== 'aberta') return falha('Esta conta já foi fechada.', 409, 'comanda_nao_aberta')
+  if (!conta.clienteTelefone) return falha('Para usar cupom, informe o telefone do cliente.', 400, 'cupom_exige_telefone')
+  const { data: cupom, error } = await admin
+    .from('cupons')
+    .select('id, codigo, ativo, tipo, valor, publico, dias_inatividade, dias_semana, validade_inicio, validade_fim, valor_minimo_pedido, uso_unico_por_cliente, max_usos, usos')
+    .eq('restaurante_id', ator.restauranteId)
+    .eq('codigo', codigo)
+    .eq('ativo', true)
+    .maybeSingle()
+  if (error) return falha('Erro ao conferir o cupom.', 500, 'erro')
+  if (!cupom) return falha('Cupom não encontrado.', 404, 'cupom_invalido')
+  const historico = await buscarHistoricoCliente(admin, ator.restauranteId, conta.clienteTelefone, cupom.id)
+  const { hojeISO, diaSemana } = hojeSaoPaulo()
+  const regra: CupomRegra = {
+    ativo: cupom.ativo,
+    tipo: cupom.tipo,
+    valor: cupom.valor === null || cupom.valor === undefined ? null : Number(cupom.valor),
+    publico: cupom.publico,
+    diasInatividade: cupom.dias_inatividade,
+    diasSemana: cupom.dias_semana ?? [],
+    validadeInicio: cupom.validade_inicio,
+    validadeFim: cupom.validade_fim,
+    valorMinimoPedido: cupom.valor_minimo_pedido === null || cupom.valor_minimo_pedido === undefined ? null : Number(cupom.valor_minimo_pedido),
+    usoUnicoPorCliente: cupom.uso_unico_por_cliente,
+    maxUsos: cupom.max_usos,
+    usos: cupom.usos,
+  }
+  const v = validarCupom(regra, historico, { subtotal: conta.totais.subtotal, diaSemana, hojeISO })
+  if (!v.ok) return falha(v.motivo, 409, 'cupom_recusado')
+  return rpc<{ id: string; cupom: string }>(admin, 'comanda_cupom_aplicar', {
+    p_restaurante: ator.restauranteId, p_comanda: conta.id, p_cupom: cupom.id, p_ator: ator.userId, p_ator_nome: ator.nome, p_origem: origem,
+  })
+}
+
+export async function removerCupom(admin: SupabaseClient, ator: Ator, comandaId: string, origem: Origem) {
+  return rpc<{ id: string; idempotente: boolean }>(admin, 'comanda_cupom_remover', {
+    p_restaurante: ator.restauranteId, p_comanda: comandaId, p_ator: ator.userId, p_ator_nome: ator.nome, p_origem: origem,
+  })
 }

@@ -8,33 +8,92 @@
  */
 
 import type { Permissao } from '@/lib/auth/permissoes'
-import { soDigitos } from '@/lib/telefone-br'
+import { soDigitos, telefoneWhatsapp } from '@/lib/telefone-br'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export const ehUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
 
-// ── abertura do balcão ──────────────────────────────────────────────────────
+// ── identificação do atendimento (balcão e mesa) ───────────────────────────
 
-export type AberturaBalcao = { ok: true; nome: string; telefone: string | null; chave: string } | { ok: false; erro: string }
+export type Identificacao = { ok: true; nome: string; telefone: string | null } | { ok: false; erro: string }
 
-/** Corpo de "Novo pedido de balcão": nome obrigatório, telefone opcional, chave. Nada mais. */
-export function sanearAberturaBalcao(corpo: unknown): AberturaBalcao {
-  const c = (corpo && typeof corpo === 'object' ? corpo : {}) as Record<string, unknown>
+/**
+ * Nome obrigatório (espaços colapsados; só espaço não vale), telefone opcional já
+ * normalizado como o do delivery (55 + DDD + número). O banco confere de novo.
+ */
+export function sanearIdentificacao(c: Record<string, unknown>): Identificacao {
   const nome = typeof c.nome === 'string' ? c.nome.replace(/\s+/g, ' ').trim() : ''
   if (!nome) return { ok: false, erro: 'Informe o nome do cliente.' }
   if (nome.length > 60) return { ok: false, erro: 'Nome do cliente com no máximo 60 caracteres.' }
 
   let telefone: string | null = null
   if (typeof c.telefone === 'string' && c.telefone.trim()) {
-    const d = soDigitos(c.telefone)
-    if (d.length < 10 || d.length > 13) return { ok: false, erro: 'Telefone inválido. Use DDD + número, ou deixe em branco.' }
-    telefone = d
+    telefone = telefoneWhatsapp(c.telefone)
+    if (!telefone) return { ok: false, erro: 'Telefone inválido. Use DDD + número, ou deixe em branco.' }
   } else if (c.telefone !== undefined && c.telefone !== null && c.telefone !== '') {
     return { ok: false, erro: 'Telefone inválido.' }
   }
+  return { ok: true, nome, telefone }
+}
 
+// ── abertura do balcão ──────────────────────────────────────────────────────
+
+/** Dados de entrega do card preto — mesmo formato de endereço do delivery (pedidos.endereco_*). */
+export interface EntregaManual {
+  cep: string
+  rua: string
+  numero: string
+  complemento: string
+  bairro: string
+  cidade: string
+  referencia: string
+  observacao: string
+  /** Taxa digitada pelo operador; null = calcular pela tabela de frete da loja. */
+  taxaInformada: number | null
+}
+
+export type AberturaBalcao =
+  | { ok: true; nome: string; telefone: string | null; chave: string; entrega: EntregaManual | null }
+  | { ok: false; erro: string }
+
+const txt = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '')
+
+/**
+ * Corpo de "Novo atendimento de balcão": nome obrigatório, telefone opcional, chave e,
+ * se o operador abriu "Adicionar dados de entrega", o endereço. Origem, canal, tipo e
+ * valores de pedido NÃO são lidos daqui — são do servidor.
+ */
+export function sanearAberturaBalcao(corpo: unknown): AberturaBalcao {
+  const c = (corpo && typeof corpo === 'object' ? corpo : {}) as Record<string, unknown>
+  const id = sanearIdentificacao(c)
+  if (!id.ok) return id
   if (!ehUuid(c.chave)) return { ok: false, erro: 'Operação sem identificador. Recarregue a tela.' }
-  return { ok: true, nome, telefone, chave: c.chave }
+
+  let entrega: EntregaManual | null = null
+  if (c.entrega !== undefined && c.entrega !== null) {
+    if (typeof c.entrega !== 'object' || Array.isArray(c.entrega)) return { ok: false, erro: 'Dados de entrega inválidos.' }
+    const e = c.entrega as Record<string, unknown>
+    entrega = {
+      cep: soDigitos(txt(e.cep, 20)).slice(0, 8),
+      rua: txt(e.rua, 200),
+      numero: txt(e.numero, 20),
+      complemento: txt(e.complemento, 200),
+      bairro: txt(e.bairro, 120),
+      cidade: txt(e.cidade, 120),
+      referencia: txt(e.referencia, 200),
+      observacao: txt(e.observacao, 300),
+      taxaInformada: null,
+    }
+    if (!entrega.rua || !entrega.numero || !entrega.bairro) return { ok: false, erro: 'Para entrega, informe rua, número e bairro.' }
+    if (entrega.cep && entrega.cep.length !== 8) return { ok: false, erro: 'CEP inválido.' }
+    if (e.taxa !== undefined && e.taxa !== null && e.taxa !== '') {
+      const taxa = typeof e.taxa === 'number' ? e.taxa : Number(String(e.taxa).replace(',', '.'))
+      if (!Number.isFinite(taxa) || taxa < 0 || taxa > 999) return { ok: false, erro: 'Taxa de entrega inválida.' }
+      entrega.taxaInformada = Math.round(taxa * 100) / 100
+    }
+    if (!id.telefone) return { ok: false, erro: 'Para entrega, informe o telefone do cliente.' }
+  }
+  return { ok: true, nome: id.nome, telefone: id.telefone, chave: c.chave, entrega }
 }
 
 /** Telefone para exibir na lista: DDD e os 4 últimos. O completo só dentro da comanda. */
@@ -163,6 +222,11 @@ export const ACOES_CONTA = [
   'decidir_cancelamento',
   'cancelar_item',
   'reimprimir',
+  'identificar',
+  'simular_fechamento',
+  'fechar_completo',
+  'aplicar_cupom',
+  'remover_cupom',
 ] as const
 export type AcaoConta = (typeof ACOES_CONTA)[number]
 
@@ -185,6 +249,14 @@ export const PERMISSAO_DA_ACAO: Record<AcaoConta, Permissao> = {
   decidir_cancelamento: 'pedidos.presencial.cancelar',
   cancelar_item: 'pedidos.presencial.cancelar',
   reimprimir: 'comanda.ver',
+  // Corrigir nome/telefone: quem vê a conta E pode abrir atendimento (a rota confere as duas).
+  identificar: 'comanda.ver',
+  simular_fechamento: 'comanda.fechar',
+  // Decisão forçada ou cancelamento no fechamento exigem também comanda.resolver_forcado (rota).
+  fechar_completo: 'comanda.fechar',
+  // Cupom é direito do cliente (regras do delivery), não desconto discricionário.
+  aplicar_cupom: 'comanda.fechar',
+  remover_cupom: 'comanda.fechar',
 }
 
 export function ehAcaoConta(v: unknown): v is AcaoConta {
@@ -204,6 +276,7 @@ export function permissoesDaConta(
     // Taxa manual: balcão só com `comanda.taxa` (dono/gerente); mesa segue o salão.
     taxa: tipo === 'balcao' ? pode('comanda.taxa') : pode('comanda.taxa') || pode('comanda.desconto'),
     pre_conta: pode('comanda.pre_conta'),
+    identificar: base.identificar && (pode('balcao.abrir') || pode('pedidos.mesa.criar')),
   }
 }
 
@@ -243,14 +316,74 @@ export function sanearResolucao(corpo: Record<string, unknown>): ResolucaoSanead
   return { ok: true, acoes, motivo, fechar: corpo.fechar === true }
 }
 
+// ── fechamento completo ─────────────────────────────────────────────────────
+
+export type DecisaoFechamento = { pedido_id: string; acao: 'entregue' | 'cancelar'; motivo?: string; item_ids?: string[] }
+export type PagamentoFechamento = { forma: string; valor: number; recebido: number | null; chave: string; observacao: string | null }
+
+export type FechamentoSaneado =
+  | { ok: true; acoes: DecisaoFechamento[]; pagamentos: PagamentoFechamento[]; chave: string; forcadas: boolean }
+  | { ok: false; erro: string }
+
+/**
+ * Corpo de "Fechar conta": uma decisão por pedido pendente (entregue | cancelar com
+ * motivo), pagamentos (cada um com sua chave) e a chave do fechamento. Valores são
+ * conferidos de novo no banco; formas contra as da loja, na rota.
+ */
+export function sanearFechamento(corpo: Record<string, unknown>, exigirChave = true): FechamentoSaneado {
+  const brutoA = Array.isArray(corpo.acoes) ? corpo.acoes : []
+  const brutoP = Array.isArray(corpo.pagamentos) ? corpo.pagamentos : []
+  if (brutoA.length > 50 || brutoP.length > 10) return { ok: false, erro: 'Operação grande demais.' }
+  const acoes: DecisaoFechamento[] = []
+  const vistos = new Set<string>()
+  for (const x of brutoA) {
+    const a = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
+    if (!ehUuid(a.pedido_id)) return { ok: false, erro: 'Pedido inválido.' }
+    if (a.acao !== 'entregue' && a.acao !== 'cancelar') return { ok: false, erro: 'Escolha "Marcar como entregue" ou "Cancelar" para cada pendência.' }
+    if (vistos.has(a.pedido_id)) return { ok: false, erro: 'Um pedido aparece duas vezes.' }
+    vistos.add(a.pedido_id)
+    const d: DecisaoFechamento = { pedido_id: a.pedido_id, acao: a.acao }
+    if (a.acao === 'cancelar') {
+      const motivo = typeof a.motivo === 'string' ? a.motivo.replace(/\s+/g, ' ').trim().slice(0, 300) : ''
+      if (motivo.length < 5) return { ok: false, erro: 'Informe o motivo do cancelamento (pelo menos 5 letras).' }
+      d.motivo = motivo
+      if (Array.isArray(a.item_ids) && a.item_ids.length > 0) {
+        const ids = a.item_ids.filter(ehUuid)
+        if (ids.length !== a.item_ids.length) return { ok: false, erro: 'Item inválido.' }
+        d.item_ids = ids
+      }
+    }
+    acoes.push(d)
+  }
+  const pagamentos: PagamentoFechamento[] = []
+  for (const x of brutoP) {
+    const p = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
+    const valor = Number(p.valor)
+    if (typeof p.forma !== 'string' || !p.forma) return { ok: false, erro: 'Forma de pagamento inválida.' }
+    if (!Number.isFinite(valor) || valor <= 0) return { ok: false, erro: 'Informe um valor maior que zero.' }
+    if (!ehUuid(p.chave)) return { ok: false, erro: 'Pagamento sem identificador. Recarregue a tela.' }
+    const recebido = p.recebido === null || p.recebido === undefined || p.recebido === '' ? null : Number(p.recebido)
+    if (recebido !== null && !Number.isFinite(recebido)) return { ok: false, erro: 'Valor recebido inválido.' }
+    pagamentos.push({
+      forma: p.forma, valor: Math.round(valor * 100) / 100, recebido, chave: p.chave,
+      observacao: typeof p.observacao === 'string' ? p.observacao.trim().slice(0, 200) || null : null,
+    })
+  }
+  if (exigirChave && !ehUuid(corpo.chave)) return { ok: false, erro: 'Operação sem identificador. Recarregue a tela.' }
+  // "Forçada" = qualquer cancelamento, ou "entregue" dado a pedido que não estava pronto.
+  // Quem decide se estava pronto é a rota (com o estado do banco).
+  return { ok: true, acoes, pagamentos, chave: (corpo.chave as string) ?? '', forcadas: acoes.some((a) => a.acao === 'cancelar') }
+}
+
 // ── categorias de pendência ─────────────────────────────────────────────────
 
-export type CategoriaPendencia = 'aguardando_aceite' | 'em_preparo' | 'pronto_nao_atendido'
+export type CategoriaPendencia = 'aguardando_aceite' | 'em_preparo' | 'pronto_nao_atendido' | 'em_entrega'
 
 export const ROTULO_PENDENCIA: Record<CategoriaPendencia | 'cancelamento_pendente' | 'atendido_nao_pago' | 'parcialmente_pago', string> = {
   aguardando_aceite: 'Aguardando aceite',
   em_preparo: 'Em preparo',
   pronto_nao_atendido: 'Pronto, não entregue',
+  em_entrega: 'Saiu para entrega',
   cancelamento_pendente: 'Cancelamento pendente',
   atendido_nao_pago: 'Atendido, mas não pago',
   parcialmente_pago: 'Parcialmente pago',

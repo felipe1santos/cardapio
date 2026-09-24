@@ -12,6 +12,8 @@ export interface Comanda {
   fechadaEm: string | null
   /** Número sequencial na loja (0072). Null em comanda anterior. */
   numero: number | null
+  /** Nome do cliente do atendimento (0094). Null em comanda antiga. */
+  clienteNome?: string | null
 }
 
 export interface MesaComEstado extends Mesa {
@@ -28,9 +30,10 @@ interface ComandaRow {
   aberta_em: string
   fechada_em: string | null
   numero?: number | null
+  cliente_nome?: string | null
 }
 
-const COMANDA_SELECT = 'id, restaurante_id, mesa_id, status, aberta_em, fechada_em, numero'
+const COMANDA_SELECT = 'id, restaurante_id, mesa_id, status, aberta_em, fechada_em, numero, cliente_nome'
 
 export function mapComandaRow(row: ComandaRow): Comanda {
   return {
@@ -44,6 +47,7 @@ export function mapComandaRow(row: ComandaRow): Comanda {
     abertaEm: row.aberta_em,
     fechadaEm: row.fechada_em ?? null,
     numero: row.numero ?? null,
+    clienteNome: row.cliente_nome ?? null,
   }
 }
 

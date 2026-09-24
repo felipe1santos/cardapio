@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { contextoPresencial, type ContextoPresencial } from '@/lib/auth/presencial'
-import { ehAcaoConta, ehUuid, permissoesDaConta, PERMISSAO_DA_ACAO, sanearResolucao } from '@/lib/pdv-v2'
+import { ehAcaoConta, ehUuid, permissoesDaConta, PERMISSAO_DA_ACAO, sanearFechamento, sanearIdentificacao, sanearResolucao } from '@/lib/pdv-v2'
 import { ajustarValores } from '@/lib/queries/conta'
 import { ehFormaOferecida } from '@/lib/conta'
 import * as conta from '@/lib/servicos/conta-presencial'
@@ -128,6 +128,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     case 'fechar':
       return responder(await conta.fechar(ctx.admin, eu, c, 'pdv'))
+
+    case 'identificar': {
+      if (!ctx.pode('balcao.abrir') && !ctx.pode('pedidos.mesa.criar')) {
+        return NextResponse.json({ error: 'Sem permissão para esta ação' }, { status: 403 })
+      }
+      const s = sanearIdentificacao(corpo)
+      if (!s.ok) return NextResponse.json({ error: s.erro }, { status: 400 })
+      return responder(await conta.identificar(ctx.admin, eu, c.id, s, 'pdv'))
+    }
+
+    case 'simular_fechamento':
+    case 'fechar_completo': {
+      const s = sanearFechamento(corpo, acao === 'fechar_completo')
+      if (!s.ok) return NextResponse.json({ error: s.erro }, { status: 400 })
+      for (const d of s.acoes) {
+        const p = c.pedidos.find((x) => x.id === d.pedido_id)
+        if (!p) return NextResponse.json({ error: 'Há pedido que não pertence a esta conta.' }, { status: 400 })
+        if (d.item_ids && !d.item_ids.every((i) => p.itens.some((it) => it.id === i))) {
+          return NextResponse.json({ error: 'Há item que não pertence a este pedido.' }, { status: 400 })
+        }
+      }
+      // Cancelar, ou dar como entregue o que a cozinha ainda não aprontou, é decisão da
+      // gestão (comanda.resolver_forcado). "Entregue" em pedido pronto é o atendimento normal.
+      const forcada = s.acoes.some((d) => d.acao === 'cancelar' || c.pedidos.find((p) => p.id === d.pedido_id)?.status !== 'pronto')
+      if (forcada && !ctx.pode('comanda.resolver_forcado')) {
+        return NextResponse.json({ error: 'Cancelar ou dar como entregue um pedido que não está pronto exige gerente ou dono.', codigo: 'sem_permissao_resolver' }, { status: 403 })
+      }
+      if (acao === 'simular_fechamento') return responder(await conta.simularFechamento(ctx.admin, eu, c.id, s.acoes))
+      return responder(await conta.fecharCompleto(ctx.admin, eu, c, s, ctx.loja.formasPagamento, 'pdv'))
+    }
+
+    case 'aplicar_cupom':
+      return responder(await conta.aplicarCupom(ctx.admin, eu, c, corpo.codigo, 'pdv'))
+
+    case 'remover_cupom':
+      return responder(await conta.removerCupom(ctx.admin, eu, c.id, 'pdv'))
 
     case 'resolver': {
       const s = sanearResolucao(corpo)

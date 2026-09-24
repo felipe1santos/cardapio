@@ -24,7 +24,8 @@ import { ehMotivo } from '@/lib/chamados'
 async function contexto(token: string) {
   const admin = getAdminSupabase()
   const mesa = await resolverMesaPorToken(admin, token)
-  if (!mesa) return null
+  // Mesa em limpeza não recebe chamado (o banco também recusa).
+  if (!mesa || mesa.emLimpeza) return null
   return { admin, mesa }
 }
 

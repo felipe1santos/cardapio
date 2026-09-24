@@ -19,6 +19,7 @@ describe('mapComandaRow', () => {
       abertaEm: '2026-06-27T10:00:00Z',
       fechadaEm: null,
       numero: null,
+      clienteNome: null,
     })
   })
 

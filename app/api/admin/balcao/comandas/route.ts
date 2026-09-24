@@ -8,9 +8,11 @@ import { abrirBalcao, listarCentralBalcao } from '@/lib/servicos/conta-presencia
  *
  * GET  — comandas de balcão: `?escopo=abertas` (padrão) ou `?escopo=hoje` (fechadas e
  *        canceladas hoje, para reabrir ou conferir).
- * POST — abre uma comanda de balcão: `{ nome, telefone?, chave }`. A chave torna o
- *        duplo clique inofensivo. Nome e telefone ficam SÓ na comanda: nada vai para
- *        `clientes`.
+ * POST — abre um atendimento do card preto: `{ nome, telefone?, chave, entrega? }`. A
+ *        chave torna o duplo clique inofensivo. Telefone informado vincula (ou cria) o
+ *        cadastro DESTA loja em `clientes`. Com `entrega` (endereço + taxa opcional) vira
+ *        entrega manual: origem PDV, tipo entrega, cozinha de sempre e depois logística.
+ *        Origem, canal e tipo são do servidor.
  *
  * Loja e operador vêm da sessão. Loja sem `pdv_v2` recebe 404.
  */
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
   const s = sanearAberturaBalcao(corpo)
   if (!s.ok) return NextResponse.json({ error: s.erro }, { status: 400 })
 
-  const r = await abrirBalcao(ctx.admin, { restauranteId: ctx.sessao.restauranteId, userId: ctx.sessao.userId, nome: ctx.sessao.nome, papel: ctx.sessao.papel }, s)
+  const r = await abrirBalcao(ctx.admin, { restauranteId: ctx.sessao.restauranteId, userId: ctx.sessao.userId, nome: ctx.sessao.nome, papel: ctx.sessao.papel }, s, 'pdv')
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
   return NextResponse.json({ ok: true, ...r.valor }, { status: r.valor.idempotente ? 200 : 201 })
 }

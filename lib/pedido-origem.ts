@@ -19,6 +19,12 @@ export interface PedidoParaRotulo {
   criadoPorNome?: string | null
   /** Número da comanda (0072): a cozinha e o caixa falam da mesma conta mesmo depois de transferir. */
   comandaNumero?: number | null
+  /** Senha do balcão (0082). */
+  comandaSenha?: number | null
+  /** 'entrega' no balcão = entrega manual pelo card preto (0094). */
+  tipo?: string | null
+  /** De onde saiu o lançamento de mesa (0094): 'pdv' | 'salao'. Null = pedido antigo (salão). */
+  lancadoVia?: string | null
 }
 
 export type TomOrigem = 'salao' | 'balcao' | 'delivery'
@@ -29,6 +35,8 @@ export interface RotuloOrigem {
   /** Quem lançou, quando faz diferença para a cozinha saber. */
   responsavel: string | null
   tom: TomOrigem
+  /** Posto que lançou, para a etiqueta curta: PDV (caixa), Salão (garçom) ou Delivery. */
+  posto: 'PDV' | 'Salão' | 'Delivery'
 }
 
 export function rotuloOrigemPedido(pedido: PedidoParaRotulo): RotuloOrigem {
@@ -37,16 +45,22 @@ export function rotuloOrigemPedido(pedido: PedidoParaRotulo): RotuloOrigem {
   const canal = pedido.canal ?? (pedido.origem === 'pdv' ? (pedido.mesa ? 'mesa' : 'balcao') : 'delivery')
 
   if (canal === 'mesa') {
+    // Mesa lançada pelo caixa (PDV) ou pelo garçom (salão); pedido antigo = salão.
+    const posto = pedido.lancadoVia === 'pdv' ? 'PDV' : 'Salão'
     return {
-      texto: `Salão · ${rotuloDaMesa(pedido.mesa)}${pedido.comandaNumero ? ` · Comanda ${pedido.comandaNumero}` : ''}`,
+      texto: `${posto} · ${rotuloDaMesa(pedido.mesa)}${pedido.comandaNumero ? ` · Comanda ${pedido.comandaNumero}` : ''}`,
       responsavel: pedido.criadoPorNome?.trim() || null,
       tom: 'salao',
+      posto,
     }
   }
   if (canal === 'balcao') {
-    return { texto: 'PDV · Balcão', responsavel: pedido.criadoPorNome?.trim() || null, tom: 'balcao' }
+    const texto = pedido.tipo === 'entrega'
+      ? `PDV · Entrega manual${pedido.comandaSenha ? ` · Senha ${pedido.comandaSenha}` : ''}`
+      : `PDV · Balcão${pedido.comandaSenha ? ` · Senha ${pedido.comandaSenha}` : ''}`
+    return { texto, responsavel: pedido.criadoPorNome?.trim() || null, tom: 'balcao', posto: 'PDV' }
   }
-  return { texto: null, responsavel: null, tom: 'delivery' }
+  return { texto: null, responsavel: null, tom: 'delivery', posto: 'Delivery' }
 }
 
 /**

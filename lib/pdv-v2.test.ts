@@ -26,7 +26,7 @@ describe('abertura do balcão', () => {
     expect(sanearAberturaBalcao({ nome: 'x'.repeat(61), chave: UUID }).ok).toBe(false)
   })
   it('telefone opcional vira só dígitos; inválido é recusado', () => {
-    expect(sanearAberturaBalcao({ nome: 'Ana', telefone: '(27) 99999-0001', chave: UUID })).toMatchObject({ ok: true, telefone: '27999990001' })
+    expect(sanearAberturaBalcao({ nome: 'Ana', telefone: '(27) 99999-0001', chave: UUID })).toMatchObject({ ok: true, telefone: '5527999990001' })
     expect(sanearAberturaBalcao({ nome: 'Ana', telefone: '123', chave: UUID }).ok).toBe(false)
     expect(sanearAberturaBalcao({ nome: 'Ana', telefone: 12345, chave: UUID }).ok).toBe(false)
   })
@@ -35,7 +35,7 @@ describe('abertura do balcão', () => {
   })
   it('campos extras são ignorados — não há como mandar loja, taxa ou senha', () => {
     const r = sanearAberturaBalcao({ nome: 'Ana', chave: UUID, restauranteId: UUID2, senha: 1, taxa: 10 })
-    expect(r).toEqual({ ok: true, nome: 'Ana', telefone: null, chave: UUID })
+    expect(r).toEqual({ ok: true, nome: 'Ana', telefone: null, chave: UUID, entrega: null })
   })
   it('telefone na lista aparece só em parte', () => {
     expect(telefoneParcial('27999990001')).toBe('(27) …0001')

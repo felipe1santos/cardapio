@@ -34,7 +34,8 @@ const DISPOSITIVO_VALIDO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 async function contexto(token: string) {
   const admin = getAdminSupabase()
   const mesa = await resolverMesaPorToken(admin, token)
-  if (!mesa) return null
+  // Mesa em limpeza não abre sessão (o banco também recusa).
+  if (!mesa || mesa.emLimpeza) return null
   const sessao = await abrirOuObterSessao(admin, mesa.restauranteId, mesa.mesaId)
   return { admin, mesa, sessao }
 }
