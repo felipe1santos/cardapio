@@ -144,10 +144,17 @@ export function temObrigatorio(item: ItemCardapio): boolean {
 /** Preço de vitrine: "a partir de" quando depende de tamanho. */
 export function precoDeVitrine(item: ItemCardapio): { valor: number; aPartirDe: boolean } {
   if (item.tamanhos.length > 0) {
-    return { valor: Math.min(...item.tamanhos.map((t) => t.preco)), aPartirDe: true }
+    // Tamanho ainda a R$ 0 (recém-importado) não vira o "a partir de".
+    const precos = item.tamanhos.map((t) => t.preco).filter((p) => p > 0)
+    return { valor: precos.length ? Math.min(...precos) : 0, aPartirDe: true }
   }
   if (item.tipoItem === 'pizza') {
-    const precos = item.sabores.filter((s) => s.status === 'disponivel').flatMap((s) => s.precos.map((p) => p.preco))
+    // Só preço de verdade (> 0) em tamanho que a pizza vende: tamanho desligado (0097)
+    // ou ainda sem preço não pode virar o "a partir de".
+    const ocultos = item.pizzaTamanhosOcultos ?? []
+    const precos = item.sabores
+      .filter((s) => s.status === 'disponivel')
+      .flatMap((s) => s.precos.filter((p) => p.preco > 0 && !ocultos.includes(p.tamanhoPadraoId)).map((p) => p.preco))
     return { valor: precos.length ? Math.min(...precos) : item.preco, aPartirDe: true }
   }
   return { valor: item.promocaoPreco ?? item.preco, aPartirDe: false }

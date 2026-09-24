@@ -66,6 +66,21 @@ describe('preço da linha da seleção da mesa', () => {
     expect(r.opcoes.reduce((s, o) => s + o.preco, 0)).toBe(11)
   })
 
+  it('pizza: tamanho desligado no item não fecha a linha nem entra no "a partir de"', () => {
+    const semMedia = { ...PIZZA_SALGADA, tamanhosOcultos: ['m'] }
+    const r = precificarLinha(
+      semMedia,
+      [
+        { grupo: 'Tamanho', escolha: 'Média', preco: 0, tipo: 'tamanho' },
+        { grupo: 'Sabor', escolha: 'Calabresa', preco: 0, tipo: 'sabor' },
+      ],
+      PIZZA_LOJA,
+    )
+    expect(r.completa).toBe(false)
+    expect(precoAPartirDe(semMedia, PIZZA_LOJA)).toBe(70)
+    expect(precoAPartirDe(PIZZA_SALGADA, PIZZA_LOJA)).toBe(50)
+  })
+
   it('pizza: sabor além do limite do tamanho ou sem preço nele é descartado', () => {
     const r = precificarLinha(
       PIZZA_SALGADA,

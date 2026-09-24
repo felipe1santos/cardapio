@@ -34,6 +34,7 @@ export function itemPrecificavel(i: ItemCardapio): ItemPrecificavel {
       .filter((s) => s.status === 'disponivel')
       .sort((a, b) => a.posicao - b.posicao)
       .map((s) => ({ nome: s.nome, precos: Object.fromEntries(s.precos.map((p) => [p.tamanhoPadraoId, p.preco])) })),
+    tamanhosOcultos: i.pizzaTamanhosOcultos ?? [],
     grupos: i.grupos.map((g) => ({
       nome: g.nome,
       complementos: g.complementos.filter((c) => !c.pausado).map((c) => ({ nome: c.nome, preco: c.preco })),

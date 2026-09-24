@@ -1,4 +1,5 @@
 import { precoPizzaSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
+import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
 
 /**
  * Preço de uma linha da seleção da mesa (cardápio do QR), a partir do catálogo.
@@ -40,6 +41,8 @@ export interface ItemPrecificavel {
   tamanhos: { nome: string; preco: number }[]
   /** Só sabores disponíveis. `precos` = id do tamanho padrão → preço. */
   sabores: { nome: string; precos: Record<string, number> }[]
+  /** Pizza: tamanhos desligados neste item (0097). Ausente = nenhum. */
+  tamanhosOcultos?: string[]
   grupos: { nome: string; complementos: { nome: string; preco: number }[] }[]
 }
 
@@ -64,7 +67,9 @@ export function precificarLinha(item: ItemPrecificavel, opcoes: OpcaoDaLinha[], 
   let completa = true
 
   if (item.tipoItem === 'pizza') {
-    const tamanho = pizza.tamanhos.find((t) => t.nome === doTipo('tamanho')[0]?.escolha)
+    const tamanho = pizza.tamanhos.find(
+      (t) => t.nome === doTipo('tamanho')[0]?.escolha && !tamanhoOcultoNaPizza(item.tamanhosOcultos, t.id),
+    )
     const sabores = tamanho
       ? doTipo('sabor')
           .map((o) => item.sabores.find((s) => s.nome === o.escolha))
@@ -105,7 +110,7 @@ export function precificarLinha(item: ItemPrecificavel, opcoes: OpcaoDaLinha[], 
 /** Menor preço possível do item — o "a partir de" do cartão. */
 export function precoAPartirDe(item: ItemPrecificavel, pizza: PizzaDaLoja): number {
   if (item.tipoItem === 'pizza') {
-    const ids = new Set(pizza.tamanhos.map((t) => t.id))
+    const ids = new Set(pizza.tamanhos.filter((t) => !tamanhoOcultoNaPizza(item.tamanhosOcultos, t.id)).map((t) => t.id))
     const precos = item.sabores.flatMap((s) => Object.entries(s.precos).filter(([id]) => ids.has(id)).map(([, p]) => p).filter((p) => p > 0))
     return precos.length ? Math.min(...precos) : item.preco
   }

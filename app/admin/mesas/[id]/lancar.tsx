@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import type { GrupoCardapio, ItemCardapio } from '@/lib/queries/cardapio'
 import type { BordaPizza, MassaPizza, TamanhoPadraoPizza } from '@/lib/queries/pizza'
 import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
+import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
 import { validarOpcoes, minimoDoGrupo, maximoDoGrupo } from '@/lib/opcoes-item'
 import {
   gruposComOpcao,
@@ -406,11 +407,8 @@ export function ConfiguradorGarcom({
   const sabores = useMemo(() => item.sabores.filter((s) => s.status === 'disponivel'), [item])
   // Tamanho de pizza só entra se algum sabor disponível tem preço nele.
   const tamanhosPizza = useMemo(
-    () => {
-      const comPreco = pizza.tamanhos.filter((t) => sabores.some((s) => s.precos.some((p) => p.tamanhoPadraoId === t.id && p.preco > 0)))
-      return comPreco.length > 0 ? comPreco : pizza.tamanhos
-    },
-    [pizza.tamanhos, sabores],
+    () => tamanhosVendidosDaPizza(pizza.tamanhos, sabores, item.pizzaTamanhosOcultos),
+    [pizza.tamanhos, sabores, item.pizzaTamanhosOcultos],
   )
   const tamanhosItem = useMemo(() => [...item.tamanhos].sort((a, b) => a.posicao - b.posicao), [item])
 

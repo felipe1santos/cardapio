@@ -32,6 +32,13 @@ describe('resolverPizza', () => {
     ).toThrow(/Pequena.*1 sabor/i)
   })
 
+  it('recusa sabor com preço 0 no tamanho (ainda não precificado)', () => {
+    const semPreco: SaborCatalogo = { nome: 'Calabresa', status: 'disponivel', precoPorTamanho: new Map([['tam-g', 0]]) }
+    expect(() =>
+      resolverPizza({ itemNome: 'Pizza Salgada', tamanho: TAM_GRANDE, saborTexto: 'Calabresa', catalogo: [semPreco], regra: 'media' }),
+    ).toThrow(/não é vendido no tamanho "Grande"/)
+  })
+
   it('recusa sabor que não existe', () => {
     expect(() =>
       resolverPizza({ itemNome: 'Pizza Salgada', tamanho: TAM_GRANDE, saborTexto: 'Calabresa / Frango', catalogo, regra: 'media' }),

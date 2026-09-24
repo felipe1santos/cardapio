@@ -8,6 +8,8 @@ import { erroDoTroco } from '@/lib/troco'
 import { ETIQUETAS_ITEM, tagDoItem } from '@/lib/etiqueta-item'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
+import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
+import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
@@ -820,7 +822,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         setOrderBumps(bumps)
         setTamanhosPizza(tamanhosPizzaData)
         setBordasPizza(bordasData)
-        setMassasPizza(massasData)
+        // Sem repetir a "Massa tradicional" que a ficha já oferece (lib/massa-padrao).
+        setMassasPizza(massasParaEscolha(massasData))
       } catch {
         // Num refresh silencioso mantemos o cardápio já carregado na tela.
         if (!cancelled && !isRefresh) setError('Não foi possível carregar o cardápio agora. Tente novamente em instantes.')
@@ -1679,10 +1682,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const tamanhosComPreco = useCallback(
     (item: ItemCardapio) => {
       if (item.tipoItem !== 'pizza') return tamanhosPizza
-      const comPreco = tamanhosPizza.filter((t) =>
-        item.sabores.some((s) => (s.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0) > 0),
-      )
-      return comPreco.length > 0 ? comPreco : tamanhosPizza
+      // Regra única (lib/pizza-tamanhos): preço em algum sabor e não desligado nesta pizza.
+      return tamanhosVendidosDaPizza(tamanhosPizza, item.sabores, item.pizzaTamanhosOcultos)
     },
     [tamanhosPizza],
   )

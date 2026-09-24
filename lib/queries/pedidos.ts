@@ -10,6 +10,7 @@ import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 import { resolverPizza, type SaborCatalogo, type TamanhoCatalogo } from './pedidos-pizza'
 import type { RegraPrecoPizza } from '@/lib/pizza-preco'
+import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -1074,7 +1075,7 @@ export async function criarPedido(
     .from('itens_cardapio')
     .select(`
       id, nome, preco, promocao_preco, status, tipo_item, dias_disponiveis,
-      disponivel_delivery, disponivel_salao,
+      disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos,
       item_complementos ( nome, preco ),
       tamanhos_item ( nome, preco ),
       pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
@@ -1131,6 +1132,11 @@ export async function criarPedido(
       if (!linha.tamanhoNome) throw new Error(`Selecione o tamanho da pizza "${item.nome}"`)
       const tamanho = tamanhosPizza.find((t) => t.nome === linha.tamanhoNome)
       if (!tamanho) throw new Error(`Tamanho "${linha.tamanhoNome}" não encontrado`)
+      // Tamanho desligado nesta pizza (0097): a tela já não mostra; aba antiga ou POST
+      // direto não furam.
+      if (tamanhoOcultoNaPizza(item.pizza_tamanhos_ocultos, tamanho.id)) {
+        throw new Error(`O tamanho "${tamanho.nome}" não é vendido na pizza "${item.nome}".`)
+      }
 
       const catalogo: SaborCatalogo[] = (item.pizza_sabores ?? []).map(
         (s: { nome: string; status: string; pizza_sabor_precos: { tamanho_padrao_id: string; preco: number }[] }) => ({
