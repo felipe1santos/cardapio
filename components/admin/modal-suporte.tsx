@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { DUVIDA_MAX, SUPORTE_MENUZIA, linkDoSuporte } from '@/lib/suporte'
 
 /**
@@ -109,7 +110,9 @@ export function ModalSuporte({
     }
   }
 
-  return (
+  // Portal no body: dentro da barra de topo o modal herdaria o empilhamento dela e o
+  // conteúdo da tela (Kanban, mapa) cobriria a parte de baixo, com os botões.
+  return createPortal(
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/60 p-4" data-testid="modal-suporte">
       <div
         ref={caixa}
@@ -195,6 +198,7 @@ export function ModalSuporte({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
