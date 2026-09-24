@@ -49,6 +49,17 @@ try {
         if (!card.querySelector('[title="Tempo desde que o pedido chegou"] svg.lucide-clock')) problemas.push(`${n}: cronômetro sem relógio`)
         if (atend?.getAttribute('data-testid') === 'etiqueta-entrega' && !atend.querySelector('path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]')) problemas.push(`${n}: ENTREGA sem capacete`)
         if (/não verif|\b(Pix|Dinheiro|Cartão)\b/i.test(card.innerText)) problemas.push(`${n}: pagamento/"não verif." no resumo do card`)
+        // Preço na MESMA linha do nome/mesa; itens usam a largura toda (sem coluna do preço);
+        // sem o texto repetido "PDV · …"/"Salão · …" no corpo.
+        const nome = card.querySelector('span.truncate.font-semibold')
+        if (preco && nome) {
+          const a = nome.getBoundingClientRect(), b = preco.getBoundingClientRect()
+          if (b.bottom < a.top || b.top > a.bottom) problemas.push(`${n}: preço fora da linha do nome`)
+          if (a.right > b.left + 1) problemas.push(`${n}: nome invade o preço`)
+        }
+        const itens = card.querySelector('ul')
+        if (itens && nome && itens.getBoundingClientRect().right < preco.getBoundingClientRect().right - 2) problemas.push(`${n}: resumo dos itens com coluna vazia à direita`)
+        if (/(PDV|Salão) · /.test(card.innerText)) problemas.push(`${n}: texto repetido "PDV/Salão · …" no card`)
       }
       return { cards: cards.length, horizontal: document.documentElement.scrollWidth > window.innerWidth + 1, problemas }
     })

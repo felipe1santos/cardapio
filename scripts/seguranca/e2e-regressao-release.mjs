@@ -326,7 +326,13 @@ secao('Kanban e cozinha: salão e balcão distinguíveis, delivery intocado')
   await dono.page.waitForTimeout(2500)
   const texto = await dono.page.locator('body').innerText()
   ok('o Kanban carrega com pedidos dos três canais', /#\d+/.test(texto))
-  ok('pedido de salão aparece como Salão', /Salão/.test(texto), texto.match(/Sal[ãa]o[^\n]{0,30}/)?.[0])
+  // O card não repete mais "Salão · Mesa …" no corpo (a5d517b): o salão é a etiqueta da
+  // primeira linha, em caixa alta por CSS. Confere a etiqueta no card do pedido de salão.
+  const pSalao = await um(`select numero from pedidos where restaurante_id=$1 and canal='mesa' and coalesce(lancado_via,'salao')='salao'
+    and status in ('recebido','preparando','pronto') order by criado_em desc limit 1`, [loja])
+  const etiquetaSalao = pSalao ? await dono.page.getByTestId(`pedido-${pSalao.numero}`)
+    .evaluate((c) => [...c.querySelectorAll('span')].some((s) => s.textContent.trim() === 'Salão')).catch(() => false) : false
+  ok('pedido de salão aparece como Salão', etiquetaSalao, `#${pSalao?.numero}`)
   ok('pedido de balcão continua aparecendo como PDV', /PDV/.test(texto))
   await dono.page.screenshot({ path: '.shots/rc-08-kanban-canais.png' })
 
