@@ -41,6 +41,14 @@ try {
           if (b.getBoundingClientRect().height > 48) problemas.push(`${n}: "${b.textContent.trim()}" em 2 linhas`)
         }
         for (const e of card.querySelectorAll('[data-testid^="etiqueta-"]')) if (fora(e, card)) problemas.push(`${n}: etiqueta saiu do card`)
+        // Nada (nome longo, bairro, itens) vaza do card na horizontal.
+        for (const e of card.querySelectorAll('span, div, li')) if (e.getClientRects().length && fora(e, card)) { problemas.push(`${n}: "${e.textContent.trim().slice(0, 30)}" saiu do card`); break }
+        const atend = card.querySelector('[data-testid="etiqueta-entrega"], [data-testid="etiqueta-retirada"], [data-testid="etiqueta-mesa"]')
+        if (!atend) problemas.push(`${n}: sem etiqueta RETIRADA/ENTREGA/MESA`)
+        if (![...card.querySelectorAll('span')].some((s) => ['PDV', 'Salão', 'Delivery'].includes(s.textContent.trim()))) problemas.push(`${n}: sem etiqueta de origem`)
+        if (!card.querySelector('[title="Tempo desde que o pedido chegou"] svg.lucide-clock')) problemas.push(`${n}: cronômetro sem relógio`)
+        if (atend?.getAttribute('data-testid') === 'etiqueta-entrega' && !atend.querySelector('path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]')) problemas.push(`${n}: ENTREGA sem capacete`)
+        if (/não verif|\b(Pix|Dinheiro|Cartão)\b/i.test(card.innerText)) problemas.push(`${n}: pagamento/"não verif." no resumo do card`)
       }
       return { cards: cards.length, horizontal: document.documentElement.scrollWidth > window.innerWidth + 1, problemas }
     })
