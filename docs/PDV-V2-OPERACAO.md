@@ -362,3 +362,59 @@ mesmo pedido. Desfazer: desmarcar, ou tirar a função Cozinha (desliga sozinho)
 - Publicar 0.1.26 e trocar o link de download em Ajustes (código em `app/admin/ajustes/page.tsx`) — só com autorização.
 - Garçom fora desta versão (decisão).
 - Rotação dos 4 tokens antigos segue pendente (seção 2); o pareamento por código é o caminho para aposentar o token da loja.
+
+---
+
+## 9. Atendimento identificado, entrega manual, fechamento e mesa em limpeza (RC local)
+
+Tudo vale só para loja com `pdv_v2` ligado. Loja sem a flag segue exatamente como antes
+(mesa abre sem nome, fecha e volta livre).
+
+| Peça | Onde |
+|---|---|
+| Nome obrigatório na mesa (tela, API e banco); telefone opcional normalizado (55+DDD+número) e vinculado ao cadastro `clientes` da loja; entrega manual no card preto; taxa de entrega da conta; `pedidos.lancado_via` | `0094_pdv_atendimento_identificado.sql` |
+| Mesa EM LIMPEZA após fechar (bloqueia comanda, pedido, sessão do QR, chamado e transferência); liberar; reabrir devolve a mesa | `0095_pdv_mesa_em_limpeza.sql` |
+| Fechar conta numa transação: decisões da cozinha (entregue/cancelar com motivo), pagamentos, cupom, fechamento; simulação; trava de fidelidade por conta | `0096_pdv_fechamento_completo.sql` |
+| Rotas | `POST /api/admin/balcao/comandas` (+ `entrega`), `POST /api/admin/mesas/[id]/atendimento` (`abrir`/`liberar`), `POST /api/admin/comandas/[id]` (`identificar`, `simular_fechamento`, `fechar_completo`, `aplicar_cupom`, `remover_cupom`) |
+| Telas | `components/pdv/central-balcao.tsx` (card preto), `components/pdv/atendimento.tsx` (abrir mesa, identificar, limpeza), `components/pdv/fechar-conta.tsx`, `app/mesa/[token]` (aviso de mesa em preparação) |
+| Provas locais | `verificar-pdv-atendimento-banco.mjs` (72), `e2e-pdv-atendimento.mjs` (72), `verificar-pdv-v2-banco.mjs` (93), `e2e-pdv-v2.mjs` (69) |
+
+### Regras que mudam para a operação (com a flag)
+
+- **Card preto:** nome sempre obrigatório. "Adicionar dados de entrega" transforma o
+  atendimento em `PDV · ENTREGA MANUAL`: pedido `tipo = entrega`, mesma cozinha, depois
+  logística. Entrega exige telefone. Taxa vazia = tabela de frete da loja; digitada =
+  manual (auditada). Pré-conta não se aplica a entrega.
+- **Mesa:** só abre com nome. Dois operadores ao mesmo tempo: um abre, o outro cai na
+  conta dele. Conta antiga sem nome continua legível e pede o nome antes do próximo
+  lançamento ou do fechamento (nenhum nome é inventado).
+- **Fechar conta:** cada pedido na cozinha precisa de decisão. "Entregue" em pedido
+  pronto = atendimento normal; antes de pronto, ou cancelar, exige gerente/dono
+  (`comanda.resolver_forcado`). Pago acima do novo total bloqueia tudo até estorno.
+- **Limpeza:** fechada, a mesa fica laranja. Liberar: quem tem `mesas.operar` ou
+  `balcao.abrir`. Liberar nunca desbloqueia nem reativa mesa.
+- **Cliente/fidelidade/cupom:** com telefone, conta entra no histórico do cliente;
+  fidelidade conta uma vez por conta, no fechamento; cupom (mesmas regras do delivery,
+  exige telefone) tem o uso contado no fechamento, uma vez. Item grátis só na vitrine.
+- **Cores das mesas:** verde livre, azul ocupada (azul claro = aberta sem lançamento),
+  laranja em limpeza, escuro bloqueada, cinza inativa.
+
+### Ordem de deploy (quando autorizado)
+
+Depois das migrations 0080–0093: **0094 → 0095 → 0096** (aditivas; colunas novas com
+default constante, sem reescrever tabela). Depois o código. Código antes das
+migrations quebra: o Kanban lê `pedidos.lancado_via` e `comandas.senha`, e as rotas
+chamam funções novas.
+
+### Rollback
+
+`docs/rollback/0094_0096_atendimento.down.sql` (não apaga dado). Preferível: desligar
+`pdv_v2` na loja.
+
+### Pendências conhecidas
+
+- "Entrega grátis acima de X" da loja não se aplica à entrega manual: a taxa é decidida
+  na abertura (tabela ou manual) — o operador ajusta digitando a taxa.
+- Dashboard ainda não separa faturamento por canal (`pedidos.origem/canal` já gravados).
+- Entrega manual paga na entrega: o entregador vê o pedido na logística como hoje; o
+  pagamento é registrado na conta (pelo caixa) ao voltar.
