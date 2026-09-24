@@ -218,3 +218,14 @@ describe('assinaturaPendencias', () => {
     expect(assinaturaPendencias(antes)).not.toBe(assinaturaPendencias(depois))
   })
 })
+
+describe('contagem que falhou (null) não vira alarme', () => {
+  it('itens, categorias, entregadores, fotos e dias desconhecidos não geram pendência', () => {
+    const d = { ...lojaOk(), itensDisponiveis: null, categorias: null, entregadoresCadastrados: null, itensSemFoto: null, itensSemDiaDaSemana: null }
+    expect(avaliarSetup(d)).toEqual([])
+  })
+  it('zero de verdade continua acusando', () => {
+    expect(ids({ ...lojaOk(), itensDisponiveis: 0 })).toContain('sem-item-disponivel')
+    expect(ids({ ...lojaOk(), entregadoresCadastrados: 0 })).toContain('sem-entregador')
+  })
+})

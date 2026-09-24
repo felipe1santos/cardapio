@@ -756,7 +756,12 @@ export async function contarBadgesNav(supabase: SupabaseClient, restauranteId: s
     supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'recebido'),
     supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'pronto').eq('tipo', 'entrega'),
   ])
-  return { novosPedidos: novos.count ?? 0, logisticaPendente: logistica.count ?? 0 }
+  // Falhou (o supabase-js não rejeita num 5xx) → lança: o layout mantém o número que já
+  // mostrava em vez de zerar o badge por causa de um soluço do servidor.
+  if (novos.error || logistica.error || typeof novos.count !== 'number' || typeof logistica.count !== 'number') {
+    throw new Error('Não foi possível contar os pedidos para os badges.')
+  }
+  return { novosPedidos: novos.count, logisticaPendente: logistica.count }
 }
 
 // --- Dashboard (agregados reais a partir dos pedidos) ---

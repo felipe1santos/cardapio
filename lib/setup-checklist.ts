@@ -46,18 +46,20 @@ export interface ConfigSetup {
 
 export interface DadosSetup {
   config: ConfigSetup
+  // Contagens: null = a consulta falhou ("não sei"). Regra com contagem desconhecida
+  // não acusa nada — avisar errado é pior do que não avisar.
   /** Itens com status `disponivel` — o que o cliente consegue pedir hoje. */
-  itensDisponiveis: number
+  itensDisponiveis: number | null
   /** Itens disponíveis sem foto: vendem menos, mas não travam nada. */
-  itensSemFoto: number
+  itensSemFoto: number | null
   /** Itens disponíveis com preço zerado e sem tabela de tamanhos — saem de graça. */
   itensSemPreco: number
   /** Itens disponíveis sem nenhum dia da semana marcado — nunca aparecem na vitrine. */
-  itensSemDiaDaSemana: number
-  categorias: number
+  itensSemDiaDaSemana: number | null
+  categorias: number | null
   temTaxaPorBairro: boolean
   temTaxaPorRaio: boolean
-  entregadoresCadastrados: number
+  entregadoresCadastrados: number | null
 }
 
 const ORDEM: SeveridadeSetup[] = ['critico', 'atencao']
@@ -126,7 +128,7 @@ export function avaliarSetup(dados: DadosSetup): PendenciaSetup[] {
     })
   }
 
-  if (dados.itensSemDiaDaSemana > 0) {
+  if (dados.itensSemDiaDaSemana !== null && dados.itensSemDiaDaSemana > 0) {
     pendencias.push({
       id: 'itens-sem-dia',
       severidade: 'critico',
@@ -208,7 +210,7 @@ export function avaliarSetup(dados: DadosSetup): PendenciaSetup[] {
     })
   }
 
-  if (dados.itensSemFoto > 0) {
+  if (dados.itensSemFoto !== null && dados.itensSemFoto > 0) {
     pendencias.push({
       id: 'itens-sem-foto',
       severidade: 'atencao',

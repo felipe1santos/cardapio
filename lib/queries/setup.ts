@@ -2,9 +2,17 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ConfigLoja } from './ajustes'
 import type { DadosSetup } from '@/lib/setup-checklist'
 
-/** Contagem de uma consulta `head: true`; consulta que falhou não vira alarme falso. */
-function conta(resultado: PromiseSettledResult<{ count: number | null }>): number {
-  return resultado.status === 'fulfilled' ? (resultado.value.count ?? 0) : 0
+/**
+ * Contagem de uma consulta `head: true`. Falhou → null ("não sei"), nunca 0.
+ *
+ * O supabase-js não rejeita a promessa num 5xx: devolve `{ count: null, error }`. Com
+ * `count ?? 0`, um 503 passageiro do PostgREST (visto em produção em 2026-09-24) virava
+ * "nenhum item disponível" / "nenhum entregador" — alarme falso no checklist.
+ */
+export function conta(resultado: PromiseSettledResult<{ count: number | null; error?: unknown }>): number | null {
+  if (resultado.status !== 'fulfilled') return null
+  if (resultado.value.error || typeof resultado.value.count !== 'number') return null
+  return resultado.value.count
 }
 
 /**
@@ -18,7 +26,7 @@ function conta(resultado: PromiseSettledResult<{ count: number | null }>): numbe
 async function contarItensQuebrados(
   supabase: SupabaseClient,
   restauranteId: string
-): Promise<{ semPreco: number; semDia: number }> {
+): Promise<{ semPreco: number; semDia: number | null }> {
   const [semPrecoRes, semDiaRes] = await Promise.allSettled([
     // Só item simples: pizza tem o preço nos sabores/tamanhos padrão e vive com
     // `preco = 0` no cadastro — acusar isso seria alarme falso em toda pizzaria.
@@ -38,7 +46,7 @@ async function contarItensQuebrados(
   ])
 
   let semPreco = 0
-  if (semPrecoRes.status === 'fulfilled') {
+  if (semPrecoRes.status === 'fulfilled' && !semPrecoRes.value.error) {
     const ids = ((semPrecoRes.value.data ?? []) as { id: string }[]).map((i) => i.id)
     if (ids.length > 0) {
       // Pizza, açaí e marmita têm preço na tabela de tamanhos — preço 0 no item
@@ -108,8 +116,9 @@ export async function carregarDadosSetup(
     itensSemPreco: quebrados.semPreco,
     itensSemDiaDaSemana: quebrados.semDia,
     categorias: conta(categorias as PromiseSettledResult<{ count: number | null }>),
-    temTaxaPorBairro: conta(bairros as PromiseSettledResult<{ count: number | null }>) > 0,
-    temTaxaPorRaio: conta(raios as PromiseSettledResult<{ count: number | null }>) > 0,
+    // Não deu para contar → trata como configurado: sem certeza, não acusa "sem taxa".
+    temTaxaPorBairro: (conta(bairros as PromiseSettledResult<{ count: number | null }>) ?? 1) > 0,
+    temTaxaPorRaio: (conta(raios as PromiseSettledResult<{ count: number | null }>) ?? 1) > 0,
     entregadoresCadastrados: conta(entregadores as PromiseSettledResult<{ count: number | null }>),
   }
 }
