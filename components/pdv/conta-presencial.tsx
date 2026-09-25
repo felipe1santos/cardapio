@@ -310,7 +310,13 @@ export function ContaPresencialModal({
               <div className="rounded-menuzia border border-border bg-white px-3 py-3 text-[13px]" data-testid="conta-totais">
                 <Linha rotulo="Subtotal" valor={conta.totais.subtotal} />
                 {(conta.totais.taxaServico > 0 || conta.tipo === 'mesa') && <Linha rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={conta.totais.taxaServico} />}
-                {conta.entrega && <Linha rotulo={`Taxa de entrega${conta.entrega.taxaManual ? ' (manual)' : ''}`} valor={conta.entrega.taxa} />}
+                {/* Valor cobrado agora: sem item ativo (tudo cancelado) a taxa não entra no total (0099). */}
+                {conta.entrega && (
+                  <Linha
+                    rotulo={conta.entrega.taxa > 0 && conta.totais.taxaEntrega === 0 ? 'Taxa de entrega (não cobrada: sem item ativo)' : `Taxa de entrega${conta.entrega.taxaManual ? ' (manual)' : ''}`}
+                    valor={conta.totais.taxaEntrega}
+                  />
+                )}
                 {conta.totais.desconto > 0 && <Linha rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={-conta.totais.desconto} />}
                 <div className="my-1.5 border-t border-border" />
                 <Linha rotulo="Total" valor={conta.totais.total} forte />
