@@ -7,7 +7,9 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win",
-    "dist:teste-local": "electron-builder --win --config electron-builder-teste-local.json"
+    "dist:teste-local": "electron-builder --win --config electron-builder-teste-local.json",
+    "dist:beta": "electron-builder --win --config electron-builder-beta.json",
+    "dist:beta-teste-local": "electron-builder --win --config electron-builder-beta-teste-local.json"
   },
   "devDependencies": {
     "electron": "^31.0.0",

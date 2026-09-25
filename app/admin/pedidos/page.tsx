@@ -801,7 +801,7 @@ export default function PedidosPage() {
     avancarRef.current = avancar
   })
 
-  /** Liga/desliga o aceite automático — mesma chave de Ajustes › Impressão. */
+  /** Liga/desliga o aceite automático — mesma chave da página Impressão. */
   async function toggleAutoAceite() {
     if (!restauranteId) return
     const next = !autoAceitar

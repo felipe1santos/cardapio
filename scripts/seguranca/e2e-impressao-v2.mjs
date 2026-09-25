@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
@@ -21,6 +22,16 @@ const ART = process.env.ARTEFATOS ?? join(tmpdir(), 'menuzia-e2e-impressao')
 const { DB_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
 if (SHOTS) mkdirSync(SHOTS, { recursive: true })
+// Isolamento: nada do Assistente REAL deste computador (log, configuração, instalação).
+// Aborta ANTES de apagar a pasta de artefatos se ela cair no lugar real.
+const isolamento = createRequire(import.meta.url)('../impressao/isolamento-teste.cjs')
+try {
+  isolamento.exigirIsolamento({ temp: ART, pastas: [ART], rotulo: 'e2e impressão v2' })
+} catch (e) {
+  console.error(e.message)
+  process.exit(3)
+}
+const fotoReaisAntes = isolamento.fotografarReais()
 rmSync(ART, { recursive: true, force: true })
 mkdirSync(ART, { recursive: true })
 
@@ -44,7 +55,9 @@ for (const t of ['impressao_trabalhos', 'impressao_funcoes', 'impressao_disposit
 }
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza e2e impressão', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
 await db.query('update mesas set limpeza_desde=null, limpeza_comanda_id=null where restaurante_id=$1', [loja])
+// 0100: loja liberada para o Beta, começando em "Somente Caixa".
 await db.query(`update restaurantes set pdv_v2=true, modulo_mesas_ativo=true, impressao_automatica=true, impressao_cozinha_por_funcao=false,
+  impressao_beta_liberado=true, impressao_beta_modo='caixa', impressao_cozinha_transferida_em=null,
   impressao_agente_visto_em=null, impressao_agente_token=null where id=$1`, [loja])
 await db.query('update pedidos set impresso=true, reimprimir=false where restaurante_id=$1', [loja])
 
@@ -148,7 +161,10 @@ await pGer.getByTestId('funcao-caixa').selectOption(d02.id)
 await aguardar(async () => (await painel(pGer)).funcoes.caixa === d02.id)
 pn = await painel(pGer)
 ok('Cozinha → Impressora 01, Caixa → Impressora 02', pn.funcoes.cozinha === d01.id && pn.funcoes.caixa === d02.id)
-await pGer.getByTestId('cozinha-por-funcao').click()
+// 0100: a cozinha passa ao Beta pelo modo "Cozinha e Caixa", com confirmação explícita.
+await pGer.getByTestId('modo-cozinha_caixa').click()
+await pGer.getByTestId('confirmar-cozinha-beta').check()
+await pGer.getByTestId('confirmar-modo-ok').click()
 ok('roteamento da cozinha por função ligado (opt-in, pela tela)', !!(await aguardar(async () => (await painel(pGer)).cozinhaPorFuncao)))
 await foto(pGer, 'imp-01-painel-configurado')
 
@@ -185,7 +201,7 @@ const pc1 = A.impressos().filter((x) => x.tipo === 'pre_conta')
 ok('pré-conta saiu uma vez, só na Impressora 02 (58 mm)', pc1.length === 1 && pc1[0].impressora === 'Impressora 02' && pc1[0].paperMm === 58)
 ok('nenhuma pré-conta na Impressora 01', !A.impressos().some((x) => x.tipo === 'pre_conta' && x.impressora === 'Impressora 01'))
 const t1 = pc1[0].texto.replace(/[\x01\x02]/g, ' ')
-ok('conteúdo: PRÉ-CONTA, não fiscal, mesa, taxa 10%, desconto, pago e restante', ['PRÉ-CONTA', 'NÃO É DOCUMENTO FISCAL', mesa.nome.toUpperCase(), 'Taxa de serviço (10%)', 'Desconto', 'Já pago', 'Pix: R$ 20,00', 'RESTANTE A PAGAR', '1ª via'].every((t) => t1.includes(t)))
+ok('conteúdo: RECIBO/EXTRATO, não fiscal, mesa, taxa 10%, desconto, pago e restante', ['RECIBO/EXTRATO', 'NÃO É DOCUMENTO FISCAL', mesa.nome.toUpperCase(), 'Taxa de serviço (10%)', 'Desconto', 'Já pago', 'Pix: R$ 20,00', 'RESTANTE A PAGAR', '1ª via'].every((t) => t1.includes(t)))
 ok('motivo do desconto não sai no papel', !t1.includes('Cortesia interna'))
 ok('pré-conta não disparou ficha da cozinha de novo', A.impressos().filter((x) => x.tipo === 'ficha_cozinha').length === 2)
 
@@ -300,9 +316,12 @@ console.log(`\nArtefatos virtuais em: ${ART}`)
 A.parar()
 B.parar()
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza e2e impressão', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
-await db.query('update restaurantes set impressao_cozinha_por_funcao=false where id=$1', [loja])
+await db.query("update restaurantes set impressao_cozinha_por_funcao=false, impressao_beta_liberado=false, impressao_beta_modo='teste' where id=$1", [loja])
 await browser.close()
 await db.end()
+const difReais = isolamento.diferencas(fotoReaisAntes, isolamento.fotografarReais())
+console.log(`\n── Arquivos reais do Assistente 0.1.23 ──`)
+ok('log e configuração reais intactos (hash, tamanho e data) durante todo o teste', difReais.length === 0, difReais.join(' | '))
 const falhas = res.filter((r) => !r).length
 console.log(`\n${falhas ? '❌' : '✅'} ${res.length - falhas}/${res.length} verificações passaram`)
 process.exit(falhas ? 1 : 0)

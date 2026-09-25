@@ -1,0 +1,33 @@
+{
+  "appId": "com.menuzia.assistente.beta",
+  "productName": "Assistente Menuzia Beta",
+  "directories": { "output": "dist-beta" },
+  "extraMetadata": {
+    "name": "menuzia-assistente-beta",
+    "productName": "Assistente Menuzia Beta",
+    "version": "0.2.0-beta.1",
+    "menuziaAmbiente": {
+      "variante": "beta",
+      "apiBaseUrl": "https://app.menuzia.com.br",
+      "pastaDados": "menuzia-assistente-beta",
+      "appUserModelId": "com.menuzia.assistente.beta",
+      "nomeInicio": "Assistente Menuzia Beta"
+    }
+  },
+  "win": { "target": "nsis" },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "allowElevation": false,
+    "runAfterFinish": true,
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Assistente Menuzia Beta",
+    "uninstallDisplayName": "Assistente Menuzia Beta ${version}",
+    "artifactName": "AssistenteMenuziaBeta-Setup-${version}.${ext}",
+    "include": "build-beta/instalador-beta.nsh"
+  },
+  "files": ["src/**/*", "!src/**/*.test.ts", "package.json"],
+  "asarUnpack": ["src/*.ps1"]
+}

@@ -4,6 +4,7 @@ import { buscarConfigImpressao, buscarLojaImpressao, listarImpressoras, listarPe
 import { lerAgenteToken } from '@/lib/agente-token'
 import { identificarAgente } from '@/lib/impressao/credenciais'
 import { destinoCozinha } from '@/lib/impressao/servico'
+import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
 
 /**
  * Fila da FICHA DA COZINHA, consultada periodicamente pelo Assistente de Impressão.
@@ -12,7 +13,12 @@ import { destinoCozinha } from '@/lib/impressao/servico'
  * credencial do computador (0.1.26+). Com identidade — cabeçalho X-Agente-Instancia no
  * modo antigo, ou o próprio agente autenticado — os pedidos entregues ficam RESERVADOS
  * para quem pediu (0086); sem identidade, só são listados (0087).
+ *
+ * Assistente Beta (0100): um computador PAREADO só consome a cozinha quando a loja está
+ * em "Cozinha e Caixa" e ele é o dono da impressora de Cozinha. Em qualquer outro modo
+ * recebe lista vazia — a cozinha continua no Assistente antigo e nada imprime em dobro.
  */
+
 export async function GET(request: Request) {
   if (!lerAgenteToken(request)) return NextResponse.json({ error: 'Token ausente' }, { status: 400 })
 
@@ -45,17 +51,23 @@ export async function GET(request: Request) {
   // e a ficha nunca cai na impressora do caixa.
   if (rota.ativo) {
     const souDono = quem.tipo === 'agente' && quem.agenteId === rota.agenteId
-    const pedidos = souDono && config?.impressaoAutomatica ? await listarPedidosParaImprimir(admin, restauranteId, instancia) : []
+    const lista = souDono && config?.impressaoAutomatica ? await listarPedidosParaImprimir(admin, restauranteId, instancia) : []
+    const pedidos = aposCorteDaTransferencia(lista as { criadoEm?: string | null }[], rota.transferidaEm)
     return NextResponse.json({
       config,
       impressoras,
       pedidos,
       loja,
       destinoCozinha: souDono
-        ? { nomeSistema: rota.nomeSistema, larguraMm: rota.larguraMm, tamanhoFonte: rota.tamanhoFonte, copias: rota.copias }
+        ? { nomeSistema: rota.nomeSistema, larguraMm: rota.larguraMm, tamanhoFonte: rota.tamanhoFonte, copias: rota.copias,
+            larguraPontos: rota.larguraPontos, deslocamentoPontos: rota.deslocamentoPontos }
         : null,
     })
   }
+
+  // Computador pareado (Assistente Beta) fora do modo "Cozinha e Caixa": não consome a
+  // cozinha. Sem isso, Beta e Assistente antigo imprimiriam a mesma ficha.
+  if (quem.tipo === 'agente') return NextResponse.json({ config, impressoras, pedidos: [], loja })
 
   // Impressão automática desligada: o Assistente não imprime nada, então nada é
   // reservado — senão a fila ficaria presa em reservas de quem não vai imprimir.

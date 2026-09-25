@@ -6,7 +6,12 @@ param(
   [string]$LogoPath = '',
   [int]$PaperWidthMm = 80,
   [int]$FonteMaior = 0,
-  [string]$DebugPng = ''
+  [string]$DebugPng = '',
+  # Assistente Beta (0.2+), por impressora. Os padrões mantêm a impressão exatamente como
+  # sempre: 0 = largura padrão do papel (576/384), sem deslocamento, log de sempre.
+  [int]$LarguraPontos = 0,
+  [int]$DeslocamentoPontos = 0,
+  [string]$LogNome = 'menuzia-print.log'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,7 +22,7 @@ $STX = [char]2  # separador de campo
 
 # --- Diagnostico: grava em %TEMP%\menuzia-print.log E emite pro stdout (MENUZIA:) pra
 # o agente mostrar na janela. ---
-$LogFile = Join-Path $env:TEMP 'menuzia-print.log'
+$LogFile = Join-Path $env:TEMP $LogNome
 function Write-Log($msg) {
   try { Add-Content -Path $LogFile -Value ("[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $msg) -Encoding UTF8 } catch {}
   Write-Output ("MENUZIA: " + $msg)
@@ -29,7 +34,12 @@ function Write-Log($msg) {
 # em qualquer driver termico.
 $dpi = 203.0
 $dotW = if ($PaperWidthMm -le 58) { 384 } else { 576 }
+# Perfil calibrado desta impressora (Beta): largura efetiva em pontos (ex.: 512 quando o
+# driver corta a direita). Só vale dentro do limite aceito pelo servidor.
+if ($LarguraPontos -ge 256 -and $LarguraPontos -le 832) { $dotW = $LarguraPontos }
+if ($DeslocamentoPontos -lt -64 -or $DeslocamentoPontos -gt 64) { $DeslocamentoPontos = 0 }
 Write-Log "==== IMPRIMIR: printer='$PrinterName' cols=$Cols paperMm=$PaperWidthMm dotW=$dotW logo='$LogoPath' ===="
+if ($LarguraPontos -gt 0 -or $DeslocamentoPontos -ne 0) { Write-Log "PERFIL: larguraPontos=$dotW deslocamento=$DeslocamentoPontos escala=1:1" }
 
 # Impressora ainda existe?
 $existe = $false
@@ -221,6 +231,8 @@ foreach ($op in $ops) {
       $g.DrawString($op.F[0], $fTotal, $black, [single]$margem, [single]$y)
       $vW = $g.MeasureString($op.F[1], $fTotal).Width
       $g.DrawString($op.F[1], $fTotal, $black, [single]($rightX - $vW), [single]$y)
+      # Onde o valor do TOTAL ficou no bitmap (so log; a imagem nao muda).
+      Write-Log ("TOTAL: valor='{0}' x={1}..{2} papel={3}" -f $op.F[1], [int]($rightX - $vW), [int]$rightX, $dotW)
       $y += $fTotal.GetHeight($mg) + $H * 0.2
     }
     'L' {
@@ -237,6 +249,28 @@ foreach ($op in $ops) {
       $g.DrawLine($penDot, [single]$margem, [single]$midY, [single]$rightX, [single]$midY)
       $penDot.Dispose()
       $y += $H * 0.7
+    }
+    'K' {
+      # Regua de calibracao: bordas nas duas pontas, marca a cada 16 pontos e numero a
+      # cada 64. O ultimo numero inteiro visivel a direita e a largura que o papel mostra.
+      $fRegua = NovaFonte 0.8 $true
+      $alturaR = [double]$fRegua.GetHeight($mg) * 2.6
+      $penR = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, [single]2)
+      $g.DrawRectangle($penR, [single]0, [single]$y, [single]($dotW - 1), [single]$alturaR)
+      $g.FillRectangle($black, 0, [single]$y, 6, [single]$alturaR)
+      $g.FillRectangle($black, [single]($dotW - 6), [single]$y, 6, [single]$alturaR)
+      for ($x = 16; $x -lt $dotW; $x += 16) {
+        $alto = if ($x % 64 -eq 0) { $alturaR * 0.45 } else { $alturaR * 0.22 }
+        $g.DrawLine($penR, [single]$x, [single]($y + $alturaR - $alto), [single]$x, [single]($y + $alturaR))
+        if ($x % 64 -eq 0) {
+          $rot = [string]$x
+          $rw = $g.MeasureString($rot, $fRegua).Width
+          # O numero TERMINA no traco: se ele aparece inteiro, o papel mostra ate esse ponto.
+          $g.DrawString($rot, $fRegua, $black, [single]([Math]::Max(8, $x - $rw)), [single]($y + 4))
+        }
+      }
+      $penR.Dispose(); $fRegua.Dispose()
+      $y += $alturaR + $H * 0.4
     }
     'F' {
       $y += $H * 0.6
@@ -283,10 +317,11 @@ function Imprimir-Bitmap([System.Drawing.Bitmap]$img, [bool]$usarCustom) {
   }
   try { $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0); $doc.OriginAtMargins = $false } catch {}
   $script:imgImpr = $img
+  $script:deslocX = $DeslocamentoPontos
   $handler = {
     param($s, $e)
     $e.Graphics.PageUnit = [System.Drawing.GraphicsUnit]::Pixel
-    $e.Graphics.DrawImage($script:imgImpr, 0, 0, $script:imgImpr.Width, $script:imgImpr.Height)
+    $e.Graphics.DrawImage($script:imgImpr, $script:deslocX, 0, $script:imgImpr.Width, $script:imgImpr.Height)
     $e.HasMorePages = $false
   }
   $doc.add_PrintPage($handler)

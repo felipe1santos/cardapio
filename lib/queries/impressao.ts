@@ -44,7 +44,7 @@ function mapConfigImpressao(row: ConfigImpressaoRow): ConfigImpressao {
     impressaoAutomatica: row.impressao_automatica,
     aceitarPedidosAutomaticamente: row.impressao_aceitar_pedidos_automaticamente,
     // O token não viaja mais nesta leitura: desde a 0080 o navegador não tem acesso à
-    // coluna. Ajustes › Impressão busca pela rota do dono (/api/admin/impressao/token).
+    // coluna. A página Impressão busca pela rota do dono (/api/admin/impressao/token).
     agenteToken: null,
   }
 }

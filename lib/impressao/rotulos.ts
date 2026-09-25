@@ -24,14 +24,39 @@ export const TOM_ESTADO_IMPRESSAO: Record<string, 'pending' | 'preparing' | 'ok'
 }
 
 export const ROTULO_TIPO_TRABALHO: Record<string, string> = {
-  pre_conta: 'Pré-conta',
+  pre_conta: 'Recibo/Extrato',
   teste_impressora: 'Teste',
+}
+
+/** Subtipo do teste_impressora no histórico. */
+export const ROTULO_SUBTIPO_TESTE: Record<'calibracao' | 'recibo_teste', string> = {
+  calibracao: 'Página de calibração',
+  recibo_teste: 'Recibo/Extrato de teste',
 }
 
 export const ROTULO_FUNCAO: Record<'cozinha' | 'caixa', string> = {
   cozinha: 'Cozinha',
-  caixa: 'Caixa / Pré-conta',
+  caixa: 'Caixa — Recibo/Extrato',
 }
 
 export const AVISO_PAPEL =
   'O sistema confirma que o Windows aceitou o trabalho. A impressora não informa se o papel saiu: sem papel, tampa aberta ou offline, o trabalho fica na fila do Windows.'
+
+/** O que o Assistente Beta imprime (0100). */
+export const ROTULO_MODO_BETA: Record<'teste' | 'caixa' | 'cozinha_caixa', string> = {
+  teste: 'Somente teste',
+  caixa: 'Somente Caixa',
+  cozinha_caixa: 'Cozinha e Caixa',
+}
+
+export const EXPLICACAO_RECIBO_EXTRATO = 'Documento não fiscal usado para o cliente conferir a conta antes ou depois do pagamento.'
+
+/** Instaladores. O atual é o que as lojas já usam; o Beta só aparece para loja liberada. */
+export const DOWNLOAD_ASSISTENTE_ATUAL = {
+  versao: '0.1.23',
+  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.23/AssistenteImpressaoMenuzia-Setup-0.1.23.exe',
+}
+export const DOWNLOAD_ASSISTENTE_BETA = {
+  versao: '0.2.0-beta.1',
+  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.1/AssistenteMenuziaBeta-Setup-0.2.0-beta.1.exe',
+}

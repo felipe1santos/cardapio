@@ -1195,7 +1195,8 @@ const ROTULO_VIA: Record<string, string> = {
 }
 
 /**
- * Pré-conta: documento para o cliente conferir o consumo. Manual, só por este botão.
+ * Recibo/Extrato (a "pré-conta"): documento não fiscal para o cliente conferir a conta.
+ * Manual, só por este botão.
  * Não mexe na conta — nem pedido, nem pagamento, nem atendimento, nem cozinha. O
  * servidor monta tudo; a tela manda só a chave. Mostra a última via e o estado real
  * ("aceito pela fila do Windows" não quer dizer papel na mão).
@@ -1235,7 +1236,7 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
     // Chave nova só depois do envio: clique duplo e reenvio devolvem o mesmo trabalho.
     chave.current = novaChave()
     if (!r.ok) {
-      setErro({ texto: r.erro ?? 'Não foi possível enviar a pré-conta.', semCaixa: r.codigo === 'impressora_caixa_nao_configurada' })
+      setErro({ texto: r.erro ?? 'Não foi possível enviar o Recibo/Extrato.', semCaixa: r.codigo === 'impressora_caixa_nao_configurada' })
       return
     }
     await carregar()
@@ -1250,7 +1251,7 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
         data-testid={ultima ? 'pre-conta-reimprimir' : 'pre-conta-imprimir'}
         className="w-full rounded-menuzia border-2 border-sidebar-bg bg-white py-3 text-[14px] font-bold text-sidebar-bg transition-all hover:bg-sidebar-bg hover:text-white disabled:opacity-50"
       >
-        {enviando ? 'Enviando…' : ultima ? 'Reimprimir pré-conta' : 'Imprimir pré-conta'}
+        {enviando ? 'Enviando…' : ultima ? 'Reimprimir Recibo/Extrato' : 'Imprimir Recibo/Extrato'}
       </button>
       {ultima && (
         <p className="mt-1.5 text-[11px] leading-snug text-text-subtle" data-testid="pre-conta-estado">
@@ -1258,7 +1259,7 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
           <strong className={ultima.estado === 'enviado_spooler' ? 'text-price-text' : ultima.estado === 'falhou' || ultima.estado === 'expirado' ? 'text-danger' : 'text-text-main'}>
             {ROTULO_VIA[ultima.estado] ?? ultima.estado}
           </strong>
-          {andando && !ultima.computadorOnline && <span className="block text-danger">O computador desta impressora está offline. A pré-conta vence em 10 min.</span>}
+          {andando && !ultima.computadorOnline && <span className="block text-danger">O computador desta impressora está offline. O Recibo/Extrato vence em 10 min.</span>}
           {ultima.erro && ultima.estado !== 'enviado_spooler' && <span className="block text-danger">{ultima.erro}</span>}
         </p>
       )}
@@ -1267,7 +1268,7 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
           {erro.texto}
           {erro.semCaixa && (
             <a href="/admin/impressao" className="ml-1 underline">
-              Ajustes › Impressão
+              menu Impressão
             </a>
           )}
         </p>

@@ -54,9 +54,12 @@ for (const l of [loja, vizinha]) {
 }
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza teste impressão', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
 await db.query('update mesas set limpeza_desde=null, limpeza_comanda_id=null where restaurante_id=$1', [loja])
+// 0100: pareamento e Recibo/Extrato só em loja liberada para o piloto do Assistente Beta,
+// com o modo "Somente Caixa" (a cozinha segue no Assistente antigo).
 await db.query(`update restaurantes set pdv_v2=true, modulo_mesas_ativo=true, impressao_automatica=true, impressao_cozinha_por_funcao=false,
-  impressao_agente_visto_em=null, salao_caixa_desconto=true where id=$1`, [loja])
-await db.query(`update restaurantes set pdv_v2=true where id=$1`, [vizinha])
+  impressao_agente_visto_em=null, salao_caixa_desconto=true, impressao_beta_liberado=true, impressao_beta_modo='caixa',
+  impressao_cozinha_transferida_em=null where id=$1`, [loja])
+await db.query(`update restaurantes set pdv_v2=true, impressao_beta_liberado=true, impressao_beta_modo='caixa' where id=$1`, [vizinha])
 await db.query('update pedidos set impresso=true, reimprimir=false where restaurante_id=$1', [loja])
 
 // Gerente de demonstração (só local).
@@ -319,13 +322,17 @@ await db.query(`update impressao_agentes set visto_em=now() where credencial_has
 const kped = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: cbal, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
 const legado = await fetch(`${BASE}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${tokenLegado}` } }).then((r) => r.json())
 ok('flag desligada: Assistente antigo (token) lista a ficha como sempre', legado.pedidos.some((p) => p.id === kped.json.id))
+ok('flag desligada: computador pareado (Beta) NÃO recebe a ficha — sem dobra com o antigo', ((await A.get('/api/agente/pedidos')).json?.pedidos ?? []).length === 0)
 ok('ficha da cozinha nunca aparece na fila de pré-conta', !((await A.get('/api/agente/trabalhos')).json?.trabalhos ?? []).some((t) => t.id === kped.json.id))
+// 0100: a troca pode acontecer com o Assistente antigo aberto — ele passa a receber lista
+// vazia, e a ficha de ANTES da troca fica com ele por uma janela curta.
 await db.query('update restaurantes set impressao_agente_visto_em=now() where id=$1', [loja])
-const liga1 = await api(pGer, '/api/admin/impressao/cozinha-por-funcao', 'PUT', { ativo: true })
-ok('não liga com Assistente antigo em uso (evita ficha em dobro na troca)', liga1.status === 409 && liga1.json?.codigo === 'assistente_antigo_ativo')
-await db.query(`update restaurantes set impressao_agente_visto_em=now()-interval '5 minutes' where id=$1`, [loja])
-ok('liga quando é seguro', (await api(pGer, '/api/admin/impressao/cozinha-por-funcao', 'PUT', { ativo: true })).status === 200)
+ok('liga com o Assistente antigo aberto (troca atômica, sem esperar)', (await api(pGer, '/api/admin/impressao/cozinha-por-funcao', 'PUT', { ativo: true })).status === 200)
+ok('modo da loja passou para "Cozinha e Caixa", com horário da troca', (await um('select impressao_beta_modo m, impressao_cozinha_transferida_em t from restaurantes where id=$1', [loja])).m === 'cozinha_caixa')
 await db.query('delete from impressao_reservas where restaurante_id=$1', [loja])
+ok('na janela da troca: ficha de antes NÃO vai para o Beta (o antigo pode estar imprimindo)', !(((await A.get('/api/agente/pedidos')).json?.pedidos) ?? []).some((p) => p.id === kped.json.id))
+await db.query('delete from impressao_reservas where restaurante_id=$1', [loja])
+await db.query(`update restaurantes set impressao_cozinha_transferida_em=now()-interval '2 minutes' where id=$1`, [loja])
 const legado2 = await fetch(`${BASE}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${tokenLegado}`, 'X-Agente-Instancia': 'antigo-x-12345' } }).then((r) => r.json())
 ok('ligada: Assistente antigo não recebe a ficha', !(legado2.pedidos ?? []).some((p) => p.id === kped.json.id))
 ok('ligada: outro computador pareado (B) não recebe', !(((await B.get('/api/agente/pedidos')).json?.pedidos) ?? []).some((p) => p.id === kped.json.id))
@@ -345,11 +352,11 @@ const semDestino = await api(pAt, `/api/admin/comandas/${comanda}/pre-conta`, 'P
 ok('pré-conta com Caixa em computador revogado: erro claro, nada enfileirado', semDestino.status === 409 && semDestino.json?.codigo === 'impressora_caixa_indisponivel')
 await db.query(`delete from impressao_funcoes where restaurante_id=$1`, [loja])
 const semCaixa = await api(pAt, `/api/admin/comandas/${comanda}/pre-conta`, 'POST', { chave: uuid(), reimpressao: true })
-ok('sem impressora de Caixa: erro com orientação', semCaixa.status === 409 && semCaixa.json?.codigo === 'impressora_caixa_nao_configurada' && /Ajustes › Impressão/.test(semCaixa.json?.error ?? ''))
+ok('sem impressora de Caixa: erro com orientação', semCaixa.status === 409 && semCaixa.json?.codigo === 'impressora_caixa_nao_configurada' && /menu Impressão/.test(semCaixa.json?.error ?? ''))
 ok('B segue funcionando depois da revogação de A', (await B.get('/api/agente/trabalhos')).status === 200)
 
 // limpeza
-await db.query('update restaurantes set impressao_agente_token=null, impressao_cozinha_por_funcao=false where id=$1', [loja])
+await db.query(`update restaurantes set impressao_agente_token=null, impressao_cozinha_por_funcao=false, impressao_beta_liberado=false, impressao_beta_modo='teste' where id = any($1::uuid[])`, [[loja, vizinha]])
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza teste impressão', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
 await browser.close()
 await db.end()

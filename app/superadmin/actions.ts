@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
+import { registrarAuditoria } from '@/lib/auditoria'
 import { concederAcessoLojista, convidarLojista, excluirLojistaCompleto, removerConvitePendente, revogarAcessoLojista, salvarConfigPlataforma } from '@/lib/queries/lojistas'
 
 async function ensureSuperAdmin() {
@@ -13,6 +14,33 @@ async function ensureSuperAdmin() {
   if (!isSuperAdminEmail(data.user?.email)) {
     redirect('/login')
   }
+  return { id: data.user!.id, email: data.user!.email ?? 'superadmin' }
+}
+
+/**
+ * Piloto do Assistente de Impressão Beta (0100): libera ou retira UMA loja. Liberar só
+ * permite gerar código de pareamento e escolher o modo — a loja continua em "Somente
+ * teste" e a cozinha no Assistente antigo até o dono mudar. Retirar volta a loja para
+ * "Somente teste" (a cozinha retorna ao antigo) antes de tirar a liberação.
+ */
+export async function alternarBetaImpressaoAction(formData: FormData) {
+  const quem = await ensureSuperAdmin()
+  const restauranteId = String(formData.get('restauranteId') ?? '')
+  const liberar = String(formData.get('liberar') ?? '') === '1'
+  if (!/^[0-9a-f-]{36}$/i.test(restauranteId)) return
+  const admin = getAdminSupabase()
+  if (!liberar) {
+    const { error: e1 } = await admin.rpc('impressao_modo_definir', { p_restaurante: restauranteId, p_modo: 'teste', p_ator: null, p_ator_nome: 'Plataforma' })
+    if (e1) redirect(`/superadmin?error=${encodeURIComponent('Não foi possível voltar a loja para o Assistente antigo.')}`)
+  }
+  const { error } = await admin.from('restaurantes').update({ impressao_beta_liberado: liberar }).eq('id', restauranteId)
+  if (error) redirect(`/superadmin?error=${encodeURIComponent('Não foi possível alterar o piloto de impressão.')}`)
+  await registrarAuditoria(admin, {
+    restauranteId, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`,
+    acao: liberar ? 'impressao.beta_liberado' : 'impressao.beta_retirado', entidade: 'restaurante', entidadeId: restauranteId, dados: {},
+  })
+  revalidatePath('/superadmin')
+  redirect('/superadmin')
 }
 
 export async function convidarLojistaAction(formData: FormData) {

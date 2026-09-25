@@ -42,6 +42,8 @@ next-env.d.ts
 /printer-agent/node_modules
 /printer-agent/dist
 /printer-agent/dist-teste-local
+/printer-agent/dist-beta
+/printer-agent/dist-beta-teste-local
 
 # subagent-driven-development scratch (briefs, reports, review packages, ledger)
 /.superpowers/

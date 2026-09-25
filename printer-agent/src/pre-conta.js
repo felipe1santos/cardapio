@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PRÉ-CONTA (conferência de consumo) e TESTE DE IMPRESSORA.
+// RECIBO/EXTRATO (a "pré-conta"; conferência de consumo) e TESTE DE IMPRESSORA.
 //
 // Formatador próprio: o recibo da cozinha (recibo.js) não é tocado. Usa os mesmos
 // marcadores de linha que o print.ps1 já desenha (ver recibo.js):
@@ -7,8 +7,14 @@
 //   P rótulo + valor · T TOTAL grande · L linha · R pontilhado · F rodapé
 //
 // Tudo o que sai aqui veio do SNAPSHOT montado no servidor (impressao_snapshot_pre_conta):
-// o agente não calcula valor nenhum. Não imprime telefone, endereço, frete, rota,
-// credenciais nem o motivo interno do desconto.
+// o agente não calcula valor nenhum. O snapshot da conta real não traz telefone,
+// endereço, frete, rota, credenciais nem o motivo interno do desconto.
+//
+// Recibo/Extrato de TESTE (snapshot com recibo_teste, lib/impressao/recibo-teste.ts): o
+// MESMO renderizador, com blocos que SÓ o teste imprime (telefone, endereço, observação,
+// taxa de entrega, status) para mostrar no papel o que costuma cortar, e
+// marcado "TESTE DE IMPRESSÃO — SEM VALOR FISCAL" com as réguas de borda (marcador K).
+// A conta real não tem esses campos: para ela, nada muda.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SOH = '\x01'
@@ -45,18 +51,29 @@ function linhasBase() {
     Lin: (t) => L.push(`${SOH}L${STX}${t}`),
     R: () => L.push(`${SOH}R`),
     F: (t) => L.push(`${SOH}F${STX}${t}`),
+    K: () => L.push(`${SOH}K`),
   }
 }
 
 /** Linhas marcadas da pré-conta a partir do snapshot do servidor. */
 function montarPreContaLinhas(s) {
-  const { L, N, H, C, I, S, P, T, Lin, R, F } = linhasBase()
+  const { L, N, H, C, I, S, P, T, Lin, R, F, K } = linhasBase()
+  const teste = s.recibo_teste === true
+  if (teste) K()
   if (s.loja) N(String(s.loja).toUpperCase())
-  H('PRÉ-CONTA')
+  H('RECIBO/EXTRATO')
+  // Duas linhas curtas: linha centralizada (C) não quebra no print.ps1 e cortaria no 58 mm.
+  if (teste) {
+    C('TESTE DE IMPRESSÃO')
+    C('SEM VALOR FISCAL')
+  }
   C('CONFERÊNCIA DE CONSUMO')
   C('NÃO É DOCUMENTO FISCAL')
 
-  if (s.tipo === 'balcao') {
+  if (teste) {
+    C('PEDIDO DE DEMONSTRAÇÃO')
+    if (s.cliente_nome) Lin(`Cliente: ${s.cliente_nome}`)
+  } else if (s.tipo === 'balcao') {
     C(`BALCÃO · SENHA ${s.senha ?? '—'}`)
     if (s.cliente_nome) Lin(`Cliente: ${s.cliente_nome}`)
   } else {
@@ -66,6 +83,17 @@ function montarPreContaLinhas(s) {
   Lin(`Impressão: ${dataHora(s.impresso_em)}`)
   if (s.operador) Lin(`Operador: ${s.operador}`)
   Lin(Number(s.via) > 1 ? `${s.via}ª VIA (reimpressão)` : '1ª via')
+  // Só no Recibo/Extrato de TESTE: a conta real nunca imprime telefone, endereço nem frete,
+  // mesmo que o campo apareça no snapshot.
+  if (teste && s.cliente_telefone) Lin(`Telefone: ${s.cliente_telefone}`)
+  if (teste && s.endereco && typeof s.endereco === 'object') {
+    const e = s.endereco
+    Lin(`Endereço: ${[e.rua, e.numero].filter(Boolean).join(', ')}`)
+    if (e.complemento) Lin(`Compl.: ${e.complemento}`)
+    const local = [e.bairro, [e.cidade, e.uf].filter(Boolean).join('/')].filter(Boolean).join(' · ')
+    if (local) Lin(local)
+  }
+  if (teste && s.observacao) Lin(`Obs.: ${s.observacao}`)
 
   const itens = Array.isArray(s.itens) ? s.itens : []
   const unidades = itens.reduce((t, i) => t + (Number(i.quantidade) || 0), 0)
@@ -98,6 +126,7 @@ function montarPreContaLinhas(s) {
     P(`Taxa de serviço (${String(Number(s.taxa_percentual)).replace('.', ',')}%)`, brl(s.taxa))
   }
   if (Number(s.desconto) > 0) P('Desconto', brl(-Number(s.desconto)))
+  if (teste && Number(s.taxa_entrega) > 0) P('Taxa de entrega', brl(s.taxa_entrega))
   T('TOTAL', brl(s.total))
   const pagamentos = Array.isArray(s.pagamentos) ? s.pagamentos : []
   if (Number(s.pago) > 0 || pagamentos.length > 0) {
@@ -105,6 +134,7 @@ function montarPreContaLinhas(s) {
     for (const p of pagamentos) S(`${ROTULO_FORMA[p.forma] ?? p.forma}: ${brl(p.valor)}`)
   }
   P('RESTANTE A PAGAR', brl(s.restante))
+  if (teste && s.status_pagamento) Lin(`Status: ${s.status_pagamento}`)
 
   const cancelados = Array.isArray(s.cancelados) ? s.cancelados : []
   if (cancelados.length > 0) {
@@ -112,8 +142,12 @@ function montarPreContaLinhas(s) {
     for (const c of cancelados) S(`${c.quantidade}x ${c.nome}`)
   }
 
-  F('Confira os itens antes de pagar.')
+  F('Confira os itens da sua conta.')
   F('feito por Menuzia.com.br')
+  if (teste) {
+    F('TESTE DE IMPRESSÃO — SEM VALOR FISCAL')
+    K()
+  }
   return L
 }
 

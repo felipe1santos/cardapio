@@ -20,7 +20,7 @@ async function contexto(id: string) {
   if (!c) return { erro: NextResponse.json({ error: 'Conta não encontrada nesta loja' }, { status: 404 }) }
   // Entrega manual: a conferência de consumo é da mesa/balcão; a entrega leva a ficha
   // (com endereço e taxa). O formato aprovado da pré-conta não tem linha de frete.
-  if (c.entrega === true) return { erro: NextResponse.json({ error: 'Pré-conta não se aplica a pedido de entrega.', codigo: 'pre_conta_entrega' }, { status: 409 }) }
+  if (c.entrega === true) return { erro: NextResponse.json({ error: 'Recibo/Extrato não se aplica a pedido de entrega.', codigo: 'pre_conta_entrega' }, { status: 409 }) }
   if (c.tipo === 'mesa' && !ctx.loja.moduloMesas) return { erro: NextResponse.json({ error: 'Não encontrado' }, { status: 404 }) }
   return ctx
 }
