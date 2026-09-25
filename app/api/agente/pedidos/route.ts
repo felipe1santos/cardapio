@@ -19,7 +19,6 @@ import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
  * recebe lista vazia — a cozinha continua no Assistente antigo e nada imprime em dobro.
  */
 
-
 export async function GET(request: Request) {
   if (!lerAgenteToken(request)) return NextResponse.json({ error: 'Token ausente' }, { status: 400 })
 
