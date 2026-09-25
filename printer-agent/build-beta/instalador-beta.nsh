@@ -16,5 +16,9 @@
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Assistente Menuzia Beta"
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "Assistente Menuzia Beta"
     RMDir /r "$APPDATA\menuzia-assistente-beta"
+    ; O desinstalador padrao trabalha DENTRO da pasta de instalacao (SetOutPath) e ela
+    ; sobra vazia. Sai dela e remove - so se estiver vazia (RMDir sem /r).
+    SetOutPath $TEMP
+    RMDir "$INSTDIR"
   ${endIf}
 !macroend

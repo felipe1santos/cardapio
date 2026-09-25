@@ -8,5 +8,7 @@
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     RMDir /r "$APPDATA\menuzia-assistente-beta-teste-local"
+    SetOutPath $TEMP
+    RMDir "$INSTDIR"
   ${endIf}
 !macroend
