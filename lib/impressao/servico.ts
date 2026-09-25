@@ -37,9 +37,15 @@ const MENSAGENS: Record<string, string> = {
   codigo_invalido: 'Código de pareamento inválido, já usado ou vencido. Gere outro no painel.',
   agente_invalido: 'Este computador foi desconectado da loja. Pareie de novo.',
   impressoras_demais: 'Impressoras demais neste computador (máximo 50).',
-  impressora_caixa_nao_configurada: 'Nenhuma impressora de Caixa configurada. Configure em Ajustes › Impressão.',
-  impressora_caixa_indisponivel: 'A impressora de Caixa está num computador desconectado. Revise em Ajustes › Impressão.',
-  comanda_indisponivel: 'Esta conta não pode mais ter pré-conta (cancelada ou transferida).',
+  impressora_caixa_nao_configurada: 'Nenhuma impressora de Caixa configurada. Configure no menu Impressão.',
+  impressora_caixa_indisponivel: 'A impressora de Caixa está num computador desconectado. Revise no menu Impressão.',
+  comanda_indisponivel: 'Esta conta não pode mais ter Recibo/Extrato (cancelada ou transferida).',
+  beta_nao_liberado: 'O novo Assistente Beta ainda não está liberado para esta loja.',
+  modo_invalido: 'Modo de impressão inválido.',
+  sem_cozinha: 'Escolha antes a impressora da Cozinha.',
+  agente_revogado: 'A impressora da Cozinha está num computador desconectado.',
+  agente_offline: 'O computador da impressora da Cozinha está offline. Abra o Assistente Beta nele antes.',
+  loja_inexistente: 'Loja não encontrada.',
   comanda_inexistente: 'Conta não encontrada.',
   dispositivo_inexistente: 'Impressora não encontrada nesta loja.',
   dispositivo_de_outra_loja: 'Impressora não encontrada nesta loja.',
@@ -51,6 +57,11 @@ const STATUS: Record<string, number> = {
   codigo_invalido: 401,
   agente_invalido: 401,
   impressora_caixa_nao_configurada: 409,
+  beta_nao_liberado: 403,
+  sem_cozinha: 409,
+  agente_revogado: 409,
+  agente_offline: 409,
+  loja_inexistente: 404,
   impressora_caixa_indisponivel: 409,
   comanda_indisponivel: 409,
   comanda_inexistente: 404,
@@ -63,7 +74,10 @@ const falha = (erro: string, status = 400, codigo = 'invalido') => ({ ok: false 
 
 // ─── pareamento ─────────────────────────────────────────────────────────────
 
-export async function gerarPareamento(admin: SupabaseClient, op: Operador): Promise<{ codigo: string; expiraEm: string }> {
+export async function gerarPareamento(admin: SupabaseClient, op: Operador): Promise<Resultado<{ codigo: string; expiraEm: string }>> {
+  // O Beta só entra em loja liberada para o piloto (0100): sem isso, nenhum computador pareia.
+  const { data: loja } = await admin.from('restaurantes').select('impressao_beta_liberado').eq('id', op.restauranteId).maybeSingle()
+  if (loja?.impressao_beta_liberado !== true) return falha(MENSAGENS.beta_nao_liberado, 403, 'beta_nao_liberado')
   const { codigo, hash } = gerarCodigoPareamento()
   const expiraEm = new Date(Date.now() + VALIDADE_CODIGO_MIN * 60_000).toISOString()
   const { error } = await admin.from('impressao_pareamentos').insert({
@@ -75,7 +89,7 @@ export async function gerarPareamento(admin: SupabaseClient, op: Operador): Prom
     restauranteId: op.restauranteId, usuarioId: op.userId, usuarioNome: op.nome,
     acao: 'impressao.codigo_gerado', entidade: 'restaurante', entidadeId: op.restauranteId, dados: { validade_min: VALIDADE_CODIGO_MIN },
   })
-  return { codigo, expiraEm }
+  return { ok: true, valor: { codigo, expiraEm } }
 }
 
 export async function parear(admin: SupabaseClient, a: { codigo: string; nome: string; versao: string | null }) {
@@ -107,6 +121,12 @@ export interface DispositivoVisao {
   apelido: string | null
   larguraMm: 58 | 80
   tamanhoFonte: 'grande' | 'media' | 'pequena'
+  /** Perfil individual (0100): nulo = padrão (576 pontos no 80 mm, 384 no 58 mm). */
+  larguraPontos: number | null
+  deslocamentoPontos: number
+  diagnostico: Record<string, unknown> | null
+  calibradoEm: string | null
+  calibradoPorNome: string | null
   disponivel: boolean
   vistoEm: string | null
   ultimoUsoEm: string | null
@@ -132,10 +152,10 @@ export interface TrabalhoVisao {
 export async function painelImpressao(admin: SupabaseClient, restauranteId: string) {
   const [{ data: ags }, { data: dsp }, { data: fns }, { data: tbs }, { data: loja }] = await Promise.all([
     admin.from('impressao_agentes').select('id, nome, versao, visto_em, revogado_em, criado_em, criado_por_nome').eq('restaurante_id', restauranteId).order('criado_em'),
-    admin.from('impressao_dispositivos').select('id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em').eq('restaurante_id', restauranteId).order('criado_em'),
+    admin.from('impressao_dispositivos').select('id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em').eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
     admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
-    admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em').eq('id', restauranteId).maybeSingle(),
+    admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
   ])
   const agora = Date.now()
   const funcoes = (fns ?? []) as { funcao: Funcao; dispositivo_id: string }[]
@@ -156,6 +176,11 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     apelido: (d.apelido as string | null) ?? null,
     larguraMm: d.largura_mm as 58 | 80,
     tamanhoFonte: d.tamanho_fonte as DispositivoVisao['tamanhoFonte'],
+    larguraPontos: (d.largura_pontos as number | null) ?? null,
+    deslocamentoPontos: (d.deslocamento_pontos as number | null) ?? 0,
+    diagnostico: (d.diagnostico as Record<string, unknown> | null) ?? null,
+    calibradoEm: (d.calibrado_em as string | null) ?? null,
+    calibradoPorNome: (d.calibrado_por_nome as string | null) ?? null,
     disponivel: d.disponivel as boolean,
     vistoEm: (d.visto_em as string | null) ?? null,
     ultimoUsoEm: (d.ultimo_uso_em as string | null) ?? null,
@@ -183,6 +208,9 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     funcoes: Object.fromEntries(FUNCOES.map((f) => [f, funcoes.find((x) => x.funcao === f)?.dispositivo_id ?? null])) as Record<Funcao, string | null>,
     trabalhos,
     cozinhaPorFuncao: loja?.impressao_cozinha_por_funcao === true,
+    betaLiberado: loja?.impressao_beta_liberado === true,
+    modo: ((loja?.impressao_beta_modo as string | undefined) ?? 'teste') as ModoBeta,
+    cozinhaTransferidaEm: (loja?.impressao_cozinha_transferida_em as string | null) ?? null,
     assistenteAntigoVistoEm: vistoLegado,
     assistenteAntigoOnline: !!vistoLegado && agora - new Date(vistoLegado).getTime() < 2 * 60_000,
   }
@@ -224,9 +252,26 @@ export async function ajustarDispositivo(
   admin: SupabaseClient,
   op: Operador,
   id: string,
-  a: { apelido?: unknown; larguraMm?: unknown; tamanhoFonte?: unknown },
+  a: { apelido?: unknown; larguraMm?: unknown; tamanhoFonte?: unknown; larguraPontos?: unknown; deslocamentoPontos?: unknown },
 ): Promise<Resultado<null>> {
   const patch: Record<string, unknown> = {}
+  // Perfil de calibração (0100): só desta impressora. null volta ao padrão de fábrica.
+  if (a.larguraPontos !== undefined) {
+    if (a.larguraPontos !== null && !(Number.isInteger(a.larguraPontos) && (a.larguraPontos as number) >= 256 && (a.larguraPontos as number) <= 832)) {
+      return falha('Largura útil inválida (entre 256 e 832 pontos).')
+    }
+    patch.largura_pontos = a.larguraPontos
+  }
+  if (a.deslocamentoPontos !== undefined) {
+    if (!(Number.isInteger(a.deslocamentoPontos) && (a.deslocamentoPontos as number) >= -64 && (a.deslocamentoPontos as number) <= 64)) {
+      return falha('Deslocamento inválido (entre -64 e 64 pontos).')
+    }
+    patch.deslocamento_pontos = a.deslocamentoPontos
+  }
+  if (patch.largura_pontos !== undefined || patch.deslocamento_pontos !== undefined) {
+    patch.calibrado_em = new Date().toISOString()
+    patch.calibrado_por_nome = op.nome
+  }
   if (a.apelido !== undefined) {
     const ap = typeof a.apelido === 'string' ? a.apelido.replace(/\s+/g, ' ').trim() : ''
     if (ap.length > 40) return falha('Apelido com no máximo 40 caracteres.')
@@ -262,7 +307,10 @@ export async function atribuirFuncao(
   if (dispositivoId === null) {
     await admin.from('impressao_funcoes').delete().eq('restaurante_id', op.restauranteId).eq('funcao', funcao)
     if (funcao === 'cozinha') {
-      // Sem impressora de cozinha, o roteamento por função não tem destino: volta ao modo de sempre.
+      // Sem impressora de cozinha, o Beta não tem onde imprimir a ficha: a cozinha volta ao
+      // Assistente antigo. "Cozinha e Caixa" vira "Somente Caixa" pela troca auditada (0100).
+      const { data: l } = await admin.from('restaurantes').select('impressao_beta_modo').eq('id', op.restauranteId).maybeSingle()
+      if (l?.impressao_beta_modo === 'cozinha_caixa') await definirModo(admin, op, 'caixa')
       await admin.from('restaurantes').update({ impressao_cozinha_por_funcao: false }).eq('id', op.restauranteId)
     }
     await auditar(admin, op, 'impressao.funcao_removida', 'restaurante', op.restauranteId, { funcao, resumo: funcao })
@@ -293,8 +341,8 @@ export async function atribuirFuncao(
   return { ok: true, valor: null }
 }
 
-export async function criarTeste(admin: SupabaseClient, op: Operador, dispositivoId: string, chave: string) {
-  return rpc<{ id: string; estado: string; idempotente: boolean }>(admin, 'impressao_teste_criar', {
+export async function criarTeste(admin: SupabaseClient, op: Operador, dispositivoId: string, chave: string, calibracao = false) {
+  return rpc<{ id: string; estado: string; idempotente: boolean }>(admin, calibracao ? 'impressao_calibracao_criar' : 'impressao_teste_criar', {
     p_restaurante: op.restauranteId, p_dispositivo: dispositivoId, p_chave: chave, p_ator: op.userId, p_ator_nome: op.nome,
   })
 }
@@ -302,6 +350,10 @@ export async function criarTeste(admin: SupabaseClient, op: Operador, dispositiv
 // ─── pré-conta ──────────────────────────────────────────────────────────────
 
 export async function criarPreConta(admin: SupabaseClient, op: Operador, comandaId: string, chave: string, reimpressao: boolean) {
+  const { data: loja } = await admin.from('restaurantes').select('impressao_beta_modo').eq('id', op.restauranteId).maybeSingle()
+  if (loja && loja.impressao_beta_modo === 'teste') {
+    return falha('O Assistente Beta está em "Somente teste": o Recibo/Extrato ainda não sai por ele. Mude o modo no menu Impressão.', 409, 'modo_somente_teste')
+  }
   return rpc<{ id: string; via: number; estado: string; idempotente: boolean; impressora?: string }>(admin, 'impressao_pre_conta_criar', {
     p_restaurante: op.restauranteId, p_comanda: comandaId, p_chave: chave, p_reimpressao: reimpressao, p_ator: op.userId, p_ator_nome: op.nome,
   })
@@ -351,9 +403,34 @@ export async function ultimasPreContas(admin: SupabaseClient, restauranteId: str
 
 // ─── lado do agente ─────────────────────────────────────────────────────────
 
-export async function descobrir(admin: SupabaseClient, agenteId: string, nomes: unknown) {
+export async function descobrir(admin: SupabaseClient, agenteId: string, nomes: unknown, diagnosticos?: unknown) {
   if (!Array.isArray(nomes) || !nomes.every((n) => typeof n === 'string')) return falha('Lista de impressoras inválida.')
-  return rpc<number>(admin, 'impressao_descobrir', { p_agente: agenteId, p_nomes: (nomes as string[]).slice(0, 60) })
+  const r = await rpc<number>(admin, 'impressao_descobrir', { p_agente: agenteId, p_nomes: (nomes as string[]).slice(0, 60) })
+  // Beta (0.2+): o que o Windows informa de cada impressora (DPI, papel, área imprimível).
+  // Só guarda campos conhecidos, com tamanho limitado — nunca caminhos, tokens ou texto livre grande.
+  if (r.ok && diagnosticos && typeof diagnosticos === 'object' && !Array.isArray(diagnosticos)) {
+    for (const [nome, d] of Object.entries(diagnosticos as Record<string, unknown>).slice(0, 60)) {
+      const limpo = sanearDiagnostico(d)
+      if (!limpo) continue
+      await admin.from('impressao_dispositivos').update({ diagnostico: limpo }).eq('agente_id', agenteId).eq('nome_sistema', nome)
+    }
+  }
+  return r
+}
+
+const CAMPOS_DIAGNOSTICO = ['driver', 'porta', 'dpiX', 'dpiY', 'papelLarguraMm', 'papelAlturaMm', 'papelNome', 'areaImprimivelLarguraMm', 'margemEsquerdaMm', 'margemDireitaMm', 'pontosImprimiveis', 'online', 'status', 'coletadoEm'] as const
+
+/** Diagnóstico do driver vindo do Assistente: só campos conhecidos, número ou texto curto. */
+export function sanearDiagnostico(d: unknown): Record<string, string | number | boolean> | null {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null
+  const o: Record<string, string | number | boolean> = {}
+  for (const k of CAMPOS_DIAGNOSTICO) {
+    const v = (d as Record<string, unknown>)[k]
+    if (typeof v === 'number' && Number.isFinite(v)) o[k] = Math.round(v * 100) / 100
+    else if (typeof v === 'boolean') o[k] = v
+    else if (typeof v === 'string' && v.trim()) o[k] = v.trim().slice(0, 80)
+  }
+  return Object.keys(o).length ? o : null
 }
 
 export interface TrabalhoAgente {
@@ -363,6 +440,9 @@ export interface TrabalhoAgente {
   snapshot: Record<string, unknown>
   nomeSistema: string
   larguraMm: 58 | 80
+  /** Perfil de calibração (0100): nulo = padrão. */
+  larguraPontos: number | null
+  deslocamentoPontos: number
   dispositivoId: string
   segundosRestantes: number
   tentativas: number
@@ -371,6 +451,11 @@ export interface TrabalhoAgente {
 export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string): Promise<Resultado<TrabalhoAgente[]>> {
   const r = await rpc<Record<string, unknown>[]>(admin, 'impressao_trabalhos_reservar', { p_agente: agenteId, p_limite: 10 })
   if (!r.ok) return r
+  const ids = [...new Set((r.valor ?? []).map((t) => t.dispositivo_id as string))]
+  const { data: perfis } = ids.length
+    ? await admin.from('impressao_dispositivos').select('id, largura_pontos, deslocamento_pontos').in('id', ids)
+    : { data: [] as { id: string; largura_pontos: number | null; deslocamento_pontos: number }[] }
+  const perfil = new Map(((perfis ?? []) as { id: string; largura_pontos: number | null; deslocamento_pontos: number }[]).map((p) => [p.id, p]))
   return {
     ok: true,
     valor: (r.valor ?? []).map((t) => ({
@@ -380,6 +465,8 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
       snapshot: t.snapshot as Record<string, unknown>,
       nomeSistema: t.nome_sistema as string,
       larguraMm: t.largura_mm as 58 | 80,
+      larguraPontos: perfil.get(t.dispositivo_id as string)?.largura_pontos ?? null,
+      deslocamentoPontos: perfil.get(t.dispositivo_id as string)?.deslocamento_pontos ?? 0,
       dispositivoId: t.dispositivo_id as string,
       segundosRestantes: t.segundos_restantes as number,
       tentativas: t.tentativas as number,
@@ -402,20 +489,24 @@ export interface DestinoCozinha {
   larguraMm: 58 | 80
   tamanhoFonte: string
   copias: number
+  larguraPontos: number | null
+  deslocamentoPontos: number
+  /** Quando a cozinha passou para o Beta (0100) — corte contra impressão em dobro. */
+  transferidaEm: string | null
 }
 
 /** Se a loja roteia a cozinha por função e para qual impressora/computador. */
 export async function destinoCozinha(admin: SupabaseClient, restauranteId: string): Promise<DestinoCozinha> {
   const [{ data: loja }, { data: f }] = await Promise.all([
-    admin.from('restaurantes').select('impressao_cozinha_por_funcao').eq('id', restauranteId).maybeSingle(),
+    admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
     admin
       .from('impressao_funcoes')
-      .select('impressao_dispositivos ( agente_id, nome_sistema, largura_mm, tamanho_fonte, copias )')
+      .select('impressao_dispositivos ( agente_id, nome_sistema, largura_mm, tamanho_fonte, copias, largura_pontos, deslocamento_pontos )')
       .eq('restaurante_id', restauranteId)
       .eq('funcao', 'cozinha')
       .maybeSingle(),
   ])
-  const d = (f as unknown as { impressao_dispositivos: { agente_id: string; nome_sistema: string; largura_mm: 58 | 80; tamanho_fonte: string; copias: number } | null } | null)
+  const d = (f as unknown as { impressao_dispositivos: { agente_id: string; nome_sistema: string; largura_mm: 58 | 80; tamanho_fonte: string; copias: number; largura_pontos: number | null; deslocamento_pontos: number } | null } | null)
     ?.impressao_dispositivos
   return {
     ativo: loja?.impressao_cozinha_por_funcao === true && !!d,
@@ -424,43 +515,32 @@ export async function destinoCozinha(admin: SupabaseClient, restauranteId: strin
     larguraMm: d?.largura_mm ?? 80,
     tamanhoFonte: d?.tamanho_fonte ?? 'grande',
     copias: d?.copias ?? 1,
+    larguraPontos: d?.largura_pontos ?? null,
+    deslocamentoPontos: d?.deslocamento_pontos ?? 0,
+    transferidaEm: (loja?.impressao_cozinha_transferida_em as string | null) ?? null,
   }
 }
 
+export type ModoBeta = 'teste' | 'caixa' | 'cozinha_caixa'
+export const MODOS_BETA: ModoBeta[] = ['teste', 'caixa', 'cozinha_caixa']
+
 /**
- * Liga/desliga o roteamento da ficha da cozinha pela função.
- *
- * Ligar só quando é seguro trocar de consumidor sem imprimir duas vezes:
- *   · existe impressora de Cozinha num computador pareado, não revogado e ONLINE;
- *   · nenhum Assistente antigo (token da loja) consultou a fila nos últimos 2 minutos —
- *     o antigo não reserva pedidos, e poderia imprimir junto no instante da troca.
- * A fila continua a mesma (pedidos.impresso + reservas da 0086): muda só QUEM consome.
+ * Troca o que o Assistente Beta imprime (0100), numa função do banco que trava a loja:
+ *   · teste         → só página de teste e calibração (volta ao antigo a qualquer momento);
+ *   · caixa         → Recibo/Extrato; a cozinha continua no Assistente antigo;
+ *   · cozinha_caixa → o Beta assume a ficha da cozinha. Exige impressora de Cozinha num
+ *                     computador pareado e online. A troca grava o horário: pedidos de
+ *                     antes dela ficam com o Assistente antigo por uma janela curta.
  */
-export async function definirCozinhaPorFuncao(admin: SupabaseClient, op: Operador, ativo: boolean): Promise<Resultado<null>> {
-  if (ativo) {
-    const d = await destinoCozinha(admin, op.restauranteId)
-    if (!d.agenteId) return falha('Escolha antes a impressora da função Cozinha.', 409, 'sem_cozinha')
-    const { data: ag } = await admin.from('impressao_agentes').select('visto_em, revogado_em').eq('id', d.agenteId).maybeSingle()
-    if (!ag || ag.revogado_em) return falha('A impressora da Cozinha está num computador desconectado.', 409, 'agente_revogado')
-    if (!ag.visto_em || Date.now() - new Date(ag.visto_em).getTime() > ONLINE_SEGUNDOS * 1000) {
-      return falha('O computador da impressora da Cozinha está offline. Ligue o Assistente nele antes.', 409, 'agente_offline')
-    }
-    const { data: loja } = await admin.from('restaurantes').select('impressao_agente_visto_em').eq('id', op.restauranteId).maybeSingle()
-    const antigo = loja?.impressao_agente_visto_em as string | null
-    if (antigo && Date.now() - new Date(antigo).getTime() < 2 * 60_000) {
-      return falha(
-        'Há um Assistente antigo (token da loja) imprimindo a cozinha agora. Feche-o ou pareie esse computador com código, espere 2 minutos e tente de novo.',
-        409,
-        'assistente_antigo_ativo',
-      )
-    }
-  }
-  const { error } = await admin.from('restaurantes').update({ impressao_cozinha_por_funcao: ativo }).eq('id', op.restauranteId)
-  if (error) return falha('Não foi possível salvar.', 500, 'erro')
-  await registrarAuditoria(admin, {
-    restauranteId: op.restauranteId, usuarioId: op.userId, usuarioNome: op.nome,
-    acao: ativo ? 'impressao.cozinha_por_funcao_ligada' : 'impressao.cozinha_por_funcao_desligada',
-    entidade: 'restaurante', entidadeId: op.restauranteId, dados: {},
+export async function definirModo(admin: SupabaseClient, op: Operador, modo: unknown): Promise<Resultado<{ modo: ModoBeta; idempotente: boolean }>> {
+  if (!MODOS_BETA.includes(modo as ModoBeta)) return falha(MENSAGENS.modo_invalido, 400, 'modo_invalido')
+  return rpc<{ modo: ModoBeta; idempotente: boolean }>(admin, 'impressao_modo_definir', {
+    p_restaurante: op.restauranteId, p_modo: modo, p_ator: op.userId, p_ator_nome: op.nome,
   })
-  return { ok: true, valor: null }
+}
+
+/** Compatibilidade com a rota antiga (liga/desliga): ligar = "Cozinha e Caixa", desligar = "Somente Caixa". */
+export async function definirCozinhaPorFuncao(admin: SupabaseClient, op: Operador, ativo: boolean): Promise<Resultado<null>> {
+  const r = await definirModo(admin, op, ativo ? 'cozinha_caixa' : 'caixa')
+  return r.ok ? { ok: true, valor: null } : r
 }

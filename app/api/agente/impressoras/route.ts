@@ -14,7 +14,8 @@ export async function POST(request: Request) {
   if (!quem) return NextResponse.json({ error: 'Credencial inválida' }, { status: 401 })
   if (quem.tipo !== 'agente') return NextResponse.json({ error: 'Pareie este computador com um código para usar várias impressoras.' }, { status: 403 })
   const corpo = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  const r = await descobrir(admin, quem.agenteId, corpo?.impressoras)
+  // Beta 0.2+: `diagnosticos` = o que o Windows informa de cada impressora (DPI, papel, área).
+  const r = await descobrir(admin, quem.agenteId, corpo?.impressoras, corpo?.diagnosticos)
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
   return NextResponse.json({ ok: true, total: r.valor })
 }

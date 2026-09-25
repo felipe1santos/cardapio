@@ -3,7 +3,7 @@ import { ExternalLink } from 'lucide-react'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarConfigPlataforma, listarLojistas, metricasPorRestaurante, type LojistaRow } from '@/lib/queries/lojistas'
 import { ConfirmSubmitButton } from '@/components/ui/confirm-submit-button'
-import { concederAcessoAction, convidarLojistaAction, excluirLojistaAction, removerConviteAction, revogarAcessoAction, sairAction, salvarConfigPlataformaAction } from './actions'
+import { alternarBetaImpressaoAction, concederAcessoAction, convidarLojistaAction, excluirLojistaAction, removerConviteAction, revogarAcessoAction, sairAction, salvarConfigPlataformaAction } from './actions'
 
 // Servidor roda em UTC (Coolify); fixa o fuso de São Paulo pra não mostrar +3h.
 const TZ = 'America/Sao_Paulo'
@@ -63,10 +63,13 @@ export default async function SuperadminPage({
 }) {
   const { error } = await searchParams
   const admin = getAdminSupabase()
-  const [lojistas, metricas, config] = await Promise.all([
+  const [lojistas, metricas, config, betaImpressao] = await Promise.all([
     listarLojistas(admin),
     metricasPorRestaurante(admin),
     buscarConfigPlataforma(admin),
+    // Piloto do Assistente de Impressão Beta (0100), por loja.
+    admin.from('restaurantes').select('id, impressao_beta_liberado, impressao_beta_modo')
+      .then(({ data }) => new Map(((data ?? []) as { id: string; impressao_beta_liberado: boolean; impressao_beta_modo: string }[]).map((r) => [r.id, r]))),
   ])
 
   const ativos = lojistas.filter((l) => ['ativo', 'ativo_temporario'].includes(situacaoDe(l))).length
@@ -201,13 +204,14 @@ export default async function SuperadminPage({
                 <th className="px-4 py-3">Loja</th>
                 <th className="px-4 py-3">Cadastro</th>
                 <th className="px-4 py-3">Último acesso</th>
+                <th className="px-4 py-3">Impressão Beta</th>
                 <th className="px-4 py-3">Ações</th>
               </tr>
             </thead>
             <tbody>
               {lojistas.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-5 py-8 text-center text-[13px] text-text-subtle">
+                  <td colSpan={14} className="px-5 py-8 text-center text-[13px] text-text-subtle">
                     Nenhum cadastro ainda.
                   </td>
                 </tr>
@@ -272,6 +276,34 @@ export default async function SuperadminPage({
                       )}
                       {lojista.loginsTotal > 0 && (
                         <span className="ml-1.5 text-[11px] text-text-subtle">({num(lojista.loginsTotal)}×)</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {lojista.restauranteId ? (
+                        <form action={alternarBetaImpressaoAction} className="flex items-center gap-1.5">
+                          <input type="hidden" name="restauranteId" value={lojista.restauranteId} />
+                          <input type="hidden" name="liberar" value={betaImpressao.get(lojista.restauranteId)?.impressao_beta_liberado ? '0' : '1'} />
+                          {betaImpressao.get(lojista.restauranteId)?.impressao_beta_liberado ? (
+                            <>
+                              <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold text-alert-text">Piloto</span>
+                              <ConfirmSubmitButton
+                                confirmMessage="Retirar esta loja do piloto? A impressão volta toda para o Assistente antigo."
+                                className="text-[12px] font-semibold text-danger hover:underline"
+                              >
+                                Retirar
+                              </ConfirmSubmitButton>
+                            </>
+                          ) : (
+                            <ConfirmSubmitButton
+                              confirmMessage="Liberar o Assistente Beta para esta loja? Ela continua no Assistente antigo até o dono escolher outro modo."
+                              className="text-[12px] font-semibold text-primary hover:underline"
+                            >
+                              Liberar
+                            </ConfirmSubmitButton>
+                          )}
+                        </form>
+                      ) : (
+                        <span className="text-text-subtle">—</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
