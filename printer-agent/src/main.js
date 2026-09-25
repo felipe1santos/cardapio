@@ -5,11 +5,13 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal, instanciaAgente } = require('./store')
-const { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras } = require('./printer')
+const { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta } = require('./printer')
 const { montarRecibo } = require('./recibo')
 const { montarPreConta, montarTeste, colsPreConta } = require('./pre-conta')
 const { FilasPorDispositivo } = require('./fila-dispositivos')
 const { montarCalibracao } = require('./calibracao')
+const { montarPreContaBeta, textoDoDocumento } = require('./pre-conta-beta')
+const crypto = require('crypto')
 
 // Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
 //   · sem o campo   → o Assistente de sempre, exatamente como sempre;
@@ -337,6 +339,40 @@ async function informarResultado(id, ok, erro) {
   })
 }
 
+// ─── logo da loja (Recibo/Extrato do Beta) ───────────────────────────────────
+// Nunca de uma URL qualquer: só pela rota do servidor, com a credencial deste computador;
+// o servidor entrega apenas o arquivo do Storage da própria loja. Guardada pelo hash na
+// pasta de dados do Beta. Falhou? Usa a que já tem; sem nenhuma, sai o nome da loja.
+const PASTA_LOGOS = () => path.join(app.getPath('userData'), 'logos')
+const EXTENSAO_LOGO = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/bmp': 'bmp' }
+let logoAtual = null
+async function obterLogo() {
+  const headers = cabecalhosAgente()
+  if (!headers) return null
+  const guardada = () => (logoAtual && fs.existsSync(logoAtual.caminho) ? logoAtual.caminho : null)
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/agente/logo${logoAtual ? `?sha=${logoAtual.sha}` : ''}`, { headers, signal: AbortSignal.timeout(8000) })
+    if (res.status === 304) return guardada()
+    if (res.status === 204) { logoAtual = null; return null }
+    if (res.status !== 200) return guardada()
+    const sha = String(res.headers.get('x-logo-sha256') || '')
+    const ext = EXTENSAO_LOGO[String(res.headers.get('content-type') || '').split(';')[0].trim()]
+    const bytes = Buffer.from(await res.arrayBuffer())
+    if (!/^[0-9a-f]{64}$/.test(sha) || !ext || crypto.createHash('sha256').update(bytes).digest('hex') !== sha) return guardada()
+    const dir = PASTA_LOGOS()
+    fs.mkdirSync(dir, { recursive: true })
+    const caminho = path.join(dir, `loja-${sha.slice(0, 16)}.${ext}`)
+    fs.writeFileSync(caminho, bytes)
+    // Só a logo atual e o que foi preparado a partir dela.
+    for (const f of fs.readdirSync(dir)) if (!f.includes(sha.slice(0, 16))) fs.unlink(path.join(dir, f), () => {})
+    logoAtual = { sha, caminho }
+    return caminho
+  } catch (err) {
+    logArquivo(`LOGO: ${descreverErro(err)}`)
+    return guardada()
+  }
+}
+
 // Uma fila por impressora do Windows: a do caixa travada não segura a da cozinha.
 const filas = new FilasPorDispositivo(
   async (t) => {
@@ -358,9 +394,18 @@ const filas = new FilasPorDispositivo(
           deslocamentoPontos: calibracao ? (t.snapshot.deslocamento_pontos ?? 0) : (t.deslocamentoPontos ?? 0),
         }
       : null
-    const saida = perfil
-      ? await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false, perfil)
-      : await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
+    // Recibo/Extrato no Beta: layout próprio (pre-conta-beta.js + print-beta.ps1), o MESMO
+    // para a conta real e para o teste. Calibração e teste simples seguem no print.ps1.
+    let saida
+    if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
+      const doc = montarPreContaBeta(t.snapshot)
+      const logo = await obterLogo()
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, perfil, logo, PASTA_LOGOS())
+    } else {
+      saida = perfil
+        ? await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false, perfil)
+        : await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
+    }
     mostrarDiagnostico(saida)
     const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : reciboTeste ? 'Recibo/Extrato de teste' : calibracao ? 'Página de calibração' : 'Teste'
     log(`${rotulo} enviado para "${t.nomeSistema}" — o Windows aceitou (confira se o papel saiu).`)

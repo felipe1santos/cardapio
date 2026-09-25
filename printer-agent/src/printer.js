@@ -15,6 +15,7 @@ function scriptReal(nome) {
 const LIST_SCRIPT = scriptReal('list-printers.ps1')
 const PRINT_SCRIPT = scriptReal('print.ps1')
 const DIAG_SCRIPT = scriptReal('diagnostico-impressoras.ps1')
+const PRINT_BETA_SCRIPT = scriptReal('print-beta.ps1')
 
 function runPowershell(args, opcoesExec = {}) {
   return new Promise((resolve, reject) => {
@@ -81,4 +82,24 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, 
   }
 }
 
-module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras }
+/**
+ * Recibo/Extrato do Assistente Beta: documento em blocos (pre-conta-beta.js) desenhado por
+ * print-beta.ps1 — layout próprio, com a logo da loja. O Assistente atual não usa isto.
+ */
+async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, perfil = {}, logoPath = null, logoCacheDir = null) {
+  const tmpFile = path.join(os.tmpdir(), `${perfil.prefixoTmp || 'menuzia-beta'}-doc-${Date.now()}.json`)
+  fs.writeFileSync(tmpFile, JSON.stringify(doc), 'utf-8')
+  try {
+    const args = ['-File', PRINT_BETA_SCRIPT, '-FilePath', tmpFile, '-PrinterName', nomeImpressora, '-PaperWidthMm', String(paperWidthMm)]
+    if (Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0) args.push('-LarguraPontos', String(perfil.larguraPontos))
+    if (Number.isInteger(perfil.deslocamentoPontos) && perfil.deslocamentoPontos !== 0) args.push('-DeslocamentoPontos', String(perfil.deslocamentoPontos))
+    if (logoPath) args.push('-LogoPath', logoPath)
+    if (logoCacheDir) args.push('-LogoCacheDir', logoCacheDir)
+    if (perfil.logNome) args.push('-LogNome', perfil.logNome)
+    return await runPowershell(args, { timeout: 60_000, windowsHide: true })
+  } finally {
+    fs.unlink(tmpFile, () => {})
+  }
+}
+
+module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta }
