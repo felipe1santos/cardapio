@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardapioOrdenado, compararOrdem, listaDeOrdemValida, moverNaLista, ordenar, ordenarCategorias } from './ordem-cardapio'
+import { cardapioOrdenado, compararOrdem, itensNaOrdemDoCardapio, listaDeOrdemValida, moverNaLista, ordenar, ordenarCategorias } from './ordem-cardapio'
 
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`
 
@@ -33,14 +33,8 @@ describe('ordenarCategorias', () => {
     { id: 'bebida', posicao: 2 },
   ]
 
-  it('sem ordem da mesa, segue o Gestor', () => {
+  it('segue o Gestor em todo canal (a ordem própria da mesa, 0074, não é mais lida)', () => {
     expect(ordenarCategorias(grupos).map((g) => g.id)).toEqual(['pizza', 'lanche', 'bebida'])
-    expect(ordenarCategorias(grupos, new Map([['pizza', null]])).map((g) => g.id)).toEqual(['pizza', 'lanche', 'bebida'])
-  })
-
-  it('ordem própria da mesa (0074) continua valendo; as sem posição vêm depois, na ordem do Gestor', () => {
-    const mesa = new Map<string, number | null>([['bebida', 1]])
-    expect(ordenarCategorias(grupos, mesa).map((g) => g.id)).toEqual(['bebida', 'pizza', 'lanche'])
   })
 })
 
@@ -79,6 +73,20 @@ describe('cardapioOrdenado', () => {
   it('filtro de categoria (horário) é do chamador', () => {
     const r = cardapioOrdenado(grupos, itens, { grupoVisivel: (g) => g.id !== 'g1' })
     expect(r.map((c) => c.grupo.id)).toEqual(['g2'])
+  })
+})
+
+describe('itensNaOrdemDoCardapio (PDV e garçom)', () => {
+  it('categoria na ordem do Gestor, item na ordem do Gestor, sem categoria no fim; nada some', () => {
+    const grupos = [{ id: 'g2', posicao: 1 }, { id: 'g1', posicao: 0 }]
+    const itens = [
+      { id: 'b2', grupoId: 'g2', posicao: 1 },
+      { id: 'orfao', grupoId: null, posicao: 0 },
+      { id: 'b1', grupoId: 'g2', posicao: 0 },
+      { id: 'a1', grupoId: 'g1', posicao: 0 },
+      { id: 'x', grupoId: 'g-apagada', posicao: 0 },
+    ]
+    expect(itensNaOrdemDoCardapio(grupos, itens).map((i) => i.id)).toEqual(['a1', 'b1', 'b2', 'orfao', 'x'])
   })
 })
 

@@ -1,19 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ImagePlus, Loader2, RotateCcw, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ImagePlus, Loader2, RotateCcw, X } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { buscarRestauranteIdDoUsuario, listarGrupos, listarItens, type GrupoCardapio, type ItemCardapio } from '@/lib/queries/cardapio'
+import Link from 'next/link'
+import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { enviarImagemCarrosselMesa } from '@/lib/queries/ajustes'
-import { MESA_CARROSSEL_MAX, MESA_MENSAGEM_MAX, mensagemPadraoDaMesa, ordenarParaMesa } from '@/lib/mesa-vitrine'
+import { MESA_CARROSSEL_MAX, MESA_MENSAGEM_MAX, mensagemPadraoDaMesa } from '@/lib/mesa-vitrine'
 
 /**
  * Personalização do cardápio que o cliente abre pelo QR da mesa:
  *  1. carrossel do topo (imagens que passam sozinhas; sem imagens = banner da loja);
  *  2. texto do aviso "isto é só a sua seleção";
- *  3. ordem das categorias no trilho do cardápio da mesa (só a mesa).
+ *  3. aviso: a ordem é a do Gestor de Cardápio (a ordem própria da mesa saiu).
  *
  * Grava por `/api/admin/mesas/cardapio` (só a gestão). O delivery não muda.
  */
@@ -53,8 +54,6 @@ export function CardapioDaMesaConfig() {
   const [estado, setEstado] = useState<Estado | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
-  const [grupos, setGrupos] = useState<GrupoCardapio[]>([])
-  const [itens, setItens] = useState<ItemCardapio[]>([])
 
   const carregar = useCallback(async () => {
     const r = await fetch('/api/admin/mesas/cardapio', { cache: 'no-store' })
@@ -72,9 +71,6 @@ export function CardapioDaMesaConfig() {
       const id = await buscarRestauranteIdDoUsuario(supabase)
       setRestauranteId(id)
       if (!id) return
-      const [g, i] = await Promise.all([listarGrupos(supabase, id), listarItens(supabase, id)])
-      setGrupos([...g].sort((a, b) => a.posicao - b.posicao))
-      setItens(i)
     })()
   }, [carregar, supabase])
 
@@ -110,7 +106,7 @@ export function CardapioDaMesaConfig() {
         padrao={mensagemPadraoDaMesa(estado.somenteVisualizacao)}
         onSalvo={(mensagem) => setEstado({ ...estado, mensagem })}
       />
-      <SecaoOrdem grupos={grupos} itens={itens} posicoes={estado.posicoes} onSalvo={(posicoes) => setEstado({ ...estado, posicoes })} />
+      <SecaoOrdem />
     </div>
   )
 }
@@ -354,117 +350,25 @@ function SecaoMensagem({ inicial, padrao, onSalvo }: { inicial: string | null; p
   )
 }
 
-// ── 3. ordem das categorias ─────────────────────────────────────────────────
+// ── 3. ordem ────────────────────────────────────────────────────────────────
 
 /**
- * Ordem das CATEGORIAS no trilho da esquerda do cardápio da mesa (QR). Só a mesa: a
- * ordem do delivery continua sendo a do Cardápio. Aparecem as categorias que têm item
- * vendido no salão — as outras não aparecem na mesa de qualquer forma.
+ * A ordem das categorias e dos itens é UMA só, a do Gestor de Cardápio (0101), em todos
+ * os canais. A antiga ordem própria da mesa (grupos_cardapio.posicao_mesa, 0074) deixou
+ * de ser usada — o dado fica no banco, mas nada o lê. Aqui fica só o aviso, para quem
+ * procurar o controle antigo.
  */
-function SecaoOrdem({
-  grupos,
-  itens,
-  posicoes,
-  onSalvo,
-}: {
-  grupos: GrupoCardapio[]
-  itens: ItemCardapio[]
-  posicoes: Record<string, number | null>
-  onSalvo: (p: Record<string, number | null>) => void
-}) {
-  const categorias = useMemo(
-    () => grupos.filter((g) => itens.some((i) => i.grupoId === g.id && i.disponivelSalao !== false)),
-    [grupos, itens],
-  )
-  const ordemSalva = useMemo(
-    () => ordenarParaMesa(categorias, new Map(Object.entries(posicoes))).map((g) => g.id),
-    [categorias, posicoes],
-  )
-  const [ordem, setOrdem] = useState<string[]>(ordemSalva)
-  const [salvando, setSalvando] = useState(false)
-  const [aviso, setAviso] = useState<Aviso>(null)
-
-  useEffect(() => {
-    setOrdem(ordemSalva)
-  }, [ordemSalva])
-
-  const porId = useMemo(() => new Map(categorias.map((g) => [g.id, g])), [categorias])
-  const qtdItens = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const i of itens) if (i.grupoId && i.disponivelSalao !== false) m.set(i.grupoId, (m.get(i.grupoId) ?? 0) + 1)
-    return m
-  }, [itens])
-  const mudou = JSON.stringify(ordem) !== JSON.stringify(ordemSalva)
-
-  function mover(i: number, d: -1 | 1) {
-    setOrdem((a) => {
-      const j = i + d
-      if (j < 0 || j >= a.length) return a
-      const n = [...a]
-      ;[n[i], n[j]] = [n[j]!, n[i]!]
-      return n
-    })
-  }
-
-  async function gravar() {
-    setSalvando(true)
-    setAviso(null)
-    const e = await salvar({ ordem })
-    setSalvando(false)
-    if (e) return setAviso({ tipo: 'erro', texto: e })
-    onSalvo({ ...posicoes, ...Object.fromEntries(ordem.map((id, n) => [id, n + 1])) })
-    setAviso({ tipo: 'ok', texto: 'Ordem salva. O cardápio da mesa já mostra as categorias assim.' })
-  }
-
+function SecaoOrdem() {
   return (
     <Card>
-      <h3 className="mb-1 text-[13px] font-bold text-text-main">Ordem das categorias (cardápio da mesa)</h3>
-      <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-        Arrume a ordem em que as categorias aparecem na lista da esquerda do cardápio que o cliente abre pelo QR da
-        mesa. Não muda o delivery — a ordem dele continua sendo ajustada em Cardápio. Aqui estão todas as categorias
-        com item vendido no salão: as que hoje estão fora do horário, ou com tudo esgotado, continuam na lista para
-        você poder ordená-las — no cardápio da mesa elas só aparecem quando voltarem.
+      <h3 className="mb-1 text-[13px] font-bold text-text-main">Ordem das categorias e dos itens</h3>
+      <p className="text-[12px] leading-relaxed text-text-subtle" data-aviso-ordem-cardapio>
+        A ordem das categorias e dos itens é definida em{' '}
+        <Link href="/admin/cardapio" className="font-semibold text-primary underline">
+          Cardápio
+        </Link>
+        . Ela vale igual no QR da mesa, na vitrine, no PDV e no garçom.
       </p>
-
-      {categorias.length === 0 ? (
-        <p className="text-[12px] text-text-subtle">Nenhuma categoria com item vendido no salão ainda.</p>
-      ) : (
-        <>
-          <ol className="divide-y divide-border rounded-menuzia border border-border" data-ordem-categorias>
-            {ordem.map((id, i) => {
-              const g = porId.get(id)
-              if (!g) return null
-              return (
-                <li key={id} className="flex items-center gap-2 px-2.5 py-1.5">
-                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-primary/10 text-[12px] font-bold text-primary">{i + 1}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold text-text-main">{g.nome}</span>
-                    <span className="block text-[11px] text-text-subtle">
-                      {qtdItens.get(id) ?? 0} {(qtdItens.get(id) ?? 0) === 1 ? 'item no salão' : 'itens no salão'}
-                      {g.horarioAtivoInicio && g.horarioAtivoFim
-                        ? ` · ${g.horarioAtivoInicio.slice(0, 5)}–${g.horarioAtivoFim.slice(0, 5)}`
-                        : ''}
-                    </span>
-                  </span>
-                  <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} aria-label={`Subir ${g.nome}`} className="grid h-9 w-9 place-items-center rounded-menuzia text-text-subtle hover:bg-page disabled:opacity-30">
-                    <ArrowUp className="h-4 w-4" />
-                  </button>
-                  <button type="button" onClick={() => mover(i, 1)} disabled={i === ordem.length - 1} aria-label={`Descer ${g.nome}`} className="grid h-9 w-9 place-items-center rounded-menuzia text-text-subtle hover:bg-page disabled:opacity-30">
-                    <ArrowDown className="h-4 w-4" />
-                  </button>
-                </li>
-              )
-            })}
-          </ol>
-
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Button onClick={gravar} disabled={!mudou || salvando}>
-              {salvando ? 'Salvando…' : 'Salvar ordem'}
-            </Button>
-            <Retorno aviso={aviso} />
-          </div>
-        </>
-      )}
     </Card>
   )
 }

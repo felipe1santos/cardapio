@@ -41,6 +41,7 @@ import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaO
 import { CardProduto, ConfiguradorGarcom, PainelLancamento, SelecaoDoCliente, SemItens, brl, type DadosPizza } from './lancar'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
+import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
 
 /**
  * Painel do garçom para uma mesa.
@@ -162,7 +163,8 @@ export default function MesaDetalhePage() {
     setMesa(alvo)
     setMesasDaLoja(mesas.map((m) => ({ id: m.id, nome: m.nome, ativa: m.ativa, bloqueada: m.bloqueada })))
     setGrupos(gruposDb)
-    setTodos(itensDb)
+    // Ordem do Gestor (0101), a mesma do QR e da vitrine.
+    setTodos(itensNaOrdemDoCardapio(gruposDb, itensDb))
 
     // Pedidos já lançados nesta mesa.
     const comanda = await buscarComandaAberta(supabase, restauranteId, params.id).catch(() => null)

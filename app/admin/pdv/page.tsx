@@ -34,6 +34,7 @@ import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
+import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -850,7 +851,8 @@ export default function PdvPage() {
         ])
         if (cancelled) return
 
-        setItens(itensData.filter((i) => i.status === 'disponivel'))
+        // Ordem do Gestor (0101): categoria e, dentro dela, a posição do item.
+        setItens(itensNaOrdemDoCardapio(gruposData, itensData).filter((i) => i.status === 'disponivel'))
         setGrupos(gruposData)
         setTamanhosPizza(tamanhosData)
         setBordasPizza(bordasData)

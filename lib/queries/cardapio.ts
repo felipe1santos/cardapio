@@ -6,7 +6,7 @@ import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
 import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
-import { cardapioOrdenado } from '@/lib/ordem-cardapio'
+import { cardapioOrdenado, ordenar } from '@/lib/ordem-cardapio'
 import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
@@ -122,8 +122,8 @@ export interface ItemCardapio {
    */
   pizzaTamanhosOcultos?: string[]
   /**
-   * Ordem dentro da categoria, definida no Gestor (0101). Vitrine e QR ordenam por
-   * `lib/ordem-cardapio`; `listarItens` continua por criação para o PDV e o garçom.
+   * Ordem dentro da categoria, definida no Gestor (0101). Todos os canais ordenam por
+   * `lib/ordem-cardapio` (vitrine, QR, PDV e garçom).
    */
   posicao?: number
   criadoEm?: string
@@ -290,7 +290,8 @@ export async function listarGrupos(supabase: ClienteLeitura, restauranteId: stri
     .order('posicao', { ascending: true })
 
   if (error) throw error
-  return (data ?? []).map(mapGrupo)
+  // Ordem do Gestor com o desempate de sempre (posição, criação, id).
+  return ordenar((data ?? []).map(mapGrupo))
 }
 
 /**
@@ -411,7 +412,9 @@ export async function listarItens(supabase: ClienteLeitura, restauranteId: strin
     .order('criado_em', { ascending: true })
 
   if (error) throw error
-  return ((data ?? []) as unknown as ItemRow[]).map(mapItem)
+  // Ordem do Gestor dentro de cada categoria (0101). Quem mostra itens de várias
+  // categorias numa lista só usa `itensNaOrdemDoCardapio` (lib/ordem-cardapio).
+  return ordenar(((data ?? []) as unknown as ItemRow[]).map(mapItem))
 }
 
 export interface NovoItemInput {

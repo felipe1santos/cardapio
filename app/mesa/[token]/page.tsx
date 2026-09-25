@@ -74,32 +74,26 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
 
   if (!loja) notFound()
 
-  // Personalização da mesa (0073/0074): carrossel, aviso e ordem das CATEGORIAS. Lidas à parte do
-  // select do cardápio; se a leitura falhar, fica o comportamento de sempre (banner,
-  // texto padrão, ordem das categorias do delivery).
-  const [{ data: vitrine }, { data: posicoes }] = await Promise.all([
-    admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao, mesa_somente_visualizacao').eq('id', mesa.restauranteId).maybeSingle(),
-    admin.from('grupos_cardapio').select('id, posicao_mesa').eq('restaurante_id', mesa.restauranteId),
-  ])
+  // Personalização da mesa (0073): carrossel e aviso. Lidos à parte do select do cardápio;
+  // se a leitura falhar, fica o comportamento de sempre (banner e texto padrão).
+  const { data: vitrine } = await admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao, mesa_somente_visualizacao').eq('id', mesa.restauranteId).maybeSingle()
   const carrossel = ((vitrine?.mesa_carrossel_urls as string[] | null) ?? []).filter(Boolean)
   const somenteVisualizacao = (vitrine as { mesa_somente_visualizacao?: boolean } | null)?.mesa_somente_visualizacao === true
   const mensagem =
     ((vitrine?.mesa_mensagem_selecao as string | null) ?? '').trim() || mensagemPadraoDaMesa(somenteVisualizacao)
-  const posicaoCategoria = new Map(((posicoes ?? []) as { id: string; posicao_mesa: number | null }[]).map((x) => [x.id, x.posicao_mesa]))
 
   // Catálogo é um só: as mesmas linhas que a vitrine lê, com os MESMOS filtros — status,
   // dia da semana, horário da categoria — mais o canal do salão (0069). Nada de cadastro
   // paralelo para mesa.
   //
   // Ordem: a mesma regra da vitrine (lib/ordem-cardapio) — categorias e itens na ordem do
-  // Gestor. A loja que escolheu uma ordem PRÓPRIA de categorias para a mesa em Ajustes ›
-  // Mesas (0074) continua com ela; as sem posição vêm depois, na ordem do Gestor.
+  // Gestor. A antiga ordem própria da mesa (posicao_mesa, 0074) não é mais lida.
   const visivelNaMesa = (i: (typeof itens)[number]) =>
     i.status === 'disponivel' &&
     itemDisponivelNoCanal(i, 'mesa') &&
     itemDisponivelHoje(i.diasDisponiveis) &&
     categoriaNoHorario(i, grupos, grupoEstaAtivoAgora)
-  const cardapio = cardapioOrdenado(grupos, itens, { posicaoMesa: posicaoCategoria, itemVisivel: visivelNaMesa })
+  const cardapio = cardapioOrdenado(grupos, itens, { itemVisivel: visivelNaMesa })
   const gruposComItem = cardapio.map((c) => c.grupo)
   // A busca da mesa lista itens de várias categorias: nesta mesma ordem (categoria, item).
   // Item sem categoria só aparecia na busca, como antes: continua lá, no fim.
