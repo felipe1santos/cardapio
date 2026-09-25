@@ -23,6 +23,8 @@ export const USU = {
   donoEmail: S ? `dono.${S}@local.test` : 'dono@local.test',
   garcom: S ? `garcom.${S}` : 'garcom.local',
   garcomEmail: S ? `garcom.${S}@demo.local` : 'garcom@demo.local',
+  gerente: S ? `gerente.${S}` : 'gerente.local',
+  gerenteEmail: S ? `gerente.${S}@demo.local` : 'gerente@demo.local',
   atendente: S ? `atendente.${S}` : 'atendente.local',
   atendenteEmail: S ? `atendente.${S}@demo.local` : 'atendente@demo.local',
   donoVizinha: S ? `dono.vizinha.${S}` : 'dono.vizinha',

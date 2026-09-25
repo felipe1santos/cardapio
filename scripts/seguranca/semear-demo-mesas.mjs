@@ -79,6 +79,7 @@ async function criarFuncionario(email, usuario, papel, nome) {
 }
 await criarFuncionario(USU.garcomEmail, USU.garcom, 'garcom', 'Garçom Demo')
 await criarFuncionario(USU.atendenteEmail, USU.atendente, 'atendente', 'Atendente Demo')
+await criarFuncionario(USU.gerenteEmail, USU.gerente, 'gerente', 'Gerente Demo')
 
 // ── cardápio ────────────────────────────────────────────────────────────────
 // Item antes de categoria: apagar a categoria primeiro deixaria itens órfãos

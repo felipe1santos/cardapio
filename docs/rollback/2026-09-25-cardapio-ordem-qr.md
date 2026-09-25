@@ -13,9 +13,10 @@ migration **0101** (`supabase/migrations/0101_cardapio_ordem_itens.sql`).
 | Vitrine / QR | Montserrat compartilhada (`lib/fonte-vitrine.ts`) também no QR; preço do QR escuro e 600; selo “★ Favorito” na vitrine e nos dois QR. |
 | QR (ficha) | Celular: foto em cima e conteúdo embaixo; ≥ 768 px e celular deitado: lado a lado. |
 
-A ordem própria de categorias da mesa (Ajustes › Mesas, 0074) continua valendo onde já foi
-configurada — hoje só a **Pizza do Rosa** tem (Bebidas primeiro no QR). Nas demais lojas o
-QR segue exatamente a ordem do Gestor.
+**Ordem única (decisão do dono, 2026-09-25):** o Gestor manda em todos os canais — vitrine, QR
+ativo, QR de visualização, PDV e garçom — inclusive na Pizza do Rosa. A antiga ordem própria da
+mesa (`grupos_cardapio.posicao_mesa`, 0074) não é mais lida nem gravada; o dado continua no banco.
+Ajustes › Mesas mostra só o aviso “A ordem das categorias e dos itens é definida em Cardápio”.
 
 ## Ordem de publicação
 
@@ -38,9 +39,18 @@ QR segue exatamente a ordem do Gestor.
   gravada depois da 0101; nenhum outro dado muda. Testado localmente: desfazer, reaplicar
   duas vezes (idempotente) e o e2e passa de novo.
 
+## Flags (PDV v2 e Assistente Beta em todas as lojas)
+
+:  (só leitura, grava o JSON), (liga  e  numa transação, só se toda loja estiver em
+“Somente teste”, sem cozinha por função, sem transferência, sem função atribuída e sem
+computador Beta ativo; audita cada loja) e  (volta exatamente ao retrato).
+O modo do Beta não muda; nada é pareado ou atribuído.
+
 ## Provas locais
 
 - `node scripts/seguranca/e2e-cardapio-ordem-qr.mjs` — 106 verificações, loja isolada
   `ordem-qr-e2e` (semeada por `semear-cardapio-ordem.mjs`).
 - `shots-cardapio-qr.mjs` — capturas antes/depois (`BASE` e `ROTULO`).
-- Regressões: `e2e-garcom` 47/47 e `e2e-release-mesas` 254/254 em `cantina-e2e`.
+- Regressões (loja isolada `cantina-e2e`, com trava `exigirLojaIsolada`): garçom 47/47, mesas 254/254,
+  PDV v2 69/69, PDV atendimento 96/96 (inclui pedido pela vitrine), balcão/entrega 84/84.
+  `cantina-demo` e `vizinha-demo` conferidas idênticas antes/depois.

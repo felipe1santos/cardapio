@@ -426,16 +426,51 @@ try {
     const fimQ = (await ordemQr(cp)).find((c) => c.cat === 'Bebidas').itens
     ok('item novo aparece no final na vitrine e no QR', fimV.at(-1) === novo && fimQ.at(-1) === novo)
     await db.query(`delete from itens_cardapio where id=$1`, [novo])
-    // PDV e garçom continuam na ordem de sempre (criação): não mudam em silêncio.
+    // A ordem antiga própria da mesa (posicao_mesa, 0074) não é mais lida: gravo uma
+    // ordem invertida nela e nada muda em canal nenhum.
+    await db.query(`update grupos_cardapio set posicao_mesa = case nome when 'Sobremesas' then 1 when 'Lanches' then 2 else 3 end where restaurante_id=$1`, [loja])
+    const qrComMesa = (await ordemQr(cp)).map((c) => c.cat)
+    ok('posicao_mesa antiga (invertida) é ignorada: QR segue o Gestor', igual(qrComMesa, await ordemCatDb()), JSON.stringify(qrComMesa))
+
+    // Garçom: categorias e itens na ordem do Gestor (Bebidas primeiro, Coca 1,5 L antes da lata).
     const garcomCat = await logar(USUARIOS.garcom)
     await garcomCat.page.goto(`${BASE}/admin/mesas/${mesa.id}`, { waitUntil: 'networkidle' })
+    await dispensarAvisos(garcomCat.page, 3000)
     await garcomCat.page.locator('button', { hasText: 'Bebidas' }).first().click().catch(() => {})
     await garcomCat.page.waitForTimeout(500)
     const txt = await garcomCat.page.locator('body').innerText()
     const iLata = txt.indexOf('Coca Lata 350 ml')
     const iLitro = txt.indexOf('Coca 1,5 L')
-    ok('garçom: catálogo segue por criação (não mudou com a 0101)', iLata >= 0 && iLitro >= 0 && iLata < iLitro, `lata@${iLata} litro@${iLitro}`)
+    ok('garçom: itens na ordem do Gestor', iLata >= 0 && iLitro >= 0 && iLitro < iLata, `litro@${iLitro} lata@${iLata}`)
+    const chips = await garcomCat.page.evaluate(() => [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).filter((t) => /^(Bebidas|Lanches|Sobremesas)/.test(t)).map((t) => t.replace(/\d+$/, '').trim()))
+    ok('garçom: categorias na ordem do Gestor', igual([...new Set(chips)].slice(0, 3), await ordemCatDb()), JSON.stringify(chips))
     await garcomCat.ctx.close()
+
+    // PDV (dono): lista "todos" na ordem do cardápio.
+    await dono.page.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' })
+    await dispensarAvisos(dono.page, 3000)
+    // Abre o balcão (venda rápida): o catálogo aparece com "todos" os itens.
+    await dono.page.getByText('Balcão', { exact: true }).first().click()
+    await dono.page.waitForSelector('text=Coca Lata 350 ml', { timeout: 15000 }).catch(() => {})
+    await dono.page.waitForTimeout(500)
+    const pdvTxt = await dono.page.locator('body').innerText()
+    const pos = (n) => pdvTxt.indexOf(n)
+    ok('PDV: Bebidas (Coca 1,5 L, Coca Lata) antes de Lanches (X-Burger)', pos('Coca 1,5 L') >= 0 && pos('Coca 1,5 L') < pos('Coca Lata 350 ml') && pos('Coca Lata 350 ml') < pos('X-Burger'), `litro@${pos('Coca 1,5 L')} lata@${pos('Coca Lata 350 ml')} xburger@${pos('X-Burger')}`)
+    await dono.page.screenshot({ path: join(SHOTS, 'pdv-ordem-1366.png') })
+
+    // Ajustes › Mesas: o controle antigo saiu; fica o aviso com link para o Cardápio.
+    await dono.page.goto(`${BASE}/admin/ajustes`, { waitUntil: 'networkidle' })
+    await dispensarAvisos(dono.page, 3000)
+    await dono.page.getByRole('button', { name: 'Mesas', exact: true }).first().click()
+    await dono.page.waitForSelector('[data-aviso-ordem-cardapio]', { timeout: 15000 })
+    const aviso = await dono.page.locator('[data-aviso-ordem-cardapio]').innerText()
+    const link = await dono.page.locator('[data-aviso-ordem-cardapio] a').getAttribute('href')
+    ok('Ajustes › Mesas: aviso "definida em Cardápio" com link, sem o controle antigo', /A ordem das categorias e dos itens é definida em\s+Cardápio/.test(aviso) && link === '/admin/cardapio' && (await dono.page.locator('[data-ordem-categorias]').count()) === 0, aviso)
+    await dono.page.locator('[data-aviso-ordem-cardapio]').scrollIntoViewIfNeeded()
+    await dono.page.screenshot({ path: join(SHOTS, 'ajustes-mesas-aviso-1366.png') })
+    const velha = await api(dono.page, '/api/admin/mesas/cardapio', 'PUT', { ordem: [G.sobremesas, G.lanches, G.bebidas] })
+    ok('API antiga recusa gravar ordem da mesa', velha.status === 400)
+    await db.query(`update grupos_cardapio set posicao_mesa = null where restaurante_id=$1`, [loja])
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
