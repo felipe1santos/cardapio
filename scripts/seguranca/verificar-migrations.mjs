@@ -332,6 +332,41 @@ await comBanco('menuzia_migr_prod', async (cliente) => {
     const o3 = await objetos()
     ok('reaplicar a 0099 depois do rollback devolve tudo', o3.gatilhos === 4 && o3.efetiva && o3.coluna && o3.totais_novo)
   }
+
+  // 0100 (Assistente Beta): loja que já existia fica com o Beta desligado, em "teste" e com
+  // o roteamento da cozinha como estava; nenhuma impressora ganha perfil. O rollback tira
+  // colunas e funções sem apagar pedido, trabalho de impressão ou auditoria.
+  if (daFeature.some((f) => f.startsWith('0100'))) {
+    const l = (await cliente.query(
+      `select impressao_beta_liberado b, impressao_beta_modo m, impressao_cozinha_por_funcao f, impressao_cozinha_transferida_em t from restaurantes where id=$1`, [loja])).rows[0]
+    ok('0100: loja antiga com Beta desligado, "Somente teste" e cozinha no Assistente antigo', l.b === false && l.m === 'teste' && l.f === false && l.t === null, JSON.stringify(l))
+    const modoAnon = (await cliente.query(
+      `select has_function_privilege('authenticated', 'public.impressao_modo_definir(uuid,text,uuid,text)', 'execute') a,
+              has_function_privilege('anon', 'public.impressao_calibracao_criar(uuid,uuid,text,uuid,text)', 'execute') b`)).rows[0]
+    ok('0100: funções novas não são executáveis pelo navegador', !modoAnon.a && !modoAnon.b)
+    const semLib = await cliente.query(`select impressao_modo_definir($1, 'caixa', null, 'teste')`, [loja]).then(() => 'passou', (e) => e.message)
+    ok('0100: loja não liberada não sai de "teste"', semLib === 'beta_nao_liberado', semLib)
+    const foto = async () => (await cliente.query(
+      `select (select count(*) from pedidos)::int as pedidos, (select count(*) from impressao_trabalhos)::int as trabalhos,
+              (select count(*) from eventos_auditoria)::int as auditoria, (select count(*) from restaurantes)::int as lojas,
+              (select md5(string_agg(id::text || coalesce(impressao_cozinha_por_funcao::text, ''), ',' order by id)) from restaurantes) as assinatura`)).rows[0]
+    const objetos = async () => (await cliente.query(
+      `select (to_regprocedure('public.impressao_modo_definir(uuid,text,uuid,text)') is not null) as modo,
+              (to_regprocedure('public.impressao_calibracao_criar(uuid,uuid,text,uuid,text)') is not null) as calibracao,
+              (select count(*) from information_schema.columns where table_name='restaurantes' and column_name in ('impressao_beta_liberado','impressao_beta_modo','impressao_cozinha_transferida_em'))::int as col_loja,
+              (select count(*) from information_schema.columns where table_name='impressao_dispositivos' and column_name in ('largura_pontos','deslocamento_pontos','diagnostico','calibrado_em','calibrado_por_nome'))::int as col_disp`)).rows[0]
+    const o1 = await objetos()
+    ok('0100 aplicada: 2 funções, 3 colunas na loja e 5 na impressora', o1.modo && o1.calibracao && o1.col_loja === 3 && o1.col_disp === 5, JSON.stringify(o1))
+    const antes = await foto()
+    await cliente.query(readFileSync(join(process.cwd(), 'docs', 'rollback', '0100_impressao_beta_modos_e_calibracao.down.sql'), 'utf8'))
+    const o2 = await objetos()
+    ok('rollback da 0100 remove funções e colunas', !o2.modo && !o2.calibracao && o2.col_loja === 0 && o2.col_disp === 0, JSON.stringify(o2))
+    const depois = await foto()
+    ok('rollback da 0100 não apaga pedido, trabalho de impressão, auditoria nem muda o roteamento', JSON.stringify(antes) === JSON.stringify(depois), JSON.stringify(depois))
+    await cliente.query(readFileSync(join(dir, daFeature.find((f) => f.startsWith('0100'))), 'utf8'))
+    const o3 = await objetos()
+    ok('reaplicar a 0100 depois do rollback devolve tudo', o3.modo && o3.calibracao && o3.col_loja === 3 && o3.col_disp === 5)
+  }
 })
 
 const falhas = res.filter((r) => !r).length
