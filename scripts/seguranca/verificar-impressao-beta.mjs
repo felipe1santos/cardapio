@@ -169,6 +169,49 @@ ok('voltar ao padrão (null) permitido', (await api(pGer, url, 'PATCH', { largur
   (await um('select largura_pontos from impressao_dispositivos where id=$1', [dPos.id])).largura_pontos === null)
 await api(pGer, url, 'PATCH', { larguraPontos: 512, deslocamentoPontos: 0 })
 
+secao('Recibo/Extrato de teste: só o computador escolhido, sem dado comercial, sem duplicidade')
+// Um segundo computador Beta da mesma loja, com outra impressora.
+const cB = await api(pGer, '/api/admin/impressao/pareamento', 'POST')
+const pb = await parear(cB.json.codigo, 'PC Bar Beta')
+const B = agente(pb.json.credencial)
+await B.post('/api/agente/impressoras', { impressoras: ['Bar'] })
+const comercial = async () => JSON.stringify(await um(`select
+  (select count(*) from pedidos where restaurante_id=$1)::int pedidos,
+  (select count(*) from comandas where restaurante_id=$1)::int comandas,
+  (select count(*) from pagamentos_comanda pc join comandas c on c.id=pc.comanda_id where c.restaurante_id=$1)::int pagamentos,
+  (select count(*) from impressao_reservas where restaurante_id=$1)::int reservas_cozinha,
+  (select count(*) from fidelidade_progresso)::int fidelidade,
+  (select count(*) from fidelidade_recompensas)::int recompensas,
+  (select count(*) from cupom_usos)::int cupons_usados,
+  (select coalesce(sum(total),0) from pedidos where restaurante_id=$1)::text faturamento`, [loja]))
+const antesComercial = await comercial()
+const urlPos = `/api/admin/impressao/dispositivos/${dPos.id}`
+const kRt = uuid()
+const [rt1, rt2] = await Promise.all([api(pGer, urlPos, 'POST', { acao: 'recibo_teste', chave: kRt }), api(pDono, urlPos, 'POST', { acao: 'recibo_teste', chave: kRt })])
+ok('clique duplo (dois pedidos juntos, mesma chave): um trabalho só', !!rt1.json?.id && rt1.json.id === rt2.json?.id && [rt1.status, rt2.status].includes(201), `${rt1.status}/${rt2.status}`)
+const rt3 = await api(pGer, urlPos, 'POST', { acao: 'recibo_teste', chave: kRt })
+ok('reenvio (mesma chave): o mesmo trabalho, sem criar outro', rt3.status === 200 && rt3.json?.id === rt1.json.id && rt3.json?.idempotente === true)
+ok('no banco: um trabalho para essa chave', Number((await um('select count(*) n from impressao_trabalhos where restaurante_id=$1 and chave=$2', [loja, kRt])).n) === 1)
+const jobRt = await um('select tipo, comanda_id, dispositivo_id, snapshot from impressao_trabalhos where id=$1', [rt1.json.id])
+ok('é teste de impressora, sem conta, na impressora escolhida', jobRt.tipo === 'teste_impressora' && jobRt.comanda_id === null && jobRt.dispositivo_id === dPos.id)
+ok('snapshot de demonstração: R$ 4.088,00 e marcado como teste', jobRt.snapshot.recibo_teste === true && Number(jobRt.snapshot.total) === 4088)
+ok('atendente não pede Recibo/Extrato de teste', (await api(pAt, urlPos, 'POST', { acao: 'recibo_teste', chave: uuid() })).status === 403)
+ok('outra loja não pede nesta impressora', (await api(pViz, urlPos, 'POST', { acao: 'recibo_teste', chave: uuid() })).status === 404)
+ok('chave inválida recusada', (await api(pGer, urlPos, 'POST', { acao: 'recibo_teste', chave: 'x' })).status === 400)
+const [ga, gb] = await Promise.all([A.get('/api/agente/trabalhos'), B.get('/api/agente/trabalhos')])
+ok('outro computador Beta da loja NÃO recebe', !(gb.json?.trabalhos ?? []).some((x) => x.id === rt1.json.id))
+const tRt = (ga.json?.trabalhos ?? []).find((x) => x.id === rt1.json.id)
+ok('só o computador da impressora escolhida reserva, com o perfil dela (512)', !!tRt && tRt.snapshot?.recibo_teste === true && tRt.larguraPontos === 512)
+ok('reserva exclusiva: segunda consulta não entrega de novo', !((await A.get('/api/agente/trabalhos')).json?.trabalhos ?? []).some((x) => x.id === rt1.json.id))
+ok('Assistente antigo (token) não vê nada disso na fila dele', (await antigo()).every((p) => p.id !== rt1.json.id))
+ok('outro computador não informa resultado dele', (await B.post(`/api/agente/trabalhos/${rt1.json.id}/resultado`, { ok: true })).status === 404)
+ok('Windows aceitou: enviado_spooler', (await A.post(`/api/agente/trabalhos/${rt1.json.id}/resultado`, { ok: true })).json?.estado === 'enviado_spooler')
+const hist = (await api(pGer, '/api/admin/impressao/painel')).json.trabalhos.find((x) => x.id === rt1.json.id)
+ok('histórico: "Recibo/Extrato de teste"', hist?.subtipo === 'recibo_teste')
+ok('auditado como Recibo/Extrato de teste', !!(await um(`select 1 from eventos_auditoria where restaurante_id=$1 and acao='impressao.recibo_teste' and dados->>'trabalho_id'=$2`, [loja, rt1.json.id])))
+ok('nada comercial mudou: pedidos, comandas, pagamentos, faturamento, cozinha, fidelidade, cupons', (await comercial()) === antesComercial)
+await db.query(`update impressao_agentes set revogado_em=now() where credencial_hash=$1`, [sha(pb.json.credencial)])
+
 secao('Somente teste: o Beta não imprime Recibo/Extrato nem cozinha')
 await api(pGer, '/api/admin/impressao/funcoes', 'PUT', { funcao: 'caixa', dispositivoId: dPos.id })
 await lancar()

@@ -28,6 +28,12 @@ export const ROTULO_TIPO_TRABALHO: Record<string, string> = {
   teste_impressora: 'Teste',
 }
 
+/** Subtipo do teste_impressora no histórico. */
+export const ROTULO_SUBTIPO_TESTE: Record<'calibracao' | 'recibo_teste', string> = {
+  calibracao: 'Página de calibração',
+  recibo_teste: 'Recibo/Extrato de teste',
+}
+
 export const ROTULO_FUNCAO: Record<'cozinha' | 'caixa', string> = {
   cozinha: 'Cozinha',
   caixa: 'Caixa — Recibo/Extrato',

@@ -63,9 +63,11 @@ const TOPICOS: { titulo: string; texto: React.ReactNode }[] = [
     titulo: 'Teste e calibração',
     texto: (
       <>
-        <strong>Teste</strong>: imprime uma página curta para ver se a impressora responde.
+        <strong>Testar Recibo/Extrato</strong>: imprime um Recibo/Extrato de demonstração, marcado “TESTE DE IMPRESSÃO — SEM VALOR
+        FISCAL”, igual ao de verdade e com total de R$ 4.088,00. Não cria pedido, conta nem pagamento. O valor do TOTAL tem que
+        aparecer inteiro.
         <br />
-        <strong>Calibração</strong>: imprime uma régua com uma barra preta em cada lado. Se as duas barras e o valor do TOTAL
+        <strong>Página de calibração</strong>: imprime uma régua com uma barra preta em cada lado. Se as duas barras e o valor do TOTAL
         aparecem inteiros, está certo. Se a direita sai cortada, anote o último número inteiro da régua e informe na tela —
         só aquela impressora é ajustada.
       </>

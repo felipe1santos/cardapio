@@ -14,6 +14,7 @@ import {
   ROTULO_ESTADO_IMPRESSAO,
   ROTULO_FUNCAO,
   ROTULO_MODO_BETA,
+  ROTULO_SUBTIPO_TESTE,
   ROTULO_TIPO_TRABALHO,
   TOM_ESTADO_IMPRESSAO,
 } from '@/lib/impressao/rotulos'
@@ -124,6 +125,9 @@ export function PainelImpressao() {
   const [modalImpressora, setModalImpressora] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
   const [verFicha, setVerFicha] = useState(false)
   const seq = useRef(0)
+  // Uma chave por impressora e por teste: clique duplo ou reenvio devolve o mesmo trabalho.
+  // Troca só depois que o servidor aceitou.
+  const chavesTeste = useRef<Record<string, string>>({})
 
   const carregar = useCallback(async () => {
     const minha = ++seq.current
@@ -201,6 +205,13 @@ export function PainelImpressao() {
     else setAviso({ tom: 'ok', texto: sucesso })
     await carregar()
     return r
+  }
+
+  async function imprimirTeste(d: DispositivoVisao, acao: 'recibo_teste' | 'calibracao', sucesso: string) {
+    const k = `${acao}:${d.id}`
+    chavesTeste.current[k] ??= novaChave()
+    const r = await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'POST', { acao, chave: chavesTeste.current[k] }, sucesso)
+    if (r?.ok) delete chavesTeste.current[k]
   }
 
   async function gerarCodigo() {
@@ -637,11 +648,20 @@ export function PainelImpressao() {
                 <button
                   type="button"
                   disabled={ocupado}
-                  data-testid={`testar-${d.nomeSistema}`}
-                  onClick={() => void agir(`/api/admin/impressao/dispositivos/${d.id}`, 'POST', { acao: 'teste', chave: novaChave() }, `Teste enviado para ${nomeDisp(d)}.`)}
+                  data-testid={`recibo-teste-${d.nomeSistema}`}
+                  onClick={() => void imprimirTeste(d, 'recibo_teste', `Recibo/Extrato de teste enviado para ${nomeDisp(d)}.`)}
                   className="rounded-menuzia border-2 border-primary px-3 py-1.5 text-[12px] font-bold text-primary hover:bg-primary hover:text-white disabled:opacity-40"
                 >
-                  {d.funcoes.includes('caixa') ? 'Testar Recibo/Extrato' : 'Imprimir teste'}
+                  Testar Recibo/Extrato
+                </button>
+                <button
+                  type="button"
+                  disabled={ocupado}
+                  data-testid={`testar-${d.nomeSistema}`}
+                  onClick={() => void imprimirTeste(d, 'calibracao', `Página de calibração enviada para ${nomeDisp(d)}.`)}
+                  className="rounded-menuzia border-2 border-primary px-3 py-1.5 text-[12px] font-bold text-primary hover:bg-primary hover:text-white disabled:opacity-40"
+                >
+                  Imprimir página de calibração
                 </button>
                 <button
                   type="button"
@@ -650,7 +670,7 @@ export function PainelImpressao() {
                   onClick={() => setCalibrar(d.id)}
                   className="rounded-menuzia bg-sidebar-bg px-3 py-1.5 text-[12px] font-bold text-white hover:opacity-90 disabled:opacity-40"
                 >
-                  Calibrar
+                  Calibrar (passo a passo)
                 </button>
               </li>
             ))}
@@ -662,11 +682,14 @@ export function PainelImpressao() {
       <Secao n={6} titulo="Histórico recente">
         <p className="px-4 pt-3 text-[12px] text-text-subtle">{AVISO_PAPEL}</p>
         {p && p.trabalhos.length === 0 && <p className="px-4 py-4 text-[13px] text-text-subtle">Nenhum Recibo/Extrato ou teste ainda.</p>}
+        <p className="px-4 pt-1 text-[11px] text-text-subtle">
+          “Recibo/Extrato de teste” é um documento de demonstração: não cria pedido, conta nem pagamento.
+        </p>
         <ul className="divide-y divide-border" data-testid="historico-impressao">
           {p?.trabalhos.map((t) => (
             <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-[12px]">
               <span className="text-text-subtle">{quando(t.criadoEm)}</span>
-              <span className="font-semibold text-text-main">{ROTULO_TIPO_TRABALHO[t.tipo] ?? t.tipo}{t.tipo === 'pre_conta' ? ` · ${t.via}ª via` : ''}</span>
+              <span className="font-semibold text-text-main">{(t.subtipo && ROTULO_SUBTIPO_TESTE[t.subtipo]) || ROTULO_TIPO_TRABALHO[t.tipo] || t.tipo}{t.tipo === 'pre_conta' ? ` · ${t.via}ª via` : ''}</span>
               <span className="min-w-0 flex-1 text-text-main">{t.impressora} · por {t.criadoPorNome}</span>
               <Badge tone={TOM_ESTADO_IMPRESSAO[t.estado] ?? 'alert'}>{ROTULO_ESTADO_IMPRESSAO[t.estado] ?? t.estado}</Badge>
               {t.erro && <span className="w-full text-danger">{t.erro}</span>}

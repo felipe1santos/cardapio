@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { traduzirErro } from '@/lib/servicos/conta-presencial'
 import { gerarCodigoPareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN } from './credenciais'
+import { snapshotReciboTeste } from './recibo-teste'
 
 /**
  * Impressão com vários computadores e impressoras — leitura e operações de servidor.
@@ -138,6 +139,8 @@ export interface DispositivoVisao {
 export interface TrabalhoVisao {
   id: string
   tipo: string
+  /** Só em teste_impressora: página de calibração ou Recibo/Extrato de teste. */
+  subtipo: 'calibracao' | 'recibo_teste' | null
   via: number
   estado: string
   erro: string | null
@@ -154,7 +157,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     admin.from('impressao_agentes').select('id, nome, versao, visto_em, revogado_em, criado_em, criado_por_nome').eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_dispositivos').select('id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em').eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
-    admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
+    admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, calibracao:snapshot->>calibracao, recibo_teste:snapshot->>recibo_teste, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
     admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
   ])
   const agora = Date.now()
@@ -191,6 +194,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
   const trabalhos: TrabalhoVisao[] = ((tbs ?? []) as unknown as (Record<string, unknown> & { impressao_dispositivos: { apelido: string | null; nome_sistema: string } | null })[]).map((t) => ({
     id: t.id as string,
     tipo: t.tipo as string,
+    subtipo: String(t.recibo_teste) === 'true' ? 'recibo_teste' : String(t.calibracao) === 'true' ? 'calibracao' : null,
     via: t.via as number,
     estado: t.estado as string,
     erro: (t.erro as string | null) ?? null,
@@ -345,6 +349,57 @@ export async function criarTeste(admin: SupabaseClient, op: Operador, dispositiv
   return rpc<{ id: string; estado: string; idempotente: boolean }>(admin, calibracao ? 'impressao_calibracao_criar' : 'impressao_teste_criar', {
     p_restaurante: op.restauranteId, p_dispositivo: dispositivoId, p_chave: chave, p_ator: op.userId, p_ator_nome: op.nome,
   })
+}
+
+/**
+ * Recibo/Extrato de TESTE numa impressora do Beta: documento de demonstração com os mesmos
+ * blocos do Recibo/Extrato real, desenhado pelo mesmo renderizador do Assistente Beta e com
+ * o perfil da impressora. Só texto na fila de impressão — não cria pedido, comanda,
+ * pagamento, fidelidade nem cupom; o Assistente antigo nunca vê esta fila.
+ * Clique duplo / reenvio (mesma chave): o mesmo trabalho (único por loja + chave).
+ */
+export async function criarReciboTeste(admin: SupabaseClient, op: Operador, dispositivoId: string, chave: unknown): Promise<Resultado<{ id: string; estado: string; idempotente: boolean }>> {
+  if (typeof chave !== 'string' || !/^[0-9a-f-]{36}$/i.test(chave)) return falha(MENSAGENS.chave_invalida, 400, 'chave_invalida')
+  const existente = async () =>
+    (await admin.from('impressao_trabalhos').select('id, estado').eq('restaurante_id', op.restauranteId).eq('chave', chave).maybeSingle()).data as { id: string; estado: string } | null
+  const ja = await existente()
+  if (ja) return { ok: true, valor: { ...ja, idempotente: true } }
+  const { data: d } = await admin
+    .from('impressao_dispositivos')
+    .select('id, agente_id, apelido, nome_sistema, largura_mm, largura_pontos, deslocamento_pontos, impressao_agentes ( nome, revogado_em ), restaurantes ( nome )')
+    .eq('id', dispositivoId)
+    .eq('restaurante_id', op.restauranteId)
+    .maybeSingle()
+  const disp = d as unknown as {
+    id: string; agente_id: string; apelido: string | null; nome_sistema: string; largura_mm: number; largura_pontos: number | null; deslocamento_pontos: number
+    impressao_agentes: { nome: string; revogado_em: string | null } | null; restaurantes: { nome: string } | null
+  } | null
+  if (!disp) return falha(MENSAGENS.dispositivo_inexistente, 404, 'dispositivo_inexistente')
+  if (!disp.impressao_agentes || disp.impressao_agentes.revogado_em) return falha(MENSAGENS.impressora_caixa_indisponivel, 409, 'impressora_caixa_indisponivel')
+  const impressora = disp.apelido ?? disp.nome_sistema
+  const snapshot = snapshotReciboTeste({
+    loja: disp.restaurantes?.nome ?? '', impressora, nomeSistema: disp.nome_sistema, computador: disp.impressao_agentes.nome,
+    larguraMm: disp.largura_mm, larguraPontos: disp.largura_pontos, deslocamentoPontos: disp.deslocamento_pontos ?? 0,
+  }, op.nome)
+  const { data: novo, error } = await admin
+    .from('impressao_trabalhos')
+    .insert({
+      restaurante_id: op.restauranteId, tipo: 'teste_impressora', dispositivo_id: disp.id, agente_id: disp.agente_id, snapshot, chave,
+      criado_por: op.userId, criado_por_nome: op.nome, expira_em: new Date(Date.now() + 10 * 60_000).toISOString(),
+    })
+    .select('id, estado')
+    .single()
+  if (error) {
+    // Dois cliques ao mesmo tempo: a chave é única por loja — o outro já criou.
+    if (error.code === '23505') {
+      const outro = await existente()
+      if (outro) return { ok: true, valor: { ...outro, idempotente: true } }
+    }
+    console.error('[impressao] recibo de teste:', error.message)
+    return falha('Não foi possível enviar o Recibo/Extrato de teste.', 500, 'erro')
+  }
+  await auditar(admin, op, 'impressao.recibo_teste', 'impressao_dispositivo', disp.id, { trabalho_id: novo.id, impressora, resumo: impressora })
+  return { ok: true, valor: { id: novo.id as string, estado: novo.estado as string, idempotente: false } }
 }
 
 // ─── pré-conta ──────────────────────────────────────────────────────────────
