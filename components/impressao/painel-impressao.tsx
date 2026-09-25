@@ -381,26 +381,31 @@ export function PainelImpressao() {
             )}
           </div>
 
-          <div className={['min-w-0 rounded-menuzia border p-3', liberado ? 'border-primary/40 bg-alert-bg/30' : 'border-border bg-page/50'].join(' ')}>
+          {/* Download do Beta para todo dono/gerente — baixar NÃO ativa nada: parear, mudar o
+              modo e imprimir continuam bloqueados até o suporte liberar a loja (servidor, 0100). */}
+          <div className="min-w-0 rounded-menuzia border border-border bg-page/50 p-3" data-testid="bloco-beta">
             <p className="text-[13px] font-bold text-text-main">
-              Novo Assistente Beta {liberado && <Badge tone="alert" className="ml-1">{DOWNLOAD_ASSISTENTE_BETA.versao}</Badge>}
+              Novo Assistente Beta <Badge tone="alert" className="ml-1">Opcional</Badge>
             </p>
             <p className="text-[12px] text-text-subtle">Novo Assistente Beta: necessário para usar impressoras separadas para Cozinha e Caixa.</p>
+            <a
+              href={DOWNLOAD_ASSISTENTE_BETA.url}
+              data-testid="baixar-beta"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-menuzia border-2 border-primary bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary hover:bg-primary hover:text-white"
+            >
+              ⬇ Baixar Assistente Menuzia Beta
+            </a>
+            <p className="mt-1 text-[11px] text-text-subtle">
+              Versão opcional para testar impressoras separadas para Cozinha e Caixa. Continue usando o Assistente atual, salvo orientação do suporte Menuzia.
+            </p>
             {liberado ? (
-              <>
-                <a
-                  href={DOWNLOAD_ASSISTENTE_BETA.url}
-                  data-testid="baixar-beta"
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-menuzia bg-primary px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark"
-                >
-                  ⬇ Baixar Assistente Beta (Windows)
-                </a>
-                <p className="mt-1 text-[11px] text-text-subtle">
-                  Instala ao lado do atual, sem desinstalar nada. Ele começa em “Somente teste”: não imprime pedidos até você mudar o modo abaixo.
-                </p>
-              </>
+              <p className="mt-2 rounded-menuzia bg-alert-bg px-2.5 py-1.5 text-[12px] text-alert-text" data-testid="beta-liberado">
+                Beta liberado para esta loja. Instala ao lado do atual, sem desinstalar nada, e começa em “Somente teste”: não imprime pedidos até você mudar o modo abaixo.
+              </p>
             ) : (
-              <p className="mt-2 text-[12px] text-text-subtle">Em teste com lojas selecionadas. Quando for liberado para esta loja, o download aparece aqui.</p>
+              <p className="mt-2 rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[12px] text-text-main" data-testid="beta-nao-liberado">
+                A ativação do Beta nesta loja é feita pelo suporte Menuzia. Sem ativação, ele não pareia com a loja e não imprime nada.
+              </p>
             )}
           </div>
         </div>
