@@ -5,15 +5,34 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal, instanciaAgente } = require('./store')
-const { listarImpressorasWindows, imprimirTexto } = require('./printer')
+const { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras } = require('./printer')
 const { montarRecibo } = require('./recibo')
 const { montarPreConta, montarTeste, colsPreConta } = require('./pre-conta')
 const { FilasPorDispositivo } = require('./fila-dispositivos')
+const { montarCalibracao } = require('./calibracao')
 
-// Diagnóstico: grava no MESMO arquivo que o print.ps1 (%TEMP%\menuzia-print.log).
+// Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
+//   · sem o campo   → o Assistente de sempre, exatamente como sempre;
+//   · 'teste-local' → build de teste que só fala com 127.0.0.1;
+//   · 'beta'        → Assistente Menuzia Beta: outro app (nome, pasta, dados, log,
+//                     início automático), só computador pareado, sem token da loja.
+const AMBIENTE = (() => {
+  try {
+    return require('../package.json').menuziaAmbiente || null
+  } catch {
+    return null
+  }
+})()
+const EH_TESTE_LOCAL = AMBIENTE?.variante === 'teste-local'
+const EH_BETA = AMBIENTE?.variante === 'beta'
+// O Beta grava no próprio log: o do Assistente antigo (%TEMP%\menuzia-print.log) fica só dele.
+const LOG_NOME = EH_BETA ? 'menuzia-beta-print.log' : 'menuzia-print.log'
+const PERFIL_LOG = EH_BETA ? { logNome: LOG_NOME, prefixoTmp: 'menuzia-beta' } : null
+
+// Diagnóstico: grava no MESMO arquivo que o print.ps1 (%TEMP%\menuzia-print.log; no Beta, o dele).
 function logArquivo(msg) {
   try {
-    fs.appendFileSync(path.join(os.tmpdir(), 'menuzia-print.log'), `[${new Date().toLocaleTimeString()}] [agente] ${msg}\n`)
+    fs.appendFileSync(path.join(os.tmpdir(), LOG_NOME), `[${new Date().toLocaleTimeString()}] [agente] ${msg}\n`)
   } catch {}
 }
 
@@ -53,15 +72,20 @@ async function baixarLogo(url) {
 // `menuziaAmbiente` no package.json empacotado. Só ela aponta para outro servidor — e só
 // para loopback —, com identidade, pastas e configuração próprias, sem início automático.
 // O build normal não tem esse campo: produção, exatamente como sempre.
-const AMBIENTE = (() => {
-  try {
-    return require('../package.json').menuziaAmbiente || null
-  } catch {
-    return null
+const PRODUCAO = 'https://app.menuzia.com.br'
+const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/
+const API_BASE_URL = (EH_TESTE_LOCAL || EH_BETA) && AMBIENTE.apiBaseUrl ? AMBIENTE.apiBaseUrl : PRODUCAO
+if (EH_BETA) {
+  // Beta: produção ou, no build de teste do Beta, só esta máquina. Nada mais.
+  if (API_BASE_URL !== PRODUCAO && !LOOPBACK.test(String(API_BASE_URL))) {
+    app.quit()
+    process.exit(1)
   }
-})()
-const EH_TESTE_LOCAL = AMBIENTE?.variante === 'teste-local'
-const API_BASE_URL = EH_TESTE_LOCAL ? AMBIENTE.apiBaseUrl : 'https://app.menuzia.com.br'
+  // Pasta de dados própria ANTES de qualquer leitura de configuração: credencial,
+  // impressos e trava de instância única separados dos do Assistente antigo.
+  app.setPath('userData', path.join(app.getPath('appData'), AMBIENTE.pastaDados || 'menuzia-assistente-beta'))
+  if (typeof app.setAppUserModelId === 'function') app.setAppUserModelId(AMBIENTE.appUserModelId || 'com.menuzia.assistente.beta')
+}
 if (EH_TESTE_LOCAL) {
   // Trava dura: a variante de teste nunca fala com nada fora desta máquina.
   if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(String(API_BASE_URL))) {
@@ -165,6 +189,8 @@ async function avisarImpresso(pedidoId, auth) {
 async function cicloDePolling() {
   const config = carregarConfig()
   const credencial = lerCredencial()
+  // O Beta nunca usa o token da loja (esse é do Assistente antigo).
+  if (EH_BETA && !credencial) return
   if (!config.token && !credencial) return
   // Se um ciclo anterior ainda está imprimindo (impressora lenta), não começa outro —
   // senão dois ciclos veriam impresso=false e imprimiriam o mesmo pedido em duplicidade.
@@ -193,6 +219,8 @@ async function cicloDePolling() {
     // Roteamento da cozinha por função (opção da loja): o servidor diz em QUAL impressora
     // deste computador a ficha sai. Sem isso, o modo de sempre: a impressora escolhida aqui.
     const destino = data.destinoCozinha || null
+    // Beta: só imprime a cozinha quando o servidor diz onde ("Cozinha e Caixa").
+    if (EH_BETA && !destino) return
     if (!destino && !config.impressoraWindows) return
     if (!pedidos || pedidos.length === 0) return
 
@@ -235,7 +263,12 @@ async function cicloDePolling() {
         }
 
         const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
-        const saida = await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
+        const perfilCozinha = EH_BETA && destino
+          ? { ...PERFIL_LOG, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0 }
+          : null
+        const saida = perfilCozinha
+          ? await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao), perfilCozinha)
+          : await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
         mostrarDiagnostico(saida)
 
         // A partir daqui o papel pode já ter saído: registra local ANTES de
@@ -308,10 +341,27 @@ async function informarResultado(id, ok, erro) {
 const filas = new FilasPorDispositivo(
   async (t) => {
     const largura = Number(t.larguraMm) <= 58 ? 58 : 80
-    const texto = t.tipo === 'pre_conta' ? montarPreConta(t.snapshot) : montarTeste(t.snapshot)
-    const saida = await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
+    const calibracao = t.tipo === 'teste_impressora' && t.snapshot?.calibracao === true
+    const texto = t.tipo === 'pre_conta'
+      ? montarPreConta(t.snapshot)
+      : calibracao
+        ? montarCalibracao(t.snapshot, diagnosticos[t.nomeSistema] || {})
+        : montarTeste(t.snapshot)
+    // Perfil da impressora (Beta). A calibração usa o perfil gravado no pedido de impressão,
+    // para a régua mostrar exatamente o que está escrito nela.
+    const perfil = EH_BETA
+      ? {
+          ...PERFIL_LOG,
+          larguraPontos: calibracao ? (t.snapshot.largura_pontos ?? null) : (t.larguraPontos ?? null),
+          deslocamentoPontos: calibracao ? (t.snapshot.deslocamento_pontos ?? 0) : (t.deslocamentoPontos ?? 0),
+        }
+      : null
+    const saida = perfil
+      ? await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false, perfil)
+      : await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
     mostrarDiagnostico(saida)
-    log(`${t.tipo === 'pre_conta' ? `Pré-conta (${t.via}ª via)` : 'Teste'} enviado para "${t.nomeSistema}" — aceito pela fila do Windows.`)
+    const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : calibracao ? 'Página de calibração' : 'Teste'
+    log(`${rotulo} enviado para "${t.nomeSistema}" — o Windows aceitou (confira se o papel saiu).`)
   },
   async (id, ok, erro) => {
     if (!ok) log(`Falha ao enviar trabalho para a impressora: ${erro}`)
@@ -331,11 +381,29 @@ async function consultarTrabalhos() {
     }
     if (!res.ok) return
     const data = await res.json()
-    if (Array.isArray(data.trabalhos) && data.trabalhos.length) filas.receber(data.trabalhos)
+    if (Array.isArray(data.trabalhos) && data.trabalhos.length) {
+      if (data.trabalhos.some((t) => t.snapshot?.calibracao === true)) await atualizarDiagnosticos(true)
+      filas.receber(data.trabalhos)
+    }
   } catch (err) {
     logArquivo(`TRABALHOS: ${descreverErro(err)}`)
   } finally {
     consultandoTrabalhos = false
+  }
+}
+
+// O que o driver de cada impressora informa (Beta). Coletar leva alguns segundos, então
+// é refeito só a cada 10 minutos — e sempre antes de uma página de calibração.
+let diagnosticos = {}
+let diagnosticoEm = 0
+async function atualizarDiagnosticos(forcar = false) {
+  if (!EH_BETA) return
+  if (!forcar && Date.now() - diagnosticoEm < 10 * 60_000) return
+  try {
+    diagnosticos = await diagnosticarImpressoras()
+    diagnosticoEm = Date.now()
+  } catch (err) {
+    logArquivo(`DIAGNOSTICO: ${descreverErro(err)}`)
   }
 }
 
@@ -345,10 +413,12 @@ async function informarImpressoras() {
   if (!headers) return
   try {
     const nomes = await listarImpressorasWindows()
+    await atualizarDiagnosticos()
+    const corpo = EH_BETA ? { impressoras: nomes, diagnosticos } : { impressoras: nomes }
     await fetch(`${API_BASE_URL}/api/agente/impressoras`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ impressoras: nomes }),
+      body: JSON.stringify(corpo),
     })
   } catch (err) {
     logArquivo(`DESCOBERTA: ${descreverErro(err)}`)
@@ -400,19 +470,23 @@ app.whenReady().then(() => {
   // não precisa lembrar de abrir o programa toda vez que liga o PC. Só no app empacotado
   // — em dev não queremos sujar a inicialização do sistema.
   // A variante de teste local nunca se registra para abrir com o Windows.
-  if (app.isPackaged && !EH_TESTE_LOCAL) {
+  // O Beta registra com NOME PRÓPRIO: não toca na entrada do Assistente antigo.
+  if (app.isPackaged && EH_BETA && AMBIENTE.iniciarComWindows !== false) {
+    app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'], name: AMBIENTE.nomeInicio || 'Assistente Menuzia Beta' })
+  } else if (app.isPackaged && !EH_TESTE_LOCAL && !EH_BETA) {
     app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
   }
   criarJanela()
   iniciarPolling()
   iniciarTrabalhos()
+  if (EH_BETA) log(`Assistente Menuzia Beta ${app.getVersion()} — convive com o Assistente de Impressão atual, que continua funcionando.`)
 })
 
 app.on('before-quit', () => { app.isQuitting = true })
 app.on('window-all-closed', () => { /* mantém rodando em segundo plano */ })
 
 ipcMain.handle('versao', () => app.getVersion())
-ipcMain.handle('ambiente', () => ({ testeLocal: EH_TESTE_LOCAL, servidor: API_BASE_URL }))
+ipcMain.handle('ambiente', () => ({ testeLocal: EH_TESTE_LOCAL || (EH_BETA && API_BASE_URL !== PRODUCAO), beta: EH_BETA, servidor: API_BASE_URL }))
 ipcMain.handle('carregar-config', () => carregarConfig())
 
 ipcMain.handle('salvar-config', (_e, patch) => {

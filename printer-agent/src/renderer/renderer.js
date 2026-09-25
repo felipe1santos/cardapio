@@ -251,7 +251,7 @@ document.getElementById('parearCodigo').addEventListener('click', async () => {
 })
 
 document.getElementById('desparear').addEventListener('click', async () => {
-  if (!confirm('Desfazer o pareamento neste computador? Ele para de receber pré-contas e testes.')) return
+  if (!confirm('Desfazer o pareamento neste computador? Ele para de receber Recibos/Extratos e testes.')) return
   await window.agente.desparear()
   await atualizarCartaoVarias()
 })
@@ -259,7 +259,17 @@ document.getElementById('desparear').addEventListener('click', async () => {
 atualizarCartaoVarias()
 
 // Variante de teste local: faixa amarela e o endereço real do servidor.
+// Assistente Beta: só o pareamento por código (sem token da loja nem impressora do modo antigo).
 window.agente.ambiente().then((a) => {
+  if (a && a.beta) {
+    document.getElementById('faixaBeta').style.display = 'block'
+    document.getElementById('titulo').textContent = 'Assistente Menuzia Beta'
+    document.getElementById('subtitulo').textContent = 'Pode fechar esta janela — o Beta continua em segundo plano e abre sozinho ao ligar o PC. O Assistente de Impressão atual segue funcionando normalmente.'
+    document.getElementById('cardToken').style.display = 'none'
+    document.getElementById('cardImpressora').style.display = 'none'
+    document.getElementById('tagVarias').textContent = 'Parear este computador'
+    document.title = 'Assistente Menuzia Beta'
+  }
   if (!a || !a.testeLocal) return
   document.getElementById('faixaTeste').style.display = 'block'
   document.getElementById('servidorUrl').textContent = a.servidor

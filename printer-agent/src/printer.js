@@ -14,10 +14,11 @@ function scriptReal(nome) {
 
 const LIST_SCRIPT = scriptReal('list-printers.ps1')
 const PRINT_SCRIPT = scriptReal('print.ps1')
+const DIAG_SCRIPT = scriptReal('diagnostico-impressoras.ps1')
 
-function runPowershell(args) {
+function runPowershell(args, opcoesExec = {}) {
   return new Promise((resolve, reject) => {
-    execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', ...args], (err, stdout, stderr) => {
+    execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', ...args], opcoesExec, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message))
       else resolve(stdout)
     })
@@ -33,11 +34,34 @@ async function listarImpressorasWindows() {
     .filter(Boolean)
 }
 
+/**
+ * O que o driver de cada impressora informa (Assistente Beta): DPI, papel, área
+ * imprimível, margens. Só leitura; limite de tempo para impressora de rede travada.
+ * Retorna { [nome]: diagnostico }.
+ */
+async function diagnosticarImpressoras() {
+  const stdout = await runPowershell(['-File', DIAG_SCRIPT], { timeout: 30_000, windowsHide: true })
+  const mapa = {}
+  for (const linha of stdout.split(/\r?\n/)) {
+    const m = linha.match(/^MENUZIA-DIAG:(.*)$/)
+    if (!m) continue
+    try {
+      const d = JSON.parse(m[1])
+      if (d && typeof d.nome === 'string') mapa[d.nome] = d
+    } catch {
+      /* linha quebrada: ignora esta impressora */
+    }
+  }
+  return mapa
+}
+
 /** Envia um texto pra impressora do Windows. `cols` (nº de colunas do recibo) dimensiona
  * a fonte pra preencher o papel — menos colunas = fonte maior. `fonteMaior` aumenta a
- * fonte das linhas de item/complemento (toggle "fonte maior na via de produção"). */
-async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, paperWidthMm = 80, fonteMaior = false) {
-  const tmpFile = path.join(os.tmpdir(), `menuzia-recibo-${Date.now()}.txt`)
+ * fonte das linhas de item/complemento (toggle "fonte maior na via de produção").
+ * `perfil` (só o Assistente Beta manda): largura em pontos, deslocamento e nome do log —
+ * sem ele, os argumentos do print.ps1 são exatamente os de sempre. */
+async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, paperWidthMm = 80, fonteMaior = false, perfil = null) {
+  const tmpFile = path.join(os.tmpdir(), `${perfil?.prefixoTmp || 'menuzia-recibo'}-${Date.now()}.txt`)
   fs.writeFileSync(tmpFile, texto, 'utf-8')
   try {
     const args = ['-File', PRINT_SCRIPT, '-FilePath', tmpFile, '-PrinterName', nomeImpressora, '-Copies', String(copias)]
@@ -45,6 +69,11 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, 
     if (logoPath) args.push('-LogoPath', logoPath)
     args.push('-PaperWidthMm', String(paperWidthMm))
     if (fonteMaior) args.push('-FonteMaior', '1')
+    if (perfil) {
+      if (Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0) args.push('-LarguraPontos', String(perfil.larguraPontos))
+      if (Number.isInteger(perfil.deslocamentoPontos) && perfil.deslocamentoPontos !== 0) args.push('-DeslocamentoPontos', String(perfil.deslocamentoPontos))
+      if (perfil.logNome) args.push('-LogNome', perfil.logNome)
+    }
     // Retorna o stdout (linhas "MENUZIA: ...") pra o agente mostrar o diagnóstico na janela.
     return await runPowershell(args)
   } finally {
@@ -52,4 +81,4 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, 
   }
 }
 
-module.exports = { listarImpressorasWindows, imprimirTexto }
+module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras }

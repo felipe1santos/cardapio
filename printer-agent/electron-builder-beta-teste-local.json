@@ -1,0 +1,32 @@
+{
+  "appId": "com.menuzia.assistente.beta.testelocal",
+  "productName": "Assistente Menuzia Beta TESTE LOCAL",
+  "directories": { "output": "dist-beta-teste-local" },
+  "extraMetadata": {
+    "name": "menuzia-assistente-beta-teste-local",
+    "productName": "Assistente Menuzia Beta TESTE LOCAL",
+    "version": "0.2.0-beta.1",
+    "menuziaAmbiente": {
+      "variante": "beta",
+      "apiBaseUrl": "http://127.0.0.1:3999",
+      "pastaDados": "menuzia-assistente-beta-teste-local",
+      "appUserModelId": "com.menuzia.assistente.beta.testelocal",
+      "iniciarComWindows": false
+    }
+  },
+  "win": { "target": "nsis" },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "allowElevation": false,
+    "runAfterFinish": false,
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": false,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Assistente Menuzia Beta TESTE LOCAL",
+    "artifactName": "AssistenteMenuziaBeta-TESTE-LOCAL-${version}.${ext}",
+    "include": "build-beta/instalador-beta-teste-local.nsh"
+  },
+  "files": ["src/**/*", "!src/**/*.test.ts", "package.json"],
+  "asarUnpack": ["src/*.ps1"]
+}

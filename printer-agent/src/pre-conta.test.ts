@@ -33,7 +33,7 @@ const mesa = {
 describe('pré-conta', () => {
   const t = texto(montarPreContaLinhas(mesa))
   it('cabeçalho: título, conferência e aviso não fiscal', () => {
-    expect(t).toContain('PRÉ-CONTA')
+    expect(t).toContain('RECIBO/EXTRATO')
     expect(t).toContain('CONFERÊNCIA DE CONSUMO')
     expect(t).toContain('NÃO É DOCUMENTO FISCAL')
     expect(t).toContain('MESA 01 · COMANDA 57')

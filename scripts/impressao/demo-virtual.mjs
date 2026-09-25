@@ -68,7 +68,9 @@ for (const t of ['impressao_trabalhos', 'impressao_funcoes', 'impressao_disposit
 }
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza demo virtual', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
 await db.query('update mesas set limpeza_desde=null, limpeza_comanda_id=null where restaurante_id=$1', [loja])
+// 0100: loja liberada para o Beta, começando em "Somente Caixa".
 await db.query(`update restaurantes set pdv_v2=true, modulo_mesas_ativo=true, impressao_automatica=true, impressao_cozinha_por_funcao=false,
+  impressao_beta_liberado=true, impressao_beta_modo='caixa', impressao_cozinha_transferida_em=null,
   status_loja='aberto_manual', aceita_entrega=true, impressao_agente_visto_em=null, impressao_agente_token=null where id=$1`, [loja])
 await db.query('update pedidos set impresso=true, reimprimir=false where restaurante_id=$1', [loja])
 if ((await um(`select evolution_instance from restaurantes where id=$1`, [loja])).evolution_instance) throw new Error('loja demo com WhatsApp configurado: abortado')
@@ -204,7 +206,10 @@ await pGer.getByTestId('funcao-cozinha').selectOption(d01.id)
 await aguardar(async () => (await painel(pGer)).funcoes.cozinha === d01.id)
 await pGer.getByTestId('funcao-caixa').selectOption(d02.id)
 await aguardar(async () => (await painel(pGer)).funcoes.caixa === d02.id)
-await pGer.getByTestId('cozinha-por-funcao').click()
+// 0100: a cozinha passa ao Beta pelo modo "Cozinha e Caixa", com confirmação explícita.
+await pGer.getByTestId('modo-cozinha_caixa').click()
+await pGer.getByTestId('confirmar-cozinha-beta').check()
+await pGer.getByTestId('confirmar-modo-ok').click()
 await aguardar(async () => (await painel(pGer)).cozinhaPorFuncao)
 pn = await painel(pGer)
 ok('Cozinha → Cozinha Virtual 01 · Caixa → Caixa Virtual 02 · cozinha por função ligada', pn.funcoes.cozinha === d01.id && pn.funcoes.caixa === d02.id && pn.cozinhaPorFuncao)
@@ -319,7 +324,7 @@ async function rodadaDocumentos(rot, mm01, mm02) {
   const p4 = await aguardar(() => nC('pre_conta') > c4 && C.impressos().filter((x) => x.tipo === 'pre_conta').at(-1), 30000)
   const t4 = texto(p4)
   ok(`pré-conta da mesa em ${CAI}, ${mm02} mm`, p4?.impressora === CAI && p4?.paperMm === mm02)
-  const exigidos = ['PRÉ-CONTA', 'NÃO É DOCUMENTO FISCAL', m.mesa.nome.toUpperCase(), '1x Água com Gás', '1x Suco de Laranja (500 ml)', 'Pizza Grande (Grande - Calabresa / Portuguesa)', '+ Borda: Catupiry', '+ Massa: Fina',
+  const exigidos = ['RECIBO/EXTRATO', 'NÃO É DOCUMENTO FISCAL', m.mesa.nome.toUpperCase(), '1x Água com Gás', '1x Suco de Laranja (500 ml)', 'Pizza Grande (Grande - Calabresa / Portuguesa)', '+ Borda: Catupiry', '+ Massa: Fina',
     '2x Burger da Casa', 'Bacon crocante', 'Queijo cheddar', 'Obs: Sem cebola, pão bem tostado', 'Subtotal', 'Taxa de serviço (10%)', 'Desconto', 'Pix: R$ 50,00', 'Dinheiro: R$ 30,00', 'RESTANTE A PAGAR', 'CANCELADOS — NÃO COBRADOS', '1ª via']
   const faltam = exigidos.filter((e) => !t4.includes(e))
   ok('conteúdo completo da pré-conta', faltam.length === 0, faltam.length ? `faltam: ${faltam.join(' | ')}` : '')
@@ -470,7 +475,7 @@ await preConta(A.bal.id, true)
 await lancar({ comandaId: A.bal.id }, [{ itemId: AGUA.id, quantidade: 1, complementos: [] }])
 const d12 = await aguardar(() => { const n = K.impressos().slice(k12); return n.length >= 2 && n }, 40000)
 ok(`ficha e pré-conta na ${COZ}, cada uma identificada pelo tipo`, (d12 ?? []).map((x) => x.tipo).sort().join(',') === 'ficha_cozinha,pre_conta' && d12.every((x) => x.impressora === COZ))
-ok('pré-conta traz o cabeçalho PRÉ-CONTA; ficha não', texto(d12?.find((x) => x.tipo === 'pre_conta')).includes('PRÉ-CONTA') && !texto(d12?.find((x) => x.tipo === 'ficha_cozinha')).includes('PRÉ-CONTA'))
+ok('pré-conta traz o cabeçalho RECIBO/EXTRATO; ficha não', texto(d12?.find((x) => x.tipo === 'pre_conta')).includes('RECIBO/EXTRATO') && !texto(d12?.find((x) => x.tipo === 'ficha_cozinha')).includes('RECIBO/EXTRATO'))
 ok(`${CAI} não recebeu nada`, nC() === c12)
 await api(pGer, '/api/admin/impressao/funcoes', 'PUT', { funcao: 'caixa', dispositivoId: d02.id })
 ok('Caixa devolvida à Caixa Virtual 02', (await painel(pGer)).funcoes.caixa === d02.id)

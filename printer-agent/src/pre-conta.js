@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PRÉ-CONTA (conferência de consumo) e TESTE DE IMPRESSORA.
+// RECIBO/EXTRATO (a "pré-conta"; conferência de consumo) e TESTE DE IMPRESSORA.
 //
 // Formatador próprio: o recibo da cozinha (recibo.js) não é tocado. Usa os mesmos
 // marcadores de linha que o print.ps1 já desenha (ver recibo.js):
@@ -52,7 +52,7 @@ function linhasBase() {
 function montarPreContaLinhas(s) {
   const { L, N, H, C, I, S, P, T, Lin, R, F } = linhasBase()
   if (s.loja) N(String(s.loja).toUpperCase())
-  H('PRÉ-CONTA')
+  H('RECIBO/EXTRATO')
   C('CONFERÊNCIA DE CONSUMO')
   C('NÃO É DOCUMENTO FISCAL')
 
@@ -112,7 +112,7 @@ function montarPreContaLinhas(s) {
     for (const c of cancelados) S(`${c.quantidade}x ${c.nome}`)
   }
 
-  F('Confira os itens antes de pagar.')
+  F('Confira os itens da sua conta.')
   F('feito por Menuzia.com.br')
   return L
 }

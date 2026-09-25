@@ -58,11 +58,12 @@
 </head>
 <body>
   <div id="faixaTeste" style="display:none;background:#F59E0B;color:#111827;font-weight:700;text-align:center;padding:8px;margin:-20px -20px 14px;font-size:12px">VERSÃO DE TESTE LOCAL — fala só com o servidor desta máquina (127.0.0.1). Não imprime pedidos reais.</div>
-  <h1>Assistente de Impressão Menuzia <span id="versao" style="font-size:11px;font-weight:600;color:#0E7490;background:#CFFAFE;padding:2px 7px;border-radius:3px;vertical-align:middle;"></span></h1>
-  <p class="sub">Pode fechar esta janela — o agente continua imprimindo em segundo plano e abre sozinho ao ligar o PC.</p>
+  <div id="faixaBeta" style="display:none;background:#E0F2FE;color:#0369A1;font-weight:600;text-align:center;padding:8px;margin:-20px -20px 14px;font-size:12px">Versão Beta — funciona junto com o Assistente de Impressão atual. Não desinstale o atual.</div>
+  <h1><span id="titulo">Assistente de Impressão Menuzia</span> <span id="versao" style="font-size:11px;font-weight:600;color:#0E7490;background:#CFFAFE;padding:2px 7px;border-radius:3px;vertical-align:middle;"></span></h1>
+  <p class="sub" id="subtitulo">Pode fechar esta janela — o agente continua imprimindo em segundo plano e abre sozinho ao ligar o PC.</p>
 
   <!-- Passo 1: conectar -->
-  <div class="card">
+  <div class="card" id="cardToken">
     <span class="step-tag">Passo 1 · Conectar</span>
 
     <label>Servidor Menuzia</label>
@@ -100,9 +101,9 @@
 
   <!-- Várias impressoras (0.1.26+): computador pareado por código -->
   <div class="card" id="cardVarias">
-    <span class="step-tag">Novo · Várias impressoras e pré-conta</span>
+    <span class="step-tag" id="tagVarias">Novo · Várias impressoras e Recibo/Extrato</span>
     <div id="variasPareado" style="display:none">
-      <p style="margin:0">Este computador está pareado como <b id="agenteNome"></b>. As impressoras deste Windows aparecem no painel em <b>Impressão</b>, onde o gerente escolhe a da Cozinha e a do Caixa.</p>
+      <p style="margin:0">Este computador está pareado como <b id="agenteNome"></b>. As impressoras deste Windows aparecem no painel em <b>Impressão</b>, onde o gerente escolhe a da Cozinha e a do Caixa — Recibo/Extrato.</p>
       <div class="actions" style="margin-top:10px"><button id="desparear" class="secondary">Desfazer pareamento neste computador</button></div>
     </div>
     <div id="variasForm">
