@@ -1689,15 +1689,19 @@ const TOKENS = `
 .mesa-marca-dagua { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 4px 0 96px; opacity: .45; user-select: none; pointer-events: none; }
 .mesa-marca-dagua img { width: 22px; height: 22px; filter: grayscale(1); opacity: .7; }
 .mesa-marca-dagua span { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--desabilitado); text-transform: lowercase; }
-.mesa-ver-fundo { padding: 12px; }
-/* Ficha do modo visualização: foto à esquerda (inteira, sem corte) e, à direita, nome,
-   descrição e sabores — a coluna da direita rola sozinha quando a lista é longa. */
-.mesa-ver { position: relative; display: flex; flex-direction: row; align-items: stretch; width: 100%; max-width: 960px; max-height: min(88dvh, 720px); background: var(--superficie); border-radius: var(--raio); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
-.mesa-ver-foto { flex: 0 0 46%; min-width: 0; background: #F2F5F8; display: flex; align-items: center; justify-content: center; }
-.mesa-ver-foto img { display: block; width: 100%; height: 100%; max-height: min(88dvh, 720px); object-fit: contain; }
+/* Ficha do modo visualização.
+   Celular: tela cheia, foto em cima na largura toda e o texto embaixo, tudo rolando junto
+   (antes a foto ficava à esquerda e o texto espremido numa coluna estreita).
+   Tablet/computador (a partir de 768px) e celular deitado: foto à esquerda, inteira, e o
+   texto à direita com rolagem própria — ver o bloco de 768px no fim. */
+.mesa-ver-fundo { padding: 0; }
+.mesa-ver { position: relative; display: flex; flex-direction: column; width: 100%; height: 100dvh; background: var(--superficie); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.mesa-ver-foto { flex: 0 0 auto; width: 100%; aspect-ratio: 4 / 3; max-height: 50dvh; background: #F2F5F8; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.mesa-ver-foto img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .mesa-ver-foto .mesa-card-foto-vazia { height: 100%; min-height: 180px; font-size: 48px; }
-.mesa-ver-texto { flex: 1 1 auto; min-width: 0; min-height: 0; padding: 16px 16px 20px; overflow-y: auto; }
-.mesa-ver-texto h2 { margin: 0 44px 6px 0; font-size: 20px; font-weight: 700; line-height: 1.25; }
+.mesa-ver-texto { flex: 1 0 auto; min-width: 0; padding: 16px 16px calc(28px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; }
+.mesa-ver-texto h2 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.mesa-ver-preco { margin-top: 4px; }
 .mesa-ver-texto > p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--suave); white-space: pre-line; }
 .mesa-ver-sabores { margin-top: 16px; }
 .mesa-ver-sabores h3 { margin: 0 0 8px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--coral); }
@@ -1705,11 +1709,6 @@ const TOKENS = `
 .mesa-ver-sabores li { padding: 9px 0; border-top: 1px solid var(--borda); display: flex; flex-direction: column; gap: 2px; }
 .mesa-ver-sabores li strong { font-size: 14px; font-weight: 700; }
 .mesa-ver-sabores li span { font-size: 12px; color: var(--suave); line-height: 1.4; }
-@media (max-width: 480px) {
-  .mesa-ver-foto { flex-basis: 42%; }
-  .mesa-ver-texto { padding: 12px 12px 16px; }
-  .mesa-ver-texto h2 { font-size: 17px; }
-}
 .mesa-aviso-rodape { display: flex; align-items: flex-start; gap: 10px; margin: 18px 0 12px; padding: 12px 14px; background: var(--superficie); border: 1px solid var(--borda); border-left: 4px solid var(--coral); border-radius: var(--raio); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 .mesa-aviso-rodape p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto); }
 .mesa-aviso-icone { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 13px; font-weight: 700; font-style: italic; font-family: Georgia, serif; }
@@ -1726,22 +1725,27 @@ const TOKENS = `
 
 /* Modal */
 .mesa-modal-fundo { position: fixed; inset: 0; z-index: 50; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 0; }
-.mesa-modal { position: relative; background: var(--superficie); width: 100%; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-.mesa-fechar { position: absolute; top: 10px; right: 10px; z-index: 5; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--coral); color: #fff; font-size: 15px; font-weight: 700; }
+/* Ficha de escolha (QR ativo). Celular: tela cheia e UMA rolagem só — foto em cima na
+   largura toda, nome, selos, descrição, preço, etapas (tamanho, complementos), quantidade e
+   observação; o rodapé com o botão fica preso embaixo. A partir de 768px volta a ter a
+   coluna do produto à esquerda (bloco de 768px no fim). */
+.mesa-modal { position: relative; background: var(--superficie); width: 100%; height: 100dvh; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+/* Fechar sempre à vista: fixo no canto (respeitando a área segura), fora da rolagem. */
+.mesa-fechar { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); z-index: 60; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--coral); color: #fff; font-size: 15px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 .mesa-modal-lado { background: var(--superficie); border-bottom: 1px solid var(--borda); flex-shrink: 0; }
-.mesa-modal-foto { height: 150px; background: var(--fundo); }
-.mesa-modal-foto img { width: 100%; height: 100%; object-fit: cover; }
-.mesa-modal-resumo { padding: 12px 16px 8px; }
-.mesa-modal-resumo h2 { margin: 0 0 4px; font-size: 16px; font-weight: 700; }
+.mesa-modal-foto { width: 100%; aspect-ratio: 4 / 3; max-height: 42dvh; background: var(--fundo); overflow: hidden; }
+.mesa-modal-foto img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mesa-modal-resumo { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+.mesa-modal-resumo h2 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
 .mesa-modal-resumo p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.4; }
 .mesa-trilha { display: none; }
 .mesa-subtotal { display: none; }
 
-.mesa-modal-etapa { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.mesa-modal-etapa { flex: 1 0 auto; display: flex; flex-direction: column; }
 .mesa-modal-etapa > header { padding: 14px 16px 8px; }
 .mesa-modal-etapa h3 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
 .mesa-modal-etapa header p { margin: 0; font-size: 12px; color: var(--suave); }
-.mesa-opcoes { flex: 1; overflow-y: auto; padding: 4px 16px 12px; display: flex; flex-direction: column; }
+.mesa-opcoes { flex: 1 0 auto; padding: 4px 16px 12px; display: flex; flex-direction: column; }
 .mesa-opcao { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 4px; background: none; border: 0; border-bottom: 1px solid var(--borda); text-align: left; color: var(--texto); font-size: 13px; }
 .mesa-marcador { width: 18px; height: 18px; border: 2px solid var(--desabilitado); border-radius: 4px; flex-shrink: 0; }
 .mesa-marcador.redondo { border-radius: 50%; }
@@ -1759,7 +1763,7 @@ const TOKENS = `
 .mesa-observacao textarea { width: 100%; border: 1px solid var(--borda); border-radius: var(--raio); padding: 10px; font-size: 13px; resize: vertical; outline: none; }
 .mesa-observacao textarea:focus { border-color: var(--coral); }
 
-.mesa-modal-rodape { flex-shrink: 0; border-top: 1px solid var(--borda); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 12px; background: var(--superficie); }
+.mesa-modal-rodape { position: sticky; bottom: 0; z-index: 4; flex-shrink: 0; border-top: 1px solid var(--borda); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 12px; background: var(--superficie); }
 .mesa-rodape-subtotal { display: flex; flex-direction: column; }
 .mesa-rodape-subtotal span { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); }
 .mesa-rodape-subtotal strong { font-size: 16px; }
@@ -1864,13 +1868,6 @@ const TOKENS = `
   .mesa-card { grid-template-columns: 1fr 116px; }
   .mesa-card-foto { width: 116px; height: 116px; }
 
-  .mesa-modal-fundo { padding: 24px; }
-  .mesa-modal { height: auto; max-height: 88dvh; max-width: 940px; border-radius: var(--raio); flex-direction: row; }
-  .mesa-modal-lado { width: 300px; flex-shrink: 0; border-bottom: 0; border-right: 1px solid var(--borda); display: flex; flex-direction: column; overflow-y: auto; }
-  .mesa-modal-foto { height: 190px; }
-  /* Com a trilha lateral na tela, a faixa de progresso seria a mesma informação duas
-     vezes — e roubaria altura da lista de opções. */
-  .mesa-progresso { display: none; }
   .mesa-trilha { display: block; list-style: none; margin: 0; padding: 0 12px 12px; }
   .mesa-trilha li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--raio); color: var(--suave); }
   .mesa-trilha li.atual { background: var(--coral); color: #fff; }
@@ -1886,6 +1883,39 @@ const TOKENS = `
   .mesa-painel { max-width: 560px; height: auto; max-height: 88dvh; border-radius: var(--raio); overflow: hidden; }
   .mesa-painel-topo { padding-top: 14px; }
   .mesa-barra-flutuante { left: auto; right: 24px; width: 320px; }
+}
+
+/* ── Fichas lado a lado: tablet, computador e celular deitado ───────────────
+   A partir de 768px (e em celular na horizontal, onde a altura não comporta a foto em
+   cima) a foto vai para a esquerda e o conteúdo para a direita, com rolagem própria. */
+@media (min-width: 768px), (orientation: landscape) and (max-height: 540px) {
+  .mesa-fechar { position: absolute; top: 10px; right: 10px; }
+
+  .mesa-ver-fundo { padding: 12px; }
+  .mesa-ver { flex-direction: row; align-items: stretch; height: auto; max-width: 960px; max-height: min(88dvh, 720px); border-radius: var(--raio); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+  .mesa-ver-foto { flex: 0 0 46%; width: auto; aspect-ratio: auto; max-height: none; }
+  .mesa-ver-foto img { height: 100%; max-height: min(88dvh, 720px); object-fit: contain; }
+  .mesa-ver-texto { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 16px 20px; }
+  .mesa-ver-texto h2 { margin-right: 44px; font-size: 20px; }
+
+  .mesa-modal-fundo { padding: 24px; }
+  .mesa-modal { height: auto; max-height: 88dvh; max-width: 940px; border-radius: var(--raio); flex-direction: row; overflow: hidden; }
+  .mesa-modal-lado { width: 300px; flex-shrink: 0; border-bottom: 0; border-right: 1px solid var(--borda); display: flex; flex-direction: column; overflow-y: auto; }
+  .mesa-modal-foto { aspect-ratio: auto; height: 190px; max-height: none; }
+  .mesa-modal-resumo h2 { font-size: 16px; }
+  .mesa-modal-etapa { flex: 1 1 auto; min-height: 0; }
+  .mesa-opcoes { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .mesa-modal-rodape { position: static; }
+  /* Com a trilha lateral na tela, a faixa de progresso seria a mesma informação duas
+     vezes — e roubaria altura da lista de opções. */
+  .mesa-progresso { display: none; }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .mesa-ver-fundo, .mesa-modal-fundo { padding: 8px; }
+  .mesa-ver, .mesa-modal { max-height: calc(100dvh - 16px); }
+  .mesa-ver-foto { flex-basis: 40%; }
+  .mesa-modal-lado { width: 240px; }
+  .mesa-modal-foto { height: 120px; }
 }
 
 @media (min-width: 1100px) {
