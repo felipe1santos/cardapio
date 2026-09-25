@@ -8,6 +8,12 @@ import pg from 'pg'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, E2E_VIZINHA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
+
+// Loja ISOLADA obrigatória: esta suíte escreve na loja (comandas, pedidos, flags). Sem
+// E2E_LOJA/E2E_VIZINHA/E2E_SUFIXO ela aborta aqui, antes de qualquer escrita — nunca roda
+// na cantina-demo.  E2E_LOJA=cantina-e2e E2E_VIZINHA=vizinha-e2e E2E_SUFIXO=e2e node <script>
+exigirLojaIsolada()
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 exigirLoopback(BASE)
@@ -24,7 +30,7 @@ const secao = (t) => console.log(`\n── ${t} ──`)
 const uuid = () => crypto.randomUUID()
 const SUF = Date.now().toString().slice(-6)
 
-const loja = await um(`select id, usa_logistica, entrega_sem_entregador, pdv_v2 from restaurantes where slug = 'cantina-demo'`)
+const loja = await um(`select id, usa_logistica, entrega_sem_entregador, pdv_v2 from restaurantes where slug = '${E2E_LOJA}'`)
 const flagsOriginais = { usa: loja.usa_logistica, sem: loja.entrega_sem_entregador, v2: loja.pdv_v2 }
 await q(`update restaurantes set pdv_v2 = true where id = $1`, [loja.id])
 const agua = await um(`select id, preco from itens_cardapio where restaurante_id = $1 and nome = 'Água com Gás'`, [loja.id])
@@ -52,7 +58,7 @@ let bairroCriado = null
 const ENDERECO = { cep: '29050-100', rua: 'Rua E2E', numero: '10', bairro: 'Centro', cidade: 'Vitória', estado: 'ES', complemento: '', referencia: 'Perto da praça' }
 
 try {
-  const g = await logar('atendente.local')
+  const g = await logar(USU.atendente)
 
   secao('Card preto: escolha obrigatória')
   await g.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' }); await dispensar(g)
@@ -135,7 +141,7 @@ try {
   }
   // Lançamentos inválidos numa comanda de balcão válida.
   const burger = await um(`select id, preco from itens_cardapio where restaurante_id = $1 and nome = 'Burger da Casa'`, [loja.id])
-  const itemVizinha = await um(`select i.id from itens_cardapio i join restaurantes r on r.id = i.restaurante_id where r.slug = 'vizinha-demo' limit 1`)
+  const itemVizinha = await um(`select i.id from itens_cardapio i join restaurantes r on r.id = i.restaurante_id where r.slug = '${E2E_VIZINHA}' limit 1`)
   const LANC = [
     ['item inexistente', [{ itemId: uuid(), quantidade: 1, complementos: [] }]],
     ['item de outra loja', [{ itemId: itemVizinha?.id ?? uuid(), quantidade: 1, complementos: [] }]],
@@ -155,7 +161,7 @@ try {
   await q(`update item_complementos set pausado = false where item_id = $1 and nome = 'Mal passado'`, [burger.id])
   ok('lançamento com opção pausada: recusado', pausada.s >= 400 && /não está disponível/.test(pausada.j?.error ?? ''), pausada.j?.error)
   // Delivery público: campos internos forjados são recusados (422); preço do navegador não vale.
-  const pub = (corpo) => fetch(`${BASE}/api/loja/cantina-demo/pedido`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }).then(async (r) => ({ s: r.status, j: await r.json().catch(() => ({})) }))
+  const pub = (corpo) => fetch(`${BASE}/api/loja/${E2E_LOJA}/pedido`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }).then(async (r) => ({ s: r.status, j: await r.json().catch(() => ({})) }))
   const basePub = { tipo: 'retirada', cliente: { nome: `E2E Balcão Pub ${SUF}`, telefone: '11977776666' }, pagamento: 'pix' }
   for (const [n, extra] of [['origem', { origem: 'pdv' }], ['canal', { canal: 'balcao' }], ['comanda', { comandaId: forjada.j?.id }], ['destino/status', { status: 'entregue', destino: 'logistica' }]]) {
     const r = await pub({ ...basePub, ...extra, itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
@@ -198,7 +204,7 @@ try {
   const [d1, d2] = await Promise.all([1, 2].map(() => api(g, '/api/admin/balcao/comandas', 'POST', { nome: nomeDup, chave: chaveDupla, modalidade: 'retirada' })))
   const nDup = Number((await um(`select count(*) n from comandas where restaurante_id = $1 and cliente_nome = $2`, [loja.id, nomeDup])).n)
   ok('mesma chave em paralelo (duplo clique / duas abas): uma comanda só', nDup === 1 && d1.j?.id === d2.j?.id, `${d1.s}/${d2.s} n=${nDup}`)
-  const g2 = await logar('gerente.local')
+  const g2 = await logar(USU.gerente)
   const chaveLanc = uuid()
   const linhaAgua = [{ itemId: agua.id, quantidade: 1, complementos: [] }]
   const [la, lb] = await Promise.all([g, g2].map((p) => api(p, '/api/admin/pdv/lancamento', 'POST', { comandaId: d1.j?.id, chave: chaveLanc, itens: linhaAgua })))
@@ -226,7 +232,7 @@ try {
 
   secao('Logística LIGADA: entrega pronta vai para a Logística')
   await q(`update restaurantes set usa_logistica = true, entrega_sem_entregador = false where id = $1`, [loja.id])
-  const k = await logar('gerente.local')
+  const k = await logar(USU.gerente)
   await k.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' }); await dispensar(k)
   const card = (n) => k.getByTestId(`pedido-${n}`)
   await card(pEnt.numero).getByRole('button', { name: 'Aceitar' }).click(); await k.waitForTimeout(900)

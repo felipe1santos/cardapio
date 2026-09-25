@@ -1,4 +1,4 @@
-import { Montserrat } from "next/font/google";
+import { fonteVitrine } from "@/lib/fonte-vitrine";
 
 /**
  * A vitrine usa Montserrat; o painel segue em Inter (app/layout.tsx).
@@ -12,21 +12,9 @@ import { Montserrat } from "next/font/google";
  * `next/font` self-hospeda o arquivo, então não há request a terceiro no
  * caminho crítico.
  *
- * Os pesos são os quatro que a referência de tipografia da vitrine usa:
- * 400 (descrição), 500 (badges e nav), 600 (nome de item, preço, títulos de
- * seção) e 700 (nome da loja). Sem o corte real, o navegador sintetiza um
- * "fake bold" esticando o peso mais próximo, visivelmente mais grosseiro.
- *
- * A variável continua se chamando `--font-vitrine` (e não o nome da fonte) para
- * que uma troca futura de família não obrigue a mexer no CSS e no Tailwind.
+ * A configuração (família e pesos) mora em `lib/fonte-vitrine.ts`, compartilhada com o
+ * cardápio da mesa/QR.
  */
-const fonteVitrine = Montserrat({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-vitrine",
-  display: "swap",
-});
-
 export default function LayoutVitrine({ children }: { children: React.ReactNode }) {
   return <div className={fonteVitrine.variable}>{children}</div>;
 }

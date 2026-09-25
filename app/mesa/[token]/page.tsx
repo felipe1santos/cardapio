@@ -9,7 +9,8 @@ import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import { carregarPizzaDaLoja, itemPrecificavel } from '@/lib/queries/mesa-catalogo'
 import { precoAPartirDe } from '@/lib/selecao-preco'
-import { mensagemPadraoDaMesa, ordenarParaMesa } from '@/lib/mesa-vitrine'
+import { mensagemPadraoDaMesa } from '@/lib/mesa-vitrine'
+import { cardapioOrdenado, ordenar } from '@/lib/ordem-cardapio'
 import { CardapioDaMesa } from './cardapio'
 
 /**
@@ -73,32 +74,33 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
 
   if (!loja) notFound()
 
-  // Personalização da mesa (0073/0074): carrossel, aviso e ordem das CATEGORIAS. Lidas à parte do
-  // select do cardápio; se a leitura falhar, fica o comportamento de sempre (banner,
-  // texto padrão, ordem das categorias do delivery).
-  const [{ data: vitrine }, { data: posicoes }] = await Promise.all([
-    admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao, mesa_somente_visualizacao').eq('id', mesa.restauranteId).maybeSingle(),
-    admin.from('grupos_cardapio').select('id, posicao_mesa').eq('restaurante_id', mesa.restauranteId),
-  ])
+  // Personalização da mesa (0073): carrossel e aviso. Lidos à parte do select do cardápio;
+  // se a leitura falhar, fica o comportamento de sempre (banner e texto padrão).
+  const { data: vitrine } = await admin.from('restaurantes').select('mesa_carrossel_urls, mesa_mensagem_selecao, mesa_somente_visualizacao').eq('id', mesa.restauranteId).maybeSingle()
   const carrossel = ((vitrine?.mesa_carrossel_urls as string[] | null) ?? []).filter(Boolean)
   const somenteVisualizacao = (vitrine as { mesa_somente_visualizacao?: boolean } | null)?.mesa_somente_visualizacao === true
   const mensagem =
     ((vitrine?.mesa_mensagem_selecao as string | null) ?? '').trim() || mensagemPadraoDaMesa(somenteVisualizacao)
-  const posicaoCategoria = new Map(((posicoes ?? []) as { id: string; posicao_mesa: number | null }[]).map((x) => [x.id, x.posicao_mesa]))
 
   // Catálogo é um só: as mesmas linhas que a vitrine lê, com os MESMOS filtros — status,
   // dia da semana, horário da categoria — mais o canal do salão (0069). Nada de cadastro
   // paralelo para mesa.
-  const disponiveis = itens.filter(
-    (i) =>
-      i.status === 'disponivel' &&
-      itemDisponivelNoCanal(i, 'mesa') &&
-      itemDisponivelHoje(i.diasDisponiveis) &&
-      categoriaNoHorario(i, grupos, grupoEstaAtivoAgora),
-  )
-  // Ordem das categorias no trilho da mesa: a escolhida em Ajustes › Mesas; as sem
-  // posição vêm depois, na ordem do delivery.
-  const gruposComItem = ordenarParaMesa(grupos, posicaoCategoria).filter((g) => disponiveis.some((i) => i.grupoId === g.id))
+  //
+  // Ordem: a mesma regra da vitrine (lib/ordem-cardapio) — categorias e itens na ordem do
+  // Gestor. A antiga ordem própria da mesa (posicao_mesa, 0074) não é mais lida.
+  const visivelNaMesa = (i: (typeof itens)[number]) =>
+    i.status === 'disponivel' &&
+    itemDisponivelNoCanal(i, 'mesa') &&
+    itemDisponivelHoje(i.diasDisponiveis) &&
+    categoriaNoHorario(i, grupos, grupoEstaAtivoAgora)
+  const cardapio = cardapioOrdenado(grupos, itens, { itemVisivel: visivelNaMesa })
+  const gruposComItem = cardapio.map((c) => c.grupo)
+  // A busca da mesa lista itens de várias categorias: nesta mesma ordem (categoria, item).
+  // Item sem categoria só aparecia na busca, como antes: continua lá, no fim.
+  const disponiveis = [
+    ...cardapio.flatMap((c) => c.itens),
+    ...ordenar(itens.filter((i) => !i.grupoId && visivelNaMesa(i))),
+  ]
 
   return (
     <CardapioDaMesa
@@ -119,6 +121,8 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
         preco: i.promocaoPreco ?? i.preco,
         precoOriginal: i.promocaoPreco !== null ? i.preco : null,
         imagemUrl: i.imagemThumbUrl ?? i.imagemUrl,
+        // A ficha aberta ocupa a largura do celular: foto cheia, não a miniatura.
+        imagemGrandeUrl: i.imagemUrl,
         grupos: i.grupos.map((g) => ({
           id: g.id,
           nome: g.nome,

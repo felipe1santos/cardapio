@@ -1,7 +1,6 @@
 /**
  * Personalização do cardápio da mesa (QR) pela gestão: carrossel do topo, texto do aviso
- * da seleção e ordem dos itens. Regra pura — a rota usa para validar, a página usa para
- * ordenar e para o texto padrão.
+ * da seleção. Regra pura — a rota usa para validar, a página usa para o texto padrão.
  */
 
 export const MESA_CARROSSEL_MAX = 8
@@ -51,35 +50,5 @@ export function mensagemValida(bruto: unknown): { ok: true; texto: string | null
   return { ok: true, texto: texto || null }
 }
 
-/**
- * Ordem enviada pela tela: lista de ids na ordem desejada (por categoria ou de tudo).
- * Devolve só os ids desta loja, sem repetição, com a posição 1..n.
- */
-export function ordemValida(bruto: unknown, idsDaLoja: Set<string>): { ok: true; posicoes: { id: string; posicao: number }[] } | { ok: false; erro: string } {
-  if (!Array.isArray(bruto) || bruto.length > 2000) return { ok: false, erro: 'Ordem inválida.' }
-  const vistos = new Set<string>()
-  const posicoes: { id: string; posicao: number }[] = []
-  for (const id of bruto) {
-    if (typeof id !== 'string' || !idsDaLoja.has(id)) return { ok: false, erro: 'Categoria fora desta loja na ordem.' }
-    if (vistos.has(id)) continue
-    vistos.add(id)
-    posicoes.push({ id, posicao: posicoes.length + 1 })
-  }
-  return { ok: true, posicoes }
-}
-
-/**
- * Ordena os itens do cardápio da mesa: primeiro os que têm posição definida (menor
- * antes), depois os sem posição, na ordem em que já vinham. Estável.
- */
-export function ordenarParaMesa<T extends { id: string }>(itens: T[], posicao: Map<string, number | null>): T[] {
-  return itens
-    .map((item, indice) => ({ item, indice, p: posicao.get(item.id) ?? null }))
-    .sort((a, b) => {
-      if (a.p !== null && b.p !== null) return a.p - b.p || a.indice - b.indice
-      if (a.p !== null) return -1
-      if (b.p !== null) return 1
-      return a.indice - b.indice
-    })
-    .map((x) => x.item)
-}
+// A ordem própria da mesa (0073/0074) saiu: categorias e itens seguem o Gestor de
+// Cardápio em todos os canais (0101, lib/ordem-cardapio.ts).

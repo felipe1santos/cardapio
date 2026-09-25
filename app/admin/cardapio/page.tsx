@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { avisoDoItem, erroDoItem, statusAoCriarItem } from '@/lib/item-cadastro'
-import { ArrowDown, ArrowUp, Clock, CupSoda, Images, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Clock, CupSoda, GripVertical, Images, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Star, Trash2 } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +18,7 @@ import {
   criarGrupo,
   criarGrupoItem,
   criarItem,
+  definirFavorito,
   definirStatusEmLote,
   enviarImagemItem,
   enviarImagemItemComThumb,
@@ -28,8 +29,8 @@ import {
   listarPresets,
   removerComplemento,
   removerGrupo,
-  reordenarGrupos,
   removerGrupoItem,
+  salvarOrdemCardapio,
   type GrupoCardapio,
   type GrupoItemComplementos,
   type ItemCardapio,
@@ -58,6 +59,8 @@ import { AbasCardapio, abaDaUrl, type AbaCardapio } from '@/components/cardapio/
 import { GruposComplementos } from '@/components/cardapio/grupos-complementos'
 import { TamanhosLoja } from '@/components/cardapio/tamanhos-loja'
 import { PecaTambem } from '@/components/cardapio/peca-tambem'
+import { useOrdenacaoArrastavel } from '@/components/cardapio/ordenacao-arrastavel'
+import { ordenar } from '@/lib/ordem-cardapio'
 import { PizzaTamanhosPrecos } from '@/components/cardapio/pizza-tamanhos-precos'
 import { TamanhosDoItem } from '@/components/cardapio/tamanhos-do-item'
 import { FoodIcon } from '@/components/cardapio/icone-comida'
@@ -268,6 +271,27 @@ const PROPORCOES_CARTAO = [{ rotulo: 'Cartão', ratio: 2.5 }]
 const PROPORCOES_FICHA = [{ rotulo: 'Celular', ratio: 1.1 }, { rotulo: 'Computador', ratio: 2 }]
 
 // ─── Item-level sub-components ───────────────────────────────────────────────
+
+/**
+ * Estrela do favorito, agora clicável na própria lista (antes só pelo formulário do item).
+ * Favorito aparece como "★ Favorito" na vitrine e nos QR; não muda a posição do item.
+ */
+function BotaoFavorito({ item, salvando, desabilitado, onAlternar }: { item: ItemCardapio; salvando: boolean; desabilitado: boolean; onAlternar: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAlternar}
+      disabled={salvando || desabilitado}
+      aria-pressed={item.maisVendido}
+      aria-label={item.maisVendido ? `Remover ${item.nome} dos favoritos` : `Marcar ${item.nome} como favorito`}
+      title={item.maisVendido ? 'Favorito — clique para remover' : 'Marcar como favorito'}
+      data-testid="favorito-item"
+      className="toque-icone flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[4px] hover:bg-[#FEF3C7] disabled:opacity-50"
+    >
+      <Star className={`h-4 w-4 ${item.maisVendido ? 'fill-[#F59E0B] text-[#F59E0B]' : 'text-[#C2CBD6]'}`} strokeWidth={2} aria-hidden="true" />
+    </button>
+  )
+}
 
 function StatusBadge({ status }: { status: StatusItem }) {
   if (status === 'esgotado') return <Badge tone="danger">Esgotado</Badge>
@@ -733,7 +757,7 @@ export default function CardapioPage() {
           listarTamanhosPadraoMarmita(supabase, id),
         ])
         if (cancelled) return
-        setGroups(gruposData)
+        setGroups(ordenar(gruposData))
         setItems(itensData)
         setPresets(presetsData)
         setTamanhosPizzaCatalogo(tamanhosPizzaData)
@@ -766,10 +790,98 @@ export default function CardapioPage() {
 
   const activeGroupId = useMemo(() => groups.find((g) => g.nome === activeGroup)?.id ?? null, [groups, activeGroup])
 
+  // Na ordem do Gestor (0101) — a mesma que a vitrine e os QR mostram.
   const visibleItems = useMemo(
-    () => items.filter((item) => item.grupoId === activeGroupId && item.nome.toLowerCase().includes(search.toLowerCase())),
+    () => ordenar(items.filter((item) => item.grupoId === activeGroupId && item.nome.toLowerCase().includes(search.toLowerCase()))),
     [items, activeGroupId, search]
   )
+
+  // ── Ordem por arraste ─────────────────────────────────────────────────────
+  // Com busca, a lista na tela é só parte da categoria: gravar a ordem dela seria
+  // ambíguo (onde entram os escondidos?). O arraste fica desligado, com o motivo.
+  const buscaAtiva = search.trim() !== ''
+  const [avisoOrdem, setAvisoOrdem] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false)
+  useEffect(() => {
+    if (avisoOrdem?.tipo !== 'ok') return
+    const t = setTimeout(() => setAvisoOrdem(null), 2500)
+    return () => clearTimeout(t)
+  }, [avisoOrdem])
+
+  async function salvarOrdemItens(nova: string[]) {
+    if (!activeGroupId) return
+    const antes = items
+    const pos = new Map(nova.map((id, i) => [id, i]))
+    // Otimista: a lista já fica na ordem nova; volta se o servidor recusar.
+    setItems((prev) => prev.map((i) => (pos.has(i.id) ? { ...i, posicao: pos.get(i.id) } : i)))
+    setSalvandoOrdem(true)
+    const r = await salvarOrdemCardapio({ tipo: 'itens', grupoId: activeGroupId, ids: nova })
+    setSalvandoOrdem(false)
+    if (r.ok) {
+      setAvisoOrdem({ tipo: 'ok', texto: 'Ordem salva. Vitrine e QR já mostram assim.' })
+      return
+    }
+    setItems(antes)
+    setAvisoOrdem({ tipo: 'erro', texto: r.erro })
+    if (r.codigo === 'ordem_desatualizada') await refreshItems().catch(() => {})
+  }
+
+  async function salvarOrdemCategorias(nova: string[]) {
+    const antes = groups
+    const porId = new Map(groups.map((g) => [g.id, g]))
+    setGroups(nova.map((id, i) => ({ ...porId.get(id)!, posicao: i })))
+    setSalvandoOrdem(true)
+    const r = await salvarOrdemCardapio({ tipo: 'categorias', ids: nova })
+    setSalvandoOrdem(false)
+    if (r.ok) {
+      setAvisoOrdem({ tipo: 'ok', texto: 'Ordem das categorias salva.' })
+      return
+    }
+    setGroups(antes)
+    setAvisoOrdem({ tipo: 'erro', texto: r.erro })
+    if (r.codigo === 'ordem_desatualizada' && restauranteId) {
+      await listarGrupos(supabase, restauranteId).then((g) => setGroups(ordenar(g))).catch(() => {})
+    }
+  }
+
+  const ordemItens = useOrdenacaoArrastavel({
+    ids: visibleItems.map((i) => i.id),
+    onSoltar: (nova) => void salvarOrdemItens(nova),
+    desabilitado: buscaAtiva || salvandoOrdem || !podeEditarCatalogo,
+    rotulo: (id) => items.find((i) => i.id === id)?.nome ?? 'item',
+  })
+  const itensNaOrdem = useMemo(() => {
+    const porId = new Map(visibleItems.map((i) => [i.id, i]))
+    return ordemItens.ordem.map((id) => porId.get(id)).filter((i): i is ItemCardapio => !!i)
+  }, [visibleItems, ordemItens.ordem])
+
+  const ordemCategorias = useOrdenacaoArrastavel({
+    ids: groups.map((g) => g.id),
+    onSoltar: (nova) => void salvarOrdemCategorias(nova),
+    desabilitado: salvandoOrdem || !podeEditarCatalogo || editingGroupId !== null || schedulingGroupId !== null,
+    rotulo: (id) => groups.find((g) => g.id === id)?.nome ?? 'categoria',
+  })
+  const categoriasNaOrdem = useMemo(() => {
+    const porId = new Map(groups.map((g) => [g.id, g]))
+    return ordemCategorias.ordem.map((id) => porId.get(id)).filter((g): g is GrupoCardapio => !!g)
+  }, [groups, ordemCategorias.ordem])
+
+  /** Favorito: só a coluna, sem reescrever o item nem mexer na posição. */
+  const [favoritoSalvandoId, setFavoritoSalvandoId] = useState<string | null>(null)
+  async function alternarFavorito(item: ItemCardapio) {
+    if (favoritoSalvandoId) return
+    const novo = !item.maisVendido
+    setFavoritoSalvandoId(item.id)
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, maisVendido: novo } : i)))
+    try {
+      await definirFavorito(supabase, item.id, novo)
+    } catch {
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, maisVendido: !novo } : i)))
+      setError('Não foi possível salvar o favorito.')
+    } finally {
+      setFavoritoSalvandoId(null)
+    }
+  }
 
   const allSelected = visibleItems.length > 0 && visibleItems.every((item) => selected.has(item.id))
 
@@ -1125,20 +1237,14 @@ export default function CardapioPage() {
     }
   }
 
-  /** Move a categoria pra cima/baixo e persiste a nova ordem (vitrine segue essa ordem). */
+  /** Move a categoria pra cima/baixo e persiste a nova ordem (vitrine e QR seguem essa ordem). */
   async function moveCategoria(group: GrupoCardapio, dir: -1 | 1) {
     const idx = groups.findIndex((g) => g.id === group.id)
     const alvo = idx + dir
-    if (idx < 0 || alvo < 0 || alvo >= groups.length) return
-    const nova = [...groups]
+    if (idx < 0 || alvo < 0 || alvo >= groups.length || salvandoOrdem) return
+    const nova = groups.map((g) => g.id)
     ;[nova[idx], nova[alvo]] = [nova[alvo], nova[idx]]
-    setGroups(nova) // otimista — reverte se falhar
-    try {
-      await reordenarGrupos(supabase, nova)
-    } catch {
-      setGroups(groups)
-      setError('Não foi possível reordenar as categorias.')
-    }
+    await salvarOrdemCategorias(nova)
   }
 
   async function deleteCategoria(group: GrupoCardapio) {
@@ -1434,7 +1540,7 @@ export default function CardapioPage() {
               {groups.length === 0 && (
                 <div className="px-2 py-6 text-center text-xs text-text-subtle">Nenhuma categoria cadastrada ainda.</div>
               )}
-              {groups.map((group) =>
+              {categoriasNaOrdem.map((group) =>
                 editingGroupId === group.id ? (
                   <div key={group.id}>{formEdicaoCategoria(group)}</div>
                 ) : schedulingGroupId === group.id ? (
@@ -1442,13 +1548,24 @@ export default function CardapioPage() {
                 ) : (
                   <div
                     key={group.id}
+                    ref={ordemCategorias.refDoItem(group.id)}
+                    style={ordemCategorias.estiloDoItem(group.id)}
+                    data-categoria-ordem={group.id}
                     className={[
-                      'group mb-0.5 flex w-full items-center justify-between gap-1 rounded-[4px] border-l-[3px] pl-2.5 pr-1 text-left text-[13px] transition-colors',
+                      'group mb-0.5 flex w-full items-center justify-between gap-1 rounded-[4px] border-l-[3px] pl-0.5 pr-1 text-left text-[13px] transition-colors',
+                      ordemCategorias.arrastando === group.id ? 'bg-white' : '',
                       group.nome === activeGroup
                         ? 'border-l-[var(--adm-azul)] bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
                         : 'border-l-transparent font-medium text-[var(--adm-texto)] hover:bg-[var(--adm-hover)]',
                     ].join(' ')}
                   >
+                    <span
+                      {...ordemCategorias.propsDaAlca(group.id)}
+                      title="Arraste para mudar a ordem da categoria (ou use as setas)"
+                      className="flex h-7 w-5 flex-shrink-0 items-center justify-center rounded-[3px] text-[var(--adm-texto-suave)] outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--adm-azul)]"
+                    >
+                      <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+                    </span>
                     <button onClick={() => setActiveGroup(group.nome)} className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left">
                       <span className="truncate">{group.nome}</span>
                       {group.horarioAtivoInicio && group.horarioAtivoFim && (
@@ -1525,6 +1642,22 @@ export default function CardapioPage() {
                 <Plus className="h-3.5 w-3.5" /> Novo item
               </Button>
             </div>
+            {/* Retorno da ordem: discreto, some sozinho quando deu certo. O erro fica até
+                a próxima ação — a lista já voltou para a ordem salva. */}
+            <div className="px-3.5" aria-live="polite">
+              {avisoOrdem ? (
+                <p data-testid="aviso-ordem" className={`py-1.5 text-[12px] font-semibold ${avisoOrdem.tipo === 'ok' ? 'text-status-ready' : 'text-danger'}`}>
+                  {avisoOrdem.texto}
+                </p>
+              ) : activeGroupId && visibleItems.length > 1 ? (
+                <p data-testid="dica-ordem" className="py-1.5 text-[11.5px] text-[var(--adm-texto-suave)]">
+                  {buscaAtiva
+                    ? 'Com a busca ativa a ordem não pode ser alterada. Limpe a busca para arrastar.'
+                    : 'Arraste pela alça ⋮⋮ para mudar a ordem na vitrine e nos QR Codes. No teclado: foque a alça e use as setas.'}
+                </p>
+              ) : null}
+              <span className="sr-only">{ordemItens.aviso || ordemCategorias.aviso}</span>
+            </div>
             <div className="flex-1 overflow-y-auto max-lg:overflow-visible">
               {!activeGroupId && (
                 <div className="flex h-full items-center justify-center p-8 text-center text-sm text-text-subtle">
@@ -1543,6 +1676,7 @@ export default function CardapioPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
+                      <th className="sticky top-0 w-8 border-b border-border bg-[#F9FAFB] py-2.5 pl-2 pr-0"><span className="sr-only">Ordem</span></th>
                       <th className="sticky top-0 w-9 border-b border-border bg-[#F9FAFB] px-3.5 py-2.5">
                         <input type="checkbox" aria-label="Selecionar todos os itens da lista" className="h-4 w-4 accent-primary" checked={allSelected} onChange={toggleAll} />
                       </th>
@@ -1554,8 +1688,23 @@ export default function CardapioPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleItems.map((item) => (
-                      <tr key={item.id} className={selected.has(item.id) ? 'bg-primary/10' : 'hover:bg-[#F9FAFB]'}>
+                    {itensNaOrdem.map((item) => (
+                      <tr
+                        key={item.id}
+                        ref={ordemItens.refDoItem(item.id)}
+                        style={ordemItens.estiloDoItem(item.id)}
+                        data-item-ordem={item.id}
+                        className={ordemItens.arrastando === item.id ? 'bg-white' : selected.has(item.id) ? 'bg-primary/10' : 'hover:bg-[#F9FAFB]'}
+                      >
+                        <td className="border-b border-border py-3 pl-2 pr-0">
+                          <span
+                            {...ordemItens.propsDaAlca(item.id)}
+                            title={buscaAtiva ? 'Limpe a busca para reordenar' : 'Arraste para mudar a ordem (ou use as setas)'}
+                            className={`flex h-8 w-7 items-center justify-center rounded-[4px] text-[var(--adm-texto-suave)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--adm-azul)] ${buscaAtiva ? 'opacity-30' : 'hover:bg-[#EEF2F6] hover:text-[var(--adm-texto)]'}`}
+                          >
+                            <GripVertical className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                        </td>
                         <td className="border-b border-border px-3.5 py-3">
                           <input type="checkbox" aria-label={`Selecionar ${item.nome}`} className="h-4 w-4 accent-primary" checked={selected.has(item.id)} onChange={() => toggleRow(item.id)} />
                         </td>
@@ -1564,9 +1713,7 @@ export default function CardapioPage() {
                             <ItemThumb item={item} />
                             <div>
                               <div className="flex items-center gap-1.5">
-                                {item.maisVendido && (
-                                  <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[#F59E0B]" aria-label="Em destaque"><title>Em destaque</title><path d="M12 2l2.9 6.26L21.6 9l-4.8 4.68L17.94 21 12 17.27 6.06 21l1.14-7.32L2.4 9l6.7-.74z" /></svg>
-                                )}
+                                <BotaoFavorito item={item} salvando={favoritoSalvandoId === item.id} desabilitado={!podeEditarCatalogo} onAlternar={() => alternarFavorito(item)} />
                                 <span className="text-[13px] font-semibold">{item.nome}</span>
                               </div>
                               <div className="mt-0.5 text-[11px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
@@ -1640,8 +1787,14 @@ export default function CardapioPage() {
               )}
               {activeGroupId && visibleItems.length > 0 && (
                 <div className={`grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3.5 p-4 ${view === 'table' ? 'lg:hidden' : ''}`}>
-                  {visibleItems.map((item) => (
-                    <div key={item.id} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white">
+                  {itensNaOrdem.map((item) => (
+                    <div
+                      key={item.id}
+                      ref={ordemItens.refDoItem(item.id)}
+                      style={ordemItens.estiloDoItem(item.id)}
+                      data-item-ordem={item.id}
+                      className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white"
+                    >
                       <div className="relative flex h-[120px] items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
                         {(item.imagemThumbUrl ?? item.imagemUrl)
                           // Card de 120px de altura: miniatura basta.
@@ -1653,9 +1806,14 @@ export default function CardapioPage() {
                       </div>
                       <div className="flex flex-1 flex-col gap-1.5 p-3">
                         <div className="flex items-center gap-1.5">
-                          {item.maisVendido && (
-                            <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[#F59E0B]" aria-label="Em destaque"><title>Em destaque</title><path d="M12 2l2.9 6.26L21.6 9l-4.8 4.68L17.94 21 12 17.27 6.06 21l1.14-7.32L2.4 9l6.7-.74z" /></svg>
-                          )}
+                          <span
+                            {...ordemItens.propsDaAlca(item.id)}
+                            title={buscaAtiva ? 'Limpe a busca para reordenar' : 'Arraste para mudar a ordem (ou use as setas)'}
+                            className={`-ml-1 flex h-9 w-8 flex-shrink-0 items-center justify-center rounded-[4px] text-[var(--adm-texto-suave)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--adm-azul)] ${buscaAtiva ? 'opacity-30' : 'hover:bg-[#EEF2F6]'}`}
+                          >
+                            <GripVertical className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <BotaoFavorito item={item} salvando={favoritoSalvandoId === item.id} desabilitado={!podeEditarCatalogo} onAlternar={() => alternarFavorito(item)} />
                           <div className="text-sm font-semibold">{item.nome}</div>
                         </div>
                         <div className="flex-1 text-xs leading-relaxed text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
@@ -2046,13 +2204,13 @@ export default function CardapioPage() {
               </div>
             )}
             <div className="flex-1">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Destaque</div>
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Favorito</div>
               <label className="flex h-[34px] cursor-pointer items-center gap-2 rounded-menuzia border border-border px-2.5 text-[13px] font-medium text-text-main">
                 <input type="checkbox" checked={form.maisVendido} onChange={(e) => setForm((prev) => ({ ...prev, maisVendido: e.target.checked }))}
                   className="h-3.5 w-3.5 accent-primary" />
-                Item em destaque
+                Item favorito
               </label>
-              <p className="mt-1 text-[11px] text-text-subtle">Marca o item com ⭐ aqui no painel e o destaca no cardápio do cliente.</p>
+              <p className="mt-1 text-[11px] text-text-subtle">Marca o item com ★ aqui no painel e mostra “★ Favorito” na vitrine e nos QR Codes. Não muda a posição do item.</p>
             </div>
           </div>
 

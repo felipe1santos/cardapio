@@ -3,8 +3,6 @@ import {
   carrosselValido,
   mensagemPadraoDaMesa,
   mensagemValida,
-  ordemValida,
-  ordenarParaMesa,
   MESA_CARROSSEL_MAX,
 } from './mesa-vitrine'
 
@@ -37,18 +35,5 @@ describe('mensagem da seleção', () => {
     expect(mensagemPadraoDaMesa(false)).toContain('sua seleção')
     expect(mensagemPadraoDaMesa(true)).not.toContain('seleção')
     expect(mensagemPadraoDaMesa(true)).toContain('consultar')
-  })
-})
-
-describe('ordem dos itens na mesa', () => {
-  it('só ids da loja, posições 1..n sem repetição', () => {
-    const r = ordemValida(['b', 'a', 'b'], new Set(['a', 'b', 'c']))
-    expect(r).toEqual({ ok: true, posicoes: [{ id: 'b', posicao: 1 }, { id: 'a', posicao: 2 }] })
-    expect(ordemValida(['z'], new Set(['a'])).ok).toBe(false)
-  })
-  it('ordenados primeiro; sem posição depois, na ordem de sempre', () => {
-    const itens = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
-    const pos = new Map<string, number | null>([['c', 1], ['a', 2], ['b', null]])
-    expect(ordenarParaMesa(itens, pos).map((i) => i.id)).toEqual(['c', 'a', 'b', 'd'])
   })
 })

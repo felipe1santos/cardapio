@@ -11,6 +11,12 @@ import { join } from 'node:path'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, E2E_VIZINHA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
+
+// Loja ISOLADA obrigatória: esta suíte escreve na loja (comandas, pedidos, flags). Sem
+// E2E_LOJA/E2E_VIZINHA/E2E_SUFIXO ela aborta aqui, antes de qualquer escrita — nunca roda
+// na cantina-demo.  E2E_LOJA=cantina-e2e E2E_VIZINHA=vizinha-e2e E2E_SUFIXO=e2e node <script>
+exigirLojaIsolada()
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
@@ -43,8 +49,8 @@ const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 
 // ── loja de demonstração em estado conhecido ────────────────────────────────
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
-const vizinha = (await um(`select id from restaurantes where slug='vizinha-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
+const vizinha = (await um(`select id from restaurantes where slug='${E2E_VIZINHA}'`)).id
 await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza e2e atendimento', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
 await db.query(`update mesas set limpeza_desde=null, limpeza_comanda_id=null, bloqueada_em=null where restaurante_id=$1 and nome like 'Mesa%'`, [loja])
 await db.query(`update restaurantes set pdv_v2=true, modulo_mesas_ativo=true, status_loja='aberto_manual', aceita_entrega=true, taxa_entrega_padrao=6,
@@ -91,10 +97,10 @@ const lancar = (page, alvo, itens) => api(page, '/api/admin/pdv/lancamento', 'PO
 const L = (it, qtd = 1) => ({ itemId: it.id, quantidade: qtd, complementos: [] })
 const irPdv = async (page) => { await page.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' }); await dispensar(page) }
 
-const pAt = await logar('atendente.local')
-const pGer = await logar('gerente.local')
-const pGar = await logar('garcom.local')
-const pViz = await logar('dono@vizinha.local')
+const pAt = await logar(USU.atendente)
+const pGer = await logar(USU.gerente)
+const pGar = await logar(USU.garcom)
+const pViz = await logar(USU.donoVizinhaEmail)
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Card preto: balcão, telefone, entrega manual')
@@ -448,7 +454,7 @@ const livre = await um(`select m.id, m.nome from mesas m where m.restaurante_id=
 ok('garçom abre mesa com nome', (await api(pGar, `/api/admin/mesas/${livre.id}/atendimento`, 'POST', { acao: 'abrir', nome: 'Cliente do Garçom', chave: uuid() })).status === 201)
 const lg = await api(pGar, `/api/admin/mesas/${livre.id}/lancamento`, 'POST', { chaveIdempotencia: uuid(), selecoesVistas: [], itens: [L(AGUA)] })
 ok('   garçom lança (salão) com o nome do cliente', lg.status === 201 && (await um('select cliente_nome, lancado_via from pedidos where id=$1', [lg.json.pedidoId])).lancado_via === 'salao')
-const dv = await fetch(`${BASE}/api/loja/cantina-demo/pedido`, {
+const dv = await fetch(`${BASE}/api/loja/${E2E_LOJA}/pedido`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ tipo: 'entrega', cliente: { nome: 'Delivery Demo', telefone: '27988880003' }, endereco: { rua: 'Rua A', numero: '1', complemento: '', bairro: 'Centro', cep: '29000-000', cidade: 'Cidade Demo', referencia: '' }, pagamento: 'pix', trocoPara: null, itens: [L(AGUA)] }),
@@ -509,7 +515,7 @@ ok('auditoria sem telefone completo nem endereço', (await q(`select dados::text
 secao('Telas em 360×800, 390×844, 768×1024 e desktop')
 const tamanhos = [['360x800', 360, 800], ['390x844', 390, 844], ['768x1024', 768, 1024], ['desktop', 1440, 900]]
 for (const [nome, w, h] of tamanhos) {
-  const p = await logar('gerente.local', { width: w, height: h })
+  const p = await logar(USU.gerente, { width: w, height: h })
   await irPdv(p)
   const semRolagem = await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
   await foto(p, `t-${nome}-pdv-mesas`)

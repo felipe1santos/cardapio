@@ -6,6 +6,7 @@ import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
 import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
+import { cardapioOrdenado, ordenar } from '@/lib/ordem-cardapio'
 import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
@@ -26,6 +27,8 @@ export interface GrupoCardapio {
   id: string
   nome: string
   posicao: number
+  /** Desempate da ordem (lib/ordem-cardapio). */
+  criadoEm?: string
   /** Ativação automática por horário (ex.: marmitaria de dia, pizza à noite). Ambos null = sempre ativa. */
   horarioAtivoInicio: string | null
   horarioAtivoFim: string | null
@@ -118,6 +121,12 @@ export interface ItemCardapio {
    * antiga. Quem decide o que aparece é `tamanhosVendidosDaPizza` (lib/pizza-tamanhos).
    */
   pizzaTamanhosOcultos?: string[]
+  /**
+   * Ordem dentro da categoria, definida no Gestor (0101). Todos os canais ordenam por
+   * `lib/ordem-cardapio` (vitrine, QR, PDV e garçom).
+   */
+  posicao?: number
+  criadoEm?: string
 }
 
 export interface PresetComplementos {
@@ -147,6 +156,8 @@ interface ItemRow {
   disponivel_delivery: boolean | null
   disponivel_salao: boolean | null
   pizza_tamanhos_ocultos?: string[] | null
+  posicao?: number | null
+  criado_em?: string | null
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null; pausado: boolean; posicao?: number | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number; permite_quantidade: boolean }[]
   tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
@@ -200,6 +211,8 @@ function mapItem(row: ItemRow): ItemCardapio {
     disponivelDelivery: row.disponivel_delivery ?? true,
     disponivelSalao: row.disponivel_salao ?? true,
     pizzaTamanhosOcultos: row.pizza_tamanhos_ocultos ?? [],
+    posicao: row.posicao ?? undefined,
+    criadoEm: row.criado_em ?? undefined,
     grupos,
     complementos: complementosOrdenados
       .filter((c) => !c.grupo_id)
@@ -236,12 +249,13 @@ export async function buscarRestauranteIdDoUsuario(supabase: SupabaseClient): Pr
   return data.restaurante_id as string
 }
 
-const GRUPO_SELECT = 'id, nome, posicao, horario_ativo_inicio, horario_ativo_fim, imagem_url, imagem_foco_x, imagem_foco_y, imagem_ficha_url, imagem_ficha_foco_x, imagem_ficha_foco_y'
+const GRUPO_SELECT = 'id, nome, posicao, criado_em, horario_ativo_inicio, horario_ativo_fim, imagem_url, imagem_foco_x, imagem_foco_y, imagem_ficha_url, imagem_ficha_foco_x, imagem_ficha_foco_y'
 
 interface GrupoRow {
   id: string
   nome: string
   posicao: number
+  criado_em?: string | null
   horario_ativo_inicio: string | null
   horario_ativo_fim: string | null
   imagem_url: string | null
@@ -258,6 +272,7 @@ function mapGrupo(row: GrupoRow): GrupoCardapio {
     id: row.id,
     nome: row.nome,
     posicao: row.posicao,
+    criadoEm: row.criado_em ?? undefined,
     horarioAtivoInicio: row.horario_ativo_inicio?.slice(0, 5) ?? null,
     horarioAtivoFim: row.horario_ativo_fim?.slice(0, 5) ?? null,
     imagemUrl: row.imagem_url ?? null,
@@ -275,7 +290,8 @@ export async function listarGrupos(supabase: ClienteLeitura, restauranteId: stri
     .order('posicao', { ascending: true })
 
   if (error) throw error
-  return (data ?? []).map(mapGrupo)
+  // Ordem do Gestor com o desempate de sempre (posição, criação, id).
+  return ordenar((data ?? []).map(mapGrupo))
 }
 
 /**
@@ -350,15 +366,27 @@ export async function atualizarGrupo(
 }
 
 /**
- * Persiste a ordem das categorias (0..n-1, na ordem recebida). A vitrine lista os
- * grupos por `posicao`, então reordenar aqui muda a ordem do cardápio público.
+ * Ordem de categorias ou dos itens de UMA categoria (0101). Vai pela rota do servidor,
+ * que grava tudo numa transação: antes eram N updates soltos disparados do navegador, e
+ * uma falha no meio deixava a ordem pela metade.
+ *
+ * Devolve o código do erro (`ordem_desatualizada` quando outra aba mudou a lista).
  */
-export async function reordenarGrupos(supabase: SupabaseClient, grupos: { id: string }[]) {
-  const results = await Promise.all(
-    grupos.map(({ id }, posicao) => supabase.from('grupos_cardapio').update({ posicao }).eq('id', id))
-  )
-  const falha = results.find((r) => r.error)
-  if (falha?.error) throw falha.error
+export async function salvarOrdemCardapio(
+  corpo: { tipo: 'categorias'; ids: string[] } | { tipo: 'itens'; grupoId: string; ids: string[] },
+): Promise<{ ok: true } | { ok: false; codigo: string | null; erro: string }> {
+  try {
+    const r = await fetch('/api/admin/cardapio/ordem', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+    })
+    if (r.ok) return { ok: true }
+    const j = (await r.json().catch(() => ({}))) as { error?: string; codigo?: string }
+    return { ok: false, codigo: j.codigo ?? null, erro: j.error ?? 'Não foi possível salvar a ordem.' }
+  } catch {
+    return { ok: false, codigo: null, erro: 'Sem conexão: a ordem não foi salva.' }
+  }
 }
 
 /** Deleting a category does not delete its items — `grupo_id` is set to null (FK ON DELETE SET NULL). */
@@ -369,7 +397,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
-  disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos,
+  disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
   tamanhos_item ( id, nome, preco, posicao ),
@@ -384,7 +412,9 @@ export async function listarItens(supabase: ClienteLeitura, restauranteId: strin
     .order('criado_em', { ascending: true })
 
   if (error) throw error
-  return ((data ?? []) as unknown as ItemRow[]).map(mapItem)
+  // Ordem do Gestor dentro de cada categoria (0101). Quem mostra itens de várias
+  // categorias numa lista só usa `itensNaOrdemDoCardapio` (lib/ordem-cardapio).
+  return ordenar(((data ?? []) as unknown as ItemRow[]).map(mapItem))
 }
 
 export interface NovoItemInput {
@@ -482,6 +512,17 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
 
 export async function definirStatusEmLote(supabase: SupabaseClient, itemIds: string[], status: StatusItem) {
   const { error } = await supabase.from('itens_cardapio').update({ status }).in('id', itemIds)
+  if (error) throw error
+}
+
+/**
+ * Favorito (coluna `mais_vendido`, "★ Favorito" na vitrine e no QR). Grava SÓ essa
+ * coluna: não reescreve o item inteiro, então não disputa com outra edição aberta e não
+ * mexe na posição. A leitura das vitrines não tem cache, então aparece no próximo
+ * carregamento — sem republicar nada.
+ */
+export async function definirFavorito(supabase: SupabaseClient, itemId: string, favorito: boolean) {
+  const { error } = await supabase.from('itens_cardapio').update({ mais_vendido: favorito }).eq('id', itemId)
   if (error) throw error
 }
 
@@ -1070,19 +1111,19 @@ export async function listarCardapioPublico(supabase: ClienteLeitura, restaurant
     listarItens(supabase, restauranteId),
   ])
 
-  return grupos
-    .filter((grupo) => grupoEstaAtivoAgora(grupo))
-    .map((grupo) => ({
+  // Ordem de categorias e itens: a do Gestor, pela regra única (lib/ordem-cardapio) que
+  // o QR da mesa também usa.
+  return cardapioOrdenado(grupos, itens, {
+    grupoVisivel: (grupo) => grupoEstaAtivoAgora(grupo),
+    // `disponivelDelivery`: mesmo catálogo do salão, filtrado pelo canal (0069).
+    itemVisivel: (item) =>
+      item.status === 'disponivel' &&
+      itemDisponivelNoCanal(item, 'delivery') &&
+      itemDisponivelHoje(item.diasDisponiveis),
+  })
+    .map(({ grupo, itens: doGrupo }) => ({
       ...grupo,
-      itens: itens
-        // `disponivelDelivery`: mesmo catálogo do salão, filtrado pelo canal (0069).
-        .filter(
-          (item) =>
-            item.grupoId === grupo.id &&
-            item.status === 'disponivel' &&
-            itemDisponivelNoCanal(item, 'delivery') &&
-            itemDisponivelHoje(item.diasDisponiveis),
-        )
+      itens: doGrupo
         // Complemento pausado some da vitrine (mas continua cadastrado no admin).
         // Grupo de complementos sem opções não pode aparecer na vitrine: um grupo
         // obrigatório vazio deixaria o item impossível de pedir.

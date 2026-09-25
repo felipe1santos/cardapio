@@ -20,6 +20,7 @@ import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { juntarSabores } from '@/lib/pizza-preco'
 import { tipoDaOpcao, type TipoOpcao } from '@/lib/selecao-preco'
+import { ordenar } from '@/lib/ordem-cardapio'
 
 export interface Relogio {
   /** Item vendido hoje (dia da semana em São Paulo). */
@@ -66,7 +67,7 @@ export function itensLancaveis(itens: ItemCardapio[], categorias: GrupoCardapio[
  */
 export function categoriasComItens(categorias: GrupoCardapio[], lancaveis: ItemCardapio[]): GrupoCardapio[] {
   const comItem = new Set(lancaveis.map((i) => i.grupoId))
-  return [...categorias].sort((a, b) => a.posicao - b.posicao).filter((g) => comItem.has(g.id))
+  return ordenar(categorias).filter((g) => comItem.has(g.id))
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * E2E do PDV v2 (balcão como comanda + mesa no mesmo motor), no navegador de verdade.
  *
- * Loja de demonstração local (`cantina-demo`), nenhum dado real. Liga `pdv_v2` SÓ nessa
+ * Loja ISOLADA local (E2E_LOJA, nunca a cantina-demo), nenhum dado real. Liga `pdv_v2` SÓ nessa
  * loja local e desliga no fim. Tokens de impressão de teste são UUIDs aleatórios, nunca
  * impressos, e zerados no fim.
  *
@@ -15,6 +15,12 @@ import { join } from 'node:path'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { E2E_LOJA, E2E_VIZINHA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
+
+// Loja ISOLADA obrigatória: esta suíte escreve na loja (comandas, pedidos, flags). Sem
+// E2E_LOJA/E2E_VIZINHA/E2E_SUFIXO ela aborta aqui, antes de qualquer escrita — nunca roda
+// na cantina-demo.  E2E_LOJA=cantina-e2e E2E_VIZINHA=vizinha-e2e E2E_SUFIXO=e2e node <script>
+exigirLojaIsolada()
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
@@ -39,8 +45,8 @@ await db.connect()
 const q = async (sql, p = []) => (await db.query(sql, p)).rows
 const um = async (sql, p = []) => (await q(sql, p))[0]
 
-const loja = (await um(`select id from restaurantes where slug='cantina-demo'`)).id
-const vizinha = (await um(`select id from restaurantes where slug='vizinha-demo'`)).id
+const loja = (await um(`select id from restaurantes where slug='${E2E_LOJA}'`)).id
+const vizinha = (await um(`select id from restaurantes where slug='${E2E_VIZINHA}'`)).id
 const item = (nome) => um(`select id, nome, preco from itens_cardapio where restaurante_id=$1 and nome=$2`, [loja, nome])
 const FILE = await item('Filé à Parmegiana')
 const AGUA = await item('Água com Gás')
@@ -86,7 +92,7 @@ const errosConsole = []
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Flag desligada: PDV antigo intacto, v2 não existe')
-const atendente = await logar('atendente.local')
+const atendente = await logar(USU.atendente)
 const pa = atendente.page
 pa.on('console', (m) => {
   if (m.type() === 'error' && !/favicon|Failed to load resource: the server responded with a status of 4\d\d/.test(m.text())) errosConsole.push(m.text().slice(0, 160))
@@ -255,7 +261,7 @@ ok('fechar com cancelamento pendente: 409 com pendências detalhadas', fAna.stat
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Gerência: decisão, resolução forçada com efeito financeiro, reabertura')
-const dono = await logar('dono.local')
+const dono = await logar(USU.dono)
 const pd = dono.page
 const contaAnaDono = (await api(pd, `/api/admin/comandas/${cAna.id}`)).json
 ok('gerência vê o pedido de cancelamento na conta', contaAnaDono.conta.solicitacoes.length === 1 && contaAnaDono.permissoes.resolver === true)
@@ -367,10 +373,10 @@ await api(pd, `/api/admin/comandas/${nova.json.id}`, 'POST', { acao: 'fechar' })
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Isolamento, permissões e rotas antigas com a flag ligada')
-const garcom = await logar('garcom.local')
+const garcom = await logar(USU.garcom)
 ok('garçom não abre a Central de Balcão', [403, 307, 302].includes((await api(garcom.page, '/api/admin/balcao/comandas')).status))
 await db.query('update restaurantes set pdv_v2=true where id=$1', [vizinha])
-const viz = await logar('dono@vizinha.local')
+const viz = await logar(USU.donoVizinhaEmail)
 ok('dono de outra loja não enxerga a conta desta loja (404)', (await api(viz.page, `/api/admin/comandas/${cAna.id}`)).status === 404)
 ok('nem consegue pagar nela', (await api(viz.page, `/api/admin/comandas/${cAna.id}`, 'POST', { acao: 'pagamento', forma: 'pix', valor: 1, chave: uuid() })).status === 404)
 await db.query('update restaurantes set pdv_v2=false where id=$1', [vizinha])
@@ -391,7 +397,7 @@ await foto(pa, '14-kanban-com-balcao')
 ok('Kanban carrega sem erro de console', errosConsole.length === 0, errosConsole.slice(0, 2).join(' | '))
 
 // celular: Central no iframe de 390px (mesma origem, mesma sessão)
-const mob = await logar('atendente.local', { width: 390, height: 844 })
+const mob = await logar(USU.atendente, { width: 390, height: 844 })
 await mob.page.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' })
 await mob.page.getByTestId('card-balcao').click()
 await mob.page.getByTestId('balcao-novo').waitFor()

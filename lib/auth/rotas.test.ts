@@ -92,6 +92,10 @@ describe('regras gerais', () => {
     expect(permissaoDaRota('/api/admin/nexta/despachar')).toBe('logistica.operar')
   })
 
+  it('ordem do Gestor de Cardápio (0101): quem edita o catálogo; garçom e atendente não', () => {
+    expect(permissaoDaRota('/api/admin/cardapio/ordem')).toBe('cardapio.editar')
+  })
+
   it('atendente/caixa entra no salão para cobrar — cada ação confere a sua permissão por dentro', () => {
     expect(decidirAcesso('/admin/mesas', 'atendente')).toEqual({ tipo: 'seguir' })
     expect(decidirAcesso('/admin/mesas/1', 'atendente')).toEqual({ tipo: 'seguir' })

@@ -5,7 +5,7 @@ import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapP
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { erroDoTroco } from '@/lib/troco'
-import { ETIQUETAS_ITEM, tagDoItem } from '@/lib/etiqueta-item'
+import { ETIQUETAS_ITEM, SELO_FAVORITO, mostraSeloFavorito, tagDoItem } from '@/lib/etiqueta-item'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -428,6 +428,22 @@ function TagBadge({ tag }: { tag: string | null }) {
 }
 
 /**
+ * "★ Favorito" — o item que o Gestor marcou com a estrela. Texto pequeno numa pílula
+ * própria, fora da foto e sem cobrir nome, preço ou botão (lib/etiqueta-item.ts).
+ */
+function SeloFavorito() {
+  return (
+    <span
+      data-selo-favorito
+      className="inline-flex w-fit items-center whitespace-nowrap rounded-full px-[8px] py-[3px] text-[10px] font-semibold leading-[14px]"
+      style={{ background: SELO_FAVORITO.fundo, color: SELO_FAVORITO.texto }}
+    >
+      {SELO_FAVORITO.label}
+    </span>
+  )
+}
+
+/**
  * O que basta para desenhar a foto de um item. `imagemThumbUrl` é opcional
  * porque prêmios de fidelidade, cupons e linhas do carrinho carregam só a URL
  * cheia — nesses casos o fallback resolve.
@@ -514,6 +530,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
   return (
     <button
       onClick={onClick}
+      data-item-id={item.id}
       className={`group flex flex-col overflow-hidden rounded-[12px] bg-white text-left transition-all duration-150 active:scale-[0.98] ${className}`}
     >
       {/* 140px de foto com canto de 12px: a medida da referência para o cartão
@@ -529,6 +546,11 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
         )}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
+        {mostraSeloFavorito(item) && !compact && (
+          <span className="mb-[6px] flex">
+            <SeloFavorito />
+          </span>
+        )}
         <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2 min-h-[40px]'} mb-[8px] text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]`}>{item.nome}</div>
         {item.descricao && !compact && (
           <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
@@ -559,14 +581,16 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
   return (
     <button
       onClick={onClick}
+      data-item-id={item.id}
       className="flex w-full gap-[12px] border-b border-[var(--v-borda)] bg-white py-[16px] pl-[16px] pr-[8px] text-left transition-colors last:border-none hover:bg-[#FAFAFA] active:bg-[#F3F4F6]"
     >
       <div className="min-w-0 flex-1">
         {/* Etiqueta acima do nome, e não sobre a foto: em 120px, "Favorito da
             casa" ou "Edição limitada" não cabem e saem cortadas. Aqui têm a
             largura da coluna de texto e ainda anunciam o item antes do nome. */}
-        {tagDoItem(item) && (
-          <span className="mb-[6px] flex">
+        {(tagDoItem(item) || mostraSeloFavorito(item)) && (
+          <span className="mb-[6px] flex flex-wrap gap-[6px]">
+            {mostraSeloFavorito(item) && <SeloFavorito />}
             <TagBadge tag={tagDoItem(item)} />
           </span>
         )}
@@ -3992,6 +4016,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               }
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
+                {(mostraSeloFavorito(productSheet) || tagDoItem(productSheet)) && (
+                  <span className="mt-[6px] flex flex-wrap gap-[6px]">
+                    {mostraSeloFavorito(productSheet) && <SeloFavorito />}
+                    <TagBadge tag={tagDoItem(productSheet)} />
+                  </span>
+                )}
                 <DescricaoItem texto={productSheet.descricao} className="my-2 text-[13px] leading-[19px] text-[var(--v-secundario)]" />
                 {productSheet.tipoItem !== 'pizza' && productSheet.tamanhos.length === 0 && (
                   <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />

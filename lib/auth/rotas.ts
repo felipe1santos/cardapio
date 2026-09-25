@@ -53,6 +53,8 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/nexta/testar', 'integracoes.gerenciar'],
   ['/api/admin/nexta', 'logistica.operar'],
   ['/api/admin/whatsapp', 'integracoes.gerenciar'],
+  // Ordem de categorias e itens do Gestor de Cardápio: quem edita o catálogo.
+  ['/api/admin/cardapio', 'cardapio.editar'],
   // Token do Assistente de Impressão: credencial. Só o dono vê e gera (0080).
   ['/api/admin/impressao/token', 'ajustes.editar'],
   // Computadores, impressoras, funções e testes: dono e gerente.
