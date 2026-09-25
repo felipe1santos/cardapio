@@ -1,7 +1,11 @@
 -- Rollback da 0100. Antes de rodar: volte o código para a versão anterior e confirme que
 -- nenhuma loja está em "cozinha_caixa" (se estiver, a cozinha volta ao Assistente antigo
 -- pelo passo abaixo). Não apaga pedido, trabalho de impressão nem auditoria.
-update public.restaurantes set impressao_cozinha_por_funcao = false where impressao_beta_modo = 'cozinha_caixa';
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'restaurantes' and column_name = 'impressao_beta_modo') then
+    update public.restaurantes set impressao_cozinha_por_funcao = false where impressao_beta_modo = 'cozinha_caixa';
+  end if;
+end $$;
 drop function if exists public.impressao_calibracao_criar(uuid, uuid, text, uuid, text);
 drop function if exists public.impressao_modo_definir(uuid, text, uuid, text);
 alter table public.impressao_dispositivos drop constraint if exists impressao_dispositivos_deslocamento_pontos_check;
