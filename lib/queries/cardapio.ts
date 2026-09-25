@@ -6,6 +6,7 @@ import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
 import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
+import { cardapioOrdenado } from '@/lib/ordem-cardapio'
 import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
@@ -26,6 +27,8 @@ export interface GrupoCardapio {
   id: string
   nome: string
   posicao: number
+  /** Desempate da ordem (lib/ordem-cardapio). */
+  criadoEm?: string
   /** Ativação automática por horário (ex.: marmitaria de dia, pizza à noite). Ambos null = sempre ativa. */
   horarioAtivoInicio: string | null
   horarioAtivoFim: string | null
@@ -118,6 +121,12 @@ export interface ItemCardapio {
    * antiga. Quem decide o que aparece é `tamanhosVendidosDaPizza` (lib/pizza-tamanhos).
    */
   pizzaTamanhosOcultos?: string[]
+  /**
+   * Ordem dentro da categoria, definida no Gestor (0101). Vitrine e QR ordenam por
+   * `lib/ordem-cardapio`; `listarItens` continua por criação para o PDV e o garçom.
+   */
+  posicao?: number
+  criadoEm?: string
 }
 
 export interface PresetComplementos {
@@ -147,6 +156,8 @@ interface ItemRow {
   disponivel_delivery: boolean | null
   disponivel_salao: boolean | null
   pizza_tamanhos_ocultos?: string[] | null
+  posicao?: number | null
+  criado_em?: string | null
   item_complementos: { id: string; nome: string; preco: number; grupo_id: string | null; preset_origem_id: string | null; imagem_url: string | null; pausado: boolean; posicao?: number | null }[]
   grupos_item_complementos: { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; posicao: number; permite_quantidade: boolean }[]
   tamanhos_item: { id: string; nome: string; preco: number; posicao: number }[]
@@ -200,6 +211,8 @@ function mapItem(row: ItemRow): ItemCardapio {
     disponivelDelivery: row.disponivel_delivery ?? true,
     disponivelSalao: row.disponivel_salao ?? true,
     pizzaTamanhosOcultos: row.pizza_tamanhos_ocultos ?? [],
+    posicao: row.posicao ?? undefined,
+    criadoEm: row.criado_em ?? undefined,
     grupos,
     complementos: complementosOrdenados
       .filter((c) => !c.grupo_id)
@@ -236,12 +249,13 @@ export async function buscarRestauranteIdDoUsuario(supabase: SupabaseClient): Pr
   return data.restaurante_id as string
 }
 
-const GRUPO_SELECT = 'id, nome, posicao, horario_ativo_inicio, horario_ativo_fim, imagem_url, imagem_foco_x, imagem_foco_y, imagem_ficha_url, imagem_ficha_foco_x, imagem_ficha_foco_y'
+const GRUPO_SELECT = 'id, nome, posicao, criado_em, horario_ativo_inicio, horario_ativo_fim, imagem_url, imagem_foco_x, imagem_foco_y, imagem_ficha_url, imagem_ficha_foco_x, imagem_ficha_foco_y'
 
 interface GrupoRow {
   id: string
   nome: string
   posicao: number
+  criado_em?: string | null
   horario_ativo_inicio: string | null
   horario_ativo_fim: string | null
   imagem_url: string | null
@@ -258,6 +272,7 @@ function mapGrupo(row: GrupoRow): GrupoCardapio {
     id: row.id,
     nome: row.nome,
     posicao: row.posicao,
+    criadoEm: row.criado_em ?? undefined,
     horarioAtivoInicio: row.horario_ativo_inicio?.slice(0, 5) ?? null,
     horarioAtivoFim: row.horario_ativo_fim?.slice(0, 5) ?? null,
     imagemUrl: row.imagem_url ?? null,
@@ -369,7 +384,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
-  disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos,
+  disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
   tamanhos_item ( id, nome, preco, posicao ),
@@ -1070,19 +1085,19 @@ export async function listarCardapioPublico(supabase: ClienteLeitura, restaurant
     listarItens(supabase, restauranteId),
   ])
 
-  return grupos
-    .filter((grupo) => grupoEstaAtivoAgora(grupo))
-    .map((grupo) => ({
+  // Ordem de categorias e itens: a do Gestor, pela regra única (lib/ordem-cardapio) que
+  // o QR da mesa também usa.
+  return cardapioOrdenado(grupos, itens, {
+    grupoVisivel: (grupo) => grupoEstaAtivoAgora(grupo),
+    // `disponivelDelivery`: mesmo catálogo do salão, filtrado pelo canal (0069).
+    itemVisivel: (item) =>
+      item.status === 'disponivel' &&
+      itemDisponivelNoCanal(item, 'delivery') &&
+      itemDisponivelHoje(item.diasDisponiveis),
+  })
+    .map(({ grupo, itens: doGrupo }) => ({
       ...grupo,
-      itens: itens
-        // `disponivelDelivery`: mesmo catálogo do salão, filtrado pelo canal (0069).
-        .filter(
-          (item) =>
-            item.grupoId === grupo.id &&
-            item.status === 'disponivel' &&
-            itemDisponivelNoCanal(item, 'delivery') &&
-            itemDisponivelHoje(item.diasDisponiveis),
-        )
+      itens: doGrupo
         // Complemento pausado some da vitrine (mas continua cadastrado no admin).
         // Grupo de complementos sem opções não pode aparecer na vitrine: um grupo
         // obrigatório vazio deixaria o item impossível de pedir.

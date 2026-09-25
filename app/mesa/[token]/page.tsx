@@ -9,7 +9,8 @@ import { categoriaNoHorario, itemDisponivelNoCanal } from '@/lib/canais-item'
 import { grupoEstaAtivoAgora, itemDisponivelHoje } from '@/lib/timezone'
 import { carregarPizzaDaLoja, itemPrecificavel } from '@/lib/queries/mesa-catalogo'
 import { precoAPartirDe } from '@/lib/selecao-preco'
-import { mensagemPadraoDaMesa, ordenarParaMesa } from '@/lib/mesa-vitrine'
+import { mensagemPadraoDaMesa } from '@/lib/mesa-vitrine'
+import { cardapioOrdenado, ordenar } from '@/lib/ordem-cardapio'
 import { CardapioDaMesa } from './cardapio'
 
 /**
@@ -89,16 +90,23 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
   // Catálogo é um só: as mesmas linhas que a vitrine lê, com os MESMOS filtros — status,
   // dia da semana, horário da categoria — mais o canal do salão (0069). Nada de cadastro
   // paralelo para mesa.
-  const disponiveis = itens.filter(
-    (i) =>
-      i.status === 'disponivel' &&
-      itemDisponivelNoCanal(i, 'mesa') &&
-      itemDisponivelHoje(i.diasDisponiveis) &&
-      categoriaNoHorario(i, grupos, grupoEstaAtivoAgora),
-  )
-  // Ordem das categorias no trilho da mesa: a escolhida em Ajustes › Mesas; as sem
-  // posição vêm depois, na ordem do delivery.
-  const gruposComItem = ordenarParaMesa(grupos, posicaoCategoria).filter((g) => disponiveis.some((i) => i.grupoId === g.id))
+  //
+  // Ordem: a mesma regra da vitrine (lib/ordem-cardapio) — categorias e itens na ordem do
+  // Gestor. A loja que escolheu uma ordem PRÓPRIA de categorias para a mesa em Ajustes ›
+  // Mesas (0074) continua com ela; as sem posição vêm depois, na ordem do Gestor.
+  const visivelNaMesa = (i: (typeof itens)[number]) =>
+    i.status === 'disponivel' &&
+    itemDisponivelNoCanal(i, 'mesa') &&
+    itemDisponivelHoje(i.diasDisponiveis) &&
+    categoriaNoHorario(i, grupos, grupoEstaAtivoAgora)
+  const cardapio = cardapioOrdenado(grupos, itens, { posicaoMesa: posicaoCategoria, itemVisivel: visivelNaMesa })
+  const gruposComItem = cardapio.map((c) => c.grupo)
+  // A busca da mesa lista itens de várias categorias: nesta mesma ordem (categoria, item).
+  // Item sem categoria só aparecia na busca, como antes: continua lá, no fim.
+  const disponiveis = [
+    ...cardapio.flatMap((c) => c.itens),
+    ...ordenar(itens.filter((i) => !i.grupoId && visivelNaMesa(i))),
+  ]
 
   return (
     <CardapioDaMesa
