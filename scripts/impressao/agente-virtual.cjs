@@ -38,12 +38,21 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(BASE)) throw new Error('a
 const DIR = process.env.AGENTE_DIR
 const SAIDA = process.env.AGENTE_SAIDA
 if (!DIR || !SAIDA) throw new Error('defina AGENTE_DIR e AGENTE_SAIDA')
-fs.mkdirSync(DIR, { recursive: true })
-fs.mkdirSync(SAIDA, { recursive: true })
 // %TEMP% próprio ANTES de carregar o Assistente: o log dele (os.tmpdir()) e o do print.ps1
-// nunca caem no log real do Assistente instalado neste computador.
-process.env.TEMP = SAIDA
-process.env.TMP = SAIDA
+// nunca caem no log real do Assistente instalado neste computador. Se a saída ou os dados
+// apontarem para o lugar real, aborta antes de qualquer coisa (isolamento-teste.cjs).
+const { exigirIsolamento, exigirTempAtivo } = require('./isolamento-teste.cjs')
+try {
+  exigirIsolamento({ temp: SAIDA, pastas: [DIR, SAIDA], rotulo: 'agente virtual' })
+  fs.mkdirSync(DIR, { recursive: true })
+  fs.mkdirSync(SAIDA, { recursive: true })
+  process.env.TEMP = SAIDA
+  process.env.TMP = SAIDA
+  exigirTempAtivo(SAIDA, 'agente virtual')
+} catch (e) {
+  console.error(e.message)
+  process.exit(3)
+}
 
 let impressorasWindows = (process.env.AGENTE_IMPRESSORAS || '').split('|').filter(Boolean)
 let removidas = new Set((process.env.AGENTE_REMOVIDAS || '').split('|').filter(Boolean))
@@ -153,7 +162,7 @@ const impressoraVirtual = {
     if (perfil && Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0) extra.push('-LarguraPontos', String(perfil.larguraPontos))
     if (perfil && Number.isInteger(perfil.deslocamentoPontos) && perfil.deslocamentoPontos !== 0) extra.push('-DeslocamentoPontos', String(perfil.deslocamentoPontos))
     if (perfil && perfil.logNome) extra.push('-LogNome', perfil.logNome)
-    const tipo = texto.includes('RECIBO/EXTRATO') ? 'pre_conta' : texto.includes('CALIBRAÇÃO DA IMPRESSORA') ? 'calibracao' : texto.includes('TESTE DE IMPRESSORA') ? 'teste' : 'ficha_cozinha'
+    const tipo = texto.includes('RECIBO/EXTRATO') && texto.includes('SEM VALOR FISCAL') ? 'recibo_teste' : texto.includes('RECIBO/EXTRATO') ? 'pre_conta' : texto.includes('CALIBRAÇÃO DA IMPRESSORA') ? 'calibracao' : texto.includes('TESTE DE IMPRESSORA') ? 'teste' : 'ficha_cozinha'
     const n = ++seq
     const pasta = path.join(SAIDA, nome.replace(/[^A-Za-z0-9]+/g, '_'))
     fs.mkdirSync(pasta, { recursive: true })

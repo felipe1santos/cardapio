@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
@@ -21,6 +22,16 @@ const ART = process.env.ARTEFATOS ?? join(tmpdir(), 'menuzia-e2e-impressao')
 const { DB_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
 if (SHOTS) mkdirSync(SHOTS, { recursive: true })
+// Isolamento: nada do Assistente REAL deste computador (log, configuração, instalação).
+// Aborta ANTES de apagar a pasta de artefatos se ela cair no lugar real.
+const isolamento = createRequire(import.meta.url)('../impressao/isolamento-teste.cjs')
+try {
+  isolamento.exigirIsolamento({ temp: ART, pastas: [ART], rotulo: 'e2e impressão v2' })
+} catch (e) {
+  console.error(e.message)
+  process.exit(3)
+}
+const fotoReaisAntes = isolamento.fotografarReais()
 rmSync(ART, { recursive: true, force: true })
 mkdirSync(ART, { recursive: true })
 
@@ -308,6 +319,9 @@ await db.query(`update comandas set status='cancelada', cancelada_motivo='limpez
 await db.query("update restaurantes set impressao_cozinha_por_funcao=false, impressao_beta_liberado=false, impressao_beta_modo='teste' where id=$1", [loja])
 await browser.close()
 await db.end()
+const difReais = isolamento.diferencas(fotoReaisAntes, isolamento.fotografarReais())
+console.log(`\n── Arquivos reais do Assistente 0.1.23 ──`)
+ok('log e configuração reais intactos (hash, tamanho e data) durante todo o teste', difReais.length === 0, difReais.join(' | '))
 const falhas = res.filter((r) => !r).length
 console.log(`\n${falhas ? '❌' : '✅'} ${res.length - falhas}/${res.length} verificações passaram`)
 process.exit(falhas ? 1 : 0)

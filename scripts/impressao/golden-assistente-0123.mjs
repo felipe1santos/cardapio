@@ -22,6 +22,9 @@ import { createRequire } from 'node:module'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, statSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
+import { medirPngs } from './medir-png.mjs'
+import { pngsParaPdf } from './renderizar-virtual.mjs'
+import { snapshotReciboTeste } from '../../lib/impressao/recibo-teste.ts'
 
 const require = createRequire(import.meta.url)
 const RAIZ = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
@@ -40,8 +43,14 @@ const git = (...a) => execFileSync('git', a, { cwd: RAIZ, maxBuffer: 1 << 26 })
 
 // %TEMP% isolado: o print.ps1 grava log em $env:TEMP. O log real do 0.1.23 fica intocado.
 const TEMP_ISOLADO = mkdtempSync(join(tmpdir(), 'golden-0123-temp-'))
-const LOG_REAL = join(process.env.TEMP ?? tmpdir(), 'menuzia-print.log')
-const logRealAntes = existsSync(LOG_REAL) ? statSync(LOG_REAL).size : -1
+const { exigirIsolamento, fotografarReais, diferencas } = require('./isolamento-teste.cjs')
+try {
+  exigirIsolamento({ temp: TEMP_ISOLADO, pastas: [SAIDA], rotulo: 'golden 0.1.23' })
+} catch (e) {
+  console.error(e.message)
+  process.exit(3)
+}
+const fotoReaisAntes = fotografarReais()
 
 // ── arquivos da tag ─────────────────────────────────────────────────────────
 const DIR_TAG = join(SAIDA, 'tag-0.1.23')
@@ -139,7 +148,6 @@ const fora = renderizar(PS1_ATUAL, tGrande, { cols: 48, paperMm: 80, extra: ['-L
 ok('perfil fora do limite é ignorado (volta ao padrão)', fora.sha === ref.sha)
 const logBeta = join(TEMP_ISOLADO, 'menuzia-beta-print.log')
 ok('Beta grava no próprio log (menuzia-beta-print.log)', existsSync(logBeta) && /PERFIL: larguraPontos=512/.test(readFileSync(logBeta, 'utf8')))
-ok('log real do Assistente antigo neste computador não foi tocado', (existsSync(LOG_REAL) ? statSync(LOG_REAL).size : -1) === logRealAntes)
 
 console.log(`\n── Página de calibração (só Beta) ──`)
 const { montarCalibracao } = require(join(RAIZ, 'printer-agent', 'src', 'calibracao.js'))
@@ -159,7 +167,45 @@ const texto = montarCalibracao({ ...snap, largura_pontos: 512 }, diag)
 ok('calibração mostra driver, DPI, papel, área imprimível, margem e largura aplicada',
   ['POS-80C', '203 x 203', '72.1 mm', '7.9 mm', '512 pontos', '1:1', 'TOTAL', 'R$ 12.345,67'].every((t) => texto.includes(t)))
 
+console.log(`\n── Recibo/Extrato de teste: o renderizador operacional do Beta (pre-conta.js + print.ps1) ──`)
+const { montarPreConta, colsPreConta } = require(join(RAIZ, 'printer-agent', 'src', 'pre-conta.js'))
+const destinoBase = { loja: 'Cantina Demonstração', impressora: 'Caixa POS-8370', nomeSistema: 'POS-8370', computador: 'PC Caixa', deslocamentoPontos: 0 }
+const casos = [
+  ['80 mm padrão', 80, null],
+  ['80 mm calibrada em 512 pontos', 80, 512],
+  ['58 mm padrão', 58, null],
+  ['58 mm calibrada em 320 pontos', 58, 320],
+]
+const pngsRecibo = []
+for (const [rotulo, mm, pontos] of casos) {
+  const snap = snapshotReciboTeste({ ...destinoBase, larguraMm: mm, larguraPontos: pontos }, 'Gerente Demo', new Date('2026-09-25T12:00:00Z'))
+  const texto = montarPreConta(snap)
+  const logAntes = existsSync(logBeta) ? readFileSync(logBeta, 'utf8').length : 0
+  const r = renderizar(PS1_ATUAL, texto, { cols: colsPreConta(mm), paperMm: mm, extra: [...(pontos ? ['-LarguraPontos', String(pontos)] : []), '-LogNome', 'menuzia-beta-print.log'] })
+  const linhaTotal = readFileSync(logBeta, 'utf8').slice(logAntes).split(/\r?\n/).find((l) => /TOTAL: valor='R\$ 4\.088,00'/.test(l)) ?? ''
+  const m = /x=(-?\d+)\.\.(\d+) papel=(\d+)/.exec(linhaTotal)
+  const destino = join(SAIDA, `recibo-teste-${rotulo.replace(/\W+/g, '-')}.png`)
+  writeFileSync(destino, readFileSync(r.png))
+  pngsRecibo.push({ rotulo, mm, pontos, png: destino, total: m ? { de: Number(m[1]), ate: Number(m[2]), papel: Number(m[3]) } : null })
+}
+const medidas = await medirPngs(pngsRecibo.map((p) => p.png))
+for (const [i, p] of pngsRecibo.entries()) {
+  const md = medidas[i]
+  const larguraEsperada = p.pontos ?? (p.mm <= 58 ? 384 : 576)
+  const margem = Math.floor(larguraEsperada * 0.03)
+  ok(`${p.rotulo}: bitmap de ${larguraEsperada} pontos`, md.largura === larguraEsperada, `${md.largura}`)
+  ok(`${p.rotulo}: "R$ 4.088,00" termina dentro da margem direita`, !!p.total && p.total.de >= 0 && p.total.ate <= larguraEsperada - margem && p.total.papel === larguraEsperada,
+    p.total ? `valor em x=${p.total.de}..${p.total.ate} de ${p.total.papel}` : 'TOTAL não registrado')
+  ok(`${p.rotulo}: nenhuma tinta de texto passa da margem (${larguraEsperada - margem})`, md.tintaTextoAte >= 0 && md.tintaTextoAte <= larguraEsperada - margem && md.tintaTextoDe >= margem - 1,
+    `texto de x=${md.tintaTextoDe} a x=${md.tintaTextoAte}`)
+  ok(`${p.rotulo}: marcadores nas duas bordas`, md.linhasBordaEsquerda > 20 && md.linhasBordaDireita > 20, `esq=${md.linhasBordaEsquerda} dir=${md.linhasBordaDireita}`)
+}
+await pngsParaPdf(pngsRecibo.map((p) => ({ png: p.png, pdf: p.png.replace(/\.png$/, '.pdf'), paperMm: p.mm })))
+ok('Recibo/Extrato de teste também em PDF (58 e 80 mm)', pngsRecibo.every((p) => existsSync(p.png.replace(/\.png$/, '.pdf'))))
+
 rmSync(TEMP_ISOLADO, { recursive: true, force: true })
+const difReais = diferencas(fotoReaisAntes, fotografarReais())
+ok('arquivos reais do Assistente intactos (log, config e instalação: hash, tamanho e data)', difReais.length === 0, difReais.join(' | '))
 const falhas = res.filter((r) => !r).length
 console.log(`\nSaída: ${SAIDA}`)
 console.log(`${falhas ? '❌' : '✅'} ${res.length - falhas}/${res.length} verificações passaram`)

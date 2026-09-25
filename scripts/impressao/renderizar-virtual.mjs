@@ -11,7 +11,7 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -19,6 +19,10 @@ const require = createRequire(import.meta.url)
 const RAIZ = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
 const PS1 = join(RAIZ, 'printer-agent', 'src', 'print.ps1')
 const IMPRESSORA_VIRTUAL = 'Microsoft Print to PDF'
+// %TEMP% exclusivo: o print.ps1 grava log em $env:TEMP — nunca no do Assistente real.
+const { exigirIsolamento } = require('./isolamento-teste.cjs')
+const TEMP_PROPRIO = mkdtempSync(join(tmpdir(), 'menuzia-render-'))
+exigirIsolamento({ temp: TEMP_PROPRIO, rotulo: 'renderizar-virtual' })
 
 export function colsParaFonte(tamanho, largura) {
   // Cópia de printer-agent/src/main.js (colsParaFonte) — mesma regra do agente.
@@ -40,7 +44,7 @@ export function renderizarPng(texto, { cols, paperMm, fonteMaior = false, saida 
       '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PS1,
       '-FilePath', tmp, '-PrinterName', IMPRESSORA_VIRTUAL, '-Cols', String(cols),
       '-PaperWidthMm', String(paperMm), ...(fonteMaior ? ['-FonteMaior', '1'] : []), '-DebugPng', saida,
-    ], { stdio: 'pipe' })
+    ], { stdio: 'pipe', env: { ...process.env, TEMP: TEMP_PROPRIO, TMP: TEMP_PROPRIO } })
   } finally {
     try { unlinkSync(tmp) } catch { /* ok */ }
   }

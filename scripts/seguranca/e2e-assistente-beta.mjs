@@ -16,6 +16,8 @@ import { spawn, execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
+import { medirPngs } from '../impressao/medir-png.mjs'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
@@ -25,6 +27,16 @@ const SENHA = 'demo-local-123456'
 const ART = process.env.ARTEFATOS ?? join(tmpdir(), 'menuzia-e2e-assistente-beta')
 const { DB_URL } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
+// Isolamento: nada do Assistente REAL deste computador (log, configuração, instalação).
+// Aborta ANTES de apagar a pasta de artefatos se ela cair no lugar real.
+const isolamento = createRequire(import.meta.url)('../impressao/isolamento-teste.cjs')
+try {
+  isolamento.exigirIsolamento({ temp: ART, pastas: [ART], rotulo: 'e2e Assistente Beta' })
+} catch (e) {
+  console.error(e.message)
+  process.exit(3)
+}
+const fotoReaisAntes = isolamento.fotografarReais()
 rmSync(ART, { recursive: true, force: true })
 mkdirSync(ART, { recursive: true })
 
@@ -200,7 +212,8 @@ try {
   ok('Recibo/Extrato pendente sai no Beta, POS-8370 em 512 pontos', !!rPend && rPend.impressora === 'POS-8370' && rPend.larguraPontos === 512 && readFileSync(rPend.png).readUInt32BE(16) === 512)
   ok('pendente: RECIBO/EXTRATO, não fiscal e RESTANTE A PAGAR', !!rPend && ['RECIBO/EXTRATO', 'NÃO É DOCUMENTO FISCAL', 'RESTANTE A PAGAR'].every((t) => rPend.texto.includes(t)))
   const pago = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente Pago Beta', chave: uuid() })).json.id
-  await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: pago, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })
+  // Também é ficha de cozinha: entra na conta de 'impressa exatamente uma vez'.
+  criados.push((await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: pago, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id)
   const restante = (await api(pAt, `/api/admin/comandas/${pago}`)).json.conta.totais.restante
   await api(pAt, `/api/admin/comandas/${pago}`, 'POST', { acao: 'pagamento', forma: 'pix', valor: restante, chave: uuid() })
   const rp = await api(pAt, `/api/admin/comandas/${pago}/pre-conta`, 'POST', { chave: uuid() })
@@ -209,6 +222,31 @@ try {
   ok('"Somente Caixa": ficha nova no 0.1.23', !!(await aguardar(() => ANTIGO.fichas().includes(c1))))
   ok('"Somente Caixa": nenhuma ficha no Beta', BETA.fichas().length === 0)
   ok('0.1.23 nunca recebe Recibo/Extrato', ANTIGO.impressos().every((i) => i.tipo === 'ficha_cozinha'))
+
+  secao('Recibo/Extrato de teste (renderizador operacional, 80 mm calibrada e 58 mm)')
+  const pedidosAntes = Number((await um('select count(*) n from pedidos where restaurante_id=$1', [loja])).n)
+  const kRt = uuid()
+  const [e1, e2] = await Promise.all([
+    api(pGer, `/api/admin/impressao/dispositivos/${disp['POS-8370'].id}`, 'POST', { acao: 'recibo_teste', chave: kRt }),
+    api(pGer, `/api/admin/impressao/dispositivos/${disp['POS-8370'].id}`, 'POST', { acao: 'recibo_teste', chave: kRt }),
+  ])
+  ok('clique duplo: um trabalho só', !!e1.json?.id && e1.json.id === e2.json?.id)
+  const rt80 = await aguardar(() => BETA.impressos().find((i) => i.tipo === 'recibo_teste'))
+  await esperar(4000)
+  ok('sai uma vez só, no Beta, na POS-8370, com o perfil de 512 pontos', BETA.impressos().filter((i) => i.tipo === 'recibo_teste').length === 1 &&
+    !!rt80 && rt80.impressora === 'POS-8370' && rt80.larguraPontos === 512)
+  ok('marcado como teste, com R$ 4.088,00', !!rt80 && ['TESTE DE IMPRESSÃO', 'SEM VALOR FISCAL', 'R$ 4.088,00', 'Taxa de entrega'].every((x) => rt80.texto.includes(x)))
+  await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'PATCH', { larguraMm: 58 })
+  await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'POST', { acao: 'recibo_teste', chave: uuid() })
+  const rt58 = await aguardar(() => BETA.impressos().find((i) => i.tipo === 'recibo_teste' && i.paperMm === 58))
+  await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'PATCH', { larguraMm: 80 })
+  const [m80, m58] = await medirPngs([rt80.png, rt58.png])
+  ok('80 mm calibrada: bitmap de 512, texto e valores dentro da margem, marcadores nas duas bordas',
+    m80.largura === 512 && m80.tintaTextoAte <= 512 - 15 && m80.linhasBordaEsquerda > 20 && m80.linhasBordaDireita > 20, JSON.stringify(m80))
+  ok('58 mm padrão: bitmap de 384, texto e valores dentro da margem, marcadores nas duas bordas',
+    m58.largura === 384 && m58.tintaTextoAte <= 384 - 11 && m58.linhasBordaEsquerda > 20 && m58.linhasBordaDireita > 20, JSON.stringify(m58))
+  ok('Recibo/Extrato de teste não criou pedido', Number((await um('select count(*) n from pedidos where restaurante_id=$1', [loja])).n) === pedidosAntes)
+  ok('0.1.23 nunca recebe o Recibo/Extrato de teste', ANTIGO.impressos().every((i) => i.tipo === 'ficha_cozinha'))
 
   secao('"Cozinha e Caixa": a cozinha passa para o Beta')
   await api(pGer, '/api/admin/impressao/funcoes', 'PUT', { funcao: 'cozinha', dispositivoId: disp['Cozinha Beta'].id })
@@ -240,7 +278,7 @@ try {
   await esperar(3000)
   const todas = [...ANTIGO.fichas(), ...BETA.fichas()]
   const repetidas = todas.filter((id, i) => todas.indexOf(id) !== i)
-  ok(`${criados.length} fichas criadas, cada uma impressa exatamente uma vez`, criados.every((id) => todas.filter((x) => x === id).length === 1) && repetidas.length === 0,
+  ok(`${criados.length} fichas criadas, cada uma impressa exatamente uma vez`, criados.every((id) => todas.filter((x) => x === id).length === 1) && repetidas.length === 0 && todas.length === criados.length,
     repetidas.length ? `repetidas: ${repetidas.join(',')}` : `0.1.23: ${ANTIGO.fichas().length} · Beta: ${BETA.fichas().length}`)
   ok('todas marcadas como impressas no banco', Number((await um('select count(*) n from pedidos where id = any($1::uuid[]) and impresso', [criados])).n) === criados.length)
   const auditoria = await q(`select acao, dados->>'de' de, dados->>'para' para from eventos_auditoria where restaurante_id=$1 and acao='impressao.modo_alterado' and criado_em >= $2 order by criado_em`, [loja, inicio])
@@ -262,6 +300,9 @@ try {
   await comPrazo(browser.close())
   await comPrazo(db.end())
 }
+const difReais = isolamento.diferencas(fotoReaisAntes, isolamento.fotografarReais())
+console.log(`\n── Arquivos reais do Assistente 0.1.23 ──`)
+ok('log e configuração reais intactos (hash, tamanho e data) durante todo o teste', difReais.length === 0, difReais.join(' | '))
 const falhas = res.filter((r) => !r).length + (falhouFeio ? 1 : 0)
 console.log(`\nArtefatos: ${ART}`)
 console.log(`\n${falhas ? '❌' : '✅'} ${res.length - res.filter((r) => !r).length}/${res.length} verificações passaram${falhouFeio ? ' (interrompido por erro)' : ''}`)
