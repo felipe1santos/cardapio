@@ -22,6 +22,7 @@ import type { AgenteVisao, DispositivoVisao, Funcao, ModoBeta, TrabalhoVisao } f
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
+import { garantirLogoImpressao } from '@/lib/impressao/logo-navegador'
 import {
   atualizarConfigImpressao,
   atualizarImpressora,
@@ -124,6 +125,7 @@ export function PainelImpressao() {
   const [calibrar, setCalibrar] = useState<string | null>(null)
   const [modalImpressora, setModalImpressora] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
   const [verFicha, setVerFicha] = useState(false)
+  const [logoRecibo, setLogoRecibo] = useState<'pronta' | 'gerada' | 'sem_logo' | 'falhou' | null>(null)
   const seq = useRef(0)
   // Uma chave por impressora e por teste: clique duplo ou reenvio devolve o mesmo trabalho.
   // Troca só depois que o servidor aceitou.
@@ -167,6 +169,20 @@ export function PainelImpressao() {
       vivo = false
     }
   }, [supabase])
+
+  // Logo do Recibo/Extrato do Beta: o navegador prepara a versão de impressão da logo atual
+  // (fundo branco, PNG) — só em loja liberada; a impressão nunca depende disso.
+  const logoUrlAtual = atual?.logoUrl ?? null
+  const liberadoBeta = p?.betaLiberado === true
+  useEffect(() => {
+    if (!liberadoBeta) return
+    if (!logoUrlAtual) return setLogoRecibo('sem_logo')
+    let vivo = true
+    void garantirLogoImpressao(logoUrlAtual).then((r) => vivo && setLogoRecibo(r))
+    return () => {
+      vivo = false
+    }
+  }, [liberadoBeta, logoUrlAtual])
 
   // Sinal do Assistente atual (heartbeat a cada 5 s).
   useEffect(() => {
@@ -732,6 +748,20 @@ export function PainelImpressao() {
                 </details>
               )
             })}
+          {liberado && (
+            <p className="text-[12px] text-text-subtle" data-testid="logo-recibo">
+              Logo no Recibo/Extrato:{' '}
+              <strong className="text-text-main">
+                {logoRecibo === 'pronta' || logoRecibo === 'gerada'
+                  ? 'pronta'
+                  : logoRecibo === 'sem_logo'
+                    ? 'a loja não tem logo — sai o nome da loja'
+                    : logoRecibo === 'falhou'
+                      ? 'não foi possível preparar — sai o nome da loja'
+                      : 'preparando…'}
+              </strong>
+            </p>
+          )}
           <ul className="list-disc space-y-1 pl-5 text-[12px] text-text-subtle">
             <li>Papel não saiu? Veja se tem papel, se a tampa está fechada e se a impressora está ligada e online.</li>
             <li>Fila do Windows travada: em “Impressoras e scanners”, abra a impressora e cancele os documentos parados.</li>
