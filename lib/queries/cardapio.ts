@@ -365,15 +365,27 @@ export async function atualizarGrupo(
 }
 
 /**
- * Persiste a ordem das categorias (0..n-1, na ordem recebida). A vitrine lista os
- * grupos por `posicao`, então reordenar aqui muda a ordem do cardápio público.
+ * Ordem de categorias ou dos itens de UMA categoria (0101). Vai pela rota do servidor,
+ * que grava tudo numa transação: antes eram N updates soltos disparados do navegador, e
+ * uma falha no meio deixava a ordem pela metade.
+ *
+ * Devolve o código do erro (`ordem_desatualizada` quando outra aba mudou a lista).
  */
-export async function reordenarGrupos(supabase: SupabaseClient, grupos: { id: string }[]) {
-  const results = await Promise.all(
-    grupos.map(({ id }, posicao) => supabase.from('grupos_cardapio').update({ posicao }).eq('id', id))
-  )
-  const falha = results.find((r) => r.error)
-  if (falha?.error) throw falha.error
+export async function salvarOrdemCardapio(
+  corpo: { tipo: 'categorias'; ids: string[] } | { tipo: 'itens'; grupoId: string; ids: string[] },
+): Promise<{ ok: true } | { ok: false; codigo: string | null; erro: string }> {
+  try {
+    const r = await fetch('/api/admin/cardapio/ordem', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+    })
+    if (r.ok) return { ok: true }
+    const j = (await r.json().catch(() => ({}))) as { error?: string; codigo?: string }
+    return { ok: false, codigo: j.codigo ?? null, erro: j.error ?? 'Não foi possível salvar a ordem.' }
+  } catch {
+    return { ok: false, codigo: null, erro: 'Sem conexão: a ordem não foi salva.' }
+  }
 }
 
 /** Deleting a category does not delete its items — `grupo_id` is set to null (FK ON DELETE SET NULL). */
@@ -497,6 +509,17 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
 
 export async function definirStatusEmLote(supabase: SupabaseClient, itemIds: string[], status: StatusItem) {
   const { error } = await supabase.from('itens_cardapio').update({ status }).in('id', itemIds)
+  if (error) throw error
+}
+
+/**
+ * Favorito (coluna `mais_vendido`, "★ Favorito" na vitrine e no QR). Grava SÓ essa
+ * coluna: não reescreve o item inteiro, então não disputa com outra edição aberta e não
+ * mexe na posição. A leitura das vitrines não tem cache, então aparece no próximo
+ * carregamento — sem republicar nada.
+ */
+export async function definirFavorito(supabase: SupabaseClient, itemId: string, favorito: boolean) {
+  const { error } = await supabase.from('itens_cardapio').update({ mais_vendido: favorito }).eq('id', itemId)
   if (error) throw error
 }
 
