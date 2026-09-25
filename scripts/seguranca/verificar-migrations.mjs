@@ -305,6 +305,33 @@ await comBanco('menuzia_migr_prod', async (cliente) => {
     await cliente.query(readFileSync(join(dir, daFeature.find((f) => f.startsWith('0098'))), 'utf8'))
     ok('reaplicar a 0098 depois do rollback devolve o gatilho', await temGatilho())
   }
+
+  // Rollback da 0099: tira gatilhos, funções e a coluna taxa_entrega_cobrada e devolve
+  // comanda_totais / comanda_fechamento_simular de antes, sem mexer em pedido, comanda,
+  // pagamento ou auditoria; reaplicar a 0099 devolve tudo.
+  if (daFeature.some((f) => f.startsWith('0099'))) {
+    const foto = async () => (await cliente.query(
+      `select (select count(*) from pedidos)::int as pedidos, (select count(*) from comandas)::int as comandas,
+              (select count(*) from pagamentos_comanda)::int as pagamentos, (select count(*) from eventos_auditoria)::int as auditoria,
+              (select md5(string_agg(id::text || status::text || total::text || coalesce(taxa_entrega::text, ''), ',' order by id)) from pedidos) as assinatura,
+              (select md5(string_agg(id::text || status || coalesce(taxa_entrega::text, '') || coalesce(total_final::text, ''), ',' order by id)) from comandas) as assinatura_comandas`)).rows[0]
+    const objetos = async () => (await cliente.query(
+      `select (select count(*) from pg_trigger where tgname in ('pedidos_cancelado_taxa_entrega','pedido_itens_cancelado_taxa_entrega','pedidos_novo_taxa_entrega','comandas_taxa_entrega_no_fechamento'))::int as gatilhos,
+              (to_regprocedure('public.comanda_taxa_entrega_efetiva(uuid)') is not null) as efetiva,
+              exists(select 1 from information_schema.columns where table_name='comandas' and column_name='taxa_entrega_cobrada') as coluna,
+              (select position('comanda_taxa_entrega_efetiva' in prosrc) > 0 from pg_proc where proname='comanda_totais') as totais_novo`)).rows[0]
+    const antes = await foto()
+    const o1 = await objetos()
+    ok('0099 aplicada: 4 gatilhos, função, coluna e comanda_totais novo', o1.gatilhos === 4 && o1.efetiva && o1.coluna && o1.totais_novo, JSON.stringify(o1))
+    await cliente.query(readFileSync(join(process.cwd(), 'docs', 'rollback', '0099_taxa_entrega_so_com_item_ativo.down.sql'), 'utf8'))
+    const o2 = await objetos()
+    ok('rollback da 0099 remove gatilhos, função e coluna e devolve comanda_totais antigo', o2.gatilhos === 0 && !o2.efetiva && !o2.coluna && !o2.totais_novo, JSON.stringify(o2))
+    const depois = await foto()
+    ok('rollback da 0099 não apaga nem altera pedido, comanda, pagamento ou auditoria', JSON.stringify(antes) === JSON.stringify(depois), JSON.stringify(depois))
+    await cliente.query(readFileSync(join(dir, daFeature.find((f) => f.startsWith('0099'))), 'utf8'))
+    const o3 = await objetos()
+    ok('reaplicar a 0099 depois do rollback devolve tudo', o3.gatilhos === 4 && o3.efetiva && o3.coluna && o3.totais_novo)
+  }
 })
 
 const falhas = res.filter((r) => !r).length

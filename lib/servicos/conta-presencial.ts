@@ -140,7 +140,8 @@ export interface ContaPresencial {
   descontoValor: number
   descontoPercentual: number
   descontoMotivo: string | null
-  totais: { subtotal: number; taxaServico: number; desconto: number; total: number; pago: number; restante: number }
+  /** `taxaEntrega` = a taxa que a conta está cobrando agora (0 sem item ativo — 0099). */
+  totais: { subtotal: number; taxaServico: number; desconto: number; taxaEntrega: number; total: number; pago: number; restante: number }
   situacao: ReturnType<typeof situacaoFinanceira>
   pedidos: PedidoConta[]
   pagamentos: PagamentoConta[]
@@ -253,7 +254,10 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     total: Number(tot?.total ?? 0),
     pago: Number(tot?.pago ?? 0),
     restante: Number(tot?.restante ?? 0),
+    // Derivada do banco: total = subtotal + serviço + entrega − desconto (comanda_totais, 0099).
+    taxaEntrega: 0,
   }
+  totais.taxaEntrega = Math.max(0, Math.round((totais.total - totais.subtotal - totais.taxaServico + totais.desconto) * 100) / 100)
 
   return {
     id: row.id as string,

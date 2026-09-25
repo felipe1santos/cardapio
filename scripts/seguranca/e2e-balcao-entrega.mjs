@@ -273,6 +273,33 @@ try {
   await foto(k, '05-detalhes')
   await k.keyboard.press('Escape'); await k.mouse.click(5, 300)
 
+  secao('Taxa de entrega com pedido cancelado (0099)')
+  {
+    const contaDe = async (id) => (await api(g, `/api/admin/comandas/${id}`)).j?.conta
+    const cancelarLanc = (comanda, pedidoId) => api(k, `/api/admin/comandas/${comanda}`, 'POST', { acao: 'cancelar_pedido', pedidoId, motivo: 'teste da taxa 0099' })
+    // Entrega com um único pedido: cancelado, a taxa sai do total.
+    const ct = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: `E2E Balcão Taxa Única ${SUF}`, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, taxa: '4' } })
+    const lt = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: ct.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
+    let conta = await contaDe(ct.j.id)
+    ok('entrega com item: taxa cobrada no total', conta?.totais?.taxaEntrega === 4 && conta.totais.total === Number(agua.preco) + 4, JSON.stringify(conta?.totais))
+    const cx = await cancelarLanc(ct.j.id, lt.j.id)
+    conta = await contaDe(ct.j.id)
+    ok('único pedido cancelado: taxa sai do total (0) e a conta mostra 0', cx.s === 200 && conta?.totais?.taxaEntrega === 0 && conta.totais.total === 0 && conta.entrega?.taxa === 4, `${cx.s} ${JSON.stringify(conta?.totais)}`)
+    const audT = await q(`select dados from eventos_auditoria where entidade_id = $1 and acao = 'conta.taxa_entrega_nao_cobrada'`, [ct.j.id])
+    ok('  uma auditoria "taxa não cobrada"', audT.length === 1, JSON.stringify(audT.map((a) => a.dados)))
+    const fila = await um(`select impresso, reimprimir from pedidos where id = $1`, [lt.j.id])
+    ok('  pedido cancelado fora da fila de impressão', fila.reimprimir === false && (await um(`select status from pedidos where id = $1`, [lt.j.id])).status === 'cancelado')
+    // Dois pedidos: cancelado o 1º (que carregava a taxa), a taxa continua uma vez.
+    const c2t = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: `E2E Balcão Taxa Dupla ${SUF}`, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, taxa: '4' } })
+    const la = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: c2t.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
+    await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: c2t.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 2, complementos: [] }] })
+    await cancelarLanc(c2t.j.id, la.j.id)
+    conta = await contaDe(c2t.j.id)
+    ok('dois pedidos, 1º cancelado: taxa continua uma vez', conta?.totais?.taxaEntrega === 4 && conta.totais.total === 2 * Number(agua.preco) + 4, JSON.stringify(conta?.totais))
+    const soma = await um(`select coalesce(sum(total), 0) s from pedidos where comanda_id = $1 and status <> 'cancelado'`, [c2t.j.id])
+    ok('  Dashboard (pedidos ativos) = total da conta', Number(soma.s) === conta.totais.total, `${soma.s}`)
+  }
+
   secao('Logística DESLIGADA: entrega pronta é concluída sozinha')
   await q(`update restaurantes set usa_logistica = false, entrega_sem_entregador = false where id = $1`, [loja.id])
   const nome2 = `E2E Balcão Entrega2 ${SUF}`
