@@ -8,7 +8,7 @@ migration **0101** (`supabase/migrations/0101_cardapio_ordem_itens.sql`).
 | Área | Mudança |
 |---|---|
 | Banco (0101) | `itens_cardapio.posicao` (preenchida com a ordem de hoje: `criado_em`, `id`), gatilhos (item/categoria novos no fim; item que troca de categoria vai para o fim da nova), funções `cardapio_ordenar_itens` / `cardapio_ordenar_categorias` (lista completa e exata, transação, lock, auditoria; só `service_role`). |
-| Servidor | `lib/ordem-cardapio.ts` — regra única de ordem para vitrine e QR; `PUT /api/admin/cardapio/ordem` (`cardapio.editar`). `listarItens` continua por criação: PDV e garçom não mudam. |
+| Servidor | `lib/ordem-cardapio.ts` — regra única de ordem para vitrine, QR, PDV e garçom; `PUT /api/admin/cardapio/ordem` (`cardapio.editar`). |
 | Gestor | Arraste (mouse, toque, teclado) de itens e categorias; estrela de favorito clicável na lista. |
 | Vitrine / QR | Montserrat compartilhada (`lib/fonte-vitrine.ts`) também no QR; preço do QR escuro e 600; selo “★ Favorito” na vitrine e nos dois QR. |
 | QR (ficha) | Celular: foto em cima e conteúdo embaixo; ≥ 768 px e celular deitado: lado a lado. |
@@ -41,14 +41,15 @@ Ajustes › Mesas mostra só o aviso “A ordem das categorias e dos itens é de
 
 ## Flags (PDV v2 e Assistente Beta em todas as lojas)
 
-:  (só leitura, grava o JSON), (liga  e  numa transação, só se toda loja estiver em
+`scripts/seguranca/flags-pdv-beta-todas.mjs`: `retrato` (só leitura, grava o JSON), `aplicar`
+(liga `pdv_v2` e `impressao_beta_liberado` numa transação, só se toda loja estiver em
 “Somente teste”, sem cozinha por função, sem transferência, sem função atribuída e sem
-computador Beta ativo; audita cada loja) e  (volta exatamente ao retrato).
+computador Beta ativo; audita cada loja) e `reverter` (volta exatamente ao retrato).
 O modo do Beta não muda; nada é pareado ou atribuído.
 
 ## Provas locais
 
-- `node scripts/seguranca/e2e-cardapio-ordem-qr.mjs` — 106 verificações, loja isolada
+- `node scripts/seguranca/e2e-cardapio-ordem-qr.mjs` — 111 verificações, loja isolada
   `ordem-qr-e2e` (semeada por `semear-cardapio-ordem.mjs`).
 - `shots-cardapio-qr.mjs` — capturas antes/depois (`BASE` e `ROTULO`).
 - Regressões (loja isolada `cantina-e2e`, com trava `exigirLojaIsolada`): garçom 47/47, mesas 254/254,
