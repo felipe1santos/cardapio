@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MOTIVOS_CHAMADO, type MotivoChamado } from '@/lib/chamados'
 import { descricaoEmTextoPuro, pedacosDaDescricao } from '@/lib/descricao-rica'
-import { etiquetaDoItem } from '@/lib/etiqueta-item'
+import { SELO_FAVORITO, etiquetaDoItem, mostraSeloFavorito } from '@/lib/etiqueta-item'
 import { adicionarNaSelecao } from '@/lib/selecao-mesa'
 import { precificarLinha, type ItemPrecificavel, type OpcaoDaLinha, type PizzaDaLoja, type TipoOpcao } from '@/lib/selecao-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -47,7 +47,10 @@ export interface ItemDaMesa {
   descricao: string
   preco: number
   precoOriginal: number | null
+  /** Miniatura (listagem). */
   imagemUrl: string | null
+  /** Foto cheia, para a ficha aberta: a miniatura de 400 px fica borrada na largura toda. */
+  imagemGrandeUrl?: string | null
   grupos: GrupoOpcoes[]
   tamanhos: { id: string; nome: string; preco: number }[]
   /** 'pizza' = monta por tamanho padrão + sabor(es) + borda/massa. */
@@ -60,7 +63,7 @@ export interface ItemDaMesa {
   precoAPartirDe: number
   /** Etiqueta do cadastro ('mais_pedido', 'novo'…). Null = sem etiqueta marcada. */
   tag: string | null
-  /** "Item em destaque" do cadastro, que vira a etiqueta de mais pedido. */
+  /** Favorito do Gestor (estrela) — mostra o selo "★ Favorito". Não muda a ordem. */
   maisVendido: boolean
 }
 
@@ -327,7 +330,7 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
   const qtdSelecao = selecao.reduce((s, l) => s + l.quantidade, 0)
 
   return (
-    <div className="mesa-raiz">
+    <div className="mesa-raiz fonte-vitrine">
       <style>{TOKENS}</style>
 
       {/* ── Cabeçalho ───────────────────────────────────────────────────── */}
@@ -428,20 +431,18 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
                 type="button"
                 key={item.id}
                 className="mesa-card"
+                data-item-id={item.id}
                 onClick={() => setFichaAberta(item)}
                 aria-label={somenteVisualizacao ? `Ver ${item.nome}` : `Escolher ${item.nome}`}
               >
                 <div className="mesa-card-texto">
                   {/* A mesma etiqueta do delivery, com a mesma cor: o cliente sentado
                       precisa ver promoção e destaque como quem pede pelo celular. */}
-                  <Etiqueta item={item} />
+                  <Selos item={item} />
                   <h3>{item.nome}</h3>
                   <DescricaoDoItem texto={item.descricao} />
                   <div className="mesa-card-rodape">
-                    <div className="mesa-preco">
-                      <span className="mesa-preco-rotulo">A partir de</span>
-                      <span className="mesa-preco-valor">{brl(item.precoAPartirDe)}</span>
-                    </div>
+                    <PrecoDoItem item={item} />
                   </div>
                 </div>
                 <div className="mesa-card-foto">
@@ -612,6 +613,54 @@ function Etiqueta({ item }: { item: ItemDaMesa }) {
     <span className="mesa-item-etiqueta" style={{ background: estilo.fundo, color: estilo.texto }}>
       {estilo.label}
     </span>
+  )
+}
+
+/**
+ * "★ Favorito" (a estrela do Gestor) ao lado da etiqueta, em linha própria — nunca sobre
+ * a foto, o nome, o preço ou o botão. Mesmo selo da vitrine (lib/etiqueta-item.ts).
+ */
+/** Foto da ficha aberta: a cheia quando existe; a miniatura só como reserva. */
+function fotoGrande(item: ItemDaMesa): string | null {
+  return item.imagemGrandeUrl ?? item.imagemUrl
+}
+
+function Selos({ item }: { item: ItemDaMesa }) {
+  const favorito = mostraSeloFavorito(item)
+  const etiqueta = etiquetaDoItem({ tag: item.tag, promocaoPreco: item.precoOriginal !== null ? item.preco : null })
+  if (!favorito && !etiqueta) return null
+  return (
+    <span className="mesa-selos">
+      {favorito && (
+        <span className="mesa-item-etiqueta" data-selo-favorito style={{ background: SELO_FAVORITO.fundo, color: SELO_FAVORITO.texto }}>
+          {SELO_FAVORITO.label}
+        </span>
+      )}
+      <Etiqueta item={item} />
+    </span>
+  )
+}
+
+/**
+ * Preço do cartão e da ficha: escuro e em peso 600, integrado ao texto — não compete com
+ * o nome. Em promoção, o preço atual continua escuro e o anterior aparece riscado em cinza
+ * (só quando o "a partir de" é o próprio preço promocional; item com tamanhos mostra o
+ * menor preço, que não tem "de" para comparar). Nada de cálculo novo: os valores vêm prontos.
+ */
+function PrecoDoItem({ item }: { item: ItemDaMesa }) {
+  const riscado = item.precoOriginal !== null && item.precoAPartirDe === item.preco ? item.precoOriginal : null
+  return (
+    <div className="mesa-preco">
+      <span className="mesa-preco-rotulo">A partir de</span>
+      <span className="mesa-preco-linha">
+        <span className="mesa-preco-valor">{brl(item.precoAPartirDe)}</span>
+        {riscado !== null && (
+          <s className="mesa-preco-antigo" aria-label={`Preço anterior ${brl(riscado)}`}>
+            {brl(riscado)}
+          </s>
+        )}
+      </span>
+    </div>
   )
 }
 
@@ -898,9 +947,9 @@ function FichaVisualizacao({ item, onFechar }: { item: ItemDaMesa; onFechar: () 
           ✕
         </button>
         <div className="mesa-ver-foto">
-          {item.imagemUrl ? (
+          {fotoGrande(item) ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.imagemUrl} alt={item.nome} />
+            <img src={fotoGrande(item) ?? undefined} alt={item.nome} />
           ) : (
             <div className="mesa-card-foto-vazia" aria-hidden="true">
               🍽️
@@ -908,9 +957,12 @@ function FichaVisualizacao({ item, onFechar }: { item: ItemDaMesa; onFechar: () 
           )}
         </div>
         <div className="mesa-ver-texto">
-          <Etiqueta item={item} />
           <h2>{item.nome}</h2>
+          <Selos item={item} />
           <DescricaoDoItem texto={item.descricao} />
+          <div className="mesa-ver-preco">
+            <PrecoDoItem item={item} />
+          </div>
           {ehPizza && item.sabores.length > 0 && (
             <div className="mesa-ver-sabores">
               <h3>Sabores</h3>
@@ -962,6 +1014,12 @@ function Configurador({
   onFechar: () => void
   onAdicionar: (linha: LinhaSelecionada) => void
 }) {
+  // Esc fecha, como na ficha de visualização (teclado e leitor de tela).
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar()
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onFechar])
   const ehPizza = item.tipoItem === 'pizza'
   const [escolhas, setEscolhas] = useState<Record<string, string[]>>({})
   // Tamanho de pizza só aparece se algum sabor tem preço nele.
@@ -1158,7 +1216,7 @@ function Configurador({
 
   return (
     <div className="mesa-modal-fundo" onClick={onFechar}>
-      <div className="mesa-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="mesa-modal" role="dialog" aria-modal="true" aria-label={item.nome} onClick={(e) => e.stopPropagation()} data-ficha-escolha>
         <button className="mesa-fechar" onClick={onFechar} aria-label="Fechar">
           ✕
         </button>
@@ -1166,16 +1224,18 @@ function Configurador({
         {/* Coluna da esquerda: produto e trilha de etapas */}
         <aside className="mesa-modal-lado">
           <div className="mesa-modal-foto">
-            {item.imagemUrl ? (
+            {fotoGrande(item) ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.imagemUrl} alt={item.nome} />
+              <img src={fotoGrande(item) ?? undefined} alt={item.nome} />
             ) : (
               <div className="mesa-card-foto-vazia">🍽️</div>
             )}
           </div>
           <div className="mesa-modal-resumo">
             <h2>{item.nome}</h2>
+            <Selos item={item} />
             <DescricaoDoItem texto={item.descricao} />
+            <PrecoDoItem item={item} />
           </div>
 
           <ol className="mesa-trilha">
@@ -1492,6 +1552,7 @@ const TOKENS = `
   --texto: #1F2937;
   --suave: #6B7280;
   --desabilitado: #C2CBD6;
+  --preco: #111827;
   --raio: 8px;
 
   min-height: 100dvh;
@@ -1520,8 +1581,8 @@ const TOKENS = `
 .mesa-acoes { grid-area: acoes; }
 .mesa-marca { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .mesa-logo { width: 34px; height: 34px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #fff; }
-.mesa-logo-vazia { display: grid; place-items: center; color: var(--coral); font-weight: 800; }
-.mesa-nome-loja { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mesa-logo-vazia { display: grid; place-items: center; color: var(--coral); font-weight: 700; }
+.mesa-nome-loja { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mesa-busca { flex: 1; display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.16); border-radius: var(--raio); padding: 0 10px; height: 44px; min-width: 0; }
 .mesa-busca svg { width: 16px; height: 16px; fill: rgba(255,255,255,.85); flex-shrink: 0; }
 /* O input ocupa a altura toda da etiqueta: o alvo de toque é a caixa inteira, não a
@@ -1530,7 +1591,7 @@ const TOKENS = `
 .mesa-busca input::placeholder { color: rgba(255,255,255,.75); }
 .mesa-acoes { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .mesa-etiqueta { background: rgba(0,0,0,.18); border-radius: var(--raio); padding: 6px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.mesa-botao-selecao { display: flex; align-items: center; gap: 6px; min-height: 44px; background: #fff; color: var(--coral); border: 0; border-radius: var(--raio); padding: 8px 12px; font-size: 12px; font-weight: 800; position: relative; }
+.mesa-botao-selecao { display: flex; align-items: center; gap: 6px; min-height: 44px; background: #fff; color: var(--coral); border: 0; border-radius: var(--raio); padding: 8px 12px; font-size: 12px; font-weight: 700; position: relative; }
 .mesa-botao-selecao svg { width: 16px; height: 16px; fill: currentColor; }
 .mesa-contador { background: var(--coral); color: #fff; border-radius: 999px; min-width: 18px; height: 18px; display: grid; place-items: center; font-size: 11px; padding: 0 4px; }
 
@@ -1538,7 +1599,7 @@ const TOKENS = `
 .mesa-botao-chamar {
   display: flex; align-items: center; gap: 6px; min-height: 44px;
   background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.4);
-  border-radius: var(--raio); padding: 8px 10px; font-size: 12px; font-weight: 800; white-space: nowrap;
+  border-radius: var(--raio); padding: 8px 10px; font-size: 12px; font-weight: 700; white-space: nowrap;
 }
 .mesa-botao-chamar svg { width: 16px; height: 16px; fill: currentColor; }
 .mesa-botao-chamar.chamado { background: #fff; color: var(--coral); border-color: #fff; }
@@ -1546,7 +1607,7 @@ const TOKENS = `
   background: var(--superficie); border-radius: var(--raio); padding: 22px 20px; margin: 16px;
   width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 14px;
 }
-.mesa-chamar-folha header h2 { margin: 0 0 4px; font-size: 17px; font-weight: 800; }
+.mesa-chamar-folha header h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
 .mesa-chamar-folha header p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.45; }
 .mesa-chamar-estado { margin: 0; background: #E4EFF3; color: var(--marinho); border-radius: var(--raio); padding: 10px 12px; font-size: 12px; font-weight: 700; }
 .mesa-chamar-opcoes { display: flex; flex-direction: column; gap: 8px; }
@@ -1556,7 +1617,7 @@ const TOKENS = `
 }
 .mesa-chamar-opcao:disabled { opacity: .6; cursor: default; }
 .mesa-chamar-opcao.aberta { border-color: var(--verde); background: #F0FDF4; }
-.mesa-chamar-rotulo { display: block; font-size: 13px; font-weight: 800; }
+.mesa-chamar-rotulo { display: block; font-size: 13px; font-weight: 700; }
 .mesa-chamar-descricao { display: block; font-size: 11px; color: var(--suave); margin-top: 1px; }
 .mesa-chamar-aviso { margin: 0; font-size: 12px; font-weight: 700; color: var(--marinho); }
 
@@ -1598,7 +1659,7 @@ const TOKENS = `
 .mesa-banner-foto { width: 100%; height: 100%; object-fit: cover; opacity: .82; }
 .mesa-banner-vazio { background: linear-gradient(120deg, var(--marinho), #3A4B5F); }
 .mesa-banner-texto { position: absolute; inset: auto 0 0 0; padding: 14px 16px; background: linear-gradient(transparent, rgba(0,0,0,.72)); color: #fff; display: flex; flex-direction: column; gap: 2px; }
-.mesa-banner-titulo { font-size: 20px; font-weight: 800; }
+.mesa-banner-titulo { font-size: 20px; font-weight: 700; }
 .mesa-banner-sub { font-size: 12px; opacity: .92; }
 
 .mesa-grade { display: grid; grid-template-columns: 1fr; gap: 10px; }
@@ -1611,19 +1672,23 @@ const TOKENS = `
 .mesa-card-mais { position: absolute; right: 6px; bottom: 6px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 18px; font-weight: 700; line-height: 1; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .mesa-card-texto { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .mesa-item-etiqueta { align-self: start; display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 700; line-height: 14px; white-space: nowrap; }
-.mesa-card-texto h3 { margin: 0; font-size: 14px; font-weight: 800; line-height: 1.25; }
+.mesa-card-texto h3 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; }
 .mesa-card-texto p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mesa-card-rodape { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; }
 .mesa-preco { display: flex; flex-direction: column; min-width: 0; }
 .mesa-preco-rotulo { font-size: 10px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
-.mesa-preco-valor { font-size: 16px; font-weight: 800; color: var(--coral); white-space: nowrap; }
+/* Preço escuro e em 600: lê bem sem gritar mais que o nome (antes era coral e 800). */
+.mesa-preco-linha { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
+.mesa-preco-valor { font-size: 15px; font-weight: 600; color: var(--preco); white-space: nowrap; letter-spacing: -.005em; }
+.mesa-preco-antigo { font-size: 12px; font-weight: 400; color: var(--suave); white-space: nowrap; }
+.mesa-selos { display: flex; flex-wrap: wrap; gap: 6px; align-self: start; }
 .mesa-card-foto { position: relative; width: 88px; height: 88px; align-self: start; border-radius: var(--raio); overflow: hidden; background: var(--fundo); }
 .mesa-card-foto img { width: 100%; height: 100%; object-fit: cover; }
 .mesa-card-foto-vazia { width: 100%; height: 100%; display: grid; place-items: center; font-size: 28px; }
 .mesa-vazio { grid-column: 1/-1; text-align: center; color: var(--suave); font-size: 13px; padding: 28px 0; }
 .mesa-marca-dagua { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 4px 0 96px; opacity: .45; user-select: none; pointer-events: none; }
 .mesa-marca-dagua img { width: 22px; height: 22px; filter: grayscale(1); opacity: .7; }
-.mesa-marca-dagua span { font-size: 13px; font-weight: 800; letter-spacing: .04em; color: var(--desabilitado); text-transform: lowercase; }
+.mesa-marca-dagua span { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--desabilitado); text-transform: lowercase; }
 .mesa-ver-fundo { padding: 12px; }
 /* Ficha do modo visualização: foto à esquerda (inteira, sem corte) e, à direita, nome,
    descrição e sabores — a coluna da direita rola sozinha quando a lista é longa. */
@@ -1632,10 +1697,10 @@ const TOKENS = `
 .mesa-ver-foto img { display: block; width: 100%; height: 100%; max-height: min(88dvh, 720px); object-fit: contain; }
 .mesa-ver-foto .mesa-card-foto-vazia { height: 100%; min-height: 180px; font-size: 48px; }
 .mesa-ver-texto { flex: 1 1 auto; min-width: 0; min-height: 0; padding: 16px 16px 20px; overflow-y: auto; }
-.mesa-ver-texto h2 { margin: 0 44px 6px 0; font-size: 20px; font-weight: 800; line-height: 1.25; }
+.mesa-ver-texto h2 { margin: 0 44px 6px 0; font-size: 20px; font-weight: 700; line-height: 1.25; }
 .mesa-ver-texto > p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--suave); white-space: pre-line; }
 .mesa-ver-sabores { margin-top: 16px; }
-.mesa-ver-sabores h3 { margin: 0 0 8px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--coral); }
+.mesa-ver-sabores h3 { margin: 0 0 8px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--coral); }
 .mesa-ver-sabores ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .mesa-ver-sabores li { padding: 9px 0; border-top: 1px solid var(--borda); display: flex; flex-direction: column; gap: 2px; }
 .mesa-ver-sabores li strong { font-size: 14px; font-weight: 700; }
@@ -1647,14 +1712,14 @@ const TOKENS = `
 }
 .mesa-aviso-rodape { display: flex; align-items: flex-start; gap: 10px; margin: 18px 0 12px; padding: 12px 14px; background: var(--superficie); border: 1px solid var(--borda); border-left: 4px solid var(--coral); border-radius: var(--raio); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 .mesa-aviso-rodape p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto); }
-.mesa-aviso-icone { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 13px; font-weight: 800; font-style: italic; font-family: Georgia, serif; }
+.mesa-aviso-icone { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--coral); color: #fff; font-size: 13px; font-weight: 700; font-style: italic; font-family: Georgia, serif; }
 
 /* Barra fixa */
 .mesa-barra-flutuante {
   position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 35;
   display: flex; align-items: center; justify-content: center; gap: 10px;
   background: var(--verde); color: #fff; border: 0; border-radius: var(--raio);
-  padding: 14px 16px; font-size: 14px; font-weight: 800; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  padding: 14px 16px; font-size: 14px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.18);
 }
 .mesa-barra-qtd { background: rgba(255,255,255,.22); border-radius: 999px; min-width: 22px; height: 22px; display: grid; place-items: center; font-size: 12px; }
 .mesa-barra-total { margin-left: auto; }
@@ -1667,14 +1732,14 @@ const TOKENS = `
 .mesa-modal-foto { height: 150px; background: var(--fundo); }
 .mesa-modal-foto img { width: 100%; height: 100%; object-fit: cover; }
 .mesa-modal-resumo { padding: 12px 16px 8px; }
-.mesa-modal-resumo h2 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
+.mesa-modal-resumo h2 { margin: 0 0 4px; font-size: 16px; font-weight: 700; }
 .mesa-modal-resumo p { margin: 0; font-size: 12px; color: var(--suave); line-height: 1.4; }
 .mesa-trilha { display: none; }
 .mesa-subtotal { display: none; }
 
 .mesa-modal-etapa { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .mesa-modal-etapa > header { padding: 14px 16px 8px; }
-.mesa-modal-etapa h3 { margin: 0 0 2px; font-size: 15px; font-weight: 800; }
+.mesa-modal-etapa h3 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
 .mesa-modal-etapa header p { margin: 0; font-size: 12px; color: var(--suave); }
 .mesa-opcoes { flex: 1; overflow-y: auto; padding: 4px 16px 12px; display: flex; flex-direction: column; }
 .mesa-opcao { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 4px; background: none; border: 0; border-bottom: 1px solid var(--borda); text-align: left; color: var(--texto); font-size: 13px; }
@@ -1688,9 +1753,9 @@ const TOKENS = `
 
 .mesa-qtd { display: flex; align-items: center; gap: 18px; padding: 16px; }
 .mesa-qtd button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--borda); background: var(--superficie); font-size: 20px; color: var(--texto); }
-.mesa-qtd span { min-width: 40px; height: 40px; border-radius: 50%; background: var(--coral); color: #fff; display: grid; place-items: center; font-size: 16px; font-weight: 800; }
+.mesa-qtd span { min-width: 40px; height: 40px; border-radius: 50%; background: var(--coral); color: #fff; display: grid; place-items: center; font-size: 16px; font-weight: 700; }
 .mesa-observacao { display: block; padding: 0 16px 16px; }
-.mesa-observacao span { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); margin-bottom: 6px; }
+.mesa-observacao span { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); margin-bottom: 6px; }
 .mesa-observacao textarea { width: 100%; border: 1px solid var(--borda); border-radius: var(--raio); padding: 10px; font-size: 13px; resize: vertical; outline: none; }
 .mesa-observacao textarea:focus { border-color: var(--coral); }
 
@@ -1698,14 +1763,14 @@ const TOKENS = `
 .mesa-rodape-subtotal { display: flex; flex-direction: column; }
 .mesa-rodape-subtotal span { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); }
 .mesa-rodape-subtotal strong { font-size: 16px; }
-.mesa-avancar { flex: 1; background: var(--desabilitado); color: #fff; border: 0; border-radius: var(--raio); padding: 14px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.mesa-avancar { flex: 1; background: var(--desabilitado); color: #fff; border: 0; border-radius: var(--raio); padding: 14px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .mesa-avancar.ativo { background: var(--verde); }
 .mesa-avancar.ativo:active { background: var(--verde-escuro); }
 
 /* Painel da seleção */
 .mesa-painel { background: var(--superficie); width: 100%; height: 100dvh; display: flex; flex-direction: column; }
 .mesa-painel-topo { display: flex; align-items: center; justify-content: space-between; background: var(--coral); color: #fff; padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
-.mesa-painel-topo h2 { margin: 0; font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.mesa-painel-topo h2 { margin: 0; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .mesa-painel-topo button { background: none; border: 0; color: #fff; font-size: 18px; }
 .mesa-painel-aviso { margin: 0; padding: 12px 16px; background: #FFF7E6; color: #8A5A00; font-size: 12px; line-height: 1.45; border-bottom: 1px solid var(--borda); }
 .mesa-painel-lista { flex: 1; overflow-y: auto; padding: 8px 16px; }
@@ -1713,11 +1778,11 @@ const TOKENS = `
 /* "Também nesta mesa": o que os outros celulares marcaram, em bloco separado e sem
    controles — a distinção entre "minha lista" e "a da mesa" tem de ser visível. */
 .mesa-de-outros { margin: 10px 0 4px; border-top: 1px dashed var(--borda); padding-top: 12px; }
-.mesa-de-outros h3 { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--marinho); }
+.mesa-de-outros h3 { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--marinho); }
 .mesa-de-outros > p { margin: 2px 0 8px; font-size: 11px; color: var(--suave); }
 .mesa-de-outros ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .mesa-de-outros li { display: flex; align-items: flex-start; gap: 8px; background: var(--fundo); border-radius: var(--raio); padding: 8px 10px; }
-.mesa-de-outros-qtd { font-size: 12px; font-weight: 800; color: var(--marinho); flex-shrink: 0; }
+.mesa-de-outros-qtd { font-size: 12px; font-weight: 700; color: var(--marinho); flex-shrink: 0; }
 .mesa-de-outros-nome { flex: 1; min-width: 0; font-size: 13px; display: flex; flex-direction: column; }
 .mesa-de-outros-nome small { font-size: 11px; color: var(--suave); }
 .mesa-de-outros-preco { font-size: 12px; font-weight: 700; color: var(--suave); flex-shrink: 0; }
@@ -1728,7 +1793,7 @@ const TOKENS = `
 .mesa-linha-texto strong { font-size: 13px; }
 .mesa-linha-texto small { font-size: 11px; color: var(--suave); }
 .mesa-linha-obs { font-style: italic; }
-.mesa-linha-preco { font-size: 13px; font-weight: 800; color: var(--coral); margin-top: 2px; }
+.mesa-linha-preco { font-size: 13px; font-weight: 600; color: var(--preco); margin-top: 2px; }
 .mesa-linha-acoes { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .mesa-stepper { display: flex; align-items: center; gap: 8px; border: 1px solid var(--borda); border-radius: var(--raio); padding: 2px 6px; }
 .mesa-stepper button { background: none; border: 0; font-size: 16px; color: var(--coral); width: 22px; }
@@ -1739,8 +1804,8 @@ const TOKENS = `
 .mesa-painel-total span { font-size: 12px; color: var(--suave); }
 .mesa-painel-total strong { font-size: 20px; color: var(--texto); }
 .mesa-painel-botoes { display: flex; gap: 8px; }
-.mesa-secundario { flex: 1; background: var(--superficie); border: 1px solid var(--borda); color: var(--texto); border-radius: var(--raio); padding: 13px; font-size: 12px; font-weight: 800; }
-.mesa-principal { flex: 1; background: var(--verde); border: 0; color: #fff; border-radius: var(--raio); padding: 13px; font-size: 12px; font-weight: 800; }
+.mesa-secundario { flex: 1; background: var(--superficie); border: 1px solid var(--borda); color: var(--texto); border-radius: var(--raio); padding: 13px; font-size: 12px; font-weight: 700; }
+.mesa-principal { flex: 1; background: var(--verde); border: 0; color: #fff; border-radius: var(--raio); padding: 13px; font-size: 12px; font-weight: 700; }
 .mesa-principal:disabled { background: var(--desabilitado); }
 .mesa-limpar { background: none; border: 0; color: var(--suave); font-size: 11px; text-decoration: underline; align-self: center; }
 .mesa-sincronizando { text-align: center; font-size: 11px; color: var(--suave); }
@@ -1748,7 +1813,7 @@ const TOKENS = `
 /* Progresso das etapas no celular. A trilha lateral só existe a partir de 700px; sem
    isto o cliente não sabia em que passo estava nem quantos faltavam. */
 .mesa-progresso { border-bottom: 1px solid var(--borda); padding: 10px 16px 8px; flex-shrink: 0; }
-.mesa-progresso-texto { margin: 0 0 7px; font-size: 11px; font-weight: 800; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
+.mesa-progresso-texto { margin: 0 0 7px; font-size: 11px; font-weight: 700; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
 .mesa-progresso-pendente { color: var(--coral); }
 .mesa-progresso-passos { display: flex; align-items: center; gap: 2px; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
 .mesa-progresso-passos li { flex-shrink: 0; }
@@ -1758,7 +1823,7 @@ const TOKENS = `
   width: 40px; height: 40px; border-radius: 50%; border: 7px solid transparent;
   background: var(--fundo); background-clip: padding-box;
   box-shadow: inset 0 0 0 1px var(--borda);
-  color: var(--suave); font-size: 11px; font-weight: 800;
+  color: var(--suave); font-size: 11px; font-weight: 700;
   display: grid; place-items: center; position: relative; padding: 0;
 }
 .mesa-progresso-passos li.atual button { background: var(--coral); box-shadow: inset 0 0 0 1px var(--coral); color: #fff; }
@@ -1768,7 +1833,7 @@ const TOKENS = `
 /* Confirmação */
 .mesa-confirmacao { background: var(--superficie); border-radius: var(--raio); padding: 28px 24px; margin: 16px; max-width: 360px; text-align: center; }
 .mesa-confirmacao-icone { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; border: 3px solid var(--verde); color: var(--verde); display: grid; place-items: center; font-size: 28px; }
-.mesa-confirmacao h2 { margin: 0 0 8px; font-size: 18px; font-weight: 800; }
+.mesa-confirmacao h2 { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
 .mesa-confirmacao p { margin: 0 0 18px; font-size: 13px; color: var(--suave); line-height: 1.5; }
 
 /* ── Tablet e desktop ──────────────────────────────────────────────────── */
@@ -1810,13 +1875,13 @@ const TOKENS = `
   .mesa-trilha li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--raio); color: var(--suave); }
   .mesa-trilha li.atual { background: var(--coral); color: #fff; }
   .mesa-trilha li.concluida { background: var(--marinho); color: #fff; }
-  .mesa-trilha-num { width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.12); display: grid; place-items: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+  .mesa-trilha-num { width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.12); display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
   .mesa-trilha li.atual .mesa-trilha-num, .mesa-trilha li.concluida .mesa-trilha-num { background: rgba(255,255,255,.22); }
   .mesa-trilha-texto { display: flex; flex-direction: column; min-width: 0; }
   .mesa-trilha-texto strong { font-size: 12px; }
   .mesa-trilha-texto small { font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mesa-subtotal { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--borda); }
-  .mesa-subtotal strong { font-size: 18px; color: var(--coral); }
+  .mesa-subtotal strong { font-size: 18px; font-weight: 600; color: var(--preco); }
 
   .mesa-painel { max-width: 560px; height: auto; max-height: 88dvh; border-radius: var(--raio); overflow: hidden; }
   .mesa-painel-topo { padding-top: 14px; }

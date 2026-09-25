@@ -43,13 +43,27 @@ export interface ItemEtiquetavel {
  * promoção mesmo quando o lojista não marcou nada no cadastro — é o que faz a
  * oferta ser vista na lista.
  *
- * Uma só, nunca duas empilhadas: duas pílulas sobre a mesma foto se anulam, e o
- * lojista que marca "item em destaque" quer exatamente dizer "este é o mais pedido".
+ * Uma só, nunca duas empilhadas: duas pílulas sobre a mesma foto se anulam.
+ *
+ * O favorito (estrela do Gestor, coluna `mais_vendido`) NÃO é etiqueta: ele virava
+ * "🔥 Mais pedido" e sumia sempre que o item tinha etiqueta ou promoção — o lojista
+ * marcava a estrela e não via nada no cardápio. Agora ele tem o selo próprio abaixo.
  */
 export function tagDoItem(item: ItemEtiquetavel): string | null {
   if (item.tag) return item.tag
   if (item.promocaoPreco !== null) return 'promocao'
-  return item.maisVendido ? 'mais_pedido' : null
+  return null
+}
+
+/**
+ * Selo "★ Favorito": o mesmo favorito que o Gestor marca com a estrela, na vitrine e nos
+ * dois QR (visualização e ativo). Texto, não só ícone — o leitor de tela diz "Favorito".
+ * Convive com a etiqueta (promoção, novo…), mas não repete "Favorito da casa".
+ */
+export const SELO_FAVORITO = { label: '★ Favorito', fundo: '#FEF3C7', texto: '#92400E' } as const
+
+export function mostraSeloFavorito(item: { maisVendido?: boolean; tag: string | null }): boolean {
+  return item.maisVendido === true && item.tag !== 'favorito'
 }
 
 /** Estilo pronto da etiqueta do item, ou null quando não há etiqueta. */

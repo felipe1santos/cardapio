@@ -50,9 +50,13 @@ html:has(.font-loja) {
 /* Vitrine do cliente: fonte Montserrat (o painel segue em Inter), escopada por
    segurança — cobre tanto o wrapper principal quanto a tela de erro, que são
    duas raízes `.font-loja` independentes. Decisão de 2026-09-13, ver
-   CLAUDE.md §3 e docs/superpowers/specs/2026-09-13-vitrine-banner-gaveta-design.md. */
+   CLAUDE.md §3 e docs/superpowers/specs/2026-09-13-vitrine-banner-gaveta-design.md.
+   `.fonte-vitrine` é a mesma família para o cardápio da mesa (QR), que tem escala e
+   cores próprias e por isso não usa o resto de `.font-loja` (2026-09-25). */
 .font-loja,
-.font-loja * {
+.font-loja *,
+.fonte-vitrine,
+.fonte-vitrine * {
   font-family: var(--font-vitrine), 'Montserrat', sans-serif;
 }
 

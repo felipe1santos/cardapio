@@ -127,6 +127,8 @@ export default async function PaginaDaMesa({ params }: { params: Promise<{ token
         preco: i.promocaoPreco ?? i.preco,
         precoOriginal: i.promocaoPreco !== null ? i.preco : null,
         imagemUrl: i.imagemThumbUrl ?? i.imagemUrl,
+        // A ficha aberta ocupa a largura do celular: foto cheia, não a miniatura.
+        imagemGrandeUrl: i.imagemUrl,
         grupos: i.grupos.map((g) => ({
           id: g.id,
           nome: g.nome,

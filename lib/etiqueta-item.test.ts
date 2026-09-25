@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ETIQUETAS_ITEM, etiquetaDoItem, tagDoItem } from './etiqueta-item'
+import { ETIQUETAS_ITEM, SELO_FAVORITO, etiquetaDoItem, mostraSeloFavorito, tagDoItem } from './etiqueta-item'
 import { TAGS_ITEM } from './queries/cardapio'
 
 describe('tagDoItem', () => {
@@ -16,9 +16,22 @@ describe('tagDoItem', () => {
     expect(tagDoItem({ tag: null, promocaoPreco: 19.9 })).toBe('promocao')
   })
 
-  it('destaque do cadastro entra como "mais pedido", e só quando não há nada acima', () => {
-    expect(tagDoItem({ tag: null, promocaoPreco: null, maisVendido: true })).toBe('mais_pedido')
+  it('favorito não vira etiqueta: tem selo próprio', () => {
+    expect(tagDoItem({ tag: null, promocaoPreco: null, maisVendido: true })).toBeNull()
     expect(tagDoItem({ tag: null, promocaoPreco: 5, maisVendido: true })).toBe('promocao')
+  })
+})
+
+describe('mostraSeloFavorito', () => {
+  it('aparece para o favorito, junto com promoção ou outra etiqueta', () => {
+    expect(mostraSeloFavorito({ maisVendido: true, tag: null })).toBe(true)
+    expect(mostraSeloFavorito({ maisVendido: true, tag: 'novo' })).toBe(true)
+    expect(SELO_FAVORITO.label).toBe('★ Favorito')
+  })
+  it('não aparece sem favorito nem repete "Favorito da casa"', () => {
+    expect(mostraSeloFavorito({ maisVendido: false, tag: null })).toBe(false)
+    expect(mostraSeloFavorito({ tag: null })).toBe(false)
+    expect(mostraSeloFavorito({ maisVendido: true, tag: 'favorito' })).toBe(false)
   })
 })
 

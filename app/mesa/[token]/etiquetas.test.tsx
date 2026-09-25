@@ -57,9 +57,17 @@ describe('etiquetas no cardápio da mesa', () => {
     expect(screen.getByText('🏷️ Promoção')).toBeInTheDocument()
   })
 
-  it('"item em destaque" vira mais pedido', () => {
+  it('favorito do Gestor mostra o selo "★ Favorito" (não vira "Mais pedido")', () => {
     renderizar([item({ maisVendido: true })])
-    expect(screen.getByText('🔥 Mais pedido')).toBeInTheDocument()
+    expect(screen.getByText('★ Favorito')).toBeInTheDocument()
+    expect(screen.queryByText('🔥 Mais pedido')).toBeNull()
+  })
+
+  it('favorito convive com a promoção, e o preço anterior aparece riscado', () => {
+    const { container } = renderizar([item({ maisVendido: true, preco: 9, precoOriginal: 14, precoAPartirDe: 9 })])
+    expect(screen.getByText('★ Favorito')).toBeInTheDocument()
+    expect(screen.getByText('🏷️ Promoção')).toBeInTheDocument()
+    expect(container.querySelector('.mesa-preco-antigo')?.textContent).toMatch(/14,00/)
   })
 
   it('item comum não ganha etiqueta nenhuma', () => {
