@@ -31,10 +31,63 @@ const loja = (await um(`select id from restaurantes where slug='cantina-demo'`))
 for (const t of ['impressao_trabalhos', 'impressao_funcoes', 'impressao_dispositivos', 'impressao_pareamentos', 'impressao_agentes', 'impressao_reservas']) {
   await db.query(`delete from ${t} where restaurante_id=$1`, [loja])
 }
-await db.query(`update restaurantes set impressao_beta_liberado=true, impressao_beta_modo='caixa', impressao_cozinha_por_funcao=false where id=$1`, [loja])
+// Primeiro a loja NÃO liberada (estado de toda loja em produção): download para todos, nada ativado.
+await db.query(`update restaurantes set impressao_beta_liberado=false, impressao_beta_modo='teste', impressao_cozinha_por_funcao=false where id=$1`, [loja])
+const URL_BETA = 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.1/AssistenteMenuziaBeta-Setup-0.2.0-beta.1.exe'
+const URL_ATUAL = 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.23/AssistenteImpressaoMenuzia-Setup-0.1.23.exe'
 
 const browser = await chromium.launch()
 try {
+  const estado = async () => JSON.stringify(await um(`select r.impressao_beta_liberado b, r.impressao_beta_modo m, r.impressao_cozinha_por_funcao f,
+    (select count(*) from impressao_agentes a where a.restaurante_id=r.id)::int agentes, (select count(*) from impressao_trabalhos t where t.restaurante_id=r.id)::int trabalhos,
+    (select count(*) from impressao_pareamentos p where p.restaurante_id=r.id)::int codigos from restaurantes r where r.id=$1`, [loja]))
+  const antes = await estado()
+  for (const usuario of ['dono.local', 'gerente.local']) {
+    const ctxN = await browser.newContext()
+    const pg = await ctxN.newPage()
+    await pg.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
+    await pg.fill('input[name="email"]', usuario)
+    await pg.fill('input[name="password"]', SENHA)
+    await Promise.all([pg.waitForURL((u) => u.pathname.startsWith('/admin'), { timeout: 30000 }).catch(() => {}), pg.click('button[type="submit"]')])
+    for (const [w, h] of [[360, 780], [390, 844], [412, 915], [768, 1024], [1366, 768], [1920, 1080]]) {
+      await pg.setViewportSize({ width: w, height: h })
+      await pg.goto(`${BASE}/admin/impressao`, { waitUntil: 'domcontentloaded' })
+      await pg.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 2500 }).catch(() => {})
+      const beta = pg.getByTestId('baixar-beta')
+      await beta.waitFor({ timeout: 15000 })
+      const caixa = await beta.boundingBox()
+      const hrefs = await pg.evaluate(() => [...document.querySelectorAll('a[href*="releases/download"]')].map((a) => a.href))
+      ok(`${usuario} ${w}px: baixa o atual e o Beta, botão dentro da tela`, hrefs.includes(URL_ATUAL) && hrefs.includes(URL_BETA) && !!caixa && caixa.x >= 0 && caixa.x + caixa.width <= w + 1)
+      if (w === 390 && usuario === 'dono.local') await pg.screenshot({ path: join(SHOTS, 'botao-beta-nao-liberada-390.png'), fullPage: false })
+      if (w === 1366 && usuario === 'dono.local') await pg.screenshot({ path: join(SHOTS, 'botao-beta-nao-liberada-1366.png') })
+    }
+    ok(`${usuario}: aviso "ativação é feita pelo suporte" e sem botão de parear`, /ativação do Beta nesta loja é feita pelo suporte/.test(await pg.getByTestId('beta-nao-liberado').innerText()) && (await pg.getByTestId('gerar-codigo').count()) === 0)
+    ok(`${usuario}: texto de versão opcional`, (await pg.content()).includes('Versão opcional para testar impressoras separadas para Cozinha e Caixa. Continue usando o Assistente atual, salvo orientação do suporte Menuzia.'))
+    const r = await pg.evaluate(async () => {
+      const par = await fetch('/api/admin/impressao/pareamento', { method: 'POST' })
+      const modo = await fetch('/api/admin/impressao/modo', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modo: 'caixa' }) })
+      return { par: par.status, parCod: (await par.json()).codigo, modo: modo.status, modoCod: (await modo.json()).codigo }
+    })
+    ok(`${usuario}: loja não liberada não pareia nem muda modo (403)`, r.par === 403 && r.parCod === 'beta_nao_liberado' && r.modo === 403 && r.modoCod === 'beta_nao_liberado', JSON.stringify(r))
+    await ctxN.close()
+  }
+  ok('links sem credencial nem token (só o endereço público da release)', [URL_ATUAL, URL_BETA].every((u) => !new URL(u).search && !/mza_ag_|token|credencial/i.test(u)))
+  ok('ver a página e o botão não ativa flag, não cria computador, código nem trabalho', (await estado()) === antes, await estado())
+  // Atendente e garçom: sem administração da impressão (mesma regra de antes).
+  for (const usuario of ['atendente.local', 'garcom.local']) {
+    const c3 = await browser.newContext()
+    const p3 = await c3.newPage()
+    await p3.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
+    await p3.fill('input[name="email"]', usuario)
+    await p3.fill('input[name="password"]', SENHA)
+    await Promise.all([p3.waitForURL((u) => u.pathname.startsWith('/admin'), { timeout: 30000 }).catch(() => {}), p3.click('button[type="submit"]')])
+    const st = await p3.evaluate(async () => ({ painel: (await fetch('/api/admin/impressao/painel')).status, logo: (await fetch('/api/admin/impressao/logo')).status }))
+    await p3.goto(`${BASE}/admin/impressao`, { waitUntil: 'domcontentloaded' })
+    ok(`${usuario}: sem acesso à administração da impressão`, st.painel === 403 && st.logo === 403 && (await p3.getByTestId('baixar-beta').count()) === 0, JSON.stringify({ ...st, url: new URL(p3.url()).pathname }))
+    await c3.close()
+  }
+
+  await db.query(`update restaurantes set impressao_beta_liberado=true, impressao_beta_modo='caixa', impressao_cozinha_por_funcao=false where id=$1`, [loja])
   const ctx = await browser.newContext()
   const page = await ctx.newPage()
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
