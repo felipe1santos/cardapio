@@ -8,6 +8,7 @@ import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { InstalarAppButton } from '@/components/instalar-app-button'
+import { Field, Input, ToggleRow } from '@/components/admin/campos-ajustes'
 import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -39,18 +40,6 @@ import { turnosDoDia } from '@/lib/timezone'
 import { StorePinMap } from '@/components/maps/store-pin-map'
 import { composeEndereco } from '@/lib/endereco'
 import { PALETAS, temaCores } from '@/lib/paletas'
-import {
-  buscarConfigImpressao,
-  atualizarConfigImpressao,
-  listarImpressoras,
-  criarImpressora,
-  atualizarImpressora,
-  removerImpressora,
-  buscarStatusAgente,
-  type ConfigImpressao,
-  type Impressora,
-  type ImpressoraInput,
-} from '@/lib/queries/impressao'
 import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao, removerEstacao, type Estacao } from '@/lib/queries/estacoes'
 import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
@@ -58,7 +47,7 @@ import { CardModuloMesas } from '@/components/admin/modulo-mesas'
 import { CardapioDaMesaConfig } from '@/app/admin/mesas/cardapio-mesa'
 import { ConfigConta } from '@/app/admin/mesas/config-conta'
 
-type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'impressao' | 'conta' | 'aparencia' | 'cozinha'
+type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'conta' | 'aparencia' | 'cozinha'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
@@ -66,56 +55,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'mesas', label: 'Mesas' },
   { id: 'qrcode', label: 'QR Code' },
   { id: 'aparencia', label: 'Aparência' },
-  { id: 'impressao', label: 'Impressão' },
   { id: 'cozinha', label: 'Cozinha' },
   { id: 'conta', label: 'Conta' },
 ]
-
-function ToggleSwitch({ checked, onChange, disabled, rotulo }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; /** Nome lido em voz alta — obrigatório quando o texto ao lado não é do próprio botão. */ rotulo?: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={rotulo}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={[
-        'inline-flex h-[22px] w-[38px] flex-shrink-0 items-center rounded-full border p-[2px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'border-primary bg-primary' : 'border-border bg-border',
-      ].join(' ')}
-    >
-      <span
-        className={[
-          'block h-[16px] w-[16px] flex-shrink-0 rounded-full bg-white shadow transition-transform',
-          checked ? 'translate-x-[16px]' : 'translate-x-0',
-        ].join(' ')}
-      />
-    </button>
-  )
-}
-
-function ToggleRow({ label, hint, checked, onChange, disabled }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-none">
-      <div>
-        <div className="text-[13px] font-medium text-text-main">{label}</div>
-        {hint && <p className="mt-0.5 text-[11px] text-text-subtle">{hint}</p>}
-      </div>
-      <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} rotulo={label} />
-    </div>
-  )
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</label>
-      {children}
-      {hint && <p className="mt-1.5 text-[11px] text-text-subtle">{hint}</p>}
-    </div>
-  )
-}
 
 /** Bloco de seção do painel de ajustes — agrupa campos afins sob um título. */
 function Secao({
@@ -145,18 +87,6 @@ function CampoLabel({ children }: { children: React.ReactNode }) {
   return <label className="mb-1 block text-[11px] font-medium text-text-subtle">{children}</label>
 }
 
-function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={[
-        'w-full rounded-menuzia border border-border bg-white px-3 py-2.5 font-sans text-sm text-text-main outline-none transition-colors',
-        'focus:border-primary placeholder:text-text-subtle/60 disabled:bg-page disabled:text-text-subtle',
-        props.className ?? '',
-      ].join(' ')}
-    />
-  )
-}
 
 /** Feedback central de salvamento: spinner enquanto grava, check verde ao concluir. */
 function SaveOverlay({ estado }: { estado: 'saving' | 'ok' }) {
@@ -1600,530 +1530,6 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
   )
 }
 
-// ─── Aba Impressão ──────────────────────────────────────────────────────────
-
-const TAMANHOS_FONTE = [
-  { value: 'grande', label: 'Grande (recomendado)' },
-  { value: 'media', label: 'Média' },
-  { value: 'pequena', label: 'Pequena (mais conteúdo por linha)' },
-]
-// Largura do papel -> nº de colunas base (a fonte escala a partir disso).
-const LARGURAS_PAPEL = [
-  { value: 48, label: '80mm (padrão)' },
-  { value: 32, label: '58mm (bobina pequena)' },
-]
-
-const IMPRESSORA_VAZIA: ImpressoraInput = { nome: '', tamanhoFonte: 'grande', largura: 48, copias: 1 }
-
-function ImpressoraModal({
-  initial,
-  onSave,
-  onClose,
-}: {
-  initial: ImpressoraInput
-  onSave: (input: ImpressoraInput) => Promise<void>
-  onClose: () => void
-}) {
-  const [form, setForm] = useState<ImpressoraInput>(initial)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSave() {
-    if (!form.nome.trim()) {
-      setError('Dê um nome para a impressora.')
-      return
-    }
-    setSaving(true)
-    setError(null)
-    try {
-      await onSave(form)
-    } catch {
-      setError('Não foi possível salvar a impressora.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-menuzia bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-4.5 py-3.5">
-          <h3 className="text-[15px] font-bold">Editar impressora</h3>
-          <button onClick={onClose} className="flex h-[28px] w-[28px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
-        </div>
-        <div className="space-y-3.5 p-4.5">
-          <Field label="Nome da impressora" hint="Só um apelido pra você identificar (ex.: Cozinha, Balcão).">
-            <Input value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} placeholder="Ex: Impressora Padrão" />
-          </Field>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Field label="Tamanho da fonte" hint="'Grande' = letras maiores. Use 'Grande' pra recibo bem legível.">
-                <select value={form.tamanhoFonte} onChange={(e) => setForm((p) => ({ ...p, tamanhoFonte: e.target.value }))}
-                  className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
-                  {TAMANHOS_FONTE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </Field>
-            </div>
-            <div className="flex-1">
-              <Field label="Largura do papel" hint="A bobina que você usa.">
-                <select value={form.largura} onChange={(e) => setForm((p) => ({ ...p, largura: Number(e.target.value) }))}
-                  className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary">
-                  {LARGURAS_PAPEL.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-                </select>
-              </Field>
-            </div>
-          </div>
-          <Field label="Cópias impressas por pedido">
-            <Input type="number" min={1} max={5} value={form.copias} onChange={(e) => setForm((p) => ({ ...p, copias: Number(e.target.value) || 1 }))} />
-          </Field>
-          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-        </div>
-        <div className="flex gap-2.5 border-t border-border p-4.5">
-          <Button variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button className="flex-1" onClick={handleSave} disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Preview do recibo: PORT FIEL do printer-agent/src/recibo.js ─────────────
-// Estes helpers e a função montarReciboTexto reproduzem EXATAMENTE o que o agente
-// imprime (mesmas seções, mesma largura, mesma quebra de linha), pra a prévia bater
-// 1:1 com a impressão real. Se mudar o recibo.js do agente, mude aqui também.
-
-function brlR(v: number): string { return `R$ ${v.toFixed(2).replace('.', ',')}` }
-
-/** Tamanho da fonte (config da impressora) -> nº de colunas — espelha o agente (main.js).
- * Relativo à largura base do papel: em 48 dá grande=30/média=38/pequena=48; em 32
- * (58mm) escala junto (grande=20/média=25/pequena=32). */
-function colsParaFontePreview(tamanho: string | undefined, largura: number): number {
-  const t = String(tamanho || '').toLowerCase()
-  const base = Number(largura) > 0 ? Number(largura) : 48
-  if (t.includes('grand')) return Math.max(14, Math.round(base * 0.55))
-  if (t.includes('med') || t.includes('norm')) return Math.max(16, Math.round(base * 0.72))
-  return base
-}
-
-interface PreviewItem { quantidade: number; nome: string; precoUnitario: number; tamanhoNome: string; saborNome: string; bordaNome: string; massaNome: string; complementos: { nome: string; preco: number }[]; observacao: string }
-interface PreviewPedido { numero: number; tipo: 'entrega' | 'retirada'; clienteNome: string; clienteTelefone: string; enderecoRua: string; enderecoNumero: string; enderecoComplemento: string; enderecoBairro: string; enderecoCep: string; formaPagamento: string; trocoPara: number | null; pago: boolean; origem: string; mesa: string | null; observacao: string; criadoEm: string; subtotal: number; taxaEntrega: number; total: number; itens: PreviewItem[] }
-
-// Pedido fictício só pra ilustrar — não vem do banco. Traz de propósito um complemento
-// COM preço, uma observação de item, observação do pedido e pagamento em dinheiro com
-// troco, pra que TODOS os toggles (preço/nome dos complementos, multiplicar opções etc.)
-// produzam mudança visível na prévia ao serem ligados/desligados.
-const PEDIDO_PREVIEW_RECIBO: PreviewPedido = {
-  numero: 1234,
-  tipo: 'entrega',
-  clienteNome: 'João Silva',
-  clienteTelefone: '(81) 99999-0000',
-  enderecoRua: 'Rua das Flores', enderecoNumero: '123', enderecoComplemento: 'Apto 202', enderecoBairro: 'Centro', enderecoCep: '52000-000',
-  formaPagamento: 'dinheiro', trocoPara: 150, pago: false, origem: 'cardapio', mesa: null,
-  observacao: 'Tocar a campainha', criadoEm: '2026-07-14T20:30:00-03:00',
-  subtotal: 110, taxaEntrega: 6, total: 116,
-  itens: [
-    { quantidade: 2, nome: 'Pizza Grande', precoUnitario: 45, tamanhoNome: 'Grande', saborNome: 'Calabresa', bordaNome: 'Catupiry', massaNome: '', complementos: [{ nome: 'Bacon extra', preco: 4 }], observacao: 'Bem assada' },
-    { quantidade: 1, nome: 'Coca-Cola 2L', precoUnitario: 12, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [{ nome: 'Bem gelada', preco: 0 }], observacao: '' },
-  ],
-}
-
-// Linha tipada do recibo — espelha os marcadores de montarReciboLinhas() do agente
-// (recibo.js). O preview desenha cada tipo com CSS (barra preta, item negrito, etc.).
-type ReciboLinha =
-  | { t: 'N'; s: string } | { t: 'H'; s: string } | { t: 'C'; s: string }
-  | { t: 'I'; nome: string; preco: string } | { t: 'S'; s: string }
-  | { t: 'P'; k: string; v: string } | { t: 'T'; k: string; v: string }
-  | { t: 'L'; s: string } | { t: 'R' } | { t: 'F'; s: string }
-
-/** Mesma lógica de montarReciboLinhas() do agente, retornando linhas tipadas. */
-function montarReciboLinhasPreview(pedido: PreviewPedido, config: ConfigImpressao, lojaNome: string, temLogoImagem: boolean): ReciboLinha[] {
-  const L: ReciboLinha[] = []
-  if (config.imprimirLogo && lojaNome && !temLogoImagem) L.push({ t: 'N', s: lojaNome.toUpperCase() })
-
-  L.push({ t: 'H', s: `PEDIDO #${pedido.numero}` })
-  L.push({ t: 'C', s: pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA' })
-  if (pedido.origem === 'pdv') L.push({ t: 'C', s: pedido.mesa ? `MESA ${pedido.mesa}` : 'BALCAO (PDV)' })
-  if (pedido.criadoEm) {
-    const dt = new Date(pedido.criadoEm)
-    if (!isNaN(dt.getTime())) {
-      L.push({ t: 'C', s: dt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' -') })
-    }
-  }
-
-  const totalUnidades = pedido.itens.reduce((s, i) => s + (i.quantidade || 1), 0)
-  L.push({ t: 'H', s: `ITENS (${totalUnidades})` })
-  pedido.itens.forEach((item, idx) => {
-    const baseNome = config.mostrarNumeroItem ? `${item.quantidade}x ${item.nome}` : item.nome
-    const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
-    const nome = variacao ? `${baseNome} (${variacao})` : baseNome
-    L.push({ t: 'I', nome, preco: brlR(item.precoUnitario * item.quantidade) })
-    if (item.bordaNome) L.push({ t: 'S', s: `+ Borda: ${item.bordaNome}` })
-    if (item.massaNome) L.push({ t: 'S', s: `+ Massa: ${item.massaNome}` })
-    if (config.mostrarNomeComplementos) {
-      // Espelha o agente: complementos repetidos agrupados como "2x Nome".
-      const agrupados = new Map<string, { nome: string; preco: number; qtd: number }>()
-      for (const comp of item.complementos) {
-        const cur = agrupados.get(comp.nome) ?? { nome: comp.nome, preco: comp.preco, qtd: 0 }
-        cur.qtd += 1
-        agrupados.set(comp.nome, cur)
-      }
-      for (const comp of agrupados.values()) {
-        const precoComp = comp.preco * comp.qtd * (config.multiplicarOpcoesQtd ? item.quantidade : 1)
-        const precoTxt = config.mostrarPrecoComplementos && precoComp > 0 ? ` (+${brlR(precoComp)})` : ''
-        L.push({ t: 'S', s: `+ ${comp.qtd > 1 ? `${comp.qtd}x ` : ''}${comp.nome}${precoTxt}` })
-      }
-    }
-    if (item.observacao) L.push({ t: 'S', s: `Obs: ${item.observacao}` })
-    if (idx < pedido.itens.length - 1) L.push({ t: 'R' })
-  })
-
-  L.push({ t: 'H', s: 'PAGAMENTO' })
-  L.push({ t: 'P', k: 'Subtotal', v: brlR(pedido.subtotal) })
-  if (pedido.tipo === 'entrega') L.push({ t: 'P', k: 'Taxa de entrega', v: brlR(pedido.taxaEntrega) })
-  L.push({ t: 'T', k: 'TOTAL', v: brlR(pedido.total) })
-  L.push({ t: 'L', s: `Pagamento: ${pedido.formaPagamento.toUpperCase()}` })
-  if (typeof pedido.pago === 'boolean') L.push({ t: 'L', s: pedido.pago ? 'Status: PAGO' : 'Status: A RECEBER' })
-  if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) L.push({ t: 'L', s: `Troco para: ${brlR(pedido.trocoPara)}` })
-  if (pedido.observacao) L.push({ t: 'L', s: `Obs. do pedido: ${pedido.observacao}` })
-
-  if (pedido.clienteNome || pedido.clienteTelefone || pedido.tipo === 'entrega') {
-    L.push({ t: 'H', s: 'CLIENTE' })
-    if (pedido.clienteNome) L.push({ t: 'L', s: `Cliente: ${pedido.clienteNome}` })
-    if (pedido.clienteTelefone) L.push({ t: 'L', s: `Tel.: ${pedido.clienteTelefone}` })
-    if (pedido.tipo === 'entrega') {
-      L.push({ t: 'L', s: `End.: ${pedido.enderecoRua}, ${pedido.enderecoNumero}` })
-      if (pedido.enderecoComplemento) L.push({ t: 'L', s: `Compl.: ${pedido.enderecoComplemento}` })
-      if (pedido.enderecoBairro) L.push({ t: 'L', s: `Bairro: ${pedido.enderecoBairro}` })
-      if (pedido.enderecoCep) L.push({ t: 'L', s: `CEP: ${pedido.enderecoCep}` })
-    }
-  }
-
-  L.push({ t: 'F', s: 'feito por Menuzia.com.br' })
-  return L
-}
-
-function ReciboPreview({ config, nomeLoja, logoUrl }: { config: ConfigImpressao; nomeLoja: string; logoUrl: string | null; cols: number }) {
-  const temLogoImagem = Boolean(config.imprimirLogo && logoUrl)
-  const linhas = useMemo(
-    () => montarReciboLinhasPreview(PEDIDO_PREVIEW_RECIBO, config, nomeLoja, temLogoImagem),
-    [config, nomeLoja, temLogoImagem],
-  )
-
-  return (
-    <div className="sticky top-0">
-      <h3 className="mb-2 text-[13px] font-bold text-text-main">Como vai ficar o recibo</h3>
-      <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-        Prévia <b>fiel</b> do que o agente imprime — mesmas seções, barras, negrito e rodapé. Atualiza ao vivo.
-      </p>
-      <div className="rounded-menuzia border border-border bg-[#F3F4F6] p-4">
-        <div className="mx-auto w-[300px] max-w-full rounded bg-white px-3 py-3 shadow-sm font-sans text-text-main">
-          {temLogoImagem && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl!} alt="Logo da loja" className="mx-auto mb-1 block w-[55%] object-contain" />
-          )}
-          {linhas.map((l, i) => {
-            switch (l.t) {
-              case 'N': return <div key={i} className="mb-1 text-center text-[18px] font-extrabold leading-tight">{l.s}</div>
-              case 'H': return <div key={i} className="my-1 bg-black py-[3px] text-center text-[13px] font-bold uppercase tracking-wide text-white">{l.s}</div>
-              case 'C': return <div key={i} className="text-center text-[14px] font-bold">{l.s}</div>
-              case 'I': return <div key={i} className={['mt-1.5 flex justify-between gap-2 font-bold leading-tight', config.fonteMaiorProducao ? 'text-[19px]' : 'text-[15px]'].join(' ')}><span>{l.nome}</span><span className="whitespace-nowrap">{l.preco}</span></div>
-              case 'S': return <div key={i} className={['mb-0.5 pl-3 leading-snug', config.fonteMaiorProducao ? 'text-[15px] font-semibold text-text-main' : 'text-[13px] text-text-subtle'].join(' ')}>{l.s}</div>
-              case 'P': return <div key={i} className="mb-0.5 flex justify-between text-[13px]"><span>{l.k}</span><span>{l.v}</span></div>
-              case 'T': return <div key={i} className="mt-1 flex items-end justify-between border-t border-black pt-1 text-[22px] font-extrabold leading-none"><span>{l.k}</span><span>{l.v}</span></div>
-              case 'L': return <div key={i} className="mb-0.5 text-[13px] leading-snug">{l.s}</div>
-              case 'R': return <div key={i} className="my-1 border-t border-dotted border-black/60" />
-              case 'F': return <div key={i} className="mt-3 text-center text-[10px] text-text-subtle">{l.s}</div>
-            }
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TabImpressao({ restauranteId, active }: { restauranteId: string; active: boolean }) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [loaded, setLoaded] = useState(false)
-  const [config, setConfig] = useState<ConfigImpressao | null>(null)
-  const [impressoras, setImpressoras] = useState<Impressora[]>([])
-  const [nomeLoja, setNomeLoja] = useState('')
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [modal, setModal] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
-  const [gerandoToken, setGerandoToken] = useState(false)
-  const [tokenCopiado, setTokenCopiado] = useState(false)
-  // Impressora "conectada": qual o agente reportou estar usando, e há quanto tempo.
-  const [impressoraConectadaId, setImpressoraConectadaId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (loaded) return
-    // O token vem por rota de servidor (só dono, 0080); o navegador não lê a coluna.
-    const token = fetch('/api/admin/impressao/token', { cache: 'no-store' })
-      .then((r) => (r.ok ? (r.json() as Promise<{ token: string | null }>) : { token: null }))
-      .then((d) => d.token)
-      .catch(() => null)
-    Promise.all([buscarConfigImpressao(supabase, restauranteId), listarImpressoras(supabase, restauranteId), buscarConfigLoja(supabase, restauranteId), token]).then(([cfg, lista, loja, tk]) => {
-      setConfig(cfg ? { ...cfg, agenteToken: tk } : cfg)
-      setImpressoras(lista)
-      setNomeLoja(loja?.nome ?? '')
-      setLogoUrl(loja?.logoUrl ?? null)
-      setLoaded(true)
-    })
-  }, [supabase, restauranteId, loaded])
-
-  // Enquanto a aba está visível, consulta o status do agente a cada 8s. Considera
-  // "conectada" só se o agente foi visto nos últimos 30s (o agente faz heartbeat a 5s).
-  useEffect(() => {
-    if (!active) return
-    let vivo = true
-    async function checar() {
-      try {
-        const s = await buscarStatusAgente(supabase, restauranteId)
-        const recente = !!s.vistoEm && Date.now() - new Date(s.vistoEm).getTime() < 30_000
-        if (vivo) setImpressoraConectadaId(recente ? s.impressoraId : null)
-      } catch {
-        if (vivo) setImpressoraConectadaId(null)
-      }
-    }
-    checar()
-    const id = setInterval(checar, 8_000)
-    return () => { vivo = false; clearInterval(id) }
-  }, [active, supabase, restauranteId])
-
-  async function patch(p: Partial<ConfigImpressao>) {
-    if (!config) return
-    setConfig({ ...config, ...p })
-    try {
-      await atualizarConfigImpressao(supabase, restauranteId, p)
-    } catch {
-      setError('Não foi possível salvar a configuração.')
-    }
-  }
-
-  async function handleGerarToken() {
-    setGerandoToken(true)
-    try {
-      const res = await fetch('/api/admin/impressao/token', { method: 'POST' })
-      if (!res.ok) throw new Error('falhou')
-      const { token } = (await res.json()) as { token: string }
-      setConfig((prev) => (prev ? { ...prev, agenteToken: token } : prev))
-    } catch {
-      setError('Não foi possível gerar o token de pareamento.')
-    } finally {
-      setGerandoToken(false)
-    }
-  }
-
-  function copiarToken() {
-    if (!config?.agenteToken) return
-    navigator.clipboard.writeText(config.agenteToken).then(() => {
-      setTokenCopiado(true)
-      setTimeout(() => setTokenCopiado(false), 2000)
-    })
-  }
-
-  async function salvarImpressora(input: ImpressoraInput) {
-    if (modal?.id) {
-      await atualizarImpressora(supabase, modal.id, input)
-      setImpressoras((prev) => prev.map((i) => (i.id === modal.id ? { ...i, ...input } : i)))
-    } else {
-      const nova = await criarImpressora(supabase, restauranteId, input, impressoras.length)
-      setImpressoras((prev) => [...prev, nova])
-    }
-    setModal(null)
-  }
-
-  async function excluirImpressora(id: string) {
-    if (!confirm('Excluir esta impressora?')) return
-    try {
-      await removerImpressora(supabase, id)
-      setImpressoras((prev) => prev.filter((i) => i.id !== id))
-    } catch {
-      setError('Não foi possível excluir a impressora.')
-    }
-  }
-
-  if (!loaded || !config) {
-    return <div className={['flex flex-1 items-center justify-center text-sm text-text-subtle', !active ? 'hidden' : ''].join(' ')}>Carregando…</div>
-  }
-
-  return (
-    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
-      <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="grid grid-cols-1 gap-5 xl:max-w-[1040px] xl:grid-cols-[1fr_340px]">
-        <div className="space-y-6">
-          {/* App / atalho na área de trabalho */}
-          <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Aplicativo Menuzia (atalho)</h3>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Instale o painel como aplicativo na área de trabalho / tela inicial — abre em janela
-              própria, sem a barra do navegador, com o ícone da Menuzia. Normalmente o navegador
-              oferece a instalação sozinho; se não aparecer, use o botão abaixo.
-            </p>
-            <InstalarAppButton />
-          </Card>
-
-          {/* Várias impressoras e pré-conta (0.1.26+) */}
-          <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Várias impressoras e pré-conta</h3>
-            <p className="mb-2 text-[12px] leading-relaxed text-text-subtle">
-              Pareie cada computador com um código, escolha a impressora da Cozinha e a do Caixa (pré-conta), teste e
-              acompanhe o histórico. Gerente também tem acesso.
-            </p>
-            <a href="/admin/impressao" className="inline-block rounded-menuzia border-2 border-primary px-3 py-1.5 text-[12px] font-bold text-primary hover:bg-primary hover:text-white">
-              Abrir Impressão
-            </a>
-          </Card>
-
-          {/* Assistente de Impressão */}
-          <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Assistente de Impressão Menuzia</h3>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
-              Programa instalado no computador da loja que liga o Menuzia à impressora física. Baixe, gere o
-              token abaixo e cole-o no Assistente ao abrir pela primeira vez — depois disso, os pedidos podem ser
-              impressos automaticamente sem precisar abrir o navegador.
-            </p>
-            <a
-              href="https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.23/AssistenteImpressaoMenuzia-Setup-0.1.23.exe"
-              className="mb-3 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-yellow-400"
-            >
-              ⬇ Baixar Assistente de Impressão (Windows)
-            </a>
-            <p className="mb-3 text-[11px] text-text-subtle">
-              Baixa o instalador (.exe, ~75MB). É só dar dois cliques: ele instala sozinho (sem pedir senha de
-              administrador), cria um atalho na área de trabalho e abre o programa. Se aparecer
-              &ldquo;O Windows protegeu o computador&rdquo;, clique em &ldquo;Mais informações&rdquo; → &ldquo;Executar assim mesmo&rdquo;.
-            </p>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-menuzia border border-alert-bg bg-alert-bg/60 p-3">
-              <span className="text-[12px] font-semibold text-alert-text">Primeira vez configurando? Siga o guia passo a passo:</span>
-              <a
-                href="/guia-impressora.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-menuzia bg-primary px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark"
-              >
-                Abrir guia online
-              </a>
-            </div>
-            <div className="rounded-menuzia border border-border p-4">
-              <ToggleRow label="Ativar uso do Assistente de Impressão" checked={config.ativarAssistente} onChange={(v) => patch({ ativarAssistente: v })} />
-              <ToggleRow label="Impressão automática de pedidos" hint="Imprime sozinho assim que o pedido chega, sem precisar clicar em nada." checked={config.impressaoAutomatica} onChange={(v) => patch({ impressaoAutomatica: v })} />
-              <ToggleRow label="Aceitar pedidos automaticamente" hint="Move o pedido para “Preparando” no Kanban assim que ele chega." checked={config.aceitarPedidosAutomaticamente} onChange={(v) => patch({ aceitarPedidosAutomaticamente: v })} />
-
-              <div className="mt-3 rounded-menuzia bg-page p-3">
-                {config.agenteToken ? (
-                  <>
-                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Token de pareamento</div>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 truncate rounded-menuzia border border-[#0B1220] bg-[#0B1220] px-2.5 py-2 font-mono text-[12px] tracking-wide text-cyan-300">{config.agenteToken}</code>
-                      <Button variant="outline" onClick={copiarToken}>{tokenCopiado ? 'Copiado!' : 'Copiar'}</Button>
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-text-subtle">Cole esse token na tela de pareamento do Assistente de Impressão instalado no computador da loja.</p>
-                    <button onClick={handleGerarToken} disabled={gerandoToken} className="mt-2 text-[11px] font-semibold text-primary hover:underline disabled:opacity-50">
-                      {gerandoToken ? 'Gerando…' : 'Gerar novo token (invalida o atual)'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="mb-2 text-[12px] text-text-subtle">Nenhum token gerado ainda. Gere um para parear o Assistente de Impressão com esta loja.</p>
-                    <Button variant="outline" onClick={handleGerarToken} disabled={gerandoToken}>{gerandoToken ? 'Gerando…' : 'Gerar token de pareamento'}</Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          {/* Impressoras cadastradas */}
-          <Card>
-            <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-[13px] font-bold text-text-main">Impressoras</h3>
-              <Button variant="outline" onClick={() => setModal({ id: null, input: IMPRESSORA_VAZIA })}>+ Nova impressora</Button>
-            </div>
-            <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">Cadastre uma ou mais impressoras (ex.: cozinha e balcão). A que estiver conectada ao Assistente fica destacada em amarelo.</p>
-            {impressoras.length === 0 && (
-              <div className="rounded-menuzia border border-dashed border-border bg-page px-3.5 py-5 text-center text-[13px] text-text-subtle">Nenhuma impressora cadastrada ainda.</div>
-            )}
-            <div className="space-y-2">
-              {impressoras.map((imp) => {
-                const conectada = imp.id === impressoraConectadaId
-                return (
-                  <div
-                    key={imp.id}
-                    className={`flex items-center justify-between gap-3 rounded-menuzia border-l-[3px] px-3.5 py-3 transition-colors ${
-                      conectada
-                        ? 'border border-l-yellow-400 border-yellow-400 bg-yellow-200'
-                        : 'border border-l-primary border-border bg-alert-bg/60'
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className="truncate text-[13px] font-semibold text-text-main">{imp.nome}</div>
-                        {conectada && (
-                          <span className="inline-flex items-center gap-1 rounded-menuzia bg-yellow-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
-                            <span className="h-1.5 w-1.5 rounded-full bg-black" /> Conectada
-                          </span>
-                        )}
-                      </div>
-                      <div className="truncate text-[11px] text-text-subtle">Papel {imp.largura === 32 ? '58mm' : '80mm'} · fonte {imp.tamanhoFonte} · {imp.copias}x</div>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        onClick={() => setModal({ id: imp.id, input: { nome: imp.nome, tamanhoFonte: imp.tamanhoFonte, largura: imp.largura, copias: imp.copias } })}
-                        className="text-[12px] font-semibold text-primary hover:underline"
-                      >Editar</button>
-                      <button onClick={() => excluirImpressora(imp.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-
-          {/* Configurações gerais de impressão */}
-          <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Configurações gerais</h3>
-            <div className="rounded-menuzia border border-border p-4">
-              <ToggleRow label="Mostrar número do item na impressão" checked={config.mostrarNumeroItem} onChange={(v) => patch({ mostrarNumeroItem: v })} />
-              <ToggleRow label="Mostrar preço dos complementos na impressão" checked={config.mostrarPrecoComplementos} onChange={(v) => patch({ mostrarPrecoComplementos: v })} />
-              <ToggleRow label="Mostrar nome dos complementos na impressão" checked={config.mostrarNomeComplementos} onChange={(v) => patch({ mostrarNomeComplementos: v })} />
-              <ToggleRow label="Usar fonte maior na via de produção" checked={config.fonteMaiorProducao} onChange={(v) => patch({ fonteMaiorProducao: v })} />
-              <ToggleRow label="Multiplicar opções pela quantidade do produto" checked={config.multiplicarOpcoesQtd} onChange={(v) => patch({ multiplicarOpcoesQtd: v })} />
-              <ToggleRow label="Imprimir logo da loja na nota" checked={config.imprimirLogo} onChange={(v) => patch({ imprimirLogo: v })} />
-            </div>
-          </Card>
-
-          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-        </div>
-
-        <Card className="sticky top-0">
-          <ReciboPreview
-            config={config}
-            nomeLoja={nomeLoja}
-            logoUrl={logoUrl}
-            cols={(() => {
-              // Espelha a escolha do agente: ele imprime com a impressora PAREADA (a que
-              // reportou estar conectada). Se nenhuma conectada, cai pra ativa / primeira.
-              const imp =
-                impressoras.find((i) => i.id === impressoraConectadaId) ??
-                impressoras.find((i) => i.ativa) ??
-                impressoras[0]
-              return colsParaFontePreview(imp?.tamanhoFonte, imp?.largura ?? 48)
-            })()}
-          />
-        </Card>
-        </div>
-      </div>
-      {modal && (
-        <ImpressoraModal
-          initial={modal.input}
-          onClose={() => setModal(null)}
-          onSave={salvarImpressora}
-        />
-      )}
-    </div>
-  )
-}
-
 // ─── Aba Conta ────────────────────────────────────────────────────────────────
 
 function TabConta({ active }: { active: boolean }) {
@@ -2155,6 +1561,15 @@ function TabConta({ active }: { active: boolean }) {
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
+        <Card className="mb-5 max-w-xl">
+          <h3 className="mb-1 text-[13px] font-bold text-text-main">Aplicativo Menuzia (atalho)</h3>
+          <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
+            Instale o painel como aplicativo na área de trabalho / tela inicial — abre em janela
+            própria, sem a barra do navegador, com o ícone da Menuzia. Normalmente o navegador
+            oferece a instalação sozinho; se não aparecer, use o botão abaixo.
+          </p>
+          <InstalarAppButton />
+        </Card>
         <Card className="max-w-xl space-y-5">
           <div>
             <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Alterar senha</h3>
@@ -2787,6 +2202,11 @@ export default function AjustesPage() {
     buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId)
   }, [supabase])
 
+  // A Impressão tem uma página só (menu lateral). Link antigo (?aba=impressao) vai para ela.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('aba') === 'impressao') window.location.replace('/admin/impressao')
+  }, [])
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar title="Ajustes" breadcrumb="Configurações da loja" />
@@ -2810,7 +2230,6 @@ export default function AjustesPage() {
               <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
               <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
               <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
-              <TabImpressao restauranteId={restauranteId} active={tab === 'impressao'} />
               <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
               <TabConta active={tab === 'conta'} />
             </>

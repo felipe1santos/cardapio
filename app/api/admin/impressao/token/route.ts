@@ -7,7 +7,7 @@ import { buscarTokenAgente, gerarTokenAgente } from '@/lib/queries/impressao'
 import { registrarAuditoria } from '@/lib/auditoria'
 
 /**
- * Token de pareamento do Assistente de Impressão (Ajustes › Impressão).
+ * Token de pareamento do Assistente de Impressão (página Impressão).
  *
  * Desde a 0080 o navegador não enxerga a coluna `impressao_agente_token` — nem da
  * própria loja. Só o dono, por esta rota, lê e gera. O middleware já barra quem não

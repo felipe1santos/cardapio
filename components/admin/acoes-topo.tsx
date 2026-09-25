@@ -89,7 +89,7 @@ export function AcoesTopo() {
       {/* Impressão: atalho para a configuração, com o estado na própria cor. */}
       <button
         type="button"
-        onClick={() => router.push('/admin/ajustes?aba=impressao')}
+        onClick={() => router.push('/admin/impressao')}
         title={ROTULO_IMPRESSORA[impressora]}
         aria-label={ROTULO_IMPRESSORA[impressora]}
         className={`flex h-[36px] w-[36px] items-center justify-center rounded-[4.8px] transition-colors hover:bg-[var(--adm-hover)] ${tomImpressora}`}
