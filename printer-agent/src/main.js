@@ -342,7 +342,9 @@ const filas = new FilasPorDispositivo(
   async (t) => {
     const largura = Number(t.larguraMm) <= 58 ? 58 : 80
     const calibracao = t.tipo === 'teste_impressora' && t.snapshot?.calibracao === true
-    const texto = t.tipo === 'pre_conta'
+    // Recibo/Extrato de teste: o MESMO renderizador e o MESMO perfil do Recibo/Extrato real.
+    const reciboTeste = t.tipo === 'teste_impressora' && t.snapshot?.recibo_teste === true
+    const texto = t.tipo === 'pre_conta' || reciboTeste
       ? montarPreConta(t.snapshot)
       : calibracao
         ? montarCalibracao(t.snapshot, diagnosticos[t.nomeSistema] || {})
@@ -360,7 +362,7 @@ const filas = new FilasPorDispositivo(
       ? await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false, perfil)
       : await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
     mostrarDiagnostico(saida)
-    const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : calibracao ? 'Página de calibração' : 'Teste'
+    const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : reciboTeste ? 'Recibo/Extrato de teste' : calibracao ? 'Página de calibração' : 'Teste'
     log(`${rotulo} enviado para "${t.nomeSistema}" — o Windows aceitou (confira se o papel saiu).`)
   },
   async (id, ok, erro) => {

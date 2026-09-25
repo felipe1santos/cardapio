@@ -231,6 +231,8 @@ foreach ($op in $ops) {
       $g.DrawString($op.F[0], $fTotal, $black, [single]$margem, [single]$y)
       $vW = $g.MeasureString($op.F[1], $fTotal).Width
       $g.DrawString($op.F[1], $fTotal, $black, [single]($rightX - $vW), [single]$y)
+      # Onde o valor do TOTAL ficou no bitmap (so log; a imagem nao muda).
+      Write-Log ("TOTAL: valor='{0}' x={1}..{2} papel={3}" -f $op.F[1], [int]($rightX - $vW), [int]$rightX, $dotW)
       $y += $fTotal.GetHeight($mg) + $H * 0.2
     }
     'L' {
