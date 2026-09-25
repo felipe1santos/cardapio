@@ -55,3 +55,20 @@ O modo do Beta não muda; nada é pareado ou atribuído.
 - Regressões (loja isolada `cantina-e2e`, com trava `exigirLojaIsolada`): garçom 47/47, mesas 254/254,
   PDV v2 69/69, PDV atendimento 96/96 (inclui pedido pela vitrine), balcão/entrega 84/84.
   `cantina-demo` e `vizinha-demo` conferidas idênticas antes/depois.
+
+## Publicado em 2026-09-25
+
+- 0101 aplicada em produção às 20:48:04Z (todas as conferências do aplicador ✔; 0 empates,
+  0 itens sem posição, 0 posições duplicadas, ordem por posição = ordem de antes).
+- main `19c13da` (merge), push sem force; Redeploy no Coolify 20:51:39–20:56:07Z (Success);
+  bundle novo servido às 20:56:57Z.
+- Flags às ~21:00Z (`flags-pdv-beta-todas.mjs aplicar`): as 8 lojas com `pdv_v2 = true` e
+  Assistente Beta liberado em “Somente teste”; nenhuma outra coluna mudou. Menuzia já estava
+  assim. Retrato: `docs/rollback/2026-09-25-flags-retrato.json`.
+
+## Rollback exato
+
+1. Flags (volta as 7 lojas a `pdv_v2 = false` e Beta não liberado; Menuzia fica como estava):
+   `node scripts/seguranca/flags-pdv-beta-todas.mjs reverter docs/rollback/2026-09-25-flags-retrato.json --confirmar-producao`
+2. Código: `git revert -m 1 19c13da` + push e Redeploy (ou Redeploy de `bf8cbf8` no Coolify).
+3. Banco (só depois do código): `docs/rollback/0101_cardapio_ordem_itens.down.sql`.

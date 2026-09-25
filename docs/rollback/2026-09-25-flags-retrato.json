@@ -1,0 +1,94 @@
+{
+ "em": "2026-09-25T20:59:38.500Z",
+ "host": "aws-1-sa-east-1.pooler.supabase.com",
+ "lojas": [
+  {
+   "id": "7a4f5262-a865-4a99-b37e-31ea58eb435a",
+   "slug": "belgas",
+   "pdv_v2": false,
+   "impressao_beta_liberado": false,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  },
+  {
+   "id": "48ecbd08-9ed0-428e-be66-cc90c53067f7",
+   "slug": "estancia-burger",
+   "pdv_v2": false,
+   "impressao_beta_liberado": false,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  },
+  {
+   "id": "cdc9dc32-38c7-4d31-8547-8d596cff3446",
+   "slug": "mama-pizza",
+   "pdv_v2": false,
+   "impressao_beta_liberado": false,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  },
+  {
+   "id": "824468ae-a16a-43d6-ab82-37e23fbecb38",
+   "slug": "menuzia",
+   "pdv_v2": true,
+   "impressao_beta_liberado": true,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  },
+  {
+   "id": "97ef0e33-c969-4030-aec1-f887dd17d618",
+   "slug": "pizza-do-rosa",
+   "pdv_v2": false,
+   "impressao_beta_liberado": false,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  },
+  {
+   "id": "dd4edbbb-879f-4b41-acf4-c06570fab400",
+   "slug": "ponto-400-hamburgueria",
+   "pdv_v2": false,
+   "impressao_beta_liberado": false,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  },
+  {
+   "id": "89e6698f-2423-4571-b542-1e976251a331",
+   "slug": "teste",
+   "pdv_v2": false,
+   "impressao_beta_liberado": false,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  },
+  {
+   "id": "e0b3df6c-846c-4d43-8965-b02369ea1918",
+   "slug": "villa-lanches",
+   "pdv_v2": false,
+   "impressao_beta_liberado": false,
+   "impressao_beta_modo": "teste",
+   "impressao_cozinha_por_funcao": false,
+   "impressao_cozinha_transferida_em": null,
+   "agentes_ativos": 0,
+   "funcoes": 0
+  }
+ ]
+}
