@@ -96,6 +96,8 @@ for (const [i, f] of feitos.entries()) {
   if (f.teste && !(md.linhasBordaEsquerda > 0 && md.linhasBordaDireita > 0)) falhas.push('sem marcadores nas bordas')
   if (!f.teste && (md.linhasBordaEsquerda > 0 || md.linhasBordaDireita > 0)) falhas.push('marca/régua na conta real')
   if (f.r.sobreposicao) falhas.push('sobreposição')
+  // Conta real: aviso não fiscal discreto no rodapé; nada exclusivo do teste.
+  if (!f.teste && !(f.r.texto.includes('NÃO É DOCUMENTO FISCAL') && !/TESTE DE IMPRESSÃO|PEDIDO DE DEMONSTRAÇÃO/.test(f.r.texto))) falhas.push('rodapé da conta real')
   if (f.esperaLogo !== /^\d+x\d+/.test(f.r.logo)) falhas.push(`logo: ${f.r.logo}`)
   const limite = f.teste ? (f.mm <= 58 ? 2300 : 1900) : (f.mm <= 58 ? 1700 : 1400)
   if (md.altura > limite) falhas.push(`comprido demais (${md.altura}px > ${limite})`)

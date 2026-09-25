@@ -31,6 +31,18 @@ describe('Recibo/Extrato do Beta — conta real', () => {
     expect(textoDoDocumento(d)).toContain('Obs.: Bem passado')
     expect(textoDoDocumento(d)).toContain('CANCELADOS — NÃO COBRADOS')
   })
+  it('rodapé da conta real: NÃO É DOCUMENTO FISCAL discreto, junto de feito por Menuzia; nada do teste', () => {
+    for (const conta of Object.values(CONTAS)) {
+      const d = montarPreContaBeta(conta)
+      const rod = d.blocos.filter((b) => b.t === 'rodape')
+      expect(rod.map((b) => b.s)).toEqual(['Confira os itens da sua conta.', 'NÃO É DOCUMENTO FISCAL', 'feito por Menuzia.com.br'])
+      expect(rod.every((b) => !(b as { negrito?: boolean }).negrito)).toBe(true)
+      expect(d.blocos.some((b) => b.t === 'faixa' && b.s === 'NÃO É DOCUMENTO FISCAL')).toBe(false)
+      const t = textoDoDocumento(d)
+      for (const x of ['TESTE DE IMPRESSÃO', 'PEDIDO DE DEMONSTRAÇÃO', 'SEM VALOR FISCAL', 'CONFERÊNCIA DE CONSUMO']) expect(t).not.toContain(x)
+      expect(d.blocos.some((b) => b.t === 'marcas')).toBe(false)
+    }
+  })
   it('balcão a receber, conta paga e conta de R$ 4.088,00', () => {
     const b = montarPreContaBeta(CONTAS.balcao)
     expect(campo(b, 'Balcão')).toBe('senha 128')
@@ -86,8 +98,10 @@ describe('Recibo/Extrato do Beta — teste (mesmo montador)', () => {
       (b.t === 'rodape' && b.s === 'TESTE DE IMPRESSÃO — SEM VALOR FISCAL') ||
       (b.t === 'campo' && ['Telefone', 'Endereço', 'Complemento', 'Cidade/UF', 'Observação'].includes(b.rotulo ?? '')) ||
       (b.t === 'valor' && b.rotulo === 'Taxa de entrega')
-    // Na conta real, o balcão/mesa aparecem no lugar do "PEDIDO DE DEMONSTRAÇÃO".
-    const semIdentificacao = (b: Bloco) => !(b.t === 'campo' && ['Mesa', 'Comanda', 'Balcão'].includes(b.rotulo ?? ''))
+    // Na conta real, o balcão/mesa aparecem no lugar do "PEDIDO DE DEMONSTRAÇÃO" e o aviso
+    // não fiscal vai no rodapé (no teste ele está entre as frases de teste).
+    const semIdentificacao = (b: Bloco) =>
+      !(b.t === 'campo' && ['Mesa', 'Comanda', 'Balcão'].includes(b.rotulo ?? '')) && !(b.t === 'rodape' && b.s === 'NÃO É DOCUMENTO FISCAL')
     expect(d.blocos.filter((b) => !soDoTeste(b))).toEqual(real.blocos.filter(semIdentificacao))
   })
 })

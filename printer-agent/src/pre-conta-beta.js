@@ -144,6 +144,8 @@ function montarPreContaBeta(s) {
   // Rodapé
   b.push({ t: 'pontilhado' })
   b.push({ t: 'rodape', s: 'Confira os itens da sua conta.' })
+  // Conta real: aviso discreto, junto do rodapé (no teste ele já está entre as frases de teste).
+  if (!teste) b.push({ t: 'rodape', s: 'NÃO É DOCUMENTO FISCAL' })
   b.push({ t: 'rodape', s: 'feito por Menuzia.com.br' })
   if (teste) {
     b.push({ t: 'rodape', s: 'TESTE DE IMPRESSÃO — SEM VALOR FISCAL', negrito: true })
