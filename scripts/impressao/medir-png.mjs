@@ -2,7 +2,7 @@
  * Mede onde há tinta em PNGs de impressão (só leitura, Chromium). Linhas em que a ÚLTIMA
  * coluna é escura são faixas de largura total (barras de seção H e réguas de borda K):
  * contam como borda e ficam fora da medida do texto.
- *   { largura, altura, tintaTextoDe, tintaTextoAte, linhasBordaEsquerda, linhasBordaDireita }
+ *   { largura, altura, tintaTextoDe, tintaTextoAte, linhasBordaEsquerda, linhasBordaDireita, fracaoEscura }
  */
 import { readFileSync } from 'node:fs'
 
@@ -19,14 +19,15 @@ export async function medirPngs(caminhos) {
       const d = x.getImageData(0, 0, img.width, img.height).data
       const w = img.width, h = img.height
       const escuro = (px, py) => { const i = (py * w + px) * 4; return d[i] + d[i + 1] + d[i + 2] < 384 }
-      let de = w, ate = -1, esq = 0, dir = 0
+      let de = w, ate = -1, esq = 0, dir = 0, escuros = 0
+      for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 384) escuros++
       for (let y = 0; y < h; y++) {
         if (escuro(0, y)) esq++
         if (escuro(w - 1, y)) { dir++; continue }
         for (let px = w - 1; px >= 0; px--) if (escuro(px, y)) { if (px > ate) ate = px; break }
         for (let px = 0; px < w; px++) if (escuro(px, y)) { if (px < de) de = px; break }
       }
-      return { largura: w, altura: h, tintaTextoDe: de, tintaTextoAte: ate, linhasBordaEsquerda: esq, linhasBordaDireita: dir }
+      return { largura: w, altura: h, tintaTextoDe: de, tintaTextoAte: ate, linhasBordaEsquerda: esq, linhasBordaDireita: dir, fracaoEscura: escuros / (w * h) }
     }, `data:image/png;base64,${readFileSync(p).toString('base64')}`)
     out.push({ png: p, ...r })
   }

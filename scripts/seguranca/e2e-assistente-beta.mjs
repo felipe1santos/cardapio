@@ -20,12 +20,13 @@ import { createRequire } from 'node:module'
 import { medirPngs } from '../impressao/medir-png.mjs'
 import pg from 'pg'
 import { chromium } from 'playwright'
+import { createClient } from '@supabase/supabase-js'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const SENHA = 'demo-local-123456'
 const ART = process.env.ARTEFATOS ?? join(tmpdir(), 'menuzia-e2e-assistente-beta')
-const { DB_URL } = chavesLocais()
+const { DB_URL, API_URL, SERVICE_KEY } = chavesLocais()
 exigirLoopback(DB_URL, BASE)
 // Isolamento: nada do Assistente REAL deste computador (log, configuração, instalação).
 // Aborta ANTES de apagar a pasta de artefatos se ela cair no lugar real.
@@ -145,6 +146,7 @@ const api = (page, url, metodo = 'GET', corpo) =>
   )
 
 let falhouFeio = null
+let logoOriginal
 // Trava de segurança: nenhum passo pode prender o teste (e os agentes) para sempre.
 const limite = setTimeout(() => { console.error('TEMPO ESGOTADO'); for (const p of processos) p.kill(); process.exit(2) }, 8 * 60_000)
 limite.unref()
@@ -210,7 +212,7 @@ try {
   ok('Recibo/Extrato pendente pedido', pend.status === 201, pend.json?.error)
   const rPend = await aguardar(() => BETA.impressos().find((i) => i.tipo === 'pre_conta'))
   ok('Recibo/Extrato pendente sai no Beta, POS-8370 em 512 pontos', !!rPend && rPend.impressora === 'POS-8370' && rPend.larguraPontos === 512 && readFileSync(rPend.png).readUInt32BE(16) === 512)
-  ok('pendente: RECIBO/EXTRATO, não fiscal e RESTANTE A PAGAR', !!rPend && ['RECIBO/EXTRATO', 'NÃO É DOCUMENTO FISCAL', 'RESTANTE A PAGAR'].every((t) => rPend.texto.includes(t)))
+  ok('conta real no layout do Beta: RECIBO/EXTRATO, Restante a pagar, status A receber; sem frases de teste nem marcadores', !!rPend && rPend.tipo === 'pre_conta' && ['RECIBO/EXTRATO', 'Restante a pagar', 'Status  A receber'].every((t) => rPend.texto.includes(t)) && !rPend.texto.includes('TESTE DE IMPRESSÃO'))
   const pago = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente Pago Beta', chave: uuid() })).json.id
   // Também é ficha de cozinha: entra na conta de 'impressa exatamente uma vez'.
   criados.push((await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: pago, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id)
@@ -218,10 +220,20 @@ try {
   await api(pAt, `/api/admin/comandas/${pago}`, 'POST', { acao: 'pagamento', forma: 'pix', valor: restante, chave: uuid() })
   const rp = await api(pAt, `/api/admin/comandas/${pago}/pre-conta`, 'POST', { chave: uuid() })
   const rPago = await aguardar(() => BETA.impressos().filter((i) => i.tipo === 'pre_conta').find((i) => i.texto.includes('Cliente Pago Beta')))
-  ok('Recibo/Extrato de conta paga: Já pago e restante R$ 0,00', rp.status === 201 && !!rPago && rPago.texto.includes('Já pago') && /RESTANTE A PAGAR\x02R\$ 0,00/.test(rPago.texto), rp.json?.error)
+  ok('Recibo/Extrato de conta paga: Já pago, restante R$ 0,00 e status Pago', rp.status === 201 && !!rPago && rPago.texto.includes('Já pago') && rPago.texto.includes('Restante a pagar  R$ 0,00') && rPago.texto.includes('Status  Pago'), rp.json?.error)
   ok('"Somente Caixa": ficha nova no 0.1.23', !!(await aguardar(() => ANTIGO.fichas().includes(c1))))
   ok('"Somente Caixa": nenhuma ficha no Beta', BETA.fichas().length === 0)
   ok('0.1.23 nunca recebe Recibo/Extrato', ANTIGO.impressos().every((i) => i.tipo === 'ficha_cozinha'))
+
+  secao('Logo da loja no Recibo/Extrato do Beta (WebP transparente → navegador → Storage → Beta)')
+  const storage = createClient(API_URL, SERVICE_KEY, { auth: { persistSession: false } }).storage.from('cardapio')
+  logoOriginal = (await um('select logo_url from restaurantes where id=$1', [loja])).logo_url
+  const caminhoLogo = `${loja}/perfil/logo-e2e-beta.webp`
+  await storage.upload(caminhoLogo, readFileSync('printer-agent/test/logos/vertical.webp'), { contentType: 'image/webp', upsert: true })
+  await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, `${API_URL}/storage/v1/object/public/cardapio/${caminhoLogo}`])
+  await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'domcontentloaded' })
+  await pGer.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 3000 }).catch(() => {})
+  ok('página Impressão prepara a logo de impressão no navegador', !!(await aguardar(async () => (await api(pGer, '/api/admin/impressao/logo')).json?.pronta)))
 
   secao('Recibo/Extrato de teste (renderizador operacional, 80 mm calibrada e 58 mm)')
   const pedidosAntes = Number((await um('select count(*) n from pedidos where restaurante_id=$1', [loja])).n)
@@ -236,6 +248,7 @@ try {
   ok('sai uma vez só, no Beta, na POS-8370, com o perfil de 512 pontos', BETA.impressos().filter((i) => i.tipo === 'recibo_teste').length === 1 &&
     !!rt80 && rt80.impressora === 'POS-8370' && rt80.larguraPontos === 512)
   ok('marcado como teste, com R$ 4.088,00', !!rt80 && ['TESTE DE IMPRESSÃO', 'SEM VALOR FISCAL', 'R$ 4.088,00', 'Taxa de entrega'].every((x) => rt80.texto.includes(x)))
+  ok('layout do Beta (print-beta.ps1) com a logo da loja baixada pela rota segura', !!rt80 && /^LOGO: \d+x\d+/.test(rt80.logLogo) && /^loja-[0-9a-f]{16}\.png$/.test(rt80.logo ?? ''), `${rt80?.logLogo} · ${rt80?.logo}`)
   await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'PATCH', { larguraMm: 58 })
   await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'POST', { acao: 'recibo_teste', chave: uuid() })
   const rt58 = await aguardar(() => BETA.impressos().find((i) => i.tipo === 'recibo_teste' && i.paperMm === 58))
@@ -297,6 +310,7 @@ try {
   await db.query(`update restaurantes set impressao_agente_token=null, impressao_cozinha_por_funcao=false, impressao_beta_liberado=false, impressao_beta_modo='teste',
     impressao_cozinha_transferida_em=null where id=$1`, [loja])
   await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza e2e beta', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [loja])
+  if (logoOriginal !== undefined) await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, logoOriginal])
   await comPrazo(browser.close())
   await comPrazo(db.end())
 }

@@ -10,6 +10,7 @@
  *   node scripts/seguranca/verificar-impressao-beta.mjs
  */
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { createClient } from '@supabase/supabase-js'
@@ -211,6 +212,65 @@ ok('histórico: "Recibo/Extrato de teste"', hist?.subtipo === 'recibo_teste')
 ok('auditado como Recibo/Extrato de teste', !!(await um(`select 1 from eventos_auditoria where restaurante_id=$1 and acao='impressao.recibo_teste' and dados->>'trabalho_id'=$2`, [loja, rt1.json.id])))
 ok('nada comercial mudou: pedidos, comandas, pagamentos, faturamento, cozinha, fidelidade, cupons', (await comercial()) === antesComercial)
 await db.query(`update impressao_agentes set revogado_em=now() where credencial_hash=$1`, [sha(pb.json.credencial)])
+
+secao('Logo da loja para o Recibo/Extrato (Storage da própria loja, nada de URL)')
+const logoOriginal = (await um('select logo_url from restaurantes where id=$1', [loja])).logo_url
+const logoVizinhaOriginal = (await um('select logo_url from restaurantes where id=$1', [vizinha])).logo_url
+const SB = API_URL
+const subir = async (caminho, arquivo, tipo) => {
+  const { error } = await adminSb.storage.from('cardapio').upload(caminho, readFileSync(`printer-agent/test/logos/${arquivo}`), { contentType: tipo, upsert: true })
+  if (error) throw error
+  return `${SB}/storage/v1/object/public/cardapio/${caminho}`
+}
+const logoAgente = async (cred, sha) => {
+  const r = await fetch(`${BASE}/api/agente/logo${sha ? `?sha=${sha}` : ''}`, { headers: { Authorization: `Bearer ${cred}`, 'X-Agente-Versao': VERSAO_BETA } })
+  return { status: r.status, sha: r.headers.get('x-logo-sha256'), tipo: r.headers.get('content-type'), bytes: r.status === 200 ? Buffer.from(await r.arrayBuffer()) : null }
+}
+await db.query('update restaurantes set logo_url=null where id=$1', [loja])
+ok('loja sem logo: 204 (o Recibo/Extrato sai com o nome)', (await logoAgente(pa.json.credencial)).status === 204)
+ok('token do Assistente antigo não pega a logo por aqui', (await logoAgente(tokenLegado)).status === 403)
+ok('sem credencial: 401', (await fetch(`${BASE}/api/agente/logo`)).status === 401)
+await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, 'https://evil.example/logo.png'])
+ok('logo apontando para fora do Storage: recusada sem buscar (204)', (await logoAgente(pa.json.credencial)).status === 204)
+const urlVizinha = await subir(`${vizinha}/perfil/logo-verificador.png`, 'horizontal.png', 'image/png')
+await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, urlVizinha])
+ok('logo apontando para a pasta de OUTRA loja: recusada (204)', (await logoAgente(pa.json.credencial)).status === 204)
+const urlPng = await subir(`${loja}/perfil/logo-verificador.png`, 'horizontal.png', 'image/png')
+await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, urlPng])
+const lg1 = await logoAgente(pa.json.credencial)
+const bytesPng = readFileSync('printer-agent/test/logos/horizontal.png')
+ok('logo PNG da própria loja: 200, bytes idênticos, hash correto', lg1.status === 200 && lg1.tipo === 'image/png' && Buffer.compare(lg1.bytes, bytesPng) === 0 && lg1.sha === sha(bytesPng))
+ok('Assistente já tem a mesma: 304 (sem baixar de novo)', (await logoAgente(pa.json.credencial, lg1.sha)).status === 304)
+const urlWebp = await subir(`${loja}/perfil/logo-verificador.webp`, 'vertical.webp', 'image/webp')
+await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, urlWebp])
+ok('WebP com transparência sem versão de impressão: 204 (evita fundo preto)', (await logoAgente(pa.json.credencial)).status === 204)
+const st0 = await api(pGer, '/api/admin/impressao/logo')
+ok('painel: loja tem logo, versão de impressão ainda não', st0.status === 200 && st0.json?.temLogo === true && st0.json?.pronta === false)
+const postLogo = (page, corpoB64, tipo = 'image/png') => page.evaluate(async ({ url, b64, tipo }) => {
+  const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': tipo }, body: bin })
+  return r.status
+}, { url: `${BASE}/api/admin/impressao/logo`, b64: corpoB64, tipo })
+ok('atendente não grava logo de impressão', (await postLogo(pAt, bytesPng.toString('base64'))) === 403)
+ok('arquivo que não é PNG: recusado', (await postLogo(pGer, Buffer.from('nao e png').toString('base64'))) === 400)
+// Caminho real: a página Impressão, no navegador do gerente, gera e envia a versão.
+await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'domcontentloaded' })
+await pGer.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 3000 }).catch(() => {})
+const pronta = await (async () => { for (let i = 0; i < 40; i++) { if ((await api(pGer, '/api/admin/impressao/logo')).json?.pronta) return true; await new Promise((r) => setTimeout(r, 500)) } return false })()
+ok('a página Impressão gerou a versão de impressão sozinha (navegador)', pronta)
+ok('a página mostra "Logo no Recibo/Extrato: pronta"', /pronta/.test(await pGer.getByTestId('logo-recibo').innerText().catch(() => '')))
+const lg2 = await logoAgente(pa.json.credencial)
+const dimsPng = lg2.bytes ? { w: lg2.bytes.readUInt32BE(16), h: lg2.bytes.readUInt32BE(20) } : null
+ok('agora o Assistente recebe o PNG sobre fundo branco (240x480 reduzida para 160x320, sem ampliar)', lg2.status === 200 && lg2.tipo === 'image/png' && dimsPng?.w === 160 && dimsPng?.h === 320, JSON.stringify(dimsPng))
+const arqs = (await adminSb.storage.from('cardapio').list(`${loja}/impressao`)).data?.map((f) => f.name) ?? []
+ok('gravada no caminho fixo da loja: <loja>/impressao/logo-<chave>.png', arqs.length === 1 && /^logo-[0-9a-f]{16}\.png$/.test(arqs[0]), arqs.join(','))
+await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, urlPng])
+ok('logo trocada: a versão antiga não vale mais (volta ao PNG original)', Buffer.compare((await logoAgente(pa.json.credencial)).bytes ?? Buffer.alloc(0), bytesPng) === 0)
+const stV = await api(pViz, '/api/admin/impressao/logo')
+ok('outra loja vê só a situação dela', stV.status === 200 && stV.json?.pronta === false)
+await db.query('update restaurantes set logo_url=$2 where id=$1', [loja, logoOriginal])
+await db.query('update restaurantes set logo_url=$2 where id=$1', [vizinha, logoVizinhaOriginal])
+await adminSb.storage.from('cardapio').remove([`${vizinha}/perfil/logo-verificador.png`, `${loja}/perfil/logo-verificador.png`, `${loja}/perfil/logo-verificador.webp`, ...arqs.map((a) => `${loja}/impressao/${a}`)])
 
 secao('Somente teste: o Beta não imprime Recibo/Extrato nem cozinha')
 await api(pGer, '/api/admin/impressao/funcoes', 'PUT', { funcao: 'caixa', dispositivoId: dPos.id })

@@ -22,9 +22,6 @@ import { createRequire } from 'node:module'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, statSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { medirPngs } from './medir-png.mjs'
-import { pngsParaPdf } from './renderizar-virtual.mjs'
-import { snapshotReciboTeste } from '../../lib/impressao/recibo-teste.ts'
 
 const require = createRequire(import.meta.url)
 const RAIZ = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
@@ -167,42 +164,8 @@ const texto = montarCalibracao({ ...snap, largura_pontos: 512 }, diag)
 ok('calibração mostra driver, DPI, papel, área imprimível, margem e largura aplicada',
   ['POS-80C', '203 x 203', '72.1 mm', '7.9 mm', '512 pontos', '1:1', 'TOTAL', 'R$ 12.345,67'].every((t) => texto.includes(t)))
 
-console.log(`\n── Recibo/Extrato de teste: o renderizador operacional do Beta (pre-conta.js + print.ps1) ──`)
-const { montarPreConta, colsPreConta } = require(join(RAIZ, 'printer-agent', 'src', 'pre-conta.js'))
-const destinoBase = { loja: 'Cantina Demonstração', impressora: 'Caixa POS-8370', nomeSistema: 'POS-8370', computador: 'PC Caixa', deslocamentoPontos: 0 }
-const casos = [
-  ['80 mm padrão', 80, null],
-  ['80 mm calibrada em 512 pontos', 80, 512],
-  ['58 mm padrão', 58, null],
-  ['58 mm calibrada em 320 pontos', 58, 320],
-]
-const pngsRecibo = []
-for (const [rotulo, mm, pontos] of casos) {
-  const snap = snapshotReciboTeste({ ...destinoBase, larguraMm: mm, larguraPontos: pontos }, 'Gerente Demo', new Date('2026-09-25T12:00:00Z'))
-  const texto = montarPreConta(snap)
-  const logAntes = existsSync(logBeta) ? readFileSync(logBeta, 'utf8').length : 0
-  const r = renderizar(PS1_ATUAL, texto, { cols: colsPreConta(mm), paperMm: mm, extra: [...(pontos ? ['-LarguraPontos', String(pontos)] : []), '-LogNome', 'menuzia-beta-print.log'] })
-  const linhaTotal = readFileSync(logBeta, 'utf8').slice(logAntes).split(/\r?\n/).find((l) => /TOTAL: valor='R\$ 4\.088,00'/.test(l)) ?? ''
-  const m = /x=(-?\d+)\.\.(\d+) papel=(\d+)/.exec(linhaTotal)
-  const destino = join(SAIDA, `recibo-teste-${rotulo.replace(/\W+/g, '-')}.png`)
-  writeFileSync(destino, readFileSync(r.png))
-  pngsRecibo.push({ rotulo, mm, pontos, png: destino, total: m ? { de: Number(m[1]), ate: Number(m[2]), papel: Number(m[3]) } : null })
-}
-const medidas = await medirPngs(pngsRecibo.map((p) => p.png))
-for (const [i, p] of pngsRecibo.entries()) {
-  const md = medidas[i]
-  const larguraEsperada = p.pontos ?? (p.mm <= 58 ? 384 : 576)
-  const margem = Math.floor(larguraEsperada * 0.03)
-  ok(`${p.rotulo}: bitmap de ${larguraEsperada} pontos`, md.largura === larguraEsperada, `${md.largura}`)
-  ok(`${p.rotulo}: "R$ 4.088,00" termina dentro da margem direita`, !!p.total && p.total.de >= 0 && p.total.ate <= larguraEsperada - margem && p.total.papel === larguraEsperada,
-    p.total ? `valor em x=${p.total.de}..${p.total.ate} de ${p.total.papel}` : 'TOTAL não registrado')
-  ok(`${p.rotulo}: nenhuma tinta de texto passa da margem (${larguraEsperada - margem})`, md.tintaTextoAte >= 0 && md.tintaTextoAte <= larguraEsperada - margem && md.tintaTextoDe >= margem - 1,
-    `texto de x=${md.tintaTextoDe} a x=${md.tintaTextoAte}`)
-  ok(`${p.rotulo}: marcadores nas duas bordas`, md.linhasBordaEsquerda > 20 && md.linhasBordaDireita > 20, `esq=${md.linhasBordaEsquerda} dir=${md.linhasBordaDireita}`)
-}
-await pngsParaPdf(pngsRecibo.map((p) => ({ png: p.png, pdf: p.png.replace(/\.png$/, '.pdf'), paperMm: p.mm })))
-ok('Recibo/Extrato de teste também em PDF (58 e 80 mm)', pngsRecibo.every((p) => existsSync(p.png.replace(/\.png$/, '.pdf'))))
-
+// Recibo/Extrato do Beta: layout próprio (pre-conta-beta.js + print-beta.ps1), medido em
+// scripts/impressao/matriz-recibo-beta.mjs.
 rmSync(TEMP_ISOLADO, { recursive: true, force: true })
 const difReais = diferencas(fotoReaisAntes, fotografarReais())
 ok('arquivos reais do Assistente intactos (log, config e instalação: hash, tamanho e data)', difReais.length === 0, difReais.join(' | '))
