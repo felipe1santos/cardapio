@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
+import { provedorAtual, logFalhaEnvio } from '@/lib/mensageria/provedor'
+import { enfileirar, processarFila, estadoDoEnvio } from '@/lib/mensageria/fila'
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
@@ -88,42 +90,31 @@ export function montarMensagemStatus(pedido: Pedido, status: StatusPedido): stri
   }
 }
 
-/** Envia uma mensagem de texto via Evolution API, usando a instância (WhatsApp) do restaurante. Retorna se o envio foi bem-sucedido. */
+/**
+ * Envio direto (sem fila) pela interface de provedor — usado por campanhas, fidelidade e
+ * código de verificação do checkout, que têm controle próprio. Log sem número completo
+ * nem conteúdo (lib/mensageria). Os avisos de etapa do pedido NÃO passam por aqui: vão
+ * pela fila, com idempotência (`notificarPedido`).
+ */
 export async function enviarWhatsapp(numero: string, texto: string, instance: string): Promise<boolean> {
-  const url = process.env.EVOLUTION_API_URL
-  const apiKey = process.env.EVOLUTION_API_KEY
-  if (!url || !apiKey) {
-    console.warn('[whatsapp] EVOLUTION_API_URL/EVOLUTION_API_KEY não configurados — notificação não enviada.')
-    return false
-  }
-
-  try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/message/sendText/${instance}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: apiKey },
-      body: JSON.stringify({ number: numero, text: texto }),
-      // Sem prazo, uma instância travada segurava a rota /notificar (e o "Salvando…" do
-      // painel) até o proxy cortar com 502/504.
-      signal: AbortSignal.timeout(10_000),
-    })
-    if (!res.ok) {
-      console.error('[whatsapp] Evolution API respondeu', res.status, await res.text())
-      return false
-    }
-    return true
-  } catch (err) {
-    console.error('[whatsapp] falha ao enviar mensagem', err)
-    return false
-  }
+  const r = await provedorAtual().enviarTexto(instance, numero, texto)
+  if (!r.ok) logFalhaEnvio('texto', numero, r.erro)
+  return r.ok
 }
 
-/** Busca o pedido, monta a mensagem apropriada para o status e envia via WhatsApp. Best-effort. */
 /**
  * O que aconteceu com o aviso. Os chamadores antigos ignoram o retorno; a saída
  * sem entregador usa para dizer ao operador se o cliente foi mesmo avisado.
  */
 export type ResultadoNotificacao = 'enviada' | 'falhou' | 'sem_whatsapp' | 'sem_telefone' | 'sem_pedido' | 'sem_mensagem'
 
+/**
+ * Aviso de etapa do pedido (recebido, aceito, pronto, saiu, entregue), com os mesmos
+ * textos de sempre, agora pela FILA (0102): chave `pedido:<id>:<etapa>` única por loja —
+ * duplo clique, Kanban e cozinha ao mesmo tempo ou chamada repetida geram UM envio só.
+ * Falha transitória do provedor volta sozinha para a fila com espera crescente (cron
+ * /api/cron/whatsapp); aqui a tentativa é imediata.
+ */
 export async function notificarPedido(admin: SupabaseClient, pedidoId: string, status: StatusPedido): Promise<ResultadoNotificacao> {
   const dados = await buscarPedidoParaNotificacao(admin, pedidoId)
   if (!dados) return 'sem_pedido'
@@ -139,43 +130,32 @@ export async function notificarPedido(admin: SupabaseClient, pedidoId: string, s
     : montarMensagemStatus(pedido, status)
   if (!texto) return 'sem_mensagem'
 
-  return (await enviarWhatsapp(numero, texto, evolutionInstance)) ? 'enviada' : 'falhou'
+  const { data: loja } = await admin.from('pedidos').select('restaurante_id').eq('id', pedidoId).maybeSingle()
+  if (!loja) return 'sem_pedido'
+  const envio = await enfileirar(admin, {
+    restauranteId: loja.restaurante_id as string,
+    chave: `pedido:${pedidoId}:${status}`,
+    tipo: 'aviso_pedido',
+    telefone: numero,
+    texto,
+    pedidoId,
+  })
+  if (!envio) return 'falhou'
+  if (envio.estado === 'enviado') return 'enviada'
+  if (envio.novo) await processarFila(admin, { restauranteId: loja.restaurante_id as string, limite: 5 })
+  return (await estadoDoEnvio(admin, envio.id)) === 'enviado' ? 'enviada' : 'falhou'
 }
 
-/** Envia imagem com legenda (caption) via Evolution API. */
+/** Envia imagem com legenda (campanhas). */
 export async function enviarMidia(numero: string, imagemUrl: string, legenda: string, instance: string): Promise<boolean> {
-  const url = process.env.EVOLUTION_API_URL
-  const apiKey = process.env.EVOLUTION_API_KEY
-  if (!url || !apiKey) return false
-  try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/message/sendMedia/${instance}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: apiKey },
-      body: JSON.stringify({ number: numero, mediatype: 'image', media: imagemUrl, caption: legenda }),
-    })
-    if (!res.ok) { console.error('[whatsapp] sendMedia respondeu', res.status, await res.text()); return false }
-    return true
-  } catch (err) {
-    console.error('[whatsapp] falha ao enviar mídia', err)
-    return false
-  }
+  const r = await provedorAtual().enviarImagem(instance, numero, imagemUrl, legenda)
+  if (!r.ok) logFalhaEnvio('imagem', numero, r.erro)
+  return r.ok
 }
 
-/** Envia áudio PTT (mensagem de voz) via Evolution API. */
+/** Envia áudio PTT (mensagem de voz) — campanhas. */
 export async function enviarAudioPtt(numero: string, audioUrl: string, instance: string): Promise<boolean> {
-  const url = process.env.EVOLUTION_API_URL
-  const apiKey = process.env.EVOLUTION_API_KEY
-  if (!url || !apiKey) return false
-  try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/message/sendWhatsAppAudio/${instance}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: apiKey },
-      body: JSON.stringify({ number: numero, audio: audioUrl }),
-    })
-    if (!res.ok) { console.error('[whatsapp] sendWhatsAppAudio respondeu', res.status, await res.text()); return false }
-    return true
-  } catch (err) {
-    console.error('[whatsapp] falha ao enviar áudio PTT', err)
-    return false
-  }
+  const r = await provedorAtual().enviarAudio(instance, numero, audioUrl)
+  if (!r.ok) logFalhaEnvio('áudio', numero, r.erro)
+  return r.ok
 }
