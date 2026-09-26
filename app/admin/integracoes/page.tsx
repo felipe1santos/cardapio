@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FacebookIcon, GoogleIcon, WhatsAppIcon } from '@/components/ui/brand-icons'
 import { getBrowserSupabase } from '@/lib/supabase/client'
+import { RoboWhatsappCard } from '@/components/admin/robo-whatsapp'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja, atualizarConfigLoja } from '@/lib/queries/ajustes'
 
@@ -420,6 +421,14 @@ export default function IntegracoesPage() {
                 <GoogleTagCard restauranteId={restauranteId} />
               </div>
             )}
+          </section>
+
+          {/* Robô de atendimento do WhatsApp (v1, sem IA) */}
+          <section>
+            <SectionTitle>Atendimento no WhatsApp</SectionTitle>
+            <div className="max-w-3xl">
+              <RoboWhatsappCard />
+            </div>
           </section>
 
           {/* Seção 2 — Outros sistemas */}

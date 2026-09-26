@@ -46,7 +46,7 @@ describe('textos', () => {
     expect(t).not.toMatch(/R\$|grátis|minutos/)
   })
   it('status: número, rótulo e data; sem pedido, orienta', () => {
-    expect(textoStatus(loja, { numero: 42, rotulo: 'Saiu para entrega', criadoEm: '2026-09-25T15:00:00Z' }, false)).toMatch(/#42.*Saiu para entrega/s)
+    expect(textoStatus(loja, { numero: 42, rotulo: 'Saiu para entrega', criadoEm: '2026-09-25T15:00:00Z' }, false)).toMatch(/#42[\s\S]*Saiu para entrega/)
     expect(textoStatus(loja, null, true)).toMatch(/Não encontrei pedido/)
   })
 })
