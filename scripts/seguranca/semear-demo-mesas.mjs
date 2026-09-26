@@ -36,7 +36,10 @@ await db.query(
   `update restaurantes set taxa_servico_padrao = 10,
           formas_pagamento_mesa = array['dinheiro','pix','credito','debito'],
           -- Regras do salão no padrão da matriz: cada E2E liga o que precisa.
-          salao_garcom_recebe = false, salao_garcom_transfere = true, salao_caixa_desconto = false
+          salao_garcom_recebe = false, salao_garcom_transfere = true, salao_caixa_desconto = false,
+          -- PDV antigo por padrão: as suítes do PDV v2 ligam a flag elas mesmas (e deixavam
+          -- ligada para as seguintes, que esperam o PDV antigo).
+          pdv_v2 = false
     where id = $1`, [loja])
 
 // ── dono ────────────────────────────────────────────────────────────────────

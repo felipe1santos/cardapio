@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classificarIntencao, linkDaLoja, textoBoasVindas, textoPadrao, textoStatus, variantesTelefone } from './robo'
+import { classificarIntencao, numeroPermitido, linkDaLoja, textoBoasVindas, textoPadrao, textoStatus, variantesTelefone } from './robo'
 import { limparErro, mascararTelefone } from './mascara'
 import { interpretarWebhookEvolution } from './provedor'
 
@@ -94,5 +94,15 @@ describe('interpretarWebhookEvolution', () => {
     expect(interpretarWebhookEvolution(base({ remoteJid: '12345@lid' }, { conversation: 'x' })).mensagens[0].telefone).toBeNull()
     expect(interpretarWebhookEvolution({ event: 'connection.update', data: {} }).mensagens).toEqual([])
     expect(interpretarWebhookEvolution(null).mensagens).toEqual([])
+  })
+})
+
+describe('numeroPermitido (lista branca do teste real)', () => {
+  it('sem lista: todos; com lista: só os autorizados, em qualquer variante', () => {
+    expect(numeroPermitido('5527999991234', undefined)).toBe(true)
+    expect(numeroPermitido('5527999991234', '27 99999-1234')).toBe(true)
+    expect(numeroPermitido('552799991234', '5527999991234')).toBe(true)
+    expect(numeroPermitido('5527999991235', '5527999991234')).toBe(false)
+    expect(numeroPermitido('5511912340001', '5527999991234, 5527988887777')).toBe(false)
   })
 })

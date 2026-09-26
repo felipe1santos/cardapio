@@ -13,7 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual } from './provedor'
 import { enfileirar, processarFila } from './fila'
-import { classificarIntencao, textoAtendente, textoBoasVindas, textoPadrao, textoStatus, variantesTelefone, type Acao, type DadosLoja } from './robo'
+import { classificarIntencao, numeroPermitido, textoAtendente, textoBoasVindas, textoPadrao, textoStatus, variantesTelefone, type Acao, type DadosLoja } from './robo'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 
 export const SEGREDO_VALIDO = /^[0-9a-f]{48}$/
@@ -80,6 +80,8 @@ export async function processarEntrada(admin: SupabaseClient, segredo: string, c
     if (m.difusao) { contar(r, 'difusao'); continue }
     if (!m.telefone) { contar(r, 'sem_numero'); continue }
     if (evento.numeroDaLoja && m.telefone === evento.numeroDaLoja) { contar(r, 'numero_da_loja'); continue }
+    // Teste real controlado: só o(s) número(s) autorizado(s), nada é gravado dos outros.
+    if (!numeroPermitido(m.telefone, process.env.WHATSAPP_ROBO_SOMENTE)) { contar(r, 'fora_da_lista_de_teste'); continue }
 
     if (m.deMim) {
       // O próprio robô (ou um aviso da fila) mandou esta mensagem? Então não é a loja

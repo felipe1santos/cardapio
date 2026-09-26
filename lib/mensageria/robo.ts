@@ -98,3 +98,14 @@ export function variantesTelefone(telefoneWhatsapp: string): string[] {
   }
   return [...out]
 }
+
+/**
+ * Lista branca para o teste real controlado: com `WHATSAPP_ROBO_SOMENTE=<números>` (só
+ * dígitos, separados por vírgula), o robô ignora TODO outro número. Sem a variável, vale
+ * para todos.
+ */
+export function numeroPermitido(telefone: string, lista: string | undefined): boolean {
+  const permitidos = (lista ?? '').split(',').map((n) => n.replace(/\D/g, '')).filter(Boolean)
+  if (!permitidos.length) return true
+  return permitidos.some((n) => variantesTelefone(n).includes(telefone) || n === telefone)
+}
