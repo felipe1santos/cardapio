@@ -22,6 +22,8 @@ export interface EventoAuditoriaLinha {
 
 /** Rótulo legível por ação. Ação sem rótulo aparece com o código cru, não em branco. */
 export const ROTULO_EVENTO: Record<string, string> = {
+  'whatsapp.robo_configurado': 'Configurou o robô do WhatsApp',
+  'whatsapp.conversa_reativada': 'Devolveu conversa ao robô do WhatsApp',
   'mesa.abriu': 'Abriu a mesa',
   'mesa.limpeza': 'Mesa em limpeza',
   'conta.fechamento_decisoes': 'Resolveu pendências no fechamento',
@@ -114,6 +116,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'pdv_legado', label: 'PDV antigo', prefixos: ['pdv_legado.'] },
   { id: 'chamado', label: 'Chamados', prefixos: ['chamado.'] },
   { id: 'equipe', label: 'Equipe', prefixos: ['equipe.'] },
+  { id: 'whatsapp', label: 'WhatsApp', prefixos: ['whatsapp.'] },
   { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },
 ]
 
