@@ -69,6 +69,8 @@ export const PERMISSOES = [
   'logistica.operar',
   'auditoria.ver',
   'integracoes.gerenciar',
+  // Conversas do robô do WhatsApp em atendimento humano: ver, devolver e pausar.
+  'whatsapp.atender',
   'ajustes.editar',
   'equipe.gerenciar',
 ] as const
@@ -158,6 +160,8 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
   'logistica.operar': ['dono', 'gerente', 'logistica'],
   'auditoria.ver': ['dono', 'gerente'],
   'integracoes.gerenciar': ['dono'],
+  // Mesmo papel que lê as conversas pela RLS (0102). Configurar o robô continua do dono.
+  'whatsapp.atender': ['dono', 'gerente'],
   'ajustes.editar': ['dono'],
   'equipe.gerenciar': ['dono', 'gerente'],
 }

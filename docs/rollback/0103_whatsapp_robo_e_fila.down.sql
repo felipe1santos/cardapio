@@ -1,0 +1,17 @@
+-- Rollback da 0103 (robô do WhatsApp e fila de envios do robô). Voltar o CÓDIGO antes
+-- (redeploy do commit anterior): o código novo lê estas tabelas no webhook, no cron e no
+-- cartão de Integrações. Os avisos de pedido, campanhas e códigos NÃO dependem delas.
+-- Apaga configuração, conversas, mensagens, fila e eventos do robô (dados só do robô).
+begin;
+drop function if exists public.whatsapp_limpar_antigos();
+drop function if exists public.whatsapp_concluir_envio(uuid, text, text, text);
+drop function if exists public.whatsapp_reivindicar_envios(integer, uuid);
+drop function if exists public.whatsapp_alterar_conversa(uuid, uuid, text, uuid, text);
+drop function if exists public.whatsapp_registrar_entrada(uuid, text, text, boolean, text, text, timestamptz, text, text);
+drop table if exists public.whatsapp_eventos;
+drop table if exists public.whatsapp_envios;
+drop table if exists public.whatsapp_mensagens;
+drop table if exists public.whatsapp_conversas;
+drop table if exists public.whatsapp_robo_config;
+delete from schema_migrations where name = '0103_whatsapp_robo_e_fila.sql';
+commit;

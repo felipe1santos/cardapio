@@ -5,6 +5,7 @@ import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapP
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { erroDoTroco } from '@/lib/troco'
+import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { ETIQUETAS_ITEM, SELO_FAVORITO, mostraSeloFavorito, tagDoItem } from '@/lib/etiqueta-item'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
@@ -85,8 +86,10 @@ const STATUS_PEDIDO_INFO: Record<string, { label: string; cls: string }> = {
 
 /** Selo do pedido; na loja sem entregador, o concluído aparece como "Saiu para entrega". */
 function infoStatusPedido(p: { status: string; saidaSemConfirmacao?: boolean }): { label: string; cls: string } {
-  if (p.saidaSemConfirmacao && p.status === 'entregue') return { label: 'Saiu para entrega', cls: 'bg-[#15803D] text-white' }
-  return STATUS_PEDIDO_INFO[p.status] ?? { label: p.status, cls: 'bg-[#F3F4F6] text-text-subtle' }
+  // O rótulo é a regra comum com o robô do WhatsApp (lib/status-pedido-cliente); aqui só a cor.
+  const label = rotuloStatusPedidoCliente(p)
+  if (p.saidaSemConfirmacao && p.status === 'entregue') return { label, cls: 'bg-[#15803D] text-white' }
+  return { label, cls: STATUS_PEDIDO_INFO[p.status]?.cls ?? 'bg-[#F3F4F6] text-text-subtle' }
 }
 
 const PEDIDO_ATIVO = new Set(['recebido', 'preparando', 'pronto', 'em_rota'])

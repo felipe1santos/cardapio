@@ -59,6 +59,7 @@ const ESPERADO: Record<Permissao, Papel[]> = {
   'logistica.operar': ['dono', 'gerente', 'logistica'],
   'auditoria.ver': ['dono', 'gerente'],
   'integracoes.gerenciar': ['dono'],
+  'whatsapp.atender': ['dono', 'gerente'],
   'ajustes.editar': ['dono'],
   'equipe.gerenciar': ['dono', 'gerente'],
 }

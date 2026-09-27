@@ -10,6 +10,11 @@
  *   E2E_LOJA=cantina-e2e E2E_VIZINHA=vizinha-e2e E2E_SUFIXO=e2e node scripts/seguranca/e2e-garcom.mjs
  *
  * Sem as variáveis, tudo fica como sempre foi (cantina-demo, vizinha-demo, *.local).
+ *
+ * Use lojas isoladas DIFERENTES para as suítes do PDV (e2e-pdv-v2, e2e-pdv-atendimento,
+ * e2e-balcao-entrega) e as de mesas (garçom, release, regressão, checkpoint-e): as do PDV
+ * gravam na auditoria a "senha" do balcão, e a release de mesas procura essa palavra em
+ * todos os eventos da loja (falso positivo). Ex.: E2E_LOJA=cantina-pdv2 … E2E_SUFIXO=pdv2.
  */
 const S = process.env.E2E_SUFIXO ?? ''
 
