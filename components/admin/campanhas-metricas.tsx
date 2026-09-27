@@ -1,18 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card } from '@/components/ui/card'
+import {
+  AlertTriangle, Calculator, CalendarDays, CheckCheck, CircleX, Copy, Eye, Hourglass, Megaphone, MessageCircleReply,
+  MousePointerClick, Percent, RotateCcw, Send, ShieldCheck, ShoppingBag, Wallet, type LucideIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatarReal } from '@/lib/moeda'
+import { BolhaIcone, Cartao, Etiqueta, TituloBloco, TONS, type Tom } from '@/components/admin/painel-visual'
 
 /**
  * Painel de métricas das campanhas (0104). Os números vêm de campanhas_metricas, que
- * só responde a dono/gerente e só com a loja dele.
+ * só responde a dono/gerente e só com a loja dele. Visual no idioma do Dashboard.
  *
  * Real: enviadas, falhas, tentativas, cliques (link rastreável), pedidos do mesmo
  * telefone em até 12h. Entregue/lida dependem do WhatsApp da loja integrado (webhook) e
  * "lida" é um piso: o cliente pode ter a confirmação de leitura desligada. Pedido sem
- * clique antes é "provável".
+ * clique antes é "provável". ROI precisa de custo, que a campanha não registra.
  */
 
 export interface MetricaCampanha {
@@ -70,20 +74,29 @@ const PERIODOS = [
   { id: 'custom', label: 'Personalizado' },
 ] as const
 
-const STATUS_ENVIO: Record<string, { label: string; cls: string }> = {
-  pendente: { label: 'Na fila', cls: 'bg-page text-text-subtle border border-border' },
-  reservado: { label: 'Enviando', cls: 'bg-warn/20 text-warn' },
-  enviado: { label: 'Enviada', cls: 'bg-alert-bg text-alert-text' },
-  erro: { label: 'Falhou', cls: 'bg-danger/10 text-danger' },
-  incerto: { label: 'Incerta', cls: 'bg-warn/20 text-warn' },
-  cancelado: { label: 'Cancelada', cls: 'bg-page text-text-subtle border border-border' },
-  expirado: { label: 'Expirada', cls: 'bg-page text-text-subtle border border-border' },
+const STATUS_ENVIO: Record<string, { label: string; tom: Tom }> = {
+  pendente: { label: 'Na fila', tom: 'cinza' },
+  reservado: { label: 'Enviando', tom: 'ambar' },
+  enviado: { label: 'Enviada', tom: 'azul' },
+  erro: { label: 'Falhou', tom: 'vermelho' },
+  incerto: { label: 'Incerta', tom: 'ambar' },
+  cancelado: { label: 'Cancelada', tom: 'cinza' },
+  expirado: { label: 'Expirada', tom: 'cinza' },
+}
+
+const STATUS_CAMPANHA: Record<string, { label: string; tom: Tom }> = {
+  rascunho: { label: 'Rascunho', tom: 'cinza' },
+  agendada: { label: 'Agendada', tom: 'azul' },
+  enviando: { label: 'Enviando', tom: 'ambar' },
+  concluida: { label: 'Concluída', tom: 'verde' },
+  cancelada: { label: 'Cancelada', tom: 'vermelho' },
 }
 
 const inteiro = (n: number) => Number(n ?? 0).toLocaleString('pt-BR')
 /** "1 cliente pediu" / "3 clientes pediram": número + a forma certa. */
 export const contagem = (n: number, singular: string, plural: string) => `${inteiro(n)} ${Number(n) === 1 ? singular : plural}`
-const pct = (parte: number, todo: number) => (todo > 0 ? `${((parte / todo) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : '—')
+const pctNum = (parte: number, todo: number) => (todo > 0 ? (parte / todo) * 100 : 0)
+const pct = (parte: number, todo: number) => (todo > 0 ? `${pctNum(parte, todo).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : '—')
 const dataCurta = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 const diaInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
@@ -134,158 +147,212 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
 
   const t = dados?.totais
   const vazio = !!dados && dados.campanhas.length === 0
+  const provaveis = t ? t.pedidos - t.pedidos_clique : 0
 
   return (
     <div className="space-y-4" data-testid="metricas-campanhas">
       {/* Filtros */}
-      <Card className="flex flex-wrap items-end gap-3 p-3.5">
-        <div>
-          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Período</span>
-          <div className="flex flex-wrap gap-1.5">
+      <Cartao className="flex flex-wrap items-end gap-x-4 gap-y-3 p-4">
+        <div className="min-w-0">
+          <span className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-[var(--adm-texto-forte)]">
+            <CalendarDays className="h-3.5 w-3.5 text-[var(--adm-texto-suave)]" /> Período
+          </span>
+          <div className="inline-flex flex-wrap rounded-full bg-[#F1F5F9] p-[3px]" role="group" aria-label="Período">
             {PERIODOS.map((p) => (
-              <button key={p.id} type="button" onClick={() => setPeriodo(p.id)}
-                className={['h-[34px] rounded-menuzia border px-3 text-[12px] font-semibold transition-colors',
-                  periodo === p.id ? 'border-primary bg-alert-bg text-primary' : 'border-border text-text-subtle hover:border-primary'].join(' ')}>
+              <button key={p.id} type="button" onClick={() => setPeriodo(p.id)} aria-pressed={periodo === p.id}
+                className={['h-[30px] rounded-full px-3.5 text-[12px] font-semibold transition-colors',
+                  periodo === p.id ? 'bg-white text-[#0688D4] shadow-[0_1px_2px_rgba(15,23,42,0.12)]' : 'text-[var(--adm-texto-suave)] hover:text-[var(--adm-texto)]'].join(' ')}>
                 {p.label}
               </button>
             ))}
           </div>
         </div>
         {periodo === 'custom' && (
-          <div className="flex items-end gap-2">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-              De
-              <input type="date" value={deCustom} onChange={(e) => setDeCustom(e.target.value)}
-                className="mt-1 block h-[34px] rounded-menuzia border border-border bg-white px-2 text-[13px] font-normal normal-case text-text-main outline-none focus:border-primary" />
-            </label>
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-              Até
-              <input type="date" value={ateCustom} onChange={(e) => setAteCustom(e.target.value)}
-                className="mt-1 block h-[34px] rounded-menuzia border border-border bg-white px-2 text-[13px] font-normal normal-case text-text-main outline-none focus:border-primary" />
-            </label>
+          <div className="flex flex-wrap items-end gap-2">
+            {([['De', deCustom, setDeCustom], ['Até', ateCustom, setAteCustom]] as const).map(([rotulo, valor, mudar]) => (
+              <label key={rotulo} className="text-[12px] font-semibold text-[var(--adm-texto-forte)]">
+                {rotulo}
+                <input type="date" value={valor} onChange={(e) => mudar(e.target.value)}
+                  className="mt-1.5 block h-[36px] rounded-[6px] border border-[var(--adm-borda)] bg-white px-2.5 text-[13px] font-normal text-[var(--adm-texto)] outline-none focus:border-[#0688D4]" />
+              </label>
+            ))}
           </div>
         )}
-        <label className="min-w-[200px] flex-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle max-sm:min-w-full">
-          Campanha
+        <label className="min-w-[220px] flex-1 text-[12px] font-semibold text-[var(--adm-texto-forte)] max-sm:min-w-full">
+          <span className="flex items-center gap-1.5"><Megaphone className="h-3.5 w-3.5 text-[var(--adm-texto-suave)]" /> Campanha</span>
           <select value={campanha} onChange={(e) => setCampanha(e.target.value)}
-            className="mt-1 block h-[34px] w-full rounded-menuzia border border-border bg-white px-2 text-[13px] font-normal normal-case text-text-main outline-none focus:border-primary">
+            className="mt-1.5 block h-[36px] w-full rounded-[6px] border border-[var(--adm-borda)] bg-white px-2.5 text-[13px] font-normal text-[var(--adm-texto)] outline-none focus:border-[#0688D4]">
             <option value="">Todas as campanhas</option>
             {opcoesCampanhas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </label>
-      </Card>
+      </Cartao>
 
       {erro ? (
-        <Card className="flex flex-col items-center gap-3 py-10 text-center" role="alert">
-          <p className="text-[13px] font-medium text-danger">{erro}</p>
+        <Cartao className="flex flex-col items-center gap-3 px-4 py-10 text-center" role="alert">
+          <BolhaIcone icone={AlertTriangle} tom="vermelho" />
+          <p className="text-[13px] font-medium text-[#DC2626]">{erro}</p>
           <Button variant="outline" onClick={carregar}>Tentar de novo</Button>
-        </Card>
+        </Cartao>
       ) : carregando && !dados ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Carregando métricas">
-          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-[86px] animate-pulse rounded-menuzia border border-border bg-white" />)}
+        <div className="space-y-3" aria-busy="true" aria-label="Carregando métricas">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[112px] animate-pulse rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" />)}
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-[92px] animate-pulse rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" />)}
+          </div>
         </div>
       ) : vazio ? (
-        <Card className="flex flex-col items-center gap-2 py-12 text-center">
-          <p className="text-[14px] font-semibold text-text-main">Nenhuma campanha neste período</p>
-          <p className="max-w-[420px] text-[13px] text-text-subtle">Quando você disparar uma campanha, aqui aparecem as mensagens enviadas, os cliques no link e os pedidos que vieram dela.</p>
-        </Card>
+        <Cartao className="flex flex-col items-center gap-3 px-4 py-14 text-center">
+          <BolhaIcone icone={Megaphone} tom="azul" tamanho={52} />
+          <p className="text-[15px] font-bold text-[var(--adm-texto)]">Nenhuma campanha neste período</p>
+          <p className="max-w-[420px] text-[13px] text-[var(--adm-texto-suave)]">Quando você disparar uma campanha, aqui aparecem as mensagens enviadas, os cliques no link e os pedidos que vieram dela.</p>
+        </Cartao>
       ) : t ? (
-        <div className={carregando ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Numero titulo="Enviadas" valor={inteiro(t.enviadas)} dica={`${inteiro(t.destinatarios)} na lista`} />
-            <Numero titulo="Entregues" valor={inteiro(t.entregues)} dica={pct(t.entregues, t.enviadas)} />
-            <Numero titulo="Lidas (mínimo)" valor={inteiro(t.lidas)} dica={pct(t.lidas, t.enviadas)} />
-            <Numero titulo="Respondidas" valor={inteiro(t.respondidas)} dica={pct(t.respondidas, t.enviadas)} />
-            <Numero titulo="Cliques no link" valor={inteiro(t.clicaram)} dica={`${contagem(t.cliques, 'clique', 'cliques')} no total`} />
-            <Numero titulo="Pedidos em 12h" valor={inteiro(t.pedidos)} dica={`${inteiro(t.pedidos_clique)} com clique · ${contagem(t.pedidos - t.pedidos_clique, 'provável', 'prováveis')}`} />
-            <Numero titulo="Faturamento" valor={formatarReal(Number(t.faturamento))} destaque />
-            <Numero titulo="Conversão" valor={pct(t.convertidos, t.enviadas)} dica={`${contagem(t.convertidos, 'cliente pediu', 'clientes pediram')}`} />
+        <div className={['space-y-4 transition-opacity', carregando ? 'opacity-60' : ''].join(' ')}>
+          {/* Resultado: o que a campanha trouxe */}
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <Destaque icone={ShoppingBag} tom="azul" titulo="Pedidos em 12h" valor={inteiro(t.pedidos)}
+              dica={`${inteiro(t.pedidos_clique)} com clique · ${contagem(provaveis, 'provável', 'prováveis')}`}
+              etiqueta={provaveis > 0 ? <Etiqueta tom="ambar" title="Pedido do mesmo telefone sem clique no link antes">estimados</Etiqueta> : undefined} />
+            <Destaque icone={Wallet} tom="verde" titulo="Faturamento" valor={formatarReal(Number(t.faturamento))} valorCor={TONS.verde.cor}
+              dica="Pedidos atribuídos às campanhas" />
+            <Destaque icone={Percent} tom="roxo" titulo="Conversão" valor={pct(t.convertidos, t.enviadas)}
+              dica={contagem(t.convertidos, 'cliente pediu', 'clientes pediram')} barra={pctNum(t.convertidos, t.enviadas)} />
+            <Destaque icone={Calculator} tom="cinza" titulo="ROI" valor="Indisponível" valorPequeno
+              dica="Custo da campanha não informado — sem custo não dá para calcular o retorno." />
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-            <Card>
-              <h3 className="mb-3 text-[13px] font-bold text-text-main">Funil</h3>
-              <Funil etapas={[
-                { nome: 'Enviadas', valor: t.enviadas },
-                { nome: 'Entregues', valor: t.entregues },
-                { nome: 'Lidas', valor: t.lidas },
-                { nome: 'Clicaram', valor: t.clicaram },
-                { nome: 'Pediram', valor: t.convertidos },
-              ]} />
-            </Card>
-            <Card>
-              <h3 className="mb-3 text-[13px] font-bold text-text-main">Saúde do envio</h3>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
-                <Linha nome="Falharam" valor={t.falhas} alerta={t.falhas > 0} />
-                <Linha nome="Incertas" valor={t.incertos} alerta={t.incertos > 0} />
-                <Linha nome="Não enviadas" valor={t.nao_enviadas} />
-                <Linha nome="Na fila" valor={t.na_fila} />
-                <Linha nome="Novas tentativas" valor={t.retries} />
-                <Linha nome="Duplicidades barradas" valor={t.duplicados_bloqueados} />
-              </dl>
-            </Card>
+          {/* Alcance e engajamento */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <Numero icone={Send} tom="cinza" titulo="Enviadas" valor={inteiro(t.enviadas)} dica={`${inteiro(t.destinatarios)} na lista`} />
+            <Numero icone={CheckCheck} tom="ceu" titulo="Entregues" valor={inteiro(t.entregues)} dica={pct(t.entregues, t.enviadas)} />
+            <Numero icone={Eye} tom="roxo" titulo="Lidas (mínimo)" valor={inteiro(t.lidas)} dica={pct(t.lidas, t.enviadas)} />
+            <Numero icone={MessageCircleReply} tom="laranja" titulo="Respondidas" valor={inteiro(t.respondidas)} dica={pct(t.respondidas, t.enviadas)} />
+            <Numero className="max-md:col-span-2" icone={MousePointerClick} tom="ambar" titulo="Cliques no link" valor={inteiro(t.clicaram)} dica={`${contagem(t.cliques, 'clique', 'cliques')} no total`} />
           </div>
 
-          <Card className="mt-4 overflow-hidden p-0">
-            <h3 className="border-b border-border px-4 py-3 text-[13px] font-bold text-text-main">Por campanha</h3>
-            <div className="divide-y divide-border lg:hidden">
+          {/* Funil + faturamento por campanha */}
+          <div className="grid gap-4 lg:grid-cols-[1.25fr_1fr]">
+            <Cartao className="p-4">
+              <TituloBloco titulo="Funil" subtitulo="Do envio ao pedido — cada etapa sobre as mensagens enviadas" />
+              <div className="mt-4">
+                <Funil etapas={[
+                  { nome: 'Enviadas', valor: t.enviadas, tom: 'azul' },
+                  { nome: 'Entregues', valor: t.entregues, tom: 'ceu' },
+                  { nome: 'Lidas', valor: t.lidas, tom: 'roxo' },
+                  { nome: 'Clicaram', valor: t.clicaram, tom: 'ambar' },
+                  { nome: 'Pediram', valor: t.convertidos, tom: 'verde' },
+                ]} />
+              </div>
+            </Cartao>
+            <Cartao className="p-4">
+              <TituloBloco titulo="Faturamento por campanha" subtitulo="Pedidos em até 12h após o envio" />
+              <FaturamentoPorCampanha campanhas={dados!.campanhas} />
+            </Cartao>
+          </div>
+
+          {/* Saúde do envio */}
+          <Cartao className="p-4">
+            <TituloBloco titulo="Saúde do envio" subtitulo="O que aconteceu com cada mensagem na fila" />
+            <dl className="mt-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3">
+              <Saude icone={CircleX} tom="vermelho" nome="Falharam" valor={t.falhas} />
+              <Saude icone={AlertTriangle} tom="ambar" nome="Incertas" valor={t.incertos} />
+              <Saude icone={Hourglass} tom="cinza" nome="Não enviadas" valor={t.nao_enviadas} />
+              <Saude icone={Send} tom="azul" nome="Na fila" valor={t.na_fila} />
+              <Saude icone={RotateCcw} tom="roxo" nome="Novas tentativas" valor={t.retries} />
+              <Saude icone={Copy} tom="verde" nome="Duplicidades barradas" valor={t.duplicados_bloqueados} />
+            </dl>
+          </Cartao>
+
+          {/* Por campanha */}
+          <Cartao className="overflow-hidden">
+            <div className="px-4 pt-4">
+              <TituloBloco titulo="Por campanha" subtitulo="Toque numa campanha para ver cada destinatário" />
+            </div>
+            <div className="mt-3 divide-y divide-[var(--adm-borda)] border-t border-[var(--adm-borda)] lg:hidden">
               {dados!.campanhas.map((c) => (
-                <button key={c.id} type="button" onClick={() => setAberta(c)} className="block w-full px-4 py-3 text-left">
+                <button key={c.id} type="button" onClick={() => setAberta(c)} className="block w-full px-4 py-3.5 text-left hover:bg-[var(--adm-hover)]">
                   <div className="flex items-start justify-between gap-3">
-                    <span className="min-w-0 break-words text-[14px] font-semibold text-text-main">{c.nome}</span>
-                    <span className="shrink-0 text-[12px] text-text-subtle">{dataCurta(c.quando)}</span>
+                    <span className="min-w-0">
+                      <span className="block break-words text-[14px] font-semibold text-[var(--adm-texto)]">{c.nome}</span>
+                      <span className="text-[12px] text-[var(--adm-texto-suave)]">{dataCurta(c.quando)}</span>
+                    </span>
+                    <SeloCampanha status={c.status} />
                   </div>
-                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-text-subtle">
+                  <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[12px] text-[var(--adm-texto-medio)] min-[400px]:grid-cols-4">
                     <span>{contagem(c.enviadas, 'enviada', 'enviadas')}</span>
-                    <span>{contagem(c.clicaram, 'clique', 'cliques')}</span>
+                    <span>{c.incluir_link ? contagem(c.clicaram, 'clique', 'cliques') : 'sem link'}</span>
                     <span>{contagem(c.pedidos, 'pedido', 'pedidos')}</span>
-                    <span className="font-semibold text-price-text">{formatarReal(Number(c.faturamento))}</span>
+                    <span className="font-semibold" style={{ color: TONS.verde.cor }}>{formatarReal(Number(c.faturamento))}</span>
                   </div>
                 </button>
               ))}
             </div>
-            <table className="hidden w-full text-[13px] lg:table">
-              <thead>
-                <tr className="border-b border-border bg-page text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                  <th className="px-4 py-2.5 text-left">Campanha</th>
-                  <th className="px-3 py-2.5 text-right">Enviadas</th>
-                  <th className="px-3 py-2.5 text-right">Entregues</th>
-                  <th className="px-3 py-2.5 text-right">Lidas</th>
-                  <th className="px-3 py-2.5 text-right">Cliques</th>
-                  <th className="px-3 py-2.5 text-right">Pedidos</th>
-                  <th className="px-3 py-2.5 text-right">Faturamento</th>
-                  <th className="px-4 py-2.5 text-right">Conversão</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {dados!.campanhas.map((c) => (
-                  <tr key={c.id} onClick={() => setAberta(c)} className="cursor-pointer hover:bg-page/60">
-                    <td className="px-4 py-2.5">
-                      <span className="font-medium text-text-main">{c.nome}</span>
-                      <span className="block text-[11px] text-text-subtle">{dataCurta(c.quando)}{c.falhas > 0 ? ` · ${contagem(c.falhas, 'falha', 'falhas')}` : ''}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">{inteiro(c.enviadas)}</td>
-                    <td className="px-3 py-2.5 text-right">{inteiro(c.entregues)}</td>
-                    <td className="px-3 py-2.5 text-right">{inteiro(c.lidas)}</td>
-                    <td className="px-3 py-2.5 text-right">{c.incluir_link ? inteiro(c.clicaram) : <span className="text-text-subtle" title="Campanha sem link rastreável">—</span>}</td>
-                    <td className="px-3 py-2.5 text-right">{inteiro(c.pedidos)}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold text-price-text">{formatarReal(Number(c.faturamento))}</td>
-                    <td className="px-4 py-2.5 text-right">{pct(c.convertidos, c.enviadas)}</td>
+            <div className="mt-3 hidden overflow-x-auto lg:block">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-y border-[var(--adm-borda)] bg-[#F8FAFC] text-[11.5px] font-semibold text-[var(--adm-texto-suave)]">
+                    <th className="px-4 py-2.5 text-left">Campanha</th>
+                    <th className="px-3 py-2.5 text-right">Enviadas</th>
+                    <th className="px-3 py-2.5 text-left">Entrega</th>
+                    <th className="px-3 py-2.5 text-right">Cliques</th>
+                    <th className="px-3 py-2.5 text-right">Pedidos</th>
+                    <th className="px-3 py-2.5 text-right">Faturamento</th>
+                    <th className="px-4 py-2.5 text-right">Conversão</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+                </thead>
+                <tbody className="divide-y divide-[var(--adm-borda)]">
+                  {dados!.campanhas.map((c) => (
+                    <tr key={c.id} onClick={() => setAberta(c)} className="cursor-pointer transition-colors hover:bg-[#F8FAFC]">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <BolhaIcone icone={Megaphone} tom={STATUS_CAMPANHA[c.status]?.tom ?? 'cinza'} tamanho={32} />
+                          <span className="min-w-0">
+                            <span className="block font-semibold text-[var(--adm-texto)]">{c.nome}</span>
+                            <span className="block text-[11.5px] text-[var(--adm-texto-suave)]">
+                              {dataCurta(c.quando)} · {STATUS_CAMPANHA[c.status]?.label ?? c.status}{c.falhas > 0 ? ` · ${contagem(c.falhas, 'falha', 'falhas')}` : ''}
+                            </span>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold text-[var(--adm-texto)]">{inteiro(c.enviadas)}</td>
+                      <td className="px-3 py-3">
+                        <BarraPct valor={pctNum(c.entregues, c.enviadas)} tom="ceu" rotulo={pct(c.entregues, c.enviadas)} />
+                      </td>
+                      <td className="px-3 py-3 text-right">{c.incluir_link ? inteiro(c.clicaram) : <span className="text-[var(--adm-texto-suave)]" title="Campanha sem link rastreável">—</span>}</td>
+                      <td className="px-3 py-3 text-right">
+                        {inteiro(c.pedidos)}
+                        {c.pedidos > c.pedidos_clique && <span className="block text-[11px] text-[#B45309]">{contagem(c.pedidos - c.pedidos_clique, 'provável', 'prováveis')}</span>}
+                      </td>
+                      <td className="px-3 py-3 text-right font-bold" style={{ color: TONS.verde.cor }}>{formatarReal(Number(c.faturamento))}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="inline-block rounded-full px-2 py-[2px] text-[12px] font-semibold" style={{ backgroundColor: TONS.roxo.fundo, color: TONS.roxo.cor }}>{pct(c.convertidos, c.enviadas)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Cartao>
 
-          <Card className="mt-4 bg-page text-[12px] leading-[18px] text-text-subtle">
-            <p className="mb-1 font-semibold text-text-main">Como contamos</p>
-            <ul className="list-disc space-y-0.5 pl-4">
+          {/* Como contamos */}
+          <Cartao className="bg-[#F8FAFC] p-4 text-[12px] leading-[18px] text-[var(--adm-texto-medio)]">
+            <p className="mb-2 flex items-center gap-1.5 text-[13px] font-bold text-[var(--adm-texto-forte)]"><ShieldCheck className="h-4 w-4 text-[#0688D4]" /> Como contamos</p>
+            <div className="mb-2.5 flex flex-wrap gap-1.5">
+              <Etiqueta tom="verde">Real: enviadas, falhas, cliques, pedidos com clique</Etiqueta>
+              <Etiqueta tom="ambar">Estimado: pedidos prováveis</Etiqueta>
+              <Etiqueta tom="roxo">Mínimo: lidas</Etiqueta>
+            </div>
+            <ul className="list-disc space-y-1 pl-4">
               <li><strong>Pedidos em 12h</strong>: pedido não cancelado do mesmo telefone nas 12 horas depois do envio. Com clique no link antes do pedido é <strong>confirmado</strong>; sem clique, <strong>provável</strong>. Cada pedido conta para uma campanha só (a mais recente).</li>
               <li><strong>Entregues e lidas</strong> só aparecem quando o WhatsApp da loja está integrado ao Menuzia. “Lida” é o mínimo: quem desliga a confirmação de leitura não aparece.</li>
               <li><strong>Respondidas</strong>: mensagem do cliente em até 12h, nas lojas com o robô de atendimento ligado.</li>
               <li><strong>Cliques</strong> só existem em campanhas com o link do cardápio ligado; pré-visualização do WhatsApp não conta.</li>
+              <li><strong>ROI</strong> precisa do custo da campanha, que ainda não é registrado — por isso aparece como indisponível.</li>
             </ul>
-          </Card>
+          </Cartao>
         </div>
       ) : null}
 
@@ -294,44 +361,138 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
   )
 }
 
-function Numero({ titulo, valor, dica, destaque }: { titulo: string; valor: string; dica?: string; destaque?: boolean }) {
+/** Cartão grande da faixa de resultado. */
+function Destaque({ icone, tom, titulo, valor, dica, etiqueta, barra, valorCor, valorPequeno }: {
+  icone: LucideIcon; tom: Tom; titulo: string; valor: string; dica?: string; etiqueta?: React.ReactNode; barra?: number; valorCor?: string; valorPequeno?: boolean
+}) {
   return (
-    <Card className="p-3.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{titulo}</p>
-      <p className={['mt-1 text-[22px] font-bold leading-tight', destaque ? 'text-price-text' : 'text-text-main'].join(' ')}>{valor}</p>
-      {dica && <p className="mt-0.5 truncate text-[11px] text-text-subtle">{dica}</p>}
-    </Card>
+    <Cartao className="flex flex-col p-3.5 sm:p-4">
+      <div className="flex items-start justify-between gap-2">
+        <BolhaIcone icone={icone} tom={tom} tamanho={40} />
+        {etiqueta}
+      </div>
+      <p className="mt-3 text-[12.8px] font-medium text-[var(--adm-texto-medio)]">{titulo}</p>
+      <p className={['mt-0.5 font-bold leading-tight', valorPequeno ? 'text-[16px] sm:text-[18px] text-[var(--adm-texto-suave)]' : 'text-[21px] sm:text-[26px]'].join(' ')}
+        style={valorCor && !valorPequeno ? { color: valorCor } : { color: valorPequeno ? undefined : 'var(--adm-texto)' }}>
+        {valor}
+      </p>
+      {barra !== undefined && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#eef0f3]">
+          <div className="h-full rounded-full" style={{ width: `${Math.min(100, barra)}%`, backgroundColor: TONS[tom].forte }} />
+        </div>
+      )}
+      {dica && <p className="mt-1.5 text-[11.5px] leading-[16px] text-[var(--adm-texto-suave)]">{dica}</p>}
+    </Cartao>
   )
 }
 
-function Linha({ nome, valor, alerta }: { nome: string; valor: number; alerta?: boolean }) {
+/** Cartão compacto da faixa de alcance/engajamento. */
+function Numero({ icone, tom, titulo, valor, dica, className = '' }: { icone: LucideIcon; tom: Tom; titulo: string; valor: string; dica?: string; className?: string }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <dt className="text-text-subtle">{nome}</dt>
-      <dd className={['font-semibold', alerta ? 'text-danger' : 'text-text-main'].join(' ')}>{inteiro(valor)}</dd>
+    <Cartao className={`flex items-start gap-3 p-3.5 ${className}`}>
+      <BolhaIcone icone={icone} tom={tom} tamanho={36} />
+      <div className="min-w-0">
+        <p className="truncate text-[12px] font-medium text-[var(--adm-texto-medio)]">{titulo}</p>
+        <p className="text-[20px] font-bold leading-tight text-[var(--adm-texto)]">{valor}</p>
+        {dica && <p className="truncate text-[11px] text-[var(--adm-texto-suave)]">{dica}</p>}
+      </div>
+    </Cartao>
+  )
+}
+
+function Saude({ icone: Icone, tom, nome, valor }: { icone: LucideIcon; tom: Tom; nome: string; valor: number }) {
+  const t = TONS[tom]
+  const zero = !valor
+  return (
+    <div className="flex items-center gap-2.5 rounded-[6px] border-[0.8px] border-[var(--adm-borda)] px-3 py-2.5">
+      <Icone className="h-4 w-4 flex-shrink-0" style={{ color: zero ? '#94A3B8' : t.cor }} strokeWidth={2.2} />
+      <dt className="min-w-0 flex-1 truncate text-[12px] text-[var(--adm-texto-medio)]">{nome}</dt>
+      <dd className="text-[15px] font-bold" style={{ color: zero ? 'var(--adm-texto-suave)' : tom === 'vermelho' || tom === 'ambar' ? t.cor : 'var(--adm-texto)' }}>{inteiro(valor)}</dd>
     </div>
   )
 }
 
-function Funil({ etapas }: { etapas: { nome: string; valor: number }[] }) {
+function SeloCampanha({ status }: { status: string }) {
+  const s = STATUS_CAMPANHA[status] ?? { label: status, tom: 'cinza' as Tom }
+  return <Etiqueta tom={s.tom}>{s.label}</Etiqueta>
+}
+
+function BarraPct({ valor, tom, rotulo }: { valor: number; tom: Tom; rotulo: string }) {
+  return (
+    <div className="flex min-w-[110px] items-center gap-2">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#eef0f3]">
+        <div className="h-full rounded-full" style={{ width: `${Math.min(100, valor)}%`, backgroundColor: TONS[tom].forte }} />
+      </div>
+      <span className="w-[42px] text-right text-[12px] text-[var(--adm-texto-medio)]">{rotulo}</span>
+    </div>
+  )
+}
+
+/** Funil em degraus: barra larga por etapa, cor própria, % sobre as enviadas e a queda entre etapas. */
+function Funil({ etapas }: { etapas: { nome: string; valor: number; tom: Tom }[] }) {
   const topo = Math.max(1, etapas[0]?.valor ?? 0)
   return (
-    <div className="space-y-2">
-      {etapas.map((e, i) => (
-        <div key={e.nome}>
-          <div className="mb-0.5 flex items-baseline justify-between text-[12px]">
-            <span className="font-medium text-text-main">{e.nome}</span>
-            <span className="text-text-subtle">
-              <strong className="text-text-main">{inteiro(e.valor)}</strong>{i > 0 ? ` · ${pct(e.valor, etapas[0].valor)}` : ''}
-            </span>
+    <ol className="space-y-2.5">
+      {etapas.map((e, i) => {
+        const t = TONS[e.tom]
+        const largura = e.valor > 0 ? Math.max(6, (e.valor / topo) * 100) : 0
+        const anterior = i > 0 ? etapas[i - 1].valor : null
+        return (
+          <li key={e.nome}>
+            <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+              <span className="flex items-center gap-1.5 font-semibold text-[var(--adm-texto-forte)]">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.forte }} />
+                {e.nome}
+              </span>
+              <span className="text-[var(--adm-texto-suave)]">
+                <strong className="text-[14px] text-[var(--adm-texto)]">{inteiro(e.valor)}</strong>
+                {i > 0 ? ` · ${pct(e.valor, etapas[0].valor)}` : ''}
+              </span>
+            </div>
+            <div className="h-[14px] overflow-hidden rounded-full bg-[#eef0f3]">
+              <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${largura}%`, background: `linear-gradient(90deg, ${t.forte}, ${t.cor})` }} />
+            </div>
+            {/* Só quando a etapa cabe na anterior: pedido provável não passou pelo clique. */}
+            {anterior !== null && anterior > 0 && e.valor <= anterior && (
+              <p className="mt-0.5 text-right text-[10.5px] text-[var(--adm-texto-suave)]">{pct(e.valor, anterior)} da etapa anterior</p>
+            )}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/** Barras horizontais de faturamento (verde) com pedidos confirmados/prováveis. */
+function FaturamentoPorCampanha({ campanhas }: { campanhas: MetricaCampanha[] }) {
+  const lista = [...campanhas].sort((a, b) => Number(b.faturamento) - Number(a.faturamento) || b.pedidos - a.pedidos).slice(0, 6)
+  const maior = Math.max(1, ...lista.map((c) => Number(c.faturamento)))
+  if (!lista.some((c) => Number(c.faturamento) > 0)) {
+    return (
+      <div className="mt-6 flex flex-col items-center gap-2 py-6 text-center">
+        <BolhaIcone icone={Wallet} tom="verde" />
+        <p className="text-[12.5px] text-[var(--adm-texto-suave)]">Nenhum pedido atribuído às campanhas neste período.</p>
+      </div>
+    )
+  }
+  return (
+    <ul className="mt-4 space-y-3">
+      {lista.map((c) => (
+        <li key={c.id}>
+          <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+            <span className="min-w-0 truncate font-semibold text-[var(--adm-texto-forte)]">{c.nome}</span>
+            <span className="flex-shrink-0 font-bold" style={{ color: TONS.verde.cor }}>{formatarReal(Number(c.faturamento))}</span>
           </div>
-          <div className="h-[10px] overflow-hidden rounded-menuzia bg-page">
-            <div className={['h-full rounded-menuzia', i === etapas.length - 1 ? 'bg-status-ready' : 'bg-primary'].join(' ')}
-              style={{ width: `${Math.max(e.valor > 0 ? 2 : 0, (e.valor / topo) * 100)}%`, opacity: 1 - i * 0.12 }} />
+          <div className="flex h-[10px] overflow-hidden rounded-full bg-[#eef0f3]">
+            <div className="h-full rounded-full" style={{ width: `${Number(c.faturamento) > 0 ? Math.max(4, (Number(c.faturamento) / maior) * 100) : 0}%`, backgroundColor: TONS.verde.forte }} />
           </div>
-        </div>
+          <p className="mt-0.5 text-[11px] text-[var(--adm-texto-suave)]">
+            {contagem(c.pedidos, 'pedido', 'pedidos')}
+            {c.pedidos ? ` · ${inteiro(c.pedidos_clique)} com clique, ${contagem(c.pedidos - c.pedidos_clique, 'provável', 'prováveis')}` : ''}
+          </p>
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }
 
@@ -358,58 +519,61 @@ function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampanha; onC
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/40 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Detalhes da campanha ${campanha.nome}`}>
-      <div className="flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-menuzia bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
-          <div className="min-w-0">
-            <h2 className="break-words text-[15px] font-bold text-text-main">{campanha.nome}</h2>
-            <p className="text-[12px] text-text-subtle">{dataCurta(campanha.quando)} · {contagem(campanha.destinatarios, 'destinatário', 'destinatários')}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/45 p-3 sm:p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Detalhes da campanha ${campanha.nome}`}>
+      <div className="flex max-h-[90vh] w-full max-w-[780px] flex-col overflow-hidden rounded-[8px] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--adm-borda)] px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <BolhaIcone icone={Megaphone} tom="azul" tamanho={38} />
+            <div className="min-w-0">
+              <h2 className="break-words text-[15px] font-bold text-[var(--adm-texto)]">{campanha.nome}</h2>
+              <p className="text-[12px] text-[var(--adm-texto-suave)]">{dataCurta(campanha.quando)} · {contagem(campanha.destinatarios, 'destinatário', 'destinatários')}</p>
+            </div>
           </div>
-          <button onClick={onClose} aria-label="Fechar" className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-page text-xl font-light text-text-subtle hover:text-text-main">×</button>
+          <button onClick={onClose} aria-label="Fechar" className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] text-xl font-light text-[var(--adm-texto-suave)] hover:text-[var(--adm-texto)]">×</button>
         </div>
         <div className="overflow-y-auto px-5 py-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Mini titulo="Enviadas" valor={inteiro(campanha.enviadas)} />
-            <Mini titulo="Cliques" valor={campanha.incluir_link ? inteiro(campanha.clicaram) : '—'} />
-            <Mini titulo="Pedidos" valor={inteiro(campanha.pedidos)} />
-            <Mini titulo="Faturamento" valor={formatarReal(Number(campanha.faturamento))} />
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <Mini icone={Send} tom="cinza" titulo="Enviadas" valor={inteiro(campanha.enviadas)} />
+            <Mini icone={MousePointerClick} tom="ambar" titulo="Cliques" valor={campanha.incluir_link ? inteiro(campanha.clicaram) : '—'} />
+            <Mini icone={ShoppingBag} tom="azul" titulo="Pedidos" valor={inteiro(campanha.pedidos)} />
+            <Mini icone={Wallet} tom="verde" titulo="Faturamento" valor={formatarReal(Number(campanha.faturamento))} />
           </div>
-          <div className="mt-4">
+          <div className="mt-5">
             <Funil etapas={[
-              { nome: 'Enviadas', valor: campanha.enviadas },
-              { nome: 'Entregues', valor: campanha.entregues },
-              { nome: 'Lidas', valor: campanha.lidas },
-              { nome: 'Clicaram', valor: campanha.clicaram },
-              { nome: 'Pediram', valor: campanha.convertidos },
+              { nome: 'Enviadas', valor: campanha.enviadas, tom: 'azul' },
+              { nome: 'Entregues', valor: campanha.entregues, tom: 'ceu' },
+              { nome: 'Lidas', valor: campanha.lidas, tom: 'roxo' },
+              { nome: 'Clicaram', valor: campanha.clicaram, tom: 'ambar' },
+              { nome: 'Pediram', valor: campanha.convertidos, tom: 'verde' },
             ]} />
           </div>
-          <h3 className="mb-2 mt-5 text-[13px] font-bold text-text-main">Destinatários</h3>
+          <h3 className="mb-2 mt-5 text-[14px] font-bold text-[var(--adm-texto-forte)]">Destinatários</h3>
           {erro ? (
-            <p className="text-[13px] text-danger" role="alert">{erro}</p>
+            <p className="text-[13px] text-[#DC2626]" role="alert">{erro}</p>
           ) : lista === null ? (
-            <p className="text-[13px] text-text-subtle">Carregando…</p>
+            <p className="text-[13px] text-[var(--adm-texto-suave)]">Carregando…</p>
           ) : lista.length === 0 ? (
-            <p className="text-[13px] text-text-subtle">Nenhum destinatário nesta campanha.</p>
+            <p className="text-[13px] text-[var(--adm-texto-suave)]">Nenhum destinatário nesta campanha.</p>
           ) : (
-            <ul className="divide-y divide-border rounded-menuzia border border-border" data-testid="destinatarios">
+            <ul className="divide-y divide-[var(--adm-borda)] rounded-[6px] border-[0.8px] border-[var(--adm-borda)]" data-testid="destinatarios">
               {lista.map((d, i) => {
-                const st = STATUS_ENVIO[d.status] ?? { label: d.status, cls: 'bg-page text-text-subtle' }
+                const st = STATUS_ENVIO[d.status] ?? { label: d.status, tom: 'cinza' as Tom }
                 return (
                   <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-[12px]">
                     <div className="min-w-0">
-                      <span className="font-semibold text-text-main">{d.nome || 'Cliente'}</span>
-                      <span className="ml-1.5 text-text-subtle">{d.telefone}</span>
-                      {d.erro && d.status !== 'enviado' && <span className="block text-[11px] text-text-subtle">{d.erro}</span>}
+                      <span className="font-semibold text-[var(--adm-texto)]">{d.nome || 'Cliente'}</span>
+                      <span className="ml-1.5 text-[var(--adm-texto-suave)]">{d.telefone}</span>
+                      {d.erro && d.status !== 'enviado' && <span className="block text-[11px] text-[var(--adm-texto-suave)]">{d.erro}</span>}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={['rounded-menuzia px-2 py-0.5 text-[11px] font-semibold', st.cls].join(' ')}>{st.label}</span>
-                      {d.entregue_em && <Etiqueta>{d.lido_em ? 'Lida' : 'Entregue'}</Etiqueta>}
-                      {d.respondeu && <Etiqueta>Respondeu</Etiqueta>}
-                      {d.clicado_em && <Etiqueta>Clicou</Etiqueta>}
+                      <Etiqueta tom={st.tom}>{st.label}</Etiqueta>
+                      {d.entregue_em && <Etiqueta tom={d.lido_em ? 'roxo' : 'ceu'}>{d.lido_em ? 'Lida' : 'Entregue'}</Etiqueta>}
+                      {d.respondeu && <Etiqueta tom="laranja">Respondeu</Etiqueta>}
+                      {d.clicado_em && <Etiqueta tom="ambar">Clicou</Etiqueta>}
                       {d.pedido && (
-                        <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold text-price-text">
+                        <Etiqueta tom="verde">
                           Pedido #{d.pedido.numero} · {formatarReal(Number(d.pedido.total))}{d.pedido.via_clique ? '' : ' (provável)'}
-                        </span>
+                        </Etiqueta>
                       )}
                     </div>
                   </li>
@@ -423,15 +587,14 @@ function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampanha; onC
   )
 }
 
-function Mini({ titulo, valor }: { titulo: string; valor: string }) {
+function Mini({ icone, tom, titulo, valor }: { icone: LucideIcon; tom: Tom; titulo: string; valor: string }) {
   return (
-    <div className="rounded-menuzia border border-border px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{titulo}</p>
-      <p className="text-[16px] font-bold text-text-main">{valor}</p>
+    <div className="flex items-center gap-2.5 rounded-[6px] border-[0.8px] border-[var(--adm-borda)] px-3 py-2.5">
+      <BolhaIcone icone={icone} tom={tom} tamanho={30} />
+      <div className="min-w-0">
+        <p className="truncate text-[11px] text-[var(--adm-texto-suave)]">{titulo}</p>
+        <p className="truncate text-[15px] font-bold text-[var(--adm-texto)]">{valor}</p>
+      </div>
     </div>
   )
-}
-
-function Etiqueta({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold text-alert-text">{children}</span>
 }
