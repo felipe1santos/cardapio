@@ -21,10 +21,10 @@ function normalizar(texto: string): string {
 }
 
 const ATENDENTE = /\b(atendente|atendimento humano|humano|pessoa|alguem|falar com (a )?(loja|voces|voce|dono|gerente)|quero falar)\b/
-const STATUS = /\b(meu pedido|status|cade|onde (esta|ta|anda|fica) (o |meu )?pedido|acompanhar|rastrear|ja saiu|vai demorar|demora|meu lanche|minha pizza|chegou)\b/
+const STATUS = /\b(meu pedido|meus pedidos|minh[ao] (ultimo )?pedido|ultimo pedido|pedido (anterior|recente)|minha encomenda|status|cade|onde (esta|ta|anda|fica) (o |meu )?pedido|acompanhar|rastrear|ja saiu|vai demorar|demora|meu lanche|minha pizza|chegou)\b/
 const TAXA = /\b(taxa|frete|valor da entrega|quanto (e|custa|fica) (a )?entrega|entregam (no|na|em|para|pro))\b/
 const HORARIO = /\b(horarios?|que horas|hora (que|de)|abert[oa]s?|abre|abrem|fecha|fecham|fechad[oa]s?|funcionamento|funciona)\b/
-const CARDAPIO = /\b(cardapio|fazer (um )?pedido|quero pedir|pedir|link|precos?|valores)\b/
+const CARDAPIO = /\b(cardapio|fazer (um )?pedido|faco (um )?pedido|quero pedir|pedir|link|precos?|valores)\b/
 const MENU = /^(0|menu|oi+|ola|opa|eai|e ai|bom dia|boa tarde|boa noite|inicio|ajuda|opcoes|help)\b/
 
 /** Opção do menu (0–5) ou palavras. Mídia nunca é texto reconhecido. */
