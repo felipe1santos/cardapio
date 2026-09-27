@@ -141,6 +141,21 @@ Fase bloqueada (como produção): suba SEM `WHATSAPP_ROBO_LIBERADO` e rode com
   campanhas). Status que não é de campanha não vira registro (um marcador por hora em
   `whatsapp_eventos`, `so_status: true`, prova que o provedor está mandando).
 
+## Painel (Integrações) — cliente × suporte (2026-09-27)
+
+- **Dono vê:** robô Ligado/Desligado (interruptor no canto do cartão), conexão do WhatsApp
+  (conectado / não conectado / aguardando QR code / erro), mensagens recebidas e respostas
+  nas últimas 24h, e quem está aguardando atendente (com “Devolver ao robô”). Ligar exige o
+  WhatsApp conectado e a liberação do servidor; desligar sempre pode.
+- **Só o suporte** (e-mail em `SUPERADMIN_EMAILS`, logado na loja): boas-vindas, tempos,
+  webhook mascarado e troca do segredo, no bloco “Configurações avançadas”. A API só manda
+  esses dados com `suporte: true` e recusa as alterações dos demais (403 `so_suporte`).
+  Sem acesso de suporte: `update whatsapp_robo_config set boas_vindas=…, boas_vindas_horas=…,
+  retorno_minutos=… where restaurante_id=…` (service role).
+- **Próxima etapa (não feita):** aviso no canto inferior direito do painel quando uma
+  conversa entrar em “aguardando atendente” e, depois, WhatsApp integrado dentro da
+  Menuzia. Fonte: `/api/admin/whatsapp/conversas` (`emAtendimento`) e o evento `atendente`.
+
 ## Rollback
 
 1. Rápido, sem deploy: desligar o robô da loja em Integrações (ou
