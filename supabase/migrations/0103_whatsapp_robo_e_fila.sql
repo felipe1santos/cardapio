@@ -32,7 +32,7 @@ create table if not exists public.whatsapp_robo_config (
   -- Robô volta sozinho N minutos depois da última mensagem da conversa em atendimento
   -- humano (15 min a 24h; padrão 12h).
   retorno_minutos integer not null default 720 check (retorno_minutos between 15 and 1440),
-  webhook_segredo text not null unique default encode(extensions.gen_random_bytes(24), 'hex'),
+  webhook_segredo text not null unique default encode(gen_random_bytes(24), 'hex'),
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   atualizado_por uuid,

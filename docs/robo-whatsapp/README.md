@@ -1,86 +1,125 @@
 # Robô de atendimento do WhatsApp — v1 (sem IA)
 
-Branch `feat/robo-whatsapp-auditoria`. Migration **0103** (só local; NÃO aplicada em produção).
+Migration **0103**. Publicado DESLIGADO: nenhuma loja responde até a ativação piloto.
+
+## Três travas (todas precisam estar abertas para uma mensagem sair)
+
+1. **Servidor:** `WHATSAPP_ROBO_LIBERADO=1` no ambiente (Coolify). Sem ela o webhook não
+   grava nem responde, a fila recusa respostas do robô e o painel não deixa ligar.
+2. **Loja:** ligar em Integrações (dono). Toda loja nasce com `robo_ativo = false`.
+3. **Webhook:** registrar na Evolution a URL com o segredo da loja (passo manual, abaixo).
+   Nada disso foi feito na publicação.
+
+Extra para o piloto: `WHATSAPP_ROBO_SOMENTE=<números>` restringe o robô a números
+autorizados (os outros são ignorados sem gravar nada).
 
 ## Como funciona
 
 ```
 cliente ──WhatsApp──► Evolution ──POST /api/whatsapp/webhook/<segredo-da-loja>──► Menuzia
                                                      │  loja = segredo (nunca o corpo)
+                                                     │  instância do corpo ≠ da loja → ignora
                                                      ▼
                          whatsapp_registrar_entrada (trava da conversa, wa_id único)
-                                                     │  ação: boas_vindas | status | atendente | padrao | nada
+                                                     │  ação: boas_vindas | status | cardapio |
+                                                     │        horario | taxa | atendente | padrao | nada
                                                      ▼
                               whatsapp_envios (fila, 1 resposta por mensagem)
-                                                     │  processada na hora; falhas pelo cron
+                                                     │  confere servidor + loja na hora de sair
                                                      ▼
-                          ProvedorWhatsapp (Evolution hoje) ──► cliente
+                          ProvedorWhatsapp (Evolution; simulado nos testes) ──► cliente
 ```
 
-- **Boas-vindas:** primeira mensagem ou 12h sem conversa; nome da loja + link do cardápio +
-  menu (1 status, 2 atendente). Texto próprio da loja em Integrações.
-- **Status:** último pedido DESTE telefone NESTA loja (com/sem 55 e com/sem o 9), com o
-  mesmo rótulo da vitrine (`lib/status-pedido-cliente.ts`).
-- **Atendente:** “2”, “atendente”, “falar com uma pessoa”… silencia a conversa; volta
-  sozinho após 2h sem mensagens ou pelo botão “Devolver ao robô”.
-- **Mídia e texto não reconhecido:** resposta padrão (link + opção de atendente), no
-  máximo uma a cada 10 minutos por conversa.
+- **Menu (0):** saudação + link do cardápio + opções 1–5. “Oi”, “bom dia”, “menu” também.
+- **1 Status:** último pedido DESTE telefone NESTA loja (com/sem 55 e com/sem o 9), com
+  o mesmo rótulo da vitrine.
+- **2 Atendente:** conversa silenciada (modo humano), evento `atendente`; o robô não
+  responde mais nela. Volta sozinho após **12h** sem mensagens (configurável 15 min–24h)
+  ou pelo “Devolver ao robô” em Integrações. A loja respondendo à mão pelo celular também
+  silencia (`loja_assumiu`).
+- **3 Cardápio:** link da vitrine.
+- **4 Horário:** aberto/fechado agora (inclui trava manual) e a grade da semana.
+- **5 Taxa:** “taxa Centro” → valor do bairro CADASTRADO. Não geocodifica e não grava
+  nada; com faixas por distância diz “pode sair menor”/“depende da distância”; fora da
+  lista só a taxa padrão se a loja aceita. O valor final é sempre o do cardápio.
+- **Mídia:** áudio, imagem, vídeo, figurinha, documento, contato e localização têm
+  resposta própria (com link e menu). Texto não reconhecido: “Não entendi” + menu, no
+  máximo uma a cada 10 min.
 - **Nunca responde:** grupo, status/broadcast/canal, número da própria loja, contato sem
-  número identificável (@lid) e mensagens da loja (fromMe). A loja escrevendo à mão pelo
-  celular silencia a conversa; o eco do que o próprio robô mandou é ignorado.
-- **Não faz (v1):** taxa por bairro, aberto/fechado, pedido, preço, IA.
+  número (@lid), mensagem da loja (fromMe) e o eco do que o próprio robô mandou.
+- **Não faz:** criar, cancelar ou alterar pedido; receber pagamento; preço de item; IA.
 
-## Avisos de etapa do pedido
+## Duplicidade e segurança
 
-Mesmos textos; agora pela fila, chave `pedido:<id>:<etapa>` (duplo clique = 1 envio),
-nova tentativa em falha transitória (30s, 60s, 120s, 240s; até 5 tentativas). Tempo
-esgotado com o provedor = `incerto`, sem reenvio automático (pode ter saído).
+- `wa_id` único por loja: reentrega e replay não geram segunda resposta; mensagens
+  simultâneas do mesmo cliente são serializadas pela trava da conversa.
+- Fila: chave de idempotência única por loja, no máximo uma resposta por mensagem,
+  `for update skip locked` (dois crons nunca pegam o mesmo envio), tentativas com espera
+  (30s, 60s, 120s, 240s; até 5), tempo esgotado = `incerto` (sem reenvio automático).
+- Segredo de 48 hex por loja; o painel mostra só os 4 últimos e permite trocar (o antigo
+  para na hora). Corpo limitado a 256 KB e nunca logado; logs com telefone mascarado.
+- RLS: dono e gerente leem conversas, mensagens, envios e eventos da própria loja; a
+  configuração (segredos) só o servidor. Escrita só pelo servidor.
+- Retenção (`whatsapp_limpar_antigos`, pelo cron): texto e nome somem aos 90 dias;
+  metadado (quando, tipo, estado) sai aos 12 meses.
+
+## O que NÃO mudou
+
+Avisos de etapa do pedido, campanhas, código do checkout e fidelidade seguem o envio
+direto de `lib/whatsapp.ts` (igual à main). Levar os avisos para a fila é etapa futura.
 
 ## Arquivos
 
 | Onde | O quê |
 |---|---|
 | `supabase/migrations/0103_whatsapp_robo_e_fila.sql` | tabelas, RLS, funções, retenção |
-| `lib/mensageria/provedor.ts` | interface de provedor, Evolution, simulado |
-| `lib/mensageria/robo.ts` | intenção e textos (puro) |
-| `lib/mensageria/entrada.ts` | webhook → decisão → fila |
+| `lib/mensageria/robo.ts` | intenções e textos (puro) + trava do servidor |
+| `lib/mensageria/entrada.ts` | webhook → decisão → fila (+ evento) |
 | `lib/mensageria/fila.ts` | enfileirar e processar |
-| `lib/mensageria/mascara.ts` | telefone mascarado nos logs |
-| `lib/whatsapp.ts` | avisos pela fila; envios diretos pelo provedor |
+| `lib/mensageria/provedor.ts` | Evolution e simulado |
+| `lib/mensageria/conversas.ts` | conversas para o painel |
 | `app/api/whatsapp/webhook/[segredo]` | entrada |
 | `app/api/cron/whatsapp` | novas tentativas + retenção (CRON_SECRET) |
-| `app/api/admin/whatsapp/robo` (+ `/reativar`) | painel (dono) |
+| `app/api/admin/whatsapp/robo` | configuração (dono) |
+| `app/api/admin/whatsapp/conversas` | devolver/pausar (dono e gerente) |
 | `components/admin/robo-whatsapp.tsx` | cartão em Integrações |
 
-## Publicação (quando autorizado)
+## Testar sem mensagem real
 
-1. Aplicar 0103 (aditiva; robô nasce desligado em toda loja).
-2. Deploy. Os avisos de pedido já passam pela fila (sem mudança de texto).
-3. Cron no Coolify: `POST /api/cron/whatsapp` a cada 1 minuto com `x-cron-secret`.
-4. Robô só funciona numa loja depois de: ligar em Integrações **e** registrar o webhook da
-   instância (passo manual, ver teste real).
+Servidor local (`scripts/seguranca/servidor-local.mjs`, que já apaga as variáveis da
+Evolution) com `WHATSAPP_PROVEDOR=simulado WHATSAPP_SIMULADO_ARQUIVO=<arq>
+CRON_SECRET=<x> WHATSAPP_ROBO_LIBERADO=1`, e:
 
-Rollback: código anterior + `docs/rollback/0103_whatsapp_robo_e_fila.down.sql`.
+```
+ROBO_E2E_LOJA=robo-e2e-a ROBO_E2E_VIZINHA=robo-e2e-b ROBO_PROVEDOR=simulado \
+WHATSAPP_SIMULADO_ARQUIVO=<arq> CRON_SECRET=<x> node scripts/seguranca/e2e-robo-whatsapp.mjs
+```
 
-## Teste real controlado — só Menuzia, um número autorizado
+Fase bloqueada (como produção): suba SEM `WHATSAPP_ROBO_LIBERADO` e rode com
+`ROBO_E2E_FASE=bloqueado`.
 
-Pré-requisito: 0103 aplicada e deploy feito, com autorização. Nada disto foi executado.
+## Ativação piloto (com autorização, uma loja)
 
-1. **Lista branca:** antes de registrar o webhook, definir no Coolify
-   `WHATSAPP_ROBO_SOMENTE=<número autorizado, só dígitos>` e fazer Redeploy. Qualquer outro
-   número é ignorado sem gravar nada (`numeroPermitido`, testado). Sem a variável,
-   qualquer cliente da Menuzia que escrever recebe resposta.
-2. Em Integrações (Menuzia), ligar o robô.
-3. Pegar o segredo (só no banco, service role):
-   `select webhook_segredo from whatsapp_robo_config where restaurante_id = '<id da menuzia>';`
-4. Registrar o webhook **só na instância da Menuzia**:
-   `POST {EVOLUTION_API_URL}/webhook/set/menuzia-824468ae-a16a-43d6-ab82-37e23fbecb38`
-   corpo `{"webhook":{"enabled":true,"url":"https://app.menuzia.com.br/api/whatsapp/webhook/<segredo>","byEvents":false,"base64":false,"events":["MESSAGES_UPSERT"]}}`
-   (conferir o formato na versão instalada; header `apikey`).
-5. Do número autorizado: “Oi” → espera boas-vindas; “1” → status (ou “não encontrei”);
-   foto → resposta padrão; “2” → aviso de atendente; “oi” → **nenhuma** resposta; no
-   painel, “Devolver ao robô”; “oi” → responde de novo; alguém da loja responde à mão pelo
-   celular → robô silencia.
-6. Conferir no banco: uma resposta por mensagem, todos os envios para o número autorizado.
-7. **Encerrar:** desligar o robô; `POST /webhook/set/<instância>` com `"enabled": false`;
-   remover `WHATSAPP_ROBO_SOMENTE` só quando for liberar para todos.
+1. Cron no Coolify: `POST /api/cron/whatsapp` a cada 1 minuto com `x-cron-secret`.
+2. Coolify: `WHATSAPP_ROBO_LIBERADO=1` e `WHATSAPP_ROBO_SOMENTE=<número autorizado>`;
+   Redeploy.
+3. Integrações da loja piloto: ligar o robô.
+4. Segredo (só service role):
+   `select webhook_segredo from whatsapp_robo_config where restaurante_id = '<id>';`
+5. Registrar o webhook **só na instância da loja piloto** (ver
+   `instancias-evolution.md`; NUNCA nas instâncias órfãs nem nas do NR13):
+   `POST {EVOLUTION_API_URL}/webhook/set/<instância>` corpo
+   `{"webhook":{"enabled":true,"url":"https://app.menuzia.com.br/api/whatsapp/webhook/<segredo>","byEvents":false,"base64":false,"events":["MESSAGES_UPSERT"]}}`
+   — conferir antes se a instância já tem webhook de outro uso (não sobrescrever sem ver).
+6. Do número autorizado: “oi”, “1”, “3”, “4”, “taxa <bairro>”, foto, “2”, “oi” (silêncio),
+   “Devolver ao robô”, “oi”, e a loja respondendo à mão.
+7. Conferir: uma resposta por mensagem; tudo para o número autorizado.
+8. Encerrar/rollback rápido: desligar em Integrações (a fila recusa o que estiver
+   pendente) ou tirar `WHATSAPP_ROBO_LIBERADO`; webhook com `"enabled": false`.
+
+## Rollback
+
+1. Rápido, sem deploy: desligar o robô da loja, ou remover `WHATSAPP_ROBO_LIBERADO`.
+2. Código: redeploy do commit anterior.
+3. Banco (depois do código): `docs/rollback/0103_whatsapp_robo_e_fila.down.sql` — apaga
+   só dados do robô; pedidos, campanhas e avisos não dependem das tabelas.
