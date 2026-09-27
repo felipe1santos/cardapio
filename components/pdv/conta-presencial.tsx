@@ -1296,7 +1296,8 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
     // Chave nova só depois do envio: clique duplo e reenvio devolvem o mesmo trabalho.
     chave.current = novaChave()
     if (!r.ok) {
-      setErro({ texto: r.erro ?? 'Não foi possível enviar o Recibo/Extrato.', semCaixa: r.codigo === 'impressora_caixa_nao_configurada' })
+      // Configuração de impressão incompleta: mensagem humana + atalho para a tela Impressão.
+      setErro({ texto: r.erro ?? 'Não foi possível enviar o Recibo/Extrato.', semCaixa: ['impressora_caixa_nao_configurada', 'impressora_caixa_indisponivel', 'modo_somente_teste'].includes(r.codigo ?? '') })
       return
     }
     await carregar()
@@ -1327,8 +1328,8 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
         <p className="mt-1.5 text-[11px] font-semibold text-danger" data-testid="pre-conta-erro">
           {erro.texto}
           {erro.semCaixa && (
-            <a href="/admin/impressao" className="ml-1 underline">
-              menu Impressão
+            <a href="/admin/impressao" className="mt-1.5 inline-flex items-center rounded-menuzia border border-danger/40 bg-white px-2.5 py-1 text-[12px] font-bold text-danger no-underline hover:bg-danger hover:text-white" data-testid="pre-conta-configurar">
+              Configurar impressão
             </a>
           )}
         </p>

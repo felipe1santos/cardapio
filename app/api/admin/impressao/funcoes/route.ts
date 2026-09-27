@@ -16,5 +16,6 @@ export async function PUT(request: Request) {
   if (dispositivoId === undefined) return NextResponse.json({ error: 'Impressora inválida' }, { status: 400 })
   const r = await atribuirFuncao(ctx.admin, ctx.op, corpo.funcao, dispositivoId, corpo.confirmarCompartilhada === true)
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
-  return NextResponse.json({ ok: true })
+  // modoRecuou: o modo ligado perdeu a impressora de que precisava e voltou para a segurança.
+  return NextResponse.json({ ok: true, modoRecuou: r.modoRecuou ?? null })
 }

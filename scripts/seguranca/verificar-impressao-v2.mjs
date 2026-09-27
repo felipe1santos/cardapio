@@ -349,10 +349,16 @@ ok('A revogado não busca mais trabalhos', (await A.get('/api/agente/trabalhos')
 ok('nem a fila da cozinha', (await A.get('/api/agente/pedidos')).status === 401)
 ok('trabalhos pendentes dele foram cancelados', (await um('select estado from impressao_trabalhos where id=$1', [pc5.json.id])).estado === 'cancelado')
 const semDestino = await api(pAt, `/api/admin/comandas/${comanda}/pre-conta`, 'POST', { chave: uuid(), reimpressao: true })
-ok('pré-conta com Caixa em computador revogado: erro claro, nada enfileirado', semDestino.status === 409 && semDestino.json?.codigo === 'impressora_caixa_indisponivel')
+// Regra 2026-09-27: desconectar o computador do Recibo/Extrato do modo ligado volta a loja
+// para "Somente teste" na hora — o PDV recebe a orientação, e nada é enfileirado.
+ok('revogar o computador do Caixa: loja volta para "Somente teste"', (await um('select impressao_beta_modo m from restaurantes where id=$1', [loja])).m === 'teste')
+ok('pré-conta depois disso: erro com orientação, nada enfileirado', semDestino.status === 409 && semDestino.json?.codigo === 'modo_somente_teste' && /em Impressão/.test(semDestino.json?.error ?? ''))
+// Última barreira (o banco): mesmo com o modo forçado, sem Caixa não sai nada.
 await db.query(`delete from impressao_funcoes where restaurante_id=$1`, [loja])
+await db.query(`update restaurantes set impressao_beta_modo='caixa' where id=$1`, [loja])
 const semCaixa = await api(pAt, `/api/admin/comandas/${comanda}/pre-conta`, 'POST', { chave: uuid(), reimpressao: true })
-ok('sem impressora de Caixa: erro com orientação', semCaixa.status === 409 && semCaixa.json?.codigo === 'impressora_caixa_nao_configurada' && /menu Impressão/.test(semCaixa.json?.error ?? ''))
+ok('sem impressora de Caixa (modo forçado): erro com orientação', semCaixa.status === 409 && semCaixa.json?.codigo === 'impressora_caixa_nao_configurada' && /em Impressão/.test(semCaixa.json?.error ?? ''))
+await db.query(`update restaurantes set impressao_beta_modo='teste' where id=$1`, [loja])
 ok('B segue funcionando depois da revogação de A', (await B.get('/api/agente/trabalhos')).status === 200)
 
 // limpeza
