@@ -17,6 +17,7 @@ import {
   classificarIntencao, extrairBairro, numeroPermitido, roboLiberadoNoServidor, textoAtendente, textoBoasVindas, textoCardapio,
   textoHorario, textoPadrao, textoStatus, textoTaxa, variantesTelefone, type Acao, type DadosLoja, type FreteLoja,
 } from './robo'
+import { statusDoProvedor } from './campanhas'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { normalizarForaDaLista } from '@/lib/frete'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
@@ -63,6 +64,26 @@ async function freteDaLoja(admin: SupabaseClient, restauranteId: string, loja: {
   }
 }
 
+/**
+ * A mensagem que a loja "mandou" é uma campanha? Pelo id do provedor ou, se o webhook
+ * chegar antes de o id ser gravado, por um envio de campanha para o mesmo número em
+ * andamento ou concluído há menos de 2 minutos.
+ */
+async function ecoDeCampanha(admin: SupabaseClient, restauranteId: string, waId: string, telefone: string): Promise<boolean> {
+  const { data: porId } = await admin.from('campanha_envios').select('id').eq('restaurante_id', restauranteId).eq('id_externo', waId).limit(1)
+  if ((porId ?? []).length > 0) return true
+  const variantes = variantesTelefone(telefone)
+  if (!variantes.length) return false
+  const { data: recente } = await admin
+    .from('campanha_envios')
+    .select('id')
+    .eq('restaurante_id', restauranteId)
+    .in('telefone', variantes)
+    .or(`status.eq.reservado,enviado_em.gte.${new Date(Date.now() - 2 * 60_000).toISOString()}`)
+    .limit(1)
+  return (recente ?? []).length > 0
+}
+
 /** Metadado do webhook (contagens, sem texto nem número). Nunca derruba a entrada. */
 async function registrarEvento(admin: SupabaseClient, restauranteId: string, r: ResumoEntrada) {
   try {
@@ -107,6 +128,17 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
     contar(r, 'instancia_de_outra_loja')
     return r
   }
+  // Entrega/leitura das campanhas: independe do robô (é métrica, não resposta).
+  for (const a of evento.atualizacoes) {
+    const status = statusDoProvedor(a.status)
+    if (!status) { contar(r, 'status_sem_interesse'); continue }
+    const { data: res, error } = await admin.rpc('campanha_registrar_status', {
+      p_restaurante: lojaRow.id, p_id_externo: a.waId, p_status: status, p_em: new Date().toISOString(),
+    })
+    if (error) throw error
+    contar(r, res === 'ok' ? `campanha_${status}` : res === 'repetido' ? 'campanha_status_repetido' : 'status_de_outra_mensagem')
+  }
+  if (evento.atualizacoes.length && !evento.mensagens.length) return r
   // Nada é gravado (nem a mensagem) com o robô desligado ou o servidor não liberado:
   // só o metadado do webhook, em registrarEvento.
   if (!roboLiberadoNoServidor()) {
@@ -146,6 +178,8 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
           .limit(1)
         proprio = (recente ?? []).length > 0
       }
+      // Mensagem de campanha: o eco dela não é a loja assumindo a conversa.
+      if (!proprio && (await ecoDeCampanha(admin, restauranteId, m.waId, m.telefone))) { contar(r, 'enviada_pela_campanha'); continue }
       if (proprio) { contar(r, 'enviada_pelo_robo'); continue }
     }
 

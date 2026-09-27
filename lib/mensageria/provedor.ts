@@ -35,6 +35,15 @@ export interface EventoWebhook {
   /** Número do próprio WhatsApp da loja (quando o provedor informa). */
   numeroDaLoja: string | null
   mensagens: MensagemRecebida[]
+  /** Entrega/leitura de mensagens que a loja mandou (evento messages.update). */
+  atualizacoes: AtualizacaoStatus[]
+}
+
+export interface AtualizacaoStatus {
+  /** Id da mensagem enviada (o mesmo que o envio devolveu). */
+  waId: string
+  /** Status cru do provedor (texto ou número); quem interpreta é lib/mensageria/campanhas. */
+  status: string | number
 }
 
 export type ResultadoEnvio =
@@ -77,7 +86,22 @@ function tipoEvolution(m: Record<string, unknown> | undefined, tipo: unknown): {
 export function interpretarWebhookEvolution(corpo: unknown): EventoWebhook {
   const c = (corpo ?? {}) as Record<string, unknown>
   const evento = String(c.event ?? '').toLowerCase().replace('_', '.')
-  const vazio: EventoWebhook = { instancia: typeof c.instance === 'string' ? c.instance : null, numeroDaLoja: jidParaTelefone(c.sender), mensagens: [] }
+  const vazio: EventoWebhook = { instancia: typeof c.instance === 'string' ? c.instance : null, numeroDaLoja: jidParaTelefone(c.sender), mensagens: [], atualizacoes: [] }
+  if (evento === 'messages.update') {
+    // Evolution 2.x: { keyId, status: 'DELIVERY_ACK' }; formato Baileys: { key: { id }, update: { status: 3 } }.
+    for (const d of Array.isArray(c.data) ? c.data : [c.data]) {
+      const item = (d ?? {}) as Record<string, unknown>
+      const key = (item.key ?? {}) as Record<string, unknown>
+      const upd = (item.update ?? {}) as Record<string, unknown>
+      const waId = [item.keyId, key.id, item.messageId].find((x) => typeof x === 'string' && x) as string | undefined
+      const status = (item.status ?? upd.status) as string | number | undefined
+      if (!waId || status === undefined || status === null) continue
+      // Só o que a loja mandou tem entrega/leitura que interessa.
+      if (item.fromMe === false || key.fromMe === false) continue
+      vazio.atualizacoes.push({ waId: waId.slice(0, 200), status: typeof status === 'number' ? status : String(status).slice(0, 40) })
+    }
+    return vazio
+  }
   if (evento !== 'messages.upsert') return vazio
   const dados = Array.isArray(c.data) ? c.data : [c.data]
   for (const d of dados) {

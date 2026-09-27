@@ -6,6 +6,8 @@ import {
   excluirCampanha,
   resolverDestinatarios,
   popularFilaCampanha,
+  filaIntocada,
+  cancelarFila,
   type CampanhaInput,
 } from '@/lib/queries/campanhas'
 import { createServerClient } from '@supabase/ssr'
@@ -29,11 +31,30 @@ export async function PATCH(request: Request, { params }: Ctx) {
     const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
     if (!restauranteId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    const body: Partial<CampanhaInput> & { disparar?: boolean } = await request.json()
-    const campanha = await atualizarCampanha(supabase, restauranteId, id, body)
+    const body: Partial<CampanhaInput> & { disparar?: boolean; status?: string } = await request.json()
+    const admin = getAdminSupabase()
+    const { data: atual } = await supabase.from('campanhas').select('status').eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
+    if (!atual) return NextResponse.json({ error: 'Campanha não encontrada.' }, { status: 404 })
+
+    // Pelo painel, o único status que se escolhe é "cancelada".
+    if (body.status !== undefined && body.status !== 'cancelada') return NextResponse.json({ error: 'Status inválido.' }, { status: 400 })
+    if (body.status === 'cancelada') {
+      if (!['rascunho', 'agendada', 'enviando'].includes(atual.status)) return NextResponse.json({ error: 'Esta campanha já terminou.' }, { status: 409 })
+      const campanha = await atualizarCampanha(supabase, restauranteId, id, { status: 'cancelada' })
+      await cancelarFila(admin, id)
+      return NextResponse.json(campanha)
+    }
+
+    // Campanha que já começou a sair não é alterada nem disparada de novo: a fila refeita
+    // mandaria outra vez para quem já recebeu.
+    if (!['rascunho', 'agendada'].includes(atual.status) || !(await filaIntocada(admin, id))) {
+      return NextResponse.json({ error: 'Esta campanha já começou a ser enviada e não pode mais ser alterada.' }, { status: 409 })
+    }
+    const patch: Partial<CampanhaInput> & { disparar?: boolean; status?: string } = { ...body }
+    delete patch.status
+    const campanha = await atualizarCampanha(supabase, restauranteId, id, patch as Partial<CampanhaInput>)
 
     if (body.disparar || (body.agendadoEm && campanha.status === 'agendada')) {
-      const admin = getAdminSupabase()
       // Remove envios pendentes anteriores antes de repopular.
       await admin.from('campanha_envios').delete().eq('campanha_id', id).eq('status', 'pendente')
       const destinatarios = await resolverDestinatarios(admin, restauranteId, campanha.filtro)

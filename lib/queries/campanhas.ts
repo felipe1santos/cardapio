@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizarTelefone } from './clientes'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
+import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,23 +33,9 @@ export interface Campanha {
   totalEnviados: number
   totalErros: number
   criadoEm: string
-}
-
-export interface CampanhaEnvio {
-  id: string
-  campanhaId: string
-  restauranteId: string
-  telefone: string
-  nomeCliente: string
-  status: 'pendente' | 'reservado' | 'enviado' | 'erro'
-  erro: string | null
-  enviadoEm: string | null
-  // joined
-  tipoMensagem?: TipoMensagem
-  mensagem?: string
-  imagemUrl?: string | null
-  audioUrl?: string | null
-  evolutionInstance?: string | null
+  /** Link rastreável do cardápio no fim da mensagem (ou no lugar de {link}). */
+  incluirLink: boolean
+  duplicadosBloqueados: number
 }
 
 // ─── Mapeamento ───────────────────────────────────────────────────────────────
@@ -70,12 +57,14 @@ function mapCampanha(row: any): Campanha {
     totalEnviados: row.total_enviados,
     totalErros: row.total_erros,
     criadoEm: row.criado_em,
+    incluirLink: row.incluir_link === true,
+    duplicadosBloqueados: row.duplicados_bloqueados ?? 0,
   }
 }
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em'
+const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em, incluir_link, duplicados_bloqueados'
 
 export async function listarCampanhas(supabase: SupabaseClient, restauranteId: string): Promise<Campanha[]> {
   const { data, error } = await supabase
@@ -95,6 +84,7 @@ export interface CampanhaInput {
   audioUrl?: string | null
   filtro: FiltroCampanha
   agendadoEm?: string | null
+  incluirLink?: boolean
 }
 
 export async function criarCampanha(supabase: SupabaseClient, restauranteId: string, input: CampanhaInput): Promise<Campanha> {
@@ -109,6 +99,7 @@ export async function criarCampanha(supabase: SupabaseClient, restauranteId: str
       audio_url: input.audioUrl ?? null,
       filtro: input.filtro,
       agendado_em: input.agendadoEm ?? null,
+      incluir_link: input.incluirLink === true,
       status: input.agendadoEm ? 'agendada' : 'rascunho',
     })
     .select(CAMPANHA_SELECT)
@@ -125,6 +116,7 @@ export async function atualizarCampanha(supabase: SupabaseClient, restauranteId:
   if ('imagemUrl' in patch) row.imagem_url = patch.imagemUrl ?? null
   if ('audioUrl' in patch) row.audio_url = patch.audioUrl ?? null
   if (patch.filtro !== undefined) row.filtro = patch.filtro
+  if (patch.incluirLink !== undefined) row.incluir_link = patch.incluirLink === true
   if ('agendadoEm' in patch) {
     row.agendado_em = patch.agendadoEm ?? null
     if (!patch.status) row.status = patch.agendadoEm ? 'agendada' : 'rascunho'
@@ -248,7 +240,9 @@ export async function popularFilaCampanha(
   destinatarios: { telefone: string; nome: string }[],
 ): Promise<void> {
   if (!destinatarios.length) return
-  const rows = destinatarios.map((d) => ({
+  // Um envio por telefone (com/sem 55, com/sem o 9): o banco também recusa repetido.
+  const { unicos, repetidos } = deduplicarDestinatarios(destinatarios)
+  const rows = unicos.map((d) => ({
     campanha_id: campanhaId,
     restaurante_id: restauranteId,
     telefone: d.telefone,
@@ -259,96 +253,29 @@ export async function popularFilaCampanha(
 
   const { error: errCount } = await admin
     .from('campanhas')
-    .update({ total_destinatarios: destinatarios.length, status: 'agendada', atualizado_em: new Date().toISOString() })
+    .update({ total_destinatarios: unicos.length, duplicados_bloqueados: repetidos, status: 'agendada', atualizado_em: new Date().toISOString() })
     .eq('id', campanhaId)
   if (errCount) throw errCount
 }
 
-export async function buscarProximoEnvio(admin: SupabaseClient): Promise<CampanhaEnvio | null> {
-  // Busca o próximo envio pendente de campanha cujo agendamento já chegou e reserva
-  // atomicamente (UPDATE ... WHERE status='pendente') antes de devolver — se outra
-  // invocação do cron já tiver pego essa linha entre o SELECT e o UPDATE, o UPDATE
-  // afeta 0 linhas e tentamos a próxima; evita reenviar a mesma mensagem em duplicidade
-  // quando duas execuções do cron se sobrepõem.
-  for (let tentativa = 0; tentativa < 5; tentativa++) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: candidato, error } = await admin
-      .from('campanha_envios')
-      .select(`
-        id, campanha_id, restaurante_id, telefone, nome_cliente, status, erro, enviado_em,
-        campanhas!inner (
-          tipo_mensagem, mensagem, imagem_url, audio_url, agendado_em, status,
-          restaurantes!inner ( evolution_instance )
-        )
-      `)
-      .eq('status', 'pendente')
-      .eq('campanhas.status', 'agendada')
-      .lte('campanhas.agendado_em', new Date().toISOString())
-      .order('criado_em', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) throw error
-    if (!candidato) return null
-
-    const { data: reservado, error: errReserva } = await admin
-      .from('campanha_envios')
-      .update({ status: 'reservado' })
-      .eq('id', candidato.id)
-      .eq('status', 'pendente')
-      .select('id')
-      .maybeSingle()
-    if (errReserva) throw errReserva
-    if (!reservado) continue // outra invocação do cron pegou essa linha primeiro — tenta a próxima
-
-    // Primeira mensagem de fato sendo enviada: reflete no status da campanha
-    // (antes ficava travado em "Agendada" até concluir, sem estado intermediário visível).
-    await admin.from('campanhas').update({ status: 'enviando' }).eq('id', candidato.campanha_id).eq('status', 'agendada')
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const c = (candidato as any).campanhas
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = c?.restaurantes as any
-
-    return {
-      id: candidato.id,
-      campanhaId: candidato.campanha_id,
-      restauranteId: candidato.restaurante_id,
-      telefone: candidato.telefone,
-      nomeCliente: candidato.nome_cliente,
-      status: 'reservado',
-      erro: candidato.erro,
-      enviadoEm: candidato.enviado_em,
-      tipoMensagem: c?.tipo_mensagem,
-      mensagem: c?.mensagem,
-      imagemUrl: c?.imagem_url,
-      audioUrl: c?.audio_url,
-      evolutionInstance: r?.evolution_instance ?? null,
-    }
-  }
-  return null
-}
-
-export async function marcarEnvioSucesso(admin: SupabaseClient, envioId: string, campanhaId: string): Promise<void> {
-  const agora = new Date().toISOString()
-  await admin.from('campanha_envios').update({ status: 'enviado', enviado_em: agora }).eq('id', envioId)
-  await admin.rpc('campanha_incrementar_enviados', { p_campanha_id: campanhaId })
-}
-
-export async function marcarEnvioErro(admin: SupabaseClient, envioId: string, campanhaId: string, erro: string): Promise<void> {
-  await admin.from('campanha_envios').update({ status: 'erro', erro }).eq('id', envioId)
-  await admin.rpc('campanha_incrementar_erros', { p_campanha_id: campanhaId })
-}
-
-export async function verificarConclusaoCampanha(admin: SupabaseClient, campanhaId: string): Promise<void> {
-  const { data } = await admin
+/** A fila ainda pode ser refeita? Só antes de qualquer envio sair ou ser reservado. */
+export async function filaIntocada(admin: SupabaseClient, campanhaId: string): Promise<boolean> {
+  const { data, error } = await admin
     .from('campanha_envios')
     .select('id')
     .eq('campanha_id', campanhaId)
-    .in('status', ['pendente', 'reservado'])
+    .neq('status', 'pendente')
     .limit(1)
-    .maybeSingle()
-  if (!data) {
-    await admin.from('campanhas').update({ status: 'concluida', atualizado_em: new Date().toISOString() }).eq('id', campanhaId)
-  }
+  if (error) throw error
+  return (data ?? []).length === 0
+}
+
+/** Cancelar: o que ainda não saiu vira 'cancelado' (o cron não pega campanha cancelada). */
+export async function cancelarFila(admin: SupabaseClient, campanhaId: string): Promise<void> {
+  const { error } = await admin
+    .from('campanha_envios')
+    .update({ status: 'cancelado', erro: 'Campanha cancelada' })
+    .eq('campanha_id', campanhaId)
+    .eq('status', 'pendente')
+  if (error) throw error
 }
