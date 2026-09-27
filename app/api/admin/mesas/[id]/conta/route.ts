@@ -89,7 +89,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const conta = await buscarConta(ctx.admin, ctx.sessao.restauranteId, id)
   const { data: loja } = await ctx.admin
     .from('restaurantes')
-    .select('formas_pagamento_mesa, taxa_servico_padrao, mesa_somente_visualizacao')
+    .select('formas_pagamento_mesa, taxa_servico_padrao, mesa_somente_visualizacao, pdv_v2')
     .eq('id', ctx.sessao.restauranteId)
     .maybeSingle()
 
@@ -105,6 +105,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     // Cardápio da mesa só para ver (0075): a tela do salão avisa o garçom de que aqui
     // não existe seleção do cliente nem chamado — nada vem do QR.
     somenteVisualizacao: (loja?.mesa_somente_visualizacao as boolean | null) === true,
+    // Fechamento completo (pendências + pagamento), nome obrigatório e edição do cliente são do PDV v2.
+    pdvV2: (loja?.pdv_v2 as boolean | null) === true,
     permissoes: permissoesDaTela(ctx),
   })
 }

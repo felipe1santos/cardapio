@@ -39,9 +39,14 @@ só código (Next). Rollback = redeploy do commit anterior de `main` (a074f3f).
 
 ## Provas (local, loja isolada)
 
-- vitest completo, tsc, lint (mesmos 2 avisos antigos), build.
-- `e2e-estabilidade-operacional.mjs` (novo), `e2e-pdv-atendimento`, `e2e-pdv-v2`,
-  `e2e-balcao-entrega` em `cantina-e2e`; suítes de mesas em `cantina-mesas2`.
+- vitest 1508, tsc, lint (mesmos 2 avisos antigos), build.
+- `cantina-e2e` (PDV v2 ligado): estabilidade-operacional 53/53 (novo), pdv-atendimento
+  96/96, pdv-v2 70/70, balcao-entrega 84/84, responsivo-kanban 24/24.
+- `cantina-mesas2` (PDV v2 desligado): release-mesas 254/254, etapa-f 136/136,
+  caixa-e-regras 34/34, garçom 47/47, responsivo-mesas 254/254, regressão 52/52.
+- Achado na rodada: em loja SEM PDV v2 o "Fechar conta" da mesa abria o pedido de nome
+  (API só do v2) e ficava habilitado com saldo. Corrigido: sem v2 a tela fecha como
+  sempre (`pdvV2` vem da rota da conta da mesa).
 
 ## Rollback
 

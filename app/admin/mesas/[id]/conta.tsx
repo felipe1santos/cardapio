@@ -75,6 +75,8 @@ interface Resposta {
   taxaServicoPadrao: number
   /** Cardápio da mesa só para ver (0075): não há seleção do cliente nem chamado. */
   somenteVisualizacao: boolean
+  /** Loja no PDV v2: fechamento completo e cliente identificado (sem v2, fecha como sempre). */
+  pdvV2?: boolean
   permissoes: Permissoes
 }
 
@@ -156,6 +158,7 @@ export function PainelConta({
   const [dividirPor, setDividirPor] = useState<number | null>(null)
 
   const conta = dados?.conta ?? null
+  const v2 = dados?.pdvV2 === true
   const podeFazer = (acao: string) => !!dados?.permissoes?.[acao]
   /**
    * Conta sem nada dentro: nenhum lançamento ativo e nenhum pagamento. É o estado em que
@@ -183,6 +186,11 @@ export function PainelConta({
   async function iniciarFechamento(nomeJaInformado = false) {
     if (!conta || carregandoFechar) return
     setAviso(null)
+    // Loja sem PDV v2: o banco não exige nome e não há fechamento completo — fecha como sempre.
+    if (!v2) {
+      setConfirmarFechar(true)
+      return
+    }
     if (!conta.clienteNome && !nomeJaInformado) {
       setIdentificando({ aviso: 'Esta conta foi aberta sem o nome do cliente. Informe o nome para fechar.', depois: 'fechar' })
       return
@@ -274,10 +282,10 @@ export function PainelConta({
                 )}
               </span>
             ) : (
-              <span className="font-semibold text-warn">Sem nome — informe antes de fechar</span>
+              <span className="font-semibold text-warn">{v2 ? 'Sem nome — informe antes de fechar' : 'Sem nome'}</span>
             )}
           </span>
-          {podeFazer('identificar') && (
+          {v2 && podeFazer('identificar') && (
             <Button variant="outline" onClick={() => setIdentificando({})} data-testid="conta-editar-cliente">
               <UserCheck className="mr-1 inline h-3.5 w-3.5" />
               {conta.clienteNome ? 'Editar cliente' : 'Informar nome'}
@@ -645,7 +653,7 @@ export function PainelConta({
           <Button
             variant="success"
             className="w-full !py-3"
-            disabled={conta.solicitacoes.length > 0 || carregandoFechar}
+            disabled={conta.solicitacoes.length > 0 || carregandoFechar || (!v2 && conta.totais.restante > 0)}
             title={conta.solicitacoes.length > 0 ? 'Decida os pedidos de cancelamento antes de fechar' : undefined}
             onClick={() => void iniciarFechamento()}
             data-testid="mesa-fechar-conta"
@@ -655,7 +663,9 @@ export function PainelConta({
         )}
         {conta.totais.restante > 0 && podeFazer('fechar') && (
           <p className="text-center text-[11px] text-text-subtle">
-            No fechamento você decide o que ficou na cozinha e registra o que falta receber.
+            {v2
+              ? 'No fechamento você decide o que ficou na cozinha e registra o que falta receber.'
+              : 'A conta só fecha quando não falta nada a receber.'}
           </p>
         )}
         {conta.solicitacoes.length > 0 && podeFazer('fechar') && (
