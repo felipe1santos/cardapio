@@ -8,6 +8,8 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTipo, type TipoMensagem } from '@/lib/queries/campanhas'
 import { formatarReal } from '@/lib/moeda'
+import { montarTextoCampanha, MARCADOR_LINK } from '@/lib/mensageria/campanhas'
+import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -60,10 +62,16 @@ interface FormState {
   audioUrl: string | null
   filtro: FiltroCampanha
   agendadoEm: string
+  incluirLink: boolean
 }
 
 function formDefault(): FormState {
-  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '' }
+  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '', incluirLink: true }
+}
+
+/** Prévia com um link de exemplo no lugar do link de cada cliente. */
+function mensagemComLink(mensagem: string, incluirLink: boolean) {
+  return montarTextoCampanha(mensagem, { incluirLink, token: '0'.repeat(24) }).replace(/\/c\/0{24}/, '/c/…')
 }
 
 // ─── WhatsApp Bubble (preview) ────────────────────────────────────────────────
@@ -295,6 +303,7 @@ export default function CampanhasPage() {
 
   // Modal preview de campanha existente
   const [previewCampanha, setPreviewCampanha] = useState<Campanha | null>(null)
+  const [aba, setAba] = useState<'campanhas' | 'metricas'>('campanhas')
 
   // Uploads
   const [uploadingImagem, setUploadingImagem] = useState(false)
@@ -353,6 +362,7 @@ export default function CampanhasPage() {
       nome: c.nome, tipoMensagem: c.tipoMensagem, mensagem: c.mensagem,
       imagemUrl: c.imagemUrl, audioUrl: c.audioUrl, filtro: c.filtro,
       agendadoEm: c.agendadoEm ? new Date(c.agendadoEm).toISOString().slice(0, 16) : '',
+      incluirLink: c.incluirLink,
     })
     setErro(null); setEstimativa(null); setDrawerOpen(true)
   }
@@ -394,12 +404,17 @@ export default function CampanhasPage() {
         nome: form.nome.trim(), tipoMensagem: form.tipoMensagem, mensagem: form.mensagem.trim(),
         imagemUrl: form.imagemUrl, audioUrl: form.audioUrl, filtro: form.filtro,
         agendadoEm: dispararAgora ? new Date().toISOString() : (form.agendadoEm ? new Date(form.agendadoEm).toISOString() : null),
+        incluirLink: form.tipoMensagem !== 'audio' && form.incluirLink,
         disparar: true,
       }
-      if (editingId) {
-        await fetch(`/api/admin/campanhas/${editingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      } else {
-        await fetch('/api/admin/campanhas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res = editingId
+        ? await fetch(`/api/admin/campanhas/${editingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        : await fetch('/api/admin/campanhas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) {
+        const j = await res.json().catch(() => null)
+        setErro(j?.error ?? 'Erro ao salvar campanha.')
+        carregar()
+        return
       }
       fecharDrawer(); carregar()
     } catch { setErro('Erro ao salvar campanha.') }
@@ -410,7 +425,8 @@ export default function CampanhasPage() {
 
   async function cancelarCampanha(id: string) {
     if (!confirm('Cancelar esta campanha?')) return
-    await fetch(`/api/admin/campanhas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelada' }) })
+    const res = await fetch(`/api/admin/campanhas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelada' }) })
+    if (!res.ok) alert((await res.json().catch(() => null))?.error ?? 'Não foi possível cancelar.')
     carregar()
   }
 
@@ -427,6 +443,19 @@ export default function CampanhasPage() {
       <TopBar title="Campanhas" breadcrumb="Disparo de mensagens WhatsApp" />
 
       <div className="flex flex-1 flex-col overflow-y-auto p-5 space-y-4">
+        <div className="flex gap-1 border-b border-border" role="tablist">
+          {([['campanhas', 'Campanhas'], ['metricas', 'Métricas']] as const).map(([id, rotulo]) => (
+            <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}
+              className={['-mb-px h-[38px] border-b-2 px-4 text-[13px] font-semibold transition-colors',
+                aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main'].join(' ')}>
+              {rotulo}
+            </button>
+          ))}
+        </div>
+
+        {aba === 'metricas' ? (
+          <CampanhasMetricas opcoesCampanhas={campanhas.map((c) => ({ id: c.id, nome: c.nome }))} />
+        ) : (<>
         <div className="flex items-center justify-between max-lg:flex-col max-lg:items-stretch max-lg:gap-2">
           <p className="text-[13px] text-text-subtle">Dispare mensagens, imagens ou áudios para clientes segmentados.</p>
           <Button onClick={abrirNovo}>+ Nova campanha</Button>
@@ -473,7 +502,7 @@ export default function CampanhasPage() {
                       Editar
                     </button>
                   )}
-                  {c.status === 'agendada' && (
+                  {(c.status === 'agendada' || c.status === 'enviando') && (
                     <button onClick={() => cancelarCampanha(c.id)} className="rounded-menuzia border border-danger px-3 text-[12px] font-semibold text-danger">
                       Cancelar
                     </button>
@@ -525,7 +554,7 @@ export default function CampanhasPage() {
                         {(c.status === 'rascunho' || c.status === 'agendada') && (
                           <button onClick={() => abrirEditar(c)} className="rounded px-2 py-1 text-[11px] font-semibold text-primary hover:bg-alert/20">Editar</button>
                         )}
-                        {c.status === 'agendada' && (
+                        {(c.status === 'agendada' || c.status === 'enviando') && (
                           <button onClick={() => cancelarCampanha(c.id)} className="rounded px-2 py-1 text-[11px] font-semibold text-danger hover:bg-danger/10">Cancelar</button>
                         )}
                         {(c.status === 'rascunho' || c.status === 'concluida' || c.status === 'cancelada') && (
@@ -540,6 +569,7 @@ export default function CampanhasPage() {
           </Card>
           </>
         )}
+        </>)}
       </div>
 
       {/* ── Modal preview campanha existente ─────────────────────────────── */}
@@ -639,6 +669,20 @@ export default function CampanhasPage() {
               </div>
             )}
 
+            {/* Link rastreável */}
+            {form.tipoMensagem !== 'audio' && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-menuzia border border-border px-3 py-3">
+                <input type="checkbox" checked={form.incluirLink} onChange={(e) => setForm((f) => ({ ...f, incluirLink: e.target.checked }))}
+                  className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-primary" data-testid="incluir-link" />
+                <span>
+                  <span className="block text-[13px] font-semibold text-text-main">Incluir link do cardápio (com medição de cliques)</span>
+                  <span className="block text-[12px] text-text-subtle">
+                    Cada cliente recebe um link próprio, sem dados dele. Escreva <code className="rounded-menuzia bg-page px-1">{MARCADOR_LINK}</code> onde quer o link; sem isso ele vai no fim da mensagem.
+                  </span>
+                </span>
+              </label>
+            )}
+
             {/* Filtro */}
             <FiltroEditor filtro={form.filtro} onChange={(f) => setForm((prev) => ({ ...prev, filtro: f }))} />
 
@@ -671,7 +715,7 @@ export default function CampanhasPage() {
             <div className="flex-1">
               <WhatsappPreview
                 tipo={form.tipoMensagem}
-                mensagem={form.mensagem}
+                mensagem={form.tipoMensagem === 'audio' ? form.mensagem : mensagemComLink(form.mensagem, form.incluirLink)}
                 imagemUrl={form.imagemUrl}
                 audioUrl={form.audioUrl}
               />
