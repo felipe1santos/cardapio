@@ -342,7 +342,7 @@ export async function atribuirFuncao(
   await auditar(admin, op, 'impressao.funcao_atribuida', 'impressao_dispositivo', dispositivoId, {
     funcao, compartilhada: jaTem?.dispositivo_id === dispositivoId, resumo: `${funcao} → ${d.apelido ?? d.nome_sistema}`,
   })
-  // Trocar para uma impressora que o modo ligado não pode usar (ex.: virtual) recua o modo.
+  // Trocar para uma impressora que o modo ligado não pode usar (ex.: de computador desconectado) recua o modo.
   const recuou = await garantirModoValido(admin, op)
   return { ok: true, valor: null, modoRecuou: recuou }
 }
