@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { TopBar } from '@/components/layout/topbar'
 import { ToggleRow } from '@/components/admin/campos-ajustes'
 import { chamar, horaCurta, novaChave } from '@/components/pdv/util'
 import { BotaoAjudaImpressao, ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
+import { GuiaBeta } from '@/components/impressao/guia-beta'
 import { IMPRESSORA_VAZIA, ImpressoraModal, ReciboPreview, colsParaFontePreview } from '@/components/impressao/documentos'
 import {
   AVISO_PAPEL,
@@ -73,9 +75,24 @@ const quando = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 
 const DESCRICAO_MODO: Record<ModoBeta, string> = {
-  teste: 'O Beta imprime só teste e calibração. O Assistente atual continua com tudo.',
-  caixa: 'O Assistente atual continua na cozinha. O Beta imprime o Recibo/Extrato.',
-  cozinha_caixa: 'O Beta imprime a cozinha e o Recibo/Extrato. O Assistente atual para de imprimir pedidos.',
+  teste: 'Só calibração e teste. Não imprime pedido real — o Assistente atual continua com tudo.',
+  caixa: 'Imprime o Recibo/Extrato no Caixa. A cozinha continua saindo pelo Assistente atual.',
+  cozinha_caixa: 'A cozinha sai na impressora da Cozinha e o Recibo/Extrato no Caixa. O Assistente atual para de imprimir pedidos.',
+}
+
+/** Impressoras que o próprio Windows cria e que não são térmicas. */
+const VIRTUAL = /^(fax|microsoft print to pdf|microsoft xps document writer|onenote.*|enviar para o onenote.*|send to onenote.*)$/i
+const ehVirtual = (d: DispositivoVisao) => VIRTUAL.test(d.nomeSistema.trim())
+
+/**
+ * Pareamento substituído: o mesmo computador (mesmo nome) foi pareado de novo depois e
+ * este registro está sem sinal. As impressoras dele não imprimem mais — é o caso de quem
+ * reinstala o Beta e pareia outra vez sem desconectar o antigo.
+ */
+function substituidoPor(a: AgenteVisao, todos: AgenteVisao[]): AgenteVisao | null {
+  if (a.revogado || a.online) return null
+  const nome = a.nome.trim().toLowerCase()
+  return todos.find((b) => b.id !== a.id && !b.revogado && b.nome.trim().toLowerCase() === nome && new Date(b.criadoEm) > new Date(a.criadoEm)) ?? null
 }
 
 function Secao({ n, titulo, children, acao, id }: { n: number; titulo: string; children: React.ReactNode; acao?: React.ReactNode; id?: string }) {
@@ -286,6 +303,31 @@ export function PainelImpressao() {
   const nomeDisp = (d: DispositivoVisao) => d.apelido || d.nomeSistema
   const agentePor = (id: string) => p?.agentes.find((a) => a.id === id)
   const dispositivosAtivos = p?.dispositivos.filter((d) => !agentePor(d.agenteId)?.revogado) ?? []
+  const agenteSubstituido = (id: string) => {
+    const a = agentePor(id)
+    return !!a && !!p && !!substituidoPor(a, p.agentes)
+  }
+  // Para escolher função: computadores válidos primeiro, térmicas antes das virtuais do Windows;
+  // impressora de pareamento substituído só aparece se já estiver escolhida (para dar para trocar).
+  const opcoesFuncao = (f: Funcao) =>
+    dispositivosAtivos
+      .filter((d) => !agenteSubstituido(d.agenteId) || p?.funcoes[f] === d.id)
+      .sort((x, y) => ordemOpcao(x) - ordemOpcao(y))
+  function ordemOpcao(d: DispositivoVisao) {
+    return (ehVirtual(d) ? 2 : 0) + (agentePor(d.agenteId)?.online ? 0 : 1)
+  }
+  const avisoFuncao = (f: Funcao): string | null => {
+    const id = p?.funcoes[f]
+    if (!id) return null
+    const d = p?.dispositivos.find((x) => x.id === id)
+    const a = d ? agentePor(d.agenteId) : undefined
+    if (!d || !a) return null
+    if (agenteSubstituido(a.id)) return `Esta impressora é de um pareamento antigo do computador "${a.nome}". Nada vai sair por ela — escolha a mesma impressora na lista de novo.`
+    if (!a.online) return `O computador "${a.nome}" está sem sinal: nada sai até o Assistente Beta abrir nele.`
+    if (!d.disponivel) return 'O Windows não encontrou esta impressora no último sinal do computador.'
+    if (ehVirtual(d)) return 'Esta é uma impressora virtual do Windows (PDF/Fax/OneNote), não a térmica.'
+    return null
+  }
   const atualOnline = !!atualVistoEm && Date.now() - new Date(atualVistoEm).getTime() < 2 * 60_000
   const betaOnline = p?.agentes.filter((a) => a.online).length ?? 0
   const liberado = p?.betaLiberado === true
@@ -293,13 +335,16 @@ export function PainelImpressao() {
   const dCalibrar = p?.dispositivos.find((d) => d.id === calibrar) ?? null
   const cozinhaNoBeta = p?.modo === 'cozinha_caixa'
 
+  // O <main> do painel não rola (overflow-hidden): cada página tem o próprio contêiner de
+  // rolagem. Sem ele, tudo abaixo da primeira tela ficava cortado e inalcançável.
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 p-4" data-testid="painel-impressao">
-      <div>
-        <h1 className="flex items-center gap-2 text-[20px] font-bold text-text-main">
-          Impressão <BotaoAjudaImpressao onAbrir={() => setAjuda(true)} />
-        </h1>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <TopBar title="Impressão" breadcrumb="Cozinha, Caixa e Assistentes" />
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="impressao-rolagem">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 p-4 pb-16" data-testid="painel-impressao">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[13px] text-text-subtle">Onde e como saem os pedidos da cozinha e o Recibo/Extrato.</p>
+        <BotaoAjudaImpressao onAbrir={() => setAjuda(true)} />
       </div>
 
       {aviso && (
@@ -332,6 +377,25 @@ export function PainelImpressao() {
           tom={!liberado ? 'neutro' : betaOnline > 0 ? 'ok' : 'alerta'}
         />
       </div>
+
+      {/* Guia do Beta: o que muda e os 8 passos, com o que esta loja já fez. */}
+      {p && (
+        <GuiaBeta
+          ocupado={ocupado}
+          onParear={() => {
+            void gerarCodigo().then(() => document.getElementById('computadores')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+          }}
+          e={{
+            liberado,
+            pareados: p.agentes.filter((a) => !a.revogado && !substituidoPor(a, p.agentes)).length,
+            online: betaOnline,
+            cozinhaOk: !!p.funcoes.cozinha && !avisoFuncao('cozinha'),
+            caixaOk: !!p.funcoes.caixa && !avisoFuncao('caixa'),
+            testeImpresso: p.trabalhos.some((t) => t.tipo === 'teste_impressora' && t.estado === 'enviado_spooler'),
+            modo: p.modo,
+          }}
+        />
+      )}
 
       {/* 2. Assistente */}
       <Secao n={2} titulo="Assistente de Impressão">
@@ -414,6 +478,7 @@ export function PainelImpressao() {
       {/* 3. Computadores e impressoras */}
       <Secao
         n={3}
+        id="computadores"
         titulo="Computadores e impressoras"
         acao={
           liberado ? (
@@ -471,14 +536,23 @@ export function PainelImpressao() {
             <p className="px-4 pt-3 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Assistente Beta — computadores pareados</p>
             {p && p.agentes.length === 0 && <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhum computador pareado ainda.</p>}
             <ul className="divide-y divide-border">
-              {p?.agentes.map((a) => (
-                <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-3" data-testid={`agente-${a.nome}`}>
+              {p?.agentes.map((a) => {
+                const novo = substituidoPor(a, p.agentes)
+                return (
+                <li key={a.id} className={['flex flex-wrap items-center gap-3 px-4 py-3', novo ? 'bg-warn-bg/60' : ''].join(' ')} data-testid={`agente-${a.nome}`}>
                   <span className={['h-2.5 w-2.5 rounded-full', a.revogado ? 'bg-border' : a.online ? 'bg-status-ready' : 'bg-danger'].join(' ')} aria-hidden />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[14px] font-semibold text-text-main">{a.nome}</p>
-                    <p className="text-[12px] text-text-subtle">
-                      {a.revogado ? 'Desconectado' : a.online ? 'Online' : 'Offline'} · versão {a.versao ?? '—'} · último sinal {quando(a.vistoEm)}
+                    <p className="text-[14px] font-semibold text-text-main">
+                      {a.nome} {novo && <Badge tone="pending" className="ml-1">Pareamento antigo</Badge>}
                     </p>
+                    <p className="text-[12px] text-text-subtle">
+                      {a.revogado ? 'Desconectado' : a.online ? 'Online' : 'Offline'} · versão {a.versao ?? '—'} · pareado {quando(a.criadoEm)} · último sinal {quando(a.vistoEm)}
+                    </p>
+                    {novo && (
+                      <p className="mt-0.5 text-[12px] text-[#92400E]" data-testid={`agente-antigo-${a.nome}`}>
+                        Este computador foi pareado de novo em {quando(novo.criadoEm)}. Esta entrada antiga não imprime mais — toque em Desconectar.
+                      </p>
+                    )}
                   </div>
                   {!a.revogado && (
                     <div className="flex gap-2">
@@ -509,17 +583,29 @@ export function PainelImpressao() {
                     </div>
                   )}
                 </li>
-              ))}
+                )
+              })}
             </ul>
             <p className="border-t border-border px-4 pt-3 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Impressoras encontradas pelo Beta</p>
             {p && p.dispositivos.length === 0 && <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhuma impressora informada ainda.</p>}
+            {p && p.dispositivos.some((d) => agenteSubstituido(d.agenteId) || ehVirtual(d)) && (
+              <p className="px-4 pt-1 text-[11px] text-text-subtle">
+                {p.dispositivos.filter((d) => !agentePor(d.agenteId)?.revogado && !agenteSubstituido(d.agenteId) && ehVirtual(d)).length} impressora(s) virtual(is) do Windows
+                (PDF, Fax, OneNote) ficam no fim da lista{p.dispositivos.some((d) => agenteSubstituido(d.agenteId)) ? '; as de pareamentos antigos não aparecem' : ''}.
+              </p>
+            )}
             <ul className="divide-y divide-border">
-              {p?.dispositivos.map((d) => (
+              {p?.dispositivos
+                .filter((d) => !agenteSubstituido(d.agenteId))
+                .sort((x, y) => ordemOpcao(x) - ordemOpcao(y))
+                .map((d) => (
                 <li key={d.id} className="flex flex-wrap items-center gap-2 px-4 py-3" data-testid={`dispositivo-${d.nomeSistema}`}>
                   <div className="min-w-0 flex-1">
                     <p className="text-[14px] font-semibold text-text-main">
                       {nomeDisp(d)} {d.funcoes.map((f) => <Badge key={f} tone="preparing" className="ml-1">{ROTULO_FUNCAO[f]}</Badge>)}
                       {!d.disponivel && <Badge tone="danger" className="ml-1">Não encontrada no Windows</Badge>}
+                      {ehVirtual(d) && <Badge tone="paused" className="ml-1">Virtual do Windows</Badge>}
+                      {!agentePor(d.agenteId)?.online && <Badge tone="pending" className="ml-1">Computador sem sinal</Badge>}
                     </p>
                     <p className="truncate text-[12px] text-text-subtle">
                       {agentePor(d.agenteId)?.nome ?? '—'} · Windows: {d.nomeSistema} · papel {d.larguraMm} mm{d.larguraPontos ? ` · calibrada (${d.larguraPontos} pontos)` : ''}
@@ -577,12 +663,20 @@ export function PainelImpressao() {
                       className="w-full min-w-0 max-w-full truncate rounded-menuzia border border-border bg-white px-3 py-2 text-[13px] text-text-main"
                     >
                       <option value="">— nenhuma —</option>
-                      {dispositivosAtivos.map((d) => (
+                      {opcoesFuncao(f).map((d) => (
                         <option key={d.id} value={d.id}>
-                          {nomeDisp(d)} · {agentePor(d.agenteId)?.nome ?? '?'}{d.disponivel ? '' : ' (não encontrada)'}
+                          {nomeDisp(d)} · {agentePor(d.agenteId)?.nome ?? '?'}
+                          {agenteSubstituido(d.agenteId) ? ' (pareamento antigo)' : !agentePor(d.agenteId)?.online ? ' (sem sinal)' : ''}
+                          {d.disponivel ? '' : ' (não encontrada)'}
+                          {ehVirtual(d) ? ' (virtual do Windows)' : ''}
                         </option>
                       ))}
                     </select>
+                    {avisoFuncao(f) && (
+                      <span className="mt-1.5 block rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[12px] text-[#92400E]" data-testid={`aviso-funcao-${f}`}>
+                        {avisoFuncao(f)}
+                      </span>
+                    )}
                     <span className="mt-1 block text-[11px] text-text-subtle">
                       {f === 'caixa' ? EXPLICACAO_RECIBO_EXTRATO : cozinhaNoBeta ? 'A cozinha está saindo por esta impressora.' : 'Enquanto o modo não for “Cozinha e Caixa”, a cozinha continua no Assistente atual.'}
                     </span>
@@ -658,7 +752,7 @@ export function PainelImpressao() {
           </p>
         ) : (
           <ul className="divide-y divide-border">
-            {dispositivosAtivos.map((d) => (
+            {dispositivosAtivos.filter((d) => !agenteSubstituido(d.agenteId)).sort((x, y) => ordemOpcao(x) - ordemOpcao(y)).map((d) => (
               <li key={d.id} className="flex flex-wrap items-center gap-2 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold text-text-main">{nomeDisp(d)}</p>
@@ -831,6 +925,8 @@ export function PainelImpressao() {
       )}
 
       {modalImpressora && <ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAtual} />}
+    </div>
+      </div>
     </div>
   )
 }
