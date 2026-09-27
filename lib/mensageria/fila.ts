@@ -1,5 +1,5 @@
 /**
- * Fila de envios do WhatsApp (0102) — respostas do robô e avisos de etapa do pedido.
+ * Fila de envios do WhatsApp (0103) — respostas do robô e avisos de etapa do pedido.
  *
  *  - `enfileirar`: grava com chave de idempotência única por loja. A mesma chave duas
  *    vezes (duplo clique, webhook reentregue, retentativa do chamador) não gera outro envio.

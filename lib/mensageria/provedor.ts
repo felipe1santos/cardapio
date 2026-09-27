@@ -26,6 +26,8 @@ export interface MensagemRecebida {
   tipo: TipoMensagem
   texto: string | null
   instante: string | null
+  /** Nome que o próprio WhatsApp informa (pushName). */
+  nome: string | null
 }
 
 export interface EventoWebhook {
@@ -96,6 +98,7 @@ export function interpretarWebhookEvolution(corpo: unknown): EventoWebhook {
       tipo,
       texto: texto === null ? null : texto.slice(0, 1000),
       instante: Number.isFinite(ts) && ts > 0 ? new Date(ts * 1000).toISOString() : null,
+      nome: typeof item.pushName === 'string' && item.pushName.trim() ? item.pushName.trim().slice(0, 80) : null,
     })
   }
   return vazio

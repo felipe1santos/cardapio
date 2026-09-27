@@ -3,7 +3,7 @@
  *
  * O estado (boas-vindas na janela de 12h, silêncio, volta após 2h, resposta padrão no
  * máximo a cada 10 min) é decidido no banco, sob trava da conversa
- * (`whatsapp_registrar_entrada`, 0102). Aqui só a classificação e os textos.
+ * (`whatsapp_registrar_entrada`, 0103). Aqui só a classificação e os textos.
  *
  * Nada de preço, taxa, horário ou produto na resposta: o robô manda o link do cardápio,
  * que é onde essas regras vivem. Status do pedido vem do servidor, pelo telefone.

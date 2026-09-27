@@ -92,6 +92,11 @@ describe('regras gerais', () => {
     expect(permissaoDaRota('/api/admin/nexta/despachar')).toBe('logistica.operar')
   })
 
+  it('conversas do robô do WhatsApp: dono e gerente; configurar o robô: só o dono', () => {
+    expect(permissaoDaRota('/api/admin/whatsapp/conversas')).toBe('whatsapp.atender')
+    expect(permissaoDaRota('/api/admin/whatsapp/robo')).toBe('integracoes.gerenciar')
+  })
+
   it('ordem do Gestor de Cardápio (0101): quem edita o catálogo; garçom e atendente não', () => {
     expect(permissaoDaRota('/api/admin/cardapio/ordem')).toBe('cardapio.editar')
   })

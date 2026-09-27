@@ -1,5 +1,5 @@
 /**
- * E2E do robô de atendimento do WhatsApp (0102) e da fila de avisos — provedor SIMULADO,
+ * E2E do robô de atendimento do WhatsApp (0103) e da fila de avisos — provedor SIMULADO,
  * lojas isoladas, nenhuma comunicação externa.
  *
  * Trava obrigatória (aborta antes de QUALQUER escrita):

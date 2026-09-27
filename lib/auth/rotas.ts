@@ -52,6 +52,8 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/nexta/config', 'integracoes.gerenciar'],
   ['/api/admin/nexta/testar', 'integracoes.gerenciar'],
   ['/api/admin/nexta', 'logistica.operar'],
+  // Conversas em atendimento humano: dono e gerente. Antes do genérico do WhatsApp.
+  ['/api/admin/whatsapp/conversas', 'whatsapp.atender'],
   ['/api/admin/whatsapp', 'integracoes.gerenciar'],
   // Ordem de categorias e itens do Gestor de Cardápio: quem edita o catálogo.
   ['/api/admin/cardapio', 'cardapio.editar'],

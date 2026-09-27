@@ -1,6 +1,6 @@
 # Robô de atendimento do WhatsApp — v1 (sem IA)
 
-Branch `feat/robo-whatsapp-auditoria`. Migration **0102** (só local; NÃO aplicada em produção).
+Branch `feat/robo-whatsapp-auditoria`. Migration **0103** (só local; NÃO aplicada em produção).
 
 ## Como funciona
 
@@ -40,7 +40,7 @@ esgotado com o provedor = `incerto`, sem reenvio automático (pode ter saído).
 
 | Onde | O quê |
 |---|---|
-| `supabase/migrations/0102_whatsapp_robo_e_fila.sql` | tabelas, RLS, funções, retenção |
+| `supabase/migrations/0103_whatsapp_robo_e_fila.sql` | tabelas, RLS, funções, retenção |
 | `lib/mensageria/provedor.ts` | interface de provedor, Evolution, simulado |
 | `lib/mensageria/robo.ts` | intenção e textos (puro) |
 | `lib/mensageria/entrada.ts` | webhook → decisão → fila |
@@ -54,17 +54,17 @@ esgotado com o provedor = `incerto`, sem reenvio automático (pode ter saído).
 
 ## Publicação (quando autorizado)
 
-1. Aplicar 0102 (aditiva; robô nasce desligado em toda loja).
+1. Aplicar 0103 (aditiva; robô nasce desligado em toda loja).
 2. Deploy. Os avisos de pedido já passam pela fila (sem mudança de texto).
 3. Cron no Coolify: `POST /api/cron/whatsapp` a cada 1 minuto com `x-cron-secret`.
 4. Robô só funciona numa loja depois de: ligar em Integrações **e** registrar o webhook da
    instância (passo manual, ver teste real).
 
-Rollback: código anterior + `docs/rollback/0102_whatsapp_robo_e_fila.down.sql`.
+Rollback: código anterior + `docs/rollback/0103_whatsapp_robo_e_fila.down.sql`.
 
 ## Teste real controlado — só Menuzia, um número autorizado
 
-Pré-requisito: 0102 aplicada e deploy feito, com autorização. Nada disto foi executado.
+Pré-requisito: 0103 aplicada e deploy feito, com autorização. Nada disto foi executado.
 
 1. **Lista branca:** antes de registrar o webhook, definir no Coolify
    `WHATSAPP_ROBO_SOMENTE=<número autorizado, só dígitos>` e fazer Redeploy. Qualquer outro

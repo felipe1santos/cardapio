@@ -113,6 +113,7 @@ export async function processarEntrada(admin: SupabaseClient, segredo: string, c
       p_texto: m.texto,
       p_instante: m.instante,
       p_intencao: intencao,
+      p_nome: m.deMim ? null : m.nome,
     })
     if (error) throw error
     const d = dec as { duplicada: boolean; conversa_id: string; mensagem_id?: string; acao: Acao; boas_vindas?: boolean }
