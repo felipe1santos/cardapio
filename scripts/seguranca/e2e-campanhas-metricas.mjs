@@ -203,6 +203,18 @@ try {
   ok('entrega registrada (robô desligado não impede métrica)', w1.s === 200 && w1.j?.ignoradas?.campanha_entregue === 1)
   ok('entrega repetida é barrada', wDup.j?.ignoradas?.campanha_status_repetido === 1)
   ok('status de mensagem que não é campanha é ignorado', wOutra.j?.ignoradas?.status_de_outra_mensagem === 1)
+  const contaEv = async () => (await um(`select count(*)::int n from whatsapp_eventos where restaurante_id=$1 and tipo='webhook'`, [A])).n
+  const antesEv = await contaEv()
+  await webhook(statusEvt('OUTRA-2', 'DELIVERY_ACK'))
+  await webhook(statusEvt('OUTRA-3', 'READ'))
+  const semNovo = (await contaEv()) === antesEv
+  await db.query(`delete from whatsapp_eventos where restaurante_id=$1 and resultado @> '{"so_status": true}'::jsonb`, [A])
+  const base = await contaEv()
+  await webhook(statusEvt('OUTRA-4', 'DELIVERY_ACK'))
+  const umMarcador = (await contaEv()) === base + 1
+  await webhook(statusEvt('OUTRA-5', 'READ'))
+  await webhook(statusEvt('OUTRA-6', 'READ'))
+  ok('status de aviso/conversa comum não enche o registro: um marcador por hora', semNovo && umMarcador && (await contaEv()) === base + 1)
   const st = await um(`select count(*) filter (where entregue_em is not null)::int e, count(*) filter (where lido_em is not null)::int l from campanha_envios where campanha_id=$1`, [camp1])
   ok('3 entregues e 2 lidas gravadas', st.e === 3 && st.l === 2)
   // Robô ligado: o eco da campanha (fromMe) não pode silenciar o cliente.
@@ -326,6 +338,7 @@ try {
   await painel.getByText('Pedidos em 12h').first().waitFor({ timeout: 15000 })
   const txt = await painel.innerText()
   ok('painel mostra cards, funil e tabela', /enviadas\s*5\b/i.test(txt) && /Faturamento/.test(txt) && /Funil/.test(txt) && /Promo de quinta/.test(txt) && /Como contamos/.test(txt), txt.slice(0, 160).replace(/\n/g, ' | '))
+  ok('textos no plural certo (2 clientes pediram, 1 provável, 1 clique)', txt.includes('2 clientes pediram') && /1 com clique · 1 provável\b/.test(txt) && txt.includes('1 clique no total') && !/\b1 clientes pediram/.test(txt))
   await dono.p.screenshot({ path: join(SHOTS, 'metricas-desktop.png'), fullPage: true })
   await painel.locator('tr', { hasText: 'Promo de quinta' }).click()
   await dono.p.getByTestId('destinatarios').waitFor({ timeout: 10000 })

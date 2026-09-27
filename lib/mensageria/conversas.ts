@@ -25,7 +25,7 @@ export interface ConversaPainel {
   id: string
   nome: string | null
   telefone: string
-  motivo: 'cliente' | 'loja' | 'painel' | null
+  motivo: 'cliente' | 'loja' | 'painel' | 'protecao' | null
   silenciadaEm: string | null
   ultimaMensagemEm: string | null
   /** Quando o robô volta sozinho (silenciadas). */

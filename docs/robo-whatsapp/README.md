@@ -130,10 +130,16 @@ Fase bloqueada (como produção): suba SEM `WHATSAPP_ROBO_LIBERADO` e rode com
   mama-pizza, pizza-do-rosa, ponto-400-hamburgueria e teste (sem instância). Para ligar:
   conectar o WhatsApp → passos 3–5 da ativação piloto → ligar em Integrações.
 - Não tocados: instância do NR13 (webhook de outro sistema) e instâncias órfãs.
-- Limite conhecido: só a resposta padrão tem intervalo (10 min). Dois robôs (ou um
-  auto-respondedor) conversando entre si podem trocar respostas reconhecidas em sequência
-  — nunca mandar mensagem de uma instância da Menuzia para outra; teto por conversa é a
-  próxima melhoria.
+- Proteção contra loop (0105, 2026-09-27): se o robô já respondeu **8 vezes em 2 min**
+  (ou **20 em 20 min**) na mesma conversa, ele sai dela — conversa silenciada com motivo
+  `protecao` e evento `protecao_loop` com as contagens. A mensagem do outro lado segue
+  gravada; a loja vê a conversa em Integrações (“pausada por proteção”) e pode devolver
+  ao robô; volta sozinho pelo tempo de retorno da loja. Limites por loja em
+  `whatsapp_robo_config.protecao_curta` / `protecao_longa`. O piloto teve no máximo 14
+  respostas em ~17 min numa conversa humana.
+- Webhooks da Menuzia e da Estância assinam também `MESSAGES_UPDATE` (entrega/leitura das
+  campanhas). Status que não é de campanha não vira registro (um marcador por hora em
+  `whatsapp_eventos`, `so_status: true`, prova que o provedor está mandando).
 
 ## Rollback
 
