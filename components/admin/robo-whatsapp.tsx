@@ -183,7 +183,15 @@ export function RoboWhatsappCard() {
             <Button variant="outline" onClick={() => setConfirmarLigar(false)}>Cancelar</Button>
           </>
         ) : (
-          <Button disabled={salvando || bloqueado} title={bloqueado ? 'Ainda não liberado neste servidor' : undefined} onClick={() => setConfirmarLigar(true)} data-testid="robo-alternar">
+          <Button
+            disabled={salvando || bloqueado}
+            title={bloqueado ? 'Ainda não liberado neste servidor' : undefined}
+            onClick={() => setConfirmarLigar(true)}
+            // O Button do painel não tem estilo de desabilitado, e o bg da variante vem de outro
+            // arquivo de CSS carregado depois — por isso o "!": sem ele o botão parecia clicável.
+            className="disabled:cursor-not-allowed disabled:!bg-page disabled:!text-text-subtle disabled:shadow-none"
+            data-testid="robo-alternar"
+          >
             Ligar o robô
           </Button>
         )}

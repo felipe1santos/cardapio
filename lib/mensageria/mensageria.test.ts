@@ -25,6 +25,12 @@ describe('classificarIntencao', () => {
     for (const t of ['que horas abre?', 'vocês estão abertos', 'horário de funcionamento', '4']) expect(classificarIntencao('texto', t), t).toBe('horario')
     for (const t of ['taxa Centro', 'qual o frete pra Itapuã', '5', '5 jardim camburi', 'entregam no Centro?']) expect(classificarIntencao('texto', t), t).toBe('taxa')
     expect(classificarIntencao('texto', 'bom dia, cadê meu pedido?')).toBe('status')
+    // Piloto 2026-09-27: "Qual minha último pedido" caiu no "Não entendi".
+    for (const t of ['Qual minha último pedido', 'qual o último pedido?', 'meus pedidos', 'e o pedido anterior?', 'minha encomenda']) {
+      expect(classificarIntencao('texto', t), t).toBe('status')
+    }
+    // Continua cardápio: quem quer PEDIR não está perguntando de um pedido feito.
+    for (const t of ['quero fazer um pedido', 'como faço um pedido']) expect(classificarIntencao('texto', t), t).toBe('cardapio')
   })
   it('texto qualquer e vazio são "outro"; mídia é "midia"', () => {
     expect(classificarIntencao('texto', 'asdfgh qwerty')).toBe('outro')
