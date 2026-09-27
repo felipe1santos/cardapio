@@ -138,7 +138,7 @@ await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
 await pGer.getByTestId('gerar-codigo').click()
 const codigoA = (await pGer.getByTestId('codigo-pareamento').innerText()).trim()
-await pGer.getByRole('button', { name: 'Esconder' }).click() // o código não vai para screenshot
+await pGer.getByTestId('modal-pareamento').getByRole('button', { name: 'Fechar', exact: true }).click() // o código não vai para screenshot
 ok('gerente gera o código na tela', /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(codigoA))
 const A = iniciarAgente('pc-loja', ['Impressora 01', 'Impressora 02'])
 const rA = await A.cmd({ cmd: 'parear', codigo: codigoA, nome: 'PC Loja' })
@@ -155,10 +155,12 @@ await api(pGer, `/api/admin/impressao/dispositivos/${d01.id}`, 'PATCH', { apelid
 await api(pGer, `/api/admin/impressao/dispositivos/${d02.id}`, 'PATCH', { apelido: 'Caixa 02', larguraMm: 58 })
 await pGer.reload({ waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-await pGer.getByTestId('funcao-cozinha').selectOption(d01.id)
-await aguardar(async () => (await painel(pGer)).funcoes.cozinha === d01.id)
-await pGer.getByTestId('funcao-caixa').selectOption(d02.id)
-await aguardar(async () => (await painel(pGer)).funcoes.caixa === d02.id)
+// Tela nova: a função de cada impressora é escolhida num pop-up e salva de uma vez.
+await pGer.getByTestId('escolher-impressoras').click()
+await pGer.getByTestId('funcao-dispositivo-Impressora 01').selectOption('cozinha')
+await pGer.getByTestId('funcao-dispositivo-Impressora 02').selectOption('caixa')
+await pGer.getByTestId('salvar-impressoras').click()
+await aguardar(async () => { const f = (await painel(pGer)).funcoes; return f.cozinha === d01.id && f.caixa === d02.id })
 pn = await painel(pGer)
 ok('Cozinha → Impressora 01, Caixa → Impressora 02', pn.funcoes.cozinha === d01.id && pn.funcoes.caixa === d02.id)
 // 0100: a cozinha passa ao Beta pelo modo "Cozinha e Caixa", com confirmação explícita.
@@ -273,8 +275,9 @@ await esperar(4000)
 ok('e nada sai no PC Loja', A.impressos().length === antesB)
 await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-await pGer.getByTestId('funcao-caixa').selectOption(d01.id)
-await pGer.getByTestId('confirmar-compartilhada').click()
+await pGer.getByTestId('escolher-impressoras').click()
+await pGer.getByTestId('funcao-dispositivo-Impressora 01').selectOption('ambas') // escolha explícita das duas funções
+await pGer.getByTestId('salvar-impressoras').click()
 ok('uma impressora nas duas funções: só depois de confirmar na tela', !!(await aguardar(async () => (await painel(pGer)).funcoes.caixa === d01.id)))
 await foto(pGer, 'imp-03-uma-impressora-duas-funcoes')
 const antes01 = A.impressos().length

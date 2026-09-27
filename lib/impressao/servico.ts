@@ -3,6 +3,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { traduzirErro } from '@/lib/servicos/conta-presencial'
 import { gerarCodigoPareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN } from './credenciais'
 import { snapshotReciboTeste } from './recibo-teste'
+import { avaliarModos } from './regras-modo'
 
 /**
  * Impressão com vários computadores e impressoras — leitura e operações de servidor.
@@ -38,8 +39,8 @@ const MENSAGENS: Record<string, string> = {
   codigo_invalido: 'Código de pareamento inválido, já usado ou vencido. Gere outro no painel.',
   agente_invalido: 'Este computador foi desconectado da loja. Pareie de novo.',
   impressoras_demais: 'Impressoras demais neste computador (máximo 50).',
-  impressora_caixa_nao_configurada: 'Nenhuma impressora de Caixa configurada. Configure no menu Impressão.',
-  impressora_caixa_indisponivel: 'A impressora de Caixa está num computador desconectado. Revise no menu Impressão.',
+  impressora_caixa_nao_configurada: 'Configure a impressora de Recibo/Extrato em Impressão para usar este botão.',
+  impressora_caixa_indisponivel: 'O computador da impressora de Recibo/Extrato está desconectado. Pareie de novo em Impressão.',
   comanda_indisponivel: 'Esta conta não pode mais ter Recibo/Extrato (cancelada ou transferida).',
   beta_nao_liberado: 'O novo Assistente Beta ainda não está liberado para esta loja.',
   modo_invalido: 'Modo de impressão inválido.',
@@ -236,7 +237,7 @@ export async function renomearAgente(admin: SupabaseClient, op: Operador, id: st
   return { ok: true, valor: null }
 }
 
-export async function revogarAgente(admin: SupabaseClient, op: Operador, id: string): Promise<Resultado<null>> {
+export async function revogarAgente(admin: SupabaseClient, op: Operador, id: string): Promise<Resultado<null> & { modoRecuou?: ModoBeta | null }> {
   const { data, error } = await admin
     .from('impressao_agentes')
     .update({ revogado_em: new Date().toISOString(), revogado_por_nome: op.nome })
@@ -249,7 +250,9 @@ export async function revogarAgente(admin: SupabaseClient, op: Operador, id: str
   // Trabalhos ainda na fila desse computador não saem mais por ele.
   await admin.from('impressao_trabalhos').update({ estado: 'cancelado', erro: 'computador revogado' }).eq('agente_id', id).in('estado', ['pendente', 'reservado'])
   await auditar(admin, op, 'impressao.agente_revogado', 'impressao_agente', id, { nome: data[0].nome, resumo: data[0].nome })
-  return { ok: true, valor: null }
+  // Era a Cozinha ou o Recibo/Extrato do modo ligado? Volta para a segurança na hora.
+  const recuou = await garantirModoValido(admin, op)
+  return { ok: true, valor: null, modoRecuou: recuou }
 }
 
 export async function ajustarDispositivo(
@@ -307,18 +310,15 @@ export async function atribuirFuncao(
   funcao: Funcao,
   dispositivoId: string | null,
   confirmarCompartilhada: boolean,
-): Promise<Resultado<null>> {
+): Promise<Resultado<null> & { modoRecuou?: ModoBeta | null }> {
   if (dispositivoId === null) {
     await admin.from('impressao_funcoes').delete().eq('restaurante_id', op.restauranteId).eq('funcao', funcao)
-    if (funcao === 'cozinha') {
-      // Sem impressora de cozinha, o Beta não tem onde imprimir a ficha: a cozinha volta ao
-      // Assistente antigo. "Cozinha e Caixa" vira "Somente Caixa" pela troca auditada (0100).
-      const { data: l } = await admin.from('restaurantes').select('impressao_beta_modo').eq('id', op.restauranteId).maybeSingle()
-      if (l?.impressao_beta_modo === 'cozinha_caixa') await definirModo(admin, op, 'caixa')
-      await admin.from('restaurantes').update({ impressao_cozinha_por_funcao: false }).eq('id', op.restauranteId)
-    }
     await auditar(admin, op, 'impressao.funcao_removida', 'restaurante', op.restauranteId, { funcao, resumo: funcao })
-    return { ok: true, valor: null }
+    // Sem a impressora de que o modo ligado precisa: recua ("Cozinha e Caixa" → "Somente
+    // Caixa" → "Somente teste"); a cozinha volta ao Assistente antigo pela troca auditada.
+    const recuou = await garantirModoValido(admin, op)
+    if (funcao === 'cozinha') await admin.from('restaurantes').update({ impressao_cozinha_por_funcao: false }).eq('id', op.restauranteId).neq('impressao_beta_modo', 'cozinha_caixa')
+    return { ok: true, valor: null, modoRecuou: recuou }
   }
   const { data: d } = await admin
     .from('impressao_dispositivos')
@@ -342,7 +342,9 @@ export async function atribuirFuncao(
   await auditar(admin, op, 'impressao.funcao_atribuida', 'impressao_dispositivo', dispositivoId, {
     funcao, compartilhada: jaTem?.dispositivo_id === dispositivoId, resumo: `${funcao} → ${d.apelido ?? d.nome_sistema}`,
   })
-  return { ok: true, valor: null }
+  // Trocar para uma impressora que o modo ligado não pode usar (ex.: virtual) recua o modo.
+  const recuou = await garantirModoValido(admin, op)
+  return { ok: true, valor: null, modoRecuou: recuou }
 }
 
 export async function criarTeste(admin: SupabaseClient, op: Operador, dispositivoId: string, chave: string, calibracao = false) {
@@ -407,7 +409,7 @@ export async function criarReciboTeste(admin: SupabaseClient, op: Operador, disp
 export async function criarPreConta(admin: SupabaseClient, op: Operador, comandaId: string, chave: string, reimpressao: boolean) {
   const { data: loja } = await admin.from('restaurantes').select('impressao_beta_modo').eq('id', op.restauranteId).maybeSingle()
   if (loja && loja.impressao_beta_modo === 'teste') {
-    return falha('O Assistente Beta está em "Somente teste": o Recibo/Extrato ainda não sai por ele. Mude o modo no menu Impressão.', 409, 'modo_somente_teste')
+    return falha('O Recibo/Extrato ainda não está ligado nesta loja. Configure a impressora de Recibo/Extrato em Impressão para usar este botão.', 409, 'modo_somente_teste')
   }
   return rpc<{ id: string; via: number; estado: string; idempotente: boolean; impressora?: string }>(admin, 'impressao_pre_conta_criar', {
     p_restaurante: op.restauranteId, p_comanda: comandaId, p_chave: chave, p_reimpressao: reimpressao, p_ator: op.userId, p_ator_nome: op.nome,
@@ -576,6 +578,17 @@ export async function destinoCozinha(admin: SupabaseClient, restauranteId: strin
   }
 }
 
+/** Mesmos códigos que a troca de modo sempre devolveu (quem integra continua entendendo). */
+const CODIGO_LEGADO: Record<string, string> = {
+  cozinha_vazia: 'sem_cozinha',
+  cozinha_desconectado: 'agente_revogado',
+  cozinha_inexistente: 'sem_cozinha',
+  cozinha_sem_sinal: 'agente_offline',
+  caixa_vazia: 'impressora_caixa_nao_configurada',
+  caixa_inexistente: 'impressora_caixa_nao_configurada',
+  caixa_desconectado: 'impressora_caixa_indisponivel',
+}
+
 export type ModoBeta = 'teste' | 'caixa' | 'cozinha_caixa'
 export const MODOS_BETA: ModoBeta[] = ['teste', 'caixa', 'cozinha_caixa']
 
@@ -589,13 +602,61 @@ export const MODOS_BETA: ModoBeta[] = ['teste', 'caixa', 'cozinha_caixa']
  */
 export async function definirModo(admin: SupabaseClient, op: Operador, modo: unknown): Promise<Resultado<{ modo: ModoBeta; idempotente: boolean }>> {
   if (!MODOS_BETA.includes(modo as ModoBeta)) return falha(MENSAGENS.modo_invalido, 400, 'modo_invalido')
+  // Modo real só com as impressoras que ele usa válidas (regras-modo): o erro aparece aqui,
+  // e não no PDV na frente do cliente.
+  if (modo !== 'teste') {
+    const { data: l } = await admin.from('restaurantes').select('impressao_beta_liberado').eq('id', op.restauranteId).maybeSingle()
+    if (l?.impressao_beta_liberado !== true) return falha(MENSAGENS.beta_nao_liberado, 403, 'beta_nao_liberado')
+    const av = avaliarModos(await estadoRegra(admin, op.restauranteId))
+    const m = av.modos[modo as ModoBeta]
+    if (!m.ok) return falha(m.motivo ?? 'Configuração incompleta.', 409, CODIGO_LEGADO[m.codigo ?? ''] ?? m.codigo ?? 'modo_bloqueado')
+  }
   return rpc<{ modo: ModoBeta; idempotente: boolean }>(admin, 'impressao_modo_definir', {
     p_restaurante: op.restauranteId, p_modo: modo, p_ator: op.userId, p_ator_nome: op.nome,
   })
 }
 
-/** Compatibilidade com a rota antiga (liga/desliga): ligar = "Cozinha e Caixa", desligar = "Somente Caixa". */
+/** Compatibilidade com a rota antiga (liga/desliga): ligar = "Cozinha e Caixa", desligar = "Somente Caixa" (ou teste, sem Caixa válido). */
 export async function definirCozinhaPorFuncao(admin: SupabaseClient, op: Operador, ativo: boolean): Promise<Resultado<null>> {
-  const r = await definirModo(admin, op, ativo ? 'cozinha_caixa' : 'caixa')
+  if (!ativo) {
+    const av = avaliarModos(await estadoRegra(admin, op.restauranteId), Date.now(), false)
+    const r = await definirModo(admin, op, av.modos.caixa.ok ? 'caixa' : 'teste')
+    return r.ok ? { ok: true, valor: null } : r
+  }
+  const r = await definirModo(admin, op, 'cozinha_caixa')
   return r.ok ? { ok: true, valor: null } : r
+}
+
+/** Computadores, impressoras e funções da loja, no formato da regra dos modos. */
+export async function estadoRegra(admin: SupabaseClient, restauranteId: string) {
+  const [{ data: ags }, { data: dsp }, { data: fns }] = await Promise.all([
+    admin.from('impressao_agentes').select('id, nome, visto_em, revogado_em, criado_em').eq('restaurante_id', restauranteId),
+    admin.from('impressao_dispositivos').select('id, agente_id, nome_sistema').eq('restaurante_id', restauranteId),
+    admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
+  ])
+  const funcoes = ((fns ?? []) as { funcao: Funcao; dispositivo_id: string }[])
+  return {
+    agentes: ((ags ?? []) as { id: string; nome: string; visto_em: string | null; revogado_em: string | null; criado_em: string }[]).map((a) => ({
+      id: a.id, nome: a.nome, vistoEm: a.visto_em, revogado: !!a.revogado_em, criadoEm: a.criado_em,
+    })),
+    dispositivos: ((dsp ?? []) as { id: string; agente_id: string; nome_sistema: string }[]).map((d) => ({ id: d.id, agenteId: d.agente_id, nomeSistema: d.nome_sistema })),
+    funcoes: { cozinha: funcoes.find((f) => f.funcao === 'cozinha')?.dispositivo_id ?? null, caixa: funcoes.find((f) => f.funcao === 'caixa')?.dispositivo_id ?? null } as Record<Funcao, string | null>,
+  }
+}
+
+/**
+ * Depois de mudar função ou desconectar computador: o modo ligado ainda tem as impressoras
+ * de que precisa? Se não, recua pela troca auditada (0100) — "Cozinha e Caixa" vira
+ * "Somente Caixa" se o Caixa estiver bom, senão tudo volta para "Somente teste" (a cozinha
+ * volta ao Assistente antigo na hora). Falta de sinal momentânea não derruba o modo.
+ */
+export async function garantirModoValido(admin: SupabaseClient, op: Operador): Promise<ModoBeta | null> {
+  const { data: l } = await admin.from('restaurantes').select('impressao_beta_modo').eq('id', op.restauranteId).maybeSingle()
+  const atual = (l?.impressao_beta_modo as ModoBeta | undefined) ?? 'teste'
+  if (atual === 'teste') return null
+  const av = avaliarModos(await estadoRegra(admin, op.restauranteId), Date.now(), false)
+  if (av.modos[atual].ok) return null
+  const novo: ModoBeta = atual === 'cozinha_caixa' && av.modos.caixa.ok ? 'caixa' : 'teste'
+  const r = await rpc<{ modo: ModoBeta }>(admin, 'impressao_modo_definir', { p_restaurante: op.restauranteId, p_modo: novo, p_ator: op.userId, p_ator_nome: op.nome })
+  return r.ok ? novo : null
 }

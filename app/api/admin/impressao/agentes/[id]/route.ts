@@ -24,5 +24,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (corpo?.acao !== 'revogar') return NextResponse.json({ error: 'Ação desconhecida' }, { status: 400 })
   const r = await revogarAgente(ctx.admin, ctx.op, id)
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
-  return NextResponse.json({ ok: true })
+  // modoRecuou: o modo ligado perdeu a impressora de que precisava e voltou para a segurança.
+  return NextResponse.json({ ok: true, modoRecuou: r.modoRecuou ?? null })
 }

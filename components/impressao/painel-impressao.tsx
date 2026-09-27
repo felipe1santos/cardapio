@@ -1,26 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
+import { AlertTriangle, History, Info } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
-import { ToggleRow } from '@/components/admin/campos-ajustes'
-import { chamar, horaCurta, novaChave } from '@/components/pdv/util'
-import { BotaoAjudaImpressao, ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
-import { GuiaBeta } from '@/components/impressao/guia-beta'
-import { IMPRESSORA_VAZIA, ImpressoraModal, ReciboPreview, colsParaFontePreview } from '@/components/impressao/documentos'
+import { chamar, novaChave } from '@/components/pdv/util'
+import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
+import { ImpressoraModal } from '@/components/impressao/documentos'
+import { AssistenteAntigo, FichaCozinha, type AssistenteAtual } from '@/components/impressao/assistente-antigo'
 import {
-  AVISO_PAPEL,
-  DOWNLOAD_ASSISTENTE_ATUAL,
-  DOWNLOAD_ASSISTENTE_BETA,
-  EXPLICACAO_RECIBO_EXTRATO,
-  ROTULO_ESTADO_IMPRESSAO,
-  ROTULO_FUNCAO,
-  ROTULO_MODO_BETA,
-  ROTULO_SUBTIPO_TESTE,
-  ROTULO_TIPO_TRABALHO,
-  TOM_ESTADO_IMPRESSAO,
-} from '@/lib/impressao/rotulos'
-import type { AgenteVisao, DispositivoVisao, Funcao, ModoBeta, TrabalhoVisao } from '@/lib/impressao/servico'
+  AjudaDiagnostico, CartaoAssistente, CartaoImpressoras, CartaoModo, CartaoTestes, ModalImpressoras, ModalModos, ModalPareamento, ModalTeste,
+  avaliar, nomeDisp, type PainelDados, type TipoTeste,
+} from '@/components/impressao/beta-cards'
+import { ROTULO_MODO_BETA } from '@/lib/impressao/rotulos'
+import { modoDependeDoAgente } from '@/lib/impressao/regras-modo'
+import type { AgenteVisao, DispositivoVisao, Funcao, ModoBeta } from '@/lib/impressao/servico'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
@@ -34,45 +27,20 @@ import {
   listarImpressoras,
   removerImpressora,
   type ConfigImpressao,
-  type Impressora,
   type ImpressoraInput,
 } from '@/lib/queries/impressao'
 
 /**
- * Impressão — página única (dono e gerente), na ordem em que a loja resolve as coisas:
- *   1. Status · 2. Assistente · 3. Computadores e impressoras · 4. Funções ·
- *   5. Teste e calibração · 6. Histórico · 7. Diagnóstico e ajuda.
- *
- * O Assistente atual (token da loja) continua configurado aqui como sempre. O Assistente
- * Beta só aparece para loja liberada pela plataforma. Tudo do Beta passa por
- * /api/admin/impressao/* — nenhuma credencial aparece na tela; o código de pareamento
- * é mostrado uma vez e vence em 10 min.
+ * Impressão — tela do cliente final, focada no Assistente Beta (2026-09-27):
+ *   1. Assistente (status, baixar, parear em pop-up)  2. Impressoras (escolha em pop-up)
+ *   3. Modo (real só com impressoras válidas — a mesma regra do servidor)  4. Testes
+ *   · Ajuda e diagnóstico recolhidos · opções da ficha da cozinha recolhidas.
+ * O Assistente antigo (0.1.23, token) fica atrás do botão "Assistente antigo", igual por
+ * dentro. A escolha da visão é só do navegador (localStorage). Nenhuma credencial aparece;
+ * o código de pareamento vence em 10 min.
  */
 
-interface Painel {
-  agentes: AgenteVisao[]
-  dispositivos: DispositivoVisao[]
-  funcoes: Record<Funcao, string | null>
-  trabalhos: TrabalhoVisao[]
-  cozinhaPorFuncao: boolean
-  betaLiberado: boolean
-  modo: ModoBeta
-  cozinhaTransferidaEm: string | null
-  assistenteAntigoVistoEm: string | null
-  assistenteAntigoOnline: boolean
-}
-
-interface AssistenteAtual {
-  config: ConfigImpressao
-  impressoras: Impressora[]
-  nomeLoja: string
-  logoUrl: string | null
-  /** Token e opções do Assistente atual: só o dono altera (Ajustes era só do dono). */
-  podeEditar: boolean
-}
-
-const quando = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
+const CHAVE_VISAO = 'menuzia.impressao.visao'
 
 const DESCRICAO_MODO: Record<ModoBeta, string> = {
   teste: 'Só calibração e teste. Não imprime pedido real — o Assistente atual continua com tudo.',
@@ -80,90 +48,78 @@ const DESCRICAO_MODO: Record<ModoBeta, string> = {
   cozinha_caixa: 'A cozinha sai na impressora da Cozinha e o Recibo/Extrato no Caixa. O Assistente atual para de imprimir pedidos.',
 }
 
-/** Impressoras que o próprio Windows cria e que não são térmicas. */
-const VIRTUAL = /^(fax|microsoft print to pdf|microsoft xps document writer|onenote.*|enviar para o onenote.*|send to onenote.*)$/i
-const ehVirtual = (d: DispositivoVisao) => VIRTUAL.test(d.nomeSistema.trim())
-
-/**
- * Pareamento substituído: o mesmo computador (mesmo nome) foi pareado de novo depois e
- * este registro está sem sinal. As impressoras dele não imprimem mais — é o caso de quem
- * reinstala o Beta e pareia outra vez sem desconectar o antigo.
- */
-function substituidoPor(a: AgenteVisao, todos: AgenteVisao[]): AgenteVisao | null {
-  if (a.revogado || a.online) return null
-  const nome = a.nome.trim().toLowerCase()
-  return todos.find((b) => b.id !== a.id && !b.revogado && b.nome.trim().toLowerCase() === nome && new Date(b.criadoEm) > new Date(a.criadoEm)) ?? null
-}
-
-function Secao({ n, titulo, children, acao, id }: { n: number; titulo: string; children: React.ReactNode; acao?: React.ReactNode; id?: string }) {
-  return (
-    <section className="min-w-0 rounded-menuzia border border-border bg-white" id={id}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-        <h2 className="flex items-center gap-2 text-[14px] font-bold text-text-main">
-          <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-sidebar-bg text-[11px] font-bold text-white">{n}</span>
-          {titulo}
-        </h2>
-        {acao}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-function Status({ rotulo, valor, tom }: { rotulo: string; valor: string; tom: 'ok' | 'alerta' | 'neutro' | 'erro' }) {
-  const cor = { ok: 'bg-status-ready', alerta: 'bg-warn', neutro: 'bg-border', erro: 'bg-danger' }[tom]
-  return (
-    <div className="rounded-menuzia border border-border bg-white px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{rotulo}</p>
-      <p className="mt-1 flex items-center gap-2 text-[13px] font-bold text-text-main">
-        <span className={['h-2.5 w-2.5 shrink-0 rounded-full', cor].join(' ')} aria-hidden />
-        {valor}
-      </p>
-    </div>
-  )
-}
+const MOTIVO_RECUO = 'O modo voltou para a segurança porque a impressora que ele usava deixou de valer.'
 
 export function PainelImpressao() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [p, setP] = useState<Painel | null>(null)
+  const [p, setP] = useState<PainelDados | null>(null)
   const [atual, setAtual] = useState<AssistenteAtual | null>(null)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [atualVistoEm, setAtualVistoEm] = useState<string | null>(null)
   const [atualImpressoraId, setAtualImpressoraId] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const [tokenCopiado, setTokenCopiado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const [aviso, setAviso] = useState<{ tom: 'ok' | 'erro'; texto: string } | null>(null)
-  const [codigo, setCodigo] = useState<{ codigo: string; expiraEm: string } | null>(null)
+  const [aviso, setAviso] = useState<{ tom: 'ok' | 'erro' | 'alerta'; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
-  const [compartilhar, setCompartilhar] = useState<{ funcao: Funcao; dispositivoId: string; texto: string } | null>(null)
+  const [visao, setVisao] = useState<'novo' | 'antigo'>('novo')
+  const [pareando, setPareando] = useState<{ codigo: { codigo: string; expiraEm: string } | null; erro: string | null; antes: string[]; conectado: string | null } | null>(null)
+  const [escolhendo, setEscolhendo] = useState(false)
+  const [verModos, setVerModos] = useState(false)
+  const [teste, setTeste] = useState<TipoTeste | null>(null)
   const [ajuda, setAjuda] = useState(false)
   const [trocarModo, setTrocarModo] = useState<ModoBeta | null>(null)
   const [calibrar, setCalibrar] = useState<string | null>(null)
   const [modalImpressora, setModalImpressora] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
-  const [verFicha, setVerFicha] = useState(false)
   const [logoRecibo, setLogoRecibo] = useState<'pronta' | 'gerada' | 'sem_logo' | 'falhou' | null>(null)
   const seq = useRef(0)
   // Uma chave por impressora e por teste: clique duplo ou reenvio devolve o mesmo trabalho.
-  // Troca só depois que o servidor aceitou.
   const chavesTeste = useRef<Record<string, string>>({})
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(CHAVE_VISAO) === 'antigo') setVisao('antigo')
+    } catch {
+      /* navegador sem armazenamento: fica na visão nova */
+    }
+  }, [])
+  function trocarVisao(v: 'novo' | 'antigo') {
+    setVisao(v)
+    try {
+      localStorage.setItem(CHAVE_VISAO, v)
+    } catch {
+      /* só preferência */
+    }
+  }
 
   const carregar = useCallback(async () => {
     const minha = ++seq.current
-    const r = await chamar<Painel>('/api/admin/impressao/painel')
+    const r = await chamar<PainelDados>('/api/admin/impressao/painel')
     if (minha !== seq.current) return
     if (!r.ok || !r.dados) return setErro(r.erro)
     setErro(null)
     setP(r.dados)
   }, [])
 
+  // Pareando: confere a cada 2 s se o computador já entrou; fora disso, a cada 5 s.
+  const pareandoAberto = !!pareando && !pareando.conectado
   useEffect(() => {
     void carregar()
-    const t = setInterval(() => void carregar(), 5000)
+    const t = setInterval(() => void carregar(), pareandoAberto ? 2000 : 5000)
     return () => clearInterval(t)
-  }, [carregar])
+  }, [carregar, pareandoAberto])
 
-  // Assistente atual: configuração da loja (como em Ajustes) e o token (só o dono lê).
+  useEffect(() => {
+    if (!pareando || pareando.conectado || !p) return
+    const novo = p.agentes.find((a) => !a.revogado && !pareando.antes.includes(a.id))
+    if (novo) setPareando({ ...pareando, conectado: novo.nome })
+  }, [p, pareando])
+  useEffect(() => {
+    if (!pareando?.conectado) return
+    const t = setTimeout(() => setPareando(null), 2500)
+    return () => clearTimeout(t)
+  }, [pareando?.conectado])
+
+  // Assistente antigo: configuração da loja e o token (só o dono lê).
   useEffect(() => {
     let vivo = true
     ;(async () => {
@@ -179,7 +135,7 @@ export function PainelImpressao() {
         setToken(tk.token)
         setAtual({ config: cfg, impressoras: lista, nomeLoja: loja?.nome ?? '', logoUrl: loja?.logoUrl ?? null, podeEditar: tk.ok })
       } catch {
-        if (vivo) setErro('Não foi possível carregar a configuração do Assistente atual.')
+        if (vivo) setErro('Não foi possível carregar a configuração do Assistente antigo.')
       }
     })()
     return () => {
@@ -187,21 +143,20 @@ export function PainelImpressao() {
     }
   }, [supabase])
 
-  // Logo do Recibo/Extrato do Beta: o navegador prepara a versão de impressão da logo atual
-  // (fundo branco, PNG) — só em loja liberada; a impressão nunca depende disso.
+  // Logo do Recibo/Extrato do Beta: o navegador prepara a versão de impressão (PNG, fundo branco).
   const logoUrlAtual = atual?.logoUrl ?? null
-  const liberadoBeta = p?.betaLiberado === true
+  const liberado = p?.betaLiberado === true
   useEffect(() => {
-    if (!liberadoBeta) return
+    if (!liberado) return
     if (!logoUrlAtual) return setLogoRecibo('sem_logo')
     let vivo = true
     void garantirLogoImpressao(logoUrlAtual).then((r) => vivo && setLogoRecibo(r))
     return () => {
       vivo = false
     }
-  }, [liberadoBeta, logoUrlAtual])
+  }, [liberado, logoUrlAtual])
 
-  // Sinal do Assistente atual (heartbeat a cada 5 s).
+  // Sinal do Assistente antigo (heartbeat a cada 5 s).
   useEffect(() => {
     if (!restauranteId) return
     let vivo = true
@@ -225,39 +180,81 @@ export function PainelImpressao() {
 
   useEffect(() => {
     if (!aviso) return
-    const t = setTimeout(() => setAviso(null), 6000)
+    const t = setTimeout(() => setAviso(null), 7000)
     return () => clearTimeout(t)
   }, [aviso])
 
   async function agir(url: string, metodo: string, corpo: unknown, sucesso: string) {
     if (ocupado) return null
     setOcupado(true)
-    const r = await chamar(url, { method: metodo, body: JSON.stringify(corpo) })
+    const r = await chamar<{ modoRecuou?: ModoBeta | null }>(url, { method: metodo, body: JSON.stringify(corpo) })
     setOcupado(false)
     if (!r.ok) setAviso({ tom: 'erro', texto: r.erro ?? 'Não foi possível.' })
+    else if (r.dados?.modoRecuou) setAviso({ tom: 'alerta', texto: `${sucesso} ${MOTIVO_RECUO} Modo agora: ${ROTULO_MODO_BETA[r.dados.modoRecuou]}.` })
     else setAviso({ tom: 'ok', texto: sucesso })
     await carregar()
     return r
   }
 
-  async function imprimirTeste(d: DispositivoVisao, acao: 'recibo_teste' | 'calibracao', sucesso: string) {
+  async function abrirPareamento() {
+    setPareando({ codigo: null, erro: null, antes: (p?.agentes ?? []).map((a) => a.id), conectado: null })
+    const r = await chamar<{ codigo: string; expiraEm: string }>('/api/admin/impressao/pareamento', { method: 'POST' })
+    setPareando((x) => (x ? { ...x, codigo: r.ok && r.dados ? r.dados : null, erro: r.ok ? null : r.erro ?? 'Não foi possível gerar o código.' } : x))
+  }
+
+  async function salvarImpressoras(novo: Record<Funcao, string | null>) {
+    if (!p || ocupado) return
+    setOcupado(true)
+    let recuo: ModoBeta | null = null
+    let falhou: string | null = null
+    // Primeiro quem ganha impressora, depois quem fica sem: o modo não recua à toa no meio.
+    const ordem = (['caixa', 'cozinha'] as Funcao[]).filter((f) => novo[f] !== p.funcoes[f]).sort((a, b) => Number(novo[a] === null) - Number(novo[b] === null))
+    for (const f of ordem) {
+      const r = await chamar<{ modoRecuou?: ModoBeta | null }>('/api/admin/impressao/funcoes', { method: 'PUT', body: JSON.stringify({ funcao: f, dispositivoId: novo[f], confirmarCompartilhada: true }) })
+      if (!r.ok) {
+        falhou = r.erro ?? 'Não foi possível salvar.'
+        break
+      }
+      if (r.dados?.modoRecuou) recuo = r.dados.modoRecuou
+    }
+    setOcupado(false)
+    await carregar()
+    if (falhou) return setAviso({ tom: 'erro', texto: falhou })
+    setEscolhendo(false)
+    setAviso(recuo ? { tom: 'alerta', texto: `Impressoras salvas. ${MOTIVO_RECUO} Modo agora: ${ROTULO_MODO_BETA[recuo]}.` } : { tom: 'ok', texto: 'Impressoras salvas.' })
+  }
+
+  async function ajustar(d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number }) {
+    await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', patch, patch.apelido !== undefined ? 'Apelido salvo.' : 'Papel salvo.')
+  }
+
+  function revogar(a: AgenteVisao) {
+    if (!p) return
+    const emUso = modoDependeDoAgente(p.modo, a.id, p.dispositivos.map((d) => ({ id: d.id, agenteId: d.agenteId, nomeSistema: d.nomeSistema })), p.funcoes)
+    const texto = emUso
+      ? `"${a.nome}" imprime no modo "${ROTULO_MODO_BETA[p.modo]}". Ao desconectar, a loja volta para "Somente teste" na hora e a cozinha volta para o Assistente antigo. Desconectar?`
+      : `Desconectar "${a.nome}"? Ele para de imprimir na hora e precisa ser pareado de novo.`
+    if (confirm(texto)) void agir(`/api/admin/impressao/agentes/${a.id}`, 'POST', { acao: 'revogar' }, 'Computador desconectado.')
+  }
+
+  function renomear(a: AgenteVisao) {
+    const nome = prompt('Nome do computador', a.nome)?.trim()
+    if (nome) void agir(`/api/admin/impressao/agentes/${a.id}`, 'PATCH', { nome }, 'Computador renomeado.')
+  }
+
+  async function testar(d: DispositivoVisao) {
+    if (teste === 'calibrar') {
+      setTeste(null)
+      setCalibrar(d.id)
+      return
+    }
+    const acao = teste === 'recibo' ? 'recibo_teste' : 'teste'
     const k = `${acao}:${d.id}`
     chavesTeste.current[k] ??= novaChave()
-    const r = await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'POST', { acao, chave: chavesTeste.current[k] }, sucesso)
-    if (r?.ok) delete chavesTeste.current[k]
-  }
-
-  async function gerarCodigo() {
-    const r = await chamar<{ codigo: string; expiraEm: string }>('/api/admin/impressao/pareamento', { method: 'POST' })
-    if (!r.ok || !r.dados) return setAviso({ tom: 'erro', texto: r.erro ?? 'Não foi possível gerar o código.' })
-    setCodigo(r.dados)
-  }
-
-  async function atribuir(funcao: Funcao, dispositivoId: string | null, confirmar = false) {
-    const r = await agir('/api/admin/impressao/funcoes', 'PUT', { funcao, dispositivoId, confirmarCompartilhada: confirmar }, dispositivoId ? `Impressora da ${ROTULO_FUNCAO[funcao]} definida.` : `Impressora da ${ROTULO_FUNCAO[funcao]} removida.`)
-    if (r && !r.ok && r.codigo === 'confirmar_compartilhada' && dispositivoId) {
-      setAviso(null)
-      setCompartilhar({ funcao, dispositivoId, texto: r.erro ?? '' })
+    const r = await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'POST', { acao, chave: chavesTeste.current[k] }, `${teste === 'recibo' ? 'Recibo/Extrato de teste' : 'Página de teste'} enviado para ${nomeDisp(d)}.`)
+    if (r?.ok) {
+      delete chavesTeste.current[k]
+      setTeste(null)
     }
   }
 
@@ -272,13 +269,13 @@ export function PainelImpressao() {
   }
 
   async function gerarToken() {
-    if (token && !confirm('Gerar um token novo? O Assistente atual para de imprimir até você colar o token novo nele.')) return
+    if (token && !confirm('Gerar um token novo? O Assistente antigo para de imprimir até você colar o token novo nele.')) return
     const res = await fetch('/api/admin/impressao/token', { method: 'POST' }).catch(() => null)
     if (!res?.ok) return setAviso({ tom: 'erro', texto: 'Não foi possível gerar o token.' })
     setToken(((await res.json()) as { token: string }).token)
   }
 
-  async function salvarImpressoraAtual(input: ImpressoraInput) {
+  async function salvarImpressoraAntiga(input: ImpressoraInput) {
     if (!atual || !restauranteId || !modalImpressora) return
     if (modalImpressora.id) {
       await atualizarImpressora(supabase, modalImpressora.id, input)
@@ -290,8 +287,8 @@ export function PainelImpressao() {
     setModalImpressora(null)
   }
 
-  async function removerImpressoraAtual(id: string) {
-    if (!atual || !confirm('Remover esta impressora do Assistente atual?')) return
+  async function removerImpressoraAntiga(id: string) {
+    if (!atual || !confirm('Remover esta impressora do Assistente antigo?')) return
     try {
       await removerImpressora(supabase, id)
       setAtual({ ...atual, impressoras: atual.impressoras.filter((i) => i.id !== id) })
@@ -300,632 +297,116 @@ export function PainelImpressao() {
     }
   }
 
-  const nomeDisp = (d: DispositivoVisao) => d.apelido || d.nomeSistema
-  const agentePor = (id: string) => p?.agentes.find((a) => a.id === id)
-  const dispositivosAtivos = p?.dispositivos.filter((d) => !agentePor(d.agenteId)?.revogado) ?? []
-  const agenteSubstituido = (id: string) => {
-    const a = agentePor(id)
-    return !!a && !!p && !!substituidoPor(a, p.agentes)
-  }
-  // Para escolher função: computadores válidos primeiro, térmicas antes das virtuais do Windows;
-  // impressora de pareamento substituído só aparece se já estiver escolhida (para dar para trocar).
-  const opcoesFuncao = (f: Funcao) =>
-    dispositivosAtivos
-      .filter((d) => !agenteSubstituido(d.agenteId) || p?.funcoes[f] === d.id)
-      .sort((x, y) => ordemOpcao(x) - ordemOpcao(y))
-  function ordemOpcao(d: DispositivoVisao) {
-    return (ehVirtual(d) ? 2 : 0) + (agentePor(d.agenteId)?.online ? 0 : 1)
-  }
-  const avisoFuncao = (f: Funcao): string | null => {
-    const id = p?.funcoes[f]
-    if (!id) return null
-    const d = p?.dispositivos.find((x) => x.id === id)
-    const a = d ? agentePor(d.agenteId) : undefined
-    if (!d || !a) return null
-    if (agenteSubstituido(a.id)) return `Esta impressora é de um pareamento antigo do computador "${a.nome}". Nada vai sair por ela — escolha a mesma impressora na lista de novo.`
-    if (!a.online) return `O computador "${a.nome}" está sem sinal: nada sai até o Assistente Beta abrir nele.`
-    if (!d.disponivel) return 'O Windows não encontrou esta impressora no último sinal do computador.'
-    if (ehVirtual(d)) return 'Esta é uma impressora virtual do Windows (PDF/Fax/OneNote), não a térmica.'
-    return null
-  }
   const atualOnline = !!atualVistoEm && Date.now() - new Date(atualVistoEm).getTime() < 2 * 60_000
-  const betaOnline = p?.agentes.filter((a) => a.online).length ?? 0
-  const liberado = p?.betaLiberado === true
-  const podeAtual = atual?.podeEditar === true
   const dCalibrar = p?.dispositivos.find((d) => d.id === calibrar) ?? null
   const cozinhaNoBeta = p?.modo === 'cozinha_caixa'
+  const av = p ? avaliar(p) : null
+  // Modo real ligado, mas hoje ele não tem o que precisa (ex.: PC da impressora sem sinal).
+  const modoEmRisco = p && av && p.modo !== 'teste' && !av.modos[p.modo].ok ? av.modos[p.modo].motivo : null
 
-  // O <main> do painel não rola (overflow-hidden): cada página tem o próprio contêiner de
-  // rolagem. Sem ele, tudo abaixo da primeira tela ficava cortado e inalcançável.
   return (
+    // O <main> do painel não rola (overflow-hidden): cada página tem o próprio contêiner.
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <TopBar title="Impressão" breadcrumb="Cozinha, Caixa e Assistentes" />
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="impressao-rolagem">
-    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 p-4 pb-16" data-testid="painel-impressao">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-text-subtle">Onde e como saem os pedidos da cozinha e o Recibo/Extrato.</p>
-        <BotaoAjudaImpressao onAbrir={() => setAjuda(true)} />
-      </div>
-
-      {aviso && (
-        <p role="status" className={['rounded-menuzia px-3 py-2 text-[12px] font-semibold', aviso.tom === 'ok' ? 'bg-price-bg text-price-text' : 'bg-danger-bg text-danger'].join(' ')} data-testid="impressao-aviso">
-          {aviso.texto}
-        </p>
-      )}
-      {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[13px] text-danger">{erro}</p>}
-
-      {/* 1. Status */}
-      <h2 className="flex items-center gap-2 text-[14px] font-bold text-text-main">
-        <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-sidebar-bg text-[11px] font-bold text-white">1</span>
-        Status
-      </h2>
-      <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="impressao-status">
-        <Status
-          rotulo="Assistente atual"
-          valor={atual && !atual.config.ativarAssistente ? 'Desativado' : atualOnline ? 'Imprimindo' : atualVistoEm ? `Sem sinal desde ${quando(atualVistoEm)}` : 'Não conectado'}
-          tom={atual && !atual.config.ativarAssistente ? 'neutro' : atualOnline ? 'ok' : 'alerta'}
-        />
-        <Status rotulo="Impressão automática" valor={atual?.config.impressaoAutomatica ? 'Ligada' : 'Desligada'} tom={atual?.config.impressaoAutomatica ? 'ok' : 'neutro'} />
-        <Status
-          rotulo="Cozinha imprime pelo"
-          valor={cozinhaNoBeta ? 'Assistente Beta' : 'Assistente atual'}
-          tom="ok"
-        />
-        <Status
-          rotulo="Assistente Beta"
-          valor={!p ? '—' : !liberado ? 'Não liberado para esta loja' : `${ROTULO_MODO_BETA[p.modo]} · ${betaOnline} online`}
-          tom={!liberado ? 'neutro' : betaOnline > 0 ? 'ok' : 'alerta'}
-        />
-      </div>
-
-      {/* Guia do Beta: o que muda e os 8 passos, com o que esta loja já fez. */}
-      {p && (
-        <GuiaBeta
-          ocupado={ocupado}
-          onParear={() => {
-            void gerarCodigo().then(() => document.getElementById('computadores')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-          }}
-          e={{
-            liberado,
-            pareados: p.agentes.filter((a) => !a.revogado && !substituidoPor(a, p.agentes)).length,
-            online: betaOnline,
-            cozinhaOk: !!p.funcoes.cozinha && !avisoFuncao('cozinha'),
-            caixaOk: !!p.funcoes.caixa && !avisoFuncao('caixa'),
-            testeImpresso: p.trabalhos.some((t) => t.tipo === 'teste_impressora' && t.estado === 'enviado_spooler'),
-            modo: p.modo,
-          }}
-        />
-      )}
-
-      {/* 2. Assistente */}
-      <Secao n={2} titulo="Assistente de Impressão">
-        <div className="grid gap-3 p-4 lg:grid-cols-2 [&>*]:min-w-0">
-          <div className="min-w-0 rounded-menuzia border border-border p-3">
-            <p className="text-[13px] font-bold text-text-main">Assistente atual</p>
-            <p className="text-[12px] text-text-subtle">Assistente atual: continua imprimindo normalmente.</p>
-            <a
-              href={DOWNLOAD_ASSISTENTE_ATUAL.url}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-menuzia bg-yellow-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black hover:bg-yellow-400"
-            >
-              ⬇ Baixar Assistente {DOWNLOAD_ASSISTENTE_ATUAL.versao} (Windows)
-            </a>
-            <p className="mt-1 text-[11px] text-text-subtle">
-              Dois cliques no instalador. Se o Windows avisar, clique em “Mais informações” → “Executar assim mesmo”.{' '}
-              <a href="/guia-impressora.html" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">Guia passo a passo</a>
-            </p>
-            {atual && (
-              <div className="mt-2 rounded-menuzia border border-border px-3">
-                <ToggleRow label="Ativar o Assistente de Impressão" checked={atual.config.ativarAssistente} disabled={!podeAtual} onChange={(v) => void patchAtual({ ativarAssistente: v })} />
-                <ToggleRow label="Impressão automática" hint="Imprime sozinho assim que o pedido chega." checked={atual.config.impressaoAutomatica} disabled={!podeAtual} onChange={(v) => void patchAtual({ impressaoAutomatica: v })} />
-                <ToggleRow label="Aceitar pedidos automaticamente" hint="Move o pedido para “Preparando” assim que ele chega." checked={atual.config.aceitarPedidosAutomaticamente} disabled={!podeAtual} onChange={(v) => void patchAtual({ aceitarPedidosAutomaticamente: v })} />
-              </div>
-            )}
-            {atual && !podeAtual && <p className="mt-1 text-[11px] text-text-subtle">Só o dono da loja altera estas opções e o token.</p>}
-            {podeAtual && (
-              <div className="mt-2 rounded-menuzia bg-page p-2.5">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Token do Assistente atual</p>
-                {token ? (
-                  <div className="flex items-center gap-2">
-                    <code className="min-w-0 flex-1 truncate rounded-menuzia bg-[#0B1220] px-2.5 py-2 font-mono text-[12px] text-cyan-300">{token}</code>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(token).then(() => { setTokenCopiado(true); setTimeout(() => setTokenCopiado(false), 2000) })}
-                      className="rounded-menuzia border border-border bg-white px-3 py-2 text-[12px] font-semibold"
-                    >
-                      {tokenCopiado ? 'Copiado!' : 'Copiar'}
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-[12px] text-text-subtle">Nenhum token gerado ainda.</p>
-                )}
-                <button type="button" onClick={() => void gerarToken()} className="mt-1.5 text-[11px] font-semibold text-primary hover:underline">
-                  {token ? 'Gerar novo token (o atual deixa de valer)' : 'Gerar token'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Download do Beta para todo dono/gerente — baixar NÃO ativa nada: parear, mudar o
-              modo e imprimir continuam bloqueados até o suporte liberar a loja (servidor, 0100). */}
-          <div className="min-w-0 rounded-menuzia border border-border bg-page/50 p-3" data-testid="bloco-beta">
-            <p className="text-[13px] font-bold text-text-main">
-              Novo Assistente Beta <Badge tone="alert" className="ml-1">Opcional</Badge>
-            </p>
-            <p className="text-[12px] text-text-subtle">Novo Assistente Beta: necessário para usar impressoras separadas para Cozinha e Caixa.</p>
-            <a
-              href={DOWNLOAD_ASSISTENTE_BETA.url}
-              data-testid="baixar-beta"
-              className="mt-2 inline-flex items-center gap-1.5 rounded-menuzia border-2 border-primary bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary hover:bg-primary hover:text-white"
-            >
-              ⬇ Baixar Assistente Menuzia Beta
-            </a>
-            <p className="mt-1 text-[11px] text-text-subtle">
-              Versão opcional para testar impressoras separadas para Cozinha e Caixa. Continue usando o Assistente atual, salvo orientação do suporte Menuzia.
-            </p>
-            {liberado ? (
-              <p className="mt-2 rounded-menuzia bg-alert-bg px-2.5 py-1.5 text-[12px] text-alert-text" data-testid="beta-liberado">
-                Beta liberado para esta loja. Instala ao lado do atual, sem desinstalar nada, e começa em “Somente teste”: não imprime pedidos até você mudar o modo abaixo.
-              </p>
-            ) : (
-              <p className="mt-2 rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[12px] text-text-main" data-testid="beta-nao-liberado">
-                A ativação do Beta nesta loja é feita pelo suporte Menuzia. Sem ativação, ele não pareia com a loja e não imprime nada.
-              </p>
-            )}
-          </div>
-        </div>
-      </Secao>
-
-      {/* 3. Computadores e impressoras */}
-      <Secao
-        n={3}
-        id="computadores"
-        titulo="Computadores e impressoras"
-        acao={
-          liberado ? (
-            <button type="button" onClick={() => void gerarCodigo()} data-testid="gerar-codigo" className="rounded-menuzia bg-primary px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-white hover:bg-primary-dark">
-              + Parear computador (Beta)
-            </button>
-          ) : undefined
+      <TopBar
+        title="Impressão"
+        breadcrumb="Cozinha e Recibo/Extrato"
+        right={
+          <button
+            type="button"
+            onClick={() => trocarVisao(visao === 'novo' ? 'antigo' : 'novo')}
+            data-testid="alternar-visao"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-[var(--adm-borda)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--adm-texto)] hover:border-[#0688D4] hover:text-[#0688D4]"
+          >
+            <History className="h-4 w-4" /> {visao === 'novo' ? 'Assistente antigo' : 'Usar novo Assistente'}
+          </button>
         }
-      >
-        {codigo && (
-          <div className="border-b border-border bg-alert-bg px-4 py-3 text-[13px] text-alert-text">
-            <p>No Assistente Beta, em <strong>Parear este computador</strong>, digite:</p>
-            <p className="mt-1 font-mono text-[26px] font-extrabold tracking-[0.2em] text-text-main" data-testid="codigo-pareamento">{codigo.codigo}</p>
-            <p className="text-[12px]">Vale uma vez, até {horaCurta(codigo.expiraEm)}. Não fica salvo aqui.</p>
-            <button type="button" onClick={() => setCodigo(null)} className="mt-1 text-[12px] font-semibold underline">Esconder</button>
-          </div>
-        )}
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="impressao-rolagem">
+        <div className="mx-auto w-full min-w-0 max-w-5xl space-y-4 p-4 pb-16" data-testid="painel-impressao">
+          <p className="text-[13px] text-[var(--adm-texto-suave)]">Configure onde saem os pedidos da cozinha e o Recibo/Extrato do caixa.</p>
 
-        <div className="px-4 pt-3">
-          <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Assistente atual</p>
-          <p className="text-[12px] text-text-subtle">
-            {atualOnline ? 'Em uso agora' : atualVistoEm ? `Último sinal ${quando(atualVistoEm)}` : 'Nenhum sinal ainda'} · papel, fonte e cópias de cada impressora:
-          </p>
-          <ul className="mt-2 space-y-1.5">
-            {atual?.impressoras.map((imp) => {
-              const conectada = imp.id === atualImpressoraId
-              return (
-                <li key={imp.id} className={['flex flex-wrap items-center justify-between gap-2 rounded-menuzia border px-3 py-2', conectada ? 'border-yellow-400 bg-yellow-100' : 'border-border'].join(' ')}>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-text-main">
-                      {imp.nome} {conectada && <Badge tone="new" className="ml-1">Em uso</Badge>}
-                    </p>
-                    <p className="text-[11px] text-text-subtle">Papel {imp.largura === 32 ? '58 mm' : '80 mm'} · fonte {imp.tamanhoFonte} · {imp.copias}x</p>
-                  </div>
-                  {podeAtual && (
-                    <div className="flex gap-3">
-                      <button type="button" onClick={() => setModalImpressora({ id: imp.id, input: { nome: imp.nome, tamanhoFonte: imp.tamanhoFonte, largura: imp.largura, copias: imp.copias } })} className="text-[12px] font-semibold text-primary hover:underline">Editar</button>
-                      <button type="button" onClick={() => void removerImpressoraAtual(imp.id)} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-          {atual && atual.impressoras.length === 0 && <p className="mt-1 text-[12px] text-text-subtle">Nenhuma impressora cadastrada.</p>}
-          {podeAtual && (
-            <button type="button" onClick={() => setModalImpressora({ id: null, input: IMPRESSORA_VAZIA })} className="mt-2 text-[12px] font-semibold text-primary hover:underline">
-              + Nova impressora do Assistente atual
-            </button>
-          )}
-        </div>
-
-        {liberado && (
-          <div className="mt-3 border-t border-border">
-            <p className="px-4 pt-3 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Assistente Beta — computadores pareados</p>
-            {p && p.agentes.length === 0 && <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhum computador pareado ainda.</p>}
-            <ul className="divide-y divide-border">
-              {p?.agentes.map((a) => {
-                const novo = substituidoPor(a, p.agentes)
-                return (
-                <li key={a.id} className={['flex flex-wrap items-center gap-3 px-4 py-3', novo ? 'bg-warn-bg/60' : ''].join(' ')} data-testid={`agente-${a.nome}`}>
-                  <span className={['h-2.5 w-2.5 rounded-full', a.revogado ? 'bg-border' : a.online ? 'bg-status-ready' : 'bg-danger'].join(' ')} aria-hidden />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[14px] font-semibold text-text-main">
-                      {a.nome} {novo && <Badge tone="pending" className="ml-1">Pareamento antigo</Badge>}
-                    </p>
-                    <p className="text-[12px] text-text-subtle">
-                      {a.revogado ? 'Desconectado' : a.online ? 'Online' : 'Offline'} · versão {a.versao ?? '—'} · pareado {quando(a.criadoEm)} · último sinal {quando(a.vistoEm)}
-                    </p>
-                    {novo && (
-                      <p className="mt-0.5 text-[12px] text-[#92400E]" data-testid={`agente-antigo-${a.nome}`}>
-                        Este computador foi pareado de novo em {quando(novo.criadoEm)}. Esta entrada antiga não imprime mais — toque em Desconectar.
-                      </p>
-                    )}
-                  </div>
-                  {!a.revogado && (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={ocupado}
-                        onClick={() => {
-                          const nome = prompt('Nome do computador', a.nome)?.trim()
-                          if (nome) void agir(`/api/admin/impressao/agentes/${a.id}`, 'PATCH', { nome }, 'Computador renomeado.')
-                        }}
-                        className="rounded-menuzia border border-border px-3 py-1.5 text-[12px] font-semibold text-text-main"
-                      >
-                        Renomear
-                      </button>
-                      <button
-                        type="button"
-                        disabled={ocupado}
-                        data-testid={`revogar-${a.nome}`}
-                        onClick={() => {
-                          if (confirm(`Desconectar "${a.nome}"? Ele para de imprimir na hora e precisa ser pareado de novo.`)) {
-                            void agir(`/api/admin/impressao/agentes/${a.id}`, 'POST', { acao: 'revogar' }, 'Computador desconectado.')
-                          }
-                        }}
-                        className="rounded-menuzia border border-danger/40 px-3 py-1.5 text-[12px] font-semibold text-danger hover:bg-danger hover:text-white"
-                      >
-                        Desconectar
-                      </button>
-                    </div>
-                  )}
-                </li>
-                )
-              })}
-            </ul>
-            <p className="border-t border-border px-4 pt-3 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Impressoras encontradas pelo Beta</p>
-            {p && p.dispositivos.length === 0 && <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhuma impressora informada ainda.</p>}
-            {p && p.dispositivos.some((d) => agenteSubstituido(d.agenteId) || ehVirtual(d)) && (
-              <p className="px-4 pt-1 text-[11px] text-text-subtle">
-                {p.dispositivos.filter((d) => !agentePor(d.agenteId)?.revogado && !agenteSubstituido(d.agenteId) && ehVirtual(d)).length} impressora(s) virtual(is) do Windows
-                (PDF, Fax, OneNote) ficam no fim da lista{p.dispositivos.some((d) => agenteSubstituido(d.agenteId)) ? '; as de pareamentos antigos não aparecem' : ''}.
-              </p>
-            )}
-            <ul className="divide-y divide-border">
-              {p?.dispositivos
-                .filter((d) => !agenteSubstituido(d.agenteId))
-                .sort((x, y) => ordemOpcao(x) - ordemOpcao(y))
-                .map((d) => (
-                <li key={d.id} className="flex flex-wrap items-center gap-2 px-4 py-3" data-testid={`dispositivo-${d.nomeSistema}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[14px] font-semibold text-text-main">
-                      {nomeDisp(d)} {d.funcoes.map((f) => <Badge key={f} tone="preparing" className="ml-1">{ROTULO_FUNCAO[f]}</Badge>)}
-                      {!d.disponivel && <Badge tone="danger" className="ml-1">Não encontrada no Windows</Badge>}
-                      {ehVirtual(d) && <Badge tone="paused" className="ml-1">Virtual do Windows</Badge>}
-                      {!agentePor(d.agenteId)?.online && <Badge tone="pending" className="ml-1">Computador sem sinal</Badge>}
-                    </p>
-                    <p className="truncate text-[12px] text-text-subtle">
-                      {agentePor(d.agenteId)?.nome ?? '—'} · Windows: {d.nomeSistema} · papel {d.larguraMm} mm{d.larguraPontos ? ` · calibrada (${d.larguraPontos} pontos)` : ''}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={ocupado}
-                    onClick={() => {
-                      const apelido = prompt('Apelido (ex.: Cozinha, Caixa)', d.apelido ?? '')
-                      if (apelido !== null) void agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', { apelido }, 'Apelido salvo.')
-                    }}
-                    className="rounded-menuzia border border-border px-3 py-1.5 text-[12px] font-semibold"
-                  >
-                    Apelido
-                  </button>
-                  <select
-                    value={d.larguraMm}
-                    disabled={ocupado}
-                    onChange={(e) => void agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', { larguraMm: Number(e.target.value) }, 'Papel salvo.')}
-                    className="rounded-menuzia border border-border bg-white px-2 py-1.5 text-[12px]"
-                    aria-label="Largura do papel"
-                  >
-                    <option value={80}>Papel 80 mm</option>
-                    <option value={58}>Papel 58 mm</option>
-                  </select>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </Secao>
-
-      {/* 4. Funções */}
-      <Secao n={4} titulo="Funções: Cozinha e Caixa — Recibo/Extrato">
-        <div className="space-y-3 p-4">
-          {!liberado ? (
-            <p className="text-[13px] text-text-subtle">
-              Hoje a cozinha sai no Assistente atual, na impressora escolhida nele. Impressoras separadas para Cozinha e Caixa usam o novo Assistente Beta.
+          {aviso && (
+            <p role="status" data-testid="impressao-aviso" className={['rounded-[6px] px-3 py-2 text-[12.5px] font-semibold', aviso.tom === 'ok' ? 'bg-[#DCFCE7] text-[#166534]' : aviso.tom === 'alerta' ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#FEE2E2] text-[#B91C1C]'].join(' ')}>
+              {aviso.texto}
             </p>
+          )}
+          {erro && <p className="rounded-[6px] bg-[#FEE2E2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
+
+          {visao === 'antigo' ? (
+            <AssistenteAntigo
+              atual={atual}
+              token={token}
+              vistoEm={atualVistoEm}
+              online={atualOnline}
+              impressoraEmUsoId={atualImpressoraId}
+              cozinhaNoBeta={cozinhaNoBeta}
+              onVoltar={() => trocarVisao('novo')}
+              onPatch={(x) => void patchAtual(x)}
+              onGerarToken={() => void gerarToken()}
+              onEditarImpressora={(id, input) => setModalImpressora({ id, input })}
+              onRemoverImpressora={(id) => void removerImpressoraAntiga(id)}
+            />
+          ) : !p ? (
+            <div className="space-y-3" aria-busy="true">
+              {[0, 1, 2].map((i) => <div key={i} className="h-[150px] animate-pulse rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" />)}
+            </div>
           ) : (
             <>
-              <div className="grid gap-3 md:grid-cols-2 [&>*]:min-w-0">
-                {(['cozinha', 'caixa'] as Funcao[]).map((f) => (
-                  <label key={f} className="block min-w-0 rounded-menuzia border border-border p-3">
-                    <span className="block text-[13px] font-bold text-text-main">{f === 'cozinha' ? 'Impressora da Cozinha' : 'Impressora do Caixa — Recibo/Extrato'}</span>
-                    <span className="mb-2 block text-[12px] text-text-subtle">
-                      {f === 'cozinha' ? 'Impressora da cozinha: imprime os pedidos que devem ser preparados.' : 'Impressora do caixa: imprime o Recibo/Extrato para o cliente conferir.'}
-                    </span>
-                    <select
-                      value={p?.funcoes[f] ?? ''}
-                      disabled={ocupado || !p}
-                      data-testid={`funcao-${f}`}
-                      onChange={(e) => void atribuir(f, e.target.value || null)}
-                      className="w-full min-w-0 max-w-full truncate rounded-menuzia border border-border bg-white px-3 py-2 text-[13px] text-text-main"
-                    >
-                      <option value="">— nenhuma —</option>
-                      {opcoesFuncao(f).map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {nomeDisp(d)} · {agentePor(d.agenteId)?.nome ?? '?'}
-                          {agenteSubstituido(d.agenteId) ? ' (pareamento antigo)' : !agentePor(d.agenteId)?.online ? ' (sem sinal)' : ''}
-                          {d.disponivel ? '' : ' (não encontrada)'}
-                          {ehVirtual(d) ? ' (virtual do Windows)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                    {avisoFuncao(f) && (
-                      <span className="mt-1.5 block rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[12px] text-[#92400E]" data-testid={`aviso-funcao-${f}`}>
-                        {avisoFuncao(f)}
-                      </span>
-                    )}
-                    <span className="mt-1 block text-[11px] text-text-subtle">
-                      {f === 'caixa' ? EXPLICACAO_RECIBO_EXTRATO : cozinhaNoBeta ? 'A cozinha está saindo por esta impressora.' : 'Enquanto o modo não for “Cozinha e Caixa”, a cozinha continua no Assistente atual.'}
-                    </span>
-                  </label>
-                ))}
-              </div>
+              {/* Onde a cozinha está saindo agora — para ninguém achar que a impressão parou. */}
+              <p className="flex items-start gap-2 rounded-[6px] bg-[#F8FAFC] px-3 py-2 text-[12.5px] text-[var(--adm-texto-medio)]" data-testid="onde-sai-cozinha">
+                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#0688D4]" />
+                {cozinhaNoBeta
+                  ? 'A cozinha está saindo pelo Assistente Beta.'
+                  : `A cozinha está saindo pelo Assistente antigo${atual && !atual.config.ativarAssistente ? ' (desativado)' : atualOnline ? ' (imprimindo agora)' : ''}. O Recibo/Extrato do PDV ${p.modo === 'teste' ? 'fica desligado em “Somente teste”' : 'sai pelo Beta'}.`}
+              </p>
+              {modoEmRisco && (
+                <p className="flex items-start gap-2 rounded-[6px] bg-[#FEF3C7] px-3 py-2 text-[12.5px] font-semibold text-[#92400E]" data-testid="modo-em-risco">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {modoEmRisco}. Enquanto isso, o Recibo/Extrato do PDV pode não sair.
+                </p>
+              )}
 
-              <div className="rounded-menuzia border border-border p-3" data-testid="modo-beta">
-                <p className="text-[13px] font-bold text-text-main">O que o Assistente Beta imprime</p>
-                <div className="mt-2 grid gap-2 md:grid-cols-3">
-                  {(['teste', 'caixa', 'cozinha_caixa'] as ModoBeta[]).map((m) => {
-                    const ativo = p?.modo === m
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        disabled={ocupado || ativo}
-                        data-testid={`modo-${m}`}
-                        onClick={() => setTrocarModo(m)}
-                        className={['rounded-menuzia border-2 p-3 text-left transition-colors', ativo ? 'border-primary bg-alert-bg/50' : 'border-border hover:border-primary/60'].join(' ')}
-                      >
-                        <span className="flex items-center justify-between text-[13px] font-bold text-text-main">
-                          {ROTULO_MODO_BETA[m]} {ativo && <Badge tone="ok">Em uso</Badge>}
-                        </span>
-                        <span className="mt-1 block text-[12px] leading-snug text-text-subtle">{DESCRICAO_MODO[m]}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-                {p?.modo !== 'teste' && (
-                  <p className="mt-2 text-[12px] text-text-subtle">
-                    Algo errado? Toque em <strong>Somente teste</strong>: a cozinha volta na hora para o Assistente atual, sem reinstalar nada.
-                  </p>
-                )}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <CartaoAssistente p={p} ocupado={ocupado} onParear={() => void abrirPareamento()} onRevogar={revogar} onRenomear={renomear} />
+                <CartaoImpressoras p={p} onEscolher={() => setEscolhendo(true)} />
               </div>
+              <CartaoModo p={p} ocupado={ocupado} onEscolher={(m) => setTrocarModo(m)} onAjuda={() => setVerModos(true)} />
+              <CartaoTestes p={p} ocupado={ocupado} logoRecibo={logoRecibo} onTestar={(t) => setTeste(t)} />
+              {atual && <FichaCozinha atual={atual} pode={atual.podeEditar} impressoraEmUsoId={atualImpressoraId} onPatch={(x) => void patchAtual(x)} />}
+              <AjudaDiagnostico p={p} onAjudaCompleta={() => setAjuda(true)} />
             </>
           )}
 
-          <div className="rounded-menuzia border border-border">
-            <button type="button" onClick={() => setVerFicha((v) => !v)} className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] font-bold text-text-main" aria-expanded={verFicha}>
-              Ficha da cozinha: opções e prévia <span className="text-text-subtle">{verFicha ? '▲' : '▼'}</span>
-            </button>
-            {verFicha && atual && (
-              <div className="grid gap-4 border-t border-border p-3 lg:grid-cols-[1fr_340px]">
-                <div>
-                  <ToggleRow label="Mostrar número do item" checked={atual.config.mostrarNumeroItem} disabled={!podeAtual} onChange={(v) => void patchAtual({ mostrarNumeroItem: v })} />
-                  <ToggleRow label="Mostrar preço dos complementos" checked={atual.config.mostrarPrecoComplementos} disabled={!podeAtual} onChange={(v) => void patchAtual({ mostrarPrecoComplementos: v })} />
-                  <ToggleRow label="Mostrar nome dos complementos" checked={atual.config.mostrarNomeComplementos} disabled={!podeAtual} onChange={(v) => void patchAtual({ mostrarNomeComplementos: v })} />
-                  <ToggleRow label="Fonte maior na via de produção" checked={atual.config.fonteMaiorProducao} disabled={!podeAtual} onChange={(v) => void patchAtual({ fonteMaiorProducao: v })} />
-                  <ToggleRow label="Multiplicar opções pela quantidade" checked={atual.config.multiplicarOpcoesQtd} disabled={!podeAtual} onChange={(v) => void patchAtual({ multiplicarOpcoesQtd: v })} />
-                  <ToggleRow label="Imprimir logo da loja" checked={atual.config.imprimirLogo} disabled={!podeAtual} onChange={(v) => void patchAtual({ imprimirLogo: v })} />
-                </div>
-                <ReciboPreview
-                  config={atual.config}
-                  nomeLoja={atual.nomeLoja}
-                  logoUrl={atual.logoUrl}
-                  cols={(() => {
-                    const imp = atual.impressoras.find((i) => i.id === atualImpressoraId) ?? atual.impressoras.find((i) => i.ativa) ?? atual.impressoras[0]
-                    return colsParaFontePreview(imp?.tamanhoFonte, imp?.largura ?? 48)
-                  })()}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </Secao>
-
-      {/* 5. Teste e calibração */}
-      <Secao n={5} titulo="Teste e calibração">
-        {!liberado || dispositivosAtivos.length === 0 ? (
-          <p className="px-4 py-3 text-[13px] text-text-subtle">
-            {liberado ? 'Pareie um computador com o Assistente Beta para testar e calibrar as impressoras dele.' : 'O teste do Assistente atual fica no próprio programa, no botão “Imprimir teste”.'}
-          </p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {dispositivosAtivos.filter((d) => !agenteSubstituido(d.agenteId)).sort((x, y) => ordemOpcao(x) - ordemOpcao(y)).map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-2 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold text-text-main">{nomeDisp(d)}</p>
-                  <p className="text-[12px] text-text-subtle">
-                    {d.larguraPontos ? `Calibrada: ${d.larguraPontos} pontos${d.calibradoPorNome ? ` · por ${d.calibradoPorNome}` : ''} · ${quando(d.calibradoEm)}` : `Papel ${d.larguraMm} mm · padrão`}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={ocupado}
-                  data-testid={`recibo-teste-${d.nomeSistema}`}
-                  onClick={() => void imprimirTeste(d, 'recibo_teste', `Recibo/Extrato de teste enviado para ${nomeDisp(d)}.`)}
-                  className="rounded-menuzia border-2 border-primary px-3 py-1.5 text-[12px] font-bold text-primary hover:bg-primary hover:text-white disabled:opacity-40"
-                >
-                  Testar Recibo/Extrato
-                </button>
-                <button
-                  type="button"
-                  disabled={ocupado}
-                  data-testid={`testar-${d.nomeSistema}`}
-                  onClick={() => void imprimirTeste(d, 'calibracao', `Página de calibração enviada para ${nomeDisp(d)}.`)}
-                  className="rounded-menuzia border-2 border-primary px-3 py-1.5 text-[12px] font-bold text-primary hover:bg-primary hover:text-white disabled:opacity-40"
-                >
-                  Imprimir página de calibração
-                </button>
-                <button
-                  type="button"
-                  disabled={ocupado}
-                  data-testid={`calibrar-${d.nomeSistema}`}
-                  onClick={() => setCalibrar(d.id)}
-                  className="rounded-menuzia bg-sidebar-bg px-3 py-1.5 text-[12px] font-bold text-white hover:opacity-90 disabled:opacity-40"
-                >
-                  Calibrar (passo a passo)
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Secao>
-
-      {/* 6. Histórico */}
-      <Secao n={6} titulo="Histórico recente">
-        <p className="px-4 pt-3 text-[12px] text-text-subtle">{AVISO_PAPEL}</p>
-        {p && p.trabalhos.length === 0 && <p className="px-4 py-4 text-[13px] text-text-subtle">Nenhum Recibo/Extrato ou teste ainda.</p>}
-        <p className="px-4 pt-1 text-[11px] text-text-subtle">
-          “Recibo/Extrato de teste” é um documento de demonstração: não cria pedido, conta nem pagamento.
-        </p>
-        <ul className="divide-y divide-border" data-testid="historico-impressao">
-          {p?.trabalhos.map((t) => (
-            <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-[12px]">
-              <span className="text-text-subtle">{quando(t.criadoEm)}</span>
-              <span className="font-semibold text-text-main">{(t.subtipo && ROTULO_SUBTIPO_TESTE[t.subtipo]) || ROTULO_TIPO_TRABALHO[t.tipo] || t.tipo}{t.tipo === 'pre_conta' ? ` · ${t.via}ª via` : ''}</span>
-              <span className="min-w-0 flex-1 text-text-main">{t.impressora} · por {t.criadoPorNome}</span>
-              <Badge tone={TOM_ESTADO_IMPRESSAO[t.estado] ?? 'alert'}>{ROTULO_ESTADO_IMPRESSAO[t.estado] ?? t.estado}</Badge>
-              {t.erro && <span className="w-full text-danger">{t.erro}</span>}
-            </li>
-          ))}
-        </ul>
-      </Secao>
-
-      {/* 7. Diagnóstico e ajuda */}
-      <Secao n={7} titulo="Diagnóstico e ajuda" acao={<button type="button" onClick={() => setAjuda(true)} className="text-[12px] font-semibold text-primary hover:underline">Como funciona</button>}>
-        <div className="space-y-2 p-4">
-          {liberado &&
-            dispositivosAtivos.map((d) => {
-              const g = (d.diagnostico ?? {}) as Record<string, string | number | boolean | undefined>
-              const linhas: [string, string][] = [
-                ['Driver', String(g.driver ?? '—')],
-                ['Porta', String(g.porta ?? '—')],
-                ['DPI', g.dpiX ? `${g.dpiX} x ${g.dpiY ?? '—'}` : '—'],
-                ['Papel (Windows)', g.papelLarguraMm ? `${g.papelLarguraMm} mm` : '—'],
-                ['Área imprimível', g.areaImprimivelLarguraMm ? `${g.areaImprimivelLarguraMm} mm` : '—'],
-                ['Margem esq./dir.', g.margemEsquerdaMm !== undefined ? `${g.margemEsquerdaMm} / ${g.margemDireitaMm ?? '—'} mm` : '—'],
-                ['Pontos imprimíveis', g.pontosImprimiveis ? String(g.pontosImprimiveis) : '—'],
-                ['Largura aplicada', `${d.larguraPontos ?? (d.larguraMm === 58 ? 384 : 576)} pontos${d.larguraPontos ? ' (calibrada)' : ' (padrão)'}`],
-                ['Deslocamento', `${d.deslocamentoPontos} pontos`],
-              ]
-              return (
-                <details key={d.id} className="rounded-menuzia border border-border">
-                  <summary className="cursor-pointer px-3 py-2 text-[13px] font-semibold text-text-main">
-                    {nomeDisp(d)} <span className="font-normal text-text-subtle">· {agentePor(d.agenteId)?.nome ?? '—'}</span>
-                  </summary>
-                  <dl className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-border px-3 py-2 text-[12px] min-[400px]:grid-cols-2">
-                    {linhas.map(([k, v]) => (
-                      <div key={k} className="flex justify-between gap-2">
-                        <dt className="text-text-subtle">{k}</dt>
-                        <dd className="text-right font-semibold text-text-main">{v}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {d.ultimoErro && <p className="border-t border-border px-3 py-2 text-[12px] text-danger">Último erro ({quando(d.ultimoErroEm)}): {d.ultimoErro}</p>}
-                </details>
-              )
-            })}
-          {liberado && (
-            <p className="text-[12px] text-text-subtle" data-testid="logo-recibo">
-              Logo no Recibo/Extrato:{' '}
-              <strong className="text-text-main">
-                {logoRecibo === 'pronta' || logoRecibo === 'gerada'
-                  ? 'pronta'
-                  : logoRecibo === 'sem_logo'
-                    ? 'a loja não tem logo — sai o nome da loja'
-                    : logoRecibo === 'falhou'
-                      ? 'não foi possível preparar — sai o nome da loja'
-                      : 'preparando…'}
-              </strong>
-            </p>
+          {/* ── janelas ─────────────────────────────────────────────────────────── */}
+          <ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} />
+          {pareando && (
+            <ModalPareamento
+              codigo={pareando.codigo}
+              erro={pareando.erro}
+              conectado={pareando.conectado}
+              onGerarOutro={() => void abrirPareamento()}
+              onFechar={() => setPareando(null)}
+            />
           )}
-          <ul className="list-disc space-y-1 pl-5 text-[12px] text-text-subtle">
-            <li>Papel não saiu? Veja se tem papel, se a tampa está fechada e se a impressora está ligada e online.</li>
-            <li>Fila do Windows travada: em “Impressoras e scanners”, abra a impressora e cancele os documentos parados.</li>
-            <li>
-              Primeira instalação:{' '}
-              <a href="/guia-impressora.html" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">guia passo a passo</a>.
-            </li>
-          </ul>
+          {escolhendo && p && <ModalImpressoras p={p} ocupado={ocupado} onSalvar={salvarImpressoras} onAjustar={ajustar} onFechar={() => setEscolhendo(false)} />}
+          {verModos && <ModalModos onFechar={() => setVerModos(false)} />}
+          {teste && p && <ModalTeste tipo={teste} p={p} ocupado={ocupado} onConfirmar={(d) => void testar(d)} onFechar={() => setTeste(null)} />}
+          {trocarModo && p && (
+            <ConfirmarModo
+              de={p.modo}
+              para={trocarModo}
+              temCozinha={!!p.funcoes.cozinha}
+              ocupado={ocupado}
+              onCancelar={() => setTrocarModo(null)}
+              onConfirmar={async () => {
+                const m = trocarModo
+                const r = await agir('/api/admin/impressao/modo', 'PUT', { modo: m }, `Modo alterado para “${ROTULO_MODO_BETA[m]}”.`)
+                if (r?.ok) setTrocarModo(null)
+              }}
+            />
+          )}
+          {dCalibrar && <Calibracao d={dCalibrar} ocupado={ocupado} agir={agir} onFechar={() => setCalibrar(null)} />}
+          {modalImpressora && <ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAntiga} />}
         </div>
-      </Secao>
-
-      {/* ── janelas ─────────────────────────────────────────────────────────── */}
-      <ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} />
-
-      {compartilhar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-menuzia bg-white p-4 shadow-xl">
-            <h2 className="text-[15px] font-bold text-text-main">Usar a mesma impressora nas duas funções?</h2>
-            <p className="mt-2 text-[13px] text-text-main">{compartilhar.texto}</p>
-            <p className="mt-2 text-[12px] text-text-subtle">Os pedidos da cozinha e o Recibo/Extrato vão sair no mesmo papel.</p>
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={() => setCompartilhar(null)} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold">Cancelar</button>
-              <button
-                type="button"
-                data-testid="confirmar-compartilhada"
-                onClick={async () => {
-                  const c = compartilhar
-                  setCompartilhar(null)
-                  await atribuir(c.funcao, c.dispositivoId, true)
-                }}
-                className="flex-[2] rounded-menuzia bg-primary py-2.5 text-[13px] font-bold text-white"
-              >
-                Confirmo: usar nas duas
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {trocarModo && p && (
-        <ConfirmarModo
-          de={p.modo}
-          para={trocarModo}
-          temCozinha={!!p.funcoes.cozinha}
-          ocupado={ocupado}
-          onCancelar={() => setTrocarModo(null)}
-          onConfirmar={async () => {
-            const m = trocarModo
-            const r = await agir('/api/admin/impressao/modo', 'PUT', { modo: m }, `Modo alterado para “${ROTULO_MODO_BETA[m]}”.`)
-            if (r?.ok) setTrocarModo(null)
-          }}
-        />
-      )}
-
-      {dCalibrar && (
-        <Calibracao
-          d={dCalibrar}
-          ocupado={ocupado}
-          agir={agir}
-          onFechar={() => setCalibrar(null)}
-        />
-      )}
-
-      {modalImpressora && <ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAtual} />}
-    </div>
       </div>
     </div>
   )
