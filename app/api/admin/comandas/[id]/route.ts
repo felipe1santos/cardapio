@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { contextoPresencial, type ContextoPresencial } from '@/lib/auth/presencial'
 import { ehAcaoConta, ehUuid, permissoesDaConta, PERMISSAO_DA_ACAO, sanearFechamento, sanearIdentificacao, sanearResolucao } from '@/lib/pdv-v2'
-import { ajustarValores } from '@/lib/queries/conta'
+import { ajustarValores, cancelarComanda } from '@/lib/queries/conta'
 import { ehFormaOferecida } from '@/lib/conta'
 import * as conta from '@/lib/servicos/conta-presencial'
 
@@ -130,7 +130,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return responder(await conta.fechar(ctx.admin, eu, c, 'pdv'))
 
     case 'identificar': {
-      if (!ctx.pode('balcao.abrir') && !ctx.pode('pedidos.mesa.criar')) {
+      if (!ctx.pode('balcao.abrir') && !ctx.pode('pedidos.mesa.criar') && !ctx.pode('comanda.fechar')) {
         return NextResponse.json({ error: 'Sem permissão para esta ação' }, { status: 403 })
       }
       const s = sanearIdentificacao(corpo)
@@ -178,6 +178,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     case 'reabrir':
       return responder(await conta.reabrir(ctx.admin, eu, c, texto(corpo.motivo), 'pdv'))
+
+    case 'cancelar_conta': {
+      // Conta inteira (mesa esquecida, cliente desistiu, pedido em andamento que não vai
+      // sair): o banco derruba os lançamentos com motivo, zera `reimprimir` (nada sai na
+      // impressora depois) e audita na mesma transação. Dinheiro recebido bloqueia.
+      const motivo = texto(corpo.motivo, 200)
+      if (motivo.length < 5) return NextResponse.json({ error: 'Informe o motivo (mínimo 5 letras).', codigo: 'motivo_obrigatorio' }, { status: 400 })
+      if (c.status !== 'aberta') return NextResponse.json({ error: 'Esta conta já foi encerrada.', codigo: 'comanda_nao_aberta' }, { status: 409 })
+      // Motoboy na rua: cancelar aqui não chama ele de volta nem avisa o Nexta.
+      const naRua = c.pedidos.find((p) => p.status === 'em_rota')
+      if (naRua) {
+        return NextResponse.json(
+          { error: `O pedido #${naRua.numero} saiu para entrega. Conclua ou cancele a entrega pela Logística antes de cancelar a conta.`, codigo: 'pedido_em_rota' },
+          { status: 409 },
+        )
+      }
+      const r = await cancelarComanda(ctx.admin, {
+        restauranteId: eu.restauranteId, comandaId: c.id, motivo, atorId: eu.userId, atorNome: eu.nome,
+      })
+      if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.codigo === 'comanda_com_pagamento' ? 409 : 400 })
+      return NextResponse.json({ ok: true, resultado: r.valor })
+    }
 
     case 'cancelar_pedido': {
       const p = pedidoDaConta(corpo.pedidoId)

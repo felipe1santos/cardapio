@@ -30,7 +30,7 @@ import { CancelarPedidoModal } from '@/components/pedidos/cancelar-modal'
 import { podeCancelar, rotuloMotivo } from '@/lib/cancelamento'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
-import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO } from '@/lib/queries/ajustes'
+import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO, usaDespachoDeRotas } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
 import { etiquetasDoPedido, referenciaDoLancamento, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
@@ -792,6 +792,8 @@ export default function PedidosPage() {
   }, [avisoSaida])
 
   async function avancar(p: Pedido) {
+    // Sem motoboy, a entrega termina em "Saiu p/ entrega" (servidor avisa e conclui).
+    if (p.status === 'pronto' && p.tipo === 'entrega' && !usaDespachoDeRotas(fluxo)) return saiuSemEntregador(p)
     await moverPara(p, proximoStatusKanban(p.status, p.tipo, fluxo.usaLogistica))
   }
 
@@ -933,9 +935,20 @@ export default function PedidosPage() {
       >
         <Zap className="h-4 w-4" /> Aceite auto
       </button>
-      <button onClick={() => setRotaOpen(true)} title="Despacho de rotas" className={`${TOOL_BTN} bg-status-pending text-white hover:brightness-95`}>
-        <Bike className="h-4 w-4" /> Rotas
-      </button>
+      {usaDespachoDeRotas(fluxo) ? (
+        <button onClick={() => setRotaOpen(true)} title="Despacho de rotas" className={`${TOOL_BTN} bg-status-pending text-white hover:brightness-95`}>
+          <Bike className="h-4 w-4" /> Rotas
+        </button>
+      ) : (
+        <button
+          disabled
+          data-rotas-desligado
+          title="Despacho de rotas desligado: esta loja não trabalha com motoboy. A entrega é concluída aqui no Kanban."
+          className={`${TOOL_BTN} cursor-not-allowed bg-page text-text-subtle opacity-60`}
+        >
+          <Bike className="h-4 w-4" /> Rotas
+        </button>
+      )}
       <button
         onClick={toggleStats}
         title={showStats ? 'Ocultar métricas (pedidos abertos, tempo médio…)' : 'Mostrar métricas'}
@@ -1126,7 +1139,7 @@ export default function PedidosPage() {
                               Entregue
                             </Button>
                           )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && fluxo.entregaSemEntregador && (
+                          {order.status === 'pronto' && order.tipo === 'entrega' && !usaDespachoDeRotas(fluxo) && (
                             <Button
                               variant="dispatch"
                               className="flex-1"
@@ -1136,7 +1149,7 @@ export default function PedidosPage() {
                               Saiu p/ entrega
                             </Button>
                           )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && !fluxo.entregaSemEntregador && fluxo.usaLogistica && (
+                          {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && (
                             <span
                               className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-menuzia border border-[#0369A1]/25 bg-alert-bg px-2 text-[11px] font-bold uppercase tracking-wide text-alert-text lg:min-h-0"
                               data-testid="card-na-logistica"
@@ -1145,22 +1158,6 @@ export default function PedidosPage() {
                               <Capacete className="h-3.5 w-3.5" strokeWidth={2.2} />
                               Na logística
                             </span>
-                          )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && !fluxo.entregaSemEntregador && !fluxo.usaLogistica && (
-                            <>
-                              <Button variant="dispatch" className="flex-1" onClick={() => avancar(order)}>
-                                Saiu p/ entrega
-                              </Button>
-                              {/* Atalho pra quem entrega na hora e não quer registrar a rota. */}
-                              <Button
-                                variant="outline"
-                                className="border-status-ready px-2.5 text-status-ready hover:bg-status-ready/10"
-                                onClick={() => moverPara(order, 'entregue')}
-                                title="Marcar como entregue agora"
-                              >
-                                ✓
-                              </Button>
-                            </>
                           )}
                         </div>
                       </div>
@@ -1198,8 +1195,8 @@ export default function PedidosPage() {
                       order={o}
                       tone="done"
                       onClick={() => setDetail(o)}
-                      // Entrega sem entregador fecha na saída: ninguém confirmou que chegou.
-                      rotulo={fluxo.entregaSemEntregador && o.tipo === 'entrega' ? 'Saiu p/ entrega' : undefined}
+                      // Loja sem motoboy fecha na saída: ninguém confirmou que chegou.
+                      rotulo={!usaDespachoDeRotas(fluxo) && o.tipo === 'entrega' ? 'Saiu p/ entrega' : undefined}
                     />
                   ))}
                 </SubSecao>
@@ -1215,7 +1212,7 @@ export default function PedidosPage() {
       </div>
 
       {/* Painel de despacho de rotas */}
-      {rotaOpen && restauranteId && (
+      {rotaOpen && restauranteId && usaDespachoDeRotas(fluxo) && (
         <RotaPanel supabase={supabase} restauranteId={restauranteId} apiKey={mapsKey} onClose={() => setRotaOpen(false)} />
       )}
 

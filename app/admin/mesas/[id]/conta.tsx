@@ -6,6 +6,25 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { centavos, dividirPorPessoas, ehFormaOferecida, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
 import type { ContaDaMesa, EventoHistorico, ItemDaConta, LancamentoDaConta } from '@/lib/queries/conta'
+import type { ContaPresencial } from '@/lib/servicos/conta-presencial'
+import { montarResumoEncerramento, type ContaParaResumo, type ResumoEncerramento } from '@/lib/encerramento-conta'
+import { FecharContaModal } from '@/components/pdv/fechar-conta'
+import { IdentificarModal } from '@/components/pdv/atendimento'
+import { ResumoEncerramentoModal } from '@/components/pdv/resumo-encerramento'
+import { chamar, mascararTelefone } from '@/components/pdv/util'
+import { comandaEsquecida, tempoAberta } from '@/lib/comanda-esquecida'
+
+/** A conta vista pelo PDV v2 (mesma rota do PDV): o fechamento completo mora lá. */
+interface ContaV2 {
+  conta: ContaPresencial
+  formasPagamento: string[]
+  permissoes: Record<string, boolean>
+}
+
+/** Conta do salão no formato que o resumo de encerramento entende. */
+function paraResumo(c: ContaDaMesa): ContaParaResumo {
+  return { status: 'aberta', totais: c.totais, pedidos: c.lancamentos.map((l) => ({ status: l.status })) }
+}
 
 /**
  * Conta da mesa: o que foi lançado, o que foi pago, o que falta — e as operações sobre
@@ -56,6 +75,8 @@ interface Resposta {
   taxaServicoPadrao: number
   /** Cardápio da mesa só para ver (0075): não há seleção do cliente nem chamado. */
   somenteVisualizacao: boolean
+  /** Loja no PDV v2: fechamento completo e cliente identificado (sem v2, fecha como sempre). */
+  pdvV2?: boolean
   permissoes: Permissoes
 }
 
@@ -125,12 +146,19 @@ export function PainelConta({
   const [motivoPara, setMotivoPara] = useState<null | { titulo: string; acao: (motivo: string) => Promise<void> }>(null)
   const [transferindoItens, setTransferindoItens] = useState(false)
   const [confirmarFechar, setConfirmarFechar] = useState(false)
+  // Fechamento completo (PDV v2): pendências da cozinha, pagamentos e fechamento numa
+  // transação só. Sem v2 na loja, cai na confirmação simples de sempre.
+  const [fechandoV2, setFechandoV2] = useState<ContaV2 | null>(null)
+  const [identificando, setIdentificando] = useState<null | { aviso?: string; depois?: 'fechar' }>(null)
+  const [resumo, setResumo] = useState<null | { titulo: string; resumo: ResumoEncerramento; emLimpeza?: boolean }>(null)
+  const [carregandoFechar, setCarregandoFechar] = useState(false)
   // Quanto de cada linha selecionada vai na transferência. Chave ausente = linha inteira.
   const [parcelas, setParcelas] = useState<Record<string, number>>({})
   // Só para a conta de cabeça: em quantos dividir o que falta. Não grava na mesa.
   const [dividirPor, setDividirPor] = useState<number | null>(null)
 
   const conta = dados?.conta ?? null
+  const v2 = dados?.pdvV2 === true
   const podeFazer = (acao: string) => !!dados?.permissoes?.[acao]
   /**
    * Conta sem nada dentro: nenhum lançamento ativo e nenhum pagamento. É o estado em que
@@ -143,12 +171,56 @@ export function PainelConta({
     conta.totais.pago === 0 &&
     conta.lancamentos.every((l) => l.status === 'cancelado')
 
+  /** Lê a conta pelo PDV v2 e mostra o resumo do encerramento. */
+  async function mostrarResumo(acao: 'fechada' | 'cancelada', antes: ContaDaMesa, extra: { motivo?: string; emLimpeza?: boolean } = {}) {
+    const r = await chamar<ContaV2>(`/api/admin/comandas/${antes.comandaId}`)
+    const depois = r.ok && r.dados ? r.dados.conta : null
+    setResumo({
+      titulo: `Conta da mesa${antes.numero ? ` · Comanda ${antes.numero}` : ''}${antes.clienteNome ? ` · ${antes.clienteNome}` : ''}`,
+      resumo: montarResumoEncerramento(acao, paraResumo(antes), depois, { motivo: extra.motivo ?? null, horario: new Date().toISOString() }),
+      emLimpeza: extra.emLimpeza,
+    })
+  }
+
+  /** Abre o fechamento completo; conta sem nome pede o nome antes. */
+  async function iniciarFechamento(nomeJaInformado = false) {
+    if (!conta || carregandoFechar) return
+    setAviso(null)
+    // Loja sem PDV v2: o banco não exige nome e não há fechamento completo — fecha como sempre.
+    if (!v2) {
+      setConfirmarFechar(true)
+      return
+    }
+    if (!conta.clienteNome && !nomeJaInformado) {
+      setIdentificando({ aviso: 'Esta conta foi aberta sem o nome do cliente. Informe o nome para fechar.', depois: 'fechar' })
+      return
+    }
+    setCarregandoFechar(true)
+    const r = await chamar<ContaV2>(`/api/admin/comandas/${conta.comandaId}`)
+    setCarregandoFechar(false)
+    if (r.ok && r.dados) setFechandoV2(r.dados)
+    else setConfirmarFechar(true)
+  }
+
   async function executar(acao: string, corpo: Record<string, unknown>, sucesso: string) {
     const r = await agir(acao, corpo)
     setAviso(r.ok ? { tipo: 'ok', texto: sucesso } : { tipo: 'erro', texto: r.error ?? 'Não foi possível concluir.' })
     return r
   }
 
+  // O resumo fica na tela mesmo depois que a recarga (5s) já não acha conta aberta.
+  const modalResumo = resumo && (
+    <ResumoEncerramentoModal
+      titulo={resumo.titulo}
+      resumo={resumo.resumo}
+      emLimpeza={resumo.emLimpeza}
+      onOk={() => {
+        setResumo(null)
+        onContaFechada()
+      }}
+    />
+  )
+  if (resumo && !conta) return modalResumo
   if (erro) return <p className="rounded-menuzia border border-danger bg-danger-bg px-4 py-3 text-[13px] text-danger">{erro}</p>
   if (!dados) return <p className="text-[13px] text-text-subtle">Carregando conta…</p>
   if (!conta) {
@@ -190,6 +262,36 @@ export function PainelConta({
           </p>
         )}
 
+
+        {comandaEsquecida({ abertaEm: conta.abertaEm }, Date.now()) && (
+          <p className="rounded-menuzia border border-warn bg-warn-bg px-4 py-2.5 text-[12px] text-text-main" role="status" data-testid="conta-esquecida">
+            <strong>Conta aberta há {tempoAberta(conta.abertaEm, Date.now())}.</strong> Se o cliente já foi embora, feche
+            (registrando o que foi pago) ou cancele a conta com o motivo — enquanto isso a mesa aparece ocupada.
+          </p>
+        )}
+
+        {/* ── Cliente da conta: editável a qualquer momento ─────────────── */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-menuzia border border-border bg-main px-4 py-3" data-testid="conta-cliente">
+          <span className="min-w-0 text-[13px]">
+            <span className="block text-[10px] font-bold uppercase tracking-wide text-text-subtle">Cliente</span>
+            {conta.clienteNome ? (
+              <span className="font-semibold text-text-main">
+                {conta.clienteNome}
+                {conta.clienteTelefone && (
+                  <span className="ml-2 font-normal text-text-subtle">{mascararTelefone(conta.clienteTelefone.replace(/^55(?=\d{10,11}$)/, ''))}</span>
+                )}
+              </span>
+            ) : (
+              <span className="font-semibold text-warn">{v2 ? 'Sem nome — informe antes de fechar' : 'Sem nome'}</span>
+            )}
+          </span>
+          {v2 && podeFazer('identificar') && (
+            <Button variant="outline" onClick={() => setIdentificando({})} data-testid="conta-editar-cliente">
+              <UserCheck className="mr-1 inline h-3.5 w-3.5" />
+              {conta.clienteNome ? 'Editar cliente' : 'Informar nome'}
+            </Button>
+          )}
+        </div>
 
         {/* ── Pedidos de cancelamento do garçom ─────────────────────────── */}
         {conta.solicitacoes.length > 0 && (
@@ -551,19 +653,20 @@ export function PainelConta({
           <Button
             variant="success"
             className="w-full !py-3"
-            disabled={conta.totais.restante > 0 || conta.solicitacoes.length > 0}
-            title={
-              conta.solicitacoes.length > 0
-                ? 'Decida os pedidos de cancelamento antes de fechar'
-                : conta.totais.restante > 0 ? 'Registre os pagamentos antes de fechar' : undefined
-            }
-            onClick={() => setConfirmarFechar(true)}
+            disabled={conta.solicitacoes.length > 0 || carregandoFechar || (!v2 && conta.totais.restante > 0)}
+            title={conta.solicitacoes.length > 0 ? 'Decida os pedidos de cancelamento antes de fechar' : undefined}
+            onClick={() => void iniciarFechamento()}
+            data-testid="mesa-fechar-conta"
           >
-            Fechar conta
+            {carregandoFechar ? 'Aguarde…' : 'Fechar conta'}
           </Button>
         )}
         {conta.totais.restante > 0 && podeFazer('fechar') && (
-          <p className="text-center text-[11px] text-text-subtle">A conta só fecha quando não falta nada a receber.</p>
+          <p className="text-center text-[11px] text-text-subtle">
+            {v2
+              ? 'No fechamento você decide o que ficou na cozinha e registra o que falta receber.'
+              : 'A conta só fecha quando não falta nada a receber.'}
+          </p>
         )}
         {conta.solicitacoes.length > 0 && podeFazer('fechar') && (
           <p className="text-center text-[11px] text-text-subtle">Há pedido de cancelamento aguardando decisão.</p>
@@ -573,9 +676,9 @@ export function PainelConta({
           <div className="rounded-menuzia border border-border bg-main p-4">
             <h3 className="text-[13px] font-bold text-text-main">Cancelar a conta</h3>
             <p className="mt-1 text-[11px] leading-relaxed text-text-subtle">
-              Para mesa aberta por engano ou cliente que desistiu antes de consumir. Derruba os lançamentos, libera a
-              mesa e <strong>fica no histórico</strong> com motivo e autor. Conta que já recebeu dinheiro precisa do
-              estorno primeiro.
+              Para mesa aberta por engano, esquecida aberta ou cliente que desistiu. Cancela todos os lançamentos —
+              inclusive os que estão na cozinha, sem imprimir nada —, libera a mesa e <strong>fica no histórico</strong>
+              com motivo e autor. Conta que já recebeu dinheiro precisa do estorno primeiro.
             </p>
             <Button
               variant="outline"
@@ -584,8 +687,9 @@ export function PainelConta({
                 setMotivoPara({
                   titulo: 'Cancelar a conta desta mesa',
                   acao: async (motivo) => {
+                    const antes = conta
                     const r = await executar('cancelar_comanda', { motivo }, 'Conta cancelada.')
-                    if (r.ok) onContaFechada()
+                    if (r.ok) await mostrarResumo('cancelada', antes, { motivo })
                   },
                 })
               }
@@ -639,16 +743,57 @@ export function PainelConta({
       {confirmarFechar && (
         <Confirmacao
           titulo="Fechar a conta?"
-          texto={`Total ${brl(conta.totais.total)}, pago ${brl(conta.totais.pago)}. A mesa fica livre e a conta não recebe mais lançamentos.`}
+          texto={`Total ${brl(conta.totais.total)}, pago ${brl(conta.totais.pago)}. A conta não recebe mais lançamentos.`}
           botao="Fechar conta"
           onCancelar={() => setConfirmarFechar(false)}
           onConfirmar={async () => {
+            const antes = conta
             const r = await executar('fechar', {}, 'Conta fechada.')
             setConfirmarFechar(false)
-            if (r.ok) onContaFechada()
+            if (r.ok) await mostrarResumo('fechada', antes)
+            else if (r.codigo === 'comanda_sem_nome') setIdentificando({ aviso: 'Informe o nome do cliente para fechar.', depois: 'fechar' })
           }}
         />
       )}
+
+      {fechandoV2 && (
+        <FecharContaModal
+          conta={fechandoV2.conta}
+          formas={fechandoV2.formasPagamento}
+          podeForcar={Boolean(fechandoV2.permissoes.resolver_no_fechamento)}
+          podePagar={Boolean(fechandoV2.permissoes.pagamento)}
+          onVoltar={() => {
+            setFechandoV2(null)
+            void estado.recarregar()
+          }}
+          onFechada={(emLimpeza) => {
+            const antes = conta
+            setFechandoV2(null)
+            void mostrarResumo('fechada', antes, { emLimpeza })
+          }}
+        />
+      )}
+
+      {identificando && (
+        <IdentificarModal
+          comandaId={conta.comandaId}
+          titulo="Cliente da mesa"
+          aviso={identificando.aviso}
+          nomeAtual={conta.clienteNome}
+          telefoneAtual={conta.clienteTelefone}
+          onFechar={() => setIdentificando(null)}
+          onSalvo={(nome) => {
+            const seguir = identificando.depois
+            setIdentificando(null)
+            setAviso({ tipo: 'ok', texto: `Cliente: ${nome}.` })
+            void estado.recarregar().then(() => {
+              if (seguir === 'fechar') void iniciarFechamento(true)
+            })
+          }}
+        />
+      )}
+
+      {modalResumo}
     </div>
   )
 }

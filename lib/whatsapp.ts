@@ -102,6 +102,9 @@ export async function enviarWhatsapp(numero: string, texto: string, instance: st
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: apiKey },
       body: JSON.stringify({ number: numero, text: texto }),
+      // Sem prazo, uma instância travada segurava a rota /notificar (e o "Salvando…" do
+      // painel) até o proxy cortar com 502/504.
+      signal: AbortSignal.timeout(10_000),
     })
     if (!res.ok) {
       console.error('[whatsapp] Evolution API respondeu', res.status, await res.text())

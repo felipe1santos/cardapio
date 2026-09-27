@@ -54,6 +54,8 @@ function permissoesDaTela(ctx: ContextoSalao) {
     ...Object.fromEntries(Object.entries(PERMISSAO_DA_ACAO).map(([acao, p]) => [acao, ctx.pode(p)])),
     // Pessoas e observação: quem atende e quem divide a conta.
     ajustar_mesa: ctx.pode('mesas.operar') || ctx.pode('comanda.fechar'),
+    // Nome e telefone do cliente depois de aberta (mesma regra do PDV: quem abre ou quem fecha).
+    identificar: ctx.pode('pedidos.mesa.criar') || ctx.pode('balcao.abrir') || ctx.pode('comanda.fechar'),
     // Assumir a mesa é de quem atende; o caixa ajusta pessoas e observação, não o responsável.
     assumir: ctx.pode('mesas.operar'),
     lancar: ctx.pode('pedidos.mesa.enviar_cozinha'),
@@ -87,7 +89,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const conta = await buscarConta(ctx.admin, ctx.sessao.restauranteId, id)
   const { data: loja } = await ctx.admin
     .from('restaurantes')
-    .select('formas_pagamento_mesa, taxa_servico_padrao, mesa_somente_visualizacao')
+    .select('formas_pagamento_mesa, taxa_servico_padrao, mesa_somente_visualizacao, pdv_v2')
     .eq('id', ctx.sessao.restauranteId)
     .maybeSingle()
 
@@ -103,6 +105,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     // Cardápio da mesa só para ver (0075): a tela do salão avisa o garçom de que aqui
     // não existe seleção do cliente nem chamado — nada vem do QR.
     somenteVisualizacao: (loja?.mesa_somente_visualizacao as boolean | null) === true,
+    // Fechamento completo (pendências + pagamento), nome obrigatório e edição do cliente são do PDV v2.
+    pdvV2: (loja?.pdv_v2 as boolean | null) === true,
     permissoes: permissoesDaTela(ctx),
   })
 }

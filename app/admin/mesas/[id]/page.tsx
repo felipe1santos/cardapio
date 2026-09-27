@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRightLeft, Check, Eye, History, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Check, Eye, History, Info, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
 import { esperaTexto } from '@/lib/chamados'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -84,6 +84,7 @@ export default function MesaDetalhePage() {
   const [mesasDaLoja, setMesasDaLoja] = useState<MesaOpcao[]>([])
   const [aba, setAba] = useState<'lancar' | 'conta' | 'historico'>('lancar')
   const [avisoPagina, setAvisoPagina] = useState<string | null>(null)
+  const [explicandoVisualizacao, setExplicandoVisualizacao] = useState(false)
   const [transferindoMesa, setTransferindoMesa] = useState(false)
   // Destino ocupado: a troca só vira junção de contas com confirmação explícita.
   const [confirmarJuntar, setConfirmarJuntar] = useState<MesaOpcao | null>(null)
@@ -532,6 +533,18 @@ export default function MesaDetalhePage() {
         voltar={{ rotulo: 'Salão', onClick: () => router.push('/admin/mesas') }}
         right={
           <div className="flex items-center gap-2">
+            {somenteVisualizacao && (
+              <button
+                type="button"
+                onClick={() => setExplicandoVisualizacao(true)}
+                className="flex h-[36px] w-[36px] items-center justify-center rounded-menuzia border border-warn bg-warn-bg text-warn"
+                aria-label="Cardápio da mesa em somente visualização — saiba mais"
+                title="Cardápio da mesa em somente visualização"
+                data-aviso-somente-visualizacao
+              >
+                <Info className="h-4 w-4" aria-hidden />
+              </button>
+            )}
             {permissoesConta.transferir_mesa && estadoConta.dados?.conta ? (
               <Button variant="outline" onClick={() => setTransferindoMesa(true)} aria-label="Trocar de mesa" title="Trocar de mesa">
                 <ArrowRightLeft className="h-3.5 w-3.5" />
@@ -546,23 +559,41 @@ export default function MesaDetalhePage() {
       <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {podeAtenderChamado && <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />}
 
-        {somenteVisualizacao && (
+        {explicandoVisualizacao && (
           <div
-            className="mb-3 flex items-start gap-2.5 rounded-menuzia border border-warn bg-warn-bg px-4 py-3 sm:mb-4"
-            role="status"
-            data-aviso-somente-visualizacao
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Cardápio da mesa em somente visualização"
+            onClick={() => setExplicandoVisualizacao(false)}
+            data-modal-somente-visualizacao
           >
-            <Eye className="mt-0.5 h-4 w-4 flex-shrink-0 text-warn" aria-hidden />
-            <span>
-              <span className="block text-[13px] font-bold text-text-main">
-                Cardápio da mesa em somente visualização
-              </span>
-              <span className="block text-[12px] leading-relaxed text-text-subtle">
+            <div className="w-full max-w-md overflow-hidden rounded-menuzia bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+                <h2 className="flex items-center gap-2 text-[15px] font-bold text-text-main">
+                  <Eye className="h-4 w-4 flex-shrink-0 text-warn" aria-hidden />
+                  Cardápio da mesa em somente visualização
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setExplicandoVisualizacao(false)}
+                  className="rounded p-1 text-text-subtle hover:bg-page hover:text-text-main"
+                  aria-label="Fechar"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="px-4 py-4 text-[13px] leading-relaxed text-text-subtle">
                 O QR desta loja é só para o cliente ver o cardápio. Ele não monta seleção, não chama o garçom e não
                 pede a conta pela tela — não há pedido para tirar aqui. Para voltar a atender pela mesa, desligue o
                 modo em <strong className="text-text-main">Ajustes › Mesas</strong>.
-              </span>
-            </span>
+              </p>
+              <div className="flex border-t border-border px-4 py-3">
+                <Button className="flex-1" onClick={() => setExplicandoVisualizacao(false)}>
+                  Entendi
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -706,7 +737,7 @@ export default function MesaDetalhePage() {
             mesas={mesasDaLoja}
             estado={estadoConta}
             onContaFechada={() => {
-              setAvisoPagina(`Conta da ${mesa.nome} fechada. A mesa está livre.`)
+              setAvisoPagina(`Conta da ${mesa.nome} encerrada.`)
               setAba(podeLancar ? 'lancar' : 'conta')
               void carregar()
             }}

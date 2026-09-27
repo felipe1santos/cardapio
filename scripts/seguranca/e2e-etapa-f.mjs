@@ -339,7 +339,11 @@ const pagamentos = async () => q(`select id, forma, valor, valor_recebido, troco
   await p.screenshot({ path: '.shots/etapa-f-02-conta-quitada.png' })
   await p.getByRole('button', { name: 'Fechar conta' }).click()
   await p.getByRole('alertdialog').getByRole('button', { name: 'Fechar conta' }).click()
-  await p.getByText(/fechada\. A mesa está livre/).waitFor({ timeout: 15000 })
+  // Desde 2026-09-26: resumo do encerramento antes de voltar ao salão.
+  await p.getByTestId('resumo-encerramento').waitFor({ timeout: 15000 })
+  ok('resumo do fechamento com total 55,00', /Conta fechada/i.test(await p.getByTestId('resumo-encerramento').innerText()) && (await p.getByTestId('resumo-encerramento').innerText()).includes('55,00'))
+  await p.getByTestId('resumo-encerramento').getByRole('button', { name: 'Ok' }).click()
+  await p.getByText(/encerrada\./).waitFor({ timeout: 15000 })
   const c = await um(`select status, total_final, fechada_por_nome from comandas where id=$1`, [comanda01.id])
   ok('conta fechada com total final 55,00 e autor', c.status === 'fechada' && n(c.total_final) === 55 && !!c.fechada_por_nome, JSON.stringify(c))
   const pagos = await um(`select bool_and(pago) ok from pedidos where comanda_id=$1 and status <> 'cancelado'`, [comanda01.id])

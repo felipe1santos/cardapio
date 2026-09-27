@@ -133,6 +133,9 @@ export interface ContaPresencial {
   pessoas: number | null
   fechadaEm: string | null
   fechadaPorNome: string | null
+  canceladaEm: string | null
+  canceladaPorNome: string | null
+  canceladaMotivo: string | null
   reabertaEm: string | null
   reabertaPorNome: string | null
   taxaServicoPercentual: number
@@ -149,7 +152,7 @@ export interface ContaPresencial {
 }
 
 const COMANDA_COLS =
-  'id, tipo, status, numero, senha, cliente_nome, cliente_telefone, cliente_id, entrega, entrega_cep, entrega_rua, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_referencia, entrega_observacao, taxa_entrega, taxa_entrega_manual, cupom_codigo, mesa_id, aberta_em, aberta_por_nome, responsavel_nome, pessoas, fechada_em, fechada_por_nome, reaberta_em, reaberta_por_nome, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo, mesas ( nome )'
+  'id, tipo, status, numero, senha, cliente_nome, cliente_telefone, cliente_id, entrega, entrega_cep, entrega_rua, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_referencia, entrega_observacao, taxa_entrega, taxa_entrega_manual, cupom_codigo, mesa_id, aberta_em, aberta_por_nome, responsavel_nome, pessoas, fechada_em, fechada_por_nome, cancelada_em, cancelada_por_nome, cancelada_motivo, reaberta_em, reaberta_por_nome, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo, mesas ( nome )'
 
 export async function buscarConta(admin: SupabaseClient, restauranteId: string, comandaId: string): Promise<ContaPresencial | null> {
   const { data: c } = await admin.from('comandas').select(COMANDA_COLS).eq('id', comandaId).eq('restaurante_id', restauranteId).maybeSingle()
@@ -294,6 +297,9 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     pessoas: (row.pessoas as number | null) ?? null,
     fechadaEm: (row.fechada_em as string | null) ?? null,
     fechadaPorNome: (row.fechada_por_nome as string | null) ?? null,
+    canceladaEm: (row.cancelada_em as string | null) ?? null,
+    canceladaPorNome: (row.cancelada_por_nome as string | null) ?? null,
+    canceladaMotivo: (row.cancelada_motivo as string | null) ?? null,
     reabertaEm: (row.reaberta_em as string | null) ?? null,
     reabertaPorNome: (row.reaberta_por_nome as string | null) ?? null,
     taxaServicoPercentual: Number(row.taxa_servico_percentual),
@@ -302,7 +308,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     descontoPercentual: Number(row.desconto_percentual ?? 0),
     descontoMotivo: (row.desconto_motivo as string | null) ?? null,
     totais,
-    situacao: situacaoFinanceira(totais.total, totais.pago, pagamentos.filter((p) => p.estornado).length),
+    situacao: situacaoFinanceira(totais.total, totais.pago, pagamentos.filter((p) => p.estornado).length, row.status as string),
     pedidos,
     pagamentos,
     solicitacoes: ((sols ?? []) as unknown as {

@@ -804,6 +804,8 @@ export default function PdvPage() {
   const [pdvV2, setPdvV2] = useState(false)
   const [telaBalcao, setTelaBalcao] = useState(false)
   const [contaAberta, setContaAberta] = useState<string | null>(null)
+  // "Receber e fechar" da Central: abre a conta já no fechamento.
+  const [contaFechando, setContaFechando] = useState(false)
   /** Onde o lançamento v2 cai: comanda existente (balcão/mesa) ou mesa livre. */
   const [alvoV2, setAlvoV2] = useState<{ comandaId?: string; mesaId?: string; rotulo: string } | null>(null)
   // Identificação do atendimento (0094) e limpeza (0095).
@@ -1547,6 +1549,7 @@ export default function PdvPage() {
         <ContaPresencialModal
           supabase={supabase}
           comandaId={contaAberta}
+          abrirFechando={contaFechando}
           onFechar={() => {
             setContaAberta(null)
             void recarregarMesas()
@@ -1615,7 +1618,10 @@ export default function PdvPage() {
               setTelaBalcao(false)
               void recarregarMesas()
             }}
-            onAbrirConta={(id) => setContaAberta(id)}
+            onAbrirConta={(id, fechar) => {
+              setContaFechando(Boolean(fechar))
+              setContaAberta(id)
+            }}
             onNovaComanda={(c) => {
               chaveLancamento.current = novaChave()
               setAlvoV2({ comandaId: c.id, rotulo: `${c.entrega ? 'Entrega' : 'Balcão'} · Senha ${c.senha} · ${c.nome}` })

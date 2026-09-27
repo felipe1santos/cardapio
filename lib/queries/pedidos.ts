@@ -521,14 +521,33 @@ export async function definirStatusEntregador(supabase: SupabaseClient, entregad
 
 /** Atribui um entregador e coloca o pedido em rota. */
 export async function atribuirEntregador(supabase: SupabaseClient, pedidoId: string, entregadorId: string) {
-  const { error } = await supabase.from('pedidos').update({ entregador_id: entregadorId, status: 'em_rota' }).eq('id', pedidoId)
-  if (error) throw error
+  const feitos = await atribuirEntregadorEmLote(supabase, [pedidoId], entregadorId)
+  if (feitos.length === 0) throw new Error(MSG_PEDIDO_MUDOU)
 }
 
-/** Atribui o mesmo entregador a vários pedidos de uma vez (despacho em lote). */
-export async function atribuirEntregadorEmLote(supabase: SupabaseClient, pedidoIds: string[], entregadorId: string) {
-  const { error } = await supabase.from('pedidos').update({ entregador_id: entregadorId, status: 'em_rota' }).in('id', pedidoIds)
+/** Situações em que um pedido de entrega ainda pode receber (ou trocar de) motoboy. */
+const STATUS_ATRIBUIVEIS: StatusPedido[] = ['pronto', 'em_rota']
+
+export const MSG_PEDIDO_MUDOU = 'Um dos pedidos mudou de situação (cancelado, entregue ou em outra tela). A lista foi atualizada — confira e tente de novo.'
+
+/**
+ * Atribui o mesmo entregador a vários pedidos de uma vez (despacho em lote).
+ *
+ * Só mexe em pedido ainda pronto/em rota: sem essa guarda, um pedido cancelado em outra
+ * tela voltava para "em rota" (ou a gravação batia na trava de transição do banco). E
+ * devolve os ids que de fato mudaram: pedido de outra loja, sumido ou já fechado antes
+ * passava como sucesso silencioso. Quem chama avisa o cliente só desses e diz ao operador
+ * quando faltou algum (MSG_PEDIDO_MUDOU).
+ */
+export async function atribuirEntregadorEmLote(supabase: SupabaseClient, pedidoIds: string[], entregadorId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('pedidos')
+    .update({ entregador_id: entregadorId, status: 'em_rota' })
+    .in('id', pedidoIds)
+    .in('status', STATUS_ATRIBUIVEIS)
+    .select('id')
   if (error) throw error
+  return ((data ?? []) as { id: string }[]).map((r) => r.id)
 }
 
 /**
@@ -610,7 +629,24 @@ export async function listarPedidosEmRotaDoEntregador(admin: SupabaseClient, ent
     .order('criado_em', { ascending: true })
 
   if (error) throw error
-  return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+  const pedidos = ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+  // Entrega aberta pelo PDV (balcão): o dinheiro mora na conta (pagamentos_comanda), não em
+  // `pedidos.pago`. Cliente que já pagou no caixa não pode receber "Receber R$ X" do motoboy.
+  await Promise.all(
+    pedidos
+      .filter((p) => p.comandaId && !p.pago)
+      .map(async (p) => {
+        // Sem a leitura da conta, fica como estava ("Receber"): o portal não pode cair por isso.
+        try {
+          const { data: t } = await admin.rpc('comanda_totais', { p_comanda: p.comandaId })
+          const tot = ((t as unknown[] | null) ?? [])[0] as { total?: number | string; pago?: number | string } | undefined
+          if (tot && Number(tot.total) > 0 && Number(tot.pago) >= Number(tot.total) - 0.005) p.pago = true
+        } catch {
+          /* mantém pago=false */
+        }
+      }),
+  )
+  return pedidos
 }
 
 /** Quantas entregas esse entregador já concluiu hoje — estatística do portal. */
@@ -1565,8 +1601,9 @@ export interface PedidoCliente {
 
 /** Histórico + acompanhamento dos pedidos de um cliente da vitrine (identificado pelo telefone da sessão). */
 export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<PedidoCliente[]> {
-  const { data: loja } = await admin.from('restaurantes').select('entrega_sem_entregador').eq('id', restauranteId).maybeSingle()
-  const semEntregador = Boolean(loja?.entrega_sem_entregador)
+  const { data: loja } = await admin.from('restaurantes').select('usa_logistica, entrega_sem_entregador').eq('id', restauranteId).maybeSingle()
+  // Loja sem motoboy (sem Logística, ou "entrega sem entregador") fecha o pedido na saída.
+  const semEntregador = Boolean(loja) && (loja?.usa_logistica === false || Boolean(loja?.entrega_sem_entregador))
   const { data, error } = await admin
     .from('pedidos')
     .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')

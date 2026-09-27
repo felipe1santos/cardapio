@@ -151,15 +151,15 @@ export type StatusAtendimento =
   | 'entregue_balcao'
   | 'nao_entregue'
   | 'concluido'
-export type SituacaoFinanceira = 'nao_pago' | 'parcial' | 'pago' | 'estornado'
+export type SituacaoFinanceira = 'nao_pago' | 'parcial' | 'pago' | 'estornado' | 'cancelado' | 'pago_a_mais'
 export type TipoComanda = 'mesa' | 'balcao'
 
 export const ROTULO_COZINHA: Record<StatusCozinha, string> = {
   recebido: 'Aguardando aceite',
   preparando: 'Em preparo',
   pronto: 'Pronto',
-  em_rota: 'Em rota',
-  entregue: 'Concluído',
+  em_rota: 'Saiu p/ entrega',
+  entregue: 'Entregue',
   cancelado: 'Cancelado',
 }
 
@@ -177,6 +177,18 @@ export const ROTULO_FINANCEIRO: Record<SituacaoFinanceira, string> = {
   parcial: 'Parcial',
   pago: 'Pago',
   estornado: 'Estornado',
+  cancelado: 'Cancelado',
+  pago_a_mais: 'Pago a mais',
+}
+
+/** Cor do selo financeiro — a mesma na Central, na conta e no salão. */
+export const TOM_FINANCEIRO: Record<SituacaoFinanceira, 'ok' | 'pending' | 'danger' | 'alert'> = {
+  pago: 'ok',
+  parcial: 'alert',
+  nao_pago: 'pending',
+  estornado: 'danger',
+  cancelado: 'danger',
+  pago_a_mais: 'danger',
 }
 
 /**
@@ -193,7 +205,14 @@ export function atendimentoEfetivo(
   return tipo === 'mesa' ? 'aguardando_servico' : 'aguardando_retirada'
 }
 
-export function situacaoFinanceira(total: number, pago: number, estornos = 0): SituacaoFinanceira {
+/**
+ * Situação financeira da conta — a MESMA regra em toda tela que mostra dinheiro da conta.
+ * Conta cancelada é "Cancelado" (não "Não pago"); pago com total zerado (tudo cancelado
+ * depois de receber) é "Pago a mais", que pede estorno — antes caía em "Parcial".
+ */
+export function situacaoFinanceira(total: number, pago: number, estornos = 0, statusComanda?: string): SituacaoFinanceira {
+  if (statusComanda === 'cancelada') return 'cancelado'
+  if (total <= 0 && pago > 0) return 'pago_a_mais'
   if (total > 0 && pago >= total) return 'pago'
   if (pago > 0) return 'parcial'
   if (estornos > 0) return 'estornado'
@@ -201,7 +220,7 @@ export function situacaoFinanceira(total: number, pago: number, estornos = 0): S
 }
 
 export interface ResumoDimensoes {
-  cozinha: { aguardando: number; preparo: number; pronto: number }
+  cozinha: { aguardando: number; preparo: number; pronto: number; rota: number; entregue: number }
   atendimento: { aguardando: number; atendidos: number }
   texto: { cozinha: string; atendimento: string }
 }
@@ -216,6 +235,8 @@ export function resumirDimensoes(
     aguardando: vivos.filter((p) => p.status === 'recebido').length,
     preparo: vivos.filter((p) => p.status === 'preparando').length,
     pronto: vivos.filter((p) => p.status === 'pronto').length,
+    rota: vivos.filter((p) => p.status === 'em_rota').length,
+    entregue: vivos.filter((p) => p.status === 'entregue').length,
   }
   const at = vivos.map((p) => atendimentoEfetivo(p, tipo))
   const atendimento = {
@@ -226,12 +247,22 @@ export function resumirDimensoes(
   if (cozinha.aguardando) partes.push(`${cozinha.aguardando} aguardando`)
   if (cozinha.preparo) partes.push(`${cozinha.preparo} em preparo`)
   if (cozinha.pronto) partes.push(`${cozinha.pronto} pronto${cozinha.pronto > 1 ? 's' : ''}`)
+  if (cozinha.rota) partes.push(`${cozinha.rota} saiu p/ entrega`)
   const verbo = tipo === 'mesa' ? 'servido' : 'entregue'
   return {
     cozinha,
     atendimento,
     texto: {
-      cozinha: vivos.length === 0 ? 'Sem pedidos' : partes.length ? partes.join(' · ') : 'Tudo pronto',
+      cozinha:
+        pedidos.length === 0
+          ? 'Sem pedidos'
+          : vivos.length === 0
+            ? 'Cancelado'
+            : partes.length
+              ? partes.join(' · ')
+              : cozinha.entregue === vivos.length
+                ? 'Entregue'
+                : 'Tudo pronto',
       atendimento:
         vivos.length === 0
           ? '—'
@@ -240,6 +271,22 @@ export function resumirDimensoes(
             : `Tudo ${verbo}`,
     },
   }
+}
+
+/**
+ * Conta "a acertar": aberta, com todo pedido vivo já entregue e ainda faltando receber.
+ * É o pedido pago na entrega (motoboy, retirada) que ninguém registrou no caixa. O
+ * sistema não registra sozinho — mostra e põe o "Receber e fechar" na mão do operador.
+ */
+export function contaAAcertar(c: {
+  status: string
+  pedidos: { status: string; atendimentoStatus: string | null }[]
+  total: number
+  pago: number
+}): boolean {
+  if (c.status !== 'aberta') return false
+  const vivos = c.pedidos.filter((p) => p.status !== 'cancelado')
+  return vivos.length > 0 && vivos.every((p) => p.status === 'entregue') && c.total - c.pago > 0.005
 }
 
 // ── ações e permissões ──────────────────────────────────────────────────────
@@ -264,6 +311,7 @@ export const ACOES_CONTA = [
   'fechar_completo',
   'aplicar_cupom',
   'remover_cupom',
+  'cancelar_conta',
 ] as const
 export type AcaoConta = (typeof ACOES_CONTA)[number]
 
@@ -294,6 +342,9 @@ export const PERMISSAO_DA_ACAO: Record<AcaoConta, Permissao> = {
   // Cupom é direito do cliente (regras do delivery), não desconto discricionário.
   aplicar_cupom: 'comanda.fechar',
   remover_cupom: 'comanda.fechar',
+  // Derrubar a conta inteira (mesa esquecida, cliente desistiu): gestão. O banco recusa
+  // se já entrou dinheiro — estorno primeiro.
+  cancelar_conta: 'pedidos.presencial.cancelar',
 }
 
 export function ehAcaoConta(v: unknown): v is AcaoConta {
@@ -313,7 +364,8 @@ export function permissoesDaConta(
     // Taxa manual: balcão só com `comanda.taxa` (dono/gerente); mesa segue o salão.
     taxa: tipo === 'balcao' ? pode('comanda.taxa') : pode('comanda.taxa') || pode('comanda.desconto'),
     pre_conta: pode('comanda.pre_conta'),
-    identificar: base.identificar && (pode('balcao.abrir') || pode('pedidos.mesa.criar')),
+    // Quem fecha a conta também completa o nome: conta antiga sem nome não pode virar beco.
+    identificar: base.identificar && (pode('balcao.abrir') || pode('pedidos.mesa.criar') || pode('comanda.fechar')),
     // Decidir pendências da cozinha no "Fechar conta" (entregue/cancelar com motivo).
     resolver_no_fechamento: pode('comanda.fechamento_resolver') || pode('comanda.resolver_forcado'),
   }

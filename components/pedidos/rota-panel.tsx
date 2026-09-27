@@ -12,6 +12,7 @@ import { nextaEntregaAtiva, nextaEventoTexto } from '@/lib/nexta-eventos'
 import { listarNextaEntregas, type NextaEntregaLinha } from '@/lib/queries/nexta'
 import {
   atribuirEntregadorEmLote,
+  MSG_PEDIDO_MUDOU,
   enderecoCompletoPedido,
   listarEntregadores,
   listarPedidosRotas,
@@ -387,9 +388,11 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
       if (nextaSelecionado) {
         await despacharPeloNexta(ids)
       } else {
+        let feitos = ids
         if (dataSource) await dataSource.despachar(ids, motoboy!.id)
-        else await atribuirEntregadorEmLote(supabase!, ids, motoboy!.id)
-        for (const id of ids) notificarPedido(id, 'em_rota')
+        else feitos = await atribuirEntregadorEmLote(supabase!, ids, motoboy!.id)
+        for (const id of feitos) notificarPedido(id, 'em_rota')
+        if (feitos.length < ids.length) setError(MSG_PEDIDO_MUDOU)
         setMarcados(new Set())
         setMotoboyId(null)
       }
