@@ -23,7 +23,7 @@ painel (aba Métricas) ──► /api/admin/campanhas/metricas ──► campanh
 | Métrica | Fonte | Observação |
 |---|---|---|
 | Enviadas, falhas, incertas, tentativas | fila (`campanha_envios`) | real |
-| Entregues, lidas | evento `messages.update` da Evolution | só chega com o webhook da loja pedindo esse evento (hoje os webhooks do robô assinam só `MESSAGES_UPSERT`). “Lida” é um **piso**: quem desliga a confirmação de leitura nunca aparece |
+| Entregues, lidas | evento `messages.update` da Evolution | webhooks da Menuzia e da Estância assinam `MESSAGES_UPDATE` desde 2026-09-27 (só vale para mensagens enviadas a partir daí; lojas sem webhook não têm). “Lida” é um **piso**: quem desliga a confirmação de leitura no próprio WhatsApp nunca aparece como lida |
 | Respondidas | `whatsapp_mensagens` (entrada) do mesmo telefone em até 12h | só em lojas com o robô ligado (é ele que grava a mensagem) |
 | Cliques | `/c/<token>` | real; pré-visualização do WhatsApp, robôs e HEAD não contam; toque repetido em 10s não conta |
 | Pedidos em 12h | `pedidos` não cancelados do mesmo telefone (`telefone_chave`) nas 12h após o envio | com clique antes do pedido = **confirmado**; sem clique = **provável**. Cada pedido conta para um envio só (o mais recente antes dele) |

@@ -85,12 +85,12 @@ async function ecoDeCampanha(admin: SupabaseClient, restauranteId: string, waId:
 }
 
 /** Metadado do webhook (contagens, sem texto nem número). Nunca derruba a entrada. */
-async function registrarEvento(admin: SupabaseClient, restauranteId: string, r: ResumoEntrada) {
+async function registrarEvento(admin: SupabaseClient, restauranteId: string, r: ResumoInterno) {
   try {
     await admin.from('whatsapp_eventos').insert({
       restaurante_id: restauranteId,
       tipo: 'webhook',
-      resultado: { processadas: r.processadas, respostas: r.respostas, ignoradas: r.ignoradas },
+      resultado: { processadas: r.processadas, respostas: r.respostas, ignoradas: r.ignoradas, ...(r.soStatus ? { so_status: true } : {}) },
     })
   } catch {
     /* evento é só registro */
@@ -99,13 +99,36 @@ async function registrarEvento(admin: SupabaseClient, restauranteId: string, r: 
 
 export async function processarEntrada(admin: SupabaseClient, segredo: string, corpo: unknown): Promise<ResumoEntrada> {
   const r = await processarEntradaInterna(admin, segredo, corpo)
-  if (r.restauranteId) await registrarEvento(admin, r.restauranteId, r)
+  if (r.restauranteId) {
+    // Entrega/leitura chegam para TODA mensagem que o número da loja manda (avisos de
+    // pedido, conversas pessoais). Só status de mensagem que não é campanha não vira
+    // registro — a não ser um marcador por hora, que prova que o provedor está mandando.
+    if (!r.soStatus || r.statusDeCampanha || !(await marcadorDeStatusRecente(admin, r.restauranteId))) {
+      await registrarEvento(admin, r.restauranteId, r)
+    }
+  }
   delete r.restauranteId
+  delete r.soStatus
+  delete r.statusDeCampanha
   return r
 }
 
-async function processarEntradaInterna(admin: SupabaseClient, segredo: string, corpo: unknown): Promise<ResumoEntrada & { restauranteId?: string }> {
-  const r: ResumoEntrada & { restauranteId?: string } = { status: 200, processadas: 0, ignoradas: {}, respostas: 0 }
+async function marcadorDeStatusRecente(admin: SupabaseClient, restauranteId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('whatsapp_eventos')
+    .select('id')
+    .eq('restaurante_id', restauranteId)
+    .eq('tipo', 'webhook')
+    .gte('criado_em', new Date(Date.now() - 3600_000).toISOString())
+    .contains('resultado', { so_status: true })
+    .limit(1)
+  return (data ?? []).length > 0
+}
+
+type ResumoInterno = ResumoEntrada & { restauranteId?: string; soStatus?: boolean; statusDeCampanha?: boolean }
+
+async function processarEntradaInterna(admin: SupabaseClient, segredo: string, corpo: unknown): Promise<ResumoInterno> {
+  const r: ResumoInterno = { status: 200, processadas: 0, ignoradas: {}, respostas: 0 }
   if (!SEGREDO_VALIDO.test(segredo)) return { ...r, status: 404 }
 
   const { data: cfg } = await admin
@@ -137,8 +160,12 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
     })
     if (error) throw error
     contar(r, res === 'ok' ? `campanha_${status}` : res === 'repetido' ? 'campanha_status_repetido' : 'status_de_outra_mensagem')
+    if (res === 'ok' || res === 'repetido') r.statusDeCampanha = true
   }
-  if (evento.atualizacoes.length && !evento.mensagens.length) return r
+  if (evento.atualizacoes.length && !evento.mensagens.length) {
+    r.soStatus = true
+    return r
+  }
   // Nada é gravado (nem a mensagem) com o robô desligado ou o servidor não liberado:
   // só o metadado do webhook, em registrarEvento.
   if (!roboLiberadoNoServidor()) {
@@ -196,11 +223,11 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
       p_nome: m.deMim ? null : m.nome,
     })
     if (error) throw error
-    const d = dec as { duplicada: boolean; conversa_id: string; mensagem_id?: string; acao: Acao; boas_vindas?: boolean }
+    const d = dec as { duplicada: boolean; conversa_id: string; mensagem_id?: string; acao: Acao; boas_vindas?: boolean; protecao?: boolean }
     if (d.duplicada) { contar(r, 'duplicada'); continue }
     r.processadas++
     if (m.deMim) { contar(r, 'loja_respondeu'); continue }
-    if (d.acao === 'nada') { contar(r, 'silenciada_ou_repetida'); continue }
+    if (d.acao === 'nada') { contar(r, d.protecao ? 'protecao_loop' : 'silenciada_ou_repetida'); continue }
 
     const saudar = d.boas_vindas === true
     // Loja sem motoboy (sem Logística ou "entrega sem entregador") conclui na saída.

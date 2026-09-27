@@ -81,6 +81,8 @@ const STATUS_ENVIO: Record<string, { label: string; cls: string }> = {
 }
 
 const inteiro = (n: number) => Number(n ?? 0).toLocaleString('pt-BR')
+/** "1 cliente pediu" / "3 clientes pediram": número + a forma certa. */
+export const contagem = (n: number, singular: string, plural: string) => `${inteiro(n)} ${Number(n) === 1 ? singular : plural}`
 const pct = (parte: number, todo: number) => (todo > 0 ? `${((parte / todo) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : '—')
 const dataCurta = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -194,10 +196,10 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
             <Numero titulo="Entregues" valor={inteiro(t.entregues)} dica={pct(t.entregues, t.enviadas)} />
             <Numero titulo="Lidas (mínimo)" valor={inteiro(t.lidas)} dica={pct(t.lidas, t.enviadas)} />
             <Numero titulo="Respondidas" valor={inteiro(t.respondidas)} dica={pct(t.respondidas, t.enviadas)} />
-            <Numero titulo="Cliques no link" valor={inteiro(t.clicaram)} dica={`${inteiro(t.cliques)} clique${t.cliques === 1 ? '' : 's'} no total`} />
-            <Numero titulo="Pedidos em 12h" valor={inteiro(t.pedidos)} dica={`${inteiro(t.pedidos_clique)} com clique · ${inteiro(t.pedidos - t.pedidos_clique)} ${t.pedidos - t.pedidos_clique === 1 ? 'provável' : 'prováveis'}`} />
+            <Numero titulo="Cliques no link" valor={inteiro(t.clicaram)} dica={`${contagem(t.cliques, 'clique', 'cliques')} no total`} />
+            <Numero titulo="Pedidos em 12h" valor={inteiro(t.pedidos)} dica={`${inteiro(t.pedidos_clique)} com clique · ${contagem(t.pedidos - t.pedidos_clique, 'provável', 'prováveis')}`} />
             <Numero titulo="Faturamento" valor={formatarReal(Number(t.faturamento))} destaque />
-            <Numero titulo="Conversão" valor={pct(t.convertidos, t.enviadas)} dica={`${inteiro(t.convertidos)} cliente${t.convertidos === 1 ? '' : 's'} pediram`} />
+            <Numero titulo="Conversão" valor={pct(t.convertidos, t.enviadas)} dica={`${contagem(t.convertidos, 'cliente pediu', 'clientes pediram')}`} />
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -234,9 +236,9 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
                     <span className="shrink-0 text-[12px] text-text-subtle">{dataCurta(c.quando)}</span>
                   </div>
                   <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-text-subtle">
-                    <span>{inteiro(c.enviadas)} enviadas</span>
-                    <span>{inteiro(c.clicaram)} cliques</span>
-                    <span>{inteiro(c.pedidos)} pedidos</span>
+                    <span>{contagem(c.enviadas, 'enviada', 'enviadas')}</span>
+                    <span>{contagem(c.clicaram, 'clique', 'cliques')}</span>
+                    <span>{contagem(c.pedidos, 'pedido', 'pedidos')}</span>
                     <span className="font-semibold text-price-text">{formatarReal(Number(c.faturamento))}</span>
                   </div>
                 </button>
@@ -260,7 +262,7 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
                   <tr key={c.id} onClick={() => setAberta(c)} className="cursor-pointer hover:bg-page/60">
                     <td className="px-4 py-2.5">
                       <span className="font-medium text-text-main">{c.nome}</span>
-                      <span className="block text-[11px] text-text-subtle">{dataCurta(c.quando)}{c.falhas > 0 ? ` · ${c.falhas} falha${c.falhas === 1 ? '' : 's'}` : ''}</span>
+                      <span className="block text-[11px] text-text-subtle">{dataCurta(c.quando)}{c.falhas > 0 ? ` · ${contagem(c.falhas, 'falha', 'falhas')}` : ''}</span>
                     </td>
                     <td className="px-3 py-2.5 text-right">{inteiro(c.enviadas)}</td>
                     <td className="px-3 py-2.5 text-right">{inteiro(c.entregues)}</td>
@@ -361,7 +363,7 @@ function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampanha; onC
         <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0">
             <h2 className="break-words text-[15px] font-bold text-text-main">{campanha.nome}</h2>
-            <p className="text-[12px] text-text-subtle">{dataCurta(campanha.quando)} · {inteiro(campanha.destinatarios)} destinatários</p>
+            <p className="text-[12px] text-text-subtle">{dataCurta(campanha.quando)} · {contagem(campanha.destinatarios, 'destinatário', 'destinatários')}</p>
           </div>
           <button onClick={onClose} aria-label="Fechar" className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-page text-xl font-light text-text-subtle hover:text-text-main">×</button>
         </div>

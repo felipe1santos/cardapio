@@ -32,13 +32,13 @@ interface Conversa {
   id: string
   nome: string | null
   telefone: string
-  motivo: 'cliente' | 'loja' | 'painel' | null
+  motivo: 'cliente' | 'loja' | 'painel' | 'protecao' | null
   silenciadaEm: string | null
   ultimaMensagemEm: string | null
   voltaEm: string | null
 }
 
-const MOTIVO: Record<string, string> = { cliente: 'cliente pediu atendente', loja: 'loja respondeu pelo celular', painel: 'pausada pelo painel' }
+const MOTIVO: Record<string, string> = { cliente: 'cliente pediu atendente', loja: 'loja respondeu pelo celular', painel: 'pausada pelo painel', protecao: 'pausada por proteção (respostas demais em sequência)' }
 
 function hora(iso: string | null) {
   if (!iso) return ''

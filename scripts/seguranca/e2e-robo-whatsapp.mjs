@@ -59,7 +59,9 @@ async function loja(slug, nome, instancia) {
   await db.query(`delete from pedidos where restaurante_id=$1`, [id])
   await db.query(`delete from taxas_entrega_bairro where restaurante_id=$1`, [id])
   await db.query(`delete from taxas_entrega_raio where restaurante_id=$1`, [id])
-  await db.query(`insert into whatsapp_robo_config (restaurante_id, robo_ativo) values ($1, false)`, [id])
+  // O roteiro abaixo é um "cliente" digitando na velocidade da máquina: limites da
+  // proteção contra loop lá em cima. A seção 12b volta aos padrões (8/2min, 20/20min).
+  await db.query(`insert into whatsapp_robo_config (restaurante_id, robo_ativo, protecao_curta, protecao_longa) values ($1, false, 200, 500)`, [id])
   return id
 }
 async function usuario(email, login, papel, restaurante) {
@@ -316,7 +318,7 @@ try {
   secao('7. Concorrência: mensagens simultâneas e reentrega em paralelo')
   const NOVO = '5511912340009'
   const [x, y] = await Promise.all([
-    webhook(SEG_A, evento('robo-sim-a', { de: NOVO, texto: 'oi', id: 'SIM-1' })),
+    webhook(SEG_A, evento('robo-sim-a', { de: NOVO, texto: 'boa, tudo certo?', id: 'SIM-1' })),
     webhook(SEG_A, evento('robo-sim-a', { de: NOVO, texto: 'tudo bem?', id: 'SIM-2' })),
   ])
   const envNovo = (await envios(A)).filter((e) => e.telefone === NOVO)
@@ -444,9 +446,34 @@ try {
   ok('auditoria: robô configurado e conversa reativada', aud.some((a) => a.acao === 'whatsapp.robo_configurado') && aud.some((a) => a.acao === 'whatsapp.conversa_reativada'))
   await dono.ctx.close()
 
+  secao('12b. Proteção contra loop (0105): outro robô do outro lado')
+  await db.query(`update whatsapp_robo_config set robo_ativo=true, protecao_curta=default, protecao_longa=default where restaurante_id=$1`, [A])
+  ok('padrões da proteção: 8 em 2 min, 20 em 20 min', igual(await um(`select protecao_curta c, protecao_longa l from whatsapp_robo_config where restaurante_id=$1`, [A]), { c: 8, l: 20 }))
+  const HUMANO = '5511912340031'
+  const LOOP = '5511912340030'
+  const respostasPara = async (tel) => (await um(`select count(*)::int n from whatsapp_envios where restaurante_id=$1 and telefone=$2 and tipo='robo'`, [A, tel])).n
+  for (const t of ['oi', '3', '4', '1', 'taxa centro']) await webhook(SEG_A, evento('robo-sim-a', { de: HUMANO, texto: t }))
+  const cvH = await conversa(A, HUMANO)
+  ok('cliente de verdade (5 pedidos seguidos): todos respondidos, sem proteção', (await respostasPara(HUMANO)) === 5 && cvH.estado === 'robo')
+  const rl = []
+  for (let i = 0; i < 12; i++) rl.push(await webhook(SEG_A, evento('robo-sim-a', { de: LOOP, texto: i % 2 ? 'cardápio' : 'horário' })))
+  const cvL = await conversa(A, LOOP)
+  const evL = await q(`select resultado from whatsapp_eventos where restaurante_id=$1 and conversa_id=$2 and tipo='protecao_loop'`, [A, cvL.id])
+  ok('robô do outro lado: 8 respostas e para', (await respostasPara(LOOP)) === 8, String(await respostasPara(LOOP)))
+  ok('a 9ª mensagem aciona a proteção e as seguintes não são respondidas', rl[8].j?.ignoradas?.protecao_loop === 1 && rl.slice(9).every((r) => r.j?.respostas === 0))
+  ok('conversa silenciada com motivo "protecao" e evento registrado com as contagens', cvL.estado === 'silenciada' && cvL.silenciada_motivo === 'protecao' && evL.length === 1 && evL[0].resultado.respostas_2min === 8 && evL[0].resultado.limite_2min === 8)
+  ok('mensagens do outro lado continuam gravadas', (await um(`select count(*)::int n from whatsapp_mensagens where conversa_id=$1`, [cvL.id])).n === 12)
+  const dLoop = await logar('dono.roboa')
+  const listaLoop = await api(dLoop.p, '/api/admin/whatsapp/conversas')
+  const itemL = (listaLoop.j?.emAtendimento ?? []).find((c) => c.id === cvL.id)
+  ok('painel lista a conversa como em atendimento, motivo proteção', listaLoop.s === 200 && itemL?.motivo === 'protecao', JSON.stringify(itemL ?? listaLoop.s))
+  const dev = await api(dLoop.p, '/api/admin/whatsapp/conversas', 'POST', { conversaId: cvL.id, acao: 'devolver' })
+  ok('dono devolve a conversa ao robô', dev.s === 200 && (await conversa(A, LOOP)).estado === 'robo', String(dev.s))
+  await dLoop.ctx.close()
+
   secao('13. Nada saiu para fora e ninguém fora da lista recebeu')
   const todos = enviados()
-  const permitidos = new Set(['551112340001', CLI, CLI_B, NOVO, TR, DF, IN, '5511912340020'])
+  const permitidos = new Set(['551112340001', CLI, CLI_B, NOVO, TR, DF, IN, '5511912340020', HUMANO, LOOP])
   ok('todo envio foi para o provedor simulado e para números de teste', todos.length > 0 && todos.every((s) => permitidos.has(s.numero) && s.instancia.startsWith('robo-sim-')), `${todos.length} envios simulados`)
 } finally {
   await browser.close()
