@@ -1,6 +1,7 @@
 # Robô de atendimento do WhatsApp — v1 (sem IA)
 
-Migration **0103**. Publicado DESLIGADO: nenhuma loja responde até a ativação piloto.
+Migration **0103**. Publicado desligado; piloto aprovado na Menuzia e **liberado para todas
+as lojas em 2026-09-27** (ver “Liberação geral” abaixo).
 
 ## Três travas (todas precisam estar abertas para uma mensagem sair)
 
@@ -117,9 +118,29 @@ Fase bloqueada (como produção): suba SEM `WHATSAPP_ROBO_LIBERADO` e rode com
 8. Encerrar/rollback rápido: desligar em Integrações (a fila recusa o que estiver
    pendente) ou tirar `WHATSAPP_ROBO_LIBERADO`; webhook com `"enabled": false`.
 
+## Liberação geral (2026-09-27)
+
+- Coolify: `WHATSAPP_ROBO_SOMENTE` **removida**, `WHATSAPP_ROBO_LIBERADO=1` mantida;
+  Redeploy de 08eb2e8 (17:45–17:48 UTC). Cron “Robô WhatsApp (fila e retenção)” segue 1/min.
+- Robô ligado (retorno 12h): **menuzia** (instância `menuzia-824468ae…`, webhook desde o
+  piloto) e **estancia-burger** (instância `menuzia-48ecbd08…`, conectada; não tinha
+  webhook — registrado só `MESSAGES_UPSERT`, estado anterior guardado).
+- Prontas, esperando o WhatsApp da loja conectar (robô desligado, sem webhook):
+  villa-lanches (instância existe, desconectada), belgas (instância “connecting”),
+  mama-pizza, pizza-do-rosa, ponto-400-hamburgueria e teste (sem instância). Para ligar:
+  conectar o WhatsApp → passos 3–5 da ativação piloto → ligar em Integrações.
+- Não tocados: instância do NR13 (webhook de outro sistema) e instâncias órfãs.
+- Limite conhecido: só a resposta padrão tem intervalo (10 min). Dois robôs (ou um
+  auto-respondedor) conversando entre si podem trocar respostas reconhecidas em sequência
+  — nunca mandar mensagem de uma instância da Menuzia para outra; teto por conversa é a
+  próxima melhoria.
+
 ## Rollback
 
-1. Rápido, sem deploy: desligar o robô da loja, ou remover `WHATSAPP_ROBO_LIBERADO`.
+1. Rápido, sem deploy: desligar o robô da loja em Integrações (ou
+   `update whatsapp_robo_config set robo_ativo=false where restaurante_id=…`); webhook da
+   instância com `"enabled": false`. Com deploy: remover `WHATSAPP_ROBO_LIBERADO` (tudo
+   para) ou recriar `WHATSAPP_ROBO_SOMENTE=5527992534407` (volta ao piloto) + Redeploy.
 2. Código: redeploy do commit anterior.
 3. Banco (depois do código): `docs/rollback/0103_whatsapp_robo_e_fila.down.sql` — apaga
    só dados do robô; pedidos, campanhas e avisos não dependem das tabelas.
