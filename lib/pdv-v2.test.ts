@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   atendimentoEfetivo,
+  contaAAcertar,
+  ROTULO_COZINHA,
+  ROTULO_FINANCEIRO,
   ehAcaoConta,
   PERMISSAO_DA_ACAO,
   ACOES_CONTA,
@@ -95,9 +98,51 @@ describe('dimensões', () => {
       ],
       'balcao',
     )
-    expect(r.cozinha).toEqual({ aguardando: 1, preparo: 1, pronto: 0 })
+    expect(r.cozinha).toEqual({ aguardando: 1, preparo: 1, pronto: 0, rota: 0, entregue: 1 })
     expect(r.atendimento).toEqual({ aguardando: 2, atendidos: 1 })
     expect(r.texto.cozinha).toBe('1 aguardando · 1 em preparo')
+  })
+
+  // Fonte única de verdade do status (2026-09-26): a Central dizia "Tudo pronto" para
+  // pedido que já saiu para entrega ou já foi entregue, e "Sem pedidos" para conta
+  // com tudo cancelado.
+  it('status real: saiu p/ entrega, entregue e cancelado', () => {
+    const rota = resumirDimensoes([{ status: 'em_rota', atendimentoStatus: 'aguardando_retirada' }], 'balcao')
+    expect(rota.cozinha.rota).toBe(1)
+    expect(rota.texto.cozinha).toBe('1 saiu p/ entrega')
+    const entregue = resumirDimensoes([{ status: 'entregue', atendimentoStatus: 'concluido' }], 'balcao')
+    expect(entregue.texto.cozinha).toBe('Entregue')
+    const cancelado = resumirDimensoes([{ status: 'cancelado', atendimentoStatus: null }], 'balcao')
+    expect(cancelado.texto.cozinha).toBe('Cancelado')
+    expect(resumirDimensoes([], 'balcao').texto.cozinha).toBe('Sem pedidos')
+    const misto = resumirDimensoes(
+      [
+        { status: 'pronto', atendimentoStatus: 'aguardando_retirada' },
+        { status: 'entregue', atendimentoStatus: 'entregue_balcao' },
+      ],
+      'balcao',
+    )
+    expect(misto.texto.cozinha).toBe('1 pronto')
+    expect(ROTULO_COZINHA.em_rota).toBe('Saiu p/ entrega')
+    expect(ROTULO_COZINHA.entregue).toBe('Entregue')
+  })
+
+  it('financeiro: conta cancelada é Cancelado; pago sem nada a cobrar é Pago a mais', () => {
+    expect(situacaoFinanceira(0, 0, 0, 'cancelada')).toBe('cancelado')
+    expect(situacaoFinanceira(50, 0, 0, 'cancelada')).toBe('cancelado')
+    // Tudo cancelado depois de pago: antes caía em "Parcial".
+    expect(situacaoFinanceira(0, 30)).toBe('pago_a_mais')
+    expect(situacaoFinanceira(50, 50, 0, 'fechada')).toBe('pago')
+    expect(ROTULO_FINANCEIRO.cancelado).toBe('Cancelado')
+  })
+
+  it('a acertar: aberta, tudo entregue e ainda falta receber', () => {
+    const entregue = [{ status: 'entregue', atendimentoStatus: 'entregue_balcao' }]
+    expect(contaAAcertar({ status: 'aberta', pedidos: entregue, total: 30, pago: 0 })).toBe(true)
+    expect(contaAAcertar({ status: 'aberta', pedidos: entregue, total: 30, pago: 30 })).toBe(false)
+    expect(contaAAcertar({ status: 'fechada', pedidos: entregue, total: 30, pago: 0 })).toBe(false)
+    expect(contaAAcertar({ status: 'aberta', pedidos: [{ status: 'pronto', atendimentoStatus: null }], total: 30, pago: 0 })).toBe(false)
+    expect(contaAAcertar({ status: 'aberta', pedidos: [{ status: 'cancelado', atendimentoStatus: null }], total: 0, pago: 0 })).toBe(false)
   })
 })
 
@@ -122,6 +167,17 @@ describe('permissões das ações', () => {
       const p = permissoesDaConta((x: Permissao) => pode(papel, x), 'mesa')
       expect(p.resolver && p.reabrir && p.estorno && p.cancelar_qualquer).toBe(true)
     }
+  })
+  it('quem fecha a conta também pode informar o nome (conta antiga sem nome não vira beco)', () => {
+    const caixa = permissoesDaConta((x: Permissao) => podeNoSalao('atendente', x, REGRAS_SALAO_PADRAO), 'mesa')
+    expect(caixa.fechar).toBe(true)
+    expect(caixa.identificar).toBe(true)
+  })
+  it('cancelar a conta inteira é da gestão (mesma chave de cancelar qualquer pedido)', () => {
+    expect(PERMISSAO_DA_ACAO.cancelar_conta).toBe('pedidos.presencial.cancelar')
+    const atendente = permissoesDaConta((x: Permissao) => podeNoSalao('atendente', x, REGRAS_SALAO_PADRAO), 'balcao')
+    expect(atendente.cancelar_conta).toBe(false)
+    for (const papel of ['gerente', 'dono']) expect(permissoesDaConta((x: Permissao) => pode(papel, x), 'mesa').cancelar_conta).toBe(true)
   })
   it('garçom não opera balcão nem cancela direto', () => {
     expect(pode('garcom', 'balcao.abrir')).toBe(false)

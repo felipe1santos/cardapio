@@ -6,7 +6,7 @@ import { ShoppingBag } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Capacete } from '@/components/icones/capacete'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
-import { resumirDimensoes, situacaoFinanceira, telefoneParcial, ROTULO_FINANCEIRO, type SituacaoFinanceira } from '@/lib/pdv-v2'
+import { contaAAcertar, resumirDimensoes, situacaoFinanceira, telefoneParcial, ROTULO_FINANCEIRO, TOM_FINANCEIRO } from '@/lib/pdv-v2'
 import type { LinhaCentral } from '@/lib/servicos/conta-presencial'
 import { chamar, formatBRL, horaCurta, mascararTelefone, novaChave, tempoCurto } from './util'
 
@@ -15,12 +15,6 @@ import { chamar, formatBRL, horaCurta, mascararTelefone, novaChave, tempoCurto }
  * dimensões de cada uma, e o botão de abrir uma nova (13.2).
  */
 
-const TOM_FINANCEIRO: Record<SituacaoFinanceira, 'ok' | 'pending' | 'danger' | 'alert'> = {
-  pago: 'ok',
-  parcial: 'alert',
-  nao_pago: 'pending',
-  estornado: 'danger',
-}
 
 export interface ComandaAberta {
   id: string
@@ -41,7 +35,8 @@ export function CentralBalcao({
   supabase: SupabaseClient
   restauranteId: string
   onVoltar: () => void
-  onAbrirConta: (comandaId: string) => void
+  /** `fechar`: atalho "Receber e fechar" — a conta abre direto no fechamento. */
+  onAbrirConta: (comandaId: string, fechar?: boolean) => void
   /** Comanda recém-aberta: o PDV vai direto para o cardápio lançar nela. */
   onNovaComanda: (c: ComandaAberta) => void
   acoes?: React.ReactNode
@@ -50,6 +45,8 @@ export function CentralBalcao({
   const [linhas, setLinhas] = useState<LinhaCentral[]>([])
   const [resumo, setResumo] = useState({ abertas: 0, recebidoHoje: 0 })
   const [busca, setBusca] = useState('')
+  // Só as contas "a acertar": tudo entregue e o dinheiro ainda não registrado.
+  const [soAcertar, setSoAcertar] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [novaAberta, setNovaAberta] = useState(false)
@@ -102,11 +99,13 @@ export function CentralBalcao({
     return () => clearInterval(t)
   }, [intervaloMs, carregar])
 
+  const aAcertar = useMemo(() => linhas.filter((l) => contaAAcertar(l)).length, [linhas])
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase()
-    if (!termo) return linhas
-    return linhas.filter((l) => l.nome.toLowerCase().includes(termo) || String(l.senha) === termo.replace('#', ''))
-  }, [linhas, busca])
+    const base = soAcertar && escopo === 'abertas' ? linhas.filter((l) => contaAAcertar(l)) : linhas
+    if (!termo) return base
+    return base.filter((l) => l.nome.toLowerCase().includes(termo) || String(l.senha) === termo.replace('#', ''))
+  }, [linhas, busca, soAcertar, escopo])
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-page">
@@ -171,6 +170,20 @@ export function CentralBalcao({
             </button>
           ))}
         </div>
+        {escopo === 'abertas' && aAcertar > 0 && (
+          <button
+            type="button"
+            onClick={() => setSoAcertar((v) => !v)}
+            data-testid="balcao-filtro-acertar"
+            title="Pedidos já entregues cujo pagamento ainda não foi registrado no caixa"
+            className={[
+              'rounded-menuzia border px-3 py-2 text-[12px] font-bold transition-colors',
+              soAcertar ? 'border-warn bg-warn text-white' : 'border-warn bg-warn-bg text-text-main hover:bg-warn hover:text-white',
+            ].join(' ')}
+          >
+            A acertar · {aAcertar}
+          </button>
+        )}
         <p className="ml-auto text-[12px] text-text-subtle">
           Abertas <strong className="text-text-main">{resumo.abertas}</strong> · Recebido hoje no balcão{' '}
           <strong className="text-text-main">{formatBRL(resumo.recebidoHoje)}</strong>
@@ -205,8 +218,9 @@ export function CentralBalcao({
             <ul className="divide-y divide-border">
               {visiveis.map((l) => {
                 const dim = resumirDimensoes(l.pedidos, 'balcao')
-                const fin = situacaoFinanceira(l.total, l.pago, l.estornos)
+                const fin = situacaoFinanceira(l.total, l.pago, l.estornos, l.status)
                 const encerrada = l.status !== 'aberta'
+                const acertar = contaAAcertar(l)
                 return (
                   <li key={l.id}>
                     <button
@@ -227,7 +241,7 @@ export function CentralBalcao({
                         </span>
                         {l.telefone && <span className="block text-[11px] text-text-subtle">{telefoneParcial(l.telefone)}</span>}
                         <span className="mt-0.5 block text-[11px] text-text-subtle lg:hidden">
-                          {dim.texto.cozinha} · {dim.texto.atendimento}
+                          {dim.texto.cozinha} · {dim.texto.atendimento} · {acertar ? 'Entregue · a receber' : ROTULO_FINANCEIRO[fin]}
                         </span>
                       </span>
                       <span className="hidden text-[12px] text-text-subtle lg:block">{horaCurta(l.abertaEm)}</span>
@@ -236,15 +250,33 @@ export function CentralBalcao({
                       <span className="text-right text-[14px] font-bold text-text-main lg:order-none">{formatBRL(l.total)}</span>
                       <span className="hidden text-[12px] text-text-main lg:block">{dim.texto.cozinha}</span>
                       <span className="hidden text-[12px] text-text-main lg:block">{dim.texto.atendimento}</span>
-                      <span className="hidden lg:block">
-                        {encerrada ? (
-                          <Badge tone={l.status === 'cancelada' ? 'danger' : 'ok'}>{l.status === 'cancelada' ? 'Cancelada' : 'Fechada'}</Badge>
+                      <span className="hidden lg:block" data-testid={`balcao-financeiro-${l.senha}`}>
+                        {acertar ? (
+                          <Badge tone="pending">Entregue · a receber</Badge>
                         ) : (
                           <Badge tone={TOM_FINANCEIRO[fin]}>{ROTULO_FINANCEIRO[fin]}</Badge>
+                        )}
+                        {encerrada && l.status !== 'cancelada' && (
+                          <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Fechada</span>
                         )}
                       </span>
                       <span className="hidden text-right text-[12px] font-semibold text-primary lg:block">Abrir →</span>
                     </button>
+                    {acertar && (
+                      <div className="flex items-center justify-between gap-2 bg-warn-bg/60 px-3 pb-2.5 pt-1 lg:pl-[82px]">
+                        <span className="text-[11px] text-text-main">
+                          Entregue e ainda sem pagamento no caixa: falta {formatBRL(l.total - l.pago)}.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onAbrirConta(l.id, true)}
+                          data-testid={`balcao-receber-fechar-${l.senha}`}
+                          className="flex-shrink-0 rounded-menuzia bg-status-ready px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:brightness-95"
+                        >
+                          Receber e fechar
+                        </button>
+                      </div>
+                    )}
                   </li>
                 )
               })}

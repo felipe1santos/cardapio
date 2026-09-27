@@ -5,10 +5,12 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { podeNotificarCanal } from '@/lib/auth/permissoes'
 import { notificarPedido } from '@/lib/whatsapp'
 import { processarFidelidadePedidoEntregue } from '@/lib/fidelidade'
+import { usaDespachoDeRotas } from '@/lib/queries/ajustes'
 
 /**
- * "Saiu para entrega" das lojas que entregam SEM entregador
- * (`restaurantes.entrega_sem_entregador`, migration 0079).
+ * "Saiu para entrega" das lojas que entregam SEM motoboy: `entrega_sem_entregador`
+ * (migration 0079) ou Logística desligada (`usa_logistica=false`). Nos dois casos quem
+ * conclui é o operador, não o app do entregador (ver `usaDespachoDeRotas`).
  *
  * Um toque no Kanban faz, no servidor e nesta ordem:
  *   1. pronto → em_rota (o gatilho carimba em_rota_em);
@@ -33,10 +35,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const { data: loja } = await admin
     .from('restaurantes')
-    .select('entrega_sem_entregador')
+    .select('usa_logistica, entrega_sem_entregador')
     .eq('id', sessao.restauranteId)
     .maybeSingle()
-  if (!loja?.entrega_sem_entregador) {
+  if (!loja || usaDespachoDeRotas({ usaLogistica: loja.usa_logistica ?? true, entregaSemEntregador: loja.entrega_sem_entregador ?? false })) {
     return NextResponse.json({ error: 'A loja está configurada para entregar com entregadores.' }, { status: 409 })
   }
 

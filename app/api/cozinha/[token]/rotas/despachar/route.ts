@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarEstacaoPorToken } from '@/lib/queries/estacoes'
 import { atribuirEntregadorEmLoteSeguro } from '@/lib/queries/pedidos'
+import { buscarFluxoLoja, usaDespachoDeRotas } from '@/lib/queries/ajustes'
 
 /** Despacha (atribui entregador) pedidos prontos a partir da cozinha completa — token da estação. */
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -17,6 +18,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const estacao = await buscarEstacaoPorToken(admin, token)
     if (!estacao) return NextResponse.json({ error: 'Link inválido ou estação desativada' }, { status: 404 })
 
+    if (!usaDespachoDeRotas(await buscarFluxoLoja(admin, estacao.restauranteId))) {
+      return NextResponse.json({ error: 'Esta loja não trabalha com motoboy: o despacho de rotas está desligado.' }, { status: 409 })
+    }
     await atribuirEntregadorEmLoteSeguro(admin, estacao.restauranteId, ids, entregadorId)
     return NextResponse.json({ ok: true })
   } catch (err) {

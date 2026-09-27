@@ -1258,7 +1258,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
               />
               <ToggleRow
                 label="Usar o módulo de Logística"
-                hint="Ligado: a entrega pronta sai do Kanban e vai para a Logística ser despachada a um entregador. Desligado: você marca “Saiu para entrega” e “Entregue” direto no Kanban, e o menu Logística some."
+                hint="Ligado: a entrega pronta sai do Kanban e vai para a Logística ser despachada a um entregador. Desligado: a loja não usa motoboy — “Saiu para entrega” no Kanban avisa o cliente e conclui o pedido, o Despacho de rotas fica desabilitado e o menu Logística some."
                 checked={fluxo.usaLogistica}
                 onChange={(v) => salvarFluxo({ usaLogistica: v })}
                 disabled={savingFluxo}

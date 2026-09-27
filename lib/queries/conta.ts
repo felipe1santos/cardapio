@@ -83,6 +83,9 @@ export interface ContaDaMesa {
   pessoas: number | null
   observacoes: string | null
   responsavelNome: string | null
+  /** Nome do cliente (0094). Null em conta antiga aberta sem nome: o fechamento pede. */
+  clienteNome: string | null
+  clienteTelefone: string | null
   taxaServicoPercentual: number
   descontoTipo: 'valor' | 'percentual'
   descontoValor: number
@@ -130,7 +133,7 @@ export async function buscarComandaAbertaDaMesa(
 export async function buscarConta(admin: SupabaseClient, restauranteId: string, mesaId: string): Promise<ContaDaMesa | null> {
   const { data: c } = await admin
     .from('comandas')
-    .select('id, numero, aberta_em, pessoas, observacoes, responsavel_nome, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo')
+    .select('id, numero, aberta_em, pessoas, observacoes, responsavel_nome, cliente_nome, cliente_telefone, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo')
     .eq('restaurante_id', restauranteId)
     .eq('mesa_id', mesaId)
     .eq('status', 'aberta')
@@ -138,6 +141,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
   if (!c) return null
   const comanda = c as {
     id: string; numero: number | null; aberta_em: string; pessoas: number | null; observacoes: string | null; responsavel_nome: string | null
+    cliente_nome: string | null; cliente_telefone: string | null
     taxa_servico_percentual: number; desconto_tipo: string | null; desconto_valor: number; desconto_percentual: number | null
     desconto_motivo: string | null
   }
@@ -207,6 +211,8 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
 
   return {
     comandaId: comanda.id,
+    clienteNome: comanda.cliente_nome?.trim() || null,
+    clienteTelefone: comanda.cliente_telefone ?? null,
     numero: comanda.numero,
     abertaEm: comanda.aberta_em,
     pessoas: comanda.pessoas,

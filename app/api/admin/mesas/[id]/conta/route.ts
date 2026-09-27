@@ -54,6 +54,8 @@ function permissoesDaTela(ctx: ContextoSalao) {
     ...Object.fromEntries(Object.entries(PERMISSAO_DA_ACAO).map(([acao, p]) => [acao, ctx.pode(p)])),
     // Pessoas e observação: quem atende e quem divide a conta.
     ajustar_mesa: ctx.pode('mesas.operar') || ctx.pode('comanda.fechar'),
+    // Nome e telefone do cliente depois de aberta (mesma regra do PDV: quem abre ou quem fecha).
+    identificar: ctx.pode('pedidos.mesa.criar') || ctx.pode('balcao.abrir') || ctx.pode('comanda.fechar'),
     // Assumir a mesa é de quem atende; o caixa ajusta pessoas e observação, não o responsável.
     assumir: ctx.pode('mesas.operar'),
     lancar: ctx.pode('pedidos.mesa.enviar_cozinha'),

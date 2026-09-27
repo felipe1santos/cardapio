@@ -50,7 +50,10 @@ function instalar() {
       ouvintes.forEach((f) => f(resposta.ok ? 'ok' : 'erro'))
       return resposta
     } catch (err) {
-      ouvintes.forEach((f) => f('erro'))
+      // Requisição cancelada pela própria tela (troca de página, AbortController) não é
+      // gravação que falhou — só fecha a conta do "Salvando…".
+      const abortada = err instanceof DOMException && err.name === 'AbortError'
+      ouvintes.forEach((f) => f(abortada ? 'ok' : 'erro'))
       throw err
     }
   }

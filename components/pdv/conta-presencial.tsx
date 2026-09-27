@@ -12,6 +12,7 @@ import {
   ROTULO_COZINHA,
   ROTULO_FINANCEIRO,
   ROTULO_PENDENCIA,
+  TOM_FINANCEIRO,
   type AcaoConta,
   type AcaoResolucao,
   type StatusCozinha,
@@ -21,6 +22,8 @@ import type { EventoHistorico } from '@/lib/queries/conta'
 import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde, novaChave, tempoCurto } from './util'
 import { FecharContaModal } from './fechar-conta'
 import { IdentificarModal } from './atendimento'
+import { ResumoEncerramentoModal } from './resumo-encerramento'
+import { montarResumoEncerramento, type ResumoEncerramento } from '@/lib/encerramento-conta'
 
 /**
  * Conta presencial no PDV v2 — a mesma tela para mesa e balcão (spec 13.3), com
@@ -69,7 +72,9 @@ type Subtela =
   | { tipo: 'reabrir' }
   | { tipo: 'ajustar' }
   | { tipo: 'fechar' }
-  | { tipo: 'identificar'; aviso?: string }
+  | { tipo: 'identificar'; aviso?: string; depois?: 'fechar' }
+  | { tipo: 'cancelar_conta' }
+  | { tipo: 'resumo'; resumo: ResumoEncerramento; emLimpeza?: boolean }
 
 const TOM_COZINHA: Record<string, 'pending' | 'preparing' | 'ready' | 'ok' | 'danger'> = {
   recebido: 'pending',
@@ -85,9 +90,12 @@ export function ContaPresencialModal({
   onFechar,
   onLancarItens,
   onEncerrada,
+  abrirFechando,
 }: {
   supabase: SupabaseClient
   comandaId: string
+  /** Abrir já no "Fechar conta" (atalho "Receber e fechar" da Central). */
+  abrirFechando?: boolean
   onFechar: () => void
   /** Voltar ao cardápio lançando nesta conta. */
   onLancarItens: (c: ContaPresencial) => void
@@ -164,10 +172,31 @@ export function ContaPresencialModal({
   async function fechar() {
     setAviso(null)
     if (dados?.conta.semNome) {
-      setSub({ tipo: 'identificar', aviso: 'Esta conta foi aberta sem o nome do cliente. Informe o nome antes de fechar.' })
+      setSub({ tipo: 'identificar', aviso: 'Esta conta foi aberta sem o nome do cliente. Informe o nome antes de fechar.', depois: 'fechar' })
       return
     }
     setSub({ tipo: 'fechar' })
+  }
+
+  // Atalho da Central ("Receber e fechar"): assim que a conta chega, vai direto ao fechamento.
+  const atalhoFechar = useRef(Boolean(abrirFechando))
+  useEffect(() => {
+    if (!atalhoFechar.current || !dados) return
+    atalhoFechar.current = false
+    if (dados.conta.status === 'aberta' && dados.permissoes.fechar) void fechar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dados])
+
+  /** Depois de fechar/cancelar: lê a conta de novo e mostra o resumo antes de sair. */
+  async function mostrarResumo(acao: 'fechada' | 'cancelada', antes: ContaPresencial, extra: { motivo?: string; emLimpeza?: boolean } = {}) {
+    const r = await chamar<DadosConta>(`/api/admin/comandas/${comandaId}`)
+    const depois = r.ok && r.dados ? r.dados.conta : null
+    if (depois) setDados(r.dados!)
+    setSub({
+      tipo: 'resumo',
+      resumo: montarResumoEncerramento(acao, antes, depois, { motivo: extra.motivo ?? null, horario: new Date().toISOString() }),
+      emLimpeza: extra.emLimpeza,
+    })
   }
 
   async function abrirPendencias() {
@@ -234,7 +263,7 @@ export function ContaPresencialModal({
             <span><span className="text-text-subtle">Atendimento:</span> <strong className="text-text-main">{dim.texto.atendimento}</strong></span>
             <span className="flex items-center gap-1.5">
               <span className="text-text-subtle">Financeiro:</span>
-              <Badge tone={conta.situacao === 'pago' ? 'ok' : conta.situacao === 'parcial' ? 'alert' : conta.situacao === 'estornado' ? 'danger' : 'pending'}>
+              <Badge tone={TOM_FINANCEIRO[conta.situacao] ?? 'pending'}>
                 {ROTULO_FINANCEIRO[conta.situacao]}
               </Badge>
             </span>
@@ -388,6 +417,11 @@ export function ContaPresencialModal({
                       {ocupado ? 'Aguarde…' : 'Fechar conta'}
                     </button>
                   )}
+                  {pode.cancelar_conta && (
+                    <button type="button" disabled={ocupado} onClick={() => setSub({ tipo: 'cancelar_conta' })} data-testid="conta-cancelar-conta" className="w-full rounded-menuzia border border-danger bg-white py-2.5 text-[12px] font-bold uppercase tracking-wide text-danger hover:bg-danger-bg disabled:opacity-50">
+                      Cancelar a conta
+                    </button>
+                  )}
                   <div className="flex gap-2">
                     <button type="button" onClick={() => void abrirPendencias()} className="flex-1 rounded-menuzia border border-border bg-white py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
                       Pendências
@@ -443,9 +477,7 @@ export function ContaPresencialModal({
             void carregar()
           }}
           onFechada={(emLimpeza) => {
-            setSub(null)
-            setAviso({ tom: 'ok', texto: emLimpeza ? 'Conta fechada. Mesa em limpeza.' : 'Conta fechada.' })
-            onEncerrada?.()
+            void mostrarResumo('fechada', conta, { emLimpeza })
           }}
         />
       )}
@@ -458,9 +490,9 @@ export function ContaPresencialModal({
           telefoneAtual={conta.clienteTelefone}
           onFechar={() => setSub(null)}
           onSalvo={(nome) => {
-            setSub(null)
+            const seguir = sub.depois
             setAviso({ tom: 'ok', texto: `Cliente: ${nome}.` })
-            void carregar()
+            void carregar().then(() => setSub(seguir === 'fechar' ? { tipo: 'fechar' } : null))
           }}
         />
       )}
@@ -527,6 +559,34 @@ export function ContaPresencialModal({
             const r = await agir({ acao: 'estorno', pagamentoId: sub.pagamentoId, motivo }, 'Pagamento estornado.')
             if (r?.ok) setSub(null)
             return r?.ok ? null : r?.erro ?? 'Não foi possível.'
+          }}
+        />
+      )}
+      {conta && sub?.tipo === 'cancelar_conta' && (
+        <MotivoModal
+          titulo="Cancelar a conta inteira"
+          descricao={`Todos os pedidos desta conta são cancelados (inclusive os que estão na cozinha) e nada mais sai na impressora. ${conta.totais.pago > 0 ? 'Esta conta já recebeu dinheiro: estorne antes.' : 'Fica no histórico com o seu nome e o motivo.'}`}
+          botao="Cancelar a conta"
+          perigo
+          ocupado={ocupado}
+          onVoltar={() => setSub(null)}
+          onConfirmar={async (motivo) => {
+            const antes = conta
+            const r = await agir({ acao: 'cancelar_conta', motivo })
+            if (!r?.ok) return r?.erro ?? 'Não foi possível cancelar.'
+            await mostrarResumo('cancelada', antes, { motivo })
+            return null
+          }}
+        />
+      )}
+      {sub?.tipo === 'resumo' && (
+        <ResumoEncerramentoModal
+          titulo={titulo}
+          resumo={sub.resumo}
+          emLimpeza={sub.emLimpeza}
+          onOk={() => {
+            setSub(null)
+            onEncerrada?.()
           }}
         />
       )}

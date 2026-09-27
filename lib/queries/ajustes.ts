@@ -295,6 +295,15 @@ export interface FluxoLoja {
 export const FLUXO_LOJA_PADRAO: FluxoLoja = { usaLogistica: true, entregaSemEntregador: false, aceitaEntrega: true, aceitaRetirada: false }
 
 /**
+ * A loja trabalha com motoboy (atribuição a entregador, app do entregador marcando entregue)?
+ * Só nesse caso o Despacho de rotas faz sentido. Sem Logística, ou com "entrega sem entregador",
+ * quem conclui a entrega é o próprio operador — atribuir motoboy criaria um pedido que ninguém fecha.
+ */
+export function usaDespachoDeRotas(fluxo: Pick<FluxoLoja, 'usaLogistica' | 'entregaSemEntregador'>): boolean {
+  return fluxo.usaLogistica && !fluxo.entregaSemEntregador
+}
+
+/**
  * Leitura leve dos canais de venda e do fluxo de conclusão. O Kanban precisa
  * saber se mostra os botões de entrega ou o rótulo "Na logística", e não tem
  * motivo pra puxar o ConfigLoja inteiro (banner, pixel, horário…) só por isso.

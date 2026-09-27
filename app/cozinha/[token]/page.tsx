@@ -66,6 +66,8 @@ function timerColor(ms: number): string {
 
 interface PortalCozinha {
   estacao: { nome: string; modo: ModoEstacao; restauranteNome: string }
+  /** Loja trabalha com motoboy? Sem isso o Mapa de despacho não aparece (ver usaDespachoDeRotas). */
+  despachoRotas?: boolean
   pedidos: Pedido[]
 }
 
@@ -1134,7 +1136,7 @@ export default function CozinhaPortalPage() {
         </div>
         <div className="flex items-center gap-2">
           {/* Mapa de despacho (modo completa) */}
-          {isCompleta && (
+          {isCompleta && data.despachoRotas !== false && (
             <button
               onClick={() => setMapaAberto(true)}
               className="inline-flex items-center gap-1.5 rounded-menuzia bg-[#0688D4] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white hover:brightness-95"
@@ -1162,7 +1164,7 @@ export default function CozinhaPortalPage() {
       </header>
 
       {/* Despacho de rotas completo na cozinha (colunas + mapa + atribuir entregador) */}
-      {mapaAberto && (
+      {mapaAberto && data.despachoRotas !== false && (
         <RotaPanel
           apiKey={mapsKey}
           onClose={() => setMapaAberto(false)}

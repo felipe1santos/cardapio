@@ -271,7 +271,7 @@ export default function EntregadorPortalPage() {
                     <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-alert-text">
                       {PAY_LABEL[order.formaPagamento]}
                     </span>
-                    {order.formaPagamento === 'dinheiro' && (
+                    {order.formaPagamento === 'dinheiro' && !order.pago && (
                       <span className="rounded-menuzia bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-warn">
                         {/* O motoboy precisa saber quanto LEVAR, não a nota do cliente: "troco p/ R$ 50"
                             numa conta de R$ 22,40 obrigava a fazer a conta na calçada. */}
@@ -280,9 +280,13 @@ export default function EntregadorPortalPage() {
                           : 'Sem troco'}
                       </span>
                     )}
-                    {!order.pago && (
+                    {!order.pago ? (
                       <span className="rounded-menuzia bg-danger-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-danger">
                         Receber {brl(order.total)}
+                      </span>
+                    ) : (
+                      <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-price-text" data-testid="entregador-ja-pago">
+                        Pago
                       </span>
                     )}
                   </div>

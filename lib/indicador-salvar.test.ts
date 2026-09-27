@@ -31,6 +31,17 @@ describe('ehGravacaoDoUsuario', () => {
     expect(ehGravacaoDoUsuario('POST', '/api/geo/cep', 100)).toBe(false)
   })
 
+  it('efeitos colaterais do clique não são o "salvar" (aviso de WhatsApp, cotação do Nexta)', () => {
+    // Atribuir motoboy grava o pedido e, no mesmo tick, dispara o aviso ao cliente e
+    // recota o Nexta. Se o WhatsApp da loja cai ou a cotação falha, o pedido FOI salvo —
+    // o indicador não pode dizer "Não foi possível salvar".
+    expect(ehGravacaoDoUsuario('POST', '/api/pedidos/7b1f/notificar', 0)).toBe(false)
+    expect(ehGravacaoDoUsuario('POST', '/api/admin/nexta/cotacao', 0)).toBe(false)
+    // A gravação de verdade continua contando.
+    expect(ehGravacaoDoUsuario('PATCH', `${SB}/rest/v1/pedidos?id=eq.1`, 0)).toBe(true)
+    expect(ehGravacaoDoUsuario('POST', '/api/admin/nexta/despachar', 0)).toBe(true)
+  })
+
   it('outro domínio qualquer não conta', () => {
     expect(ehGravacaoDoUsuario('POST', 'https://www.google-analytics.com/g/collect', 100)).toBe(false)
   })

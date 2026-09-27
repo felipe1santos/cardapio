@@ -22,6 +22,7 @@ import { listarNextaEntregas, type NextaEntregaLinha } from '@/lib/queries/nexta
 import {
   atribuirEntregador,
   atribuirEntregadorEmLote,
+  MSG_PEDIDO_MUDOU,
   atualizarPerfilEntregador,
   buscarDespachoAberto,
   criarEntregador,
@@ -511,7 +512,7 @@ export default function LogisticaPage() {
   // Status já visto por entrega — é a comparação com ele que decide se toca o som.
   const statusNextaVisto = useRef<Map<string, string>>(new Map())
 
-  const refetch = useCallback(
+  const refetchAgora = useCallback(
     async (id: string) => {
       try {
         const [pedidos, entregadores, finalizados, aberto, entregasNexta] = await Promise.all([
@@ -533,6 +534,31 @@ export default function LogisticaPage() {
       }
     },
     [supabase]
+  )
+
+  // Rajada de eventos (heartbeat de cada motoboy a 30s, webhook do Nexta, a própria
+  // atribuição) disparava uma recarga completa por evento, várias ao mesmo tempo — a
+  // tela ficava lenta. Agora roda no máximo uma por vez e junta o que chegar no meio
+  // numa única recarga ao final.
+  const recarregando = useRef(false)
+  const recargaPendente = useRef<string | null>(null)
+  const refetch = useCallback(
+    async (id: string): Promise<void> => {
+      if (recarregando.current) {
+        recargaPendente.current = id
+        return
+      }
+      recarregando.current = true
+      try {
+        await refetchAgora(id)
+      } finally {
+        recarregando.current = false
+        const proxima = recargaPendente.current
+        recargaPendente.current = null
+        if (proxima) void refetch(proxima)
+      }
+    },
+    [refetchAgora]
   )
 
   useEffect(() => {
@@ -929,8 +955,8 @@ export default function LogisticaPage() {
     try {
       await atribuirEntregador(supabase, orderId, driverId)
       notificarPedido(orderId, 'em_rota')
-    } catch {
-      setError('Não foi possível atribuir o entregador.')
+    } catch (err) {
+      setError(err instanceof Error && err.message === MSG_PEDIDO_MUDOU ? MSG_PEDIDO_MUDOU : 'Não foi possível atribuir o entregador.')
       if (restauranteId) refetch(restauranteId)
     }
   }
@@ -951,8 +977,12 @@ export default function LogisticaPage() {
     setOrders((prev) => prev.map((o) => (ids.includes(o.id) ? { ...o, entregadorId: driverId, status: 'em_rota' } : o)))
     setSelected(new Set())
     try {
-      await atribuirEntregadorEmLote(supabase, ids, driverId)
-      for (const id of ids) notificarPedido(id, 'em_rota')
+      const feitos = await atribuirEntregadorEmLote(supabase, ids, driverId)
+      for (const id of feitos) notificarPedido(id, 'em_rota')
+      if (feitos.length < ids.length) {
+        setError(MSG_PEDIDO_MUDOU)
+        if (restauranteId) refetch(restauranteId)
+      }
     } catch {
       setError('Não foi possível atribuir os pedidos selecionados.')
       if (restauranteId) refetch(restauranteId)
