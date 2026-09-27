@@ -159,3 +159,43 @@ select acao, usuario_nome, criado_em from eventos_auditoria where restaurante_id
 - A chave global da Evolution abre também as instâncias de outros sistemas: todo comando
   `webhook/set` precisa do nome exato da instância da Menuzia.
 - Os bairros de teste da Menuzia têm nomes fictícios; o teste de taxa usa `Jaburuna`.
+
+## 11. Resultado do piloto — 2026-09-27 (13:13–13:37, horário de Brasília)
+
+Ativação (autorizada): variáveis `WHATSAPP_ROBO_LIBERADO=1` e
+`WHATSAPP_ROBO_SOMENTE=5527992534407` + Redeploy `q80844o8ggk8sgw0wg4s4ww8` (16:11 UTC);
+cron "Robô WhatsApp (fila e retenção)" a cada minuto (mesmo formato da tarefa de
+campanhas, com `$CRON_SECRET`); robô ligado só na Menuzia com retorno de 15 min (mínimo
+do sistema — 2 min exigiria migration); webhook registrado só em
+`menuzia-824468ae-…` (antes: sem webhook; estado salvo).
+
+Números: 10 mensagens do 4407 → 9 respostas, todas `enviado` na 1ª tentativa; 0
+duplicadas, 0 pendentes, 0 incertas; único destinatário o 4407. Ignorados sem gravar:
+2 de grupo, 4 de número fora da lista.
+
+| Fluxo | Resultado |
+|---|---|
+| Saudação (`Oi`) | ✅ boas-vindas + link + menu |
+| Status (`1`) | ✅ #99 (04/09) Entregue |
+| Horário (`4`) | ✅ aberto agora + grade |
+| Taxa de bairro cadastrado (“Qual a taxa de Jaburuna”, “Taxa jaBUruna”) | ✅ R$ 5,89, “pode sair menor” |
+| Taxa de bairro fora da lista (“Taxa gloria”, “Taxa jardim Marilândia”) | ✅ “depende da distância”, sem valor inventado |
+| Taxa sem bairro | ✅ pede o bairro |
+| Mensagem desconhecida | ✅ “Não entendi” + menu; a 2ª em seguida ficou sem resposta (limite de 1 a cada 10 min, esperado) |
+| Grupo / número fora da lista | ✅ ignorados sem gravar |
+| `0` menu, `3` cardápio | ⏳ não chegaram ao robô |
+| Áudio/foto/localização | ⏳ não chegaram |
+| `2` atendente, silêncio, volta após 15 min | ⏳ não chegaram — **handoff não validado em produção** |
+
+Achado: “Qual minha último pedido” não foi reconhecido como status (a regra aceita “meu
+pedido”, “cadê”, “status”…). Correção de uma linha + teste, a publicar depois.
+
+Segurança (antes × depois): 0 pedidos criados/alterados; pagamentos, comandas, itens,
+sessões de mesa e fila de impressão iguais em todas as lojas; campanhas com o mesmo hash;
+outras lojas desligadas, 0 eventos e 0 envios; das 10 instâncias da Evolution só a da
+Menuzia mudou (webhook do robô); `nr13-leads` e órfãs idênticas.
+
+Prévia do link: o robô manda só texto; a imagem é a prévia automática do WhatsApp lendo
+`og:image` da vitrine = banner da loja
+(`…/cardapio/824468ae-…/perfil/banner-….webp`, 33 KB). Título da prévia = nome cadastrado
+("Dayse Brandao Ferreira").
