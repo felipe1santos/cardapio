@@ -13,8 +13,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual } from './provedor'
 import { enfileirar, processarFila } from './fila'
-import { classificarIntencao, numeroPermitido, textoAtendente, textoBoasVindas, textoPadrao, textoStatus, variantesTelefone, type Acao, type DadosLoja } from './robo'
+import {
+  classificarIntencao, extrairBairro, numeroPermitido, roboLiberadoNoServidor, textoAtendente, textoBoasVindas, textoCardapio,
+  textoHorario, textoPadrao, textoStatus, textoTaxa, variantesTelefone, type Acao, type DadosLoja, type FreteLoja,
+} from './robo'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
+import { normalizarForaDaLista } from '@/lib/frete'
+import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 
 export const SEGREDO_VALIDO = /^[0-9a-f]{48}$/
 
@@ -44,8 +49,42 @@ async function ultimoPedido(admin: SupabaseClient, restauranteId: string, telefo
   return { numero: p.numero, criadoEm: p.criado_em, rotulo: rotuloStatusPedidoCliente({ status: p.status, saidaSemConfirmacao: semEntregador && p.tipo === 'entrega' }) }
 }
 
+/** Taxas da loja para o robô: só bairros cadastrados; faixas por raio só como aviso. */
+async function freteDaLoja(admin: SupabaseClient, restauranteId: string, loja: { taxa_entrega_padrao: unknown; frete_fora_da_lista: unknown }): Promise<FreteLoja> {
+  const [{ data: bairros }, { count }] = await Promise.all([
+    admin.from('taxas_entrega_bairro').select('bairro, taxa').eq('restaurante_id', restauranteId),
+    admin.from('taxas_entrega_raio').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId),
+  ])
+  return {
+    bairros: ((bairros ?? []) as { bairro: string; taxa: number }[]).map((b) => ({ bairro: String(b.bairro), taxa: Number(b.taxa) })),
+    temRaio: (count ?? 0) > 0,
+    taxaPadrao: Number(loja.taxa_entrega_padrao) || 0,
+    foraDaLista: normalizarForaDaLista(loja.frete_fora_da_lista),
+  }
+}
+
+/** Metadado do webhook (contagens, sem texto nem número). Nunca derruba a entrada. */
+async function registrarEvento(admin: SupabaseClient, restauranteId: string, r: ResumoEntrada) {
+  try {
+    await admin.from('whatsapp_eventos').insert({
+      restaurante_id: restauranteId,
+      tipo: 'webhook',
+      resultado: { processadas: r.processadas, respostas: r.respostas, ignoradas: r.ignoradas },
+    })
+  } catch {
+    /* evento é só registro */
+  }
+}
+
 export async function processarEntrada(admin: SupabaseClient, segredo: string, corpo: unknown): Promise<ResumoEntrada> {
-  const r: ResumoEntrada = { status: 200, processadas: 0, ignoradas: {}, respostas: 0 }
+  const r = await processarEntradaInterna(admin, segredo, corpo)
+  if (r.restauranteId) await registrarEvento(admin, r.restauranteId, r)
+  delete r.restauranteId
+  return r
+}
+
+async function processarEntradaInterna(admin: SupabaseClient, segredo: string, corpo: unknown): Promise<ResumoEntrada & { restauranteId?: string }> {
+  const r: ResumoEntrada & { restauranteId?: string } = { status: 200, processadas: 0, ignoradas: {}, respostas: 0 }
   if (!SEGREDO_VALIDO.test(segredo)) return { ...r, status: 404 }
 
   const { data: cfg } = await admin
@@ -57,14 +96,21 @@ export async function processarEntrada(admin: SupabaseClient, segredo: string, c
 
   const { data: lojaRow } = await admin
     .from('restaurantes')
-    .select('id, nome, slug, evolution_instance, entrega_sem_entregador')
+    .select('id, nome, slug, evolution_instance, entrega_sem_entregador, usa_logistica, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista')
     .eq('id', cfg.restaurante_id)
     .maybeSingle()
   if (!lojaRow) return { ...r, status: 404 }
+  r.restauranteId = lojaRow.id as string
 
   const evento = provedorAtual().interpretarWebhook(corpo)
   if (evento.instancia && lojaRow.evolution_instance && evento.instancia !== lojaRow.evolution_instance) {
     contar(r, 'instancia_de_outra_loja')
+    return r
+  }
+  // Nada é gravado (nem a mensagem) com o robô desligado ou o servidor não liberado:
+  // só o metadado do webhook, em registrarEvento.
+  if (!roboLiberadoNoServidor()) {
+    contar(r, 'robo_nao_liberado_no_servidor')
     return r
   }
   if (!cfg.robo_ativo) {
@@ -122,11 +168,21 @@ export async function processarEntrada(admin: SupabaseClient, segredo: string, c
     if (m.deMim) { contar(r, 'loja_respondeu'); continue }
     if (d.acao === 'nada') { contar(r, 'silenciada_ou_repetida'); continue }
 
+    const saudar = d.boas_vindas === true
+    // Loja sem motoboy (sem Logística ou "entrega sem entregador") conclui na saída.
+    const semEntregador = lojaRow.entrega_sem_entregador === true || lojaRow.usa_logistica === false
     let texto: string
     if (d.acao === 'boas_vindas') texto = textoBoasVindas(loja)
-    else if (d.acao === 'status') texto = textoStatus(loja, await ultimoPedido(admin, restauranteId, m.telefone, lojaRow.entrega_sem_entregador === true), d.boas_vindas === true)
+    else if (d.acao === 'status') texto = textoStatus(loja, await ultimoPedido(admin, restauranteId, m.telefone, semEntregador), saudar)
     else if (d.acao === 'atendente') texto = textoAtendente(loja)
-    else texto = textoPadrao(loja)
+    else if (d.acao === 'cardapio') texto = textoCardapio(loja, saudar)
+    else if (d.acao === 'horario') {
+      texto = textoHorario(loja, {
+        statusLoja: ((lojaRow.status_loja as StatusLoja | null) ?? 'automatico'),
+        horarioFuncionamento: (lojaRow.horario_funcionamento as HorarioFuncionamento | null) ?? null,
+      }, saudar)
+    } else if (d.acao === 'taxa') texto = textoTaxa(loja, extrairBairro(m.texto), await freteDaLoja(admin, restauranteId, lojaRow), saudar)
+    else texto = textoPadrao(loja, m.tipo, saudar)
 
     const envio = await enfileirar(admin, {
       restauranteId,

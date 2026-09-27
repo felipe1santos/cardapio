@@ -11,7 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { mascararTelefone } from './mascara'
 import { variantesTelefone } from './robo'
 
-export const TEMPOS_PADRAO = { boasVindasHoras: 12, retornoMinutos: 120 }
+export const TEMPOS_PADRAO = { boasVindasHoras: 12, retornoMinutos: 720 }
 export const LIMITES = { boasVindasHoras: [1, 48] as const, retornoMinutos: [15, 1440] as const }
 
 /** Inteiro dentro do limite, ou erro. Aceita número ou texto numérico. */

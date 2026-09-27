@@ -16,9 +16,15 @@ describe('classificarIntencao', () => {
       expect(classificarIntencao('texto', t), t).toBe('atendente')
     }
   })
+  it('menu, cardápio, horário e taxa: palavras e opções 0, 3, 4 e 5', () => {
+    for (const t of ['oi', 'Olá!', 'bom dia', 'menu', '0']) expect(classificarIntencao('texto', t), t).toBe('menu')
+    for (const t of ['quero fazer um pedido', 'manda o cardápio', '3', 'link']) expect(classificarIntencao('texto', t), t).toBe('cardapio')
+    for (const t of ['que horas abre?', 'vocês estão abertos', 'horário de funcionamento', '4']) expect(classificarIntencao('texto', t), t).toBe('horario')
+    for (const t of ['taxa Centro', 'qual o frete pra Itapuã', '5', '5 jardim camburi', 'entregam no Centro?']) expect(classificarIntencao('texto', t), t).toBe('taxa')
+    expect(classificarIntencao('texto', 'bom dia, cadê meu pedido?')).toBe('status')
+  })
   it('texto qualquer e vazio são "outro"; mídia é "midia"', () => {
-    expect(classificarIntencao('texto', 'oi')).toBe('outro')
-    expect(classificarIntencao('texto', 'quero fazer um pedido')).toBe('outro')
+    expect(classificarIntencao('texto', 'asdfgh qwerty')).toBe('outro')
     expect(classificarIntencao('texto', '   ')).toBe('outro')
     for (const t of ['audio', 'imagem', 'figurinha', 'localizacao', 'documento'] as const) expect(classificarIntencao(t, null)).toBe('midia')
   })
@@ -32,7 +38,7 @@ describe('textos', () => {
     const t = textoBoasVindas(loja)
     expect(t).toContain('Lanches do Zé')
     expect(t).toContain(linkDaLoja('lanches-ze'))
-    expect(t).toMatch(/\*1\*.*\*2\*/)
+    expect(t).toMatch(/\*1\*[\s\S]*\*2\*[\s\S]*\*3\*[\s\S]*\*4\*[\s\S]*\*5\*/)
   })
   it('boas-vindas próprias da loja: mantém o link e o menu', () => {
     const t = textoBoasVindas({ ...loja, boasVindas: 'Bem-vindo ao Zé!' })

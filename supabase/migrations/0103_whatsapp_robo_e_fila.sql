@@ -1,21 +1,24 @@
--- 0103 — Robô de atendimento pelo WhatsApp (v1, sem IA) e fila de envios.
+-- 0103 — Robô de atendimento pelo WhatsApp (v1, sem IA) e fila de envios do robô.
 --
--- Aditiva. Nada muda para as lojas até alguém ligar o robô em Integrações (nasce
--- DESLIGADO) e registrar o webhook da instância. Os avisos de etapa do pedido passam a
--- entrar na fila (idempotência por pedido+etapa, nova tentativa com espera crescente),
--- com os mesmos textos de antes.
+-- Aditiva. Nada muda para as lojas: o robô nasce DESLIGADO em toda loja, e só responde
+-- depois de (1) o servidor ser liberado (WHATSAPP_ROBO_LIBERADO=1), (2) a loja ligar em
+-- Integrações e (3) o webhook da instância ser registrado — nenhum dos três é feito aqui.
+-- Os avisos de etapa do pedido, campanhas e códigos continuam no envio direto de hoje.
 --
---   whatsapp_robo_config  — por loja: ligado, texto de boas-vindas, tempos (repetir as
---                           boas-vindas; volta do robô após atendimento humano), segredo.
---                           Só o servidor lê (nenhuma policy): o segredo nunca vai ao navegador.
+--   whatsapp_robo_config  — por loja: ligado, boas-vindas, tempos (repetir as boas-vindas;
+--                           volta do robô após atendimento humano, padrão 12h), segredo do
+--                           webhook, quem alterou. Só o servidor lê (nenhuma policy).
 --   whatsapp_conversas    — loja + telefone: robô ou silenciada (humano), janelas de tempo.
---   whatsapp_mensagens    — o que chegou e o que saiu; id do WhatsApp ÚNICO por loja
---                           (mensagem reentregue não é processada de novo).
+--   whatsapp_mensagens    — o que chegou; id do WhatsApp ÚNICO por loja (reentrega e
+--                           replay não são processados de novo).
 --   whatsapp_envios       — fila: chave de idempotência única por loja; no máximo UMA
---                           resposta por mensagem recebida.
+--                           resposta por mensagem recebida; tentativas, erro, datas.
+--   whatsapp_eventos      — metadado sem conteúdo: webhook recebido (contagens), passagem
+--                           para atendimento humano e volta ao robô.
 --
--- Retenção: 90 dias (whatsapp_limpar_antigos). Leitura pelo painel: dono e gerente da
--- própria loja (RLS). Escrita: só service_role (webhook, fila, rotas do painel).
+-- Retenção (whatsapp_limpar_antigos, pelo cron): conteúdo 90 dias (texto e nome somem);
+-- metadado até 12 meses. Leitura pelo painel: dono e gerente da própria loja (RLS).
+-- Escrita: só service_role (webhook, fila, rotas do painel).
 --
 -- Rollback: docs/rollback/0103_whatsapp_robo_e_fila.down.sql
 
@@ -26,11 +29,14 @@ create table if not exists public.whatsapp_robo_config (
   boas_vindas text,
   -- Repetir boas-vindas depois de N horas sem conversa (1 a 48).
   boas_vindas_horas integer not null default 12 check (boas_vindas_horas between 1 and 48),
-  -- Robô volta sozinho N minutos depois da última mensagem da conversa silenciada (15 min a 24h).
-  retorno_minutos integer not null default 120 check (retorno_minutos between 15 and 1440),
+  -- Robô volta sozinho N minutos depois da última mensagem da conversa em atendimento
+  -- humano (15 min a 24h; padrão 12h).
+  retorno_minutos integer not null default 720 check (retorno_minutos between 15 and 1440),
   webhook_segredo text not null unique default encode(extensions.gen_random_bytes(24), 'hex'),
+  criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   atualizado_por uuid,
+  atualizado_por_nome text check (atualizado_por_nome is null or char_length(atualizado_por_nome) <= 120),
   constraint whatsapp_boas_vindas_tamanho check (boas_vindas is null or char_length(boas_vindas) <= 500)
 );
 alter table public.whatsapp_robo_config enable row level security;
@@ -96,11 +102,25 @@ create index if not exists whatsapp_envios_fila_idx on public.whatsapp_envios (p
 create index if not exists whatsapp_envios_externo_idx on public.whatsapp_envios (restaurante_id, id_externo) where id_externo is not null;
 alter table public.whatsapp_envios enable row level security;
 
+-- ─── eventos: o que aconteceu, sem conteúdo ───────────────────────────────────
+-- Metadado operacional (12 meses): webhook recebido e o que se fez com ele (contagens,
+-- nunca texto nem número), passagem para atendimento humano e volta ao robô.
+create table if not exists public.whatsapp_eventos (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  conversa_id uuid references public.whatsapp_conversas(id) on delete set null,
+  tipo text not null check (tipo in ('webhook', 'atendente', 'loja_assumiu', 'retorno_robo', 'painel_devolveu', 'painel_pausou')),
+  resultado jsonb not null default '{}'::jsonb check (pg_column_size(resultado) <= 2000),
+  criado_em timestamptz not null default now()
+);
+create index if not exists whatsapp_eventos_loja_idx on public.whatsapp_eventos (restaurante_id, criado_em desc);
+alter table public.whatsapp_eventos enable row level security;
+
 -- ─── leitura pelo painel: dono e gerente, só a própria loja ────────────────────
 do $$
 declare t text;
 begin
-  foreach t in array array['whatsapp_conversas', 'whatsapp_mensagens', 'whatsapp_envios'] loop
+  foreach t in array array['whatsapp_conversas', 'whatsapp_mensagens', 'whatsapp_envios', 'whatsapp_eventos'] loop
     execute format('revoke all on public.%I from anon', t);
     execute format('revoke insert, update, delete, truncate on public.%I from authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
@@ -133,9 +153,11 @@ declare
   v_janela interval;
   v_retorno interval;
 begin
-  if p_intencao not in ('status', 'atendente', 'outro', 'midia') then raise exception 'intencao_invalida'; end if;
-  -- Tempos da loja (padrão 12h e 2h quando ela não configurou).
-  select make_interval(hours => coalesce(max(boas_vindas_horas), 12)), make_interval(mins => coalesce(max(retorno_minutos), 120))
+  if p_intencao not in ('menu', 'status', 'atendente', 'cardapio', 'horario', 'taxa', 'outro', 'midia') then
+    raise exception 'intencao_invalida';
+  end if;
+  -- Tempos da loja (padrão 12h e 12h quando ela não configurou).
+  select make_interval(hours => coalesce(max(boas_vindas_horas), 12)), make_interval(mins => coalesce(max(retorno_minutos), 720))
     into v_janela, v_retorno
     from public.whatsapp_robo_config where restaurante_id = p_restaurante;
 
@@ -160,10 +182,15 @@ begin
   -- mensagem ou do momento do silêncio, o que for mais recente — a pausa manual conta).
   if c.estado = 'silenciada' and greatest(c.ultima_mensagem_em, c.silenciada_em) < v_agora - v_retorno then
     c.estado := 'robo';
+    insert into public.whatsapp_eventos (restaurante_id, conversa_id, tipo, resultado)
+    values (p_restaurante, c.id, 'retorno_robo', jsonb_build_object('motivo_anterior', c.silenciada_motivo));
   end if;
 
   if p_de_mim then
     -- A loja respondeu pelo celular: o robô sai da conversa.
+    if c.estado <> 'silenciada' then
+      insert into public.whatsapp_eventos (restaurante_id, conversa_id, tipo) values (p_restaurante, c.id, 'loja_assumiu');
+    end if;
     update public.whatsapp_conversas set estado = 'silenciada', silenciada_em = v_agora, silenciada_motivo = 'loja',
       ultima_mensagem_em = v_agora where id = c.id;
     return jsonb_build_object('duplicada', false, 'conversa_id', c.id, 'mensagem_id', v_msg, 'acao', 'nada');
@@ -177,22 +204,29 @@ begin
   -- Boas-vindas: primeira conversa ou 12h sem mensagens. Uma vez por janela.
   v_boas_vindas := c.boas_vindas_em is null or c.ultima_mensagem_em is null or c.ultima_mensagem_em < v_agora - v_janela;
 
-  if p_intencao = 'atendente' then
-    v_acao := 'atendente';
-  elsif p_intencao = 'status' then
-    v_acao := 'status';
-  elsif v_boas_vindas then
+  -- Pedido explícito responde sempre (com a saudação junto, se for a primeira da
+  -- janela). "Oi"/"menu" mostra o menu. Texto não reconhecido e mídia: na primeira da
+  -- janela, as boas-vindas; depois, a resposta padrão no máximo a cada 10 minutos.
+  if p_intencao in ('atendente', 'status', 'cardapio', 'horario', 'taxa') then
+    v_acao := p_intencao;
+  elsif p_intencao = 'midia' and v_boas_vindas then
+    -- Áudio/foto/localização logo de cara: a resposta própria do tipo, com a saudação.
+    v_acao := 'padrao';
+  elsif p_intencao = 'menu' or v_boas_vindas then
     v_acao := 'boas_vindas';
   elsif c.resposta_padrao_em is null or c.resposta_padrao_em < v_agora - interval '10 minutes' then
-    -- Texto não reconhecido / mídia: resposta padrão, no máximo uma a cada 10 minutos.
     v_acao := 'padrao';
+  end if;
+
+  if v_acao = 'atendente' then
+    insert into public.whatsapp_eventos (restaurante_id, conversa_id, tipo) values (p_restaurante, c.id, 'atendente');
   end if;
 
   update public.whatsapp_conversas set
     estado = case when v_acao = 'atendente' then 'silenciada' else 'robo' end,
     silenciada_em = case when v_acao = 'atendente' then v_agora else null end,
     silenciada_motivo = case when v_acao = 'atendente' then 'cliente' else null end,
-    boas_vindas_em = case when v_boas_vindas then v_agora else boas_vindas_em end,
+    boas_vindas_em = case when v_boas_vindas or v_acao = 'boas_vindas' then v_agora else boas_vindas_em end,
     resposta_padrao_em = case when v_acao = 'padrao' then v_agora else resposta_padrao_em end,
     ultima_mensagem_em = v_agora
   where id = c.id;
@@ -224,6 +258,9 @@ begin
     if c.estado = 'silenciada' then return jsonb_build_object('estado', c.estado, 'mudou', false); end if;
     update public.whatsapp_conversas set estado = 'silenciada', silenciada_em = now(), silenciada_motivo = 'painel' where id = c.id;
   end if;
+  insert into public.whatsapp_eventos (restaurante_id, conversa_id, tipo, resultado)
+  values (p_restaurante, c.id, case when p_acao = 'devolver' then 'painel_devolveu' else 'painel_pausou' end,
+          jsonb_build_object('motivo_anterior', c.silenciada_motivo));
   perform public.auditoria_registrar(p_restaurante, p_ator, p_ator_nome,
     case when p_acao = 'devolver' then 'whatsapp.conversa_reativada' else 'whatsapp.conversa_pausada' end,
     'whatsapp_conversa', c.id, jsonb_build_object('motivo_anterior', c.silenciada_motivo));
@@ -279,23 +316,40 @@ begin
   end if;
 end $$;
 
--- ─── retenção: 90 dias ───────────────────────────────────────────────────────
+-- ─── retenção ────────────────────────────────────────────────────────────────
+-- Conteúdo: 90 dias. Depois disso o texto some (mensagens e envios) e o nome do contato
+-- também; fica o metadado operacional (quando, tipo, estado do envio) por até 12 meses,
+-- e aí a linha inteira sai — conversa só sai quando não tem mais mensagem.
 create or replace function public.whatsapp_limpar_antigos()
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
-declare m integer; e integer; c integer;
+declare am integer; ae integer; ac integer; m integer; e integer; ev integer; c integer;
 begin
-  delete from public.whatsapp_mensagens where criado_em < now() - interval '90 days';
-  get diagnostics m = row_count;
-  delete from public.whatsapp_envios where criado_em < now() - interval '90 days' and estado not in ('pendente', 'enviando');
+  update public.whatsapp_mensagens set texto = null
+   where criado_em < now() - interval '90 days' and texto is not null;
+  get diagnostics am = row_count;
+  update public.whatsapp_envios set texto = '[conteúdo removido após 90 dias]'
+   where criado_em < now() - interval '90 days' and estado not in ('pendente', 'enviando')
+     and texto <> '[conteúdo removido após 90 dias]';
+  get diagnostics ae = row_count;
+  update public.whatsapp_conversas set nome_contato = null
+   where coalesce(ultima_mensagem_em, criado_em) < now() - interval '90 days' and nome_contato is not null;
+  get diagnostics ac = row_count;
+
+  delete from public.whatsapp_envios where criado_em < now() - interval '12 months' and estado not in ('pendente', 'enviando');
   get diagnostics e = row_count;
-  delete from public.whatsapp_conversas c2 where coalesce(c2.ultima_mensagem_em, c2.criado_em) < now() - interval '90 days'
+  delete from public.whatsapp_mensagens where criado_em < now() - interval '12 months';
+  get diagnostics m = row_count;
+  delete from public.whatsapp_eventos where criado_em < now() - interval '12 months';
+  get diagnostics ev = row_count;
+  delete from public.whatsapp_conversas c2 where coalesce(c2.ultima_mensagem_em, c2.criado_em) < now() - interval '12 months'
      and not exists (select 1 from public.whatsapp_mensagens m2 where m2.conversa_id = c2.id);
   get diagnostics c = row_count;
-  return jsonb_build_object('mensagens', m, 'envios', e, 'conversas', c);
+  return jsonb_build_object('anonimizadas', jsonb_build_object('mensagens', am, 'envios', ae, 'conversas', ac),
+                            'apagadas', jsonb_build_object('mensagens', m, 'envios', e, 'eventos', ev, 'conversas', c));
 end $$;
 
 revoke all on function public.whatsapp_registrar_entrada(uuid, text, text, boolean, text, text, timestamptz, text, text) from public, anon, authenticated;
@@ -303,3 +357,10 @@ revoke all on function public.whatsapp_alterar_conversa(uuid, uuid, text, uuid, 
 revoke all on function public.whatsapp_reivindicar_envios(integer, uuid) from public, anon, authenticated;
 revoke all on function public.whatsapp_concluir_envio(uuid, text, text, text) from public, anon, authenticated;
 revoke all on function public.whatsapp_limpar_antigos() from public, anon, authenticated;
+
+-- ─── toda loja começa com o robô DESLIGADO ───────────────────────────────────
+-- Uma linha por loja existente (segredo próprio), robo_ativo = false. Loja nova ganha a
+-- linha quando o dono abrir o cartão em Integrações — também desligada.
+insert into public.whatsapp_robo_config (restaurante_id, robo_ativo)
+select id, false from public.restaurantes
+on conflict (restaurante_id) do nothing;

@@ -1,5 +1,7 @@
 /**
- * Fila de envios do WhatsApp (0103) — respostas do robô e avisos de etapa do pedido.
+ * Fila de envios do WhatsApp (0103) — respostas do robô. (Avisos de etapa do pedido
+ * continuam no envio direto de lib/whatsapp.ts nesta versão; o tipo `aviso_pedido` fica
+ * reservado para quando migrarem.)
  *
  *  - `enfileirar`: grava com chave de idempotência única por loja. A mesma chave duas
  *    vezes (duplo clique, webhook reentregue, retentativa do chamador) não gera outro envio.
@@ -12,6 +14,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual, logFalhaEnvio } from './provedor'
+import { roboLiberadoNoServidor } from './robo'
 
 export interface NovoEnvio {
   restauranteId: string
@@ -75,8 +78,15 @@ export async function processarFila(
   if (!envios.length) return { enviados: 0, falhas: 0, reivindicados: [] }
 
   const lojas = [...new Set(envios.map((e) => e.restaurante_id))]
-  const { data: inst } = await admin.from('restaurantes').select('id, evolution_instance').in('id', lojas)
+  const [{ data: inst }, { data: cfgs }] = await Promise.all([
+    admin.from('restaurantes').select('id, evolution_instance').in('id', lojas),
+    admin.from('whatsapp_robo_config').select('restaurante_id, robo_ativo').in('restaurante_id', lojas),
+  ])
   const instancia = new Map(((inst ?? []) as { id: string; evolution_instance: string | null }[]).map((r) => [r.id, r.evolution_instance]))
+  // Resposta do robô conferida NA HORA de sair: servidor liberado e robô da loja ainda
+  // ligado. Desligar o robô com resposta na fila cancela o envio (nada sai depois).
+  const roboLigado = new Set(((cfgs ?? []) as { restaurante_id: string; robo_ativo: boolean }[]).filter((c) => c.robo_ativo).map((c) => c.restaurante_id))
+  const liberado = roboLiberadoNoServidor()
   const provedor = provedorAtual()
 
   let enviados = 0
@@ -86,7 +96,10 @@ export async function processarFila(
     let resultado: 'enviado' | 'transitorio' | 'definitivo' | 'incerto'
     let idExterno: string | null = null
     let erro: string | null = null
-    if (!nome) {
+    if (e.tipo === 'robo' && (!liberado || !roboLigado.has(e.restaurante_id))) {
+      resultado = 'definitivo'
+      erro = liberado ? 'robô desligado na loja' : 'robô não liberado no servidor'
+    } else if (!nome) {
       resultado = 'definitivo'
       erro = 'loja sem WhatsApp conectado'
     } else {
