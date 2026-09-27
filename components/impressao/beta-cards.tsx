@@ -275,7 +275,7 @@ export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onFechar }: 
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-1.5 text-[14px] font-semibold text-[var(--adm-texto)]">
                     <Printer className="h-4 w-4 text-[var(--adm-texto-suave)]" /> {nomeDisp(d)}
-                    {virtual && <Etiqueta tom="ambar" title="Impressora que o Windows cria para PDF/Fax/OneNote. Não imprime papel.">virtual</Etiqueta>}
+                    {virtual && <Etiqueta tom="ambar" title="Impressora que o Windows cria (PDF, XPS, Fax, OneNote). Pode abrir uma janela para salvar arquivo.">virtual</Etiqueta>}
                     {antigo && <Etiqueta tom="laranja">pareamento antigo</Etiqueta>}
                     {!antigo && !on && <Etiqueta tom="cinza">computador sem sinal</Etiqueta>}
                     {!d.disponivel && <Etiqueta tom="vermelho">não encontrada no Windows</Etiqueta>}
@@ -297,7 +297,7 @@ export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onFechar }: 
                 </select>
               </div>
               {antigo && <p className="mt-1.5 text-[12px] text-[#92400E]">Remova o pareamento antigo e pareie novamente — esta impressora não imprime mais.</p>}
-              {virtual && valor && <p className="mt-1.5 text-[12px] font-semibold text-[#B45309]">Impressora virtual não imprime papel: serve só para teste. Os modos reais ficam bloqueados com ela.</p>}
+              {virtual && valor && <p className="mt-1.5 text-[12px] text-[#92400E]">Impressora virtual: pode abrir uma janela para salvar arquivo em vez de imprimir em papel. Para operação da loja, recomendamos uma impressora térmica/física. Você pode usar esta impressora para testar o fluxo completo.</p>}
               {!antigo && (
                 <details className="mt-2 text-[12.5px]">
                   <summary className="cursor-pointer text-[12px] font-semibold text-[var(--adm-texto-suave)]">Mais opções</summary>
@@ -456,7 +456,7 @@ export function ModalTeste({ tipo, p, ocupado, onConfirmar, onFechar }: { tipo: 
         </select>
       </label>
       {a && !agenteOnline(a) && <p className="mt-2 text-[12.5px] text-[#B45309]">O computador está sem sinal: o teste espera até ele abrir (vence em 10 min).</p>}
-      {d && ehImpressoraVirtual(d.nomeSistema) && <p className="mt-2 text-[12.5px] text-[#B45309]">Impressora virtual: o teste vira arquivo, não papel.</p>}
+      {d && ehImpressoraVirtual(d.nomeSistema) && <p className="mt-2 text-[12.5px] text-[#92400E]">Impressora virtual: pode abrir uma janela para salvar arquivo em vez de imprimir em papel.</p>}
     </ModalBase>
   )
 }

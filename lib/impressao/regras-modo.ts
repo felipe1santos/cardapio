@@ -9,21 +9,22 @@
  *   · Somente teste   → sempre pode.
  *   · Somente Caixa   → Recibo/Extrato válido.
  *   · Cozinha e Caixa → Cozinha E Recibo/Extrato válidos.
- * Válido = escolhida, computador pareado, não substituído por um pareamento mais novo,
- * com sinal agora, e não é impressora virtual do Windows.
+ * Válido = escolhida, computador pareado, não substituído por um pareamento mais novo e
+ * com sinal agora. Impressora VIRTUAL do Windows (PDF/XPS/Fax/OneNote) vale igual à
+ * física: o dono decide (2026-09-27) — a tela só avisa que ela pode abrir janela de arquivo.
  */
 import type { Funcao, ModoBeta } from './servico'
 
 export const ONLINE_MS = 30_000
 
-/** Impressoras que o próprio Windows cria e que não imprimem papel. */
+/** Impressoras que o próprio Windows cria (PDF, XPS, Fax, OneNote): só para o selo/aviso. */
 const VIRTUAL = /^(fax|microsoft print to pdf|microsoft xps document writer|onenote.*|enviar para o onenote.*|send to onenote.*)$/i
 export const ehImpressoraVirtual = (nomeSistema: string) => VIRTUAL.test(nomeSistema.trim())
 
 export interface AgenteRegra { id: string; nome: string; vistoEm: string | null; revogado: boolean; criadoEm: string }
 export interface DispositivoRegra { id: string; agenteId: string; nomeSistema: string }
 
-export type ProblemaFuncao = 'vazia' | 'desconectado' | 'pareamento_antigo' | 'sem_sinal' | 'virtual' | 'inexistente'
+export type ProblemaFuncao = 'vazia' | 'desconectado' | 'pareamento_antigo' | 'sem_sinal' | 'inexistente'
 
 export const agenteOnline = (a: AgenteRegra, agora = Date.now()) =>
   !a.revogado && !!a.vistoEm && agora - new Date(a.vistoEm).getTime() < ONLINE_MS
@@ -42,7 +43,6 @@ export function problemaDoDispositivo(dispositivoId: string | null, agentes: Age
   const a = agentes.find((x) => x.id === d.agenteId)
   if (!a || a.revogado) return 'desconectado'
   if (pareamentoAntigo(a, agentes, agora)) return 'pareamento_antigo'
-  if (ehImpressoraVirtual(d.nomeSistema)) return 'virtual'
   if (exigirSinal && !agenteOnline(a, agora)) return 'sem_sinal'
   return null
 }
@@ -55,7 +55,6 @@ export function motivoProblema(funcao: Funcao, p: ProblemaFuncao): string {
     case 'inexistente': return `Escolha de novo a impressora de ${ROTULO[funcao]}`
     case 'desconectado': return `O computador da impressora de ${ROTULO[funcao]} está desconectado`
     case 'pareamento_antigo': return 'Remova o pareamento antigo e pareie novamente'
-    case 'virtual': return `A impressora de ${ROTULO[funcao]} é virtual do Windows (PDF/XPS/Fax) e não imprime papel`
     case 'sem_sinal': return `O computador da impressora de ${ROTULO[funcao]} está sem sinal — abra o Assistente Beta nele`
   }
 }

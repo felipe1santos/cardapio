@@ -28,12 +28,33 @@ describe('regra dos modos do Assistente Beta', () => {
     expect(avaliarModos({ ...base, funcoes: { cozinha: 'd1', caixa: 'd1' } }, AGORA).modos.cozinha_caixa.ok).toBe(true) // uma impressora só
   })
 
-  it('computador desconectado, sem sinal, pareamento antigo e impressora virtual bloqueiam', () => {
+  it('computador desconectado, sem sinal e pareamento antigo bloqueiam', () => {
     const f = (agentes: AgenteRegra[], dispositivos: DispositivoRegra[]) => avaliarModos({ agentes, dispositivos, funcoes: { cozinha: null, caixa: 'd' } }, AGORA).modos.caixa
     expect(f([pc('a', { revogado: true })], [imp('d', 'a')]).motivo).toMatch(/desconectado/)
     expect(f([pc('a', { vistoEm: off })], [imp('d', 'a')]).motivo).toMatch(/sem sinal/)
     expect(f([pc('a', { vistoEm: off, criadoEm: '2026-09-26T18:00:00Z' }), pc('b')], [imp('d', 'a')]).motivo).toBe('Remova o pareamento antigo e pareie novamente')
-    expect(f([pc('a')], [imp('d', 'a', 'Microsoft Print to PDF')]).motivo).toMatch(/virtual/)
+  })
+
+  it('impressora virtual vale igual à física: qualquer função e qualquer modo', () => {
+    const agentes = [pc('a')]
+    const pdf = imp('v', 'a', 'Microsoft Print to PDF')
+    const pos = imp('t', 'a', 'POS-80')
+    const av = (cozinha: string | null, caixa: string | null, ds = [pdf, pos]) => avaliarModos({ agentes, dispositivos: ds, funcoes: { cozinha, caixa } }, AGORA)
+    // só Cozinha virtual: Somente Caixa ainda pede Recibo/Extrato (não por ser virtual)
+    expect(av('v', null).modos.caixa.motivo).toBe('Escolha uma impressora para Recibo/Extrato')
+    expect(av('v', null).funcoes.cozinha).toBeNull()
+    // só Recibo/Extrato virtual → Somente Caixa liberado
+    expect(av(null, 'v').modos.caixa.ok).toBe(true)
+    // as duas na mesma virtual → tudo liberado
+    const ambas = av('v', 'v', [pdf])
+    expect(ambas.modos.caixa.ok && ambas.modos.cozinha_caixa.ok).toBe(true)
+    // virtual + física misturadas
+    expect(av('t', 'v').modos.cozinha_caixa.ok).toBe(true)
+    expect(av('v', 't').modos.cozinha_caixa.ok).toBe(true)
+    // física continua igual
+    expect(av('t', 't', [pos]).modos.cozinha_caixa.ok).toBe(true)
+    // XPS, Fax e OneNote também
+    for (const n of ['Microsoft XPS Document Writer', 'Fax', 'OneNote for Windows 10']) expect(av('x', 'x', [imp('x', 'a', n)]).modos.cozinha_caixa.ok).toBe(true)
   })
 
   it('sem sinal momentâneo não derruba um modo já ligado (exigirSinal = false)', () => {
