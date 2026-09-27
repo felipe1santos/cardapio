@@ -5,6 +5,8 @@ export interface AppSession {
   restauranteId: string
   papel: string
   nome: string
+  /** E-mail do login — usado para reconhecer o suporte da plataforma (SUPERADMIN_EMAILS). */
+  email?: string | null
 }
 
 export async function getCurrentSession(
@@ -29,5 +31,6 @@ export async function getCurrentSession(
     restauranteId: usuario.restaurante_id,
     papel: usuario.papel,
     nome: usuario.nome,
+    email: user.email ?? null,
   }
 }

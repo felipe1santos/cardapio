@@ -38,6 +38,8 @@ describe('getCurrentSession', () => {
       restauranteId: 'tenant-1',
       papel: 'dono',
       nome: 'Carlos Silva',
+      // Sem e-mail no login: null (o suporte é reconhecido pelo e-mail).
+      email: null,
     })
   })
 })
