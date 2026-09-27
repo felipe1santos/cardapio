@@ -183,9 +183,20 @@ duplicadas, 0 pendentes, 0 incertas; único destinatário o 4407. Ignorados sem 
 | Taxa sem bairro | ✅ pede o bairro |
 | Mensagem desconhecida | ✅ “Não entendi” + menu; a 2ª em seguida ficou sem resposta (limite de 1 a cada 10 min, esperado) |
 | Grupo / número fora da lista | ✅ ignorados sem gravar |
-| `0` menu, `3` cardápio | ⏳ não chegaram ao robô |
-| Áudio/foto/localização | ⏳ não chegaram |
-| `2` atendente, silêncio, volta após 15 min | ⏳ não chegaram — **handoff não validado em produção** |
+| `0` menu, `3` cardápio (13:51) | ✅ menu completo; link do cardápio |
+| Localização (13:51) | ✅ resposta própria de localização |
+| `2` atendente (13:52:39) | ✅ "Vou chamar alguém…", evento `atendente`, conversa silenciada (cliente) |
+| `Oi` durante o atendimento (13:52:48) | ✅ sem resposta |
+| `Oi` depois de 15 min (14:08) | ✅ evento `retorno_robo` + boas-vindas |
+| Áudio e foto | não enviados (mesmo caminho da localização; cobertos pelo e2e) |
+
+**Veredito: PILOTO APROVADO** (encerrado 2026-09-27 ~14:08). Totais finais: 16 mensagens
+do 4407 → 14 respostas, todas `enviado` na 1ª tentativa; 0 duplicadas, 0 pendentes, 0
+incertas, 0 com erro; único destinatário o 4407. Ignorados sem gravar: 4 de grupo e 5 de
+número fora da lista. As 2 sem resposta são as esperadas (limite do "Não entendi" e o
+silêncio do atendimento). Estado final: robô ligado só na Menuzia, lista branca só com
+o 4407, cron com última execução `success`, webhook ativo só na Menuzia, 7 lojas
+desligadas (0 eventos, 0 envios).
 
 Achado: “Qual minha último pedido” não foi reconhecido como status (a regra aceita “meu
 pedido”, “cadê”, “status”…). Correção de uma linha + teste, a publicar depois.
