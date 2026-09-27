@@ -6,7 +6,9 @@
  *   ROBO_E2E_LOJA=robo-e2e-a  ROBO_E2E_VIZINHA=robo-e2e-b  (slugs começando com robo-e2e)
  *   ROBO_PROVEDOR=simulado     WHATSAPP_SIMULADO_ARQUIVO=<arquivo>  (o MESMO do servidor)
  * O servidor local precisa subir com WHATSAPP_PROVEDOR=simulado, o mesmo
- * WHATSAPP_SIMULADO_ARQUIVO e CRON_SECRET. O servidor-local.mjs já apaga as variáveis da
+ * WHATSAPP_SIMULADO_ARQUIVO, CRON_SECRET e WHATSAPP_ROBO_LIBERADO=1.
+ * Fase "bloqueado" (ROBO_E2E_FASE=bloqueado): servidor SEM WHATSAPP_ROBO_LIBERADO — prova
+ * que publicar o código não responde ninguém. O servidor-local.mjs já apaga as variáveis da
  * Evolution: mesmo sem simulado, nada sairia para fora.
  *
  *   SHOTS=<pasta> node scripts/seguranca/e2e-robo-whatsapp.mjs
@@ -52,9 +54,11 @@ async function loja(slug, nome, instancia) {
   const id = (await um(`insert into restaurantes (nome, slug, status_loja) values ($1,$2,'aberto_manual')
     on conflict (slug) do update set nome=excluded.nome returning id`, [nome, slug])).id
   await db.query(`update restaurantes set evolution_instance=$2 where id=$1`, [id, instancia])
-  for (const t of ['whatsapp_envios', 'whatsapp_mensagens', 'whatsapp_conversas', 'whatsapp_robo_config']) await db.query(`delete from ${t} where restaurante_id=$1`, [id])
+  for (const t of ['whatsapp_eventos', 'whatsapp_envios', 'whatsapp_mensagens', 'whatsapp_conversas', 'whatsapp_robo_config']) await db.query(`delete from ${t} where restaurante_id=$1`, [id])
   await db.query(`delete from pedido_itens where pedido_id in (select id from pedidos where restaurante_id=$1)`, [id])
   await db.query(`delete from pedidos where restaurante_id=$1`, [id])
+  await db.query(`delete from taxas_entrega_bairro where restaurante_id=$1`, [id])
+  await db.query(`delete from taxas_entrega_raio where restaurante_id=$1`, [id])
   await db.query(`insert into whatsapp_robo_config (restaurante_id, robo_ativo) values ($1, false)`, [id])
   return id
 }
@@ -128,6 +132,37 @@ const api = (p, url, metodo = 'GET', corpo) => p.evaluate(async ({ url, metodo, 
 }, { url: `${BASE}${url}`, metodo, corpo })
 const dispensar = async (p) => { const b = p.getByRole('button', { name: /OK, entendi/ }).first(); await b.waitFor({ timeout: 3000 }).catch(() => {}); if (await b.isVisible().catch(() => false)) await b.click() }
 
+if (process.env.ROBO_E2E_FASE === 'bloqueado') {
+  try {
+    secao('0. Servidor NÃO liberado (produção recém-publicada)')
+    await db.query(`update whatsapp_robo_config set robo_ativo=true where restaurante_id=$1`, [A])
+    const r0 = await webhook(SEG_A, evento('robo-sim-a', { texto: 'oi', id: 'BLOQ-1' }))
+    ok('webhook aceito, mas nada gravado nem respondido', r0.s === 200 && r0.j?.ignoradas?.robo_nao_liberado_no_servidor === 1 && (await envios(A)).length === 0 && !(await conversa(A)))
+    ok('evento do webhook registrado (só metadado)', (await um(`select count(*)::int n from whatsapp_eventos where restaurante_id=$1 and tipo='webhook'`, [A])).n === 1)
+    await db.query(`insert into whatsapp_envios (restaurante_id, chave, tipo, telefone, texto) values ($1,'bloq-manual','robo',$2,'teste')`, [A, CLI])
+    const cr = await cron()
+    const e0 = await um(`select estado, ultimo_erro from whatsapp_envios where chave='bloq-manual'`)
+    ok('resposta que estivesse na fila não sai (cron recusa)', cr.s === 200 && e0.estado === 'falhou' && /não liberado/.test(e0.ultimo_erro ?? ''))
+    await db.query(`update whatsapp_robo_config set robo_ativo=false where restaurante_id=$1`, [A])
+    const dono = await logar('dono.roboa')
+    const lig = await api(dono.p, '/api/admin/whatsapp/robo', 'PUT', { roboAtivo: true })
+    ok('painel não deixa ligar (409 nao_liberado)', lig.s === 409 && lig.j?.codigo === 'nao_liberado')
+    await dono.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
+    await dispensar(dono.p)
+    await dono.p.getByTestId('robo-bloqueado').waitFor({ timeout: 10000 })
+    ok('tela avisa que não foi liberado e o botão de ligar fica desabilitado', await dono.p.getByTestId('robo-alternar').isDisabled())
+    await dono.p.getByTestId('robo-whatsapp').screenshot({ path: join(SHOTS, 'integracoes-robo-bloqueado.png') })
+    ok('nenhum envio saiu para o provedor', enviados().length === 0)
+    await dono.ctx.close()
+  } finally {
+    await browser.close()
+    await db.end()
+  }
+  const fb = res.filter((r) => !r.c)
+  console.log(`\n${res.length - fb.length}/${res.length} verificações passaram (fase bloqueada)`)
+  process.exit(fb.length ? 1 : 0)
+}
+
 try {
   secao('1. Webhook: segredo, corpo e robô desligado')
   ok('segredo inexistente → 404', (await webhook('0'.repeat(48), evento('robo-sim-a'))).s === 404)
@@ -136,12 +171,17 @@ try {
   ok('corpo acima de 256 KB → 413', (await webhook(SEG_A, JSON.stringify({ x: 'a'.repeat(300 * 1024) }))).s === 413)
   const desl = await webhook(SEG_A, evento('robo-sim-a'))
   ok('robô desligado: nada gravado nem respondido', desl.s === 200 && desl.j?.ignoradas?.robo_desligado === 1 && (await envios(A)).length === 0 && !(await conversa(A)))
+  ok('evento do webhook registrado sem conteúdo', JSON.stringify((await um(`select resultado from whatsapp_eventos where restaurante_id=$1 and tipo='webhook' order by criado_em desc limit 1`, [A])).resultado).includes('robo_desligado'))
+  ok('evento de outra coisa que não mensagem (connection.update) → 200 sem nada', (await webhook(SEG_A, { event: 'connection.update', instance: 'robo-sim-a', data: { state: 'open' } })).s === 200 && (await envios(A)).length === 0)
+  ok('JSON válido mas sem forma de mensagem → 200 sem nada', (await webhook(SEG_A, { event: 'messages.upsert', data: 'lixo' })).s === 200 && (await envios(A)).length === 0)
 
   secao('2. Painel: ligar o robô (dono) e permissões')
   const dono = await logar('dono.roboa')
   await dono.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
   await dispensar(dono.p)
+  ok('todas as lojas nascem com o robô desligado', (await um(`select count(*)::int n from whatsapp_robo_config where robo_ativo`)).n === 0)
   await dono.p.getByTestId('robo-whatsapp').getByTestId('robo-alternar').click()
+  await dono.p.getByTestId('robo-confirmar-ligar').click()
   await dono.p.getByTestId('robo-estado').filter({ hasText: /^Ligado$/ }).waitFor({ timeout: 10000 })
   ok('dono liga o robô pela tela', (await um(`select robo_ativo from whatsapp_robo_config where restaurante_id=$1`, [A])).robo_ativo === true)
   for (const [login, esperado] of [['gerente.roboa', 403], ['garcom.roboa', 403]]) {
@@ -153,7 +193,8 @@ try {
   const semSessao = await fetch(`${BASE}/api/admin/whatsapp/robo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"roboAtivo":false}' })
   ok('sem sessão: recusado', semSessao.status === 401 || semSessao.status === 307 || semSessao.redirected, `HTTP ${semSessao.status}`)
   const g = await api(dono.p, '/api/admin/whatsapp/robo')
-  ok('GET do painel não expõe o segredo do webhook', g.s === 200 && !JSON.stringify(g.j).includes(SEG_A) && !('webhookSegredo' in (g.j ?? {})))
+  ok('GET do painel não expõe o segredo do webhook (só os 4 últimos)', g.s === 200 && !JSON.stringify(g.j).includes(SEG_A) && !('webhookSegredo' in (g.j ?? {})) && g.j?.webhookMascarado?.endsWith(SEG_A.slice(-4)))
+  ok('painel mostra liberado, instância e quem alterou', g.j?.liberadoNoServidor === true && g.j?.instancia === 'robo-sim-a' && !!g.j?.atualizadoPor)
   await db.query(`update whatsapp_robo_config set robo_ativo=true where restaurante_id=$1`, [B])
 
   secao('3. Boas-vindas, duplicada, padrão e janela de 12h')
@@ -165,21 +206,45 @@ try {
   ok('provedor simulado recebeu 1 envio, para o cliente, pela instância da loja A', sim1.length === 1 && sim1[0].numero === CLI && sim1[0].instancia === 'robo-sim-a')
   const r1b = await webhook(SEG_A, e1)
   ok('mesma mensagem reentregue → ignorada, sem segunda resposta', r1b.j?.ignoradas?.duplicada === 1 && (await envios(A)).length === 1 && enviados().length === 1)
-  await webhook(SEG_A, evento('robo-sim-a', { texto: 'qual o horário de vocês?' }))
+  await webhook(SEG_A, evento('robo-sim-a', { texto: 'asdfgh qwerty' }))
   const env2 = await ultimo(A)
-  ok('texto não reconhecido dentro da janela → resposta padrão (sem boas-vindas de novo)', (await envios(A)).length === 2 && env2.texto.includes('cardápio') && !env2.texto.includes('atendimento automático'))
+  ok('texto não reconhecido dentro da janela → resposta padrão (sem boas-vindas de novo)', (await envios(A)).length === 2 && /Não entendi/.test(env2.texto) && env2.texto.includes(`/loja/${LOJA}`) && !env2.texto.includes('atendimento automático'))
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'hmm' }))
   ok('resposta padrão no máximo 1 a cada 10 min (sem excesso de mensagens)', (await envios(A)).length === 2)
-  for (const [nome, message] of [['áudio', { audioMessage: {} }], ['imagem', { imageMessage: {} }], ['figurinha', { stickerMessage: {} }], ['localização', { locationMessage: {} }]]) {
+  for (const [nome, message, marca] of [['áudio', { audioMessage: {} }, /ouvir áudios/], ['imagem', { imageMessage: {} }, /ver imagens/], ['figurinha', { stickerMessage: {} }, /figurinha/], ['localização', { locationMessage: {} }, /taxa\* e o seu bairro/]]) {
     await db.query(`update whatsapp_conversas set resposta_padrao_em = null where restaurante_id=$1 and telefone=$2`, [A, CLI])
     await webhook(SEG_A, evento('robo-sim-a', { message }))
     const u = await ultimo(A)
-    ok(`${nome} → resposta padrão com link e opção de atendente`, u.texto.includes(`/loja/${LOJA}`) && u.texto.includes('*2*'))
+    ok(`${nome} → resposta própria do tipo, com link e opção de atendente`, marca.test(u.texto) && u.texto.includes(`/loja/${LOJA}`) && u.texto.includes('*2*'))
   }
   await recuar(A, 13)
   const antes12 = (await envios(A)).length
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'boa noite' }))
   ok('depois de 12h sem conversa → boas-vindas de novo', (await envios(A)).length === antes12 + 1 && (await ultimo(A)).texto.includes('atendimento automático'))
+
+  secao('3b. Cardápio, horário e taxa de entrega por bairro')
+  await db.query(`insert into taxas_entrega_bairro (restaurante_id, bairro, taxa) values ($1,'Centro',5),($1,'Praia do Canto',0)`, [A])
+  await db.query(`update restaurantes set status_loja='automatico', horario_funcionamento=$2 where id=$1`, [A, JSON.stringify({ '1': [{ abre: '18:00', fecha: '23:00' }], '5': [{ abre: '11:00', fecha: '14:00' }, { abre: '18:00', fecha: '23:30' }] })])
+  await webhook(SEG_A, evento('robo-sim-a', { texto: '3' }))
+  ok('"3" → link do cardápio', (await ultimo(A)).texto.includes(`Nosso cardápio`) && (await ultimo(A)).texto.includes(`/loja/${LOJA}`))
+  await webhook(SEG_A, evento('robo-sim-a', { texto: 'que horas vocês abrem?' }))
+  const hor = (await ultimo(A)).texto
+  ok('horário: aberto/fechado agora e a grade da semana', /(abertos|fechados)/.test(hor) && hor.includes('Segunda: 18:00–23:00') && hor.includes('Sexta: 11:00–14:00 e 18:00–23:30'), hor.split('\n')[0])
+  await webhook(SEG_A, evento('robo-sim-a', { texto: 'qual a taxa pro Centro?' }))
+  ok('taxa de bairro cadastrado (regra da loja), com o link para o valor final', /Centro\* é \*R\$\s?5,00\*/.test((await ultimo(A)).texto) && (await ultimo(A)).texto.includes('valor final'))
+  await webhook(SEG_A, evento('robo-sim-a', { texto: '5 praia do canto' }))
+  ok('taxa grátis do bairro', (await ultimo(A)).texto.includes('*grátis*'))
+  await webhook(SEG_A, evento('robo-sim-a', { texto: 'taxa' }))
+  ok('"taxa" sem bairro → pede o bairro', (await ultimo(A)).texto.includes('taxa Centro'))
+  await webhook(SEG_A, evento('robo-sim-a', { texto: 'taxa Marte' }))
+  ok('bairro fora da lista (loja bloqueia) → não promete, oferece atendente', /Não encontrei \*Marte\*/.test((await ultimo(A)).texto))
+  await db.query(`insert into taxas_entrega_raio (restaurante_id, ate_km, taxa) values ($1, 3, 2)`, [A])
+  await webhook(SEG_A, evento('robo-sim-a', { texto: 'taxa Marte' }))
+  ok('loja com faixa por distância → "depende da distância", sem inventar valor', /depende da distância/.test((await ultimo(A)).texto) && !/R\$/.test((await ultimo(A)).texto))
+  await db.query(`delete from taxas_entrega_raio where restaurante_id=$1`, [A])
+  ok('consultar taxa não mexe na loja (sem geocodificar, sem gravar coordenadas)', (await um(`select latitude from restaurantes where id=$1`, [A])).latitude === null)
+  await webhook(SEG_A, evento('robo-sim-a', { texto: '0' }))
+  ok('"0" → menu de novo', /\*5\* Taxa de entrega/.test((await ultimo(A)).texto))
 
   secao('4. Status do pedido — só do telefone e da loja certos')
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'cadê meu pedido?' }))
@@ -200,6 +265,7 @@ try {
   const at = await ultimo(A)
   const cv = await conversa(A)
   ok('"falar com pessoa" → aviso de atendente e conversa silenciada (cliente)', at.texto.includes('Vou chamar alguém') && cv.estado === 'silenciada' && cv.silenciada_motivo === 'cliente')
+  ok('passagem para atendente registrada (whatsapp_eventos)', !!(await um(`select 1 from whatsapp_eventos where conversa_id=$1 and tipo='atendente'`, [cv.id])))
   const nAt = (await envios(A)).length
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'alô?' }))
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'cadê meu pedido' }))
@@ -218,12 +284,17 @@ try {
   ok('depois de devolvido, o robô volta a responder', (await envios(A)).length === nAt + 1)
   await webhook(SEG_A, evento('robo-sim-a', { texto: '2' }))
   await recuar(A, 3)
-  await db.query(`update whatsapp_conversas set resposta_padrao_em = null where restaurante_id=$1 and telefone=$2`, [A, CLI])
+  await db.query(`update whatsapp_conversas set silenciada_em = now() - interval '3 hours', resposta_padrao_em = null where restaurante_id=$1 and telefone=$2`, [A, CLI])
+  const n3h = (await envios(A)).length
+  await webhook(SEG_A, evento('robo-sim-a', { texto: 'alguém?' }))
+  ok('3h depois (padrão 12h) continua em atendimento humano, sem resposta', (await envios(A)).length === n3h && (await conversa(A)).estado === 'silenciada')
+  await db.query(`update whatsapp_conversas set ultima_mensagem_em = now() - interval '13 hours', silenciada_em = now() - interval '13 hours', resposta_padrao_em = null where restaurante_id=$1 and telefone=$2`, [A, CLI])
   const nVolta = (await envios(A)).length
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'oi de novo' }))
-  ok('silenciada há mais de 2h sem mensagens → volta sozinho', (await envios(A)).length === nVolta + 1 && (await conversa(A)).estado === 'robo')
+  ok('silenciada há mais de 12h sem mensagens → volta sozinho', (await envios(A)).length === nVolta + 1 && (await conversa(A)).estado === 'robo')
+  ok('volta ao robô registrada (whatsapp_eventos)', !!(await um(`select 1 from whatsapp_eventos where conversa_id=$1 and tipo='retorno_robo'`, [(await conversa(A)).id])))
   const outra = await logar('dono.robob')
-  const r = await api(outra.p, '/api/admin/whatsapp/robo/reativar', 'POST', { conversaId: (await conversa(A)).id })
+  const r = await api(outra.p, '/api/admin/whatsapp/conversas', 'POST', { conversaId: (await conversa(A)).id, acao: 'devolver' })
   ok('dono da loja B não mexe em conversa da A', r.s === 404)
   await outra.ctx.close()
 
@@ -280,22 +351,26 @@ try {
   await cron()
   ok('processo que caiu no meio do envio → "incerto", não reenviado', (await envios(A)).find((e) => e.telefone === DF).estado === 'incerto' && enviados().filter((s) => s.numero === DF).length === 1)
 
-  secao('9. Aviso de etapa do pedido pela fila, sem duplicar')
-  const antesAv = enviados().filter((s) => s.numero === '551112340001' && /pronto/i.test(s.texto ?? '')).length
-  const cliques = await Promise.all([1, 2, 3].map(() => api(dono.p, `/api/pedidos/${pedA.id}/notificar`, 'POST', { status: 'pronto' })))
-  await espera(500)
-  const avisos = await q(`select estado, chave from whatsapp_envios where pedido_id=$1`, [pedA.id])
-  const saiu = enviados().filter((s) => s.numero === '551112340001' && /pronto/i.test(s.texto ?? '')).length - antesAv
-  ok('triplo clique em "pronto" → 1 aviso na fila e 1 envio', cliques.every((c) => c.s === 200) && avisos.length === 1 && avisos[0].chave === `pedido:${pedA.id}:pronto` && saiu === 1, JSON.stringify({ avisos, saiu }))
-  const txt = enviados().filter((s) => s.numero === '551112340001').at(-1)?.texto ?? ''
-  ok('texto do aviso é o de sempre', txt.includes(`Seu pedido *#${pedA.numero}* está *pronto*`))
-  controle({ falhar: 'transitorio', restantes: 1 })
-  await api(dono.p, `/api/pedidos/${pedA.id}/notificar`, 'POST', { status: 'entregue' })
-  const avE = await um(`select estado, tentativas from whatsapp_envios where chave=$1`, [`pedido:${pedA.id}:entregue`])
-  await db.query(`update whatsapp_envios set proxima_tentativa_em=now() where chave=$1`, [`pedido:${pedA.id}:entregue`])
+  secao('9. Avisos de etapa do pedido continuam no envio de sempre (fora da fila do robô)')
+  const r9 = await api(dono.p, `/api/pedidos/${pedA.id}/notificar`, 'POST', { status: 'pronto' })
+  ok('avisar etapa do pedido não cria nada na fila do robô', r9.s === 200 && (await q(`select 1 from whatsapp_envios where pedido_id=$1 or tipo='aviso_pedido'`, [pedA.id])).length === 0)
+
+  secao('9b. Robô desligado com resposta na fila: nada sai depois')
+  await db.query(`update whatsapp_robo_config set robo_ativo=false where restaurante_id=$1`, [A])
+  await db.query(`insert into whatsapp_envios (restaurante_id, chave, tipo, telefone, texto) values ($1,'desligou-no-meio','robo',$2,'teste')`, [A, CLI])
+  const antes9b = enviados().length
   await cron()
-  const avE2 = await um(`select estado, tentativas from whatsapp_envios where chave=$1`, [`pedido:${pedA.id}:entregue`])
-  ok('aviso com falha transitória → nova tentativa pelo cron e enviado', avE.estado === 'pendente' && avE2.estado === 'enviado' && avE2.tentativas === 2)
+  const e9b = await um(`select estado, ultimo_erro from whatsapp_envios where chave='desligou-no-meio'`)
+  ok('envio pendente de loja que desligou o robô → falhou, sem sair', e9b.estado === 'falhou' && /desligado/.test(e9b.ultimo_erro ?? '') && enviados().length === antes9b)
+  await db.query(`update whatsapp_robo_config set robo_ativo=true where restaurante_id=$1`, [A])
+
+  secao('9c. Trocar o segredo derruba o endereço antigo')
+  const rot = await api(dono.p, '/api/admin/whatsapp/robo', 'POST', { acao: 'rotacionar_segredo' })
+  const SEG_A2 = (await um(`select webhook_segredo s from whatsapp_robo_config where restaurante_id=$1`, [A])).s
+  ok('segredo novo gerado e mascarado na resposta', rot.s === 200 && SEG_A2 !== SEG_A && rot.j?.webhookMascarado?.endsWith(SEG_A2.slice(-4)) && !JSON.stringify(rot.j).includes(SEG_A2))
+  ok('segredo antigo → 404 (replay com endereço vazado não funciona)', (await webhook(SEG_A, evento('robo-sim-a', { texto: 'oi' }))).s === 404)
+  ok('segredo novo funciona', (await webhook(SEG_A2, evento('robo-sim-a', { texto: 'oi' }))).s === 200)
+  await db.query(`update whatsapp_robo_config set webhook_segredo=$2 where restaurante_id=$1`, [A, SEG_A])
 
   secao('10. RLS: leitura só da própria loja e só gestão')
   const cliente = async (email) => {
@@ -317,16 +392,31 @@ try {
   const cDonoB = await cliente('dono@robo-b.local')
   const vB = await cDonoB.from('whatsapp_mensagens').select('restaurante_id')
   ok('dono B não vê mensagens da A', (vB.data ?? []).every((x) => x.restaurante_id === B))
+  const evA = await cDonoA.from('whatsapp_eventos').select('restaurante_id')
+  ok('dono A lê só eventos da A', !evA.error && evA.data.length > 0 && evA.data.every((x) => x.restaurante_id === A))
+  ok('garçom não lê eventos', ((await cGar.from('whatsapp_eventos').select('id')).data ?? []).length === 0)
+  ok('dono B não vê eventos da A', ((await cDonoB.from('whatsapp_eventos').select('restaurante_id')).data ?? []).every((x) => x.restaurante_id === B))
   const anon = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
   ok('anônimo não lê nada', ((await anon.from('whatsapp_mensagens').select('id')).data ?? []).length === 0)
   const rpc = await cDonoA.rpc('whatsapp_registrar_entrada', { p_restaurante: B, p_telefone: CLI, p_wa_id: 'X', p_de_mim: false, p_tipo: 'texto', p_texto: 'x', p_instante: null, p_intencao: 'outro' })
   ok('usuário logado não chama as funções do robô', !!rpc.error)
 
-  secao('11. Retenção de 90 dias')
+  secao('11. Retenção: conteúdo 90 dias, metadado 12 meses')
   const cvA = await conversa(A)
-  await db.query(`insert into whatsapp_mensagens (restaurante_id, conversa_id, wa_id, direcao, tipo, texto, criado_em) values ($1,$2,'VELHA','entrada','texto','antiga', now() - interval '91 days')`, [A, cvA.id])
+  await db.query(`insert into whatsapp_mensagens (restaurante_id, conversa_id, wa_id, direcao, tipo, texto, criado_em) values
+    ($1,$2,'VELHA-91D','entrada','texto','conteúdo antigo', now() - interval '91 days'),
+    ($1,$2,'VELHA-13M','entrada','texto','muito antigo', now() - interval '13 months')`, [A, cvA.id])
+  await db.query(`insert into whatsapp_envios (restaurante_id, chave, tipo, telefone, texto, estado, criado_em) values
+    ($1,'env-91d','robo',$2,'resposta antiga','enviado', now() - interval '91 days'),
+    ($1,'env-13m','robo',$2,'resposta muito antiga','enviado', now() - interval '13 months')`, [A, CLI])
+  await db.query(`insert into whatsapp_eventos (restaurante_id, tipo, criado_em) values ($1,'webhook', now() - interval '13 months'), ($1,'webhook', now() - interval '91 days')`, [A])
   const { data: limp } = await admin.rpc('whatsapp_limpar_antigos')
-  ok('mensagem com mais de 90 dias é apagada; as recentes ficam', limp.mensagens >= 1 && !(await um(`select 1 from whatsapp_mensagens where wa_id='VELHA'`)) && (await q(`select 1 from whatsapp_mensagens where restaurante_id=$1`, [A])).length > 0)
+  const m91 = await um(`select texto from whatsapp_mensagens where wa_id='VELHA-91D'`)
+  ok('91 dias: a mensagem fica, sem o texto (anonimizada)', !!m91 && m91.texto === null)
+  ok('13 meses: a mensagem sai', !(await um(`select 1 from whatsapp_mensagens where wa_id='VELHA-13M'`)))
+  ok('91 dias: envio fica sem o conteúdo; 13 meses: sai', (await um(`select texto from whatsapp_envios where chave='env-91d'`)).texto.startsWith('[conteúdo removido') && !(await um(`select 1 from whatsapp_envios where chave='env-13m'`)))
+  ok('eventos: 91 dias ficam, 13 meses saem', (await um(`select count(*)::int n from whatsapp_eventos where restaurante_id=$1 and criado_em < now() - interval '12 months'`, [A])).n === 0 && (await um(`select count(*)::int n from whatsapp_eventos where restaurante_id=$1 and criado_em < now() - interval '90 days'`, [A])).n >= 1)
+  ok('recentes intactas', (await q(`select 1 from whatsapp_mensagens where restaurante_id=$1 and texto is not null`, [A])).length > 0 && limp?.anonimizadas?.mensagens >= 1, JSON.stringify(limp))
 
   secao('12. Tela em Integrações nas larguras pedidas')
   for (const [w, h] of [[360, 780], [390, 844], [412, 915], [768, 1024], [1366, 768], [1920, 1080]]) {

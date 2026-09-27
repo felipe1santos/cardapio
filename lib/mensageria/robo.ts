@@ -48,7 +48,8 @@ export function classificarIntencao(tipo: TipoMensagem, texto: string | null): I
  */
 export function extrairBairro(texto: string | null): string | null {
   const bruto = (texto ?? '').replace(/\s+/g, ' ').trim()
-  const m = /^(?:5\b|.*?\b(?:taxa|frete)\b)(?:\s+de\s+entrega)?(?:\s+(?:para|pra|pro|no|na|em|do|da|de|bairro))*\s*[:\-–]?\s*(.+)$/i.exec(bruto)
+  // Conectores só como palavra inteira ("pra" não come o começo de "Praia").
+  const m = /^(?:5\b|.*?\b(?:taxa|frete)\b)(?:\s+de\s+entrega\b)?(?:\s+(?:para|pra|pro|no|na|em|do|da|de|bairro)\b)*\s*[:\-–]?\s*(.+)$/i.exec(bruto)
   const b = m?.[1]?.replace(/[?!.]+$/, '').trim()
   if (!b || b.length < 2 || b.length > 60 || /^\d+$/.test(b)) return null
   return b

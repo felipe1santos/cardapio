@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { classificarIntencao, numeroPermitido, linkDaLoja, textoBoasVindas, textoPadrao, textoStatus, variantesTelefone } from './robo'
+import {
+  classificarIntencao, extrairBairro, numeroPermitido, linkDaLoja, roboLiberadoNoServidor, textoBoasVindas, textoCardapio,
+  textoHorario, textoPadrao, textoStatus, textoTaxa, variantesTelefone,
+} from './robo'
 import { limparErro, mascararTelefone } from './mascara'
 import { interpretarWebhookEvolution } from './provedor'
 
@@ -110,5 +113,59 @@ describe('numeroPermitido (lista branca do teste real)', () => {
     expect(numeroPermitido('552799991234', '5527999991234')).toBe(true)
     expect(numeroPermitido('5527999991235', '5527999991234')).toBe(false)
     expect(numeroPermitido('5511912340001', '5527999991234, 5527988887777')).toBe(false)
+  })
+})
+
+describe('fluxos novos da v1', () => {
+  it('extrai o bairro da pergunta de taxa', () => {
+    expect(extrairBairro('taxa Centro')).toBe('Centro')
+    expect(extrairBairro('qual a taxa de entrega para Praia do Canto?')).toBe('Praia do Canto')
+    expect(extrairBairro('5 jardim camburi')).toBe('jardim camburi')
+    expect(extrairBairro('frete pro bairro Jacaraípe')).toBe('Jacaraípe')
+    // Conector só como palavra inteira: "pra" não pode comer o começo de "Praia".
+    expect(extrairBairro('5 praia do canto')).toBe('praia do canto')
+    expect(extrairBairro('taxa para Praia da Costa')).toBe('Praia da Costa')
+    expect(extrairBairro('taxa Nova Almeida')).toBe('Nova Almeida')
+    expect(extrairBairro('taxa de entrega Dona Maria')).toBe('Dona Maria')
+    expect(extrairBairro('taxa')).toBeNull()
+    expect(extrairBairro('5')).toBeNull()
+  })
+  const frete = { bairros: [{ bairro: 'Centro', taxa: 5 }, { bairro: 'Praia do Canto', taxa: 0 }], temRaio: false, taxaPadrao: 8, foraDaLista: 'bloquear' as const }
+  it('taxa: bairro cadastrado, grátis, fora da lista, sem bairro e com raio', () => {
+    expect(textoTaxa(loja, 'centro', frete)).toMatch(/Centro\* é \*R\$\s?5,00\*/)
+    expect(textoTaxa(loja, 'praia do canto', frete)).toContain('*grátis*')
+    expect(textoTaxa(loja, 'Marte', frete)).toMatch(/Não encontrei \*Marte\*/)
+    expect(textoTaxa(loja, 'Marte', { ...frete, foraDaLista: 'taxa_padrao' })).toMatch(/R\$\s?8,00/)
+    expect(textoTaxa(loja, null, frete)).toMatch(/taxa Centro/)
+    expect(textoTaxa(loja, 'Marte', { ...frete, temRaio: true })).toMatch(/depende da distância/)
+    expect(textoTaxa(loja, 'Centro', { ...frete, temRaio: true })).toMatch(/pode sair menor/)
+    expect(textoTaxa(loja, 'Centro', frete)).toContain(linkDaLoja('lanches-ze'))
+  })
+  it('horário: aberto/fechado pela trava manual e grade por dia', () => {
+    const grade = { '1': [{ abre: '18:00', fecha: '23:00' }], '5': [{ abre: '11:00', fecha: '14:00' }, { abre: '18:00', fecha: '23:30' }] }
+    expect(textoHorario(loja, { statusLoja: 'aberto_manual', horarioFuncionamento: grade })).toMatch(/abertos/)
+    const fechado = textoHorario(loja, { statusLoja: 'fechado_manual', horarioFuncionamento: grade })
+    expect(fechado).toMatch(/fechados/)
+    expect(fechado).toContain('Segunda: 18:00–23:00')
+    expect(fechado).toContain('Sexta: 11:00–14:00 e 18:00–23:30')
+    expect(fechado).toContain('Domingo: fechado')
+    expect(textoHorario(loja, { statusLoja: 'automatico', horarioFuncionamento: null })).not.toContain('Segunda')
+  })
+  it('mídia: resposta própria para áudio, imagem, figurinha e localização', () => {
+    expect(textoPadrao(loja, 'audio')).toMatch(/ouvir áudios/)
+    expect(textoPadrao(loja, 'imagem')).toMatch(/ver imagens/)
+    expect(textoPadrao(loja, 'figurinha')).toMatch(/figurinha/)
+    expect(textoPadrao(loja, 'localizacao')).toMatch(/taxa\* e o seu bairro/)
+    for (const t of ['audio', 'imagem', 'localizacao'] as const) expect(textoPadrao(loja, t)).toContain(linkDaLoja('lanches-ze'))
+    expect(textoPadrao(loja, 'audio', true)).toMatch(/^Olá! 👋/)
+  })
+  it('cardápio com link; nada de preço inventado', () => {
+    expect(textoCardapio(loja)).toContain(linkDaLoja('lanches-ze'))
+    expect(textoCardapio(loja)).not.toMatch(/R\$/)
+  })
+  it('trava do servidor: só com WHATSAPP_ROBO_LIBERADO=1', () => {
+    expect(roboLiberadoNoServidor({})).toBe(false)
+    expect(roboLiberadoNoServidor({ WHATSAPP_ROBO_LIBERADO: 'true' })).toBe(false)
+    expect(roboLiberadoNoServidor({ WHATSAPP_ROBO_LIBERADO: '1' })).toBe(true)
   })
 })
