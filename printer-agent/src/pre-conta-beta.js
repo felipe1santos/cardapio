@@ -87,10 +87,8 @@ function montarPreContaBeta(s) {
     if (texto(s.observacao)) linhas.push(['Obs.:', texto(s.observacao)])
     for (const [r, v] of linhas) b.push({ t: 'dado', rotulo: r, valor: v, negrito: false })
   }
-  b.push({ t: 'linha_grossa' })
-
-  // Itens: tabela compacta, sem linha entre os itens.
-  b.push({ t: 'secao_sem_linha', s: 'ITENS CONSUMIDOS' })
+  // Itens: faixa preta da seção e tabela compacta, sem linha entre os itens.
+  b.push({ t: 'secao', s: 'ITENS CONSUMIDOS' })
   b.push({ t: 'tabela_cab' })
   b.push({ t: 'regua' })
   const itens = Array.isArray(s.itens) ? s.itens : []
@@ -111,9 +109,8 @@ function montarPreContaBeta(s) {
     if (texto(it.observacao)) subs.push(`Obs.: ${texto(it.observacao)}`)
     b.push({ t: 'tabela_item', qtd: String(it.quantidade), desc: maiusculo(it.nome), unit: num(it.preco_unitario), total: num(it.subtotal), subs })
   }
-  b.push({ t: 'regua' })
-
-  // Totais
+  // Valores: faixa preta da seção.
+  b.push({ t: 'secao', s: 'VALORES' })
   b.push({ t: 'par_pc', rotulo: 'Subtotal', valor: brl(s.subtotal) })
   if (Number(s.taxa) > 0 || Number(s.taxa_percentual) > 0) {
     b.push({ t: 'par_pc', rotulo: `Servico ${pct(s.taxa_percentual)}% opcional`, valor: brl(s.taxa) })
@@ -126,8 +123,8 @@ function montarPreContaBeta(s) {
     b.push({ t: 'par_pc', rotulo: 'Total da conta', valor: brl(s.total) })
     b.push({ t: 'par_pc', rotulo: 'Ja pago', valor: brl(pago) })
   }
-  b.push({ t: 'linha_grossa' })
-  b.push({ t: 'total_grande', rotulo: 'TOTAL A PAGAR', valor: brl(pago > 0 ? s.restante : s.total) })
+  // TOTAL A PAGAR numa faixa preta, grande (o que o cliente procura primeiro).
+  b.push({ t: 'faixa_total', rotulo: 'TOTAL A PAGAR', valor: brl(pago > 0 ? s.restante : s.total) })
 
   // Rodapé
   b.push({ t: 'centro', s: 'CONFIRA OS ITENS ANTES DO PAGAMENTO', negrito: true })

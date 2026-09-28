@@ -5,9 +5,19 @@ Fonte oficial do layout — não usar interpretação livre nem o layout antigo:
 - `mockup-comanda-cozinha-termica-menuzia.png` — comanda da cozinha (576 pontos = 80 mm).
 - `pre-conta-menuzia-v4.png` — pré-conta / Recibo / Extrato (576 pontos = 80 mm).
 
-O renderizador do Beta (`printer-agent/src/print-beta.ps1`) é uma réplica medida desses
-dois PNGs: fontes DejaVu (as dos modelos, embutidas em `printer-agent/src/fonts`), cores,
-margens (52 na comanda, 28 na pré-conta) e a distância de cada bloco ao anterior.
+O renderizador do Beta (`printer-agent/src/print-beta.ps1`) segue a estrutura, a ordem dos
+blocos, as faixas pretas, as fontes (DejaVu, embutidas em `printer-agent/src/fonts`) e os
+textos desses dois PNGs. Em 2026-09-28 o dono pediu ajustes de LEITURA sobre essa base, que
+valem daqui em diante:
+
+- fontes cerca de 30% maiores e margem de 18 pontos (mais largura útil);
+- cada seção numa faixa preta: ITENS CONSUMIDOS, VALORES e TOTAL A PAGAR na pré-conta;
+  ITENS DO PEDIDO, VALORES e DADOS na comanda;
+- cinza só escuro (a térmica não imprime cinza claro) e QR maior;
+- no papel de 58 mm as fontes encolhem no máximo até 78%.
+
+Impressora que não é térmica (PDF, XPS, laser): o documento sai no tamanho físico do papel
+(80/58 mm), não ponto a ponto — antes, num PDF de 600 dpi, saía com ~2,4 cm de largura.
 
 Conferir qualquer mudança lado a lado antes de publicar:
 

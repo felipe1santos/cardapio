@@ -58,6 +58,6 @@ export const DOWNLOAD_ASSISTENTE_ATUAL = {
   url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.23/AssistenteImpressaoMenuzia-Setup-0.1.23.exe',
 }
 export const DOWNLOAD_ASSISTENTE_BETA = {
-  versao: '0.2.0-beta.3',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.3/AssistenteMenuziaBeta-Setup-0.2.0-beta.3.exe',
+  versao: '0.2.0-beta.4',
+  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.4/AssistenteMenuziaBeta-Setup-0.2.0-beta.4.exe',
 }

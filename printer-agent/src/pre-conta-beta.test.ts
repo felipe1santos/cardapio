@@ -12,25 +12,26 @@ const { montarPreContaBeta, textoDoDocumento } = require('./pre-conta-beta.js') 
 const { CONTAS } = require('../test/fixtures-pre-conta.cjs') as { CONTAS: Record<string, Record<string, unknown>> }
 
 const par = (d: Doc, r: string) => d.blocos.find((b) => b.t === 'par_pc' && b.rotulo === r)?.valor
-const total = (d: Doc) => d.blocos.find((b) => b.t === 'total_grande')?.valor
+const total = (d: Doc) => d.blocos.find((b) => b.t === 'faixa_total')?.valor
 const mesa = (d: Doc) => d.blocos.find((b) => b.t === 'mesa')!
 
-describe('Pré-conta do Beta — modelo oficial (pre-conta-menuzia-v4)', () => {
-  it('ordem do modelo: data+logo, linha, PRE-CONTA, não fiscal, mesa, linha, ITENS CONSUMIDOS, tabela, totais, TOTAL A PAGAR, rodapé', () => {
+describe('Pré-conta do Beta — modelo oficial, com faixas de seção para leitura (2026-09-28)', () => {
+  it('ordem: data+logo, linha, PRE-CONTA, não fiscal, mesa, faixa ITENS CONSUMIDOS, tabela, faixa VALORES, totais, faixa TOTAL A PAGAR, rodapé', () => {
     const d = montarPreContaBeta(CONTAS.mesa)
     expect(d.versao).toBe(2)
     expect(d.modelo).toBe('pre_conta')
     expect(d.blocos.map((b) => b.t)).toEqual([
-      'topo_data', 'linha_grossa', 'faixa_arred', 'centro', 'mesa', 'linha_grossa', 'secao_sem_linha', 'tabela_cab', 'regua',
-      'tabela_item', 'tabela_item', 'tabela_item', 'regua',
-      'par_pc', 'par_pc', 'par_pc', 'par_pc', 'par_pc', 'linha_grossa', 'total_grande',
+      'topo_data', 'linha_grossa', 'faixa_arred', 'centro', 'mesa', 'secao', 'tabela_cab', 'regua',
+      'tabela_item', 'tabela_item', 'tabela_item',
+      'secao', 'par_pc', 'par_pc', 'par_pc', 'par_pc', 'par_pc', 'faixa_total',
       'centro', 'tracejado', 'centro', 'espaco', 'centro', 'corte',
     ])
+    expect(d.blocos.filter((b) => b.t === 'secao').map((b) => b.s)).toEqual(['ITENS CONSUMIDOS', 'VALORES'])
+    expect(d.blocos.find((b) => b.t === 'faixa_total')?.rotulo).toBe('TOTAL A PAGAR')
     expect(d.blocos.find((b) => b.t === 'faixa_arred')?.s).toBe('PRE-CONTA')
     expect(d.blocos.filter((b) => b.t === 'centro').map((b) => b.s)).toEqual([
       '*** NAO E DOCUMENTO FISCAL ***', 'CONFIRA OS ITENS ANTES DO PAGAMENTO', 'Esta pre-conta pode ser paga no caixa', 'Obrigado pela preferencia!',
     ])
-    expect(d.blocos.find((b) => b.t === 'secao_sem_linha')?.s).toBe('ITENS CONSUMIDOS')
   })
 
   it('mesa grande à esquerda com o número embaixo; comanda, atendente e abertura à direita', () => {
