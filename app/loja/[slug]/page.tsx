@@ -51,14 +51,21 @@ const carregarLoja = cache((slug: string) => buscarRestaurantePorSlug(getVitrine
  * Aqui ela passa a ser a mesma `--tema-primaria` que pinta os botões da vitrine.
  * Se a loja não existe ou o banco não responde, fica o ciano padrão do layout.
  */
+/**
+ * Sem zoom na vitrine: a pinça quebrava o layout de app no celular. Só aqui — o
+ * painel, o PDV e as mesas seguem com o viewport da raiz (zoom liberado). Com
+ * `maximum-scale=1` o iPhone também para de ampliar a tela ao focar um campo.
+ */
+const VIEWPORT_SEM_ZOOM: Viewport = { maximumScale: 1, userScalable: false }
+
 export async function generateViewport({ params }: { params: Promise<{ slug: string }> }): Promise<Viewport> {
   const { slug } = await params
   try {
     const loja = await carregarLoja(slug)
-    if (!loja) return {}
-    return { themeColor: resolverPaleta(loja.corTema).primaria }
+    if (!loja) return VIEWPORT_SEM_ZOOM
+    return { ...VIEWPORT_SEM_ZOOM, themeColor: resolverPaleta(loja.corTema).primaria }
   } catch {
-    return {}
+    return VIEWPORT_SEM_ZOOM
   }
 }
 

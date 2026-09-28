@@ -1,4 +1,5 @@
 import { fonteVitrine } from "@/lib/fonte-vitrine";
+import { VitrineSemZoom } from "@/components/vitrine-sem-zoom";
 
 /**
  * A vitrine usa Montserrat; o painel segue em Inter (app/layout.tsx).
@@ -16,5 +17,11 @@ import { fonteVitrine } from "@/lib/fonte-vitrine";
  * cardápio da mesa/QR.
  */
 export default function LayoutVitrine({ children }: { children: React.ReactNode }) {
-  return <div className={fonteVitrine.variable}>{children}</div>;
+  // `vitrine-sem-zoom`: pinça e toque duplo desligados só na vitrine (globals.css).
+  return (
+    <div className={`${fonteVitrine.variable} vitrine-sem-zoom`}>
+      <VitrineSemZoom />
+      {children}
+    </div>
+  );
 }

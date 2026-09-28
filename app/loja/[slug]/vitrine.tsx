@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Megaphone, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
+import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
 import { erroDoTroco } from '@/lib/troco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { ETIQUETAS_ITEM, SELO_FAVORITO, mostraSeloFavorito, tagDoItem } from '@/lib/etiqueta-item'
@@ -157,7 +158,7 @@ const MOTIVO_LOGIN_CUPOM = 'Entre com seu telefone para usar este cupom.'
 /** Rótulo curto do benefício de um cupom da vitrine ("10% de desconto", "Item grátis"…). */
 function labelCupom(c: Pick<CupomVitrine, 'tipo' | 'valor' | 'itemNome'>): string {
   switch (c.tipo) {
-    case 'item_gratis': return `${c.itemNome ?? 'Item'} grátis`
+    case 'item_gratis': return `${nomeLimpo(c.itemNome) || 'Item'} grátis`
     case 'entrega_gratis': return 'Entrega grátis'
     case 'desconto_percentual': return `${c.valor ?? 0}% de desconto`
     default: return `${brl(c.valor ?? 0)} de desconto`
@@ -342,6 +343,42 @@ function FlashSelecao({ ativo, chave }: { ativo: boolean; chave?: string | numbe
  * `<span>`. O que o lojista digitar continua sendo texto, mesmo que pareça HTML
  * — ver `lib/descricao-rica.ts`.
  */
+/**
+ * Nome do item com o negrito e a cor que vieram na marcação do cadastro — no
+ * cartão e na ficha do produto. Nas outras telas o nome já chega limpo
+ * (`nomeLimpo`, lib/nome-item.ts), sem `**` nem `[[cor]]` para o cliente ver.
+ */
+function NomeItem({ texto }: { texto: string }) {
+  const pedacos = useMemo(() => pedacosDoNome(texto), [texto])
+  return (
+    <>
+      {pedacos.map((p, i) =>
+        p.negrito || p.cor ? (
+          <span key={i} style={{ fontWeight: p.negrito ? 700 : undefined, color: p.cor ?? undefined }}>
+            {p.texto}
+          </span>
+        ) : (
+          <span key={i}>{p.texto}</span>
+        ),
+      )}
+    </>
+  )
+}
+
+/**
+ * Cardápio com o nome de cada item limpo. O original (com a marcação) fica em
+ * `nomeFormatado` para o cartão e a ficha desenharem a cor. Só exibição: o pedido
+ * vai pelo `itemId`, e sabor/tamanho/complemento não mudam (o servidor casa por nome).
+ */
+function comNomesLimpos(itens: ItemCardapio[]): ItemCardapio[] {
+  return itens.map((item) => (nomeLimpo(item.nome) === item.nome ? item : { ...item, nome: nomeLimpo(item.nome), nomeFormatado: item.nome }))
+}
+
+/** Histórico do cliente com o nome dos itens limpo (o pedido guarda o nome do cadastro). */
+function pedidosComNomesLimpos(pedidos: PedidoCliente[]): PedidoCliente[] {
+  return pedidos.map((p) => ({ ...p, itens: p.itens.map((i) => ({ ...i, nome: nomeLimpo(i.nome) })) }))
+}
+
 function DescricaoItem({ texto, className = '' }: { texto: string; className?: string }) {
   const pedacos = useMemo(() => pedacosDaDescricao(texto), [texto])
   if (pedacos.length === 0) return null
@@ -554,7 +591,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
             <SeloFavorito />
           </span>
         )}
-        <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2 min-h-[40px]'} mb-[8px] text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]`}>{item.nome}</div>
+        <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2 min-h-[40px]'} mb-[8px] text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]`}><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
         {item.descricao && !compact && (
           <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
@@ -597,7 +634,7 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
             <TagBadge tag={tagDoItem(item)} />
           </span>
         )}
-        <div className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">{item.nome}</div>
+        <div className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
         {item.descricao && (
           <DescricaoItem texto={item.descricao} className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
@@ -843,10 +880,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           ])
         if (cancelled) return
         if (lojaAtual) setRestaurante(lojaAtual)
-        setGroups(cardapio)
+        setGroups(cardapio.map((g) => ({ ...g, itens: comNomesLimpos(g.itens) })))
         setBairros(taxasBairro)
         setTemRaio(temRaioLoja)
-        setOrderBumps(bumps)
+        setOrderBumps(comNomesLimpos(bumps))
         setTamanhosPizza(tamanhosPizzaData)
         setBordasPizza(bordasData)
         // Sem repetir a "Massa tradicional" que a ficha já oferece (lib/massa-padrao).
@@ -2128,7 +2165,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // Hidrata do cache local (salvo no celular do cliente) pra consulta imediata/offline.
     try {
       const cached = localStorage.getItem(`menuzia_pedidos_${slug}`)
-      if (cached && active) setMeusPedidos(JSON.parse(cached) as PedidoCliente[])
+      if (cached && active) setMeusPedidos(pedidosComNomesLimpos(JSON.parse(cached) as PedidoCliente[]))
     } catch { /* cache corrompido — ignora */ }
     const load = async (showSpinner: boolean) => {
       if (showSpinner && active) setPedidosLoading(true)
@@ -2136,7 +2173,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         const res = await fetch(`/api/loja/${slug}/conta/pedidos?telefone=${encodeURIComponent(clienteSessao.telefone)}&token=${encodeURIComponent(clienteSessao.token)}`)
         if (res.ok && active) {
           const data = (await res.json()) as PedidoCliente[]
-          setMeusPedidos(data)
+          setMeusPedidos(pedidosComNomesLimpos(data))
           // Salva no celular pra consultar sempre que quiser.
           try { localStorage.setItem(`menuzia_pedidos_${slug}`, JSON.stringify(data)) } catch { /* quota/privado */ }
         }
@@ -2203,7 +2240,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     const linhas: string[] = ['Acabei de fazer um pedido agora mesmo! 🛎️', '']
     for (const l of cart) {
       const variacao = [l.tamanhoNome, l.saborNome].filter(Boolean).join(' - ')
-      linhas.push(`• ${l.qty}x ${l.name}${variacao ? ` (${variacao})` : ''}`)
+      linhas.push(`• ${l.qty}x ${nomeLimpo(l.name)}${variacao ? ` (${nomeLimpo(variacao)})` : ''}`)
       const contagem = new Map<string, number>()
       for (const a of l.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
       for (const [nome, qtd] of contagem) linhas.push(`   + ${qtd > 1 ? `${qtd}x ` : ''}${nome}`)
@@ -2211,7 +2248,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     }
     linhas.push('')
     if (desconto > 0) linhas.push(`Desconto${cupomAplicado ? ` (cupom ${cupomAplicado.codigo})` : ' (prêmio fidelidade)'}: -${brl(desconto)}`)
-    if (beneficio?.tipo === 'item_gratis') linhas.push(`Item grátis: ${beneficio.itemNome ?? 'prêmio'}`)
+    if (beneficio?.tipo === 'item_gratis') linhas.push(`Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`)
     linhas.push(`Total: ${brl(total)}`)
     linhas.push(`Pagamento: ${rotuloPagamento(payMethod, tipoPedido)}`)
     linhas.push(tipoPedido === 'retirada' ? 'Retirada no local' : 'Entrega')
@@ -2562,7 +2599,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           {beneficioInutilNaRetirada
             ? 'Na retirada não há taxa de entrega, então este benefício não vai descontar nada — e mesmo assim seria consumido. Troque para Entrega ou remova aqui ao lado.'
             : beneficio?.tipo === 'item_gratis'
-              ? `Item grátis: ${beneficio.itemNome ?? 'prêmio'}`
+              ? `Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`
               : beneficio?.tipo === 'entrega_gratis'
                 ? 'Entrega grátis neste pedido'
                 : beneficio?.tipo === 'desconto_percentual'
@@ -2589,7 +2626,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <ProductThumb item={item} size={110} />
             </div>
             <div className="flex flex-1 flex-col p-2">
-              <div className="line-clamp-2 min-h-[30px] text-[11.5px] font-semibold leading-snug text-text-main">{item.nome}</div>
+              <div className="line-clamp-2 min-h-[30px] text-[11.5px] font-semibold leading-snug text-text-main"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
               <div className="mt-0.5 text-[11.5px] font-bold text-promo">{brl(item.promocaoPreco ?? item.preco)}</div>
               <div className="mt-1.5 rounded bg-[var(--tema-primaria)] py-1 text-center text-[10.5px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
                 + Adicionar
@@ -2616,29 +2653,29 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   /** Linha do carrinho — clicável pra editar (complementos, observação, quantidade). */
   const renderCartLine = (line: CartLine, hasBorder: boolean) => (
     <div key={line.key} className={['flex items-start gap-3 p-3.5', hasBorder ? 'border-b border-border' : ''].join(' ')}>
-      <button onClick={() => editCartLine(line)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-label={`Editar ${line.name}`}>
+      <button onClick={() => editCartLine(line)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-label={`Editar ${nomeLimpo(line.name)}`}>
         <div className="h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-md border border-border">
-          <ProductThumb item={{ nome: line.name, imagemUrl: line.imagemUrl }} size={84} />
+          <ProductThumb item={{ nome: nomeLimpo(line.name), imagemUrl: line.imagemUrl }} size={84} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-1.5">
-            <span className="min-w-0 text-[15px] font-bold leading-snug">{line.name}</span>
+            <span className="min-w-0 text-[15px] font-bold leading-snug">{nomeLimpo(line.name)}</span>
             <Pencil className="mt-0.5 h-3 w-3 flex-shrink-0 text-text-subtle/60" strokeWidth={2} />
           </div>
           {(line.tamanhoNome || line.saborNome) && (
             <div className="mt-0.5 truncate text-[12.5px] font-medium text-text-subtle">
-              {[line.tamanhoNome, line.saborNome].filter(Boolean).join(' · ')}
+              {nomeLimpo([line.tamanhoNome, line.saborNome].filter(Boolean).join(' · '))}
             </div>
           )}
           {(line.bordaNome || line.massaNome) && (
-            <div className="mt-0.5 truncate text-[12.5px] text-text-subtle">{[line.bordaNome, line.massaNome].filter(Boolean).join(', ')}</div>
+            <div className="mt-0.5 truncate text-[12.5px] text-text-subtle">{nomeLimpo([line.bordaNome, line.massaNome].filter(Boolean).join(', '))}</div>
           )}
           {line.addons.length > 0 && (
             <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-text-subtle">
               {(() => {
                 const contagem = new Map<string, number>()
                 for (const a of line.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
-                return [...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', ')
+                return nomeLimpo([...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', '))
               })()}
             </div>
           )}
@@ -3552,17 +3589,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                   <ul className="mt-3 space-y-3">
                     {p.itens.map((i, idx) => {
-                      const variacao = [i.tamanhoNome, i.saborNome].filter(Boolean).join(' - ')
+                      const variacao = nomeLimpo([i.tamanhoNome, i.saborNome].filter(Boolean).join(' - '))
                       return (
                         <li key={idx} className="flex gap-3 border-b border-border pb-3 last:border-none">
                           <span className="flex h-7 min-w-[30px] items-center justify-center rounded border border-border px-1.5 text-[12px] font-bold text-text-main">{i.quantidade}x</span>
                           <div className="min-w-0 flex-1">
                             <p className="text-[14px] font-semibold text-text-main">{i.nome}</p>
                             {(variacao || i.descricao) && (
-                              <p className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{[variacao, i.descricao].filter(Boolean).join(' · ')}</p>
+                              <p className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{[variacao, nomeLimpo(i.descricao)].filter(Boolean).join(' · ')}</p>
                             )}
                             {i.complementos.length > 0 && (
-                              <p className="mt-0.5 text-[12px] text-text-subtle">+ {i.complementos.join(', ')}</p>
+                              <p className="mt-0.5 text-[12px] text-text-subtle">+ {nomeLimpo(i.complementos.join(', '))}</p>
                             )}
                             {i.observacao && (
                               <p className="mt-1 text-[12px] font-semibold uppercase text-text-main">OBS: {i.observacao}</p>
@@ -3747,7 +3784,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     {cuponsLoja.map((c) => (
                       <div key={c.id} className="rounded-md border border-border bg-white p-3.5 shadow-sm">
                         <div className="flex items-center gap-3">
-                          <ProductThumb item={{ nome: c.itemNome ?? labelCupom(c), imagemUrl: c.itemImagemUrl ?? null }} size={48} fallbackIcon={iconePremio(c.tipo)} />
+                          <ProductThumb item={{ nome: nomeLimpo(c.itemNome) || labelCupom(c), imagemUrl: c.itemImagemUrl ?? null }} size={48} fallbackIcon={iconePremio(c.tipo)} />
                           <span className="flex-shrink-0 rounded border border-dashed border-[var(--tema-primaria)] bg-[var(--tema-light)] px-2.5 py-1.5 text-[13px] font-extrabold tracking-widest text-[var(--tema-primaria)]">{c.codigo}</span>
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-[13px] font-bold text-text-main">{labelCupom(c)}</div>
@@ -3881,11 +3918,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block text-[13px] font-semibold leading-[17px] text-[var(--v-texto)]">
-                        {l.qty}× {l.name}
+                        {l.qty}× {nomeLimpo(l.name)}
                       </span>
                       {(l.tamanhoNome || l.saborNome || l.addons.length > 0 || l.obs) && (
                         <span className="mt-0.5 block text-[11px] leading-[15px] text-[var(--v-secundario)]">
-                          {[l.tamanhoNome, l.saborNome, ...l.addons.map((a) => a.nome), l.obs].filter(Boolean).join(' · ')}
+                          {nomeLimpo([l.tamanhoNome, l.saborNome, ...l.addons.map((a) => a.nome), l.obs].filter(Boolean).join(' · '))}
                         </span>
                       )}
                     </span>
@@ -4018,7 +4055,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><HandPlatter className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
               <div className="p-4.5">
-                <h2 className="text-xl font-bold tracking-tight">{productSheet.nome}</h2>
+                <h2 className="text-xl font-bold tracking-tight"><NomeItem texto={productSheet.nomeFormatado ?? productSheet.nome} /></h2>
                 {(mostraSeloFavorito(productSheet) || tagDoItem(productSheet)) && (
                   <span className="mt-[6px] flex flex-wrap gap-[6px]">
                     {mostraSeloFavorito(productSheet) && <SeloFavorito />}
@@ -4039,7 +4076,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       return (
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoPizzaId(tamanho.id)} className={['relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 text-left last:border-none', fichaGaveta ? 'py-3.5' : 'py-2.5'].join(' ')}>
                           <FlashSelecao ativo={isSelected} />
-                          <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span>
+                          <span className="relative flex-1 text-[14.5px] font-semibold">{nomeLimpo(tamanho.nome)} <span className="font-normal text-text-subtle">({tamanho.fatias} fatias)</span>
                             {/* Quantos sabores cabem é o que decide o tamanho pra
                                 quem quer meio a meio, e estava escrito só depois,
                                 no cabeçalho da lista de sabores. */}
@@ -4094,8 +4131,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         >
                           <FlashSelecao ativo={isSelected} />
                           <div className="relative flex-1">
-                            <div className="text-[14.5px] font-semibold leading-snug">{sabor.nome}</div>
-                            {sabor.descricao && <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{sabor.descricao}</div>}
+                            <div className="text-[14.5px] font-semibold leading-snug">{nomeLimpo(sabor.nome)}</div>
+                            {sabor.descricao && <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{nomeLimpo(sabor.descricao)}</div>}
                           </div>
                           <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(preco)}</span>
                           <span
@@ -4136,7 +4173,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           return (
                             <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className={linhaOpcao}>
                               <FlashSelecao ativo={isSelected} />
-                              <span className="relative flex-1 text-[14.5px] font-semibold">{borda.nome}</span>
+                              <span className="relative flex-1 text-[14.5px] font-semibold">{nomeLimpo(borda.nome)}</span>
                               <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(borda.preco)}</span>
                               <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -4162,7 +4199,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           return (
                             <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className={linhaOpcao}>
                               <FlashSelecao ativo={isSelected} />
-                              <span className="relative flex-1 text-[14.5px] font-semibold">{massa.nome}</span>
+                              <span className="relative flex-1 text-[14.5px] font-semibold">{nomeLimpo(massa.nome)}</span>
                               <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(massa.preco)}</span>
                               <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -4183,7 +4220,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       return (
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-3 text-left last:border-none">
                           <FlashSelecao ativo={isSelected} />
-                          <span className="relative flex-1 text-[14.5px] font-semibold">{tamanho.nome}</span>
+                          <span className="relative flex-1 text-[14.5px] font-semibold">{nomeLimpo(tamanho.nome)}</span>
                           <span className={['relative text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(tamanho.preco)}</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -4223,7 +4260,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                             )}
-                            <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', isSelected ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{comp.nome}</span>
+                            <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', isSelected ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{nomeLimpo(comp.nome)}</span>
                             {comp.preco > 0
                               ? <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(comp.preco)}</span>
                               : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold transition-colors', isSelected ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
@@ -4279,7 +4316,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                         )}
-                        <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', selectedAddons.has(addon.nome) ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{addon.nome}</span>
+                        <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', selectedAddons.has(addon.nome) ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{nomeLimpo(addon.nome)}</span>
                         {addon.preco > 0
                           ? <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', selectedAddons.has(addon.nome) ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(addon.preco)}</span>
                           : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold transition-colors', selectedAddons.has(addon.nome) ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
@@ -4418,7 +4455,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       </div>
                       <div className="truncate text-[12px] text-[#15803D]/80">
                         {beneficio?.tipo === 'item_gratis'
-                          ? `Item grátis: ${beneficio.itemNome ?? 'prêmio'}`
+                          ? `Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`
                           : beneficio?.tipo === 'entrega_gratis'
                             ? 'Entrega grátis neste pedido'
                             : `-${brl(desconto)} no pedido`}
@@ -4675,19 +4712,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 {cart.map((l, i) => (
                   <div key={l.key} className={['flex items-start gap-3 py-3', i < cart.length - 1 ? 'border-b border-border' : 'pb-1'].join(' ')}>
                     <div className="h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-md">
-                      <ProductThumb item={{ nome: l.name, imagemUrl: l.imagemUrl }} size={48} />
+                      <ProductThumb item={{ nome: nomeLimpo(l.name), imagemUrl: l.imagemUrl }} size={48} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-[15px] font-semibold leading-snug">
-                        {l.qty}× {l.name}
-                        {(l.tamanhoNome || l.saborNome) && <span className="font-normal text-text-subtle"> · {[l.tamanhoNome, l.saborNome].filter(Boolean).join(' - ')}</span>}
+                        {l.qty}× {nomeLimpo(l.name)}
+                        {(l.tamanhoNome || l.saborNome) && <span className="font-normal text-text-subtle"> · {nomeLimpo([l.tamanhoNome, l.saborNome].filter(Boolean).join(' - '))}</span>}
                       </div>
                       {l.addons.length > 0 && (
                         <div className="mt-0.5 text-[13px] leading-snug text-text-subtle">
                           {(() => {
                             const contagem = new Map<string, number>()
                             for (const a of l.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
-                            return [...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', ')
+                            return nomeLimpo([...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', '))
                           })()}
                         </div>
                       )}
@@ -4708,7 +4745,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 )}
                 {beneficio?.tipo === 'item_gratis' && (
                   <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]">
-                    <span>Item grátis</span><span className="truncate pl-3">{beneficio.itemNome ?? 'prêmio'}</span>
+                    <span>Item grátis</span><span className="truncate pl-3">{nomeLimpo(beneficio.itemNome) || 'prêmio'}</span>
                   </div>
                 )}
                 <div className="flex justify-between py-1 text-[14px]">

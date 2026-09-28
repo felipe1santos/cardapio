@@ -41,6 +41,13 @@ html:has(.font-loja) {
   background-color: #f8fafc;
 }
 
+/* Vitrine do cliente sem zoom (app/loja/[slug]/layout.tsx): só rolagem, sem
+   pinça nem toque duplo. `touch-action` não herda, mas vale para tudo o que
+   está dentro do elemento — por isso vai no <html>. O painel não tem a classe. */
+html:has(.vitrine-sem-zoom) {
+  touch-action: pan-x pan-y;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

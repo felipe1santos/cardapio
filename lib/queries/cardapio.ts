@@ -94,6 +94,11 @@ export interface ItemCardapio {
   id: string
   grupoId: string | null
   nome: string
+  /**
+   * Nome como gravado, com a marcação de negrito/cor, quando a vitrine limpou
+   * `nome` para exibição (lib/nome-item.ts). Só existe no navegador da vitrine.
+   */
+  nomeFormatado?: string
   descricao: string
   preco: number
   imagemUrl: string | null
