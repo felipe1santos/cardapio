@@ -46,6 +46,9 @@ export function ehGravacaoDoUsuario(
   // Nexta (POST de leitura, refeita a cada atualização da Logística). Contá-los fazia o
   // despacho mostrar "Não foi possível salvar" com o pedido já atribuído.
   if (/^\/api\/pedidos\/[^/]+\/notificar$/.test(caminho) || caminho === '/api/admin/nexta/cotacao') return false
+  // Central de atendimento do WhatsApp: tem o próprio retorno (balão enviando/enviado,
+  // avisos) e um "Salvando…" no meio da tela a cada mensagem cobriria a conversa.
+  if (caminho.startsWith('/api/admin/whatsapp/atendimento/')) return false
   return caminho.includes('/rest/v1/') || caminho.includes('/storage/v1/object/') || caminho.startsWith('/api/')
 }
 

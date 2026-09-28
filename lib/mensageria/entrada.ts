@@ -7,7 +7,7 @@
  *
  * Nunca responde: grupo, status/broadcast/canal, mensagem sem número identificável, o
  * próprio número da loja, e mensagens da loja (fromMe). Mensagem da loja escrita à mão no
- * celular silencia a conversa; a que o próprio robô mandou (id do provedor ou mesmo texto
+ * celular silencia a conversa; a que o próprio robô (ou a Menuzia: atendente, aviso, disparo) mandou (id do provedor ou mesmo texto
  * há menos de 2 min) é ignorada.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -18,6 +18,7 @@ import {
   textoHorario, textoPadrao, textoStatus, textoTaxa, variantesTelefone, type Acao, type DadosLoja, type FreteLoja,
 } from './robo'
 import { statusDoProvedor } from './campanhas'
+import { ehSaidaNossa } from './historico'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { normalizarForaDaLista } from '@/lib/frete'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
@@ -166,16 +167,14 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
     r.soStatus = true
     return r
   }
-  // Nada é gravado (nem a mensagem) com o robô desligado ou o servidor não liberado:
-  // só o metadado do webhook, em registrarEvento.
+  // Servidor não liberado: nada é gravado (nem a mensagem), só o metadado do webhook.
   if (!roboLiberadoNoServidor()) {
     contar(r, 'robo_nao_liberado_no_servidor')
     return r
   }
-  if (!cfg.robo_ativo) {
-    contar(r, 'robo_desligado')
-    return r
-  }
+  // Robô da LOJA desligado (0107): a mensagem é gravada para a central de atendimento e a
+  // conversa entra como atendimento humano — mas o robô não responde.
+  const roboAtivo = cfg.robo_ativo === true
 
   const loja: DadosLoja = { nome: lojaRow.nome as string, slug: lojaRow.slug as string, boasVindas: (cfg.boas_vindas as string | null) ?? null }
   const restauranteId = lojaRow.id as string
@@ -208,6 +207,9 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
       // Mensagem de campanha: o eco dela não é a loja assumindo a conversa.
       if (!proprio && (await ecoDeCampanha(admin, restauranteId, m.waId, m.telefone))) { contar(r, 'enviada_pela_campanha'); continue }
       if (proprio) { contar(r, 'enviada_pelo_robo'); continue }
+      // Atendente, aviso de pedido, fidelidade, código do checkout ou disparo que a Menuzia
+      // mandou (0107): o eco não é a loja respondendo pelo celular.
+      if (await ehSaidaNossa(admin, restauranteId, m.telefone, m.waId, m.texto)) { contar(r, 'enviada_pela_menuzia'); continue }
     }
 
     const intencao = m.deMim ? 'outro' : classificarIntencao(m.tipo, m.texto)
@@ -221,12 +223,14 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
       p_instante: m.instante,
       p_intencao: intencao,
       p_nome: m.deMim ? null : m.nome,
+      p_robo_ativo: roboAtivo,
     })
     if (error) throw error
     const d = dec as { duplicada: boolean; conversa_id: string; mensagem_id?: string; acao: Acao; boas_vindas?: boolean; protecao?: boolean }
     if (d.duplicada) { contar(r, 'duplicada'); continue }
     r.processadas++
     if (m.deMim) { contar(r, 'loja_respondeu'); continue }
+    if (!roboAtivo) { contar(r, 'robo_desligado'); continue }
     if (d.acao === 'nada') { contar(r, d.protecao ? 'protecao_loop' : 'silenciada_ou_repetida'); continue }
 
     const saudar = d.boas_vindas === true

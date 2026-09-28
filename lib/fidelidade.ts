@@ -154,7 +154,7 @@ async function aplicarFidelidade(
   const numero = formatarTelefoneWhatsapp(telefone)
   if (!numero) return
 
-  await enviarWhatsapp(numero, mensagem, evolutionInstance)
+  await enviarWhatsapp(numero, mensagem, evolutionInstance, { admin, origem: 'automatico', restauranteId })
 }
 
 /**

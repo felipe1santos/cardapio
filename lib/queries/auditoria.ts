@@ -24,6 +24,7 @@ export interface EventoAuditoriaLinha {
 export const ROTULO_EVENTO: Record<string, string> = {
   'whatsapp.robo_configurado': 'Configurou o robô do WhatsApp',
   'whatsapp.conversa_reativada': 'Devolveu conversa ao robô do WhatsApp',
+  'whatsapp.atendente_respondeu': 'Respondeu cliente pela central de atendimento',
   'mesa.abriu': 'Abriu a mesa',
   'mesa.limpeza': 'Mesa em limpeza',
   'conta.fechamento_decisoes': 'Resolveu pendências no fechamento',

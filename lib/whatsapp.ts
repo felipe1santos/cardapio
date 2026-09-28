@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
+import { concluirSaida, registrarSaida } from '@/lib/mensageria/historico'
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
@@ -88,13 +89,31 @@ export function montarMensagemStatus(pedido: Pedido, status: StatusPedido): stri
   }
 }
 
-/** Envia uma mensagem de texto via Evolution API, usando a instância (WhatsApp) do restaurante. Retorna se o envio foi bem-sucedido. */
-export async function enviarWhatsapp(numero: string, texto: string, instance: string): Promise<boolean> {
+/**
+ * Registro no histórico da central de atendimento (0107): de onde a mensagem saiu.
+ * `textoExibido` substitui o texto no histórico quando ele não pode aparecer (código de
+ * verificação). Sem `restauranteId`, a loja é achada pela instância.
+ */
+export interface RegistroHistorico {
+  /** Cliente do banco com permissão de servidor (quem chama já tem). */
+  admin: SupabaseClient
+  origem: 'automatico' | 'disparo'
+  restauranteId?: string
+  textoExibido?: string
+}
+
+async function enviarTextoComId(numero: string, texto: string, instance: string): Promise<{ ok: boolean; id: string | null }> {
+  // Suíte local com provedor simulado (as DUAS variáveis; produção não tem nenhuma).
+  if (process.env.WHATSAPP_PROVEDOR === 'simulado' && process.env.WHATSAPP_SIMULADO_ARQUIVO) {
+    const { provedorAtual } = await import('@/lib/mensageria/provedor')
+    const r = await provedorAtual().enviarTexto(instance, numero, texto)
+    return { ok: r.ok, id: r.ok ? r.idExterno : null }
+  }
   const url = process.env.EVOLUTION_API_URL
   const apiKey = process.env.EVOLUTION_API_KEY
   if (!url || !apiKey) {
     console.warn('[whatsapp] EVOLUTION_API_URL/EVOLUTION_API_KEY não configurados — notificação não enviada.')
-    return false
+    return { ok: false, id: null }
   }
 
   try {
@@ -108,13 +127,40 @@ export async function enviarWhatsapp(numero: string, texto: string, instance: st
     })
     if (!res.ok) {
       console.error('[whatsapp] Evolution API respondeu', res.status, await res.text())
-      return false
+      return { ok: false, id: null }
     }
-    return true
+    // O id da mensagem (key.id) reconhece o eco no webhook; sem ele, o hash do texto.
+    const corpo = await res.json().catch(() => null) as { key?: { id?: unknown } } | null
+    return { ok: true, id: typeof corpo?.key?.id === 'string' ? corpo.key.id : null }
   } catch (err) {
     console.error('[whatsapp] falha ao enviar mensagem', err)
-    return false
+    return { ok: false, id: null }
   }
+}
+
+/** Envia uma mensagem de texto via Evolution API, usando a instância (WhatsApp) do restaurante. Retorna se o envio foi bem-sucedido. */
+export async function enviarWhatsapp(numero: string, texto: string, instance: string, registro?: RegistroHistorico): Promise<boolean> {
+  let saida: { mensagemId: string } | null = null
+  const admin = registro?.admin ?? null
+  if (registro && admin) {
+    try {
+      let restauranteId = registro.restauranteId ?? null
+      if (!restauranteId) {
+        const { data } = await admin.from('restaurantes').select('id').eq('evolution_instance', instance).maybeSingle()
+        restauranteId = (data?.id as string | undefined) ?? null
+      }
+      if (restauranteId) {
+        saida = await registrarSaida(admin, { restauranteId, telefone: numero, texto, textoExibido: registro.textoExibido, origem: registro.origem })
+      }
+    } catch {
+      saida = null // histórico é melhor esforço
+    }
+  }
+  const r = await enviarTextoComId(numero, texto, instance)
+  if (saida && admin) {
+    await concluirSaida(admin, saida.mensagemId, r.ok, r.id, r.ok ? null : 'falha no envio')
+  }
+  return r.ok
 }
 
 /** Busca o pedido, monta a mensagem apropriada para o status e envia via WhatsApp. Best-effort. */
@@ -139,7 +185,7 @@ export async function notificarPedido(admin: SupabaseClient, pedidoId: string, s
     : montarMensagemStatus(pedido, status)
   if (!texto) return 'sem_mensagem'
 
-  return (await enviarWhatsapp(numero, texto, evolutionInstance)) ? 'enviada' : 'falhou'
+  return (await enviarWhatsapp(numero, texto, evolutionInstance, { admin, origem: 'automatico' })) ? 'enviada' : 'falhou'
 }
 
 /** Envia imagem com legenda (caption) via Evolution API. */

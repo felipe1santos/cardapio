@@ -18,6 +18,7 @@ import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
 import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
+import { LancadorAtendimento } from '@/components/atendimento/lancador'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -324,6 +325,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
       {/* "Salvando… / Salvo" no centro da tela para toda gravação feita pelo usuário. */}
       <IndicadorSalvar />
+      {/* Central de atendimento do WhatsApp: só o botão (leve); o painel vem sob demanda. */}
+      {restauranteId && papel && pode(papel, 'whatsapp.atender') && <LancadorAtendimento restauranteId={restauranteId} />}
       {fichaAberta && loja && (
         <FichaDaLoja
           loja={{ ...loja, slug: storeSlug }}

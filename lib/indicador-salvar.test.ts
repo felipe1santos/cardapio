@@ -31,6 +31,13 @@ describe('ehGravacaoDoUsuario', () => {
     expect(ehGravacaoDoUsuario('POST', '/api/geo/cep', 100)).toBe(false)
   })
 
+  it('a central de atendimento do WhatsApp tem retorno próprio (sem "Salvando…" por mensagem)', () => {
+    expect(ehGravacaoDoUsuario('POST', '/api/admin/whatsapp/atendimento/conversas/7b1f/mensagens', 0)).toBe(false)
+    expect(ehGravacaoDoUsuario('POST', '/api/admin/whatsapp/atendimento/tags', 0)).toBe(false)
+    // O resto do WhatsApp (ligar o robô) continua contando.
+    expect(ehGravacaoDoUsuario('PUT', '/api/admin/whatsapp/robo', 0)).toBe(true)
+  })
+
   it('efeitos colaterais do clique não são o "salvar" (aviso de WhatsApp, cotação do Nexta)', () => {
     // Atribuir motoboy grava o pedido e, no mesmo tick, dispara o aviso ao cliente e
     // recota o Nexta. Se o WhatsApp da loja cai ou a cotação falha, o pedido FOI salvo —

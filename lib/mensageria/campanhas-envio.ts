@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { logFalhaEnvio, type ProvedorWhatsapp, type ResultadoEnvio } from './provedor'
 import { montarTextoCampanha } from './campanhas'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
+import { concluirSaida, registrarSaida } from './historico'
 
 interface EnvioReservado {
   id: string
@@ -36,6 +37,19 @@ export interface ResumoCampanhas {
 }
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** Disparo enviado: entra no histórico do cliente na central de atendimento (origem "disparo"). */
+async function registrarDisparo(admin: SupabaseClient, e: EnvioReservado, idExterno: string | null) {
+  const numero = telefoneWhatsapp(e.telefone)
+  if (!numero) return
+  const texto = montarTextoCampanha(e.mensagem, { incluirLink: e.incluir_link, token: e.token })
+  const tipo = e.tipo_mensagem === 'imagem' && e.imagem_url ? 'imagem' : e.tipo_mensagem === 'audio' && e.audio_url ? 'audio' : 'texto'
+  const saida = await registrarSaida(admin, {
+    restauranteId: e.restaurante_id, telefone: numero, texto: texto || (tipo === 'audio' ? '🎤 Áudio da campanha' : ''), origem: 'disparo', tipo,
+    midiaUrl: tipo === 'imagem' ? e.imagem_url : null,
+  })
+  await concluirSaida(admin, saida?.mensagemId, true, idExterno)
+}
 
 async function enviarUm(provedor: ProvedorWhatsapp, e: EnvioReservado): Promise<ResultadoEnvio> {
   if (!e.evolution_instance) return { ok: false, tipo: 'definitivo', erro: 'Instância WhatsApp não configurada' }
@@ -74,7 +88,10 @@ export async function processarCampanhas(
     })
     if (errFim) throw errFim
     r.processados++
-    if (final === 'enviado') r.enviados++
+    if (final === 'enviado') {
+      r.enviados++
+      await registrarDisparo(admin, e, resultado.ok ? resultado.idExterno : null)
+    }
     else if (final === 'nova_tentativa') r.novasTentativas++
     else if (final === 'incerto') r.incertos++
     else if (final === 'erro') r.erros++

@@ -55,6 +55,9 @@ async function loja(slug, nome, instancia) {
     on conflict (slug) do update set nome=excluded.nome returning id`, [nome, slug])).id
   await db.query(`update restaurantes set evolution_instance=$2 where id=$1`, [id, instancia])
   for (const t of ['whatsapp_eventos', 'whatsapp_envios', 'whatsapp_mensagens', 'whatsapp_conversas', 'whatsapp_robo_config']) await db.query(`delete from ${t} where restaurante_id=$1`, [id])
+  // Disparos de outra suíte (central de atendimento) contam como "eco de campanha".
+  await db.query(`delete from campanha_envios where restaurante_id=$1`, [id])
+  await db.query(`delete from campanhas where restaurante_id=$1`, [id])
   await db.query(`delete from pedido_itens where pedido_id in (select id from pedidos where restaurante_id=$1)`, [id])
   await db.query(`delete from pedidos where restaurante_id=$1`, [id])
   await db.query(`delete from taxas_entrega_bairro where restaurante_id=$1`, [id])
@@ -174,7 +177,15 @@ try {
   ok('corpo inválido → 400', (await webhook(SEG_A, '{nao-json')).s === 400)
   ok('corpo acima de 256 KB → 413', (await webhook(SEG_A, JSON.stringify({ x: 'a'.repeat(300 * 1024) }))).s === 413)
   const desl = await webhook(SEG_A, evento('robo-sim-a'))
-  ok('robô desligado: nada gravado nem respondido', desl.s === 200 && desl.j?.ignoradas?.robo_desligado === 1 && (await envios(A)).length === 0 && !(await conversa(A)))
+  // Central de atendimento (0107): com o robô desligado a mensagem é gravada e a conversa
+  // vai direto para "aguardando atendente" — só a resposta automática não sai.
+  const cvDesl = await conversa(A)
+  ok('robô desligado: gravado, sem resposta, conversa aguardando atendente', desl.s === 200 && desl.j?.ignoradas?.robo_desligado === 1 && (await envios(A)).length === 0 && enviados().length === 0
+    && cvDesl?.atendimento === 'aguardando' && cvDesl?.estado === 'silenciada' && (await um(`select count(*)::int n from whatsapp_mensagens where conversa_id=$1 and origem='cliente'`, [cvDesl.id])).n === 1)
+  // O resto do roteiro começa com o cliente sem conversa.
+  await db.query(`delete from whatsapp_mensagens where restaurante_id=$1`, [A])
+  await db.query(`delete from whatsapp_eventos where restaurante_id=$1 and conversa_id is not null`, [A])
+  await db.query(`delete from whatsapp_conversas where restaurante_id=$1`, [A])
   ok('evento do webhook registrado sem conteúdo', JSON.stringify((await um(`select resultado from whatsapp_eventos where restaurante_id=$1 and tipo='webhook' order by criado_em desc limit 1`, [A])).resultado).includes('robo_desligado'))
   ok('evento de outra coisa que não mensagem (connection.update) → 200 sem nada', (await webhook(SEG_A, { event: 'connection.update', instance: 'robo-sim-a', data: { state: 'open' } })).s === 200 && (await envios(A)).length === 0)
   ok('JSON válido mas sem forma de mensagem → 200 sem nada', (await webhook(SEG_A, { event: 'messages.upsert', data: 'lixo' })).s === 200 && (await envios(A)).length === 0)
@@ -316,8 +327,10 @@ try {
   const rob = await ultimo(A)
   await webhook(SEG_A, evento('robo-sim-a', { fromMe: true, texto: rob.texto }))
   ok('eco da resposta do próprio robô (fromMe) → ignorado, conversa segue com o robô', (await conversa(A)).estado === 'robo')
-  await webhook(SEG_A, evento('robo-sim-a', { fromMe: true, texto: 'Oi, aqui é o João da loja' }))
-  ok('loja respondeu pelo celular (fromMe) → conversa silenciada (loja), sem resposta', (await conversa(A)).estado === 'silenciada' && (await conversa(A)).silenciada_motivo === 'loja' && (await envios(A)).length === nFm)
+  const rLoja = await webhook(SEG_A, evento('robo-sim-a', { fromMe: true, texto: 'Oi, aqui é o João da loja' }))
+  const cvLoja = await conversa(A)
+  ok('loja respondeu pelo celular (fromMe) → conversa silenciada (loja), sem resposta', cvLoja.estado === 'silenciada' && cvLoja.silenciada_motivo === 'loja' && (await envios(A)).length === nFm,
+    `${JSON.stringify(rLoja.j?.ignoradas)} ${cvLoja.estado}/${cvLoja.silenciada_motivo} envios ${(await envios(A)).length}/${nFm}`)
   const ig = await webhook(SEG_A, { ...evento('robo-sim-a'), data: [
     { key: { remoteJid: '120363000000000000@g.us', fromMe: false, id: 'G1', participant: `${CLI}@s.whatsapp.net` }, message: { conversation: 'oi grupo' } },
     { key: { remoteJid: 'status@broadcast', fromMe: false, id: 'S1' }, message: { conversation: 'status' } },
@@ -501,7 +514,7 @@ try {
   ok('robô do outro lado: 8 respostas e para', (await respostasPara(LOOP)) === 8, String(await respostasPara(LOOP)))
   ok('a 9ª mensagem aciona a proteção e as seguintes não são respondidas', rl[8].j?.ignoradas?.protecao_loop === 1 && rl.slice(9).every((r) => r.j?.respostas === 0))
   ok('conversa silenciada com motivo "protecao" e evento registrado com as contagens', cvL.estado === 'silenciada' && cvL.silenciada_motivo === 'protecao' && evL.length === 1 && evL[0].resultado.respostas_2min === 8 && evL[0].resultado.limite_2min === 8)
-  ok('mensagens do outro lado continuam gravadas', (await um(`select count(*)::int n from whatsapp_mensagens where conversa_id=$1`, [cvL.id])).n === 12)
+  ok('mensagens do outro lado continuam gravadas', (await um(`select count(*)::int n from whatsapp_mensagens where conversa_id=$1 and origem='cliente'`, [cvL.id])).n === 12)
   const dLoop = await logar('dono.roboa')
   const listaLoop = await api(dLoop.p, '/api/admin/whatsapp/conversas')
   const itemL = (listaLoop.j?.emAtendimento ?? []).find((c) => c.id === cvL.id)

@@ -68,6 +68,19 @@ cliente ──WhatsApp──► Evolution ──POST /api/whatsapp/webhook/<segr
 
 Avisos de etapa do pedido, campanhas, código do checkout e fidelidade seguem o envio
 direto de `lib/whatsapp.ts` (igual à main). Levar os avisos para a fila é etapa futura.
+**O interruptor do robô não mexe neles** — desligado, só param as respostas às mensagens
+recebidas (provado em `lib/mensageria/robo-flag.test.ts` e nos e2e).
+
+## Central de atendimento (0107, 2026-09-28)
+
+Atendimento humano no próprio painel — ver `central-atendimento.md`. O que muda no robô:
+
+- **Robô desligado agora grava** a mensagem recebida e a conversa entra direto como
+  "aguardando atendente" (antes: nada era gravado). Resposta automática continua não saindo.
+- Toda saída da Menuzia (robô, atendente, aviso de pedido, fidelidade, código do checkout,
+  disparo) entra no histórico com a origem. O eco (fromMe) dessas saídas é reconhecido pelo
+  id do provedor ou pelo hash do texto e **não** silencia mais a conversa como "a loja
+  respondeu pelo celular" (isso acontecia com os avisos de pedido).
 
 ## Arquivos
 
@@ -84,6 +97,11 @@ direto de `lib/whatsapp.ts` (igual à main). Levar os avisos para a fila é etap
 | `app/api/admin/whatsapp/robo` | configuração (dono) |
 | `app/api/admin/whatsapp/conversas` | devolver/pausar (dono e gerente) |
 | `components/admin/robo-whatsapp.tsx` | cartão em Integrações |
+| `supabase/migrations/0107_whatsapp_central_atendimento.sql` | central: estados, origem, tags, RPCs |
+| `lib/mensageria/historico.ts` | registrar saída / reconhecer eco |
+| `lib/mensageria/atendimento.ts` | consultas da central (paginadas) |
+| `app/api/admin/whatsapp/atendimento/*` | central (dono e gerente) |
+| `components/atendimento/lancador.tsx` + `central.tsx` | botão flutuante + painel (sob demanda) |
 
 ## Testar sem mensagem real
 
@@ -98,6 +116,10 @@ WHATSAPP_SIMULADO_ARQUIVO=<arq> CRON_SECRET=<x> node scripts/seguranca/e2e-robo-
 
 Fase bloqueada (como produção): suba SEM `WHATSAPP_ROBO_LIBERADO` e rode com
 `ROBO_E2E_FASE=bloqueado`.
+
+Central de atendimento: mesmas variáveis, `node scripts/seguranca/e2e-atendimento-whatsapp.mjs`
+(71 verificações). Tela Integrações: `E2E_LOJA=cantina-pdv2 E2E_VIZINHA=vizinha-pdv2
+E2E_SUFIXO=pdv2 node scripts/seguranca/e2e-integracoes-fase1.mjs` (21).
 
 ## Ativação piloto (com autorização, uma loja)
 

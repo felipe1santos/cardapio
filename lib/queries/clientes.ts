@@ -90,7 +90,8 @@ export async function enviarCodigoVerificacao(admin: SupabaseClient, restaurante
   if (insertError) throw insertError
 
   const texto = `🔐 Seu código de verificação${loja.nome ? ` para *${loja.nome}*` : ''} é *${codigo}*.\nEle expira em 5 minutos.`
-  const enviado = await enviarWhatsapp(telefone, texto, loja.evolution_instance)
+  // No histórico da central de atendimento o código NÃO aparece (o eco é reconhecido pelo hash).
+  const enviado = await enviarWhatsapp(telefone, texto, loja.evolution_instance, { admin, origem: 'automatico', restauranteId, textoExibido: '🔐 Código de verificação do cardápio enviado.' })
   if (!enviado) return { ok: false, error: 'Não foi possível enviar o código pelo WhatsApp agora. Tente novamente em instantes.', podeFallback: true }
 
   return { ok: true }

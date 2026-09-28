@@ -14,6 +14,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual, logFalhaEnvio } from './provedor'
+import { concluirSaida, registrarSaida } from './historico'
 import { roboLiberadoNoServidor } from './robo'
 
 export interface NovoEnvio {
@@ -103,7 +104,10 @@ export async function processarFila(
       resultado = 'definitivo'
       erro = 'loja sem WhatsApp conectado'
     } else {
+      // Histórico da central de atendimento: resposta do robô (ou aviso da fila).
+      const saida = await registrarSaida(admin, { restauranteId: e.restaurante_id, telefone: e.telefone, texto: e.texto, origem: e.tipo === 'robo' ? 'robo' : 'automatico' })
       const r = await provedor.enviarTexto(nome, e.telefone, e.texto)
+      await concluirSaida(admin, saida?.mensagemId, r.ok, r.ok ? r.idExterno : null, r.ok ? null : r.erro)
       if (r.ok) {
         resultado = 'enviado'
         idExterno = r.idExterno

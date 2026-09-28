@@ -94,6 +94,8 @@ describe('regras gerais', () => {
 
   it('conversas do robô do WhatsApp: dono e gerente; configurar o robô: só o dono', () => {
     expect(permissaoDaRota('/api/admin/whatsapp/conversas')).toBe('whatsapp.atender')
+    expect(permissaoDaRota('/api/admin/whatsapp/atendimento/conversas')).toBe('whatsapp.atender')
+    expect(permissaoDaRota('/api/admin/whatsapp/atendimento/resumo')).toBe('whatsapp.atender')
     expect(permissaoDaRota('/api/admin/whatsapp/robo')).toBe('integracoes.gerenciar')
   })
 
