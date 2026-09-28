@@ -12,6 +12,7 @@ import { Field, Input, ToggleRow } from '@/components/admin/campos-ajustes'
 import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { getBrowserSupabase } from '@/lib/supabase/client'
+import { normalizarInstagram } from '@/lib/instagram'
 import { buscarRestauranteIdDoUsuario, listarGrupos, type LayoutCardapio } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
@@ -200,6 +201,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const [form, setForm] = useState({
     nome: '',
     telefone: '',
+    instagram: '',
     enderecoRua: '',
     enderecoNumero: '',
     enderecoComplemento: '',
@@ -251,6 +253,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       setForm({
         nome: c.nome,
         telefone: c.telefone,
+        instagram: c.instagramUrl ?? '',
         enderecoRua: c.enderecoRua,
         enderecoNumero: c.enderecoNumero,
         enderecoComplemento: c.enderecoComplemento,
@@ -286,7 +289,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
   function set(
     key:
-      | 'nome' | 'telefone' | 'cep'
+      | 'nome' | 'telefone' | 'instagram' | 'cep'
       | 'enderecoRua' | 'enderecoNumero' | 'enderecoComplemento' | 'enderecoBairro' | 'enderecoCidade' | 'enderecoEstado'
       | 'avaliacaoNota' | 'avaliacaoQtd'
       | 'logoUrl' | 'bannerUrl' | 'bannerMobileUrl' | 'bannerPromocionalUrl',
@@ -451,6 +454,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
   async function save() {
     if (!form.nome.trim()) { setError('O nome do estabelecimento é obrigatório.'); return }
+    const instagram = normalizarInstagram(form.instagram)
+    if (!instagram.ok) { setError(`Instagram: ${instagram.erro}`); return }
     if (diasComSobreposicao.length > 0) {
       setError(`Turnos sobrepostos em: ${diasComSobreposicao.map((d) => DIAS_SEMANA_LABEL[d]).join(', ')}.`)
       return
@@ -465,6 +470,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       const updated = await atualizarConfigLoja(supabase, restauranteId, {
         nome: form.nome.trim(),
         telefone: form.telefone.trim(),
+        instagramUrl: instagram.url,
         enderecoRua: form.enderecoRua.trim(),
         enderecoNumero: form.enderecoNumero.trim(),
         enderecoComplemento: form.enderecoComplemento.trim(),
@@ -489,7 +495,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         horarioFuncionamento,
       })
       setConfig(updated)
-      setForm((f) => ({ ...f, latitude: updated.latitude, longitude: updated.longitude }))
+      setForm((f) => ({ ...f, latitude: updated.latitude, longitude: updated.longitude, instagram: updated.instagramUrl ?? '' }))
       setHorarioDias(horarioSemanaFromConfig(updated.horarioFuncionamento))
       setSaved(true)
     } catch {
@@ -510,6 +516,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           </Field>
           <Field label="Telefone / WhatsApp">
             <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+          </Field>
+          <Field label="Instagram da loja" hint="Link do perfil (https://instagram.com/sualoja) ou @sualoja. Vira o QR code impresso no fim da comanda da cozinha (Impressão Beta). Em branco: a comanda sai com o QR do seu cardápio.">
+            <Input value={form.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="https://instagram.com/sualoja" data-testid="loja-instagram" />
           </Field>
           <Field label="Logotipo" hint="Exibido como avatar da loja no painel e no cardápio do cliente. Deixe em branco para usar a inicial do nome.">
             <div className="flex items-center gap-3">

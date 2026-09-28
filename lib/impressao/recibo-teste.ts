@@ -87,3 +87,71 @@ export function snapshotReciboTeste(d: Destino, operador: string, agora = new Da
     cancelados: [],
   }
 }
+
+/**
+ * Comanda da COZINHA de teste (Beta 0.2.0-beta.2+): os dados do modelo oficial
+ * (mockup-comanda-cozinha-termica-menuzia) — item com adicional e observação, desconto,
+ * taxa de entrega, Pix e o QR da loja. Mesma fila e mesmas garantias do Recibo/Extrato
+ * de teste: não cria pedido, não reserva nada da fila da cozinha, não toca no antigo.
+ */
+export function snapshotCozinhaTeste(
+  d: Destino,
+  operador: string,
+  qr: { origem: string; url: string; tamanho: number; linhas: string[] } | null,
+  agora = new Date(),
+): Record<string, unknown> {
+  const recebido = new Date(agora.getTime() - 17 * 60_000)
+  const pedido = {
+    id: 'teste',
+    numero: 129,
+    tipo: 'entrega',
+    canal: 'delivery',
+    origem: 'cardapio',
+    formaPagamento: 'pix',
+    trocoPara: null,
+    clienteNome: 'teste claude',
+    clienteTelefone: '552799920804',
+    enderecoRua: 'Avenida Henrique Moscoso',
+    enderecoNumero: '1',
+    enderecoComplemento: '',
+    enderecoBairro: 'JABURUNA',
+    enderecoCep: '',
+    observacao: '',
+    pago: false,
+    mesa: null,
+    senha: null,
+    subtotal: 44.4,
+    taxaEntrega: 3,
+    total: 45.4,
+    criadoEm: recebido.toISOString(),
+    itens: [
+      {
+        nome: 'Bolo Duplo', quantidade: 1, precoUnitario: 19.9, observacao: 'cortar ao meio e enviar colher',
+        tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '',
+        complementos: [{ nome: 'Calda de chocolate', preco: 2 }, { nome: 'Morango extra', preco: 3 }],
+      },
+      { nome: 'Coca-Cola Lata 350ml', quantidade: 1, precoUnitario: 5, observacao: '', tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos: [] },
+      {
+        nome: 'Coxinha', quantidade: 2, precoUnitario: 9.75, observacao: '',
+        tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '',
+        complementos: [{ nome: 'Catupiry', preco: 2 }, { nome: 'Molho especial', preco: 0.75 }],
+      },
+    ],
+  }
+  return {
+    versao: 2,
+    cozinha_teste: true,
+    loja: d.loja,
+    impressora: d.impressora,
+    nome_sistema: d.nomeSistema,
+    computador: d.computador,
+    largura_mm: d.larguraMm,
+    largura_pontos: d.larguraPontos,
+    deslocamento_pontos: d.deslocamentoPontos,
+    operador,
+    impresso_em: agora.toISOString(),
+    pedido,
+    extras: { desconto: 2, aceitoEm: null, prontoEm: new Date(recebido.getTime() + 17 * 60_000).toISOString(), comandaNumero: null, atendente: null },
+    qr,
+  }
+}

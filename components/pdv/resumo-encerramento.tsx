@@ -41,6 +41,7 @@ export function ResumoEncerramentoModal({
         </div>
         <div className="px-4 py-3">
           {linha(cancelada ? 'Total cancelado' : 'Total', formatBRL(resumo.total), true)}
+          {resumo.taxaExtra && linha(`Inclui ${resumo.taxaExtra.nome}`, formatBRL(resumo.taxaExtra.valor))}
           {linha('Pago', formatBRL(resumo.pago), false, 'text-price-text')}
           {linha('Falta pagar', formatBRL(resumo.faltaPagar), false, resumo.faltaPagar > 0 ? 'text-danger' : 'text-text-main')}
           <div className="my-2 border-t border-border" />

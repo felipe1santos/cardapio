@@ -159,7 +159,8 @@ const impressoraVirtual = {
   // Recibo/Extrato do Beta: o mesmo print-beta.ps1 do instalador, com -DebugPng.
   imprimirDocumentoBeta: async (nome, doc, paperMm, perfil = {}, logoPath = null, logoCacheDir = null) => {
     if (!impressorasWindows.includes(nome) || removidas.has(nome)) throw new Error(`Impressora '${nome}' nao encontrada no Windows.`)
-    const tipo = doc.teste ? 'recibo_teste' : 'pre_conta'
+    // Beta 0.2.0-beta.2+: a comanda da cozinha também é documento em blocos (modelo 'cozinha').
+    const tipo = doc.modelo === 'cozinha' ? (doc.teste ? 'cozinha_teste' : 'ficha_cozinha') : doc.teste ? 'recibo_teste' : 'pre_conta'
     const n = ++seq
     const pasta = path.join(SAIDA, nome.replace(/[^A-Za-z0-9]+/g, '_'))
     fs.mkdirSync(pasta, { recursive: true })
@@ -171,10 +172,11 @@ const impressoraVirtual = {
     if (Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0) extra.push('-LarguraPontos', String(perfil.larguraPontos))
     if (logoPath) extra.push('-LogoPath', logoPath)
     if (logoCacheDir) extra.push('-LogoCacheDir', logoCacheDir)
+    if (Number.isInteger(perfil.copias) && perfil.copias > 1) extra.push('-Copies', String(perfil.copias))
     const saida = execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(SRC, 'print-beta.ps1'), '-FilePath', json,
       '-PrinterName', 'Microsoft Print to PDF', '-PaperWidthMm', String(paperMm), ...extra, '-DebugPng', `${base}.png`],
     { stdio: 'pipe', env: { ...process.env, TEMP: SAIDA, TMP: SAIDA } }).toString()
-    const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias: 1, paperMm, larguraPontos: perfil.larguraPontos ?? null,
+    const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias: perfil.copias ?? 1, paperMm, larguraPontos: perfil.larguraPontos ?? null,
       deslocamentoPontos: perfil.deslocamentoPontos ?? 0, logo: logoPath ? path.basename(logoPath) : null, logLogo: (saida.match(/LOGO: (\d+x\d+|loja sem|arquivo sem|falhou).*/) ?? [''])[0],
       total: (saida.match(/TOTAL: .*/) ?? [''])[0], texto: doc.texto ?? '', png: `${base}.png`, txt: `${base}.txt` }
     fs.appendFileSync(path.join(SAIDA, 'impressos.jsonl'), JSON.stringify(registro) + '\n')

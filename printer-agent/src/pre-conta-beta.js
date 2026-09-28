@@ -1,36 +1,38 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// RECIBO/EXTRATO do ASSISTENTE BETA — layout próprio, desenhado por print-beta.ps1.
+// PRÉ-CONTA (Recibo/Extrato) do ASSISTENTE BETA — modelo oficial (2026-09-28,
+// pre-conta-menuzia-v4): data e logo no topo, faixa PRE-CONTA, "*** NAO E DOCUMENTO
+// FISCAL ***", a mesa grande à esquerda com o número embaixo, comanda/atendente/abertura
+// à direita, ITENS CONSUMIDOS em tabela (QTD, DESCRICAO, UNIT., TOTAL) sem linha entre
+// os itens, subtotal, serviço, taxa manual, desconto, TOTAL A PAGAR grande e o rodapé.
 //
 // Só o Beta usa este arquivo. O Recibo/Extrato do Assistente atual (pre-conta.js +
-// print.ps1) e a ficha da cozinha (recibo.js) não mudam.
+// print.ps1) e a ficha da cozinha antiga (recibo.js) não mudam.
 //
-// Monta o documento em BLOCOS (JSON), não em texto pronto: quem mede e quebra as linhas
-// é o renderizador, na largura real do papel (58 ou 80 mm, ou a calibrada). O mesmo
-// montador serve a conta real e o "Testar Recibo/Extrato" — o teste só muda os dados
-// (snapshot de demonstração), as frases de teste e os marcadores de borda.
-//
-// Tudo vem do SNAPSHOT do servidor; o agente não calcula valor nenhum (o status do
-// pagamento é só a leitura de pago/restante). Telefone, endereço, observação do pedido e
-// frete só saem no documento de TESTE — a conta real nunca os imprime, mesmo que o campo
-// apareça no snapshot.
+// Monta BLOCOS (JSON); quem mede e desenha é o print-beta.ps1. Tudo vem do SNAPSHOT do
+// servidor; o agente não calcula valor. Telefone, endereço, observação do pedido e frete
+// só saem no documento de TESTE — a conta real nunca os imprime.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { brl } = require('./pre-conta')
 
-function dataHora(iso) {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return null
-  return d
-    .toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    .replace(',', '')
+const texto = (v) => (v === undefined || v === null ? '' : String(v).trim())
+const maiusculo = (v) => texto(v).toLocaleUpperCase('pt-BR')
+
+function data(iso) {
+  const d = iso ? new Date(iso) : null
+  if (!d || isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const ROTULO_FORMA = { dinheiro: 'Dinheiro', pix: 'Pix', credito: 'Crédito', debito: 'Débito', vale: 'Vale-refeição', fiado: 'Fiado' }
+function hora(iso) {
+  const d = iso ? new Date(iso) : null
+  if (!d || isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+}
 
-/** Valor negativo com o sinal de menos tipográfico (−R$ 45,00). */
-function brlNegativo(v) {
-  return `−${brl(Math.abs(Number(v) || 0))}`
+/** Valor da tabela, sem "R$" (como no modelo). */
+function num(v) {
+  return brl(v).replace(/^R\$\s*/, '')
 }
 
 /** Status do pagamento, lido dos números do snapshot. */
@@ -43,128 +45,138 @@ function statusPagamento(s) {
   return 'A receber'
 }
 
-const texto = (v) => (v === undefined || v === null ? '' : String(v).trim())
+const pct = (v) => String(Number(v) || 0).replace('.', ',')
 
 /**
- * Documento do Recibo/Extrato do Beta.
+ * Documento da pré-conta do Beta.
  * @param {object} s snapshot (conta real ou recibo_teste)
- * @returns {{ versao: 1, teste: boolean, loja: string, blocos: object[] }}
+ * @returns {{ versao: 2, modelo: 'pre_conta', teste: boolean, loja: string, blocos: object[] }}
  */
 function montarPreContaBeta(s) {
   const teste = s.recibo_teste === true
   const b = []
-  const campo = (rotulo, valor) => {
-    const v = texto(valor)
-    if (v) b.push({ t: 'campo', rotulo, valor: v })
-  }
 
   if (teste) b.push({ t: 'marcas' })
-  b.push({ t: 'cabecalho' })
-  b.push({ t: 'faixa', s: 'RECIBO/EXTRATO' })
-  if (teste) {
-    for (const f of ['TESTE DE IMPRESSÃO', 'SEM VALOR FISCAL', 'CONFERÊNCIA DE CONSUMO', 'NÃO É DOCUMENTO FISCAL', 'PEDIDO DE DEMONSTRAÇÃO']) b.push({ t: 'centro', s: f })
-  }
+  const via = Number(s.via) > 1 ? `${s.via}a VIA` : ''
+  b.push({ t: 'topo_data', data: data(s.impresso_em), via, logo: 'quadrado' })
+  b.push({ t: 'linha_grossa' })
+  b.push({ t: 'faixa_arred', s: 'PRE-CONTA' })
+  b.push({ t: 'centro', s: '*** NAO E DOCUMENTO FISCAL ***', negrito: true })
+  if (teste) b.push({ t: 'centro', s: 'TESTE DE IMPRESSAO - PEDIDO DE DEMONSTRACAO', negrito: true })
 
-  // Atendimento
-  b.push({ t: 'pontilhado' })
-  campo('Cliente', s.cliente_nome)
-  if (!teste) {
-    if (s.tipo === 'balcao') campo('Balcão', s.senha !== undefined && s.senha !== null ? `senha ${s.senha}` : 'sim')
-    else {
-      campo('Mesa', s.mesa)
-      campo('Comanda', s.comanda_numero)
-    }
-  }
-  campo('Abertura', dataHora(s.aberta_em))
-  campo('Impressão', dataHora(s.impresso_em))
-  campo('Operador', s.operador)
-  campo('Via', Number(s.via) > 1 ? `${s.via}ª (reimpressão)` : '1ª')
+  // Mesa grande à esquerda; comanda, atendente e abertura à direita.
+  let titulo
+  if (teste) titulo = 'Mesa 34'
+  else if (s.tipo === 'balcao') titulo = s.senha !== undefined && s.senha !== null ? `Senha ${s.senha}` : 'Balcao'
+  // Mesa cadastrada como "Mesa 01" já traz a palavra; "01" ganha o prefixo.
+  else titulo = !texto(s.mesa) ? 'Conta' : /^mesa( |$)/i.test(texto(s.mesa)) ? texto(s.mesa) : `Mesa ${texto(s.mesa)}`
+  const numero = s.pedido_numero ?? s.comanda_numero
+  const pares = []
+  if (s.comanda_numero !== undefined && s.comanda_numero !== null) pares.push(['Comanda', String(s.comanda_numero)])
+  const atendente = texto(s.atendente) || texto(s.operador)
+  if (atendente) pares.push(['Atendente', atendente.split(/\s+/)[0]])
+  if (hora(s.aberta_em)) pares.push(['Abertura', hora(s.aberta_em)])
+  if (texto(s.cliente_nome)) pares.push(['Cliente', texto(s.cliente_nome).split(/\s+/)[0]])
+  b.push({ t: 'mesa', titulo, sub: numero !== undefined && numero !== null ? `#${String(numero).padStart(6, '0')}` : '', pares })
+
   if (teste) {
-    campo('Telefone', s.cliente_telefone)
     const e = s.endereco && typeof s.endereco === 'object' ? s.endereco : null
-    if (e) {
-      campo('Endereço', [e.rua, e.numero].map(texto).filter(Boolean).join(', '))
-      campo('Complemento', e.complemento)
-      campo('Cidade/UF', [texto(e.bairro), [texto(e.cidade), texto(e.uf)].filter(Boolean).join('/')].filter(Boolean).join(' · '))
-    }
-    campo('Observação', s.observacao)
+    const linhas = []
+    if (texto(s.cliente_telefone)) linhas.push(['Telefone:', texto(s.cliente_telefone)])
+    if (e) linhas.push(['Endereco:', [texto(e.rua), texto(e.numero)].filter(Boolean).join(', ')])
+    if (texto(s.observacao)) linhas.push(['Obs.:', texto(s.observacao)])
+    for (const [r, v] of linhas) b.push({ t: 'dado', rotulo: r, valor: v, negrito: false })
   }
-  b.push({ t: 'pontilhado' })
+  b.push({ t: 'linha_grossa' })
 
-  // Consumo
+  // Itens: tabela compacta, sem linha entre os itens.
+  b.push({ t: 'secao_sem_linha', s: 'ITENS CONSUMIDOS' })
+  b.push({ t: 'tabela_cab' })
+  b.push({ t: 'regua' })
   const itens = Array.isArray(s.itens) ? s.itens : []
-  const unidades = itens.reduce((t, i) => t + (Number(i.quantidade) || 0), 0)
-  b.push({ t: 'faixa', s: `CONSUMO (${unidades})` })
-  if (itens.length === 0) b.push({ t: 'linha', s: 'Nenhum item cobrado.' })
-  itens.forEach((it, idx) => {
-    b.push({ t: 'item', nome: `${it.quantidade}x ${texto(it.nome)}`, valor: brl(it.subtotal) })
-    const variacao = [texto(it.tamanho), texto(it.sabor)].filter(Boolean).join(' — ')
-    if (variacao) b.push({ t: 'sub', s: variacao })
-    if (Number(it.quantidade) > 1) b.push({ t: 'sub', s: `${it.quantidade} × ${brl(it.preco_unitario)}` })
-    if (it.borda) b.push({ t: 'sub', s: `+ Borda: ${texto(it.borda)}` })
-    if (it.massa) b.push({ t: 'sub', s: `+ Massa: ${texto(it.massa)}` })
+  if (itens.length === 0) b.push({ t: 'centro', s: 'Nenhum item cobrado.' })
+  for (const it of itens) {
+    const variacao = [texto(it.tamanho), texto(it.sabor)].filter(Boolean).join(' - ')
+    const subs = []
+    if (variacao) subs.push(variacao)
+    if (texto(it.borda)) subs.push(`+ Borda: ${texto(it.borda)}`)
+    if (texto(it.massa)) subs.push(`+ Massa: ${texto(it.massa)}`)
     const agrupados = new Map()
     for (const c of Array.isArray(it.complementos) ? it.complementos : []) {
-      const cur = agrupados.get(c.nome) ?? { nome: c.nome, preco: Number(c.preco) || 0, qtd: 0 }
-      cur.qtd += 1
+      const cur = agrupados.get(c.nome) || { nome: c.nome, n: 0 }
+      cur.n += 1
       agrupados.set(c.nome, cur)
     }
-    for (const c of agrupados.values()) {
-      const preco = c.preco * c.qtd
-      b.push({ t: 'sub', s: `+ ${c.qtd > 1 ? `${c.qtd}x ` : ''}${texto(c.nome)}${preco > 0 ? ` (${brl(preco)})` : ''}` })
-    }
-    if (texto(it.observacao)) b.push({ t: 'sub', s: `Obs.: ${texto(it.observacao)}` })
-    if (idx < itens.length - 1) b.push({ t: 'divisa' })
-  })
+    for (const c of agrupados.values()) subs.push(`+ ${c.n > 1 ? `${c.n}x ` : ''}${texto(c.nome)}`)
+    if (texto(it.observacao)) subs.push(`Obs.: ${texto(it.observacao)}`)
+    b.push({ t: 'tabela_item', qtd: String(it.quantidade), desc: maiusculo(it.nome), unit: num(it.preco_unitario), total: num(it.subtotal), subs })
+  }
+  b.push({ t: 'regua' })
 
   // Totais
-  b.push({ t: 'faixa', s: 'TOTAIS' })
-  b.push({ t: 'valor', rotulo: 'Subtotal', valor: brl(s.subtotal) })
+  b.push({ t: 'par_pc', rotulo: 'Subtotal', valor: brl(s.subtotal) })
   if (Number(s.taxa) > 0 || Number(s.taxa_percentual) > 0) {
-    b.push({ t: 'valor', rotulo: `Taxa de serviço (${String(Number(s.taxa_percentual)).replace('.', ',')}%)`, valor: brl(s.taxa) })
+    b.push({ t: 'par_pc', rotulo: `Servico ${pct(s.taxa_percentual)}% opcional`, valor: brl(s.taxa) })
   }
-  if (Number(s.desconto) > 0) b.push({ t: 'valor', rotulo: 'Desconto', valor: brlNegativo(s.desconto) })
-  if (teste && Number(s.taxa_entrega) > 0) b.push({ t: 'valor', rotulo: 'Taxa de entrega', valor: brl(s.taxa_entrega) })
-  b.push({ t: 'total', rotulo: 'TOTAL', valor: brl(s.total) })
-  const pagamentos = Array.isArray(s.pagamentos) ? s.pagamentos : []
-  if (Number(s.pago) > 0 || pagamentos.length > 0) {
-    b.push({ t: 'valor', rotulo: 'Já pago', valor: brl(s.pago) })
-    for (const p of pagamentos) b.push({ t: 'valor', rotulo: ROTULO_FORMA[p.forma] ?? texto(p.forma), valor: brl(p.valor), leve: true })
+  if (Number(s.taxa_extra) > 0) b.push({ t: 'par_pc', rotulo: texto(s.taxa_extra_nome) || 'Taxa', valor: brl(s.taxa_extra) })
+  if (teste && Number(s.taxa_entrega) > 0) b.push({ t: 'par_pc', rotulo: 'Taxa de entrega', valor: brl(s.taxa_entrega) })
+  b.push({ t: 'par_pc', rotulo: 'Desconto', valor: brl(s.desconto) })
+  const pago = Number(s.pago) || 0
+  if (pago > 0) {
+    b.push({ t: 'par_pc', rotulo: 'Total da conta', valor: brl(s.total) })
+    b.push({ t: 'par_pc', rotulo: 'Ja pago', valor: brl(pago) })
   }
-  b.push({ t: 'valor', rotulo: 'Restante a pagar', valor: brl(s.restante), negrito: true })
-  b.push({ t: 'valor', rotulo: 'Status', valor: statusPagamento(s) })
-
-  const cancelados = Array.isArray(s.cancelados) ? s.cancelados : []
-  if (cancelados.length > 0) {
-    b.push({ t: 'pontilhado' })
-    b.push({ t: 'centro', s: 'CANCELADOS — NÃO COBRADOS' })
-    for (const c of cancelados) b.push({ t: 'sub', s: `${c.quantidade}x ${texto(c.nome)}` })
-  }
+  b.push({ t: 'linha_grossa' })
+  b.push({ t: 'total_grande', rotulo: 'TOTAL A PAGAR', valor: brl(pago > 0 ? s.restante : s.total) })
 
   // Rodapé
-  b.push({ t: 'pontilhado' })
-  b.push({ t: 'rodape', s: 'Confira os itens da sua conta.' })
-  // Conta real: aviso discreto, junto do rodapé (no teste ele já está entre as frases de teste).
-  if (!teste) b.push({ t: 'rodape', s: 'NÃO É DOCUMENTO FISCAL' })
-  b.push({ t: 'rodape', s: 'feito por Menuzia.com.br' })
+  b.push({ t: 'centro', s: 'CONFIRA OS ITENS ANTES DO PAGAMENTO', negrito: true })
+  b.push({ t: 'tracejado' })
+  b.push({ t: 'centro', s: 'Esta pre-conta pode ser paga no caixa' })
+  b.push({ t: 'espaco' })
+  b.push({ t: 'centro', s: 'Obrigado pela preferencia!', maior: true })
   if (teste) {
-    b.push({ t: 'rodape', s: 'TESTE DE IMPRESSÃO — SEM VALOR FISCAL', negrito: true })
+    b.push({ t: 'centro', s: 'TESTE DE IMPRESSAO - SEM VALOR FISCAL', negrito: true })
     b.push({ t: 'marcas' })
   }
   b.push({ t: 'corte' })
 
-  return { versao: 1, teste, loja: texto(s.loja), blocos: b }
+  return { versao: 2, modelo: 'pre_conta', teste, loja: texto(s.loja), blocos: b }
 }
 
 /** Texto corrido do documento (registro, busca em teste e impressão de emergência). */
 function textoDoDocumento(doc) {
   const out = []
   for (const k of doc.blocos) {
-    if (k.t === 'cabecalho') out.push(doc.loja.toUpperCase())
-    else if (k.t === 'faixa' || k.t === 'centro' || k.t === 'linha' || k.t === 'sub' || k.t === 'rodape') out.push(k.s)
-    else if (k.t === 'campo') out.push(`${k.rotulo}: ${k.valor}`)
-    else if (k.t === 'item' || k.t === 'valor' || k.t === 'total') out.push(`${k.nome ?? k.rotulo}  ${k.valor}`)
-    else if (k.t === 'pontilhado' || k.t === 'divisa') out.push('- - - - - - - - - - - - - - - -')
+    switch (k.t) {
+      case 'topo':
+        out.push([...(k.linhas || []).map(([r, v]) => `${r} ${v}`), k.direita].filter(Boolean).join('  '))
+        break
+      case 'topo_data': out.push([k.data, k.via].filter(Boolean).join('  ')); break
+      case 'faixa_num': out.push(`${k.esq}  ${k.dir}`); break
+      case 'faixa_arred': case 'secao': case 'secao_sem_linha': case 'centro': case 'rodape': case 'obs_pedido':
+        out.push(k.s)
+        break
+      case 'item_bola': out.push(`${k.qtd} ${k.nome}  ${k.valor}`); break
+      case 'detalhes':
+        for (const l of k.linhas || []) out.push(`   ${l.s}${l.valor ? `  ${l.valor}` : ''}`)
+        if (k.obs) out.push(`   ${k.obs}`)
+        break
+      case 'par': case 'par_pc': case 'faixa_total': case 'total_grande': out.push(`${k.rotulo}  ${k.valor}`); break
+      case 'rotulo_valor': case 'dado': out.push(`${k.rotulo} ${k.valor}`); break
+      case 'mesa':
+        out.push([k.titulo, k.sub].filter(Boolean).join('  '))
+        for (const [r, v] of k.pares || []) out.push(`${r}: ${v}`)
+        break
+      case 'tabela_cab': out.push('QTD  DESCRICAO  UNIT.  TOTAL'); break
+      case 'tabela_item':
+        out.push(`${k.qtd}  ${k.desc}  ${k.unit}  ${k.total}`)
+        for (const x of k.subs || []) out.push(`     ${x}`)
+        break
+      case 'regua': case 'linha_grossa': case 'tracejado': out.push('- - - - - - - - - - - - - - - -'); break
+      case 'qr': out.push('[QR]'); break
+      default: break
+    }
   }
   return out.join('\n')
 }

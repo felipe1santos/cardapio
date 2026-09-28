@@ -1,4 +1,5 @@
-# RECIBO/EXTRATO do ASSISTENTE BETA - renderizador proprio (so o Beta usa).
+# COMANDA DA COZINHA e PRE-CONTA do ASSISTENTE BETA - renderizador proprio (so o Beta usa).
+# Modelos oficiais de 2026-09-28 (cozinha-beta.js e pre-conta-beta.js montam os blocos).
 #
 # Le o documento em blocos (JSON de pre-conta-beta.js), mede e quebra as linhas na largura
 # real do papel, desenha num bitmap e imprime 1:1 - como o print.ps1, que continua sendo o
@@ -51,7 +52,7 @@ if ($estreito) {
 $m = [int][Math]::Round($dotW * 0.035)
 $uw = $dotW - 2 * $m
 $dpi = 203.0
-Write-Log "==== RECIBO/EXTRATO BETA: printer='$PrinterName' paperMm=$PaperWidthMm dotW=$dotW margem=$m ===="
+Write-Log "==== DOCUMENTO BETA: printer='$PrinterName' paperMm=$PaperWidthMm dotW=$dotW margem=$m ===="
 
 $existe = $false
 try { if (Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue) { $existe = $true } } catch {}
@@ -239,136 +240,406 @@ function Preparar-Logo([string]$caminho, [int]$maxW, [int]$maxH) {
 $logo = $null
 if ($LogoPath) {
   try {
-    $r = Preparar-Logo $LogoPath ([int]($dotW * $P.logoW)) ([int]($P.logoH * $k))
+    # Caixa da logo no modelo: 86 pt de altura na comanda, 60 na pre-conta (80 mm).
+    $altLogo = if ($doc.modelo -eq 'pre_conta') { 60 } else { 86 }
+    $r = Preparar-Logo $LogoPath ([int]($dotW * 0.34)) ([int]($altLogo * [Math]::Max(0.6, $dotW / 576.0)))
     if ($r) { $logo = $r[0]; Write-Log ("LOGO: {0}x{1} ({2})" -f $logo.Width, $logo.Height, $r[1]) }
     else { Write-Log "LOGO: arquivo sem imagem utilizavel -> nome da loja" }
   } catch { Write-Log ("LOGO: falhou ({0}) -> nome da loja" -f $_.Exception.Message); $logo = $null }
 } else { Write-Log "LOGO: loja sem logo -> nome da loja" }
 
-# -- desenho ----------------------------------------------------------------------------
-$canvasH = 16000
+# -- desenho (modelos oficiais 2026-09-28: comanda da cozinha e pre-conta) ------------
+# Medidas tiradas dos modelos (80 mm = 576 pontos) e escaladas pela largura real do papel.
+# Texto de dado em monoespacada (Consolas), titulos e faixas em Arial negrito, como nos
+# modelos. Linhas e fios em preto: impressora termica nao imprime cinza.
+$canvasH = 20000
 $canvas = New-Object System.Drawing.Bitmap($dotW, $canvasH)
 $canvas.SetResolution($dpi, $dpi)
 $g = [System.Drawing.Graphics]::FromImage($canvas)
 $g.Clear([System.Drawing.Color]::White)
 $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::SingleBitPerPixelGridFit
+$g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
 $preto = [System.Drawing.Brushes]::Black
 $branco = [System.Drawing.Brushes]::White
-$direita = $dotW - $m
 $y = 6.0
 $sobreposicoes = 0
 
+$s = [Math]::Max(0.6, $dotW / 576.0)
+function Px([double]$v) { return [Math]::Max(1.0, $v * $script:s) }
+$m = [int][Math]::Round((Px 24))
+$uw = $dotW - 2 * $m
+$direita = $dotW - $m
+
+function Fn([string]$familia, [double]$px, [bool]$negrito) {
+  $st = if ($negrito) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+  return New-Object System.Drawing.Font($familia, [single]([Math]::Max(11.0, (Px $px))), $st, [System.Drawing.GraphicsUnit]::Pixel)
+}
+function Mono([double]$px, [bool]$negrito = $false) { return Fn 'Lucida Console' $px $negrito }
+function Sans([double]$px, [bool]$negrito = $true) { return Fn 'Arial' $px $negrito }
+
 function Texto([string]$t, $f, [double]$x, [double]$yy, $pincel = $preto) { $g.DrawString($t, $f, $pincel, [single]$x, [single]$yy, $sf) }
+function TextoDir([string]$t, $f, [double]$xDireita, [double]$yy, $pincel = $preto) { Texto $t $f ($xDireita - (Larg $t $f)) $yy $pincel }
 function Centro([string]$t, $f) {
   foreach ($ln in (Quebrar $t $f $uw)) { Texto $ln $f ($m + ($uw - (Larg $ln $f)) / 2.0) $script:y; $script:y += (Alt $f) }
 }
-function Pontilhado([int]$passo, [int]$lado) {
-  $yy = [int]($script:y + (Alt $fCorpo) * 0.35)
-  for ($x = $m; $x -le $direita - $lado; $x += $passo) { $g.FillRectangle($preto, $x, $yy, $lado, $lado) }
-  $script:y += (Alt $fCorpo) * 0.75
-}
-function EsqDir([string]$rot, $fRot, [string]$val, $fVal, [double]$recuo = 0) {
-  $vw = Larg $val $fVal
-  $lw = $uw - $recuo - $vw - [Math]::Max(10, $uw * 0.03)
-  $ls = Quebrar $rot $fRot $lw
-  $h = [Math]::Max((Alt $fRot), (Alt $fVal))
-  Texto $val $fVal ($direita - $vw) $script:y
-  foreach ($ln in $ls) {
-    if ((Larg $ln $fRot) -gt $lw + 0.5) { $script:sobreposicoes++ }
-    Texto $ln $fRot ($m + $recuo) $script:y
-    $script:y += $h
+function Fio([double]$espessura) { $g.FillRectangle($preto, $m, [int]$script:y, $uw, [int][Math]::Max(1, [Math]::Round($espessura))) }
+
+# Monograma da loja sem logo: "Villa Lanches" -> VL, "Pizza do Rosa" -> PR; nome de uma
+# palavra -> primeira letra + ultima consoante ("Menuzia" -> MZ, como o modelo).
+function Iniciais([string]$nome) {
+  $ligacao = @('de', 'do', 'da', 'dos', 'das', 'e', 'o', 'a')
+  $pal = @(($nome -replace '[^\p{L}\p{N} ]', ' ').Split(' ') | Where-Object { $_ -ne '' -and $ligacao -notcontains $_.ToLower() })
+  if ($pal.Count -eq 0) { return 'MZ' }
+  if ($pal.Count -eq 1) {
+    $w = $pal[0].ToUpper()
+    if ($w.Length -lt 2) { return $w }
+    for ($i = $w.Length - 1; $i -ge 1; $i--) { if ('BCDFGHJKLMNPQRSTVWXYZ'.Contains([string]$w[$i])) { return $w.Substring(0, 1) + $w[$i] } }
+    return $w.Substring(0, 2)
   }
+  return ($pal[0].Substring(0, 1) + $pal[1].Substring(0, 1)).ToUpper()
 }
+
+function RetArred($pincel, [double]$x, [double]$yy, [double]$w, [double]$h, [double]$r) {
+  $gp = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $d = 2 * $r
+  $gp.AddArc([single]$x, [single]$yy, [single]$d, [single]$d, 180, 90)
+  $gp.AddArc([single]($x + $w - $d), [single]$yy, [single]$d, [single]$d, 270, 90)
+  $gp.AddArc([single]($x + $w - $d), [single]($yy + $h - $d), [single]$d, [single]$d, 0, 90)
+  $gp.AddArc([single]$x, [single]($yy + $h - $d), [single]$d, [single]$d, 90, 90)
+  $gp.CloseFigure()
+  $g.FillPath($pincel, $gp)
+  $gp.Dispose()
+}
+
+# Logo da loja no meio do topo. Sem logo: monograma com as iniciais da loja, no formato
+# do modelo (circulo na comanda, quadrado arredondado na pre-conta).
+function DesenharLogo([string]$forma, [double]$cx, [double]$yy) {
+  if ($script:logo) {
+    $lw = $script:logo.Width; $lh = $script:logo.Height
+    $g.DrawImage($script:logo, [int]($cx - $lw / 2), [int]$yy, $lw, $lh)
+    return $lh
+  }
+  $ini = Iniciais ([string]$doc.loja)
+  if ($forma -eq 'quadrado') {
+    $w = Px 80; $h = Px 55; $r = Px 7; $b = [Math]::Max(2, [int](Px 3))
+    RetArred $preto ($cx - $w / 2) $yy $w $h $r
+    RetArred $branco ($cx - $w / 2 + $b) ($yy + $b) ($w - 2 * $b) ($h - 2 * $b) ([Math]::Max(1, $r - $b))
+    $f = Sans 30
+    Texto $ini $f ($cx - (Larg $ini $f) / 2) ($yy + ($h - (Alt $f)) / 2 + (Px 1))
+    return $h
+  }
+  $d = Px 86; $b = [Math]::Max(2, [int](Px 3))
+  $g.FillEllipse($preto, [single]($cx - $d / 2), [single]$yy, [single]$d, [single]$d)
+  $g.FillEllipse($branco, [single]($cx - $d / 2 + $b), [single]($yy + $b), [single]($d - 2 * $b), [single]($d - 2 * $b))
+  $f = Sans 28
+  Texto $ini $f ($cx - (Larg $ini $f) / 2) ($yy + $d * 0.2)
+  $g.FillRectangle($preto, [int]($cx - $d * 0.24), [int]($yy + $d * 0.62), [int]($d * 0.48), [int][Math]::Max(1, (Px 2)))
+  $nomeLoja = ([string]$doc.loja).ToUpper()
+  $fn = Sans 8
+  while ((Larg $nomeLoja $fn) -gt $d * 0.62 -and $nomeLoja.Length -gt 3) { $nomeLoja = $nomeLoja.Substring(0, $nomeLoja.Length - 1) }
+  Texto $nomeLoja $fn ($cx - (Larg $nomeLoja $fn) / 2) ($yy + $d * 0.66)
+  return $d
+}
+
+# Icone do Instagram no meio do QR (quadrado arredondado, circulo e ponto).
+function IconeInstagram([double]$cx, [double]$cy, [double]$lado) {
+  $caixa = $lado * 1.25
+  $g.FillRectangle($branco, [single]($cx - $caixa / 2), [single]($cy - $caixa / 2), [single]$caixa, [single]$caixa)
+  $e = [Math]::Max(2, $lado * 0.12)
+  RetArred $preto ($cx - $lado / 2) ($cy - $lado / 2) $lado $lado ($lado * 0.28)
+  RetArred $branco ($cx - $lado / 2 + $e) ($cy - $lado / 2 + $e) ($lado - 2 * $e) ($lado - 2 * $e) ([Math]::Max(1, $lado * 0.28 - $e))
+  $rc = $lado * 0.24
+  $g.FillEllipse($preto, [single]($cx - $rc), [single]($cy - $rc), [single](2 * $rc), [single](2 * $rc))
+  $ri = $rc - $e
+  $g.FillEllipse($branco, [single]($cx - $ri), [single]($cy - $ri), [single](2 * $ri), [single](2 * $ri))
+  $rp = [Math]::Max(1.5, $lado * 0.07)
+  $g.FillEllipse($preto, [single]($cx + $lado * 0.22 - $rp), [single]($cy - $lado * 0.22 - $rp), [single](2 * $rp), [single](2 * $rp))
+}
+
+# Colunas da tabela da pre-conta (modelo: QTD, DESCRICAO, UNIT., TOTAL).
+$colQtd = $m + (Px 24)
+$colDesc = $m + (Px 70)
+$colUnit = $m + (Px 407)
+$fTabCab = Mono 15 $true
+$fTab = Mono 20
+$fTabN = Mono 20 $true
+$fTabU = Mono 18
+$fTabSub = Mono 14
 
 foreach ($b in $doc.blocos) {
   switch ($b.t) {
     'marcas' {
       # Tracos curtos junto as bordas: se um lado do papel cortar, o traco some.
-      $alto = [int]($P.marca * $k)
+      $alto = [int][Math]::Max(12, (Px 14))
       $passo = [Math]::Max(24, [int]($dotW / 16))
       for ($x = 0; $x -lt $dotW - 3; $x += $passo) { $g.FillRectangle($preto, $x, [int]$y, 3, $alto) }
       $g.FillRectangle($preto, $dotW - 3, [int]$y, 3, $alto)
       $y += $alto + 8
     }
-    'cabecalho' {
-      if ($logo) {
-        $g.DrawImage($logo, [int](($dotW - $logo.Width) / 2), [int]$y, $logo.Width, $logo.Height)
-        $y += $logo.Height + 10
-      } elseif ($doc.loja) {
-        Centro ([string]$doc.loja).ToUpper() $fNome
-        $y += 6
+    'topo' {
+      $y += (Px 14)
+      $fr = Mono 15
+      $fv = Mono 15
+      $fd = Mono 17 $true
+      $hLogo = DesenharLogo ([string]$b.logo) ($dotW / 2.0) $y
+      $larLogo = if ($logo) { $logo.Width } else { (Px 86) }
+      # Horarios a esquerda, centrados na altura da logo.
+      $n = @($b.linhas).Count
+      $hl = (Alt $fr) * 1.45
+      $yl = $y + [Math]::Max(0, ($hLogo - $n * $hl) / 2.0)
+      $colVal = $m + (Larg 'Recebido  ' $fr)
+      foreach ($par in @($b.linhas)) {
+        Texto ([string]$par[0]) $fr $m $yl
+        Texto ([string]$par[1]) $fv $colVal $yl
+        $yl += $hl
       }
+      # Tipo do pedido a direita (encolhe se a logo apertar).
+      $maxDir = $direita - ($dotW / 2.0 + $larLogo / 2.0) - (Px 8)
+      $txt = [string]$b.direita
+      while ((Larg $txt $fd) -gt $maxDir -and $fd.Size -gt 11) { $fd = New-Object System.Drawing.Font('Lucida Console', [single]($fd.Size - 1), [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel) }
+      TextoDir $txt $fd $direita ($y + ($hLogo - (Alt $fd)) / 2.0)
+      $y += $hLogo + (Px 22)
     }
-    'faixa' {
-      $f = $fFaixa
-      $pad = (Alt $f) * 0.28
-      $tw = Larg $b.s $f
-      while ($tw -gt $uw - 12 -and $f.Size -gt 10) { $f = New-Object System.Drawing.Font('Arial', [single]($f.Size - 1), [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel); $tw = Larg $b.s $f }
-      $hh = (Alt $f) + 2 * $pad
-      $y += 4
-      $g.FillRectangle($preto, $m, [int]$y, $uw, [int][Math]::Ceiling($hh))
-      Texto $b.s $f ($m + ($uw - $tw) / 2.0) ($y + $pad) $branco
-      $y += $hh + 8
+    'topo_data' {
+      $y += (Px 14)
+      $fdata = Mono 15
+      $hLogo = DesenharLogo ([string]$b.logo) ($dotW / 2.0) $y
+      Texto ([string]$b.data) $fdata $m ($y + (Px 4))
+      if ($b.via) { TextoDir ([string]$b.via) (Mono 14 $true) $direita ($y + (Px 4)) }
+      $y += $hLogo + (Px 34)
     }
-    'centro' { Centro $b.s $fCorpoN }
-    'linha' { foreach ($ln in (Quebrar $b.s $fCorpo $uw)) { Texto $ln $fCorpo $m $y; $y += (Alt $fCorpo) } }
-    'pontilhado' { $y += 2; Pontilhado 6 2 }
-    'divisa' { Pontilhado 5 1 }
-    'campo' {
-      $rot = "$($b.rotulo): "
-      $rw = Larg $rot $fCorpoN
-      Texto $rot $fCorpoN $m $y
-      $ls = Quebrar ([string]$b.valor) $fCorpo $uw ($uw - $rw)
-      for ($i = 0; $i -lt $ls.Count; $i++) {
-        $x = if ($i -eq 0) { $m + $rw } else { $m }
-        Texto $ls[$i] $fCorpo $x $y
-        $y += (Alt $fCorpo)
+    'faixa_num' {
+      $h = Px 57
+      $g.FillRectangle($preto, $m, [int]$y, $uw, [int]$h)
+      $fe = Sans 38
+      $fdd = Sans 22
+      Texto ([string]$b.esq) $fe ($m + (Px 18)) ($y + ($h - (Alt $fe)) / 2.0 + (Px 1)) $branco
+      TextoDir ([string]$b.dir) $fdd ($direita - (Px 18)) ($y + ($h - (Alt $fdd)) / 2.0) $branco
+      $y += $h + (Px 20)
+    }
+    'faixa_arred' {
+      $h = Px 60
+      RetArred $preto $m $y $uw $h (Px 6)
+      $f = Sans 30
+      Texto ([string]$b.s) $f ($m + ($uw - (Larg ([string]$b.s) $f)) / 2.0) ($y + ($h - (Alt $f)) / 2.0) $branco
+      $y += $h + (Px 30)
+    }
+    'secao' {
+      $y += (Px 8)
+      $f = Sans 22
+      Texto ([string]$b.s) $f $m $y
+      $y += (Alt $f) + (Px 5)
+      Fio (Px 2)
+      $y += (Px 20)
+    }
+    'secao_sem_linha' {
+      $y += (Px 18)
+      $f = Sans 24
+      Texto ([string]$b.s) $f $m $y
+      $y += (Alt $f) + (Px 26)
+    }
+    'item_bola' {
+      $y += (Px 8)
+      $fq = Mono 20 $true
+      $fv = Mono 18 $true
+      $r = Px 5.5
+      $cy = $y + (Alt $fq) / 2.0
+      $g.FillEllipse($preto, [single]($m + (Px 2)), [single]($cy - $r), [single](2 * $r), [single](2 * $r))
+      $xq = $m + (Px 30)
+      $xn = $xq + (Larg ('{0}  ' -f $b.qtd) $fq)
+      Texto ([string]$b.qtd) $fq $xq $y
+      $vw = Larg ([string]$b.valor) $fv
+      TextoDir ([string]$b.valor) $fv $direita ($y + (Px 1))
+      $lim = $direita - $vw - (Px 12) - $xn
+      $ls = Quebrar ([string]$b.nome) $fq $lim
+      foreach ($ln in $ls) { Texto $ln $fq $xn $y; $y += (Alt $fq) }
+      $y += (Px 6)
+    }
+    'detalhes' {
+      $linhas = @($b.linhas)
+      if ($linhas.Count -eq 0 -and -not $b.obs) { $y += (Px 14); continue }
+      $fdet = Mono 15
+      $fobs = Mono 14
+      $x0 = $m + (Px 40)
+      $ini = $y
+      foreach ($l in $linhas) {
+        $vw = if ($l.valor) { Larg ([string]$l.valor) $fdet } else { 0 }
+        if ($l.valor) { TextoDir ([string]$l.valor) $fdet $direita $y }
+        $lim = $direita - $x0 - $(if ($vw -gt 0) { $vw + (Px 12) } else { 0 })
+        foreach ($ln in (Quebrar ([string]$l.s) $fdet $lim)) { Texto $ln $fdet $x0 $y; $y += (Alt $fdet) * 1.55 }
       }
-    }
-    'item' {
-      $y += 3
-      $vw = Larg $b.valor $fItem
-      $gap = [Math]::Max(12, $uw * 0.03)
-      $primeira = $uw - $vw - $gap
-      Texto $b.valor $fItem ($direita - $vw) $y
-      $ls = Quebrar ([string]$b.nome) $fItem $uw $primeira
-      for ($i = 0; $i -lt $ls.Count; $i++) {
-        $lim = if ($i -eq 0) { $primeira } else { $uw }
-        if ((Larg $ls[$i] $fItem) -gt $lim + 0.5) { $sobreposicoes++ }
-        Texto $ls[$i] $fItem $m $y
-        $y += (Alt $fItem)
+      if ($b.obs) {
+        foreach ($ln in (Quebrar ([string]$b.obs) $fobs ($direita - $x0))) { Texto $ln $fobs $x0 $y; $y += (Alt $fobs) * 1.55 }
       }
-      $y += 1
+      # Fio vertical a esquerda, junto dos adicionais (como o modelo).
+      $g.FillRectangle($preto, [int]($m + (Px 7)), [int]$ini, [int][Math]::Max(1, (Px 2)), [int]($y - $ini))
+      $y += (Px 18)
     }
-    'sub' {
-      $ind = [int]((Alt $fSub) * 0.9)
-      foreach ($ln in (Quebrar $b.s $fSub ($uw - $ind))) { Texto $ln $fSub ($m + $ind) $y; $y += (Alt $fSub) * 1.02 }
+    'obs_pedido' {
+      $f = Mono 15 $true
+      foreach ($ln in (Quebrar ([string]$b.s) $f $uw)) { Texto $ln $f $m $y; $y += (Alt $f) * 1.2 }
+      $y += (Px 10)
     }
-    'valor' {
-      $fr = if ($b.negrito) { $fCorpoN } elseif ($b.leve) { $fSub } else { $fCorpo }
-      $fv = if ($b.negrito) { $fCorpoN } elseif ($b.leve) { $fSub } else { $fCorpo }
-      $rec = if ($b.leve) { [int]((Alt $fSub) * 0.9) } else { 0 }
-      EsqDir ([string]$b.rotulo) $fr ([string]$b.valor) $fv $rec
+    'par' {
+      $fr = Mono 16
+      $fv = Mono 16 $true
+      TextoDir ([string]$b.valor) $fv $direita $y
+      Texto ([string]$b.rotulo) $fr $m $y
+      $y += (Alt $fr) * 1.95
     }
-    'total' {
-      $f = Fonte $P.total $true
-      $gap = [Math]::Max(16, $uw * 0.04)
-      while (((Larg $b.rotulo $f) + $gap + (Larg $b.valor $f)) -gt $uw -and $f.Size -gt 12) {
-        $f = New-Object System.Drawing.Font('Arial', [single]($f.Size - 1), [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+    'rotulo_valor' {
+      $fr = Mono 16
+      $fv = Mono 16 $true
+      Texto ([string]$b.rotulo) $fr $m $y
+      Texto ([string]$b.valor) $fv ($m + (Larg ('{0} ' -f $b.rotulo) $fr)) $y
+      $y += (Alt $fr) * 1.95
+    }
+    'faixa_total' {
+      $y += (Px 10)
+      $h = Px 58
+      $fr = Sans 22
+      $fv = Sans 36
+      while (((Larg ([string]$b.rotulo) $fr) + (Larg ([string]$b.valor) $fv) + (Px 50)) -gt $uw -and $fv.Size -gt 12) {
+        $fv = New-Object System.Drawing.Font('Arial', [single]($fv.Size - 1), [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
       }
-      $y += 5
-      $g.FillRectangle($preto, $m, [int]$y, $uw, 2)
-      $y += 6
-      $vw = Larg $b.valor $f
-      Texto $b.rotulo $f $m $y
-      Texto $b.valor $f ($direita - $vw) $y
-      Write-Log ("TOTAL: valor='{0}' x={1}..{2} papel={3} fonte={4}" -f $b.valor, [int]($direita - $vw), [int]$direita, $dotW, $f.Size)
-      $y += (Alt $f) + 6
+      $g.FillRectangle($preto, $m, [int]$y, $uw, [int]$h)
+      Texto ([string]$b.rotulo) $fr ($m + (Px 18)) ($y + ($h - (Alt $fr)) / 2.0 - (Px 3)) $branco
+      $vw = Larg ([string]$b.valor) $fv
+      TextoDir ([string]$b.valor) $fv ($direita - (Px 18)) ($y + ($h - (Alt $fv)) / 2.0 + (Px 1)) $branco
+      Write-Log ("TOTAL: valor='{0}' x={1}..{2} papel={3} fonte={4}" -f $b.valor, [int]($direita - (Px 18) - $vw), [int]($direita - (Px 18)), $dotW, $fv.Size)
+      $y += $h + (Px 28)
+    }
+    'regua' {
+      $y += (Px 4)
+      Fio 1
+      $y += (Px 26)
+    }
+    'linha_grossa' {
+      $y += (Px 12)
+      Fio (Px 2)
+      $y += (Px 24)
+    }
+    'dado' {
+      $fr = Mono 15
+      $fv = if ($b.negrito) { Mono 16 $true } else { Mono 15 }
+      # Coluna do valor: a do rotulo mais largo do documento (Endereco:/Atendente:).
+      $col = $m + [Math]::Max((Larg 'Endereco:  ' $fr), (Larg ('{0}  ' -f $b.rotulo) $fr))
+      Texto ([string]$b.rotulo) $fr $m ($y + (Px 1))
+      $ls = Quebrar ([string]$b.valor) $fv ($direita - $col)
+      foreach ($ln in $ls) { Texto $ln $fv $col $y; $y += (Alt $fv) * 1.25 }
+      $y += (Alt $fv) * 0.7
+    }
+    'qr' {
+      $linhasQr = @($b.linhas)
+      $n = $linhasQr.Count
+      $mod = [Math]::Max(2, [int][Math]::Round((Px 164) / $n))
+      $lado = $mod * $n
+      $x0 = [int](($dotW - $lado) / 2)
+      $y0 = [int]($y + (Px 6))
+      for ($ly = 0; $ly -lt $n; $ly++) {
+        $row = [string]$linhasQr[$ly]
+        $x = 0
+        while ($x -lt $n) {
+          if ($row[$x] -eq '1') {
+            $ini = $x
+            while ($x -lt $n -and $row[$x] -eq '1') { $x++ }
+            $g.FillRectangle($preto, $x0 + $ini * $mod, $y0 + $ly * $mod, ($x - $ini) * $mod, $mod)
+          } else { $x++ }
+        }
+      }
+      if ($b.icone -eq 'instagram') { IconeInstagram ($x0 + $lado / 2.0) ($y0 + $lado / 2.0) ($lado * 0.2) }
+      Write-Log ("QR: {0}x{0} modulos, {1} pt cada, lado {2} pt, icone='{3}'" -f $n, $mod, $lado, $b.icone)
+      $y = $y0 + $lado + (Px 26)
     }
     'rodape' {
-      $f = if ($b.negrito) { $fRodapeN } else { $fRodape }
-      Centro $b.s $f
+      Centro ([string]$b.s) (Mono 14)
+      $y += (Px 6)
     }
+    'mesa' {
+      $ft = Sans 32
+      $fs = Mono 18 $true
+      $fr = Mono 15
+      $fv = Mono 18 $true
+      $colR = $m + $uw * 0.58
+      $yi = $y
+      $maxT = $colR - $m - (Px 10)
+      $tit = [string]$b.titulo
+      while ((Larg $tit $ft) -gt $maxT -and $ft.Size -gt 14) { $ft = New-Object System.Drawing.Font('Arial', [single]($ft.Size - 1), [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel) }
+      Texto $tit $ft $m $y
+      $ye = $y + (Alt $ft) + (Px 6)
+      if ($b.sub) { Texto ([string]$b.sub) $fs $m $ye; $ye += (Alt $fs) }
+      $yd = $yi - (Px 2)
+      foreach ($par in @($b.pares)) {
+        Texto ([string]$par[0]) $fr $colR ($yd + (Px 2))
+        $v = [string]$par[1]
+        $maxV = $direita - $colR - (Larg ('{0} ' -f $par[0]) $fr)
+        while ((Larg $v $fv) -gt $maxV -and $v.Length -gt 2) { $v = $v.Substring(0, $v.Length - 1) }
+        TextoDir $v $fv $direita $yd
+        $yd += (Px 39)
+      }
+      $y = [Math]::Max($ye, $yd - (Px 12))
+    }
+    'tabela_cab' {
+      $cq = 'QTD'
+      Texto $cq $fTabCab ($colQtd - (Larg $cq $fTabCab) / 2.0) $y
+      Texto 'DESCRICAO' $fTabCab $colDesc $y
+      TextoDir 'UNIT.' $fTabCab $colUnit $y
+      TextoDir 'TOTAL' $fTabCab $direita $y
+      $y += (Alt $fTabCab) + (Px 6)
+    }
+    'tabela_item' {
+      $y += (Px 10)
+      $q = [string]$b.qtd
+      Texto $q $fTab ($colQtd - (Larg $q $fTab) / 2.0) $y
+      $uwid = Larg ([string]$b.unit) $fTabU
+      TextoDir ([string]$b.unit) $fTabU $colUnit ($y + (Px 1))
+      TextoDir ([string]$b.total) $fTabN $direita $y
+      $limDesc = $colUnit - $uwid - (Px 16) - $colDesc
+      foreach ($ln in (Quebrar ([string]$b.desc) $fTab $limDesc)) {
+        if ((Larg $ln $fTab) -gt $limDesc + 0.5) { $sobreposicoes++ }
+        Texto $ln $fTab $colDesc $y; $y += (Alt $fTab)
+      }
+      foreach ($sub in @($b.subs)) {
+        if (-not $sub) { continue }
+        foreach ($ln in (Quebrar ([string]$sub) $fTabSub ($direita - $colDesc - (Px 10)))) { Texto $ln $fTabSub ($colDesc + (Px 10)) $y; $y += (Alt $fTabSub) }
+      }
+      $y += (Px 14)
+    }
+    'par_pc' {
+      $fr = Mono 18
+      $fv = Mono 18 $true
+      TextoDir ([string]$b.valor) $fv $direita $y
+      $lim = $uw - (Larg ([string]$b.valor) $fv) - (Px 12)
+      foreach ($ln in (Quebrar ([string]$b.rotulo) $fr $lim)) { Texto $ln $fr $m $y; $y += (Alt $fr) }
+      $y += (Px 16)
+    }
+    'total_grande' {
+      $y += (Px 4)
+      $fr = Sans 26
+      $fv = Sans 36
+      while (((Larg ([string]$b.rotulo) $fr) + (Larg ([string]$b.valor) $fv) + (Px 16)) -gt $uw -and $fv.Size -gt 12) {
+        $fv = New-Object System.Drawing.Font('Arial', [single]($fv.Size - 1), [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+        if ($fr.Size -gt 14) { $fr = New-Object System.Drawing.Font('Arial', [single]($fr.Size - 1), [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel) }
+      }
+      $hmax = [Math]::Max((Alt $fr), (Alt $fv))
+      Texto ([string]$b.rotulo) $fr $m ($y + ($hmax - (Alt $fr)) / 2.0)
+      $vw = Larg ([string]$b.valor) $fv
+      TextoDir ([string]$b.valor) $fv $direita $y
+      Write-Log ("TOTAL: valor='{0}' x={1}..{2} papel={3} fonte={4}" -f $b.valor, [int]($direita - $vw), [int]$direita, $dotW, $fv.Size)
+      $y += $hmax + (Px 44)
+    }
+    'centro' {
+      $f = if ($b.negrito) { Mono 16 $true } elseif ($b.maior) { Mono 17 } else { Mono 15 }
+      Centro ([string]$b.s) $f
+      $y += (Px 14)
+    }
+    'tracejado' {
+      $y -= (Px 2)
+      $traco = [int](Px 12); $vao = [int](Px 6); $alt2 = [int][Math]::Max(1, (Px 2))
+      for ($x = $m + (Px 30); $x -le $direita - (Px 30) - $traco; $x += $traco + $vao) { $g.FillRectangle($preto, [int]$x, [int]$y, $traco, $alt2) }
+      $y += (Px 22)
+    }
+    'espaco' { $y += (Px 18) }
     'corte' { $y += 70 }
   }
 }
@@ -394,7 +665,7 @@ function Imprimir-Bitmap([System.Drawing.Bitmap]$img, [bool]$usarCustom) {
   $pd = New-Object System.Drawing.Printing.PrintDocument
   $pd.PrinterSettings.PrinterName = $PrinterName
   $pd.PrinterSettings.Copies = [int]$Copies
-  $pd.DocumentName = 'Menuzia Recibo/Extrato'
+  $pd.DocumentName = $(if ($doc.modelo -eq 'cozinha') { 'Menuzia Comanda' } else { 'Menuzia Pre-conta' })
   if ($usarCustom) {
     $wIn = [int]([Math]::Round($img.Width / $dpi * 100))
     $hIn = [int]([Math]::Round($img.Height / $dpi * 100))

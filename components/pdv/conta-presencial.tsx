@@ -21,6 +21,7 @@ import type { ContaPresencial, PedidoConta } from '@/lib/servicos/conta-presenci
 import type { EventoHistorico } from '@/lib/queries/conta'
 import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde, novaChave, tempoCurto } from './util'
 import { FecharContaModal } from './fechar-conta'
+import { TaxaExtraModal } from './taxa-extra'
 import { IdentificarModal } from './atendimento'
 import { ResumoEncerramentoModal } from './resumo-encerramento'
 import { montarResumoEncerramento, type ResumoEncerramento } from '@/lib/encerramento-conta'
@@ -71,6 +72,7 @@ type Subtela =
   | { tipo: 'estorno'; pagamentoId: string }
   | { tipo: 'reabrir' }
   | { tipo: 'ajustar' }
+  | { tipo: 'taxa_extra' }
   | { tipo: 'fechar' }
   | { tipo: 'identificar'; aviso?: string; depois?: 'fechar' }
   | { tipo: 'cancelar_conta' }
@@ -346,6 +348,8 @@ export function ContaPresencialModal({
                     valor={conta.totais.taxaEntrega}
                   />
                 )}
+                {/* Taxa manual só desta conta (0106). */}
+                {conta.taxaExtra && <Linha rotulo={conta.taxaExtra.nome} valor={conta.taxaExtra.valor} testid="conta-taxa-extra" />}
                 {conta.totais.desconto > 0 && <Linha rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={-conta.totais.desconto} />}
                 <div className="my-1.5 border-t border-border" />
                 <Linha rotulo="Total" valor={conta.totais.total} forte />
@@ -432,6 +436,17 @@ export function ContaPresencialModal({
                       </button>
                     )}
                   </div>
+                  {pode.taxa_extra && (
+                    <button
+                      type="button"
+                      disabled={ocupado}
+                      onClick={() => setSub({ tipo: 'taxa_extra' })}
+                      data-testid="conta-adicionar-taxa"
+                      className="w-full rounded-menuzia border border-dashed border-primary bg-white py-2 text-[12px] font-bold text-primary hover:bg-primary hover:text-white disabled:opacity-50"
+                    >
+                      {conta.taxaExtra ? `Alterar taxa (${conta.taxaExtra.nome})` : '+ Adicionar taxa'}
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -472,6 +487,7 @@ export function ContaPresencialModal({
           formas={dados.formasPagamento}
           podeForcar={Boolean(pode?.resolver_no_fechamento)}
           podePagar={Boolean(pode?.pagamento)}
+          podeTaxaExtra={Boolean(pode?.taxa_extra)}
           onVoltar={() => {
             setSub(null)
             void carregar()
@@ -604,6 +620,17 @@ export function ContaPresencialModal({
           }}
         />
       )}
+      {conta && sub?.tipo === 'taxa_extra' && (
+        <TaxaExtraModal
+          atual={conta.taxaExtra}
+          onVoltar={() => setSub(null)}
+          onSalvar={async (nome, valor) => {
+            const r = await agir({ acao: 'taxa_extra', nome, valor }, valor > 0 ? 'Taxa salva.' : 'Taxa removida.')
+            if (r?.ok) setSub(null)
+            return r?.ok ? null : r?.erro ?? 'Não foi possível.'
+          }}
+        />
+      )}
       {conta && sub?.tipo === 'ajustar' && (
         <AjustarModal
           conta={conta}
@@ -621,9 +648,9 @@ export function ContaPresencialModal({
   )
 }
 
-function Linha({ rotulo, valor, forte }: { rotulo: string; valor: number; forte?: boolean }) {
+function Linha({ rotulo, valor, forte, testid }: { rotulo: string; valor: number; forte?: boolean; testid?: string }) {
   return (
-    <div className="flex items-center justify-between py-0.5">
+    <div className="flex items-center justify-between py-0.5" data-testid={testid}>
       <span className={forte ? 'font-bold text-text-main' : 'text-text-subtle'}>{rotulo}</span>
       <span className={forte ? 'font-bold text-text-main' : 'text-text-main'}>{formatBRL(valor)}</span>
     </div>

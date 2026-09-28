@@ -83,8 +83,9 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, 
 }
 
 /**
- * Recibo/Extrato do Assistente Beta: documento em blocos (pre-conta-beta.js) desenhado por
- * print-beta.ps1 — layout próprio, com a logo da loja. O Assistente atual não usa isto.
+ * Documentos do Assistente Beta — pré-conta (pre-conta-beta.js) e comanda da cozinha
+ * (cozinha-beta.js) — em blocos, desenhados por print-beta.ps1 com a logo da loja.
+ * O Assistente atual não usa isto.
  */
 async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, perfil = {}, logoPath = null, logoCacheDir = null) {
   const tmpFile = path.join(os.tmpdir(), `${perfil.prefixoTmp || 'menuzia-beta'}-doc-${Date.now()}.json`)
@@ -96,6 +97,7 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
     if (logoPath) args.push('-LogoPath', logoPath)
     if (logoCacheDir) args.push('-LogoCacheDir', logoCacheDir)
     if (perfil.logNome) args.push('-LogNome', perfil.logNome)
+    if (Number.isInteger(perfil.copias) && perfil.copias > 1) args.push('-Copies', String(Math.min(perfil.copias, 5)))
     return await runPowershell(args, { timeout: 60_000, windowsHide: true })
   } finally {
     fs.unlink(tmpFile, () => {})

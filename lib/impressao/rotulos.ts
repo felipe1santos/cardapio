@@ -29,9 +29,10 @@ export const ROTULO_TIPO_TRABALHO: Record<string, string> = {
 }
 
 /** Subtipo do teste_impressora no histórico. */
-export const ROTULO_SUBTIPO_TESTE: Record<'calibracao' | 'recibo_teste', string> = {
+export const ROTULO_SUBTIPO_TESTE: Record<'calibracao' | 'recibo_teste' | 'cozinha_teste', string> = {
   calibracao: 'Página de calibração',
   recibo_teste: 'Recibo/Extrato de teste',
+  cozinha_teste: 'Comanda da cozinha de teste',
 }
 
 export const ROTULO_FUNCAO: Record<'cozinha' | 'caixa', string> = {
@@ -57,6 +58,6 @@ export const DOWNLOAD_ASSISTENTE_ATUAL = {
   url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.23/AssistenteImpressaoMenuzia-Setup-0.1.23.exe',
 }
 export const DOWNLOAD_ASSISTENTE_BETA = {
-  versao: '0.2.0-beta.1',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.1/AssistenteMenuziaBeta-Setup-0.2.0-beta.1.exe',
+  versao: '0.2.0-beta.2',
+  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.2/AssistenteMenuziaBeta-Setup-0.2.0-beta.2.exe',
 }

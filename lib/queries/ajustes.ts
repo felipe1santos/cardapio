@@ -37,6 +37,8 @@ export interface ConfigLoja {
   freteForaDaLista: FreteForaDaLista
   facebookPixelId: string | null
   googleTagId: string | null
+  /** Instagram da loja (0106), sempre https://instagram.com/<usuario>. QR da comanda do Beta. */
+  instagramUrl: string | null
   layoutCardapio: LayoutCardapio
   corTema: string
   imagemGrande: boolean
@@ -89,6 +91,7 @@ interface ConfigRow {
   frete_fora_da_lista: string | null
   facebook_pixel_id: string | null
   google_tag_id: string | null
+  instagram_url?: string | null
   layout_cardapio: LayoutCardapio
   cor_tema: string
   imagem_grande: boolean
@@ -105,7 +108,7 @@ interface ConfigRow {
   modulo_mesas_ativo: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -134,6 +137,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     freteForaDaLista: normalizarForaDaLista(row.frete_fora_da_lista),
     facebookPixelId: row.facebook_pixel_id,
     googleTagId: row.google_tag_id,
+    instagramUrl: row.instagram_url ?? null,
     layoutCardapio: row.layout_cardapio ?? 'categoria',
     corTema: row.cor_tema ?? 'azul',
     imagemGrande: row.imagem_grande ?? false,
@@ -189,6 +193,7 @@ export interface ConfigLojaPatch {
   freteForaDaLista?: FreteForaDaLista
   facebookPixelId?: string | null
   googleTagId?: string | null
+  instagramUrl?: string | null
   layoutCardapio?: LayoutCardapio
   corTema?: string
   imagemGrande?: boolean
@@ -270,6 +275,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.freteForaDaLista !== undefined) row.frete_fora_da_lista = patch.freteForaDaLista
   if (patch.facebookPixelId !== undefined) row.facebook_pixel_id = patch.facebookPixelId
   if (patch.googleTagId !== undefined) row.google_tag_id = patch.googleTagId
+  if (patch.instagramUrl !== undefined) row.instagram_url = patch.instagramUrl
   if (patch.layoutCardapio !== undefined) row.layout_cardapio = patch.layoutCardapio
   if (patch.corTema !== undefined) row.cor_tema = patch.corTema
   if (patch.imagemGrande !== undefined) row.imagem_grande = patch.imagemGrande

@@ -295,6 +295,7 @@ export const ACOES_CONTA = [
   'pagamento',
   'estorno',
   'ajustar_valores',
+  'taxa_extra',
   'atender',
   'transicionar',
   'pendencias',
@@ -323,6 +324,8 @@ export const PERMISSAO_DA_ACAO: Record<AcaoConta, Permissao> = {
   pagamento: 'comanda.fechar',
   estorno: 'comanda.estornar',
   ajustar_valores: 'comanda.desconto',
+  // Taxa manual (0106): mesma mão que ajusta serviço e desconto na conta.
+  taxa_extra: 'comanda.desconto',
   atender: 'pedidos.presencial.atender',
   transicionar: 'pedidos.presencial.transicionar',
   pendencias: 'comanda.ver',

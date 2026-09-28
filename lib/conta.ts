@@ -119,6 +119,9 @@ export function mensagemDeErroConta(bruto: string | null | undefined): string {
     pagamento_excede_total: `A conta já recebeu ${reais}, mais do que ficaria valendo. Estorne um pagamento antes.`,
     cancelamento_pendente: 'Há pedido de cancelamento aguardando decisão da gestão. Aprove ou recuse antes de fechar.',
     taxa_invalida: 'Taxa de serviço entre 0% e 30%.',
+    // Taxa manual da conta (0106).
+    taxa_extra_invalida: 'Informe um valor de taxa entre R$ 0,01 e R$ 9.999,99.',
+    taxa_extra_nome_invalido: 'Dê um nome à taxa (de 2 a 40 letras), por exemplo "Couvert".',
     desconto_invalido: 'Desconto inválido: em reais, maior ou igual a zero; em %, de 0 a 100.',
     solicitacao_inexistente: 'Pedido de cancelamento não encontrado.',
     solicitacao_decidida: 'Este pedido de cancelamento já foi decidido.',

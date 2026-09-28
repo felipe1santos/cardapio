@@ -5,6 +5,7 @@ import { ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
 import { ROTULO_PENDENCIA, type CategoriaPendencia } from '@/lib/pdv-v2'
 import type { ContaPresencial } from '@/lib/servicos/conta-presencial'
 import { chamar, formatBRL, horaCurta, lerValor, novaChave } from './util'
+import { TaxaExtraModal } from './taxa-extra'
 
 /**
  * "Fechar conta" (0096): uma tela, quatro passos, e UMA ida ao servidor no fim.
@@ -38,6 +39,9 @@ interface Simulacao {
   cancelados: number
   excedente: number
   taxa_entrega: number
+  /** Taxa manual da conta (0106). */
+  taxa_extra?: number
+  taxa_extra_nome?: string | null
 }
 
 type Decisao = { acao: 'entregue' | 'cancelar' | null; motivo: string }
@@ -50,11 +54,14 @@ export function FecharContaModal({
   formas,
   podeForcar,
   podePagar,
+  podeTaxaExtra = false,
   onVoltar,
   onFechada,
 }: {
   conta: ContaPresencial
   formas: string[]
+  /** Pode incluir/alterar a taxa manual da conta antes de receber (0106). */
+  podeTaxaExtra?: boolean
   /** comanda.resolver_forcado: cancelar, ou dar como entregue o que não está pronto. */
   podeForcar: boolean
   podePagar: boolean
@@ -68,6 +75,9 @@ export function FecharContaModal({
   const [pags, setPags] = useState<LinhaPag[]>([])
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [taxaAberta, setTaxaAberta] = useState(false)
+  // Salvar a taxa manual refaz a simulação (o saldo muda).
+  const [rodadaSim, setRodadaSim] = useState(0)
   // Uma chave por intenção de fechar esta conta: reenvio devolve o mesmo fechamento.
   const chave = useRef(novaChave())
 
@@ -117,13 +127,20 @@ export function FecharContaModal({
       setErro(null)
       const s = r.dados.resultado
       setSim(s)
-      setPags((atual) => (atual.length === 0 && s.restante > 0 ? [novaLinha(formas[0] ?? 'dinheiro', s.restante.toFixed(2).replace('.', ','))] : atual))
+      // Uma linha só, ainda com o saldo sugerido: acompanha a taxa manual que mudou o saldo.
+      setPags((atual) =>
+        atual.length === 0 && s.restante > 0
+          ? [novaLinha(formas[0] ?? 'dinheiro', s.restante.toFixed(2).replace('.', ','))]
+          : atual.length === 1 && rodadaSim > 0
+            ? [{ ...atual[0]!, valor: s.restante.toFixed(2).replace('.', ',') }]
+            : atual,
+      )
     })()
     return () => {
       vivo = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chaveSim, todasDecididas, pendentes, conta.id])
+  }, [chaveSim, todasDecididas, pendentes, conta.id, rodadaSim])
 
   const somaPags = pags.reduce((s, p) => s + (Number.isFinite(lerValor(p.valor)) ? lerValor(p.valor) : 0), 0)
   const falta = sim ? Math.round((sim.restante - somaPags) * 100) / 100 : 0
@@ -267,12 +284,23 @@ export function FecharContaModal({
               <Linha rotulo="Subtotal" valor={sim.subtotal} />
               {sim.cancelados > 0 && <Linha rotulo="Itens cancelados (não cobrados)" valor={sim.cancelados} fraco />}
               {sim.taxa > 0 && <Linha rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={sim.taxa} />}
+              {Number(sim.taxa_extra) > 0 && <Linha rotulo={sim.taxa_extra_nome || 'Taxa'} valor={Number(sim.taxa_extra)} />}
               {Number(sim.taxa_entrega) > 0 && <Linha rotulo="Taxa de entrega" valor={Number(sim.taxa_entrega)} />}
               {sim.desconto > 0 && <Linha rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={-sim.desconto} />}
               <div className="my-1.5 border-t border-border" />
               <Linha rotulo="Total" valor={sim.total} forte />
               <Linha rotulo="Já pago" valor={sim.pago} />
               <Linha rotulo="Saldo" valor={sim.restante} forte testid="fechar-restante" />
+              {podeTaxaExtra && (
+                <button
+                  type="button"
+                  onClick={() => setTaxaAberta(true)}
+                  data-testid="fechar-taxa-extra"
+                  className="mt-2 w-full rounded-menuzia border border-dashed border-primary py-2 text-[12px] font-bold text-primary hover:bg-primary hover:text-white"
+                >
+                  {Number(sim.taxa_extra) > 0 ? `Alterar taxa (${sim.taxa_extra_nome ?? 'Taxa'})` : '+ Adicionar taxa'}
+                </button>
+              )}
               {sim.excedente > 0 && (
                 <p className="mt-2 rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger" data-testid="fechar-excedente">
                   Com esses cancelamentos a conta já recebeu {formatBRL(sim.excedente)} a mais do que vale. O estorno é feito por gerente ou dono, na conta, antes de fechar.
@@ -370,6 +398,19 @@ export function FecharContaModal({
           </button>
         </div>
       </div>
+      {taxaAberta && (
+        <TaxaExtraModal
+          atual={sim && Number(sim.taxa_extra) > 0 ? { nome: sim.taxa_extra_nome ?? 'Taxa', valor: Number(sim.taxa_extra) } : null}
+          onVoltar={() => setTaxaAberta(false)}
+          onSalvar={async (nome, valor) => {
+            const r = await chamar(`/api/admin/comandas/${conta.id}`, { method: 'POST', body: JSON.stringify({ acao: 'taxa_extra', nome, valor }) })
+            if (!r.ok) return r.erro ?? 'Não foi possível salvar a taxa.'
+            setTaxaAberta(false)
+            setRodadaSim((n) => n + 1)
+            return null
+          }}
+        />
+      )}
     </div>
   )
 }

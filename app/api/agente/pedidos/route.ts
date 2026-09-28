@@ -5,6 +5,7 @@ import { lerAgenteToken } from '@/lib/agente-token'
 import { identificarAgente } from '@/lib/impressao/credenciais'
 import { destinoCozinha } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
+import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, qrDaCozinha } from '@/lib/impressao/cozinha-beta'
 
 /**
  * Fila da FICHA DA COZINHA, consultada periodicamente pelo Assistente de Impressão.
@@ -53,11 +54,25 @@ export async function GET(request: Request) {
     const souDono = quem.tipo === 'agente' && quem.agenteId === rota.agenteId
     const lista = souDono && config?.impressaoAutomatica ? await listarPedidosParaImprimir(admin, restauranteId, instancia) : []
     const pedidos = aposCorteDaTransferencia(lista as { criadoEm?: string | null }[], rota.transferidaEm)
+    // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
+    // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.
+    let beta: { extras: Record<string, unknown>; qr: ReturnType<typeof qrDaCozinha> | null } | undefined
+    if (souDono) {
+      const ids = (pedidos as { id?: string }[]).map((p) => p.id).filter((id): id is string => typeof id === 'string')
+      const [extras, lojaBeta] = await Promise.all([
+        extrasDaCozinhaBeta(admin, restauranteId, ids).catch(() => ({})),
+        lojaDaCozinhaBeta(admin, restauranteId).catch(() => null),
+      ])
+      let qr: ReturnType<typeof qrDaCozinha> | null = null
+      try { qr = lojaBeta?.slug ? qrDaCozinha(lojaBeta) : null } catch { qr = null }
+      beta = { extras, qr }
+    }
     return NextResponse.json({
       config,
       impressoras,
       pedidos,
       loja,
+      ...(beta ? { cozinhaBeta: beta } : {}),
       destinoCozinha: souDono
         ? { nomeSistema: rota.nomeSistema, larguraMm: rota.larguraMm, tamanhoFonte: rota.tamanhoFonte, copias: rota.copias,
             larguraPontos: rota.larguraPontos, deslocamentoPontos: rota.deslocamentoPontos }

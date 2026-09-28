@@ -248,10 +248,11 @@ export function PainelImpressao() {
       setCalibrar(d.id)
       return
     }
-    const acao = teste === 'recibo' ? 'recibo_teste' : 'teste'
+    // Cozinha e Recibo/Extrato de teste saem no MODELO de verdade (dados de demonstração).
+    const acao = teste === 'recibo' ? 'recibo_teste' : teste === 'cozinha' ? 'cozinha_teste' : 'teste'
     const k = `${acao}:${d.id}`
     chavesTeste.current[k] ??= novaChave()
-    const r = await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'POST', { acao, chave: chavesTeste.current[k] }, `${teste === 'recibo' ? 'Recibo/Extrato de teste' : 'Página de teste'} enviado para ${nomeDisp(d)}.`)
+    const r = await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'POST', { acao, chave: chavesTeste.current[k] }, `${teste === 'recibo' ? 'Recibo/Extrato de teste' : teste === 'cozinha' ? 'Comanda de teste' : 'Página de teste'} enviado para ${nomeDisp(d)}.`)
     if (r?.ok) {
       delete chavesTeste.current[k]
       setTeste(null)

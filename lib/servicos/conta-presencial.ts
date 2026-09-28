@@ -143,8 +143,10 @@ export interface ContaPresencial {
   descontoValor: number
   descontoPercentual: number
   descontoMotivo: string | null
+  /** Taxa manual só desta conta (0106): nome e valor em R$. Não é item nem catálogo. */
+  taxaExtra: { nome: string; valor: number; porNome: string | null; em: string | null } | null
   /** `taxaEntrega` = a taxa que a conta está cobrando agora (0 sem item ativo — 0099). */
-  totais: { subtotal: number; taxaServico: number; desconto: number; taxaEntrega: number; total: number; pago: number; restante: number }
+  totais: { subtotal: number; taxaServico: number; taxaExtra: number; desconto: number; taxaEntrega: number; total: number; pago: number; restante: number }
   situacao: ReturnType<typeof situacaoFinanceira>
   pedidos: PedidoConta[]
   pagamentos: PagamentoConta[]
@@ -152,7 +154,7 @@ export interface ContaPresencial {
 }
 
 const COMANDA_COLS =
-  'id, tipo, status, numero, senha, cliente_nome, cliente_telefone, cliente_id, entrega, entrega_cep, entrega_rua, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_referencia, entrega_observacao, taxa_entrega, taxa_entrega_manual, cupom_codigo, mesa_id, aberta_em, aberta_por_nome, responsavel_nome, pessoas, fechada_em, fechada_por_nome, cancelada_em, cancelada_por_nome, cancelada_motivo, reaberta_em, reaberta_por_nome, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo, mesas ( nome )'
+  'id, tipo, status, numero, senha, cliente_nome, cliente_telefone, cliente_id, entrega, entrega_cep, entrega_rua, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_referencia, entrega_observacao, taxa_entrega, taxa_entrega_manual, cupom_codigo, mesa_id, aberta_em, aberta_por_nome, responsavel_nome, pessoas, fechada_em, fechada_por_nome, cancelada_em, cancelada_por_nome, cancelada_motivo, reaberta_em, reaberta_por_nome, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo, taxa_extra_nome, taxa_extra_valor, taxa_extra_por_nome, taxa_extra_em, mesas ( nome )'
 
 export async function buscarConta(admin: SupabaseClient, restauranteId: string, comandaId: string): Promise<ContaPresencial | null> {
   const { data: c } = await admin.from('comandas').select(COMANDA_COLS).eq('id', comandaId).eq('restaurante_id', restauranteId).maybeSingle()
@@ -257,10 +259,12 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     total: Number(tot?.total ?? 0),
     pago: Number(tot?.pago ?? 0),
     restante: Number(tot?.restante ?? 0),
-    // Derivada do banco: total = subtotal + serviço + entrega − desconto (comanda_totais, 0099).
+    taxaExtra: Number(row.taxa_extra_valor ?? 0),
+    // Derivada do banco: total = subtotal + serviço + taxa manual + entrega − desconto
+    // (comanda_totais, 0099/0106).
     taxaEntrega: 0,
   }
-  totais.taxaEntrega = Math.max(0, Math.round((totais.total - totais.subtotal - totais.taxaServico + totais.desconto) * 100) / 100)
+  totais.taxaEntrega = Math.max(0, Math.round((totais.total - totais.subtotal - totais.taxaServico - totais.taxaExtra + totais.desconto) * 100) / 100)
 
   return {
     id: row.id as string,
@@ -307,6 +311,14 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     descontoValor: Number(row.desconto_valor),
     descontoPercentual: Number(row.desconto_percentual ?? 0),
     descontoMotivo: (row.desconto_motivo as string | null) ?? null,
+    taxaExtra: totais.taxaExtra > 0
+      ? {
+          nome: String(row.taxa_extra_nome ?? 'Taxa'),
+          valor: totais.taxaExtra,
+          porNome: (row.taxa_extra_por_nome as string | null) ?? null,
+          em: (row.taxa_extra_em as string | null) ?? null,
+        }
+      : null,
     totais,
     situacao: situacaoFinanceira(totais.total, totais.pago, pagamentos.filter((p) => p.estornado).length, row.status as string),
     pedidos,
@@ -931,6 +943,20 @@ export async function aplicarCupom(admin: SupabaseClient, ator: Ator, conta: Con
   if (!v.ok) return falha(v.motivo, 409, 'cupom_recusado')
   return rpc<{ id: string; cupom: string }>(admin, 'comanda_cupom_aplicar', {
     p_restaurante: ator.restauranteId, p_comanda: conta.id, p_cupom: cupom.id, p_ator: ator.userId, p_ator_nome: ator.nome, p_origem: origem,
+  })
+}
+
+/**
+ * Taxa manual só desta conta (0106): valor > 0 grava/troca, 0 remove. O banco trava a
+ * conta, recusa conta fechada/cancelada e de outra loja, confere o já pago e audita.
+ */
+export async function definirTaxaExtra(admin: SupabaseClient, ator: Ator, comandaId: string, nome: unknown, valor: unknown) {
+  const v = typeof valor === 'number' ? valor : typeof valor === 'string' && valor.trim() !== '' ? Number(valor.replace(',', '.')) : 0
+  if (!Number.isFinite(v)) return falha('Valor inválido.')
+  const n = typeof nome === 'string' ? nome.trim().slice(0, 60) : ''
+  return rpc<Record<string, number | string | null>>(admin, 'comanda_taxa_extra_definir', {
+    p_restaurante: ator.restauranteId, p_comanda: comandaId, p_nome: n || null, p_valor: Math.round(v * 100) / 100,
+    p_ator: ator.userId, p_ator_nome: ator.nome,
   })
 }
 

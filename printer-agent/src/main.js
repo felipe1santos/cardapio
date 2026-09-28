@@ -11,6 +11,7 @@ const { montarPreConta, montarTeste, colsPreConta } = require('./pre-conta')
 const { FilasPorDispositivo } = require('./fila-dispositivos')
 const { montarCalibracao } = require('./calibracao')
 const { montarPreContaBeta, textoDoDocumento } = require('./pre-conta-beta')
+const { montarCozinhaBeta } = require('./cozinha-beta')
 const crypto = require('crypto')
 
 // Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
@@ -264,13 +265,21 @@ async function cicloDePolling() {
           continue
         }
 
-        const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
         const perfilCozinha = EH_BETA && destino
           ? { ...PERFIL_LOG, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0 }
           : null
-        const saida = perfilCozinha
-          ? await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao), perfilCozinha)
-          : await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
+        let saida
+        if (perfilCozinha) {
+          // Beta: comanda no modelo oficial (cozinha-beta.js + print-beta.ps1), com a
+          // logo da loja, o desconto/horários e o QR que o servidor manda só para o Beta.
+          const beta = data.cozinhaBeta || {}
+          const doc = montarCozinhaBeta(pedido, { config: configImpressao, lojaNome, extras: beta.extras?.[pedido.id], qr: beta.qr })
+          const logo = await obterLogo()
+          saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoDocumento(doc) }, paperMm, { ...perfilCozinha, copias }, logo, PASTA_LOGOS())
+        } else {
+          const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
+          saida = await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
+        }
         mostrarDiagnostico(saida)
 
         // A partir daqui o papel pode já ter saído: registra local ANTES de
@@ -380,6 +389,8 @@ const filas = new FilasPorDispositivo(
     const calibracao = t.tipo === 'teste_impressora' && t.snapshot?.calibracao === true
     // Recibo/Extrato de teste: o MESMO renderizador e o MESMO perfil do Recibo/Extrato real.
     const reciboTeste = t.tipo === 'teste_impressora' && t.snapshot?.recibo_teste === true
+    // Comanda da cozinha de teste (Beta): o MESMO modelo da comanda real, com dados de demonstração.
+    const cozinhaTeste = EH_BETA && t.tipo === 'teste_impressora' && t.snapshot?.cozinha_teste === true && t.snapshot?.pedido
     const texto = t.tipo === 'pre_conta' || reciboTeste
       ? montarPreConta(t.snapshot)
       : calibracao
@@ -397,7 +408,11 @@ const filas = new FilasPorDispositivo(
     // Recibo/Extrato no Beta: layout próprio (pre-conta-beta.js + print-beta.ps1), o MESMO
     // para a conta real e para o teste. Calibração e teste simples seguem no print.ps1.
     let saida
-    if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
+    if (cozinhaTeste) {
+      const doc = montarCozinhaBeta(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, extras: t.snapshot.extras, qr: t.snapshot.qr, teste: true })
+      const logo = await obterLogo()
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, perfil, logo, PASTA_LOGOS())
+    } else if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
       const doc = montarPreContaBeta(t.snapshot)
       const logo = await obterLogo()
       saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, perfil, logo, PASTA_LOGOS())
@@ -407,7 +422,7 @@ const filas = new FilasPorDispositivo(
         : await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
     }
     mostrarDiagnostico(saida)
-    const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : reciboTeste ? 'Recibo/Extrato de teste' : calibracao ? 'Página de calibração' : 'Teste'
+    const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : reciboTeste ? 'Recibo/Extrato de teste' : cozinhaTeste ? 'Comanda de teste' : calibracao ? 'Página de calibração' : 'Teste'
     log(`${rotulo} enviado para "${t.nomeSistema}" — o Windows aceitou (confira se o papel saiu).`)
   },
   async (id, ok, erro) => {

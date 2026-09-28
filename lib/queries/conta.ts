@@ -14,6 +14,8 @@ import { ROTULO_EVENTO } from '@/lib/queries/auditoria'
 export interface TotaisConta {
   subtotal: number
   taxaServico: number
+  /** Taxa manual só desta conta, em R$ (0106). 0 = sem taxa. */
+  taxaExtra?: number
   desconto: number
   total: number
   pago: number
@@ -91,6 +93,8 @@ export interface ContaDaMesa {
   descontoValor: number
   descontoPercentual: number
   descontoMotivo: string | null
+  /** Taxa manual só desta conta (0106): "Couvert", "Taxa extra"… Não é item nem catálogo. */
+  taxaExtra: { nome: string; valor: number; porNome: string | null; em: string | null } | null
   totais: TotaisConta
   lancamentos: LancamentoDaConta[]
   pagamentos: PagamentoDaConta[]
@@ -133,7 +137,7 @@ export async function buscarComandaAbertaDaMesa(
 export async function buscarConta(admin: SupabaseClient, restauranteId: string, mesaId: string): Promise<ContaDaMesa | null> {
   const { data: c } = await admin
     .from('comandas')
-    .select('id, numero, aberta_em, pessoas, observacoes, responsavel_nome, cliente_nome, cliente_telefone, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo')
+    .select('id, numero, aberta_em, pessoas, observacoes, responsavel_nome, cliente_nome, cliente_telefone, taxa_servico_percentual, desconto_tipo, desconto_valor, desconto_percentual, desconto_motivo, taxa_extra_nome, taxa_extra_valor, taxa_extra_por_nome, taxa_extra_em')
     .eq('restaurante_id', restauranteId)
     .eq('mesa_id', mesaId)
     .eq('status', 'aberta')
@@ -144,6 +148,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     cliente_nome: string | null; cliente_telefone: string | null
     taxa_servico_percentual: number; desconto_tipo: string | null; desconto_valor: number; desconto_percentual: number | null
     desconto_motivo: string | null
+    taxa_extra_nome: string | null; taxa_extra_valor: number | string | null; taxa_extra_por_nome: string | null; taxa_extra_em: string | null
   }
 
   const [{ data: t }, { data: peds }, { data: pags }, { data: sols }] = await Promise.all([
@@ -223,9 +228,13 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     descontoValor: Number(comanda.desconto_valor),
     descontoPercentual: Number(comanda.desconto_percentual ?? 0),
     descontoMotivo: comanda.desconto_motivo,
+    taxaExtra: Number(comanda.taxa_extra_valor ?? 0) > 0
+      ? { nome: comanda.taxa_extra_nome ?? 'Taxa', valor: Number(comanda.taxa_extra_valor), porNome: comanda.taxa_extra_por_nome, em: comanda.taxa_extra_em }
+      : null,
     totais: {
       subtotal: Number(tot?.subtotal ?? 0),
       taxaServico: Number(tot?.taxa_servico ?? 0),
+      taxaExtra: Number(comanda.taxa_extra_valor ?? 0),
       desconto: Number(tot?.desconto ?? 0),
       total: Number(tot?.total ?? 0),
       pago: Number(tot?.pago ?? 0),

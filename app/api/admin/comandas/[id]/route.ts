@@ -110,6 +110,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ ok: true, resultado: aj.valor })
     }
 
+    case 'taxa_extra':
+      return responder(await conta.definirTaxaExtra(ctx.admin, eu, c.id, corpo.nome, corpo.valor))
+
     case 'atender': {
       const p = pedidoDaConta(corpo.pedidoId)
       if (!p) return NextResponse.json({ error: 'Pedido não pertence a esta conta.' }, { status: 404 })

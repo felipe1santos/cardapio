@@ -9,6 +9,7 @@ import type { ContaDaMesa, EventoHistorico, ItemDaConta, LancamentoDaConta } fro
 import type { ContaPresencial } from '@/lib/servicos/conta-presencial'
 import { montarResumoEncerramento, type ContaParaResumo, type ResumoEncerramento } from '@/lib/encerramento-conta'
 import { FecharContaModal } from '@/components/pdv/fechar-conta'
+import { TaxaExtraModal } from '@/components/pdv/taxa-extra'
 import { IdentificarModal } from '@/components/pdv/atendimento'
 import { ResumoEncerramentoModal } from '@/components/pdv/resumo-encerramento'
 import { chamar, mascararTelefone } from '@/components/pdv/util'
@@ -23,7 +24,7 @@ interface ContaV2 {
 
 /** Conta do salão no formato que o resumo de encerramento entende. */
 function paraResumo(c: ContaDaMesa): ContaParaResumo {
-  return { status: 'aberta', totais: c.totais, pedidos: c.lancamentos.map((l) => ({ status: l.status })) }
+  return { status: 'aberta', totais: c.totais, pedidos: c.lancamentos.map((l) => ({ status: l.status })), taxaExtra: c.taxaExtra }
 }
 
 /**
@@ -152,6 +153,7 @@ export function PainelConta({
   const [identificando, setIdentificando] = useState<null | { aviso?: string; depois?: 'fechar' }>(null)
   const [resumo, setResumo] = useState<null | { titulo: string; resumo: ResumoEncerramento; emLimpeza?: boolean }>(null)
   const [carregandoFechar, setCarregandoFechar] = useState(false)
+  const [taxaExtraAberta, setTaxaExtraAberta] = useState(false)
   // Quanto de cada linha selecionada vai na transferência. Chave ausente = linha inteira.
   const [parcelas, setParcelas] = useState<Record<string, number>>({})
   // Só para a conta de cabeça: em quantos dividir o que falta. Não grava na mesa.
@@ -507,6 +509,8 @@ export function PainelConta({
         <div className="rounded-menuzia border border-border bg-main p-4">
           <Linha rotulo="Subtotal" valor={brl(conta.totais.subtotal)} />
           <Linha rotulo={`Taxa de serviço (${conta.taxaServicoPercentual.toLocaleString('pt-BR')}%)`} valor={brl(conta.totais.taxaServico)} />
+          {/* Taxa manual só desta conta (0106). */}
+          {conta.taxaExtra && <Linha rotulo={conta.taxaExtra.nome} valor={brl(conta.taxaExtra.valor)} />}
           {conta.totais.desconto > 0 && (
             <Linha
               rotulo={`Desconto${conta.descontoTipo === 'percentual' ? ` (${conta.descontoPercentual.toLocaleString('pt-BR')}%)` : ''}${conta.descontoMotivo ? ` · ${conta.descontoMotivo}` : ''}`}
@@ -598,6 +602,16 @@ export function PainelConta({
 
           {podeFazer('ajustar_valores') && (
             <AjusteValores conta={conta} taxaPadrao={dados.taxaServicoPadrao ?? 0} executar={executar} />
+          )}
+          {podeFazer('taxa_extra') && (
+            <button
+              type="button"
+              onClick={() => setTaxaExtraAberta(true)}
+              data-testid="mesa-adicionar-taxa"
+              className="mt-2 w-full rounded-menuzia border border-dashed border-primary py-2 text-[12px] font-bold text-primary hover:bg-primary hover:text-white"
+            >
+              {conta.taxaExtra ? `Alterar taxa (${conta.taxaExtra.nome})` : '+ Adicionar taxa'}
+            </button>
           )}
         </div>
 
@@ -756,12 +770,26 @@ export function PainelConta({
         />
       )}
 
+      {taxaExtraAberta && (
+        <TaxaExtraModal
+          atual={conta.taxaExtra}
+          onVoltar={() => setTaxaExtraAberta(false)}
+          onSalvar={async (nome, valor) => {
+            const r = await executar('taxa_extra', { nome, valor }, valor > 0 ? 'Taxa salva.' : 'Taxa removida.')
+            if (!r.ok) return r.error ?? 'Não foi possível salvar a taxa.'
+            setTaxaExtraAberta(false)
+            return null
+          }}
+        />
+      )}
+
       {fechandoV2 && (
         <FecharContaModal
           conta={fechandoV2.conta}
           formas={fechandoV2.formasPagamento}
           podeForcar={Boolean(fechandoV2.permissoes.resolver_no_fechamento)}
           podePagar={Boolean(fechandoV2.permissoes.pagamento)}
+          podeTaxaExtra={Boolean(fechandoV2.permissoes.taxa_extra)}
           onVoltar={() => {
             setFechandoV2(null)
             void estado.recarregar()

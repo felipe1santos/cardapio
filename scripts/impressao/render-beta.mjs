@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url)
 const RAIZ = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
 export const PS1_BETA = join(RAIZ, 'printer-agent', 'src', 'print-beta.ps1')
 const { montarPreContaBeta, textoDoDocumento } = require(join(RAIZ, 'printer-agent', 'src', 'pre-conta-beta.js'))
+const { montarCozinhaBeta } = require(join(RAIZ, 'printer-agent', 'src', 'cozinha-beta.js'))
 const { exigirIsolamento } = require('./isolamento-teste.cjs')
 
 const TEMP = mkdtempSync(join(tmpdir(), 'menuzia-render-beta-'))
@@ -22,8 +23,17 @@ exigirIsolamento({ temp: TEMP, pastas: [CACHE_LOGO], rotulo: 'render-beta' })
 
 let n = 0
 /** snapshot → PNG. { paperMm, pontos, logo (caminho), saida } */
-export function renderizarBeta(snapshot, { paperMm = 80, pontos = null, logo = '', saida }) {
-  const doc = montarPreContaBeta(snapshot)
+export function renderizarBeta(snapshot, opcoes) {
+  return renderizarDocumentoBeta(montarPreContaBeta(snapshot), opcoes)
+}
+
+/** Comanda da cozinha do Beta (cozinha-beta.js) → PNG. pedido no formato da fila; o = { config, lojaNome, extras, qr, teste }. */
+export function renderizarCozinhaBeta(pedido, o, opcoes) {
+  return renderizarDocumentoBeta(montarCozinhaBeta(pedido, o), opcoes)
+}
+
+/** Documento em blocos (qualquer modelo do Beta) → PNG. */
+export function renderizarDocumentoBeta(doc, { paperMm = 80, pontos = null, logo = '', saida }) {
   const json = join(TEMP, `doc-${process.pid}-${++n}.json`)
   writeFileSync(json, JSON.stringify({ ...doc, texto: textoDoDocumento(doc) }), 'utf8')
   const log = join(TEMP, 'menuzia-beta-print.log')

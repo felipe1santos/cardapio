@@ -27,8 +27,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if ('erro' in ctx) return ctx.erro
   if (!ehUuid(id)) return NextResponse.json({ error: 'Impressora inválida' }, { status: 400 })
   const corpo = ((await request.json().catch(() => null)) ?? {}) as Record<string, unknown>
-  if (corpo.acao === 'recibo_teste') {
-    const rt = await criarReciboTeste(ctx.admin, ctx.op, id, corpo.chave)
+  if (corpo.acao === 'recibo_teste' || corpo.acao === 'cozinha_teste') {
+    const rt = await criarReciboTeste(ctx.admin, ctx.op, id, corpo.chave, corpo.acao === 'cozinha_teste' ? 'cozinha' : 'recibo')
     if (!rt.ok) return NextResponse.json({ error: rt.erro, codigo: rt.codigo }, { status: rt.status })
     return NextResponse.json(rt.valor, { status: rt.valor.idempotente ? 200 : 201 })
   }

@@ -3,105 +3,111 @@ import { createRequire } from 'node:module'
 import { snapshotReciboTeste } from '../../lib/impressao/recibo-teste'
 
 const require = createRequire(import.meta.url)
-type Bloco = { t: string; s?: string; rotulo?: string; valor?: string; nome?: string }
-type Doc = { teste: boolean; loja: string; blocos: Bloco[] }
+type Bloco = { t: string; s?: string; rotulo?: string; valor?: string; titulo?: string; sub?: string; pares?: [string, string][]; desc?: string; qtd?: string; unit?: string; total?: string; subs?: string[] }
+type Doc = { versao: number; modelo: string; teste: boolean; loja: string; blocos: Bloco[] }
 const { montarPreContaBeta, textoDoDocumento } = require('./pre-conta-beta.js') as {
   montarPreContaBeta: (s: unknown) => Doc
   textoDoDocumento: (d: Doc) => string
 }
 const { CONTAS } = require('../test/fixtures-pre-conta.cjs') as { CONTAS: Record<string, Record<string, unknown>> }
 
-const FRASES_TESTE = ['TESTE DE IMPRESSÃO', 'SEM VALOR FISCAL', 'CONFERÊNCIA DE CONSUMO', 'NÃO É DOCUMENTO FISCAL', 'PEDIDO DE DEMONSTRAÇÃO']
-const campo = (d: Doc, r: string) => d.blocos.find((b) => b.t === 'campo' && b.rotulo === r)?.valor
-const valor = (d: Doc, r: string) => d.blocos.find((b) => (b.t === 'valor' || b.t === 'total') && b.rotulo === r)?.valor
+const par = (d: Doc, r: string) => d.blocos.find((b) => b.t === 'par_pc' && b.rotulo === r)?.valor
+const total = (d: Doc) => d.blocos.find((b) => b.t === 'total_grande')?.valor
+const mesa = (d: Doc) => d.blocos.find((b) => b.t === 'mesa')!
 
-describe('Recibo/Extrato do Beta — conta real', () => {
-  it('mesa: faixas, mesa/comanda, itens, totais; sem régua, marcadores nem frases de teste', () => {
+describe('Pré-conta do Beta — modelo oficial (pre-conta-menuzia-v4)', () => {
+  it('ordem do modelo: data+logo, linha, PRE-CONTA, não fiscal, mesa, linha, ITENS CONSUMIDOS, tabela, totais, TOTAL A PAGAR, rodapé', () => {
     const d = montarPreContaBeta(CONTAS.mesa)
-    const tipos = d.blocos.map((b) => b.t)
-    expect(tipos).not.toContain('marcas')
-    expect(d.blocos.filter((b) => b.t === 'faixa').map((b) => b.s)).toEqual(['RECIBO/EXTRATO', 'CONSUMO (6)', 'TOTAIS'])
-    expect(d.blocos.filter((b) => b.t === 'centro').map((b) => b.s)).not.toEqual(expect.arrayContaining(['TESTE DE IMPRESSÃO']))
-    expect(campo(d, 'Mesa')).toBe('Varanda 02')
-    expect(campo(d, 'Comanda')).toBe('57')
-    expect(valor(d, 'TOTAL')).toBe('R$ 160,09')
-    expect(valor(d, 'Desconto')).toBe('−R$ 12,50')
-    expect(valor(d, 'Status')).toBe('Pagamento parcial')
-    expect(textoDoDocumento(d)).toContain('+ 2x Bacon (R$ 8,00)')
-    expect(textoDoDocumento(d)).toContain('Obs.: Bem passado')
-    expect(textoDoDocumento(d)).toContain('CANCELADOS — NÃO COBRADOS')
+    expect(d.versao).toBe(2)
+    expect(d.modelo).toBe('pre_conta')
+    expect(d.blocos.map((b) => b.t)).toEqual([
+      'topo_data', 'linha_grossa', 'faixa_arred', 'centro', 'mesa', 'linha_grossa', 'secao_sem_linha', 'tabela_cab', 'regua',
+      'tabela_item', 'tabela_item', 'tabela_item', 'regua',
+      'par_pc', 'par_pc', 'par_pc', 'par_pc', 'par_pc', 'linha_grossa', 'total_grande',
+      'centro', 'tracejado', 'centro', 'espaco', 'centro', 'corte',
+    ])
+    expect(d.blocos.find((b) => b.t === 'faixa_arred')?.s).toBe('PRE-CONTA')
+    expect(d.blocos.filter((b) => b.t === 'centro').map((b) => b.s)).toEqual([
+      '*** NAO E DOCUMENTO FISCAL ***', 'CONFIRA OS ITENS ANTES DO PAGAMENTO', 'Esta pre-conta pode ser paga no caixa', 'Obrigado pela preferencia!',
+    ])
+    expect(d.blocos.find((b) => b.t === 'secao_sem_linha')?.s).toBe('ITENS CONSUMIDOS')
   })
-  it('rodapé da conta real: NÃO É DOCUMENTO FISCAL discreto, junto de feito por Menuzia; nada do teste', () => {
-    for (const conta of Object.values(CONTAS)) {
-      const d = montarPreContaBeta(conta)
-      const rod = d.blocos.filter((b) => b.t === 'rodape')
-      expect(rod.map((b) => b.s)).toEqual(['Confira os itens da sua conta.', 'NÃO É DOCUMENTO FISCAL', 'feito por Menuzia.com.br'])
-      expect(rod.every((b) => !(b as { negrito?: boolean }).negrito)).toBe(true)
-      expect(d.blocos.some((b) => b.t === 'faixa' && b.s === 'NÃO É DOCUMENTO FISCAL')).toBe(false)
-      const t = textoDoDocumento(d)
-      for (const x of ['TESTE DE IMPRESSÃO', 'PEDIDO DE DEMONSTRAÇÃO', 'SEM VALOR FISCAL', 'CONFERÊNCIA DE CONSUMO']) expect(t).not.toContain(x)
-      expect(d.blocos.some((b) => b.t === 'marcas')).toBe(false)
-    }
+
+  it('mesa grande à esquerda com o número embaixo; comanda, atendente e abertura à direita', () => {
+    const m = mesa(montarPreContaBeta({ ...CONTAS.mesa, pedido_numero: 221, atendente: 'Pedro Henrique' }))
+    expect(m.titulo).toBe('Mesa Varanda 02')
+    expect(mesa(montarPreContaBeta({ ...CONTAS.mesa, mesa: 'Mesa 01' })).titulo).toBe('Mesa 01')
+    expect(mesa(montarPreContaBeta({ ...CONTAS.mesa, mesa: '07' })).titulo).toBe('Mesa 07')
+    expect(m.sub).toBe('#000221')
+    expect(m.pares).toEqual([['Comanda', '57'], ['Atendente', 'Pedro'], ['Abertura', '19:02']])
   })
-  it('balcão a receber, conta paga e conta de R$ 4.088,00', () => {
+
+  it('tabela: QTD, DESCRICAO em maiúsculas, UNIT. e TOTAL sem R$; adicionais e observação embaixo da descrição', () => {
+    const d = montarPreContaBeta(CONTAS.mesa)
+    const itens = d.blocos.filter((b) => b.t === 'tabela_item')
+    expect(itens[0]).toMatchObject({ qtd: '2', desc: 'X-BURGUER ARTESANAL COM QUEIJO COALHO GRELHADO E CEBOLA CARAMELIZADA', unit: '40,00', total: '80,00' })
+    expect(itens[0]!.subs).toEqual(['+ 2x Bacon', '+ Ovo', 'Obs.: Bem passado'])
+    expect(itens[1]!.subs).toEqual(['Média - Calabresa / Frango com Catupiry', '+ Borda: Cheddar', '+ Massa: Fina'])
+    // Sem linha entre os itens: régua só antes e depois da tabela.
+    const iTab = d.blocos.findIndex((b) => b.t === 'tabela_item')
+    expect(d.blocos.slice(iTab, iTab + 3).every((b) => b.t === 'tabela_item')).toBe(true)
+  })
+
+  it('totais: subtotal, serviço opcional, desconto e, com pagamento parcial, TOTAL A PAGAR = restante', () => {
+    const d = montarPreContaBeta(CONTAS.mesa)
+    expect(par(d, 'Subtotal')).toBe('R$ 156,90')
+    expect(par(d, 'Servico 10% opcional')).toBe('R$ 15,69')
+    expect(par(d, 'Desconto')).toBe('R$ 12,50')
+    expect(par(d, 'Total da conta')).toBe('R$ 160,09')
+    expect(par(d, 'Ja pago')).toBe('R$ 60,00')
+    expect(total(d)).toBe('R$ 100,09')
+    // Sem pagamento: TOTAL A PAGAR = total, sem as linhas de pago.
     const b = montarPreContaBeta(CONTAS.balcao)
-    expect(campo(b, 'Balcão')).toBe('senha 128')
-    expect(valor(b, 'Status')).toBe('A receber')
-    expect(valor(montarPreContaBeta(CONTAS.pago), 'Status')).toBe('Pago')
-    expect(valor(montarPreContaBeta(CONTAS.milhar), 'TOTAL')).toBe('R$ 4.088,00')
+    expect(total(b)).toBe('R$ 76,90')
+    expect(par(b, 'Ja pago')).toBeUndefined()
+    expect(par(b, 'Desconto')).toBe('R$ 0,00')
+    expect(total(montarPreContaBeta(CONTAS.milhar))).toBe('R$ 4.088,00')
   })
+
+  it('taxa manual da conta (0106) sai com o nome dela, entre serviço e desconto', () => {
+    const d = montarPreContaBeta({ ...CONTAS.mesa, taxa_extra: 15, taxa_extra_nome: 'Couvert' })
+    const rot = d.blocos.filter((b) => b.t === 'par_pc').map((b) => b.rotulo)
+    expect(rot.slice(0, 4)).toEqual(['Subtotal', 'Servico 10% opcional', 'Couvert', 'Desconto'])
+    expect(par(d, 'Couvert')).toBe('R$ 15,00')
+    expect(par(montarPreContaBeta(CONTAS.mesa), 'Couvert')).toBeUndefined()
+  })
+
+  it('balcão: senha no lugar da mesa e o primeiro nome do cliente; reimpressão marcada', () => {
+    const d = montarPreContaBeta(CONTAS.balcao)
+    expect(mesa(d).titulo).toBe('Senha 128')
+    expect(mesa(d).pares).toContainEqual(['Cliente', 'João'])
+    expect(d.blocos.find((b) => b.t === 'topo_data')).toMatchObject({ via: '2a VIA' })
+  })
+
   it('conta real NUNCA imprime telefone, endereço, observação do pedido nem frete, mesmo vindo no snapshot', () => {
     const d = montarPreContaBeta({ ...CONTAS.mesa, cliente_telefone: '27999990000', endereco: { rua: 'Rua X', numero: '1' }, observacao: 'interno', taxa_entrega: 9 })
     const t = textoDoDocumento(d)
     for (const x of ['27999990000', 'Rua X', 'interno', 'Taxa de entrega']) expect(t).not.toContain(x)
-  })
-  it('campos vazios não viram linha', () => {
-    const d = montarPreContaBeta({ ...CONTAS.mesa, operador: '', cliente_nome: null })
-    expect(d.blocos.some((b) => b.t === 'campo' && (!b.valor || b.valor.trim() === ''))).toBe(false)
-    expect(campo(d, 'Operador')).toBeUndefined()
+    expect(d.blocos.some((b) => b.t === 'marcas')).toBe(false)
+    expect(t).not.toContain('TESTE DE IMPRESSAO')
   })
 })
 
-describe('Recibo/Extrato do Beta — teste (mesmo montador)', () => {
-  const destino = { loja: 'Loja Fictícia', impressora: 'Caixa', nomeSistema: 'POS', computador: 'PC', larguraMm: 80, larguraPontos: null, deslocamentoPontos: 0 }
-  const snap = snapshotReciboTeste(destino, 'Gerente', new Date('2026-09-25T12:00:00Z'))
-  const d = montarPreContaBeta(snap)
-
-  it('ordem: marcas, cabeçalho, faixa, frases, pontilhado, atendimento, pontilhado, CONSUMO, itens, TOTAIS, total, pagamentos, pontilhado, rodapé, marcas', () => {
-    const t = d.blocos.map((b) => b.t)
-    expect(t[0]).toBe('marcas')
-    expect(t.slice(1, 3)).toEqual(['cabecalho', 'faixa'])
-    expect(d.blocos.slice(3, 8).map((b) => b.s)).toEqual(FRASES_TESTE)
-    expect(t[8]).toBe('pontilhado')
-    const iConsumo = d.blocos.findIndex((b) => b.s?.startsWith('CONSUMO'))
-    const iTotais = d.blocos.findIndex((b) => b.s === 'TOTAIS')
-    const iTotal = t.indexOf('total')
-    expect(t[iConsumo - 1]).toBe('pontilhado')
-    expect(iConsumo).toBeLessThan(iTotais)
-    expect(iTotais).toBeLessThan(iTotal)
-    expect(t.slice(-3)).toEqual(['rodape', 'marcas', 'corte'])
-  })
-  it('números corretos', () => {
-    expect(valor(d, 'Subtotal')).toBe('R$ 4.108,00')
-    expect(valor(d, 'Desconto')).toBe('−R$ 45,00')
-    expect(valor(d, 'Taxa de entrega')).toBe('R$ 25,00')
-    expect(valor(d, 'TOTAL')).toBe('R$ 4.088,00')
-    expect(valor(d, 'Já pago')).toBe('R$ 1.000,00')
-    expect(valor(d, 'Restante a pagar')).toBe('R$ 3.088,00')
-    expect(valor(d, 'Status')).toBe('Pagamento parcial')
-  })
-  it('a ÚNICA diferença para a conta real: dados de teste, frases de teste e marcadores', () => {
-    const real = montarPreContaBeta({ ...snap, recibo_teste: false })
-    const soDoTeste = (b: Bloco) =>
-      b.t === 'marcas' ||
-      (b.t === 'centro' && FRASES_TESTE.includes(b.s ?? '')) ||
-      (b.t === 'rodape' && b.s === 'TESTE DE IMPRESSÃO — SEM VALOR FISCAL') ||
-      (b.t === 'campo' && ['Telefone', 'Endereço', 'Complemento', 'Cidade/UF', 'Observação'].includes(b.rotulo ?? '')) ||
-      (b.t === 'valor' && b.rotulo === 'Taxa de entrega')
-    // Na conta real, o balcão/mesa aparecem no lugar do "PEDIDO DE DEMONSTRAÇÃO" e o aviso
-    // não fiscal vai no rodapé (no teste ele está entre as frases de teste).
-    const semIdentificacao = (b: Bloco) =>
-      !(b.t === 'campo' && ['Mesa', 'Comanda', 'Balcão'].includes(b.rotulo ?? '')) && !(b.t === 'rodape' && b.s === 'NÃO É DOCUMENTO FISCAL')
-    expect(d.blocos.filter((b) => !soDoTeste(b))).toEqual(real.blocos.filter(semIdentificacao))
+describe('Pré-conta do Beta — teste (mesmo montador)', () => {
+  const s = snapshotReciboTeste(
+    { loja: 'Cantina', impressora: 'Caixa', nomeSistema: 'POS-80', computador: 'PC', larguraMm: 80, larguraPontos: null, deslocamentoPontos: 0 },
+    'Operador',
+  )
+  it('mesmo modelo da conta real, com marcas de borda, aviso de teste e os dados de teste', () => {
+    const d = montarPreContaBeta(s)
+    expect(d.teste).toBe(true)
+    expect(d.blocos[0]!.t).toBe('marcas')
+    expect(d.blocos.at(-2)!.t).toBe('marcas')
+    const t = textoDoDocumento(d)
+    expect(t).toContain('PRE-CONTA')
+    expect(t).toContain('TESTE DE IMPRESSAO - PEDIDO DE DEMONSTRACAO')
+    expect(t).toContain('(27) 99999-0000')
+    expect(par(d, 'Taxa de entrega')).toBe('R$ 25,00')
+    expect(total(d)).toBe('R$ 3.088,00')
   })
 })

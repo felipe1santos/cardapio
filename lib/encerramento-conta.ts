@@ -16,6 +16,8 @@ export interface ContaParaResumo {
   canceladaEm?: string | null
   canceladaPorNome?: string | null
   canceladaMotivo?: string | null
+  /** Taxa manual só desta conta (0106). */
+  taxaExtra?: { nome: string; valor: number } | null
 }
 
 export interface ResumoEncerramento {
@@ -29,6 +31,8 @@ export interface ResumoEncerramento {
   motivo: string | null
   usuario: string | null
   horario: string | null
+  /** Taxa manual que entrou no total (0106). Ausente quando a conta não tem. */
+  taxaExtra?: { nome: string; valor: number }
 }
 
 const PENDENTES = new Set(['recebido', 'preparando', 'pronto', 'em_rota'])
@@ -52,5 +56,6 @@ export function montarResumoEncerramento(
     motivo: (acao === 'cancelada' ? final.canceladaMotivo : null) ?? fallback.motivo ?? null,
     usuario: (acao === 'cancelada' ? final.canceladaPorNome : final.fechadaPorNome) ?? fallback.usuario ?? null,
     horario: (acao === 'cancelada' ? final.canceladaEm : final.fechadaEm) ?? fallback.horario ?? null,
+    ...(base.taxaExtra && base.taxaExtra.valor > 0 ? { taxaExtra: { nome: base.taxaExtra.nome, valor: r2(base.taxaExtra.valor) } } : {}),
   }
 }

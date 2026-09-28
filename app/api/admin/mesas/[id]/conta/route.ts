@@ -35,6 +35,8 @@ const PERMISSAO_DA_ACAO: Record<string, Permissao> = {
   estorno: 'comanda.estornar',
   ajustar_mesa: 'comanda.ver',
   ajustar_valores: 'comanda.desconto',
+  // Taxa manual da conta (0106): mesma mão que ajusta serviço e desconto.
+  taxa_extra: 'comanda.desconto',
   fechar: 'comanda.fechar',
   transferir_mesa: 'comanda.transferir',
   transferir_itens: 'comanda.transferir',
@@ -246,6 +248,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       if (!r.ok) return falhou(r)
       // A função do banco já auditou taxa e desconto com antes, depois e motivo.
+      return NextResponse.json({ ok: true, totais: r.valor })
+    }
+
+    case 'taxa_extra': {
+      // Banco trava a conta, recusa fechada/cancelada, confere o já pago e audita.
+      const r = await servicoConta.definirTaxaExtra(
+        admin,
+        { restauranteId: sessao.restauranteId, userId: sessao.userId, nome: sessao.nome, papel: sessao.papel },
+        conta!.comandaId, corpo.nome, corpo.valor,
+      )
+      if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
       return NextResponse.json({ ok: true, totais: r.valor })
     }
 
