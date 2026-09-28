@@ -69,6 +69,19 @@ describe('limites do grupo', () => {
 
   it('máximo nunca passa do número de opções nem fica abaixo de 1', () => {
     expect(maximoDoGrupo({ maxEscolhas: 10, opcoes: ['a', 'b'] })).toBe(2)
-    expect(maximoDoGrupo({ maxEscolhas: 0, opcoes: ['a', 'b'] })).toBe(1)
+    expect(maximoDoGrupo({ maxEscolhas: 1, opcoes: ['a', 'b'] })).toBe(1)
+  })
+
+  it('máximo 0 é "sem máximo" (Quantos quiser): vale o número de opções', () => {
+    expect(maximoDoGrupo({ maxEscolhas: 0, opcoes: ['a', 'b', 'c'] })).toBe(3)
+    expect(maximoDoGrupo({ maxEscolhas: 0, opcoes: [] })).toBe(1)
+  })
+
+  it('grupo sem máximo aceita vários adicionais (bug da vitrine: Picles + Catupiry recusado)', () => {
+    const adicionais = { nome: 'Adicionais', obrigatorio: false, minEscolhas: 0, maxEscolhas: 0, opcoes: ['Picles', 'Catupiry', 'Bacon'] }
+    expect(validarOpcoes([adicionais], ['Picles', 'Catupiry'])).toEqual([])
+    expect(validarOpcoes([adicionais], ['Picles', 'Catupiry', 'Bacon'])).toEqual([])
+    // Com máximo cadastrado, o limite continua valendo.
+    expect(validarOpcoes([{ ...adicionais, maxEscolhas: 1 }], ['Picles', 'Catupiry'])).toEqual(['"Adicionais" aceita no máximo 1 opção.'])
   })
 })

@@ -22,9 +22,17 @@ export function minimoDoGrupo(g: Pick<GrupoOpcoesRegra, 'obrigatorio' | 'minEsco
   return Math.max(1, g.minEscolhas)
 }
 
-/** Máximo sensato: nunca abaixo de 1, nunca acima do número de opções. */
+/**
+ * Máximo sensato: nunca abaixo de 1, nunca acima do número de opções.
+ *
+ * `maxEscolhas = 0` é "sem máximo" ("Quantos quiser" na vitrine, no PDV e no cadastro):
+ * vale o número de opções. Tratar 0 como 1 fazia a vitrine deixar escolher vários
+ * adicionais e o servidor recusar o pedido ("aceita no máximo 1 opção").
+ */
 export function maximoDoGrupo(g: Pick<GrupoOpcoesRegra, 'maxEscolhas' | 'opcoes'>): number {
-  return Math.max(1, Math.min(g.maxEscolhas || 1, g.opcoes.length || 1))
+  const opcoes = Math.max(1, g.opcoes.length)
+  if (!(g.maxEscolhas > 0)) return opcoes
+  return Math.max(1, Math.min(g.maxEscolhas, opcoes))
 }
 
 /**
