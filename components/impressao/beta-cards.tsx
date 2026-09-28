@@ -1,12 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
-  AlertTriangle, CheckCircle2, ChefHat, CircleHelp, Download, FlaskConical, History, Laptop, Link2, MonitorCog, Printer, ReceiptText,
-  Ruler, Settings2, ShieldCheck, Stethoscope, Unplug, Wifi, WifiOff,
+  AlertTriangle, Check, CheckCircle2, ChefHat, CircleHelp, Download, History, Info, Laptop, Link2, Loader2, Pencil, Printer, ReceiptText,
+  RefreshCw, Ruler, Stethoscope, Unplug, Wifi, WifiOff,
 } from 'lucide-react'
 import { ModalBase } from '@/components/impressao/modal-base'
-import { BolhaIcone, Etiqueta, SeloStatus } from '@/components/admin/painel-visual'
 import {
   AVISO_PAPEL, DOWNLOAD_ASSISTENTE_BETA, ROTULO_ESTADO_IMPRESSAO, ROTULO_SUBTIPO_TESTE, ROTULO_TIPO_TRABALHO,
 } from '@/lib/impressao/rotulos'
@@ -14,11 +13,12 @@ import { agenteOnline, avaliarModos, ehImpressoraVirtual, motivoProblema, paream
 import type { AgenteVisao, DispositivoVisao, Funcao, ModoBeta, TrabalhoVisao } from '@/lib/impressao/servico'
 
 /**
- * Visão NOVA da tela Impressão (Assistente Beta), em 4 cartões + ajuda recolhida:
- *   1. Assistente (status, baixar, parear)   2. Impressoras (resumo + escolha em pop-up)
- *   3. Modo (bloqueado enquanto faltar impressora válida)   4. Testes (em pop-up)
- *   · Ajuda e diagnóstico: histórico, detalhes do driver, guia — fechado por padrão.
- * A regra dos modos é a mesma do servidor (lib/impressao/regras-modo).
+ * Tela Impressão (Assistente Beta), em etapas — 2026-09-28:
+ *   ① Conectar computador  ② Impressoras (escolha em pop-up)  ③ Modo de operação
+ *   · Testes num pop-up (botão "Testar impressão" no topo) · Ajuda e diagnóstico recolhidos.
+ * Visual neutro: cartões brancos, borda cinza clara, uma cor de destaque (#0688D4) e cor
+ * de status só onde significa algo. A regra dos modos é a mesma do servidor
+ * (lib/impressao/regras-modo); estes componentes só mostram e chamam os handlers da página.
  */
 
 export interface PainelDados {
@@ -38,10 +38,10 @@ export const nomeDisp = (d: DispositivoVisao) => d.apelido || d.nomeSistema
 
 /** Tamanho da letra do Assistente Beta (comanda e pré-conta). Grande = o modelo oficial. */
 export type TamanhoLetra = 'grande' | 'media' | 'pequena'
-export const TAMANHOS_LETRA: { valor: TamanhoLetra; rotulo: string }[] = [
-  { valor: 'grande', rotulo: 'Grande (modelo)' },
-  { valor: 'media', rotulo: 'Média' },
-  { valor: 'pequena', rotulo: 'Pequena' },
+export const TAMANHOS_LETRA: { valor: TamanhoLetra; rotulo: string; curto: string }[] = [
+  { valor: 'grande', rotulo: 'Grande (modelo)', curto: 'G' },
+  { valor: 'media', rotulo: 'Média', curto: 'M' },
+  { valor: 'pequena', rotulo: 'Pequena', curto: 'P' },
 ]
 export const rotuloLetra = (v: string) => TAMANHOS_LETRA.find((t) => t.valor === v)?.rotulo ?? 'Grande (modelo)'
 const quando = (iso: string | null) =>
@@ -67,83 +67,134 @@ function agentesRegra(p: PainelDados) {
   return p.agentes.map((a) => ({ id: a.id, nome: a.nome, vistoEm: a.vistoEm, revogado: a.revogado, criadoEm: a.criadoEm }))
 }
 
-export function Cartao({ icone, tom, titulo, acao, children, testid }: { icone: typeof Printer; tom: Parameters<typeof BolhaIcone>[0]['tom']; titulo: string; acao?: React.ReactNode; children: React.ReactNode; testid?: string }) {
+/** Computadores pareados (não revogados) e quais têm sinal agora. */
+export function situacaoComputadores(p: PainelDados) {
+  const ags = agentesRegra(p)
+  const ativos = p.agentes.filter((a) => !a.revogado)
+  const conectados = ativos.filter((a) => {
+    const r = ags.find((x) => x.id === a.id)!
+    return agenteOnline(r) && !pareamentoAntigo(r, ags)
+  })
+  return { ativos, conectados }
+}
+
+const BOTAO = 'inline-flex items-center justify-center gap-1.5 rounded-[8px] px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]'
+export const PRIMARIO = `${BOTAO} bg-[#0688D4] text-white hover:bg-[#0570AE]`
+export const SECUNDARIO = `${BOTAO} border border-[#D1D5DB] bg-white text-[#1F2937] hover:border-[#0688D4] hover:text-[#0688D4]`
+const LINK = 'inline-flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[13px] font-semibold text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#111827] disabled:opacity-45'
+
+// ─── moldura das etapas ──────────────────────────────────────────────────────
+
+/** Cartão de etapa: número num círculo neutro que vira ✓ quando concluída. */
+export function Etapa({ numero, titulo, texto, concluida, desabilitada, acao, children, testid }: {
+  numero: number
+  titulo: string
+  texto?: React.ReactNode
+  concluida?: boolean
+  desabilitada?: boolean
+  acao?: React.ReactNode
+  children: React.ReactNode
+  testid?: string
+}) {
   return (
-    <section className="min-w-0 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid={testid}>
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <BolhaIcone icone={icone} tom={tom} tamanho={36} />
-          <h2 className="text-[15px] font-bold text-[var(--adm-texto)]">{titulo}</h2>
+    <section className={['min-w-0 rounded-[12px] border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] sm:p-5', desabilitada ? 'opacity-60' : ''].join(' ')} data-testid={testid} data-desabilitada={desabilitada ? "sim" : undefined}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={['mt-[1px] flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full text-[13px] font-semibold', concluida ? 'bg-[#0688D4] text-white' : 'border border-[#D1D5DB] text-[#4B5563]'].join(' ')}
+            aria-label={concluida ? `Etapa ${numero} concluída` : `Etapa ${numero}`}
+            data-concluida={concluida ? 'sim' : 'nao'}
+          >
+            {concluida ? <Check className="h-4 w-4" strokeWidth={3} /> : numero}
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[16px] font-semibold leading-[26px] text-[#111827]">{numero}. {titulo}</h2>
+            {texto && <p className="mt-0.5 text-[13px] leading-[19px] text-[#6B7280]">{texto}</p>}
+          </div>
         </div>
         {acao}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="mt-4">{children}</div>
     </section>
   )
 }
 
-const BOTAO = 'inline-flex items-center justify-center gap-1.5 rounded-[6px] px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45'
-const PRIMARIO = `${BOTAO} bg-[#0688D4] text-white hover:bg-[#0570AE]`
-export const SECUNDARIO = `${BOTAO} border border-[var(--adm-borda)] bg-white text-[var(--adm-texto)] hover:border-[#0688D4] hover:text-[#0688D4]`
+/** Ponto verde com anel pulsando (computador conectado). */
+function PontoConectado() {
+  return (
+    <span className="relative flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center" aria-hidden>
+      <span className="absolute inline-flex h-full w-full rounded-full bg-[#10B981]/30" style={{ animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite' }} />
+      <span className="relative flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#ECFDF5]">
+        <Wifi className="h-[18px] w-[18px] text-[#059669]" />
+      </span>
+    </span>
+  )
+}
 
-// ─── 1. Assistente ───────────────────────────────────────────────────────────
+// ─── ① Conectar computador ───────────────────────────────────────────────────
 
-export function CartaoAssistente({ p, ocupado, onParear, onRevogar, onRenomear }: {
+export function EtapaConectar({ p, ocupado, onParear, onRevogar, onRenomear }: {
   p: PainelDados
   ocupado: boolean
   onParear: () => void
   onRevogar: (a: AgenteVisao) => void
   onRenomear: (a: AgenteVisao) => void
 }) {
-  const ativos = p.agentes.filter((a) => !a.revogado)
   const ags = agentesRegra(p)
-  const conectados = ativos.filter((a) => agenteOnline(ags.find((x) => x.id === a.id)!))
-  const estado = conectados.length ? 'conectado' : ativos.length ? 'desconectado' : 'aguardando'
-  const rotulo = conectados.length ? 'Conectado' : ativos.length ? 'Não conectado' : 'Aguardando pareamento'
+  const { ativos, conectados } = situacaoComputadores(p)
   return (
-    <Cartao icone={MonitorCog} tom="azul" titulo="Assistente Beta" testid="cartao-assistente" acao={<SeloStatus estado={estado} rotulo={rotulo} testid="assistente-status" />}>
+    <Etapa numero={1} titulo="Conectar computador" texto="Instale o Assistente no computador ligado às impressoras e pareie com o sistema." concluida={conectados.length > 0} testid="cartao-assistente">
       {!p.betaLiberado ? (
-        <p className="rounded-[6px] bg-[#FEF3C7] px-3 py-2.5 text-[12.5px] text-[#92400E]" data-testid="beta-nao-liberado">
-          A ativação do Beta nesta loja é feita pelo suporte Menuzia. Até lá, a impressão continua pelo Assistente antigo.
+        <p className="flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2.5 text-[13px] text-[#92400E]" data-testid="beta-nao-liberado">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0" /> A ativação do Beta nesta loja é feita pelo suporte Menuzia. Até lá, a impressão continua pelo Assistente antigo.
         </p>
+      ) : ativos.length === 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="flex items-center gap-2.5 text-[14px] text-[#4B5563]" data-testid="assistente-status">
+            <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6]"><WifiOff className="h-[18px] w-[18px] text-[#9CA3AF]" /></span>
+            Nenhum computador conectado
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="baixar-beta" className={SECUNDARIO}><Download className="h-4 w-4" /> Baixar Assistente</a>
+            <button type="button" onClick={onParear} disabled={ocupado} data-testid="gerar-codigo" className={PRIMARIO}><Link2 className="h-4 w-4" /> Parear computador</button>
+          </div>
+        </div>
       ) : (
         <>
-          {ativos.length > 0 && (
-            <ul className="mb-3 divide-y divide-[var(--adm-borda)] rounded-[6px] border-[0.8px] border-[var(--adm-borda)]" data-testid="lista-computadores">
-              {ativos.map((a) => {
-                const antigo = pareamentoAntigo(ags.find((x) => x.id === a.id)!, ags)
-                const on = agenteOnline(ags.find((x) => x.id === a.id)!)
-                return (
-                  <li key={a.id} className={['flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5', antigo ? 'bg-[#FFFBEB]' : ''].join(' ')} data-testid={`agente-${a.nome}`}>
-                    {on ? <Wifi className="h-4 w-4 flex-shrink-0 text-[#16A34A]" /> : <WifiOff className="h-4 w-4 flex-shrink-0 text-[#94A3B8]" />}
-                    <span className="min-w-0 flex-1 text-[13.5px]">
-                      <strong className="block text-[var(--adm-texto)]">{a.nome}</strong>
-                      <span className={['block text-[12.5px]', antigo ? 'font-semibold text-[#B45309]' : on ? 'text-[#16A34A]' : 'text-[var(--adm-texto-suave)]'].join(' ')}>{antigo ? 'pareamento antigo' : on ? 'conectado' : `sem sinal desde ${quando(a.vistoEm)}`}</span>
-                      {antigo && <span className="block text-[12px] text-[#92400E]" data-testid={`agente-antigo-${a.nome}`}>Este computador foi pareado de novo. Desconecte esta entrada antiga.</span>}
+          <span className="sr-only" data-testid="assistente-status">{conectados.length ? 'Conectado' : 'Não conectado'}</span>
+          <ul className="divide-y divide-[#F3F4F6]" data-testid="lista-computadores">
+            {ativos.map((a) => {
+              const r = ags.find((x) => x.id === a.id)!
+              const antigo = pareamentoAntigo(r, ags)
+              const on = agenteOnline(r) && !antigo
+              return (
+                <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 first:pt-0 last:pb-0" data-testid={`agente-${a.nome}`}>
+                  {on ? <PontoConectado /> : (
+                    <span className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-full bg-[#F3F4F6]"><WifiOff className="h-[18px] w-[18px] text-[#9CA3AF]" /></span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate text-[14px] font-semibold text-[#111827]">{a.nome}</strong>
+                    <span className={['block text-[13px]', antigo ? 'text-[#B45309]' : on ? 'text-[#059669]' : 'text-[#6B7280]'].join(' ')}>
+                      {antigo ? 'Pareamento antigo — desconecte esta entrada' : on ? 'Conectado' : `Sem sinal desde ${quando(a.vistoEm)}`}
                     </span>
-                    <span className="flex gap-1.5">
-                      <button type="button" disabled={ocupado} onClick={() => onRenomear(a)} className="rounded-[6px] px-2 py-1 text-[12px] font-semibold text-[var(--adm-texto-suave)] hover:bg-[#F1F5F9]">Renomear</button>
-                      <button type="button" disabled={ocupado} onClick={() => onRevogar(a)} data-testid={`revogar-${a.nome}`} className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-semibold text-[#DC2626] hover:bg-[#FEE2E2]">
-                        <Unplug className="h-3.5 w-3.5" /> Desconectar
-                      </button>
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-          {!ativos.length && <p className="mb-3 text-[13px] text-[var(--adm-texto-suave)]">Instale o Assistente Beta no computador da loja e pareie com um código. Não precisa de token.</p>}
-          <div className="flex flex-wrap gap-2">
-            <a href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="baixar-beta" className={SECUNDARIO}>
-              <Download className="h-4 w-4" /> Baixar Assistente
-            </a>
-            <button type="button" onClick={onParear} disabled={ocupado} data-testid="gerar-codigo" className={PRIMARIO}>
-              <Link2 className="h-4 w-4" /> Parear computador
-            </button>
+                  </span>
+                  <span className="flex items-center gap-0.5 max-sm:basis-full max-sm:pl-[40px]">
+                    <button type="button" disabled={ocupado} onClick={() => onRenomear(a)} className={LINK}><Pencil className="h-3.5 w-3.5" /> Renomear</button>
+                    <button type="button" disabled={ocupado} onClick={() => onRevogar(a)} data-testid={`revogar-${a.nome}`} className={`${LINK} text-[#DC2626] hover:bg-[#FEF2F2] hover:text-[#B91C1C]`}>
+                      <Unplug className="h-3.5 w-3.5" /> Desconectar
+                    </button>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#F3F4F6] pt-3">
+            <button type="button" onClick={onParear} disabled={ocupado} data-testid="gerar-codigo" className={LINK}><Link2 className="h-4 w-4" /> Parear outro computador</button>
+            <a href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="baixar-beta" className={LINK}><Download className="h-4 w-4" /> Baixar Assistente</a>
           </div>
         </>
       )}
-    </Cartao>
+    </Etapa>
   )
 }
 
@@ -166,77 +217,90 @@ export function ModalPareamento({ codigo, erro, conectado, onGerarOutro, onFecha
       rodape={<button type="button" onClick={onFechar} className={SECUNDARIO}>Fechar</button>}>
       {conectado ? (
         <div className="flex flex-col items-center gap-2 py-4 text-center" data-testid="pareamento-ok">
-          <CheckCircle2 className="h-12 w-12 text-[#16A34A]" />
-          <p className="text-[16px] font-bold text-[var(--adm-texto)]">{conectado} · conectado</p>
-          <p className="text-[12.5px] text-[var(--adm-texto-suave)]">Agora escolha as impressoras da Cozinha e do Recibo/Extrato.</p>
+          <CheckCircle2 className="h-12 w-12 text-[#059669]" />
+          <p className="text-[16px] font-semibold text-[#111827]">{conectado} · conectado</p>
+          <p className="text-[13px] text-[#6B7280]">Agora escolha as impressoras da Cozinha e do Recibo/Extrato.</p>
         </div>
       ) : erro ? (
-        <p className="rounded-[6px] bg-[#FEE2E2] px-3 py-2.5 text-[13px] text-[#B91C1C]" role="alert">{erro}</p>
+        <p className="rounded-[8px] bg-[#FEF2F2] px-3 py-2.5 text-[13px] text-[#B91C1C]" role="alert">{erro}</p>
       ) : !codigo ? (
-        <p className="py-6 text-center text-[13px] text-[var(--adm-texto-suave)]">Gerando código…</p>
+        <p className="flex items-center justify-center gap-2 py-6 text-center text-[13px] text-[#6B7280]"><Loader2 className="h-4 w-4 animate-spin" /> Gerando código…</p>
       ) : resta === 0 ? (
         <div className="space-y-3 py-2 text-center">
-          <p className="text-[13px] text-[var(--adm-texto-suave)]">Este código venceu.</p>
+          <p className="text-[13px] text-[#6B7280]">Este código venceu.</p>
           <button type="button" onClick={onGerarOutro} className={PRIMARIO}>Gerar outro código</button>
         </div>
       ) : (
         <div className="space-y-3 text-center">
-          <p className="text-[13px] text-[var(--adm-texto)]">Digite este código no <strong>Assistente Menuzia Beta</strong> instalado no computador da loja.</p>
-          <p className="rounded-[8px] bg-[#F1F5F9] py-4 font-mono text-[34px] font-extrabold tracking-[0.18em] text-[var(--adm-texto)]" data-testid="codigo-pareamento">{codigo.codigo}</p>
-          <p className="text-[12.5px] text-[var(--adm-texto-suave)]">Vale uma vez · expira em <strong className="text-[var(--adm-texto)]" data-testid="pareamento-tempo">{mmss}</strong></p>
-          <p className="flex items-center justify-center gap-1.5 text-[12px] text-[var(--adm-texto-suave)]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#F59E0B]" /> Aguardando o computador…</p>
+          <p className="text-[13px] text-[#1F2937]">Digite este código no <strong>Assistente Menuzia Beta</strong> instalado no computador da loja.</p>
+          <p className="rounded-[10px] bg-[#F3F4F6] py-4 font-mono text-[34px] font-extrabold tracking-[0.18em] text-[#111827]" data-testid="codigo-pareamento">{codigo.codigo}</p>
+          <p className="text-[13px] text-[#6B7280]">Vale uma vez · expira em <strong className="text-[#111827]" data-testid="pareamento-tempo">{mmss}</strong></p>
+          <p className="flex items-center justify-center gap-1.5 text-[12px] text-[#6B7280]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#F59E0B]" /> Aguardando o computador…</p>
         </div>
       )}
     </ModalBase>
   )
 }
 
-// ─── 2. Impressoras ──────────────────────────────────────────────────────────
+// ─── ② Impressoras ───────────────────────────────────────────────────────────
 
 function problemaTexto(funcao: Funcao, p: ProblemaFuncao | null) {
   return p && p !== 'vazia' ? motivoProblema(funcao, p) : null
 }
 
-export function CartaoImpressoras({ p, onEscolher }: { p: PainelDados; onEscolher: () => void }) {
+export function EtapaImpressoras({ p, onEscolher }: { p: PainelDados; onEscolher: () => void }) {
   const av = avaliar(p)
+  const { ativos } = situacaoComputadores(p)
+  const semComputador = ativos.length === 0
+  const semDispositivos = !p.dispositivos.some((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado)
+  const concluida = !!p.funcoes.cozinha && !!p.funcoes.caixa && !problemaTexto('cozinha', av.funcoes.cozinha) && !problemaTexto('caixa', av.funcoes.caixa)
   const linha = (f: Funcao, Icone: typeof ChefHat) => {
     const d = p.dispositivos.find((x) => x.id === p.funcoes[f])
     const prob = problemaTexto(f, av.funcoes[f])
     return (
-      <div className="flex min-w-0 items-start gap-2.5 rounded-[6px] border-[0.8px] border-[var(--adm-borda)] px-3 py-2.5" data-testid={`resumo-${f}`}>
-        <Icone className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--adm-texto-suave)]" />
-        <div className="min-w-0">
-          <p className="text-[12px] text-[var(--adm-texto-suave)]">{ROTULO_FUNCAO_CURTO[f]}</p>
-          <p className={['truncate text-[14px] font-semibold', d ? 'text-[var(--adm-texto)]' : 'text-[var(--adm-texto-suave)]'].join(' ')}>{d ? nomeDisp(d) : 'Não escolhida'}</p>
-          {prob && <p className="mt-0.5 text-[12px] text-[#B45309]">{prob}</p>}
-        </div>
+      <div className="flex min-w-0 items-baseline gap-2 py-2" data-testid={`resumo-${f}`}>
+        <Icone className="h-4 w-4 flex-shrink-0 translate-y-[3px] text-[#6B7280]" />
+        <span className="flex-shrink-0 text-[13px] text-[#4B5563]">{ROTULO_FUNCAO_CURTO[f]}</span>
+        <span className="min-w-[16px] flex-1 translate-y-[-3px] border-b border-dotted border-[#D1D5DB]" aria-hidden />
+        <span className="min-w-0 text-right">
+          <span className={['block truncate text-[14px]', d ? 'font-semibold text-[#111827]' : 'text-[#9CA3AF]'].join(' ')}>{d ? nomeDisp(d) : 'Não definida'}</span>
+          {prob && <span className="block text-[12px] text-[#B45309]">{prob}</span>}
+        </span>
       </div>
     )
   }
-  const semDispositivos = !p.dispositivos.some((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado)
   return (
-    <Cartao icone={Printer} tom="roxo" titulo="Impressoras" testid="cartao-impressoras"
-      acao={<button type="button" onClick={onEscolher} disabled={semDispositivos || !p.betaLiberado} data-testid="escolher-impressoras" className={PRIMARIO}><Settings2 className="h-4 w-4" /> Escolher impressoras</button>}>
-      <div className="grid gap-2.5 sm:grid-cols-2">
+    <Etapa numero={2} titulo="Impressoras" texto={semComputador ? 'Conecte um computador para ver as impressoras.' : 'Onde sai cada documento.'} concluida={concluida} desabilitada={semComputador} testid="cartao-impressoras"
+      acao={<button type="button" onClick={onEscolher} disabled={semDispositivos || !p.betaLiberado} data-testid="escolher-impressoras" className={SECUNDARIO}><Printer className="h-4 w-4" /> Escolher impressoras</button>}>
+      <div className="divide-y divide-[#F3F4F6]">
         {linha('cozinha', ChefHat)}
         {linha('caixa', ReceiptText)}
       </div>
-      {semDispositivos && <p className="mt-2.5 text-[12.5px] text-[var(--adm-texto-suave)]">Pareie um computador: as impressoras dele aparecem aqui.</p>}
-    </Cartao>
+    </Etapa>
   )
 }
 
 type Escolha = '' | 'cozinha' | 'caixa' | 'ambas'
+const OPCOES_USO: { valor: Escolha; rotulo: string }[] = [
+  { valor: 'cozinha', rotulo: 'Cozinha' },
+  { valor: 'caixa', rotulo: 'Caixa' },
+  { valor: 'ambas', rotulo: 'Cozinha e Caixa' },
+  { valor: '', rotulo: 'Não usar' },
+]
+const ROTULO_ESCOLHA: Record<Escolha, string> = { '': '', cozinha: 'Cozinha', caixa: 'Caixa', ambas: 'Cozinha e Caixa' }
 
-export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onFechar }: {
+export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onAtualizar, onFechar }: {
   p: PainelDados
   ocupado: boolean
   onSalvar: (novo: Record<Funcao, string | null>) => Promise<void>
   onAjustar: (d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number; tamanhoFonte?: TamanhoLetra }) => Promise<void>
+  onAtualizar: () => Promise<void>
   onFechar: () => void
 }) {
   const ags = agentesRegra(p)
   const [rascunho, setRascunho] = useState<Record<Funcao, string | null>>({ ...p.funcoes })
+  const [selecionada, setSelecionada] = useState<string | null>(null)
+  const [atualizando, setAtualizando] = useState(false)
   const linhas = useMemo(() => {
     const vis = p.dispositivos.filter((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado)
     const rank = (d: DispositivoVisao) => {
@@ -258,97 +322,128 @@ export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onFechar }: 
     })
   }
   const mudou = rascunho.cozinha !== p.funcoes.cozinha || rascunho.caixa !== p.funcoes.caixa
-  const semCaixa = !rascunho.caixa
+  const computadores = [...new Set(linhas.map((d) => ags.find((a) => a.id === d.agenteId)?.nome).filter(Boolean))].join(', ')
+  async function atualizar() {
+    setAtualizando(true)
+    await onAtualizar().catch(() => {})
+    setAtualizando(false)
+  }
 
   return (
-    <ModalBase titulo="Escolher impressoras" subtitulo="Diga o que cada impressora faz. Só as térmicas da loja devem ter função." onFechar={onFechar} testid="modal-impressoras" largura="max-w-2xl"
+    <ModalBase titulo="Impressoras detectadas" subtitulo={computadores ? `No computador ${computadores}` : 'Nenhum computador com impressoras'} onFechar={onFechar} testid="modal-impressoras" largura="max-w-2xl"
+      acaoTopo={<button type="button" onClick={() => void atualizar()} disabled={atualizando} data-testid="atualizar-impressoras" className={SECUNDARIO}><RefreshCw className={['h-4 w-4', atualizando ? 'animate-spin' : ''].join(' ')} /> Atualizar lista</button>}
       rodape={<>
         <button type="button" onClick={onFechar} className={SECUNDARIO}>Cancelar</button>
         <button type="button" disabled={ocupado || !mudou} onClick={() => void onSalvar(rascunho)} data-testid="salvar-impressoras" className={PRIMARIO}>Salvar</button>
       </>}>
-      {semCaixa && (
-        <p className="mb-3 flex items-start gap-2 rounded-[6px] bg-[#FFFBEB] px-3 py-2 text-[12.5px] text-[#92400E]">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> Sem impressora de Recibo/Extrato, o botão “Imprimir Recibo/Extrato” do PDV não funciona.
+      {(!rascunho.cozinha || !rascunho.caixa) && linhas.length > 0 && (
+        <p className="mb-3 flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-[13px] text-[#92400E]" data-testid="aviso-sem-funcao">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          {!rascunho.caixa && !rascunho.cozinha ? 'Nenhuma impressora definida para a Cozinha nem para o Caixa.'
+            : !rascunho.caixa ? 'Nenhuma impressora definida para o Caixa: o botão “Imprimir Recibo/Extrato” do PDV não funciona.'
+              : 'Nenhuma impressora definida para a Cozinha.'}
         </p>
       )}
-      <ul className="space-y-2.5">
-        {linhas.map((d) => {
-          const a = ags.find((x) => x.id === d.agenteId)!
-          const antigo = pareamentoAntigo(a, ags)
-          const on = agenteOnline(a)
-          const virtual = ehImpressoraVirtual(d.nomeSistema)
-          const valor = escolhaDe(d.id)
-          return (
-            <li key={d.id} className={['rounded-[6px] border-[0.8px] p-3', antigo ? 'border-[#FDE68A] bg-[#FFFBEB]' : valor ? 'border-[#0688D4]/50 bg-[#F0F9FF]' : 'border-[var(--adm-borda)]'].join(' ')} data-testid={`impressora-${d.nomeSistema}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-1.5 text-[14px] font-semibold text-[var(--adm-texto)]">
-                    <Printer className="h-4 w-4 text-[var(--adm-texto-suave)]" /> {nomeDisp(d)}
-                    {virtual && <Etiqueta tom="ambar" title="Impressora que o Windows cria (PDF, XPS, Fax, OneNote). Pode abrir uma janela para salvar arquivo.">virtual</Etiqueta>}
-                    {antigo && <Etiqueta tom="laranja">pareamento antigo</Etiqueta>}
-                    {!antigo && !on && <Etiqueta tom="cinza">computador sem sinal</Etiqueta>}
-                    {!d.disponivel && <Etiqueta tom="vermelho">não encontrada no Windows</Etiqueta>}
-                  </p>
-                  <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">{a.nome} · {on ? 'conectado' : 'sem sinal'}{d.apelido ? ` · Windows: ${d.nomeSistema}` : ''} · papel {d.larguraMm} mm · letra {rotuloLetra(d.tamanhoFonte).toLowerCase()}</p>
-                </div>
-                <select
-                  value={valor}
-                  disabled={ocupado || antigo}
-                  onChange={(e) => escolher(d.id, e.target.value as Escolha)}
-                  data-testid={`funcao-dispositivo-${d.nomeSistema}`}
-                  aria-label={`Função de ${nomeDisp(d)}`}
-                  className="h-[36px] min-w-[190px] rounded-[6px] border border-[var(--adm-borda)] bg-white px-2.5 text-[13px] text-[var(--adm-texto)] disabled:bg-[#F1F5F9] max-sm:w-full"
+      {atualizando && linhas.length === 0 ? (
+        <div className="space-y-2.5" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="h-[62px] animate-pulse rounded-[10px] bg-[#F3F4F6]" />)}</div>
+      ) : linhas.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-8 text-center" data-testid="impressoras-vazio">
+          <Printer className="h-8 w-8 text-[#9CA3AF]" />
+          <p className="max-w-sm text-[13px] text-[#4B5563]">Nenhuma impressora encontrada. Verifique se ela está ligada e instalada no computador.</p>
+          <button type="button" onClick={() => void atualizar()} className={SECUNDARIO}><RefreshCw className="h-4 w-4" /> Atualizar lista</button>
+        </div>
+      ) : (
+        <ul className="space-y-2.5">
+          {linhas.map((d) => {
+            const a = ags.find((x) => x.id === d.agenteId)!
+            const antigo = pareamentoAntigo(a, ags)
+            const on = agenteOnline(a)
+            const virtual = ehImpressoraVirtual(d.nomeSistema)
+            const valor = escolhaDe(d.id)
+            const aberta = selecionada === d.id
+            return (
+              <li key={d.id} className={['rounded-[10px] border transition-colors', aberta ? 'border-[#0688D4] ring-1 ring-[#0688D4]' : valor ? 'border-[#93C5FD]' : 'border-[#E5E7EB]', antigo ? 'bg-[#FFFBEB]' : 'bg-white'].join(' ')} data-testid={`impressora-${d.nomeSistema}`}>
+                <button
+                  type="button"
+                  onClick={() => setSelecionada(aberta ? null : d.id)}
+                  aria-expanded={aberta}
+                  className="flex w-full items-start gap-3 rounded-[10px] px-3.5 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0688D4]"
+                  data-testid={`selecionar-${d.nomeSistema}`}
                 >
-                  <option value="">Sem função</option>
-                  <option value="cozinha">Cozinha</option>
-                  <option value="caixa">Recibo/Extrato</option>
-                  <option value="ambas">Cozinha e Recibo/Extrato</option>
-                </select>
-              </div>
-              {antigo && <p className="mt-1.5 text-[12px] text-[#92400E]">Remova o pareamento antigo e pareie novamente — esta impressora não imprime mais.</p>}
-              {virtual && valor && <p className="mt-1.5 text-[12px] text-[#92400E]">Impressora virtual: pode abrir uma janela para salvar arquivo em vez de imprimir em papel. Para operação da loja, recomendamos uma impressora térmica/física. Você pode usar esta impressora para testar o fluxo completo.</p>}
-              {!antigo && (
-                <details className="mt-2 text-[12.5px]">
-                  <summary className="cursor-pointer text-[12px] font-semibold text-[var(--adm-texto-suave)]">Mais opções</summary>
-                  <MaisOpcoes d={d} ocupado={ocupado} onAjustar={onAjustar} />
-                </details>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+                  <Printer className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#4B5563]" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-semibold text-[#111827]">{nomeDisp(d)}</span>
+                    <span className="block text-[12.5px] text-[#6B7280]">
+                      {[virtual ? 'Virtual (PDF/XPS)' : 'Impressora', d.apelido ? `Windows: ${d.nomeSistema}` : null, `papel ${d.larguraMm} mm`, `letra ${rotuloLetra(d.tamanhoFonte).toLowerCase()}`, !on ? 'computador sem sinal' : null, !d.disponivel ? 'não encontrada no Windows' : null, antigo ? 'pareamento antigo' : null].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  {valor && <span className="flex-shrink-0 rounded-full bg-[#EFF6FF] px-2 py-[2px] text-[11.5px] font-semibold text-[#0570AE]" data-testid={`uso-${d.nomeSistema}`}>{ROTULO_ESCOLHA[valor]}</span>}
+                </button>
+                {(aberta || valor) && !antigo && (
+                  <div className="px-3.5 pb-3">
+                    <div role="radiogroup" aria-label={`Uso de ${nomeDisp(d)}`} data-testid={`funcao-dispositivo-${d.nomeSistema}`} className="grid grid-cols-2 gap-1 rounded-[8px] bg-[#F3F4F6] p-1 sm:grid-cols-4">
+                      {OPCOES_USO.map((o) => (
+                        <button
+                          key={o.rotulo}
+                          type="button"
+                          role="radio"
+                          aria-checked={valor === o.valor}
+                          disabled={ocupado}
+                          onClick={() => escolher(d.id, o.valor)}
+                          data-testid={`funcao-dispositivo-${d.nomeSistema}-${o.valor || 'nenhuma'}`}
+                          className={['rounded-[6px] px-2 py-1.5 text-[12.5px] font-semibold transition-colors', valor === o.valor ? 'bg-white text-[#0570AE] shadow-sm' : 'text-[#4B5563] hover:text-[#111827]'].join(' ')}
+                        >
+                          {o.rotulo}
+                        </button>
+                      ))}
+                    </div>
+                    {virtual && valor && <p className="mt-2 text-[12.5px] text-[#92400E]">Impressora virtual: pode abrir uma janela para salvar arquivo em vez de imprimir em papel. Para a operação da loja, use uma térmica.</p>}
+                    {aberta && <MaisOpcoes d={d} ocupado={ocupado} onAjustar={onAjustar} />}
+                  </div>
+                )}
+                {antigo && <p className="px-3.5 pb-3 text-[12.5px] text-[#92400E]">Remova o pareamento antigo e pareie novamente — esta impressora não imprime mais.</p>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </ModalBase>
   )
 }
 
 function MaisOpcoes({ d, ocupado, onAjustar }: { d: DispositivoVisao; ocupado: boolean; onAjustar: (d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number; tamanhoFonte?: TamanhoLetra }) => Promise<void> }) {
   const [apelido, setApelido] = useState(d.apelido ?? '')
+  const campo = 'h-[36px] rounded-[8px] border border-[#D1D5DB] bg-white px-2.5 text-[13px] text-[#111827]'
   return (
-    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
-      <label className="text-[12px] text-[var(--adm-texto-suave)]">
+    <div className="mt-3 grid gap-2 border-t border-[#F3F4F6] pt-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <label className="text-[12.5px] text-[#6B7280]">
         Apelido (ex.: Cozinha, Caixa)
-        <input value={apelido} maxLength={40} onChange={(e) => setApelido(e.target.value)} className="mt-1 block h-[34px] w-full rounded-[6px] border border-[var(--adm-borda)] px-2.5 text-[13px] text-[var(--adm-texto)]" />
+        <span className="mt-1 flex gap-2">
+          <input value={apelido} maxLength={40} onChange={(e) => setApelido(e.target.value)} className={`${campo} min-w-0 flex-1`} />
+          <button type="button" disabled={ocupado || apelido === (d.apelido ?? '')} onClick={() => void onAjustar(d, { apelido })} className={SECUNDARIO}>Salvar</button>
+        </span>
       </label>
-      <button type="button" disabled={ocupado || apelido === (d.apelido ?? '')} onClick={() => void onAjustar(d, { apelido })} className={SECUNDARIO}>Salvar apelido</button>
-      <select value={d.larguraMm} disabled={ocupado} onChange={(e) => void onAjustar(d, { larguraMm: Number(e.target.value) })} aria-label="Largura do papel" className="h-[36px] rounded-[6px] border border-[var(--adm-borda)] bg-white px-2 text-[13px]">
-        <option value={80}>Papel 80 mm</option>
-        <option value={58}>Papel 58 mm</option>
-      </select>
-      <select value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void onAjustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} aria-label="Tamanho da letra" data-testid={`letra-${d.nomeSistema}`} className="h-[36px] rounded-[6px] border border-[var(--adm-borda)] bg-white px-2 text-[13px]">
-        {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>Letra {t.rotulo.toLowerCase()}</option>)}
-      </select>
+      <span className="flex gap-2">
+        <select value={d.larguraMm} disabled={ocupado} onChange={(e) => void onAjustar(d, { larguraMm: Number(e.target.value) })} aria-label="Largura do papel" className={campo}>
+          <option value={80}>Papel 80 mm</option>
+          <option value={58}>Papel 58 mm</option>
+        </select>
+        <select value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void onAjustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} aria-label="Tamanho da letra" data-testid={`letra-${d.nomeSistema}`} className={campo}>
+          {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>Letra {t.rotulo.toLowerCase()}</option>)}
+        </select>
+      </span>
     </div>
   )
 }
 
-// ─── 3. Modo ─────────────────────────────────────────────────────────────────
+// ─── ③ Modo ──────────────────────────────────────────────────────────────────
 
-export function CartaoModo({ p, ocupado, onEscolher, onAjuda }: { p: PainelDados; ocupado: boolean; onEscolher: (m: ModoBeta) => void; onAjuda: () => void }) {
+export function EtapaModo({ p, ocupado, onEscolher, onAjuda }: { p: PainelDados; ocupado: boolean; onEscolher: (m: ModoBeta) => void; onAjuda: () => void }) {
   const av = avaliar(p)
   return (
-    <Cartao icone={ShieldCheck} tom="verde" titulo="Modo de operação" testid="modo-beta"
-      acao={<button type="button" onClick={onAjuda} data-testid="ajuda-modos" aria-label="O que cada modo faz" className="flex h-[32px] w-[32px] items-center justify-center rounded-full text-[#0688D4] hover:bg-[#E0F2FE]"><CircleHelp className="h-5 w-5" /></button>}>
-      <div className="grid gap-2.5 md:grid-cols-3">
+    <Etapa numero={3} titulo="Modo de operação" texto="O que o Beta imprime nesta loja." concluida={p.modo !== 'teste'} testid="modo-beta"
+      acao={<button type="button" onClick={onAjuda} data-testid="ajuda-modos" aria-label="O que cada modo faz" className="flex h-[32px] w-[32px] items-center justify-center rounded-[8px] text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827]"><CircleHelp className="h-[18px] w-[18px]" /></button>}>
+      <div role="radiogroup" aria-label="Modo de operação" className="grid gap-2.5 md:grid-cols-3">
         {(['teste', 'caixa', 'cozinha_caixa'] as ModoBeta[]).map((m) => {
           const ativo = p.modo === m
           const regra = av.modos[m]
@@ -357,21 +452,28 @@ export function CartaoModo({ p, ocupado, onEscolher, onAjuda }: { p: PainelDados
             <button
               key={m}
               type="button"
+              role="radio"
+              aria-checked={ativo}
               disabled={ocupado || ativo || bloqueado}
               onClick={() => onEscolher(m)}
               data-testid={`modo-${m}`}
               className={[
-                'min-w-0 rounded-[8px] border-2 p-3 text-left transition-colors disabled:cursor-default',
-                ativo ? 'border-[#10B981] bg-[#F0FDF4]' : bloqueado ? 'border-[var(--adm-borda)] bg-[#F8FAFC]' : 'border-[var(--adm-borda)] hover:border-[#0688D4]',
+                'min-w-0 rounded-[10px] border p-3.5 text-left transition-colors disabled:cursor-default',
+                ativo ? 'border-[#0688D4] ring-1 ring-[#0688D4]' : bloqueado ? 'border-[#E5E7EB] bg-[#F9FAFB]' : 'border-[#E5E7EB] hover:border-[#0688D4]',
               ].join(' ')}
             >
               <span className="flex items-center justify-between gap-2">
-                <span className={['text-[14px] font-bold', bloqueado ? 'text-[var(--adm-texto-suave)]' : 'text-[var(--adm-texto)]'].join(' ')}>{TEXTO_MODO[m].titulo}</span>
-                {ativo && <span className="rounded-full bg-[#10B981] px-2 py-[2px] text-[10.5px] font-bold uppercase text-white">em uso</span>}
+                <span className="flex items-center gap-2">
+                  <span className={['flex h-[16px] w-[16px] items-center justify-center rounded-full border', ativo ? 'border-[#0688D4]' : 'border-[#9CA3AF]'].join(' ')} aria-hidden>
+                    {ativo && <span className="h-[8px] w-[8px] rounded-full bg-[#0688D4]" />}
+                  </span>
+                  <span className={['text-[14px] font-semibold', bloqueado ? 'text-[#9CA3AF]' : 'text-[#111827]'].join(' ')}>{TEXTO_MODO[m].titulo}</span>
+                </span>
+                {ativo && <span className="flex-shrink-0 whitespace-nowrap rounded-full bg-[#EFF6FF] px-2 py-[1px] text-[11px] font-semibold text-[#0570AE]">Em uso</span>}
               </span>
-              <span className="mt-1 block text-[12.5px] leading-[17px] text-[var(--adm-texto-suave)]">{TEXTO_MODO[m].curto}</span>
+              <span className="mt-1.5 block text-[12.5px] leading-[17px] text-[#6B7280]">{TEXTO_MODO[m].curto}</span>
               {bloqueado && (
-                <span className="mt-2 flex items-start gap-1.5 text-[12px] font-semibold leading-[16px] text-[#B45309]" data-testid={`motivo-${m}`}>
+                <span className="mt-2 flex items-start gap-1.5 text-[12px] leading-[16px] text-[#B45309]" data-testid={`motivo-${m}`}>
                   <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0" /> {!p.betaLiberado ? 'Aguardando liberação da Menuzia' : regra.motivo}
                 </span>
               )}
@@ -379,8 +481,10 @@ export function CartaoModo({ p, ocupado, onEscolher, onAjuda }: { p: PainelDados
           )
         })}
       </div>
-      {p.modo !== 'teste' && <p className="mt-2.5 text-[12px] text-[var(--adm-texto-suave)]">Deu problema? Toque em <strong className="text-[var(--adm-texto)]">Somente teste</strong>: a cozinha volta na hora para o Assistente atual.</p>}
-    </Cartao>
+      <p className="mt-3 flex items-start gap-1.5 text-[12px] text-[#6B7280]">
+        <Info className="mt-[1px] h-3.5 w-3.5 flex-shrink-0" /> Deu problema? Escolha <strong className="font-semibold text-[#374151]">Somente teste</strong>: a cozinha volta na hora para o Assistente atual.
+      </p>
+    </Etapa>
   )
 }
 
@@ -394,80 +498,95 @@ export function ModalModos({ onFechar }: { onFechar: () => void }) {
     <ModalBase titulo="O que cada modo faz" onFechar={onFechar} testid="modal-modos" rodape={<button type="button" onClick={onFechar} className={PRIMARIO}>Entendi</button>}>
       <ul className="space-y-3">
         {linhas.map(([m, cozinha, recibo, texto]) => (
-          <li key={m} className="rounded-[6px] border-[0.8px] border-[var(--adm-borda)] p-3">
-            <p className="text-[14px] font-bold text-[var(--adm-texto)]">{TEXTO_MODO[m].titulo}</p>
-            <p className="mt-1 text-[12.5px] text-[var(--adm-texto-suave)]">{texto}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <Etiqueta tom="laranja">Cozinha: {cozinha}</Etiqueta>
-              <Etiqueta tom="roxo">Recibo/Extrato: {recibo}</Etiqueta>
-            </div>
+          <li key={m} className="rounded-[10px] border border-[#E5E7EB] p-3">
+            <p className="text-[14px] font-semibold text-[#111827]">{TEXTO_MODO[m].titulo}</p>
+            <p className="mt-1 text-[13px] text-[#6B7280]">{texto}</p>
+            <p className="mt-2 text-[12.5px] text-[#4B5563]">Cozinha: <strong className="font-semibold">{cozinha}</strong> · Recibo/Extrato: <strong className="font-semibold">{recibo}</strong></p>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[12.5px] text-[var(--adm-texto-suave)]">
-        <strong className="text-[var(--adm-texto)]">Para voltar à segurança:</strong> escolha “Somente teste”. É imediato, e nenhum pedido se perde nem sai em dobro.
+      <p className="mt-3 text-[13px] text-[#6B7280]">
+        <strong className="text-[#111827]">Para voltar à segurança:</strong> escolha “Somente teste”. É imediato, e nenhum pedido se perde nem sai em dobro.
       </p>
     </ModalBase>
   )
 }
 
-// ─── 4. Testes ───────────────────────────────────────────────────────────────
+// ─── Testes (pop-up do botão "Testar impressão") ────────────────────────────
 
 export type TipoTeste = 'cozinha' | 'recibo' | 'calibrar'
-const TESTE: Record<TipoTeste, { titulo: string; texto: string; funcao: Funcao | null; botao: string }> = {
-  cozinha: { titulo: 'Testar Cozinha', texto: 'Imprime uma página de teste na impressora escolhida. Não cria pedido.', funcao: 'cozinha', botao: 'Imprimir teste' },
-  recibo: { titulo: 'Testar Recibo/Extrato', texto: 'Imprime um Recibo/Extrato de demonstração. Não cria conta, pedido nem pagamento.', funcao: 'caixa', botao: 'Imprimir teste' },
-  calibrar: { titulo: 'Calibrar impressora', texto: 'Passo a passo para o papel sair inteiro, sem cortar a direita.', funcao: null, botao: 'Começar' },
+const TESTE: Record<TipoTeste, { titulo: string; texto: string; funcao: Funcao | null; botao: string; icone: typeof ChefHat }> = {
+  cozinha: { titulo: 'Testar Cozinha', texto: 'Comanda de demonstração na impressora da cozinha.', funcao: 'cozinha', botao: 'Imprimir teste', icone: ChefHat },
+  recibo: { titulo: 'Testar Recibo/Extrato', texto: 'Recibo/Extrato de demonstração.', funcao: 'caixa', botao: 'Imprimir teste', icone: ReceiptText },
+  calibrar: { titulo: 'Calibrar impressora', texto: 'Passo a passo para o papel sair inteiro, sem cortar a direita.', funcao: null, botao: 'Começar', icone: Ruler },
 }
+export type ResultadoTeste = { ok: boolean; erro?: string | null }
 
-export function CartaoTestes({ p, ocupado, onTestar }: { p: PainelDados; ocupado: boolean; onTestar: (t: TipoTeste) => void }) {
-  const tem = p.dispositivos.some((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado)
-  const itens: [TipoTeste, typeof ChefHat][] = [['cozinha', ChefHat], ['recibo', ReceiptText], ['calibrar', Ruler]]
-  return (
-    <Cartao icone={FlaskConical} tom="laranja" titulo="Testes" testid="cartao-testes">
-      <div className="grid gap-2 sm:grid-cols-3">
-        {itens.map(([t, Icone]) => (
-          <button key={t} type="button" disabled={ocupado || !tem || !p.betaLiberado} onClick={() => onTestar(t)} data-testid={`teste-${t}`} className={`${SECUNDARIO} w-full py-2.5`}>
-            <Icone className="h-4 w-4" /> {TESTE[t].titulo}
-          </button>
-        ))}
-      </div>
-      <p className="mt-2.5 text-[12px] text-[var(--adm-texto-suave)]" data-testid="logo-recibo">
-        {tem ? 'Testes saem no papel, mas não criam pedido, conta nem pagamento.' : 'Pareie um computador para testar as impressoras dele.'}
-      </p>
-    </Cartao>
-  )
-}
-
-export function ModalTeste({ tipo, p, ocupado, onConfirmar, onFechar }: { tipo: TipoTeste; p: PainelDados; ocupado: boolean; onConfirmar: (d: DispositivoVisao) => void; onFechar: () => void }) {
+export function ModalTestes({ p, onTestar, onFechar }: {
+  p: PainelDados
+  onTestar: (tipo: TipoTeste, d: DispositivoVisao) => Promise<ResultadoTeste>
+  onFechar: () => void
+}) {
   const ags = agentesRegra(p)
   const opcoes = p.dispositivos.filter((d) => {
     const a = ags.find((x) => x.id === d.agenteId)
     return a && !a.revogado && !pareamentoAntigo(a, ags)
   })
-  const cfg = TESTE[tipo]
-  const padrao = (cfg.funcao && p.funcoes[cfg.funcao] && opcoes.some((d) => d.id === p.funcoes[cfg.funcao!]) ? p.funcoes[cfg.funcao] : opcoes.find((d) => !ehImpressoraVirtual(d.nomeSistema))?.id) ?? opcoes[0]?.id ?? ''
-  const [escolhida, setEscolhida] = useState<string>(padrao)
-  const d = opcoes.find((x) => x.id === escolhida)
-  const a = d ? ags.find((x) => x.id === d.agenteId) : null
+  const padrao = (f: Funcao | null) => (f && p.funcoes[f] && opcoes.some((d) => d.id === p.funcoes[f]) ? p.funcoes[f] : opcoes.find((d) => !ehImpressoraVirtual(d.nomeSistema))?.id) ?? opcoes[0]?.id ?? ''
+  const [escolha, setEscolha] = useState<Record<TipoTeste, string>>({ cozinha: padrao('cozinha'), recibo: padrao('caixa'), calibrar: padrao(null) })
+  const [estado, setEstado] = useState<Partial<Record<TipoTeste, { s: 'enviando' | 'ok' | 'erro'; msg?: string }>>>({})
+
+  async function rodar(t: TipoTeste) {
+    const d = opcoes.find((x) => x.id === escolha[t])
+    if (!d) return
+    setEstado((e) => ({ ...e, [t]: { s: 'enviando' } }))
+    const r = await onTestar(t, d)
+    setEstado((e) => ({ ...e, [t]: r.ok ? { s: 'ok', msg: t === 'calibrar' ? undefined : `Enviado para ${nomeDisp(d)}` } : { s: 'erro', msg: r.erro ?? 'Não foi possível enviar.' } }))
+  }
+
   return (
-    <ModalBase titulo={cfg.titulo} subtitulo={cfg.texto} onFechar={onFechar} testid="modal-teste" largura="max-w-md"
-      rodape={<>
-        <button type="button" onClick={onFechar} className={SECUNDARIO}>Cancelar</button>
-        <button type="button" disabled={ocupado || !d} onClick={() => d && onConfirmar(d)} data-testid="teste-confirmar" className={PRIMARIO}>{cfg.botao}</button>
-      </>}>
-      <label className="block text-[12.5px] font-semibold text-[var(--adm-texto-forte)]">
-        Impressora
-        <select value={escolhida} onChange={(e) => setEscolhida(e.target.value)} data-testid="teste-impressora" className="mt-1.5 block h-[38px] w-full rounded-[6px] border border-[var(--adm-borda)] bg-white px-2.5 text-[13px] font-normal text-[var(--adm-texto)]">
-          {opcoes.map((x) => (
-            <option key={x.id} value={x.id}>
-              {nomeDisp(x)} · {ags.find((y) => y.id === x.agenteId)?.nome}{ehImpressoraVirtual(x.nomeSistema) ? ' (virtual)' : ''}
-            </option>
-          ))}
-        </select>
-      </label>
-      {a && !agenteOnline(a) && <p className="mt-2 text-[12.5px] text-[#B45309]">O computador está sem sinal: o teste espera até ele abrir (vence em 10 min).</p>}
-      {d && ehImpressoraVirtual(d.nomeSistema) && <p className="mt-2 text-[12.5px] text-[#92400E]">Impressora virtual: pode abrir uma janela para salvar arquivo em vez de imprimir em papel.</p>}
+    <ModalBase titulo="Testar impressão" subtitulo="Os testes saem no papel, mas não criam pedido, conta nem pagamento." onFechar={onFechar} testid="modal-teste" largura="max-w-xl"
+      rodape={<button type="button" onClick={onFechar} className={SECUNDARIO}>Fechar</button>}>
+      <ul className="space-y-2.5">
+        {(['cozinha', 'recibo', 'calibrar'] as TipoTeste[]).map((t) => {
+          const cfg = TESTE[t]
+          const Icone = cfg.icone
+          const d = opcoes.find((x) => x.id === escolha[t])
+          const a = d ? ags.find((x) => x.id === d.agenteId) : null
+          const st = estado[t]
+          return (
+            <li key={t} className="rounded-[10px] border border-[#E5E7EB] p-3.5" data-testid={`linha-teste-${t}`}>
+              <div className="flex items-start gap-3">
+                <Icone className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#4B5563]" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-semibold text-[#111827]">{cfg.titulo}</p>
+                  <p className="text-[12.5px] text-[#6B7280]">{cfg.texto}</p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    <select
+                      value={escolha[t]}
+                      onChange={(e) => setEscolha((x) => ({ ...x, [t]: e.target.value }))}
+                      aria-label={`Impressora para ${cfg.titulo}`}
+                      data-testid={`teste-impressora-${t}`}
+                      className="h-[36px] min-w-0 flex-1 rounded-[8px] border border-[#D1D5DB] bg-white px-2.5 text-[13px] text-[#111827]"
+                    >
+                      {opcoes.map((x) => (
+                        <option key={x.id} value={x.id}>{nomeDisp(x)} · {ags.find((y) => y.id === x.agenteId)?.nome}{ehImpressoraVirtual(x.nomeSistema) ? ' (virtual)' : ''}</option>
+                      ))}
+                    </select>
+                    <button type="button" disabled={!d || st?.s === 'enviando'} onClick={() => void rodar(t)} data-testid={`teste-${t}`} className={SECUNDARIO}>
+                      {st?.s === 'enviando' ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando…</> : cfg.botao}
+                    </button>
+                  </div>
+                  {st?.s === 'ok' && st.msg && <p className="mt-2 flex items-center gap-1.5 text-[12.5px] text-[#059669]" data-testid={`teste-${t}-ok`}><CheckCircle2 className="h-4 w-4" /> {st.msg} — confira o papel.</p>}
+                  {st?.s === 'erro' && <p className="mt-2 flex items-start gap-1.5 text-[12.5px] text-[#DC2626]" role="alert" data-testid={`teste-${t}-erro`}><AlertTriangle className="mt-[1px] h-4 w-4 flex-shrink-0" /> {st.msg}</p>}
+                  {a && !agenteOnline(a) && <p className="mt-2 text-[12.5px] text-[#B45309]">O computador está sem sinal: o teste espera até ele abrir (vence em 10 min).</p>}
+                  {d && ehImpressoraVirtual(d.nomeSistema) && t !== 'calibrar' && <p className="mt-2 text-[12.5px] text-[#92400E]">Impressora virtual: pode abrir uma janela para salvar arquivo em vez de imprimir em papel.</p>}
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
     </ModalBase>
   )
 }
@@ -478,31 +597,31 @@ export function AjudaDiagnostico({ p, onAjudaCompleta }: { p: PainelDados; onAju
   const ags = agentesRegra(p)
   const ativos = p.dispositivos.filter((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado)
   return (
-    <details className="group rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid="ajuda-diagnostico">
-      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3.5">
-        <BolhaIcone icone={Stethoscope} tom="cinza" tamanho={32} />
-        <span className="text-[14px] font-bold text-[var(--adm-texto)]">Ajuda e diagnóstico</span>
-        <span className="ml-auto text-[12px] text-[var(--adm-texto-suave)] group-open:hidden">histórico, detalhes técnicos e guia</span>
+    <details className="group rounded-[12px] border border-[#E5E7EB] bg-white" data-testid="ajuda-diagnostico">
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3.5 sm:px-5">
+        <Stethoscope className="h-[18px] w-[18px] text-[#4B5563]" />
+        <span className="text-[14px] font-semibold text-[#111827]">Ajuda e diagnóstico</span>
+        <span className="ml-auto text-[12.5px] text-[#6B7280] group-open:hidden">histórico, detalhes técnicos e guia</span>
       </summary>
-      <div className="space-y-4 border-t border-[var(--adm-borda)] p-4">
+      <div className="space-y-4 border-t border-[#F3F4F6] p-4 sm:p-5">
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onAjudaCompleta} data-testid="ajuda-impressao" className={SECUNDARIO}><CircleHelp className="h-4 w-4" /> Como funciona</button>
           <a href="/guia-impressora.html" target="_blank" rel="noopener noreferrer" className={SECUNDARIO}>Guia de instalação</a>
         </div>
 
         <div>
-          <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold text-[var(--adm-texto-forte)]"><History className="h-4 w-4" /> Histórico recente</p>
-          <p className="mb-1.5 text-[11.5px] text-[var(--adm-texto-suave)]">{AVISO_PAPEL}</p>
+          <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[#111827]"><History className="h-4 w-4" /> Histórico recente</p>
+          <p className="mb-1.5 text-[12px] text-[#6B7280]">{AVISO_PAPEL}</p>
           {p.trabalhos.length === 0 ? (
-            <p className="text-[12.5px] text-[var(--adm-texto-suave)]">Nenhum Recibo/Extrato ou teste ainda.</p>
+            <p className="text-[13px] text-[#6B7280]">Nenhum Recibo/Extrato ou teste ainda.</p>
           ) : (
-            <ul className="divide-y divide-[var(--adm-borda)] rounded-[6px] border-[0.8px] border-[var(--adm-borda)]" data-testid="historico-impressao">
+            <ul className="divide-y divide-[#F3F4F6] rounded-[10px] border border-[#E5E7EB]" data-testid="historico-impressao">
               {p.trabalhos.map((t) => (
-                <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-[12px]">
-                  <span className="text-[var(--adm-texto-suave)]">{quando(t.criadoEm)}</span>
-                  <span className="font-semibold text-[var(--adm-texto)]">{(t.subtipo && ROTULO_SUBTIPO_TESTE[t.subtipo]) || ROTULO_TIPO_TRABALHO[t.tipo] || t.tipo}{t.tipo === 'pre_conta' ? ` · ${t.via}ª via` : ''}</span>
-                  <span className="min-w-0 flex-1 text-[var(--adm-texto-medio)]">{t.impressora} · por {t.criadoPorNome}</span>
-                  <span className="font-semibold text-[var(--adm-texto)]">{ROTULO_ESTADO_IMPRESSAO[t.estado] ?? t.estado}</span>
+                <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-[12.5px]">
+                  <span className="text-[#6B7280]">{quando(t.criadoEm)}</span>
+                  <span className="font-semibold text-[#111827]">{(t.subtipo && ROTULO_SUBTIPO_TESTE[t.subtipo]) || ROTULO_TIPO_TRABALHO[t.tipo] || t.tipo}{t.tipo === 'pre_conta' ? ` · ${t.via}ª via` : ''}</span>
+                  <span className="min-w-0 flex-1 text-[#4B5563]">{t.impressora} · por {t.criadoPorNome}</span>
+                  <span className="font-semibold text-[#111827]">{ROTULO_ESTADO_IMPRESSAO[t.estado] ?? t.estado}</span>
                   {t.erro && <span className="w-full text-[#DC2626]">{t.erro}</span>}
                 </li>
               ))}
@@ -512,7 +631,7 @@ export function AjudaDiagnostico({ p, onAjudaCompleta }: { p: PainelDados; onAju
 
         {ativos.length > 0 && (
           <div>
-            <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold text-[var(--adm-texto-forte)]"><Laptop className="h-4 w-4" /> Detalhes por impressora</p>
+            <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[#111827]"><Laptop className="h-4 w-4" /> Detalhes por impressora</p>
             <div className="space-y-1.5">
               {ativos.map((d) => {
                 const g = (d.diagnostico ?? {}) as Record<string, string | number | boolean | undefined>
@@ -529,17 +648,17 @@ export function AjudaDiagnostico({ p, onAjudaCompleta }: { p: PainelDados; onAju
                   ['Deslocamento', `${d.deslocamentoPontos} pontos`],
                 ]
                 return (
-                  <details key={d.id} className="rounded-[6px] border-[0.8px] border-[var(--adm-borda)]">
-                    <summary className="cursor-pointer px-3 py-2 text-[12.5px] font-semibold text-[var(--adm-texto)]">{nomeDisp(d)}{ehImpressoraVirtual(d.nomeSistema) ? ' · virtual' : ''}</summary>
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-[var(--adm-borda)] px-3 py-2 text-[12px] min-[420px]:grid-cols-2">
+                  <details key={d.id} className="rounded-[10px] border border-[#E5E7EB]">
+                    <summary className="cursor-pointer px-3 py-2 text-[13px] font-semibold text-[#111827]">{nomeDisp(d)}{ehImpressoraVirtual(d.nomeSistema) ? ' · virtual' : ''}</summary>
+                    <dl className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-[#F3F4F6] px-3 py-2 text-[12.5px] min-[420px]:grid-cols-2">
                       {linhas.map(([k, v]) => (
                         <div key={k} className="flex justify-between gap-2">
-                          <dt className="text-[var(--adm-texto-suave)]">{k}</dt>
-                          <dd className="text-right font-semibold text-[var(--adm-texto)]">{v}</dd>
+                          <dt className="text-[#6B7280]">{k}</dt>
+                          <dd className="text-right font-semibold text-[#111827]">{v}</dd>
                         </div>
                       ))}
                     </dl>
-                    {d.ultimoErro && <p className="border-t border-[var(--adm-borda)] px-3 py-2 text-[12px] text-[#DC2626]">Último erro ({quando(d.ultimoErroEm)}): {d.ultimoErro}</p>}
+                    {d.ultimoErro && <p className="border-t border-[#F3F4F6] px-3 py-2 text-[12.5px] text-[#DC2626]">Último erro ({quando(d.ultimoErroEm)}): {d.ultimoErro}</p>}
                   </details>
                 )
               })}
@@ -547,7 +666,7 @@ export function AjudaDiagnostico({ p, onAjudaCompleta }: { p: PainelDados; onAju
           </div>
         )}
 
-        <ul className="list-disc space-y-1 pl-5 text-[12px] text-[var(--adm-texto-suave)]">
+        <ul className="list-disc space-y-1 pl-5 text-[12.5px] text-[#6B7280]">
           <li>Papel não saiu? Veja se tem papel, se a tampa está fechada e se a impressora está ligada.</li>
           <li>Fila do Windows travada: em “Impressoras e scanners”, abra a impressora e cancele os documentos parados.</li>
           <li>Reinstalou o Beta? Desconecte a entrada antiga do computador e pareie de novo.</li>

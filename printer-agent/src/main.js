@@ -4,6 +4,7 @@ Menu.setApplicationMenu(null)
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+const crypto = require('crypto')
 const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal, instanciaAgente } = require('./store')
 const { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta } = require('./printer')
 const { montarRecibo } = require('./recibo')
@@ -265,15 +266,16 @@ async function cicloDePolling() {
         }
 
         const perfilCozinha = EH_BETA && destino
-          ? { ...PERFIL_LOG, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte }
+          ? { ...PERFIL_LOG, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte, imprimirLogo: configImpressao.imprimirLogo !== false }
           : null
         let saida
         if (perfilCozinha) {
           // Beta: comanda no modelo oficial (cozinha-beta.js, desenhada pelo ticket-canvas.js),
-          // com o desconto/horários e o QR que o servidor manda só para o Beta.
+          // com o desconto/horários, o QR e os dados da loja que o servidor manda só para o Beta.
           const beta = data.cozinhaBeta || {}
-          const doc = montarCozinhaBeta(pedido, { config: configImpressao, lojaNome, extras: beta.extras?.[pedido.id], qr: beta.qr })
-          saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoDocumento(doc) }, paperMm, { ...perfilCozinha, copias })
+          const doc = montarCozinhaBeta(pedido, { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: beta.qr })
+          const logo = perfilCozinha.imprimirLogo ? await logoParaDesenho() : null
+          saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoDocumento(doc) }, paperMm, { ...perfilCozinha, copias, logo })
         } else {
           const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
           saida = await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
@@ -346,6 +348,51 @@ async function informarResultado(id, ok, erro) {
   })
 }
 
+// ─── logo da loja (Recibo/Extrato do Beta) ───────────────────────────────────
+// Nunca de uma URL qualquer: só pela rota do servidor, com a credencial deste computador;
+// o servidor entrega apenas o arquivo do Storage da própria loja. Guardada pelo hash na
+// pasta de dados do Beta. Falhou? Usa a que já tem; sem nenhuma, sai o nome da loja.
+const PASTA_LOGOS = () => path.join(app.getPath('userData'), 'logos')
+const EXTENSAO_LOGO = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/bmp': 'bmp' }
+let logoAtual = null
+async function obterLogo() {
+  const headers = cabecalhosAgente()
+  if (!headers) return null
+  const guardada = () => (logoAtual && fs.existsSync(logoAtual.caminho) ? logoAtual.caminho : null)
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/agente/logo${logoAtual ? `?sha=${logoAtual.sha}` : ''}`, { headers, signal: AbortSignal.timeout(8000) })
+    if (res.status === 304) return guardada()
+    if (res.status === 204) { logoAtual = null; return null }
+    if (res.status !== 200) return guardada()
+    const sha = String(res.headers.get('x-logo-sha256') || '')
+    const ext = EXTENSAO_LOGO[String(res.headers.get('content-type') || '').split(';')[0].trim()]
+    const bytes = Buffer.from(await res.arrayBuffer())
+    if (!/^[0-9a-f]{64}$/.test(sha) || !ext || crypto.createHash('sha256').update(bytes).digest('hex') !== sha) return guardada()
+    const dir = PASTA_LOGOS()
+    fs.mkdirSync(dir, { recursive: true })
+    const caminho = path.join(dir, `loja-${sha.slice(0, 16)}.${ext}`)
+    fs.writeFileSync(caminho, bytes)
+    // Só a logo atual e o que foi preparado a partir dela.
+    for (const f of fs.readdirSync(dir)) if (!f.includes(sha.slice(0, 16))) fs.unlink(path.join(dir, f), () => {})
+    logoAtual = { sha, caminho }
+    return caminho
+  } catch (err) {
+    logArquivo(`LOGO: ${descreverErro(err)}`)
+    return guardada()
+  }
+}
+
+// A logo vai ao desenho (ticket.html) como data URL — arquivo local "sujaria" o canvas.
+const MIME_LOGO = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp' }
+async function logoParaDesenho() {
+  const caminho = await obterLogo()
+  if (!caminho) return null
+  try {
+    const mime = MIME_LOGO[path.extname(caminho).slice(1).toLowerCase()]
+    return mime ? `data:${mime};base64,${fs.readFileSync(caminho).toString('base64')}` : null
+  } catch { return null }
+}
+
 // Uma fila por impressora do Windows: a do caixa travada não segura a da cozinha.
 const filas = new FilasPorDispositivo(
   async (t) => {
@@ -368,18 +415,21 @@ const filas = new FilasPorDispositivo(
           larguraPontos: calibracao ? (t.snapshot.largura_pontos ?? null) : (t.larguraPontos ?? null),
           deslocamentoPontos: calibracao ? (t.snapshot.deslocamento_pontos ?? 0) : (t.deslocamentoPontos ?? 0),
           tamanhoFonte: t.tamanhoFonte,
+          imprimirLogo: t.imprimirLogo !== false,
         }
       : null
     // Recibo/Extrato no Beta: layout próprio (pre-conta-beta.js + ticket-canvas.js), o MESMO
     // para a conta real e para o teste. Calibração e teste simples seguem no print.ps1.
     let saida
     if (cozinhaTeste) {
-      const doc = montarCozinhaBeta(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
-      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, perfil)
+      const doc = montarCozinhaBeta(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
+      const logo = perfil.imprimirLogo ? await logoParaDesenho() : null
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
     } else if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
       // QR do rodapé: o do snapshot ou o que o servidor manda com o trabalho (Instagram/cardápio).
-      const doc = montarPreContaBeta({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null })
-      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, perfil)
+      const doc = montarPreContaBeta({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null, loja_dados: t.loja || null })
+      const logo = perfil.imprimirLogo ? await logoParaDesenho() : null
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
     } else {
       saida = perfil
         ? await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false, perfil)

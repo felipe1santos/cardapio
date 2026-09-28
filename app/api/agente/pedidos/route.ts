@@ -5,7 +5,7 @@ import { lerAgenteToken } from '@/lib/agente-token'
 import { identificarAgente } from '@/lib/impressao/credenciais'
 import { destinoCozinha } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
-import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, qrDaCozinha } from '@/lib/impressao/cozinha-beta'
+import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
 
 /**
  * Fila da FICHA DA COZINHA, consultada periodicamente pelo Assistente de Impressão.
@@ -56,16 +56,18 @@ export async function GET(request: Request) {
     const pedidos = aposCorteDaTransferencia(lista as { criadoEm?: string | null }[], rota.transferidaEm)
     // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
     // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.
-    let beta: { extras: Record<string, unknown>; qr: ReturnType<typeof qrDaCozinha> | null } | undefined
+    // Nome, telefone e endereço da loja para o rodapé (0.2.0-beta.6+).
+    let beta: { extras: Record<string, unknown>; qr: ReturnType<typeof qrDaCozinha> | null; loja: LojaImpressao | null } | undefined
     if (souDono) {
       const ids = (pedidos as { id?: string }[]).map((p) => p.id).filter((id): id is string => typeof id === 'string')
-      const [extras, lojaBeta] = await Promise.all([
+      const [extras, lojaBeta, dadosLoja] = await Promise.all([
         extrasDaCozinhaBeta(admin, restauranteId, ids).catch(() => ({})),
         lojaDaCozinhaBeta(admin, restauranteId).catch(() => null),
+        lojaImpressao(admin, restauranteId).catch(() => null),
       ])
       let qr: ReturnType<typeof qrDaCozinha> | null = null
       try { qr = lojaBeta?.slug ? qrDaCozinha(lojaBeta) : null } catch { qr = null }
-      beta = { extras, qr }
+      beta = { extras, qr, loja: dadosLoja }
     }
     return NextResponse.json({
       config,

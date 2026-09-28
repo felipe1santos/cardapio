@@ -1,16 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, History, Info } from 'lucide-react'
+import { AlertTriangle, FlaskConical, History, Info } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
 import { PreviaBeta } from '@/components/impressao/previa-beta'
-import { AssistenteAntigo, FichaCozinha, type AssistenteAtual } from '@/components/impressao/assistente-antigo'
+import { AssistenteAntigo, type AssistenteAtual } from '@/components/impressao/assistente-antigo'
 import {
-  AjudaDiagnostico, type TamanhoLetra, CartaoAssistente, CartaoImpressoras, CartaoModo, CartaoTestes, ModalImpressoras, ModalModos, ModalPareamento, ModalTeste,
-  avaliar, nomeDisp, type PainelDados, type TipoTeste,
+  AjudaDiagnostico, type TamanhoLetra, EtapaConectar, EtapaImpressoras, EtapaModo, ModalImpressoras, ModalModos, ModalPareamento, ModalTestes,
+  avaliar, situacaoComputadores, type PainelDados, type ResultadoTeste, type TipoTeste,
 } from '@/components/impressao/beta-cards'
 import { ROTULO_MODO_BETA } from '@/lib/impressao/rotulos'
 import { modoDependeDoAgente } from '@/lib/impressao/regras-modo'
@@ -32,10 +32,11 @@ import {
 } from '@/lib/queries/impressao'
 
 /**
- * Impressão — tela do cliente final, focada no Assistente Beta (2026-09-27):
- *   1. Assistente (status, baixar, parear em pop-up)  2. Impressoras (escolha em pop-up)
- *   3. Modo (real só com impressoras válidas — a mesma regra do servidor)  4. Testes
- *   · Ajuda e diagnóstico recolhidos · opções da ficha da cozinha recolhidas.
+ * Impressão — tela do cliente final, focada no Assistente Beta (reorganizada 2026-09-28):
+ * à esquerda as etapas ① Conectar computador ② Impressoras (escolha em pop-up) ③ Modo de
+ * operação (real só com impressoras válidas — a mesma regra do servidor) e a ajuda; à
+ * direita, fixa, a pré-visualização real com as "Opções da impressão". Testes num pop-up
+ * pelo botão "Testar impressão" do topo.
  * O Assistente antigo (0.1.23, token) fica atrás do botão "Assistente antigo", igual por
  * dentro. A escolha da visão é só do navegador (localStorage). Nenhuma credencial aparece;
  * o código de pareamento vence em 10 min.
@@ -66,7 +67,7 @@ export function PainelImpressao() {
   const [pareando, setPareando] = useState<{ codigo: { codigo: string; expiraEm: string } | null; erro: string | null; antes: string[]; conectado: string | null } | null>(null)
   const [escolhendo, setEscolhendo] = useState(false)
   const [verModos, setVerModos] = useState(false)
-  const [teste, setTeste] = useState<TipoTeste | null>(null)
+  const [testando, setTestando] = useState(false)
   const [ajuda, setAjuda] = useState(false)
   const [trocarModo, setTrocarModo] = useState<ModoBeta | null>(null)
   const [calibrar, setCalibrar] = useState<string | null>(null)
@@ -244,21 +245,20 @@ export function PainelImpressao() {
     if (nome) void agir(`/api/admin/impressao/agentes/${a.id}`, 'PATCH', { nome }, 'Computador renomeado.')
   }
 
-  async function testar(d: DispositivoVisao) {
-    if (teste === 'calibrar') {
-      setTeste(null)
+  async function testar(tipo: TipoTeste, d: DispositivoVisao): Promise<ResultadoTeste> {
+    if (tipo === 'calibrar') {
+      setTestando(false)
       setCalibrar(d.id)
-      return
+      return { ok: true }
     }
     // Cozinha e Recibo/Extrato de teste saem no MODELO de verdade (dados de demonstração).
-    const acao = teste === 'recibo' ? 'recibo_teste' : teste === 'cozinha' ? 'cozinha_teste' : 'teste'
+    const acao = tipo === 'recibo' ? 'recibo_teste' : 'cozinha_teste'
     const k = `${acao}:${d.id}`
     chavesTeste.current[k] ??= novaChave()
-    const r = await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'POST', { acao, chave: chavesTeste.current[k] }, `${teste === 'recibo' ? 'Recibo/Extrato de teste' : teste === 'cozinha' ? 'Comanda de teste' : 'Página de teste'} enviado para ${nomeDisp(d)}.`)
-    if (r?.ok) {
-      delete chavesTeste.current[k]
-      setTeste(null)
-    }
+    const r = await chamar(`/api/admin/impressao/dispositivos/${d.id}`, { method: 'POST', body: JSON.stringify({ acao, chave: chavesTeste.current[k] }) })
+    if (r.ok) delete chavesTeste.current[k]
+    void carregar()
+    return { ok: r.ok, erro: r.ok ? null : r.erro ?? 'Não foi possível enviar o teste.' }
   }
 
   async function patchAtual(patch: Partial<ConfigImpressao>) {
@@ -306,6 +306,9 @@ export function PainelImpressao() {
   const av = p ? avaliar(p) : null
   // Modo real ligado, mas hoje ele não tem o que precisa (ex.: PC da impressora sem sinal).
   const modoEmRisco = p && av && p.modo !== 'teste' && !av.modos[p.modo].ok ? av.modos[p.modo].motivo : null
+  const temComputador = !!p && situacaoComputadores(p).ativos.length > 0
+  const podeTestar = !!p && p.betaLiberado && temComputador
+  const motivoSemTeste = !p ? '' : !p.betaLiberado ? 'O Beta ainda não foi liberado nesta loja.' : !temComputador ? 'Conecte um computador para testar as impressoras dele.' : ''
 
   return (
     // O <main> do painel não rola (overflow-hidden): cada página tem o próprio contêiner.
@@ -314,26 +317,41 @@ export function PainelImpressao() {
         title="Impressão"
         breadcrumb="Cozinha e Recibo/Extrato"
         right={
-          <button
-            type="button"
-            onClick={() => trocarVisao(visao === 'novo' ? 'antigo' : 'novo')}
-            data-testid="alternar-visao"
-            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-[var(--adm-borda)] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[var(--adm-texto)] hover:border-[#0688D4] hover:text-[#0688D4]"
-          >
-            <History className="h-4 w-4" /> {visao === 'novo' ? 'Assistente antigo' : 'Usar novo Assistente'}
-          </button>
+          <div className="flex items-center gap-2">
+            {visao === 'novo' && (
+              <span title={motivoSemTeste || undefined} className="inline-flex">
+                <button
+                  type="button"
+                  onClick={() => setTestando(true)}
+                  disabled={!podeTestar}
+                  data-testid="testar-impressao"
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#D1D5DB] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#1F2937] hover:border-[#0688D4] hover:text-[#0688D4] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <FlaskConical className="h-4 w-4" /> Testar impressão
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => trocarVisao(visao === 'novo' ? 'antigo' : 'novo')}
+              data-testid="alternar-visao"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[8px] px-2.5 py-1.5 text-[12.5px] font-semibold text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#111827]"
+            >
+              <History className="h-4 w-4" /> <span className="max-sm:hidden">{visao === 'novo' ? 'Assistente antigo' : 'Usar novo Assistente'}</span>
+            </button>
+          </div>
         }
       />
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="impressao-rolagem">
-        <div className="mx-auto w-full min-w-0 max-w-5xl space-y-4 p-4 pb-16" data-testid="painel-impressao">
-          <p className="text-[13px] text-[var(--adm-texto-suave)]">Configure onde saem os pedidos da cozinha e o Recibo/Extrato do caixa.</p>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#F6F7F9]" data-testid="impressao-rolagem">
+        <div className="mx-auto w-full min-w-0 max-w-[1240px] space-y-4 p-4 pb-16 lg:p-6" data-testid="painel-impressao">
+          <p className="text-[13px] text-[#6B7280]">Configure onde saem os pedidos da cozinha e o Recibo/Extrato do caixa.</p>
 
           {aviso && (
-            <p role="status" data-testid="impressao-aviso" className={['rounded-[6px] px-3 py-2 text-[12.5px] font-semibold', aviso.tom === 'ok' ? 'bg-[#DCFCE7] text-[#166534]' : aviso.tom === 'alerta' ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#FEE2E2] text-[#B91C1C]'].join(' ')}>
+            <p role="status" data-testid="impressao-aviso" className={['rounded-[8px] border px-3 py-2 text-[13px] font-semibold', aviso.tom === 'ok' ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46]' : aviso.tom === 'alerta' ? 'border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]' : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'].join(' ')}>
               {aviso.texto}
             </p>
           )}
-          {erro && <p className="rounded-[6px] bg-[#FEE2E2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
+          {erro && <p className="rounded-[8px] border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
 
           {visao === 'antigo' ? (
             <AssistenteAntigo
@@ -350,34 +368,42 @@ export function PainelImpressao() {
               onRemoverImpressora={(id) => void removerImpressoraAntiga(id)}
             />
           ) : !p ? (
-            <div className="space-y-3" aria-busy="true">
-              {[0, 1, 2].map((i) => <div key={i} className="h-[150px] animate-pulse rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" />)}
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,1fr)]" aria-busy="true">
+              <div className="space-y-4">{[0, 1, 2].map((i) => <div key={i} className="h-[150px] animate-pulse rounded-[12px] border border-[#E5E7EB] bg-white" />)}</div>
+              <div className="h-[520px] animate-pulse rounded-[12px] border border-[#E5E7EB] bg-white" />
             </div>
           ) : (
-            <>
-              {/* Onde a cozinha está saindo agora — para ninguém achar que a impressão parou. */}
-              <p className="flex items-start gap-2 rounded-[6px] bg-[#F8FAFC] px-3 py-2 text-[12.5px] text-[var(--adm-texto-medio)]" data-testid="onde-sai-cozinha">
-                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#0688D4]" />
-                {cozinhaNoBeta
-                  ? 'A cozinha está saindo pelo Assistente Beta.'
-                  : `A cozinha está saindo pelo Assistente antigo${atual && !atual.config.ativarAssistente ? ' (desativado)' : atualOnline ? ' (imprimindo agora)' : ''}. O Recibo/Extrato do PDV ${p.modo === 'teste' ? 'fica desligado em “Somente teste”' : 'sai pelo Beta'}.`}
-              </p>
-              {modoEmRisco && (
-                <p className="flex items-start gap-2 rounded-[6px] bg-[#FEF3C7] px-3 py-2 text-[12.5px] font-semibold text-[#92400E]" data-testid="modo-em-risco">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {modoEmRisco}. Enquanto isso, o Recibo/Extrato do PDV pode não sair.
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,1fr)]">
+              <div className="min-w-0 space-y-4">
+                {/* Onde a cozinha está saindo agora — para ninguém achar que a impressão parou. */}
+                <p className="flex items-start gap-2 text-[13px] text-[#4B5563]" data-testid="onde-sai-cozinha">
+                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#6B7280]" />
+                  {cozinhaNoBeta
+                    ? 'A cozinha está saindo pelo Assistente Beta.'
+                    : `A cozinha está saindo pelo Assistente antigo${atual && !atual.config.ativarAssistente ? ' (desativado)' : atualOnline ? ' (imprimindo agora)' : ''}. O Recibo/Extrato do PDV ${p.modo === 'teste' ? 'fica desligado em “Somente teste”' : 'sai pelo Beta'}.`}
                 </p>
-              )}
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <CartaoAssistente p={p} ocupado={ocupado} onParear={() => void abrirPareamento()} onRevogar={revogar} onRenomear={renomear} />
-                <CartaoImpressoras p={p} onEscolher={() => setEscolhendo(true)} />
+                {modoEmRisco && (
+                  <p className="flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-[13px] font-semibold text-[#92400E]" data-testid="modo-em-risco">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {modoEmRisco}. Enquanto isso, o Recibo/Extrato do PDV pode não sair.
+                  </p>
+                )}
+                <EtapaConectar p={p} ocupado={ocupado} onParear={() => void abrirPareamento()} onRevogar={revogar} onRenomear={renomear} />
+                <EtapaImpressoras p={p} onEscolher={() => setEscolhendo(true)} />
+                <EtapaModo p={p} ocupado={ocupado} onEscolher={(m) => setTrocarModo(m)} onAjuda={() => setVerModos(true)} />
+                <AjudaDiagnostico p={p} onAjudaCompleta={() => setAjuda(true)} />
               </div>
-              <CartaoModo p={p} ocupado={ocupado} onEscolher={(m) => setTrocarModo(m)} onAjuda={() => setVerModos(true)} />
-              <CartaoTestes p={p} ocupado={ocupado} onTestar={(t) => setTeste(t)} />
-              <PreviaBeta p={p} ocupado={ocupado} onSalvarLetra={(d, tamanhoFonte) => ajustar(d, { tamanhoFonte })} />
-              {atual && <FichaCozinha atual={atual} pode={atual.podeEditar} impressoraEmUsoId={atualImpressoraId} onPatch={(x) => void patchAtual(x)} />}
-              <AjudaDiagnostico p={p} onAjudaCompleta={() => setAjuda(true)} />
-            </>
+              {/* Prévia fixa: acompanha a rolagem enquanto a pessoa ajusta à esquerda. */}
+              <div className="min-w-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-110px)] lg:overflow-y-auto lg:overscroll-contain">
+                <PreviaBeta
+                  p={p}
+                  ocupado={ocupado}
+                  config={atual?.config ?? null}
+                  podeEditar={atual?.podeEditar === true}
+                  onPatchConfig={(x) => void patchAtual(x)}
+                  onSalvarLetra={(d, tamanhoFonte) => ajustar(d, { tamanhoFonte })}
+                />
+              </div>
+            </div>
           )}
 
           {/* ── janelas ─────────────────────────────────────────────────────────── */}
@@ -391,9 +417,9 @@ export function PainelImpressao() {
               onFechar={() => setPareando(null)}
             />
           )}
-          {escolhendo && p && <ModalImpressoras p={p} ocupado={ocupado} onSalvar={salvarImpressoras} onAjustar={ajustar} onFechar={() => setEscolhendo(false)} />}
+          {escolhendo && p && <ModalImpressoras p={p} ocupado={ocupado} onSalvar={salvarImpressoras} onAjustar={ajustar} onAtualizar={carregar} onFechar={() => setEscolhendo(false)} />}
           {verModos && <ModalModos onFechar={() => setVerModos(false)} />}
-          {teste && p && <ModalTeste tipo={teste} p={p} ocupado={ocupado} onConfirmar={(d) => void testar(d)} onFechar={() => setTeste(null)} />}
+          {testando && p && <ModalTestes p={p} onTestar={testar} onFechar={() => setTestando(false)} />}
           {trocarModo && p && (
             <ConfirmarModo
               de={p.modo}

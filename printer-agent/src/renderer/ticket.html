@@ -7,16 +7,21 @@
 </head>
 <body>
 <!-- Janela OCULTA do Assistente Beta (e dos testes): desenha a comanda / pré-conta com o
-     ticket-canvas.js — o mesmo da pré-visualização do painel — e devolve o PNG. -->
+     ticket-canvas.js — o mesmo da pré-visualização do painel — e devolve o PNG.
+     A logo da loja chega como data URL (arquivo local "sujaria" o canvas). -->
 <canvas id="t"></canvas>
 <script src="../ticket-canvas.js"></script>
-<script src="logo-dados.js"></script>
 <script>
-  let recursos = null
+  let fontes = null
+  const logos = new Map()
   window.renderizarTicket = async function (doc, opcoes) {
-    if (!recursos) recursos = await TicketMenuzia.carregarRecursos('../fonts', window.LOGO_MENUZIA)
+    if (!fontes) fontes = TicketMenuzia.carregarRecursos('../fonts')
+    await fontes
+    const url = opcoes && opcoes.logo ? String(opcoes.logo) : ''
+    if (url && !logos.has(url)) { if (logos.size > 4) logos.clear(); logos.set(url, TicketMenuzia.carregarImagem(url)) }
+    const logo = url ? await logos.get(url) : null
     const canvas = document.getElementById('t')
-    const r = TicketMenuzia.desenhar(canvas, doc, { ...opcoes, logo: recursos.logo })
+    const r = TicketMenuzia.desenhar(canvas, doc, { ...opcoes, logo })
     return { png: canvas.toDataURL('image/png'), largura: r.largura, altura: r.altura }
   }
 </script>

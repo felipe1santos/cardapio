@@ -171,9 +171,10 @@ const impressoraVirtual = {
     fs.writeFileSync(`${base}.txt`, doc.texto ?? '', 'utf8')
     const tamanhoFonte = perfil.tamanhoFonte === 'media' || perfil.tamanhoFonte === 'pequena' ? perfil.tamanhoFonte : 'grande'
     const { renderizarTicket } = await render()
-    const r = await renderizarTicket(doc, { larguraMm: Number(paperMm) <= 58 ? 58 : 80, larguraPontos: perfil.larguraPontos ?? null, tamanhoFonte, saida: `${base}.png` })
+    const r = await renderizarTicket(doc, { larguraMm: Number(paperMm) <= 58 ? 58 : 80, larguraPontos: perfil.larguraPontos ?? null, tamanhoFonte, logo: perfil.logo ?? null, imprimirLogo: perfil.imprimirLogo !== false, saida: `${base}.png` })
     const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias: perfil.copias ?? 1, paperMm, larguraPontos: perfil.larguraPontos ?? null,
       deslocamentoPontos: perfil.deslocamentoPontos ?? 0, tamanhoFonte, largura: r.largura, altura: r.altura, versao: doc.versao,
+      logo: typeof perfil.logo === 'string' ? perfil.logo.slice(0, 22) : null, imprimirLogo: perfil.imprimirLogo !== false, doc,
       texto: doc.texto ?? '', png: `${base}.png`, txt: `${base}.txt` }
     fs.appendFileSync(path.join(SAIDA, 'impressos.jsonl'), JSON.stringify(registro) + '\n')
     const fila = artefatosPendentes.get(nome) ?? []

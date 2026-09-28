@@ -89,3 +89,48 @@ export async function lojaDaCozinhaBeta(admin: SupabaseClient, restauranteId: st
   if (error) throw error
   return { slug: (data?.slug as string) ?? '', instagramUrl: (data?.instagram_url as string | null) ?? null }
 }
+
+/** Nome, telefone e endereço da LOJA como saem no rodapé da comanda e da pré-conta do Beta. */
+export interface LojaImpressao {
+  nome: string
+  telefone: string
+  endereco: string
+}
+
+/** Colunas de restaurantes usadas por dadosLojaImpressao (selecione todas). */
+export const COLUNAS_LOJA_IMPRESSAO = 'nome, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado'
+
+/** "(27) 99999-0000" (DDD + número; tira o 55 do país). Outro formato: como veio. */
+export function telefoneImpressao(v: string | null | undefined): string {
+  let d = String(v ?? '').replace(/\D/g, '')
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return String(v ?? '').trim()
+}
+
+/**
+ * Dados da loja para o papel. Endereço: o estruturado ("rua, nº - complemento - bairro,
+ * cidade/UF") ou, sem ele, o texto livre do cadastro. " - " separa as partes: o desenho
+ * quebra a linha nelas primeiro.
+ */
+export function dadosLojaImpressao(r: Record<string, unknown> | null | undefined): LojaImpressao {
+  const t = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  if (!r) return { nome: '', telefone: '', endereco: '' }
+  const rua = t(r.endereco_rua)
+  let endereco = ''
+  if (rua) {
+    const cidade = [t(r.endereco_cidade), t(r.endereco_estado)].filter(Boolean).join('/')
+    const bairroCidade = [t(r.endereco_bairro), cidade].filter(Boolean).join(', ')
+    endereco = [[rua, t(r.endereco_numero)].filter(Boolean).join(', '), t(r.endereco_complemento), bairroCidade].filter(Boolean).join(' - ')
+  } else {
+    endereco = t(r.endereco)
+  }
+  return { nome: t(r.nome), telefone: telefoneImpressao(t(r.telefone)), endereco }
+}
+
+export async function lojaImpressao(admin: SupabaseClient, restauranteId: string): Promise<LojaImpressao> {
+  const { data, error } = await admin.from('restaurantes').select(COLUNAS_LOJA_IMPRESSAO).eq('id', restauranteId).maybeSingle()
+  if (error) throw error
+  return dadosLojaImpressao(data as Record<string, unknown> | null)
+}

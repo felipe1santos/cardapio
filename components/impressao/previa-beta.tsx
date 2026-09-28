@@ -1,37 +1,55 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Eye } from 'lucide-react'
 import TicketMenuzia from '@/printer-agent/src/ticket-canvas.js'
 import { montarCozinhaBeta } from '@/printer-agent/src/cozinha-beta.js'
 import { montarPreContaBeta } from '@/printer-agent/src/pre-conta-beta.js'
 import { contaDemonstracao, pedidoDemonstracao } from '@/lib/impressao/previa-beta'
 import type { DispositivoVisao } from '@/lib/impressao/servico'
-import { Cartao, SECUNDARIO, TAMANHOS_LETRA, nomeDisp, type PainelDados, type TamanhoLetra } from '@/components/impressao/beta-cards'
+import type { ConfigImpressao } from '@/lib/queries/impressao'
+import { SECUNDARIO, TAMANHOS_LETRA, nomeDisp, type PainelDados, type TamanhoLetra } from '@/components/impressao/beta-cards'
 
 /**
- * Pré-visualização REAL do Assistente Beta: a comanda e a pré-conta montadas pelos
- * mesmos montadores do Beta (cozinha-beta.js / pre-conta-beta.js) e desenhadas pelo
- * mesmo ticket-canvas.js, com as mesmas fontes e a mesma logo — na largura em pontos e
- * no tamanho de letra da impressora. O que aparece aqui é o que sai no papel.
+ * Pré-visualização REAL do Assistente Beta (coluna da direita da tela Impressão): a
+ * comanda e a pré-conta montadas pelos mesmos montadores do Beta (cozinha-beta.js /
+ * pre-conta-beta.js) e desenhadas pelo mesmo ticket-canvas.js, com as mesmas fontes, a logo
+ * e os dados da loja — na largura em pontos e no tamanho de letra da impressora. O que
+ * aparece aqui é o que sai no papel. Embaixo, as "Opções da impressão" da loja (mesmas
+ * chaves de sempre), que atualizam o desenho na hora.
  */
 
 type Modelo = 'cozinha' | 'pre_conta'
 const ROTULO: Record<Modelo, string> = { cozinha: 'Comanda da cozinha', pre_conta: 'Pré-conta (Recibo/Extrato)' }
 
-let recursos: Promise<{ logo: HTMLImageElement }> | null = null
-const carregar = () => (recursos ??= TicketMenuzia.carregarRecursos('/impressao/fonts', '/impressao/logo-menuzia.png').catch((e: unknown) => {
-  recursos = null
+type ChaveOpcao = 'mostrarNumeroItem' | 'mostrarPrecoComplementos' | 'mostrarNomeComplementos' | 'fonteMaiorProducao' | 'multiplicarOpcoesQtd' | 'imprimirLogo'
+const OPCOES: { chave: ChaveOpcao; rotulo: string; modelos: Modelo[] }[] = [
+  { chave: 'mostrarNumeroItem', rotulo: 'Mostrar número do item', modelos: ['cozinha'] },
+  { chave: 'mostrarPrecoComplementos', rotulo: 'Mostrar preço dos complementos', modelos: ['cozinha'] },
+  { chave: 'mostrarNomeComplementos', rotulo: 'Mostrar nome dos complementos', modelos: ['cozinha'] },
+  { chave: 'fonteMaiorProducao', rotulo: 'Fonte maior na via de produção', modelos: ['cozinha'] },
+  { chave: 'multiplicarOpcoesQtd', rotulo: 'Multiplicar opções pela quantidade', modelos: ['cozinha'] },
+  { chave: 'imprimirLogo', rotulo: 'Imprimir logo da loja', modelos: ['cozinha', 'pre_conta'] },
+]
+
+let fontes: Promise<unknown> | null = null
+const carregarFontes = () => (fontes ??= TicketMenuzia.carregarRecursos('/impressao/fonts').catch((e: unknown) => {
+  fontes = null
   throw e
 }))
 
-export function PreviaBeta({ p, ocupado, onSalvarLetra }: {
+type DadosLoja = { loja: { nome: string; telefone: string; endereco: string }; qr: unknown; logoUrl: string | null }
+
+export function PreviaBeta({ p, ocupado, config, podeEditar, onPatchConfig, onSalvarLetra }: {
   p: PainelDados
   ocupado: boolean
+  config: ConfigImpressao | null
+  podeEditar: boolean
+  onPatchConfig: (patch: Partial<ConfigImpressao>) => void
   onSalvarLetra: (d: DispositivoVisao, tamanho: TamanhoLetra) => Promise<void>
 }) {
   const [modelo, setModelo] = useState<Modelo>('cozinha')
-  const [dadosLoja, setDadosLoja] = useState<{ loja: string; qr: unknown } | null>(null)
+  const [dados, setDados] = useState<DadosLoja | null>(null)
+  const [logo, setLogo] = useState<HTMLImageElement | null>(null)
   const ativos = useMemo(() => p.dispositivos.filter((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado), [p.dispositivos, p.agentes])
   // Impressora da função do documento (Cozinha → comanda; Recibo/Extrato → pré-conta).
   const daFuncao = (m: Modelo) => ativos.find((d) => d.id === (m === 'cozinha' ? p.funcoes.cozinha : p.funcoes.caixa)) ?? null
@@ -51,27 +69,42 @@ export function PreviaBeta({ p, ocupado, onSalvarLetra }: {
     let vivo = true
     fetch('/api/admin/impressao/previa', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (vivo) setDadosLoja(j ? { loja: String(j.loja ?? ''), qr: j.qr ?? null } : { loja: '', qr: null }) })
-      .catch(() => { if (vivo) setDadosLoja({ loja: '', qr: null }) })
+      .then(async (j) => {
+        if (!vivo) return
+        const d: DadosLoja = j ? { loja: j.loja ?? { nome: '', telefone: '', endereco: '' }, qr: j.qr ?? null, logoUrl: j.logoUrl ?? null } : { loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null }
+        setDados(d)
+        const img = d.logoUrl ? await TicketMenuzia.carregarImagem(d.logoUrl) : null
+        if (vivo) setLogo(img)
+      })
+      .catch(() => { if (vivo) setDados({ loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null }) })
     return () => { vivo = false }
   }, [])
 
+  // As opções da loja entram no desenho na hora (a comanda usa todas; a pré-conta, a logo).
+  const cfg = config ?? { mostrarNumeroItem: true, mostrarPrecoComplementos: true, mostrarNomeComplementos: true, fonteMaiorProducao: false, multiplicarOpcoesQtd: false, imprimirLogo: true }
+  const chaveCfg = OPCOES.map((o) => (cfg[o.chave] ? '1' : '0')).join('')
+
   useEffect(() => {
-    if (!dadosLoja || !canvas.current) return
+    if (!dados || !canvas.current) return
     let vivo = true
     const agora = new Date()
     const doc = modelo === 'cozinha'
-      ? (() => { const d = pedidoDemonstracao(agora); return montarCozinhaBeta(d.pedido, { config: {}, lojaNome: dadosLoja.loja, extras: d.extras, qr: dadosLoja.qr }) })()
-      : montarPreContaBeta({ ...contaDemonstracao(dadosLoja.loja, agora), qr: dadosLoja.qr })
-    carregar()
-      .then(({ logo }) => {
+      ? (() => {
+          const d = pedidoDemonstracao(agora)
+          return montarCozinhaBeta(d.pedido, { config: cfg, lojaNome: dados.loja.nome, loja: dados.loja, extras: d.extras, qr: dados.qr })
+        })()
+      : montarPreContaBeta({ ...contaDemonstracao(dados.loja.nome, agora), qr: dados.qr, loja_dados: dados.loja })
+    carregarFontes()
+      .then(() => {
         if (!vivo || !canvas.current) return
-        setMedida(TicketMenuzia.desenhar(canvas.current, doc, { larguraMm, larguraPontos, tamanhoFonte: letraVista, logo }))
+        setMedida(TicketMenuzia.desenhar(canvas.current, doc, { larguraMm, larguraPontos, tamanhoFonte: letraVista, logo, imprimirLogo: cfg.imprimirLogo !== false }))
         setErro(null)
       })
       .catch(() => { if (vivo) setErro('Não foi possível carregar as fontes da pré-visualização. Recarregue a página.') })
     return () => { vivo = false }
-  }, [dadosLoja, modelo, larguraMm, larguraPontos, letraVista])
+    // cfg entra pela chave (objeto novo a cada render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dados, logo, modelo, larguraMm, larguraPontos, letraVista, chaveCfg])
 
   function trocarModelo(m: Modelo) {
     setModelo(m)
@@ -80,55 +113,88 @@ export function PreviaBeta({ p, ocupado, onSalvarLetra }: {
   }
 
   const salvo = imp?.tamanhoFonte ?? 'grande'
-  const chip = (ativo: boolean) =>
-    ['h-[32px] rounded-[6px] border px-3 text-[12.5px] font-semibold transition-colors', ativo ? 'border-[#0688D4] bg-[#F0F9FF] text-[#0688D4]' : 'border-[var(--adm-borda)] bg-white text-[var(--adm-texto-medio)] hover:border-[#0688D4]'].join(' ')
+  const aba = (ativo: boolean) =>
+    ['flex-1 rounded-[6px] px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors', ativo ? 'bg-white text-[#0570AE] shadow-sm' : 'text-[#4B5563] hover:text-[#111827]'].join(' ')
+  const opcoesDaAba = OPCOES.filter((o) => o.modelos.includes(modelo))
 
   return (
-    <Cartao icone={Eye} tom="azul" titulo="Pré-visualização da impressão" testid="cartao-previa">
-      <div className="flex flex-wrap gap-2" role="tablist">
+    <section className="rounded-[12px] border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] sm:p-5" data-testid="cartao-previa">
+      <h2 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#6B7280]">Pré-visualização</h2>
+      <div className="mt-2.5 flex gap-1 rounded-[8px] bg-[#F3F4F6] p-1" role="tablist" aria-label="Documento">
         {(['cozinha', 'pre_conta'] as Modelo[]).map((m) => (
-          <button key={m} type="button" role="tab" aria-selected={modelo === m} onClick={() => trocarModelo(m)} data-testid={`previa-${m}`} className={chip(modelo === m)}>{ROTULO[m]}</button>
+          <button key={m} type="button" role="tab" aria-selected={modelo === m} onClick={() => trocarModelo(m)} data-testid={`previa-${m}`} className={aba(modelo === m)}>{ROTULO[m]}</button>
         ))}
       </div>
 
-      <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="space-y-3 text-[12.5px] text-[var(--adm-texto-medio)]">
-          {ativos.length > 0 ? (
-            <label className="block text-[12px] text-[var(--adm-texto-suave)]">
-              Impressora
-              <select value={imp?.id ?? ''} onChange={(e) => { setImpId(e.target.value); setLetra(null) }} data-testid="previa-impressora" className="mt-1 block h-[36px] w-full rounded-[6px] border border-[var(--adm-borda)] bg-white px-2 text-[13px] text-[var(--adm-texto)]">
-                {ativos.map((d) => <option key={d.id} value={d.id}>{nomeDisp(d)}{daFuncao(modelo)?.id === d.id ? (modelo === 'cozinha' ? ' — Cozinha' : ' — Recibo/Extrato') : ''}</option>)}
-              </select>
-            </label>
-          ) : (
-            <div className="flex gap-2">
-              {([80, 58] as const).map((mm) => <button key={mm} type="button" onClick={() => setMmSem(mm)} className={chip(mmSem === mm)}>Papel {mm} mm</button>)}
-            </div>
-          )}
-          <div>
-            <p className="text-[12px] text-[var(--adm-texto-suave)]">Tamanho da letra</p>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {TAMANHOS_LETRA.map((t) => (
-                <button key={t.valor} type="button" onClick={() => setLetra(t.valor)} data-testid={`previa-letra-${t.valor}`} className={chip(letraVista === t.valor)}>{t.rotulo}</button>
-              ))}
-            </div>
-            {imp && letraVista !== salvo && (
-              <button type="button" disabled={ocupado} onClick={() => void onSalvarLetra(imp, letraVista).then(() => setLetra(null))} data-testid="previa-salvar-letra" className={`${SECUNDARIO} mt-2`}>
-                Salvar esta letra em {nomeDisp(imp)}
-              </button>
-            )}
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        {ativos.length > 0 ? (
+          <label className="min-w-0 flex-1 text-[12px] text-[#6B7280]">
+            Impressora
+            <select value={imp?.id ?? ''} onChange={(e) => { setImpId(e.target.value); setLetra(null) }} data-testid="previa-impressora" className="mt-1 block h-[34px] w-full rounded-[8px] border border-[#D1D5DB] bg-white px-2 text-[13px] text-[#111827]">
+              {ativos.map((d) => <option key={d.id} value={d.id}>{nomeDisp(d)}{daFuncao(modelo)?.id === d.id ? (modelo === 'cozinha' ? ' — Cozinha' : ' — Recibo/Extrato') : ''}</option>)}
+            </select>
+          </label>
+        ) : (
+          <div className="flex flex-1 gap-1 rounded-[8px] bg-[#F3F4F6] p-1">
+            {([80, 58] as const).map((mm) => <button key={mm} type="button" onClick={() => setMmSem(mm)} className={aba(mmSem === mm)}>Papel {mm} mm</button>)}
           </div>
-          <p className="text-[12px] leading-[17px] text-[var(--adm-texto-suave)]" data-testid="previa-medida">
-            {imp ? `${nomeDisp(imp)} · papel ${larguraMm} mm` : `Papel ${larguraMm} mm`}
-            {medida ? ` · ${medida.largura} pontos de largura${larguraPontos ? ' (calibrada)' : ''}` : ''}. Dados de demonstração; o desenho, as letras e os espaços são os mesmos do papel.
-          </p>
-          {erro && <p className="text-[12.5px] text-[#B91C1C]">{erro}</p>}
-        </div>
-        <div className="flex justify-center rounded-[6px] bg-[#EDEEF1] p-3 md:p-4">
-          {/* Mesma proporção do papel (576 pontos → 360 px na tela; 58 mm e calibrada na mesma escala). */}
-          <canvas ref={canvas} data-testid="previa-canvas" className="h-auto bg-white shadow-[0_1px_4px_rgba(0,0,0,0.18)]" style={{ width: Math.round((medida?.largura ?? (larguraMm === 58 ? 384 : 576)) * 0.625), maxWidth: '100%' }} />
+        )}
+        <div className="text-[12px] text-[#6B7280]">
+          Letra
+          <div className="mt-1 flex gap-1 rounded-[8px] bg-[#F3F4F6] p-1" role="radiogroup" aria-label="Tamanho da letra">
+            {TAMANHOS_LETRA.map((t) => (
+              <button key={t.valor} type="button" role="radio" aria-checked={letraVista === t.valor} title={t.rotulo} onClick={() => setLetra(t.valor)} data-testid={`previa-letra-${t.valor}`} className={['h-[26px] w-[30px] rounded-[6px] text-[12.5px] font-semibold', letraVista === t.valor ? 'bg-white text-[#0570AE] shadow-sm' : 'text-[#4B5563] hover:text-[#111827]'].join(' ')}>
+                {t.curto}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </Cartao>
+      {imp && letraVista !== salvo && (
+        <button type="button" disabled={ocupado} onClick={() => void onSalvarLetra(imp, letraVista).then(() => setLetra(null))} data-testid="previa-salvar-letra" className={`${SECUNDARIO} mt-2 w-full`}>
+          Salvar letra {TAMANHOS_LETRA.find((t) => t.valor === letraVista)?.rotulo.toLowerCase()} em {nomeDisp(imp)}
+        </button>
+      )}
+      <p className="mt-2 text-[12px] text-[#6B7280]" data-testid="previa-medida">
+        papel {larguraMm} mm · {medida?.largura ?? (larguraMm === 58 ? 384 : 576)} pontos de largura{larguraPontos ? ' (calibrada)' : ''} · dados de demonstração
+      </p>
+
+      <div className="mt-3 flex justify-center rounded-[10px] bg-[#F3F4F6] px-3 py-4">
+        {/* Mesma proporção do papel (576 pontos → 360 px na tela; 58 mm e calibrada na mesma escala). */}
+        <canvas ref={canvas} data-testid="previa-canvas" className="h-auto bg-white shadow-[0_2px_10px_rgba(15,23,42,0.12)]" style={{ width: Math.round((medida?.largura ?? (larguraMm === 58 ? 384 : 576)) * 0.625), maxWidth: '100%' }} />
+      </div>
+      {erro && <p className="mt-2 text-[12.5px] text-[#DC2626]">{erro}</p>}
+
+      <div className="mt-4 border-t border-[#F3F4F6] pt-3" data-testid="opcoes-impressao">
+        <p className="text-[13px] font-semibold text-[#111827]">Opções da impressão</p>
+        {!config ? (
+          <p className="mt-1 text-[12.5px] text-[#6B7280]">Carregando…</p>
+        ) : (
+          <ul className="mt-1 divide-y divide-[#F3F4F6]">
+            {opcoesDaAba.map((o) => {
+              const ligado = !!config[o.chave]
+              return (
+                <li key={o.chave} className="flex items-center justify-between gap-3 py-2">
+                  <span className="text-[13px] text-[#374151]" id={`opcao-${o.chave}`}>{o.rotulo}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={ligado}
+                    aria-labelledby={`opcao-${o.chave}`}
+                    disabled={!podeEditar}
+                    onClick={() => onPatchConfig({ [o.chave]: !ligado } as Partial<ConfigImpressao>)}
+                    data-testid={`opcao-${o.chave}`}
+                    className={['relative h-[22px] w-[38px] flex-shrink-0 rounded-full transition-colors disabled:opacity-45', ligado ? 'bg-[#0688D4]' : 'bg-[#D1D5DB]'].join(' ')}
+                  >
+                    <span className={['absolute top-[3px] h-[16px] w-[16px] rounded-full bg-white shadow transition-all', ligado ? 'left-[19px]' : 'left-[3px]'].join(' ')} />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {config && !podeEditar && <p className="mt-1 text-[12px] text-[#6B7280]">Só o dono da loja altera estas opções.</p>}
+      </div>
+    </section>
   )
 }

@@ -3,7 +3,8 @@ export interface OpcoesDesenho {
   larguraMm: number
   larguraPontos?: number | null
   tamanhoFonte?: 'grande' | 'media' | 'pequena'
-  logo?: HTMLImageElement
+  logo?: HTMLImageElement | null
+  imprimirLogo?: boolean
 }
 export interface DocumentoTicket {
   versao: number
@@ -13,9 +14,11 @@ export interface DocumentoTicket {
 }
 declare const TicketMenuzia: {
   desenhar(canvas: HTMLCanvasElement, doc: DocumentoTicket, o: OpcoesDesenho): { largura: number; altura: number }
-  carregarRecursos(baseFontes: string, urlLogo: string): Promise<{ logo: HTMLImageElement }>
+  carregarRecursos(baseFontes: string): Promise<object>
+  carregarImagem(url: string | null): Promise<HTMLImageElement | null>
   larguraEmPontos(larguraMm: number, larguraPontos?: number | null): number
-  RECURSOS: { fontes: { familia: string; peso: string; arquivo: string }[]; logo: string }
+  RECURSOS: { fontes: { familia: string; peso: string; arquivo: string }[] }
   ESCALA_FONTE: Record<'grande' | 'media' | 'pequena', number>
+  ICONE_DA_FORMA: Record<string, string>
 }
 export default TicketMenuzia

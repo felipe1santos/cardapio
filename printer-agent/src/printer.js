@@ -120,7 +120,7 @@ async function desenharTicket(doc, opcoes, prefixo) {
  * Documentos do Assistente Beta — pré-conta (pre-conta-beta.js) e comanda da cozinha
  * (cozinha-beta.js). Desenha o PNG (ticket-canvas.js) e imprime com print-imagem.ps1;
  * se o desenho falhar, imprime o texto do documento — nunca deixa de sair.
- * perfil: larguraPontos, deslocamentoPontos, tamanhoFonte, copias, logNome, prefixoTmp.
+ * perfil: larguraPontos, deslocamentoPontos, tamanhoFonte, logo, imprimirLogo, copias, logNome, prefixoTmp.
  * O Assistente atual não usa isto.
  */
 async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, perfil = {}) {
@@ -129,6 +129,9 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
     larguraMm: Number(paperWidthMm) <= 58 ? 58 : 80,
     larguraPontos: Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0 ? perfil.larguraPontos : null,
     tamanhoFonte: perfil.tamanhoFonte === 'media' || perfil.tamanhoFonte === 'pequena' ? perfil.tamanhoFonte : 'grande',
+    // Logo da loja (data URL) e a opção "Imprimir logo da loja".
+    logo: typeof perfil.logo === 'string' && perfil.logo.startsWith('data:image/') ? perfil.logo : null,
+    imprimirLogo: perfil.imprimirLogo !== false,
   }
   let png = null
   let txt = null

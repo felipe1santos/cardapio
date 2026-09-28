@@ -5,7 +5,7 @@ import { ArrowLeft, Download, KeyRound, Printer } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { ToggleRow } from '@/components/admin/campos-ajustes'
 import { SeloStatus } from '@/components/admin/painel-visual'
-import { ReciboPreview, colsParaFontePreview, IMPRESSORA_VAZIA } from '@/components/impressao/documentos'
+import { IMPRESSORA_VAZIA } from '@/components/impressao/documentos'
 import { DOWNLOAD_ASSISTENTE_ATUAL } from '@/lib/impressao/rotulos'
 import type { ConfigImpressao, Impressora, ImpressoraInput } from '@/lib/queries/impressao'
 
@@ -135,46 +135,6 @@ export function AssistenteAntigo({
         )}
       </section>
 
-      {atual && <FichaCozinha atual={atual} pode={pode} impressoraEmUsoId={impressoraEmUsoId} onPatch={onPatch} />}
     </div>
-  )
-}
-
-
-/** Opções e prévia da ficha da cozinha — valem para os dois Assistentes (aparece nas duas visões). */
-export function FichaCozinha({ atual, pode, impressoraEmUsoId, onPatch }: {
-  atual: AssistenteAtual
-  pode: boolean
-  impressoraEmUsoId: string | null
-  onPatch: (patch: Partial<ConfigImpressao>) => void
-}) {
-  const [verFicha, setVerFicha] = useState(false)
-  return (
-    <section className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
-          <button type="button" onClick={() => setVerFicha((v) => !v)} className="flex w-full items-center justify-between px-4 py-3 text-left text-[14px] font-bold text-[var(--adm-texto)]" aria-expanded={verFicha}>
-            Ficha da cozinha: opções e prévia <span className="text-[var(--adm-texto-suave)]">{verFicha ? '▲' : '▼'}</span>
-          </button>
-          {verFicha && (
-            <div className="grid gap-4 border-t border-[var(--adm-borda)] p-4 lg:grid-cols-[1fr_340px]">
-              <div>
-                <ToggleRow label="Mostrar número do item" checked={atual.config.mostrarNumeroItem} disabled={!pode} onChange={(v) => onPatch({ mostrarNumeroItem: v })} />
-                <ToggleRow label="Mostrar preço dos complementos" checked={atual.config.mostrarPrecoComplementos} disabled={!pode} onChange={(v) => onPatch({ mostrarPrecoComplementos: v })} />
-                <ToggleRow label="Mostrar nome dos complementos" checked={atual.config.mostrarNomeComplementos} disabled={!pode} onChange={(v) => onPatch({ mostrarNomeComplementos: v })} />
-                <ToggleRow label="Fonte maior na via de produção" checked={atual.config.fonteMaiorProducao} disabled={!pode} onChange={(v) => onPatch({ fonteMaiorProducao: v })} />
-                <ToggleRow label="Multiplicar opções pela quantidade" checked={atual.config.multiplicarOpcoesQtd} disabled={!pode} onChange={(v) => onPatch({ multiplicarOpcoesQtd: v })} />
-                <ToggleRow label="Imprimir logo da loja" checked={atual.config.imprimirLogo} disabled={!pode} onChange={(v) => onPatch({ imprimirLogo: v })} />
-              </div>
-              <ReciboPreview
-                config={atual.config}
-                nomeLoja={atual.nomeLoja}
-                logoUrl={atual.logoUrl}
-                cols={(() => {
-                  const imp = atual.impressoras.find((i) => i.id === impressoraEmUsoId) ?? atual.impressoras.find((i) => i.ativa) ?? atual.impressoras[0]
-                  return colsParaFontePreview(imp?.tamanhoFonte, imp?.largura ?? 48)
-                })()}
-              />
-            </div>
-          )}
-        </section>
   )
 }

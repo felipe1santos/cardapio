@@ -4,7 +4,7 @@
  * Dois agentes virtuais (scripts/impressao/agente-virtual.cjs) no mesmo "computador":
  *   · ANTIGO: o main.js/recibo.js/print.ps1 EXTRAÍDOS DA TAG printer-agent-v0.1.23,
  *     com o token da loja — exatamente o que está instalado nas lojas;
- *   · BETA: o código atual como "Assistente Menuzia Beta 0.2.0-beta.5", pareado por código.
+ *   · BETA: o código atual como "Assistente Menuzia Beta 0.2.0-beta.6", pareado por código.
  * Servidor e banco locais; nenhuma impressora física (cada impressão vira registro + PNG).
  *
  * Prova os três modos, a troca e a volta da cozinha, sem ficha em dobro nem perdida,
@@ -176,7 +176,7 @@ try {
     'POS-8370': { nome: 'POS-8370', driver: 'POS-80C', porta: 'USB001', dpiX: 203, dpiY: 203, papelLarguraMm: 80, areaImprimivelLarguraMm: 64, margemEsquerdaMm: 0, margemDireitaMm: 16, pontosImprimiveis: 512, online: true },
     'Cozinha Beta': { nome: 'Cozinha Beta', driver: 'Generic / Text Only', dpiX: 203, dpiY: 203, papelLarguraMm: 80, pontosImprimiveis: 576 },
   }
-  const BETA = iniciarAgente('beta-0.2.0', ['POS-8370', 'Cozinha Beta'], { AGENTE_VARIANTE: 'beta', AGENTE_VERSAO: '0.2.0-beta.5', AGENTE_DIAG: JSON.stringify(diag) })
+  const BETA = iniciarAgente('beta-0.2.0', ['POS-8370', 'Cozinha Beta'], { AGENTE_VARIANTE: 'beta', AGENTE_VERSAO: '0.2.0-beta.6', AGENTE_DIAG: JSON.stringify(diag) })
   await aguardar(() => BETA.pronto(), 15000, 200)
   const codigo = (await api(pGer, '/api/admin/impressao/pareamento', 'POST')).json.codigo
   ok('Beta pareia com código', (await BETA.cmd({ cmd: 'parear', codigo, nome: 'PC Caixa' }))?.ok === true)
@@ -185,7 +185,7 @@ try {
     return r.length === 2 && r.every((d) => d.diagnostico) ? Object.fromEntries(r.map((d) => [d.nome_sistema, d])) : null
   })
   ok('Beta informa as 2 impressoras com diagnóstico do driver', !!disp && disp['POS-8370'].diagnostico.pontosImprimiveis === 512)
-  ok('versão do Beta registrada', (await um('select versao from impressao_agentes where restaurante_id=$1', [loja]))?.versao === '0.2.0-beta.5')
+  ok('versão do Beta registrada', (await um('select versao from impressao_agentes where restaurante_id=$1', [loja]))?.versao === '0.2.0-beta.6')
   ok('config do Beta em pasta própria (sem o token da loja)', !readFileSync(join(ART, 'beta-0.2.0', 'dados', 'beta-dados', 'config.json'), 'utf8').includes(tokenLegado))
 
   const t1 = [await lancar(), await lancar()]
@@ -212,17 +212,19 @@ try {
   ok('Recibo/Extrato pendente pedido', pend.status === 201, pend.json?.error)
   const rPend = await aguardar(() => BETA.impressos().find((i) => i.tipo === 'pre_conta'))
   ok('Recibo/Extrato pendente sai no Beta, POS-8370 em 512 pontos', !!rPend && rPend.impressora === 'POS-8370' && rPend.larguraPontos === 512 && readFileSync(rPend.png).readUInt32BE(16) === 512)
-  // Modelo oficial da pré-conta (2026-09-28, pre-conta-menuzia-v4).
-  ok('conta real no modelo da pré-conta (v2/PRE-CONTA.png): PRE-CONTA, ITENS CONSUMIDOS, VALORES, TOTAL; sem frases de teste', !!rPend && rPend.tipo === 'pre_conta' && rPend.versao === 3 && ['PRE-CONTA', 'ITENS CONSUMIDOS', 'VALORES', 'QTD  DESCRICAO  TOTAL', 'TOTAL  R$'].every((t) => rPend.texto.includes(t)) && !rPend.texto.includes('TESTE DE IMPRESSAO'))
+  // Modelo oficial da pré-conta (docs/referencias/impressao/v3/PRE-CONTA.png).
+  ok('conta real no modelo da pré-conta (v3): PRE-CONTA, ITENS CONSUMIDOS, TOTAL (R$), VALORES, TOTAL; sem frases de teste', !!rPend && rPend.tipo === 'pre_conta' && rPend.versao === 4 && ['PRE-CONTA', 'ITENS CONSUMIDOS', 'VALORES', 'QTD  DESCRICAO  TOTAL (R$)', 'TOTAL  R$'].every((t) => rPend.texto.includes(t)) && !rPend.texto.includes('TESTE DE IMPRESSAO'))
+  const lojaRodape = rPend?.doc?.blocos?.find((b) => b.t === 'loja')
+  ok('rodapé da pré-conta com o NOME da loja (dados do cadastro, vindos do servidor)', !!lojaRodape && lojaRodape.nome.length > 0, JSON.stringify(lojaRodape))
   const pago = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente Pago Beta', chave: uuid() })).json.id
   // Também é ficha de cozinha: entra na conta de 'impressa exatamente uma vez'.
   criados.push((await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: pago, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id)
   const restante = (await api(pAt, `/api/admin/comandas/${pago}`)).json.conta.totais.restante
   await api(pAt, `/api/admin/comandas/${pago}`, 'POST', { acao: 'pagamento', forma: 'pix', valor: restante, chave: uuid() })
   const rp = await api(pAt, `/api/admin/comandas/${pago}/pre-conta`, 'POST', { chave: uuid() })
-  // O modelo imprime só o primeiro nome do cliente: a conta paga é a que tem "Ja pago".
-  const rPago = await aguardar(() => BETA.impressos().filter((i) => i.tipo === 'pre_conta').find((i) => i.texto.includes('Ja pago')))
-  ok('pré-conta de conta paga: Ja pago e A PAGAR R$ 0,00', rp.status === 201 && !!rPago && rPago.texto.includes('Ja pago') && rPago.texto.includes('A PAGAR  R$ 0,00'), rp.json?.error)
+  // O modelo imprime só o primeiro nome do cliente: a conta paga é a que tem "Já pago".
+  const rPago = await aguardar(() => BETA.impressos().filter((i) => i.tipo === 'pre_conta').find((i) => i.texto.includes('Já pago')))
+  ok('pré-conta de conta paga: Já pago e A PAGAR R$ 0,00', rp.status === 201 && !!rPago && rPago.texto.includes('Já pago') && rPago.texto.includes('A PAGAR  R$ 0,00'), rp.json?.error)
   ok('"Somente Caixa": ficha nova no 0.1.23', !!(await aguardar(() => ANTIGO.fichas().includes(c1))))
   ok('"Somente Caixa": nenhuma ficha no Beta', BETA.fichas().length === 0)
   ok('0.1.23 nunca recebe Recibo/Extrato', ANTIGO.impressos().every((i) => i.tipo === 'ficha_cozinha'))
@@ -249,8 +251,9 @@ try {
   await esperar(4000)
   ok('sai uma vez só, no Beta, na POS-8370, com o perfil de 512 pontos', BETA.impressos().filter((i) => i.tipo === 'recibo_teste').length === 1 &&
     !!rt80 && rt80.impressora === 'POS-8370' && rt80.larguraPontos === 512)
-  ok('marcado como teste, com R$ 4.088,00', !!rt80 && ['TESTE DE IMPRESSAO', 'SEM VALOR FISCAL', 'R$ 4.088,00', 'Taxa de entrega'].every((x) => rt80.texto.includes(x)))
-  ok('desenhado pelo ticket-canvas (documento v3, logo MENUZiA do modelo), letra grande por padrão', !!rt80 && rt80.versao === 3 && rt80.tamanhoFonte === 'grande' && rt80.largura === 512, JSON.stringify({ v: rt80?.versao, f: rt80?.tamanhoFonte, l: rt80?.largura }))
+  ok('marcado como teste, com os dados do modelo (A PAGAR R$ 148,70)', !!rt80 && ['TESTE DE IMPRESSAO', 'SEM VALOR FISCAL', 'Total da conta  R$ 248,70', 'A PAGAR  R$ 148,70', 'Taxa de entrega', 'TOTAL (R$)', '+ Borda recheada de catupiry  12,00'].every((x) => rt80.texto.includes(x)))
+  ok('desenhado pelo ticket-canvas (documento v4), letra grande por padrão', !!rt80 && rt80.versao === 4 && rt80.tamanhoFonte === 'grande' && rt80.largura === 512, JSON.stringify({ v: rt80?.versao, f: rt80?.tamanhoFonte, l: rt80?.largura }))
+  ok('logo da LOJA no topo: o Beta baixa a logo pela rota segura e manda ao desenho', !!rt80 && rt80.imprimirLogo === true && /^data:image\/(png|jpeg|webp|gif|bmp);/.test(rt80.logo ?? ''), String(rt80?.logo))
   const salvouFonte = await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'PATCH', { larguraMm: 58, tamanhoFonte: 'pequena' })
   ok('tamanho da letra salvo na predefinição da impressora (pequena)', salvouFonte.status === 200 && (await um('select tamanho_fonte from impressao_dispositivos where id=$1', [disp['Cozinha Beta'].id]))?.tamanho_fonte === 'pequena', salvouFonte.json?.error)
   await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'POST', { acao: 'recibo_teste', chave: uuid() })
@@ -258,10 +261,11 @@ try {
   await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'PATCH', { larguraMm: 80, tamanhoFonte: 'grande' })
   ok('58 mm sai com a letra pequena escolhida', !!rt58 && rt58.tamanhoFonte === 'pequena', rt58?.tamanhoFonte)
   const [m80, m58] = await medirPngs([rt80.png, rt58.png])
-  ok('80 mm calibrada: bitmap de 512, texto e valores dentro da margem, marcadores nas duas bordas',
-    m80.largura === 512 && m80.tintaTextoAte <= 512 - 15 && m80.linhasBordaEsquerda > 20 && m80.linhasBordaDireita > 20, JSON.stringify(m80))
-  ok('58 mm padrão: bitmap de 384, texto e valores dentro da margem, marcadores nas duas bordas',
-    m58.largura === 384 && m58.tintaTextoAte <= 384 - 11 && m58.linhasBordaEsquerda > 20 && m58.linhasBordaDireita > 20, JSON.stringify(m58))
+  // Marcas do teste como no modelo: começam e terminam a ~3,5% das bordas (revelam corte).
+  ok('80 mm calibrada: bitmap de 512, tudo dentro do papel, marcadores perto das duas bordas',
+    m80.largura === 512 && m80.tintaTextoAte <= 512 - 15 && m80.tintaTextoDe <= 512 * 0.05 && m80.tintaTextoAte >= 512 * 0.95, JSON.stringify(m80))
+  ok('58 mm padrão: bitmap de 384, tudo dentro do papel, marcadores perto das duas bordas',
+    m58.largura === 384 && m58.tintaTextoAte <= 384 - 11 && m58.tintaTextoDe <= 384 * 0.05 && m58.tintaTextoAte >= 384 * 0.95, JSON.stringify(m58))
   ok('Recibo/Extrato de teste não criou pedido', Number((await um('select count(*) n from pedidos where restaurante_id=$1', [loja])).n) === pedidosAntes)
   ok('0.1.23 nunca recebe o Recibo/Extrato de teste', ANTIGO.impressos().every((i) => i.tipo === 'ficha_cozinha'))
 

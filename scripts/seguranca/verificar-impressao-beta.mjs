@@ -195,7 +195,7 @@ ok('reenvio (mesma chave): o mesmo trabalho, sem criar outro', rt3.status === 20
 ok('no banco: um trabalho para essa chave', Number((await um('select count(*) n from impressao_trabalhos where restaurante_id=$1 and chave=$2', [loja, kRt])).n) === 1)
 const jobRt = await um('select tipo, comanda_id, dispositivo_id, snapshot from impressao_trabalhos where id=$1', [rt1.json.id])
 ok('é teste de impressora, sem conta, na impressora escolhida', jobRt.tipo === 'teste_impressora' && jobRt.comanda_id === null && jobRt.dispositivo_id === dPos.id)
-ok('snapshot de demonstração: R$ 4.088,00 e marcado como teste', jobRt.snapshot.recibo_teste === true && Number(jobRt.snapshot.total) === 4088)
+ok('snapshot de demonstração: R$ 248,70 (modelo v3) e marcado como teste', jobRt.snapshot.recibo_teste === true && Number(jobRt.snapshot.total) === 248.7)
 ok('atendente não pede Recibo/Extrato de teste', (await api(pAt, urlPos, 'POST', { acao: 'recibo_teste', chave: uuid() })).status === 403)
 ok('outra loja não pede nesta impressora', (await api(pViz, urlPos, 'POST', { acao: 'recibo_teste', chave: uuid() })).status === 404)
 ok('chave inválida recusada', (await api(pGer, urlPos, 'POST', { acao: 'recibo_teste', chave: 'x' })).status === 400)

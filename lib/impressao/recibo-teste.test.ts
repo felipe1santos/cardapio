@@ -14,19 +14,20 @@ const destino = { loja: 'Cantina Demonstração', impressora: 'Caixa', nomeSiste
 describe('Recibo/Extrato de teste', () => {
   const s = snapshotReciboTeste(destino, 'Gerente Demo', new Date('2026-09-25T12:00:00Z'))
 
-  it('contas fecham: subtotal − desconto + entrega = R$ 4.088,00', () => {
-    expect(Number(s.subtotal) - Number(s.desconto) + Number(s.taxa_entrega)).toBe(TOTAL_RECIBO_TESTE)
-    expect(s.total).toBe(4088)
-    expect(Number(s.pago) + Number(s.restante)).toBe(4088)
+  it('contas fecham: subtotal − desconto + entrega = R$ 248,70 (modelo v3/PRE-CONTA.png)', () => {
+    expect(Math.round((Number(s.subtotal) - Number(s.desconto) + Number(s.taxa_entrega)) * 100) / 100).toBe(TOTAL_RECIBO_TESTE)
+    expect(s.total).toBe(248.7)
+    expect(Number(s.pago) + Number(s.restante)).toBeCloseTo(248.7, 2)
+    // A soma das linhas dos itens é o subtotal.
+    const itens = s.itens as { subtotal: number }[]
+    expect(Math.round(itens.reduce((t, i) => t + i.subtotal, 0) * 100) / 100).toBe(250.7)
   })
 
-  it('sai pelo renderizador real com tudo o que revela corte', () => {
+  it('o renderizador de texto (emergência) leva tudo o que revela corte', () => {
     const t = montarPreConta(s)
     for (const trecho of [
-      'TESTE DE IMPRESSÃO', 'SEM VALOR FISCAL', 'TESTE DE IMPRESSÃO — SEM VALOR FISCAL', 'RECIBO/EXTRATO', 'Maria Aparecida dos Santos Conceição de Albuquerque Figueiredo', '(27) 99999-0000',
-      'Avenida Nossa Senhora da Penha', '1500', 'Santa Lúcia · Vitória/ES', 'Combo Família Gigante', '+ 2x Bacon crocante extra (R$ 18,00)',
-      'Obs.: Entregar na portaria', 'Subtotal\x02R$ 4.108,00', 'Desconto\x02-R$ 45,00', 'Taxa de entrega\x02R$ 25,00', 'TOTAL\x02R$ 4.088,00',
-      'Pix: R$ 1.000,00', 'RESTANTE A PAGAR\x02R$ 3.088,00', 'Status: Pagamento parcial',
+      'TESTE DE IMPRESSÃO', 'SEM VALOR FISCAL', 'RECIBO/EXTRATO', 'Maria', 'Pizza Grande Calabresa', 'Borda recheada de catupiry',
+      'SubtotalR$ 250,70', 'Desconto-R$ 10,00', 'Taxa de entregaR$ 8,00', 'TOTALR$ 248,70', 'Pix: R$ 100,00', 'RESTANTE A PAGARR$ 148,70',
     ]) expect(t).toContain(trecho)
   })
 
@@ -36,7 +37,7 @@ describe('Recibo/Extrato de teste', () => {
     expect(l[l.length - 1]).toBe('\x01K')
   })
 
-  it('não é um pedido: sem comanda, mesa ou senha', () => {
+  it('não é um pedido: sem comanda nem senha (a Mesa 34 é só demonstração)', () => {
     expect(s).not.toHaveProperty('comanda_id')
     expect(s.comanda_numero).toBeUndefined()
     expect(s.senha).toBeUndefined()

@@ -2,7 +2,7 @@
  * Desenha documentos do Assistente Beta em PNG com o MESMO ticket-canvas.js / ticket.html
  * do instalador, num Chromium sem janela (Playwright). Nunca imprime.
  *
- *   const r = await renderizarTicket(doc, { larguraMm: 80, tamanhoFonte: 'grande', saida })
+ *   const r = await renderizarTicket(doc, { larguraMm: 80, tamanhoFonte: 'grande', logo: 'data:image/png;base64,…', saida })
  */
 import { chromium } from 'playwright'
 import { writeFileSync, mkdirSync } from 'node:fs'
@@ -23,9 +23,9 @@ async function paginaPronta() {
 }
 
 /** doc → { png (caminho), largura, altura } */
-export async function renderizarTicket(doc, { larguraMm = 80, larguraPontos = null, tamanhoFonte = 'grande', saida }) {
+export async function renderizarTicket(doc, { larguraMm = 80, larguraPontos = null, tamanhoFonte = 'grande', logo = null, imprimirLogo = true, saida }) {
   const p = await paginaPronta()
-  const r = await p.evaluate(async ({ doc, o }) => window.renderizarTicket(doc, o), { doc, o: { larguraMm, larguraPontos, tamanhoFonte } })
+  const r = await p.evaluate(async ({ doc, o }) => window.renderizarTicket(doc, o), { doc, o: { larguraMm, larguraPontos, tamanhoFonte, logo, imprimirLogo } })
   mkdirSync(dirname(saida), { recursive: true })
   writeFileSync(saida, Buffer.from(r.png.split(',')[1], 'base64'))
   return { png: saida, largura: r.largura, altura: r.altura }
