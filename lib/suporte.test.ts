@@ -5,8 +5,8 @@ const AGORA = new Date(2026, 8, 23, 15, 0, 0).getTime()
 
 describe('número do suporte', () => {
   it('é o oficial da Menuzia, fixo (não o da Nexta nem de variável de ambiente)', () => {
-    expect(SUPORTE_MENUZIA.whatsapp).toBe('5527998534407')
-    expect(SUPORTE_MENUZIA.exibicao).toBe('(27) 99853-4407')
+    expect(SUPORTE_MENUZIA.whatsapp).toBe('5527992534407')
+    expect(SUPORTE_MENUZIA.exibicao).toBe('(27) 99253-4407')
   })
 })
 
@@ -43,7 +43,7 @@ describe('mensagem e link do suporte', () => {
 
   it('o link é wa.me do número oficial com o texto codificado', () => {
     const url = linkDoSuporte(base)!
-    expect(url.startsWith('https://wa.me/5527998534407?text=')).toBe(true)
+    expect(url.startsWith('https://wa.me/5527992534407?text=')).toBe(true)
     expect(decodeURIComponent(url.split('?text=')[1]!)).toBe(mensagemDoSuporte(base))
     expect(url).not.toMatch(/[\s\n]/)
   })

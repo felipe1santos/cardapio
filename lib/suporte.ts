@@ -8,8 +8,8 @@
  * (O contato da Nexta, na tela da integração, continua lá: é o suporte deles.)
  */
 export const SUPORTE_MENUZIA = {
-  exibicao: '(27) 99853-4407',
-  whatsapp: '5527998534407',
+  exibicao: '(27) 99253-4407',
+  whatsapp: '5527992534407',
 } as const
 
 const ROTULO_PAPEL: Record<string, string> = {

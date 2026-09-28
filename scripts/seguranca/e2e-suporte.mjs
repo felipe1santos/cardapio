@@ -20,7 +20,7 @@ const res = []
 const ok = (n, c, d = '') => { res.push(!!c); console.log(`${c ? '✔' : '✘'} ${n}${d ? ` — ${d}` : ''}`) }
 const foto = async (p, nome) => { if (SHOTS) await p.screenshot({ path: join(SHOTS, `${nome}.png`) }) }
 
-const NUMERO = '5527998534407'
+const NUMERO = '5527992534407'
 const ROTULO = { dono: 'Dono', gerente: 'Gerente', atendente: 'Atendente', garcom: 'Garçom' }
 const browser = await chromium.launch()
 let tentativasWhatsapp = 0
