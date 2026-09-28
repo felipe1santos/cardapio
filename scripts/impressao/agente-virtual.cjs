@@ -72,6 +72,8 @@ const pastaDados = () => pastas.userData || DIR
 const fetchReal = global.fetch
 const trabalhos = new Map() // job_id → { tipo, destino, tentativa }
 const fichas = new Map() // pedido_id → { destino }
+let renderMod = null
+const render = () => (renderMod ??= import(require('node:url').pathToFileURL(path.join(RAIZ, 'scripts', 'impressao', 'render-ticket.mjs')).href))
 const artefatosPendentes = new Map() // destino → [artefato] (fila por impressora: ordem garantida)
 const logRoteamento = (o) => fs.appendFileSync(path.join(SAIDA, 'roteamento.jsonl'), JSON.stringify({ horario: new Date().toISOString(), agente: path.basename(path.dirname(SAIDA)), ...o }) + '\n')
 const pegarArtefato = (destino) => (artefatosPendentes.get(destino) ?? []).shift() ?? null
@@ -156,34 +158,28 @@ const textoLegivel = (t) => t.split('\n').map((l) => {
 const impressoraVirtual = {
   listarImpressorasWindows: async () => impressorasWindows.filter((n) => !removidas.has(n)),
   diagnosticarImpressoras: async () => DIAG,
-  // Recibo/Extrato do Beta: o mesmo print-beta.ps1 do instalador, com -DebugPng.
-  imprimirDocumentoBeta: async (nome, doc, paperMm, perfil = {}, logoPath = null, logoCacheDir = null) => {
+  // Comanda e Recibo/Extrato do Beta (0.2.0-beta.5+): o MESMO ticket.html / ticket-canvas.js
+  // do instalador desenha o PNG (num Chromium sem janela) — o que iria para a impressora.
+  imprimirDocumentoBeta: async (nome, doc, paperMm, perfil = {}) => {
     if (!impressorasWindows.includes(nome) || removidas.has(nome)) throw new Error(`Impressora '${nome}' nao encontrada no Windows.`)
-    // Beta 0.2.0-beta.2+: a comanda da cozinha também é documento em blocos (modelo 'cozinha').
     const tipo = doc.modelo === 'cozinha' ? (doc.teste ? 'cozinha_teste' : 'ficha_cozinha') : doc.teste ? 'recibo_teste' : 'pre_conta'
     const n = ++seq
     const pasta = path.join(SAIDA, nome.replace(/[^A-Za-z0-9]+/g, '_'))
     fs.mkdirSync(pasta, { recursive: true })
     const base = path.join(pasta, `${String(n).padStart(2, '0')}-${tipo}-${paperMm}mm`)
-    const json = `${base}.doc.json`
-    fs.writeFileSync(json, JSON.stringify(doc), 'utf8')
+    fs.writeFileSync(`${base}.doc.json`, JSON.stringify(doc), 'utf8')
     fs.writeFileSync(`${base}.txt`, doc.texto ?? '', 'utf8')
-    const extra = []
-    if (Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0) extra.push('-LarguraPontos', String(perfil.larguraPontos))
-    if (logoPath) extra.push('-LogoPath', logoPath)
-    if (logoCacheDir) extra.push('-LogoCacheDir', logoCacheDir)
-    if (Number.isInteger(perfil.copias) && perfil.copias > 1) extra.push('-Copies', String(perfil.copias))
-    const saida = execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(SRC, 'print-beta.ps1'), '-FilePath', json,
-      '-PrinterName', 'Microsoft Print to PDF', '-PaperWidthMm', String(paperMm), ...extra, '-DebugPng', `${base}.png`],
-    { stdio: 'pipe', env: { ...process.env, TEMP: SAIDA, TMP: SAIDA } }).toString()
+    const tamanhoFonte = perfil.tamanhoFonte === 'media' || perfil.tamanhoFonte === 'pequena' ? perfil.tamanhoFonte : 'grande'
+    const { renderizarTicket } = await render()
+    const r = await renderizarTicket(doc, { larguraMm: Number(paperMm) <= 58 ? 58 : 80, larguraPontos: perfil.larguraPontos ?? null, tamanhoFonte, saida: `${base}.png` })
     const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias: perfil.copias ?? 1, paperMm, larguraPontos: perfil.larguraPontos ?? null,
-      deslocamentoPontos: perfil.deslocamentoPontos ?? 0, logo: logoPath ? path.basename(logoPath) : null, logLogo: (saida.match(/LOGO: (\d+x\d+|loja sem|arquivo sem|falhou).*/) ?? [''])[0],
-      total: (saida.match(/TOTAL: .*/) ?? [''])[0], texto: doc.texto ?? '', png: `${base}.png`, txt: `${base}.txt` }
+      deslocamentoPontos: perfil.deslocamentoPontos ?? 0, tamanhoFonte, largura: r.largura, altura: r.altura, versao: doc.versao,
+      texto: doc.texto ?? '', png: `${base}.png`, txt: `${base}.txt` }
     fs.appendFileSync(path.join(SAIDA, 'impressos.jsonl'), JSON.stringify(registro) + '\n')
     const fila = artefatosPendentes.get(nome) ?? []
     fila.push(`${base}.png`)
     artefatosPendentes.set(nome, fila)
-    return saida
+    return `MENUZIA: IMAGEM ${r.largura}x${r.altura}`
   },
   imprimirTexto: async (nome, texto, copias, cols, _logo, paperMm, fonteMaior, perfil) => {
     if (!impressorasWindows.includes(nome) || removidas.has(nome)) throw new Error(`Impressora '${nome}' nao encontrada no Windows.`)

@@ -3,7 +3,7 @@
  * Assistente Beta (comanda da cozinha e pré-conta).
  *
  * Loja ISOLADA local (E2E_LOJA), stack local, nada de produção, nenhuma impressora:
- * os documentos viram PNG (print-beta.ps1 -DebugPng, isolamento-teste.cjs).
+ * os documentos viram PNG pelo mesmo ticket.html / ticket-canvas.js do Beta (render-beta.mjs).
  *
  *   E2E_LOJA=cantina-pdv2 E2E_VIZINHA=vizinha-pdv2 E2E_SUFIXO=pdv2 SHOTS=<pasta> \
  *     node scripts/seguranca/e2e-modelos-beta-taxa-instagram.mjs
@@ -18,7 +18,7 @@ import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 import { E2E_LOJA, E2E_VIZINHA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
-import { renderizarBeta, renderizarCozinhaBeta } from '../impressao/render-beta.mjs'
+import { renderizarBeta, renderizarCozinhaBeta, fecharRender } from '../impressao/render-beta.mjs'
 
 exigirLojaIsolada()
 const require = createRequire(import.meta.url)
@@ -238,8 +238,8 @@ try {
   ok('pré-conta (Somente Caixa) vai para a fila do Beta, na impressora virtual', pc.status < 300 && tPc?.dispositivo_id === dispPdf, `${pc.status} ${pc.json?.error ?? ''}`)
   ok('snapshot da pré-conta traz a taxa manual, a mesa e o número do pedido', Number(tPc?.snapshot.taxa_extra) === 15 && tPc?.snapshot.taxa_extra_nome === 'Couvert artístico' && !!tPc?.snapshot.pedido_numero && tPc?.snapshot.mesa === MESA.nome,
     JSON.stringify({ taxa: tPc?.snapshot.taxa_extra, nome: tPc?.snapshot.taxa_extra_nome, mesa: tPc?.snapshot.mesa, n: tPc?.snapshot.pedido_numero }))
-  const rPc = renderizarBeta(tPc.snapshot, { saida: join(SHOTS, 'beta-preconta-mesa-com-taxa.png') })
-  ok('pré-conta desenhada: linha "Couvert artístico" e TOTAL A PAGAR', /Couvert artístico\s+R\$ 15,00/.test(rPc.texto) && rPc.texto.includes('TOTAL A PAGAR') && !rPc.sobreposicao, rPc.total?.valor)
+  const rPc = await renderizarBeta(tPc.snapshot, { saida: join(SHOTS, 'beta-preconta-mesa-com-taxa.png') })
+  ok('pré-conta desenhada: linha "Couvert artístico" e o TOTAL', /Couvert artístico\s+R\$ 15,00/.test(rPc.texto) && !!rPc.total?.valor && rPc.largura === 576, rPc.total?.valor)
 
   // ════════════════════════════════════════════════════════════════════════════
   secao('Instagram da loja (Ajustes › Perfil da loja)')
@@ -272,14 +272,14 @@ try {
   const linhasEsperadas = Array.from({ length: esperado.modules.size }, (_, y) => Array.from({ length: esperado.modules.size }, (_, x) => (esperado.modules.get(y, x) ? '1' : '0')).join(''))
   ok('Testar Cozinha: trabalho de teste, sem pedido', t1.status < 300 && !!snapT && snapT.pedido?.id === 'teste', `${t1.status}`)
   ok('QR = Instagram da loja (matriz idêntica à do link)', snapT?.qr?.origem === 'instagram' && snapT.qr.url === 'https://instagram.com/menuzia.teste' && JSON.stringify(snapT.qr.linhas) === JSON.stringify(linhasEsperadas))
-  const rC = renderizarCozinhaBeta(snapT.pedido, { config: {}, lojaNome: snapT.loja, extras: snapT.extras, qr: snapT.qr, teste: true }, { saida: join(SHOTS, 'beta-cozinha-teste-instagram.png') })
-  ok('comanda de teste desenhada no modelo (TOTAL R$ 45,40, QR com ícone)', rC.total?.valor === 'R$ 45,40' && !rC.sobreposicao && rC.doc.blocos.some((b) => b.t === 'qr' && b.icone === 'instagram'))
+  const rC = await renderizarCozinhaBeta(snapT.pedido, { config: {}, lojaNome: snapT.loja, extras: snapT.extras, qr: snapT.qr, teste: true }, { saida: join(SHOTS, 'beta-cozinha-teste-instagram.png') })
+  ok('comanda de teste desenhada no modelo (TOTAL R$ 45,40, QR com ícone)', rC.total?.valor === 'R$ 45,40' && rC.doc.blocos.some((b) => b.t === 'qr' && b.icone === 'instagram'))
 
   await db.query(`update restaurantes set instagram_url=null where id=$1`, [L])
   await api(pd, `/api/admin/impressao/dispositivos/${dispTermica}`, 'POST', { acao: 'cozinha_teste', chave: uuid() })
   const snapF = (await um(`select snapshot from impressao_trabalhos where dispositivo_id=$1 and snapshot->>'cozinha_teste'='true' order by criado_em desc limit 1`, [dispTermica]))?.snapshot
   ok('sem Instagram: fallback = QR do cardápio da loja', snapF?.qr?.origem === 'cardapio' && snapF.qr.url === `https://app.menuzia.com.br/loja/${loja.slug}`, snapF?.qr?.url)
-  renderizarCozinhaBeta(snapF.pedido, { config: {}, lojaNome: snapF.loja, extras: snapF.extras, qr: snapF.qr, teste: true }, { saida: join(SHOTS, 'beta-cozinha-teste-cardapio.png') })
+  await renderizarCozinhaBeta(snapF.pedido, { config: {}, lojaNome: snapF.loja, extras: snapF.extras, qr: snapF.qr, teste: true }, { saida: join(SHOTS, 'beta-cozinha-teste-cardapio.png') })
   await db.query(`update restaurantes set instagram_url='https://instagram.com/menuzia.teste' where id=$1`, [L])
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -317,8 +317,8 @@ try {
   const doBeta = (betaK.json?.pedidos ?? []).find((p) => p.id === pK.id)
   ok('Cozinha e Caixa: o Assistente antigo NÃO recebe a ficha (sem duplicar)', (antK.json?.pedidos ?? []).length === 0)
   ok('Cozinha e Caixa: o Beta recebe a ficha, com destino e dados do modelo', !!doBeta && betaK.json?.destinoCozinha?.nomeSistema === 'POS-80 E2E' && !!betaK.json?.cozinhaBeta?.extras?.[pK.id] && betaK.json?.cozinhaBeta?.qr?.origem === 'instagram')
-  const rK = renderizarCozinhaBeta(doBeta, { config: betaK.json.config, lojaNome: betaK.json.loja?.nome, extras: betaK.json.cozinhaBeta.extras[pK.id], qr: betaK.json.cozinhaBeta.qr }, { saida: join(SHOTS, 'beta-cozinha-real-balcao.png') })
-  ok('ficha real desenhada no modelo (BALCAO, senha, itens, TOTAL)', rK.texto.includes('BALCAO') && /SENHA \d+/.test(rK.texto) && rK.texto.includes('FILÉ À PARMEGIANA') && !!rK.total, rK.total?.valor)
+  const rK = await renderizarCozinhaBeta(doBeta, { config: betaK.json.config, lojaNome: betaK.json.loja?.nome, extras: betaK.json.cozinhaBeta.extras[pK.id], qr: betaK.json.cozinhaBeta.qr }, { saida: join(SHOTS, 'beta-cozinha-real-balcao.png') })
+  ok('ficha real desenhada no modelo (senha ao lado do número, itens, TOTAL)', /Pedido #\d+ \| SENHA \d+/.test(rK.texto) && rK.texto.includes('FILÉ À PARMEGIANA') && !!rK.total, rK.total?.valor)
   const reserva = await um(`select count(*)::int n from impressao_reservas where pedido_id=$1`, [pK.id])
   ok('pedido reservado uma única vez (só para o Beta)', reserva.n === 1, String(reserva.n))
   await fetch(`${BASE}/api/agente/pedidos/${pK.id}/imprimir`, { method: 'POST', headers: { Authorization: `Bearer ${credCaixa}` } })
@@ -329,11 +329,49 @@ try {
   const lm2 = await api(pd, '/api/admin/pdv/lancamento', 'POST', { mesaId: MESA.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
   const betaM = await fila(credCaixa)
   const pm = (betaM.json?.pedidos ?? []).find((p) => p.canal === 'mesa')
-  const rM = pm ? renderizarCozinhaBeta(pm, { config: betaM.json.config, lojaNome: betaM.json.loja?.nome, extras: betaM.json.cozinhaBeta.extras[pm.id], qr: betaM.json.cozinhaBeta.qr }, { saida: join(SHOTS, 'beta-cozinha-real-mesa.png') }) : null
+  const rM = pm ? await renderizarCozinhaBeta(pm, { config: betaM.json.config, lojaNome: betaM.json.loja?.nome, extras: betaM.json.cozinhaBeta.extras[pm.id], qr: betaM.json.cozinhaBeta.qr }, { saida: join(SHOTS, 'beta-cozinha-real-mesa.png') }) : null
   ok('ficha de mesa: MESA no topo, DADOS DA MESA com comanda e atendente, sem endereço', lm2.status < 300 && !!rM && rM.texto.includes('MESA 01') && !rM.texto.includes('MESA MESA') && rM.texto.includes('DADOS DA MESA') && /Comanda: \d+/.test(rM.texto) && !rM.texto.includes('Endereco'), rM?.texto.split('\n').slice(-8).join(' | '))
   for (const p of betaM.json?.pedidos ?? []) await fetch(`${BASE}/api/agente/pedidos/${p.id}/imprimir`, { method: 'POST', headers: { Authorization: `Bearer ${credCaixa}` } })
+
+  // ════════════════════════════════════════════════════════════════════════════
+  secao('Pré-visualização na página Impressão (mesmo ticket-canvas do Beta) e tamanho da letra')
+  await db.query(`update impressao_dispositivos set tamanho_fonte='grande', largura_mm=80, largura_pontos=null where id=$1`, [dispTermica])
+  await pd.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
+  await pd.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 3000 }).catch(() => {})
+  const canvasPrevia = pd.getByTestId('previa-canvas')
+  await canvasPrevia.scrollIntoViewIfNeeded()
+  const medirPrevia = () => pd.waitForFunction(() => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height > 100 ? { w: c.width, h: c.height } : null }, null, { timeout: 20000 }).then((h) => h.jsonValue())
+  const pv1 = await medirPrevia()
+  ok('comanda desenhada na tela na largura da impressora da Cozinha (576 pontos)', pv1.w === 576 && pv1.h > 900, JSON.stringify(pv1))
+  // A mesma comanda desenhada fora da página (render-ticket) tem a mesma altura: é o mesmo desenho.
+  const { renderizarTicket } = await import('../impressao/render-ticket.mjs')
+  const { pedidoDemonstracao } = await import('../../lib/impressao/previa-beta.ts')
+  const { montarCozinhaBeta } = require('../../printer-agent/src/cozinha-beta.js')
+  const nomeLoja = (await um('select nome from restaurantes where id=$1', [L])).nome
+  const dm = pedidoDemonstracao(new Date())
+  const ref = await renderizarTicket(montarCozinhaBeta(dm.pedido, { config: {}, lojaNome: nomeLoja, extras: dm.extras, qr: betaK.json.cozinhaBeta.qr }), { larguraMm: 80, saida: join(SHOTS, 'previa-ref-cozinha.png') })
+  ok('pré-visualização = impressão (mesma largura e altura do PNG do Beta)', ref.largura === pv1.w && ref.altura === pv1.h, `${ref.largura}x${ref.altura} vs ${pv1.w}x${pv1.h}`)
+  await foto(pd, 'previa-comanda-grande')
+  await pd.getByTestId('previa-letra-pequena').click()
+  const pv2 = await pd.waitForFunction((h0) => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height < h0 ? c.height : null }, pv1.h, { timeout: 10000 }).then((h) => h.jsonValue()).catch(() => null)
+  ok('letra pequena: a pré-visualização encolhe na hora', !!pv2 && pv2 < pv1.h, `${pv1.h} → ${pv2}`)
+  await pd.getByTestId('previa-salvar-letra').click()
+  let salva = false
+  for (let i = 0; i < 20 && !salva; i++) {
+    salva = (await um('select tamanho_fonte from impressao_dispositivos where id=$1', [dispTermica]))?.tamanho_fonte === 'pequena'
+    if (!salva) await pd.waitForTimeout(500)
+  }
+  ok('"Salvar esta letra" grava na predefinição da impressora', salva)
+  const betaP = await fila(credCaixa)
+  ok('o Beta passa a receber a letra pequena da impressora da Cozinha', betaP.json?.destinoCozinha?.tamanhoFonte === 'pequena', betaP.json?.destinoCozinha?.tamanhoFonte)
+  await pd.getByTestId('previa-pre_conta').click()
+  const pv3 = await medirPrevia()
+  ok('aba Pré-conta desenha a pré-conta (impressora do Recibo/Extrato, 576 pontos)', pv3.w === 576 && pv3.h > 700, JSON.stringify(pv3))
+  await foto(pd, 'previa-preconta')
+  await db.query(`update impressao_dispositivos set tamanho_fonte='grande' where id=$1`, [dispTermica])
 } finally {
   await browser.close()
+  await fecharRender()
   // Loja isolada de volta ao estado neutro: Somente teste, sem computador/funções, sem Instagram.
   await db.query(`update comandas set status='cancelada', cancelada_motivo='limpeza e2e modelos', fechada_em=now() where restaurante_id=$1 and status='aberta'`, [L])
   for (const t of ['impressao_trabalhos', 'impressao_funcoes', 'impressao_dispositivos', 'impressao_pareamentos', 'impressao_agentes', 'impressao_reservas']) {

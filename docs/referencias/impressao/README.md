@@ -1,33 +1,46 @@
 # Referências oficiais da impressão (Assistente Beta)
 
-Fonte oficial do layout — não usar interpretação livre nem o layout antigo:
+Modelos oficiais desde 2026-09-28 (0.2.0-beta.5) — o dono pediu que o papel saia
+**idêntico** a eles:
 
-- `mockup-comanda-cozinha-termica-menuzia.png` — comanda da cozinha (576 pontos = 80 mm).
-- `pre-conta-menuzia-v4.png` — pré-conta / Recibo / Extrato (576 pontos = 80 mm).
+- `v2/COMANDA.png` — comanda da cozinha.
+- `v2/PRE-CONTA.png` — pré-conta / Recibo / Extrato.
 
-O renderizador do Beta (`printer-agent/src/print-beta.ps1`) segue a estrutura, a ordem dos
-blocos, as faixas pretas, as fontes (DejaVu, embutidas em `printer-agent/src/fonts`) e os
-textos desses dois PNGs. Em 2026-09-28 o dono pediu ajustes de LEITURA sobre essa base, que
-valem daqui em diante:
+Com três pedidos do dono sobre os modelos:
 
-- fontes cerca de 30% maiores e margem de 18 pontos (mais largura útil);
-- cada seção numa faixa preta: ITENS CONSUMIDOS, VALORES e TOTAL A PAGAR na pré-conta;
-  ITENS DO PEDIDO, VALORES e DADOS na comanda;
-- cinza só escuro (a térmica não imprime cinza claro) e QR maior;
-- no papel de 58 mm as fontes encolhem no máximo até 78%.
+- a comanda **não tem preço** em ITENS DO PEDIDO (a cozinha lê rápido o que preparar);
+- a quantidade (`1x`) fica colada na descrição, sem coluna larga;
+- `Pedido #129` menor que no modelo (lá estava exagerado).
 
-Impressora que não é térmica (PDF, XPS, laser): o documento sai no tamanho físico do papel
-(80/58 mm), não ponto a ponto — antes, num PDF de 600 dpi, saía com ~2,4 cm de largura.
+A observação do item sai sobre um fundo cinza claro, como no modelo.
 
-Conferir qualquer mudança lado a lado antes de publicar:
+## Como é desenhado
+
+Um desenho só, em `printer-agent/src/ticket-canvas.js` (canvas), usado por:
+
+- o Assistente Beta — janela oculta do Electron (`renderer/ticket.html`) → PNG →
+  `print-imagem.ps1` (térmica ponto a ponto; PDF/XPS/laser no tamanho físico);
+- a **pré-visualização** da página Impressão (`components/impressao/previa-beta.tsx`) —
+  o que aparece na tela é o que sai no papel;
+- os testes (`scripts/impressao/render-ticket.mjs`, Chromium sem janela).
+
+Fontes: Iosevka (texto) e Roboto Condensed (Pedido e TOTAL), licença OFL, em
+`printer-agent/src/fonts` — com cópia idêntica em `public/impressao/fonts` para o painel
+(um teste confere). A logo MENUZiA foi recortada do modelo (`logo-menuzia.png`).
+
+Tamanho da letra por impressora (Impressão › Escolher impressoras › Mais opções, ou na
+própria pré-visualização): **Grande = o modelo**, Média (92%) e Pequena (85%).
+
+## Conferir antes de publicar
 
 ```
-node scripts/impressao/render-modelos-beta.mjs <pasta>
-powershell -File scripts/impressao/comparar-modelo.ps1 -Referencia docs/referencias/impressao/pre-conta-menuzia-v4.png -Saida <pasta>/preconta-mesa-80.png -LadoALado lado.png -Faixas
+node scripts/impressao/render-modelos-v2.mjs <pasta> [grande|media|pequena]
+node scripts/impressao/lado-a-lado-v2.mjs COMANDA <pasta>/cozinha-80-grande.png lado-comanda.png
+node scripts/impressao/lado-a-lado-v2.mjs PRE-CONTA <pasta>/preconta-80-grande.png lado-pre-conta.png
+node scripts/impressao/render-casos-v2.mjs <pasta>   # nomes longos, mesa, balcão, 58 mm, 3 letras
 ```
 
-`-Faixas` lista, lado a lado, o y, a altura e a largura de cada linha de tinta da
-referência e da saída. `comparacao/` guarda o resultado da última publicação.
+`comparacao/` guarda o resultado da última publicação.
 
 O Assistente de Impressão antigo (0.1.23: recibo.js, pre-conta.js, print.ps1) tem o layout
 dele e não segue estas referências.

@@ -258,7 +258,8 @@ await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'domcontentloaded' })
 await pGer.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 3000 }).catch(() => {})
 const pronta = await (async () => { for (let i = 0; i < 40; i++) { if ((await api(pGer, '/api/admin/impressao/logo')).json?.pronta) return true; await new Promise((r) => setTimeout(r, 500)) } return false })()
 ok('a página Impressão gerou a versão de impressão sozinha (navegador)', pronta)
-ok('a página mostra "Logo no Recibo/Extrato: pronta"', /pronta/.test(await pGer.getByTestId('logo-recibo').innerText().catch(() => '')))
+// Modelo v2 do Beta (2026-09-28) imprime a logo MENUZiA: a página não anuncia mais a logo da loja no papel.
+ok('a página não promete a logo da loja no Recibo/Extrato (o modelo v2 imprime MENUZiA)', !/Logo no Recibo/.test(await pGer.getByTestId('logo-recibo').innerText().catch(() => '')))
 const lg2 = await logoAgente(pa.json.credencial)
 const dimsPng = lg2.bytes ? { w: lg2.bytes.readUInt32BE(16), h: lg2.bytes.readUInt32BE(20) } : null
 ok('agora o Assistente recebe o PNG sobre fundo branco (240x480 reduzida para 160x320, sem ampliar)', lg2.status === 200 && lg2.tipo === 'image/png' && dimsPng?.w === 160 && dimsPng?.h === 320, JSON.stringify(dimsPng))

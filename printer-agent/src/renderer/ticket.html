@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; font-src 'self'; script-src 'self' 'unsafe-inline'">
+<title>Menuzia - desenho da impressao</title>
+</head>
+<body>
+<!-- Janela OCULTA do Assistente Beta (e dos testes): desenha a comanda / pré-conta com o
+     ticket-canvas.js — o mesmo da pré-visualização do painel — e devolve o PNG. -->
+<canvas id="t"></canvas>
+<script src="../ticket-canvas.js"></script>
+<script src="logo-dados.js"></script>
+<script>
+  let recursos = null
+  window.renderizarTicket = async function (doc, opcoes) {
+    if (!recursos) recursos = await TicketMenuzia.carregarRecursos('../fonts', window.LOGO_MENUZIA)
+    const canvas = document.getElementById('t')
+    const r = TicketMenuzia.desenhar(canvas, doc, { ...opcoes, logo: recursos.logo })
+    return { png: canvas.toDataURL('image/png'), largura: r.largura, altura: r.altura }
+  }
+</script>
+</body>
+</html>

@@ -6,9 +6,10 @@ import { TopBar } from '@/components/layout/topbar'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
+import { PreviaBeta } from '@/components/impressao/previa-beta'
 import { AssistenteAntigo, FichaCozinha, type AssistenteAtual } from '@/components/impressao/assistente-antigo'
 import {
-  AjudaDiagnostico, CartaoAssistente, CartaoImpressoras, CartaoModo, CartaoTestes, ModalImpressoras, ModalModos, ModalPareamento, ModalTeste,
+  AjudaDiagnostico, type TamanhoLetra, CartaoAssistente, CartaoImpressoras, CartaoModo, CartaoTestes, ModalImpressoras, ModalModos, ModalPareamento, ModalTeste,
   avaliar, nomeDisp, type PainelDados, type TipoTeste,
 } from '@/components/impressao/beta-cards'
 import { ROTULO_MODO_BETA } from '@/lib/impressao/rotulos'
@@ -70,7 +71,8 @@ export function PainelImpressao() {
   const [trocarModo, setTrocarModo] = useState<ModoBeta | null>(null)
   const [calibrar, setCalibrar] = useState<string | null>(null)
   const [modalImpressora, setModalImpressora] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
-  const [logoRecibo, setLogoRecibo] = useState<'pronta' | 'gerada' | 'sem_logo' | 'falhou' | null>(null)
+  // A logo da loja continua preparada (versão de impressão); o modelo v2 do Beta imprime a logo MENUZiA.
+  const [, setLogoRecibo] = useState<'pronta' | 'gerada' | 'sem_logo' | 'falhou' | null>(null)
   const seq = useRef(0)
   // Uma chave por impressora e por teste: clique duplo ou reenvio devolve o mesmo trabalho.
   const chavesTeste = useRef<Record<string, string>>({})
@@ -224,8 +226,8 @@ export function PainelImpressao() {
     setAviso(recuo ? { tom: 'alerta', texto: `Impressoras salvas. ${MOTIVO_RECUO} Modo agora: ${ROTULO_MODO_BETA[recuo]}.` } : { tom: 'ok', texto: 'Impressoras salvas.' })
   }
 
-  async function ajustar(d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number }) {
-    await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', patch, patch.apelido !== undefined ? 'Apelido salvo.' : 'Papel salvo.')
+  async function ajustar(d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number; tamanhoFonte?: TamanhoLetra }) {
+    await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', patch, patch.apelido !== undefined ? 'Apelido salvo.' : patch.tamanhoFonte !== undefined ? 'Tamanho da letra salvo.' : 'Papel salvo.')
   }
 
   function revogar(a: AgenteVisao) {
@@ -371,7 +373,8 @@ export function PainelImpressao() {
                 <CartaoImpressoras p={p} onEscolher={() => setEscolhendo(true)} />
               </div>
               <CartaoModo p={p} ocupado={ocupado} onEscolher={(m) => setTrocarModo(m)} onAjuda={() => setVerModos(true)} />
-              <CartaoTestes p={p} ocupado={ocupado} logoRecibo={logoRecibo} onTestar={(t) => setTeste(t)} />
+              <CartaoTestes p={p} ocupado={ocupado} onTestar={(t) => setTeste(t)} />
+              <PreviaBeta p={p} ocupado={ocupado} onSalvarLetra={(d, tamanhoFonte) => ajustar(d, { tamanhoFonte })} />
               {atual && <FichaCozinha atual={atual} pode={atual.podeEditar} impressoraEmUsoId={atualImpressoraId} onPatch={(x) => void patchAtual(x)} />}
               <AjudaDiagnostico p={p} onAjudaCompleta={() => setAjuda(true)} />
             </>

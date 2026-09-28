@@ -15,7 +15,7 @@ function scriptReal(nome) {
 const LIST_SCRIPT = scriptReal('list-printers.ps1')
 const PRINT_SCRIPT = scriptReal('print.ps1')
 const DIAG_SCRIPT = scriptReal('diagnostico-impressoras.ps1')
-const PRINT_BETA_SCRIPT = scriptReal('print-beta.ps1')
+const PRINT_IMAGEM_SCRIPT = scriptReal('print-imagem.ps1')
 
 function runPowershell(args, opcoesExec = {}) {
   return new Promise((resolve, reject) => {
@@ -82,26 +82,78 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, 
   }
 }
 
+// ─── desenho do Assistente Beta ──────────────────────────────────────────────
+// A comanda e a pré-conta do Beta são desenhadas pelo ticket-canvas.js — o MESMO arquivo
+// da pré-visualização do painel — numa janela OCULTA do Electron (renderer/ticket.html).
+// Sai um PNG, que o print-imagem.ps1 só manda para a impressora.
+let janelaDesenho = null
+let janelaPronta = null
+function janelaDoDesenho() {
+  if (janelaPronta && janelaDesenho && !janelaDesenho.isDestroyed()) return janelaPronta
+  const { BrowserWindow } = require('electron')
+  janelaDesenho = new BrowserWindow({
+    show: false,
+    width: 900,
+    height: 600,
+    webPreferences: { offscreen: true, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false },
+  })
+  janelaDesenho.on('closed', () => { janelaDesenho = null; janelaPronta = null })
+  janelaPronta = janelaDesenho.loadFile(path.join(__dirname, 'renderer', 'ticket.html')).catch((e) => {
+    janelaPronta = null
+    throw e
+  })
+  return janelaPronta
+}
+
+/** doc → caminho do PNG (no tmp). */
+async function desenharTicket(doc, opcoes, prefixo) {
+  await janelaDoDesenho()
+  const r = await janelaDesenho.webContents.executeJavaScript(`window.renderizarTicket(${JSON.stringify(doc)}, ${JSON.stringify(opcoes)})`, true)
+  const cabecalho = 'data:image/png;base64,'
+  if (!r || typeof r.png !== 'string' || !r.png.startsWith(cabecalho)) throw new Error('desenho vazio')
+  const arquivo = path.join(os.tmpdir(), `${prefixo}-${Date.now()}.png`)
+  fs.writeFileSync(arquivo, Buffer.from(r.png.slice(cabecalho.length), 'base64'))
+  return arquivo
+}
+
 /**
  * Documentos do Assistente Beta — pré-conta (pre-conta-beta.js) e comanda da cozinha
- * (cozinha-beta.js) — em blocos, desenhados por print-beta.ps1 com a logo da loja.
+ * (cozinha-beta.js). Desenha o PNG (ticket-canvas.js) e imprime com print-imagem.ps1;
+ * se o desenho falhar, imprime o texto do documento — nunca deixa de sair.
+ * perfil: larguraPontos, deslocamentoPontos, tamanhoFonte, copias, logNome, prefixoTmp.
  * O Assistente atual não usa isto.
  */
-async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, perfil = {}, logoPath = null, logoCacheDir = null) {
-  const tmpFile = path.join(os.tmpdir(), `${perfil.prefixoTmp || 'menuzia-beta'}-doc-${Date.now()}.json`)
-  fs.writeFileSync(tmpFile, JSON.stringify(doc), 'utf-8')
+async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, perfil = {}) {
+  const prefixo = perfil.prefixoTmp || 'menuzia-beta'
+  const opcoes = {
+    larguraMm: Number(paperWidthMm) <= 58 ? 58 : 80,
+    larguraPontos: Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0 ? perfil.larguraPontos : null,
+    tamanhoFonte: perfil.tamanhoFonte === 'media' || perfil.tamanhoFonte === 'pequena' ? perfil.tamanhoFonte : 'grande',
+  }
+  let png = null
+  let txt = null
+  let erroDesenho = null
   try {
-    const args = ['-File', PRINT_BETA_SCRIPT, '-FilePath', tmpFile, '-PrinterName', nomeImpressora, '-PaperWidthMm', String(paperWidthMm)]
-    if (Number.isInteger(perfil.larguraPontos) && perfil.larguraPontos > 0) args.push('-LarguraPontos', String(perfil.larguraPontos))
+    png = await desenharTicket(doc, opcoes, prefixo)
+  } catch (e) {
+    erroDesenho = e
+    txt = path.join(os.tmpdir(), `${prefixo}-texto-${Date.now()}.txt`)
+    fs.writeFileSync(txt, String(doc.texto || 'Menuzia'), 'utf-8')
+  }
+  try {
+    const args = ['-File', PRINT_IMAGEM_SCRIPT, '-PrinterName', nomeImpressora]
+    if (png) args.push('-ImagemPng', png)
+    if (txt) args.push('-TextoArquivo', txt)
     if (Number.isInteger(perfil.deslocamentoPontos) && perfil.deslocamentoPontos !== 0) args.push('-DeslocamentoPontos', String(perfil.deslocamentoPontos))
-    if (logoPath) args.push('-LogoPath', logoPath)
-    if (logoCacheDir) args.push('-LogoCacheDir', logoCacheDir)
     if (perfil.logNome) args.push('-LogNome', perfil.logNome)
     if (Number.isInteger(perfil.copias) && perfil.copias > 1) args.push('-Copies', String(Math.min(perfil.copias, 5)))
-    return await runPowershell(args, { timeout: 60_000, windowsHide: true })
+    args.push('-Titulo', doc.modelo === 'cozinha' ? 'Menuzia - Comanda' : 'Menuzia - Pre-conta')
+    const saida = await runPowershell(args, { timeout: 60_000, windowsHide: true })
+    return erroDesenho ? `MENUZIA: DESENHO FALHOU (${erroDesenho.message}); saiu em texto\n${saida || ''}` : saida
   } finally {
-    fs.unlink(tmpFile, () => {})
+    if (png) fs.unlink(png, () => {})
+    if (txt) fs.unlink(txt, () => {})
   }
 }
 
-module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta }
+module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, desenharTicket }

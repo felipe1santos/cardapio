@@ -164,8 +164,8 @@ const texto = montarCalibracao({ ...snap, largura_pontos: 512 }, diag)
 ok('calibração mostra driver, DPI, papel, área imprimível, margem e largura aplicada',
   ['POS-80C', '203 x 203', '72.1 mm', '7.9 mm', '512 pontos', '1:1', 'TOTAL', 'R$ 12.345,67'].every((t) => texto.includes(t)))
 
-// Recibo/Extrato do Beta: layout próprio (pre-conta-beta.js + print-beta.ps1), medido em
-// scripts/impressao/matriz-recibo-beta.mjs.
+// Comanda e Recibo/Extrato do Beta: desenho próprio (ticket-canvas.js), comparado com os
+// modelos em scripts/impressao/render-modelos-v2.mjs e render-casos-v2.mjs.
 rmSync(TEMP_ISOLADO, { recursive: true, force: true })
 const difReais = diferencas(fotoReaisAntes, fotografarReais())
 ok('arquivos reais do Assistente intactos (log, config e instalação: hash, tamanho e data)', difReais.length === 0, difReais.join(' | '))

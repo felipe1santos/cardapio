@@ -508,6 +508,10 @@ export interface TrabalhoAgente {
   /** Perfil de calibração (0100): nulo = padrão. */
   larguraPontos: number | null
   deslocamentoPontos: number
+  /** Tamanho da letra escolhido para a impressora (grande = modelo, media, pequena). */
+  tamanhoFonte: 'grande' | 'media' | 'pequena'
+  /** QR do rodapé (Instagram da loja ou cardápio) — modelo da pré-conta, 2026-09-28. */
+  qr: ReturnType<typeof qrDaCozinha> | null
   dispositivoId: string
   segundosRestantes: number
   tentativas: number
@@ -517,10 +521,17 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
   const r = await rpc<Record<string, unknown>[]>(admin, 'impressao_trabalhos_reservar', { p_agente: agenteId, p_limite: 10 })
   if (!r.ok) return r
   const ids = [...new Set((r.valor ?? []).map((t) => t.dispositivo_id as string))]
+  type Perfil = { id: string; largura_pontos: number | null; deslocamento_pontos: number; tamanho_fonte: string; restaurantes: { slug: string; instagram_url: string | null } | null }
   const { data: perfis } = ids.length
-    ? await admin.from('impressao_dispositivos').select('id, largura_pontos, deslocamento_pontos').in('id', ids)
-    : { data: [] as { id: string; largura_pontos: number | null; deslocamento_pontos: number }[] }
-  const perfil = new Map(((perfis ?? []) as { id: string; largura_pontos: number | null; deslocamento_pontos: number }[]).map((p) => [p.id, p]))
+    ? await admin.from('impressao_dispositivos').select('id, largura_pontos, deslocamento_pontos, tamanho_fonte, restaurantes ( slug, instagram_url )').in('id', ids)
+    : { data: [] as Perfil[] }
+  const perfil = new Map(((perfis ?? []) as unknown as Perfil[]).map((p) => [p.id, p]))
+  const qrDe = (id: string) => {
+    const loja = perfil.get(id)?.restaurantes
+    if (!loja?.slug) return null
+    try { return qrDaCozinha({ slug: loja.slug, instagramUrl: loja.instagram_url ?? null }) } catch { return null }
+  }
+  const tamanho = (v: unknown): TrabalhoAgente['tamanhoFonte'] => (v === 'media' || v === 'pequena' ? v : 'grande')
   return {
     ok: true,
     valor: (r.valor ?? []).map((t) => ({
@@ -532,6 +543,8 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
       larguraMm: t.largura_mm as 58 | 80,
       larguraPontos: perfil.get(t.dispositivo_id as string)?.largura_pontos ?? null,
       deslocamentoPontos: perfil.get(t.dispositivo_id as string)?.deslocamento_pontos ?? 0,
+      tamanhoFonte: tamanho(perfil.get(t.dispositivo_id as string)?.tamanho_fonte),
+      qr: qrDe(t.dispositivo_id as string),
       dispositivoId: t.dispositivo_id as string,
       segundosRestantes: t.segundos_restantes as number,
       tentativas: t.tentativas as number,

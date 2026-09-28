@@ -35,6 +35,15 @@ export interface PainelDados {
 }
 
 export const nomeDisp = (d: DispositivoVisao) => d.apelido || d.nomeSistema
+
+/** Tamanho da letra do Assistente Beta (comanda e pré-conta). Grande = o modelo oficial. */
+export type TamanhoLetra = 'grande' | 'media' | 'pequena'
+export const TAMANHOS_LETRA: { valor: TamanhoLetra; rotulo: string }[] = [
+  { valor: 'grande', rotulo: 'Grande (modelo)' },
+  { valor: 'media', rotulo: 'Média' },
+  { valor: 'pequena', rotulo: 'Pequena' },
+]
+export const rotuloLetra = (v: string) => TAMANHOS_LETRA.find((t) => t.valor === v)?.rotulo ?? 'Grande (modelo)'
 const quando = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 
@@ -58,7 +67,7 @@ function agentesRegra(p: PainelDados) {
   return p.agentes.map((a) => ({ id: a.id, nome: a.nome, vistoEm: a.vistoEm, revogado: a.revogado, criadoEm: a.criadoEm }))
 }
 
-function Cartao({ icone, tom, titulo, acao, children, testid }: { icone: typeof Printer; tom: Parameters<typeof BolhaIcone>[0]['tom']; titulo: string; acao?: React.ReactNode; children: React.ReactNode; testid?: string }) {
+export function Cartao({ icone, tom, titulo, acao, children, testid }: { icone: typeof Printer; tom: Parameters<typeof BolhaIcone>[0]['tom']; titulo: string; acao?: React.ReactNode; children: React.ReactNode; testid?: string }) {
   return (
     <section className="min-w-0 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid={testid}>
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
@@ -75,7 +84,7 @@ function Cartao({ icone, tom, titulo, acao, children, testid }: { icone: typeof 
 
 const BOTAO = 'inline-flex items-center justify-center gap-1.5 rounded-[6px] px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45'
 const PRIMARIO = `${BOTAO} bg-[#0688D4] text-white hover:bg-[#0570AE]`
-const SECUNDARIO = `${BOTAO} border border-[var(--adm-borda)] bg-white text-[var(--adm-texto)] hover:border-[#0688D4] hover:text-[#0688D4]`
+export const SECUNDARIO = `${BOTAO} border border-[var(--adm-borda)] bg-white text-[var(--adm-texto)] hover:border-[#0688D4] hover:text-[#0688D4]`
 
 // ─── 1. Assistente ───────────────────────────────────────────────────────────
 
@@ -223,7 +232,7 @@ export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onFechar }: 
   p: PainelDados
   ocupado: boolean
   onSalvar: (novo: Record<Funcao, string | null>) => Promise<void>
-  onAjustar: (d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number }) => Promise<void>
+  onAjustar: (d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number; tamanhoFonte?: TamanhoLetra }) => Promise<void>
   onFechar: () => void
 }) {
   const ags = agentesRegra(p)
@@ -280,7 +289,7 @@ export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onFechar }: 
                     {!antigo && !on && <Etiqueta tom="cinza">computador sem sinal</Etiqueta>}
                     {!d.disponivel && <Etiqueta tom="vermelho">não encontrada no Windows</Etiqueta>}
                   </p>
-                  <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">{a.nome} · {on ? 'conectado' : 'sem sinal'}{d.apelido ? ` · Windows: ${d.nomeSistema}` : ''} · papel {d.larguraMm} mm</p>
+                  <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">{a.nome} · {on ? 'conectado' : 'sem sinal'}{d.apelido ? ` · Windows: ${d.nomeSistema}` : ''} · papel {d.larguraMm} mm · letra {rotuloLetra(d.tamanhoFonte).toLowerCase()}</p>
                 </div>
                 <select
                   value={valor}
@@ -312,10 +321,10 @@ export function ModalImpressoras({ p, ocupado, onSalvar, onAjustar, onFechar }: 
   )
 }
 
-function MaisOpcoes({ d, ocupado, onAjustar }: { d: DispositivoVisao; ocupado: boolean; onAjustar: (d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number }) => Promise<void> }) {
+function MaisOpcoes({ d, ocupado, onAjustar }: { d: DispositivoVisao; ocupado: boolean; onAjustar: (d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number; tamanhoFonte?: TamanhoLetra }) => Promise<void> }) {
   const [apelido, setApelido] = useState(d.apelido ?? '')
   return (
-    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
       <label className="text-[12px] text-[var(--adm-texto-suave)]">
         Apelido (ex.: Cozinha, Caixa)
         <input value={apelido} maxLength={40} onChange={(e) => setApelido(e.target.value)} className="mt-1 block h-[34px] w-full rounded-[6px] border border-[var(--adm-borda)] px-2.5 text-[13px] text-[var(--adm-texto)]" />
@@ -324,6 +333,9 @@ function MaisOpcoes({ d, ocupado, onAjustar }: { d: DispositivoVisao; ocupado: b
       <select value={d.larguraMm} disabled={ocupado} onChange={(e) => void onAjustar(d, { larguraMm: Number(e.target.value) })} aria-label="Largura do papel" className="h-[36px] rounded-[6px] border border-[var(--adm-borda)] bg-white px-2 text-[13px]">
         <option value={80}>Papel 80 mm</option>
         <option value={58}>Papel 58 mm</option>
+      </select>
+      <select value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void onAjustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} aria-label="Tamanho da letra" data-testid={`letra-${d.nomeSistema}`} className="h-[36px] rounded-[6px] border border-[var(--adm-borda)] bg-white px-2 text-[13px]">
+        {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>Letra {t.rotulo.toLowerCase()}</option>)}
       </select>
     </div>
   )
@@ -408,7 +420,7 @@ const TESTE: Record<TipoTeste, { titulo: string; texto: string; funcao: Funcao |
   calibrar: { titulo: 'Calibrar impressora', texto: 'Passo a passo para o papel sair inteiro, sem cortar a direita.', funcao: null, botao: 'Começar' },
 }
 
-export function CartaoTestes({ p, ocupado, logoRecibo, onTestar }: { p: PainelDados; ocupado: boolean; logoRecibo: string | null; onTestar: (t: TipoTeste) => void }) {
+export function CartaoTestes({ p, ocupado, onTestar }: { p: PainelDados; ocupado: boolean; onTestar: (t: TipoTeste) => void }) {
   const tem = p.dispositivos.some((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado)
   const itens: [TipoTeste, typeof ChefHat][] = [['cozinha', ChefHat], ['recibo', ReceiptText], ['calibrar', Ruler]]
   return (
@@ -422,7 +434,6 @@ export function CartaoTestes({ p, ocupado, logoRecibo, onTestar }: { p: PainelDa
       </div>
       <p className="mt-2.5 text-[12px] text-[var(--adm-texto-suave)]" data-testid="logo-recibo">
         {tem ? 'Testes saem no papel, mas não criam pedido, conta nem pagamento.' : 'Pareie um computador para testar as impressoras dele.'}
-        {p.betaLiberado && ` Logo no Recibo/Extrato: ${logoRecibo === 'pronta' || logoRecibo === 'gerada' ? 'pronta' : logoRecibo === 'sem_logo' ? 'sem logo (sai o nome da loja)' : logoRecibo === 'falhou' ? 'não preparada (sai o nome da loja)' : 'preparando…'}.`}
       </p>
     </Cartao>
   )
