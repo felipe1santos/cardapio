@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
-import { estadoConexao, evolutionConfigurado } from '@/lib/evolution'
+import { estadoConexao, evolutionConfigurado, formatarNumeroWhatsapp, numeroConectado } from '@/lib/evolution'
 
 /** Status da conexão WhatsApp (Evolution) do restaurante logado. */
 export async function GET() {
@@ -27,5 +27,7 @@ export async function GET() {
   if (!loja.evolution_instance) return NextResponse.json({ configurado: true, connected: false, state: null })
 
   const state = await estadoConexao(loja.evolution_instance)
-  return NextResponse.json({ configurado: true, connected: state === 'open', state })
+  // Com o WhatsApp conectado, o número (para "Conectado · (27) 99999-0000").
+  const numero = state === 'open' ? formatarNumeroWhatsapp(await numeroConectado(loja.evolution_instance)) : null
+  return NextResponse.json({ configurado: true, connected: state === 'open', state, numero })
 }

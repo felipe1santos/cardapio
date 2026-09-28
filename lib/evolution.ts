@@ -62,3 +62,36 @@ export async function estadoConexao(instance: string): Promise<EstadoConexao | n
 export async function desconectarInstancia(instance: string): Promise<void> {
   await fetch(evolutionUrl(`/instance/logout/${instance}`), { method: 'DELETE', headers: evolutionHeaders() })
 }
+
+/**
+ * Número do WhatsApp conectado na instância ("5527999990000"), para o painel mostrar
+ * "Conectado · (27) 99999-0000". Melhor esforço: a Evolution v2 manda `ownerJid`, a v1
+ * `owner`; qualquer falha devolve null e o painel mostra só "Conectado".
+ */
+export async function numeroConectado(instance: string): Promise<string | null> {
+  try {
+    const res = await fetch(evolutionUrl(`/instance/fetchInstances?instanceName=${encodeURIComponent(instance)}`), { headers: evolutionHeaders(), signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    const lista = Array.isArray(data) ? data : [data]
+    for (const item of lista) {
+      const i = item?.instance ?? item
+      const jid = String(i?.ownerJid ?? i?.owner ?? '')
+      const numero = jid.split('@')[0].replace(/\D/g, '')
+      if (numero.length >= 10 && numero.length <= 15) return numero
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** "5527999990000" → "(27) 99999-0000" (sem o 55); outro formato volta como veio. */
+export function formatarNumeroWhatsapp(numero: string | null): string | null {
+  if (!numero) return null
+  let d = numero.replace(/\D/g, '')
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return numero
+}
