@@ -5,7 +5,7 @@
   "extraMetadata": {
     "name": "menuzia-assistente-beta",
     "productName": "Assistente Menuzia Beta",
-    "version": "0.2.0-beta.2",
+    "version": "0.2.0-beta.3",
     "menuziaAmbiente": {
       "variante": "beta",
       "apiBaseUrl": "https://app.menuzia.com.br",
@@ -29,5 +29,5 @@
     "include": "build-beta/instalador-beta.nsh"
   },
   "files": ["src/**/*", "!src/**/*.test.ts", "package.json"],
-  "asarUnpack": ["src/*.ps1"]
+  "asarUnpack": ["src/*.ps1", "src/fonts/**"]
 }

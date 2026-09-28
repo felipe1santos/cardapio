@@ -4,7 +4,7 @@
  * Dois agentes virtuais (scripts/impressao/agente-virtual.cjs) no mesmo "computador":
  *   · ANTIGO: o main.js/recibo.js/print.ps1 EXTRAÍDOS DA TAG printer-agent-v0.1.23,
  *     com o token da loja — exatamente o que está instalado nas lojas;
- *   · BETA: o código atual como "Assistente Menuzia Beta 0.2.0-beta.2", pareado por código.
+ *   · BETA: o código atual como "Assistente Menuzia Beta 0.2.0-beta.3", pareado por código.
  * Servidor e banco locais; nenhuma impressora física (cada impressão vira registro + PNG).
  *
  * Prova os três modos, a troca e a volta da cozinha, sem ficha em dobro nem perdida,
@@ -176,7 +176,7 @@ try {
     'POS-8370': { nome: 'POS-8370', driver: 'POS-80C', porta: 'USB001', dpiX: 203, dpiY: 203, papelLarguraMm: 80, areaImprimivelLarguraMm: 64, margemEsquerdaMm: 0, margemDireitaMm: 16, pontosImprimiveis: 512, online: true },
     'Cozinha Beta': { nome: 'Cozinha Beta', driver: 'Generic / Text Only', dpiX: 203, dpiY: 203, papelLarguraMm: 80, pontosImprimiveis: 576 },
   }
-  const BETA = iniciarAgente('beta-0.2.0', ['POS-8370', 'Cozinha Beta'], { AGENTE_VARIANTE: 'beta', AGENTE_VERSAO: '0.2.0-beta.2', AGENTE_DIAG: JSON.stringify(diag) })
+  const BETA = iniciarAgente('beta-0.2.0', ['POS-8370', 'Cozinha Beta'], { AGENTE_VARIANTE: 'beta', AGENTE_VERSAO: '0.2.0-beta.3', AGENTE_DIAG: JSON.stringify(diag) })
   await aguardar(() => BETA.pronto(), 15000, 200)
   const codigo = (await api(pGer, '/api/admin/impressao/pareamento', 'POST')).json.codigo
   ok('Beta pareia com código', (await BETA.cmd({ cmd: 'parear', codigo, nome: 'PC Caixa' }))?.ok === true)
@@ -185,7 +185,7 @@ try {
     return r.length === 2 && r.every((d) => d.diagnostico) ? Object.fromEntries(r.map((d) => [d.nome_sistema, d])) : null
   })
   ok('Beta informa as 2 impressoras com diagnóstico do driver', !!disp && disp['POS-8370'].diagnostico.pontosImprimiveis === 512)
-  ok('versão do Beta registrada', (await um('select versao from impressao_agentes where restaurante_id=$1', [loja]))?.versao === '0.2.0-beta.2')
+  ok('versão do Beta registrada', (await um('select versao from impressao_agentes where restaurante_id=$1', [loja]))?.versao === '0.2.0-beta.3')
   ok('config do Beta em pasta própria (sem o token da loja)', !readFileSync(join(ART, 'beta-0.2.0', 'dados', 'beta-dados', 'config.json'), 'utf8').includes(tokenLegado))
 
   const t1 = [await lancar(), await lancar()]
@@ -250,7 +250,7 @@ try {
   ok('sai uma vez só, no Beta, na POS-8370, com o perfil de 512 pontos', BETA.impressos().filter((i) => i.tipo === 'recibo_teste').length === 1 &&
     !!rt80 && rt80.impressora === 'POS-8370' && rt80.larguraPontos === 512)
   ok('marcado como teste, com R$ 4.088,00', !!rt80 && ['TESTE DE IMPRESSAO', 'SEM VALOR FISCAL', 'R$ 4.088,00', 'Taxa de entrega'].every((x) => rt80.texto.includes(x)))
-  ok('layout do Beta (print-beta.ps1) com a logo da loja baixada pela rota segura', !!rt80 && /^LOGO: \d+x\d+/.test(rt80.logLogo) && /^loja-[0-9a-f]{16}\.png$/.test(rt80.logo ?? ''), `${rt80?.logLogo} · ${rt80?.logo}`)
+  ok('Beta baixa a logo da loja pela rota segura (o modelo oficial imprime o monograma MZ)', !!rt80 && /^LOGO: \d+x\d+/.test(rt80.logLogo) && /^loja-[0-9a-f]{16}\.png$/.test(rt80.logo ?? ''), `${rt80?.logLogo} · ${rt80?.logo}`)
   await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'PATCH', { larguraMm: 58 })
   await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'POST', { acao: 'recibo_teste', chave: uuid() })
   const rt58 = await aguardar(() => BETA.impressos().find((i) => i.tipo === 'recibo_teste' && i.paperMm === 58))

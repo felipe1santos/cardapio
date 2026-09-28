@@ -49,7 +49,7 @@ export const PEDIDO_BALCAO = { ...PEDIDO_ENTREGA, numero: 131, tipo: 'retirada',
 
 export const CONTA_MESA = {
   versao: 1, loja: 'Menuzia', tipo: 'mesa', mesa: '34', comanda_numero: 175, pedido_numero: 221, atendente: 'Pedro Henrique',
-  aberta_em: '2026-09-28T00:40:00Z', impresso_em: '2026-09-28T01:30:00Z', operador: 'Caixa', via: 1,
+  aberta_em: '2026-09-28T00:40:00Z', impresso_em: '2026-09-28T15:30:00Z', operador: 'Caixa', via: 1,
   itens: [
     { quantidade: 1, nome: 'X-Picanha', preco_unitario: 25, subtotal: 25, complementos: [] },
     { quantidade: 1, nome: 'Coca-Cola Lata 350ml', preco_unitario: 3.5, subtotal: 3.5, complementos: [] },
@@ -73,7 +73,11 @@ cz('cozinha-entrega-80', PEDIDO_ENTREGA)
 cz('cozinha-mesa-80', PEDIDO_MESA, { ...EXTRAS, desconto: 0, comandaNumero: 175, atendente: 'Pedro' }, qr('https://app.menuzia.com.br/loja/menuzia', false))
 cz('cozinha-balcao-80', PEDIDO_BALCAO, { ...EXTRAS, desconto: 0, atendente: 'Caixa 1' })
 cz('cozinha-entrega-58', PEDIDO_ENTREGA, EXTRAS, IG, 58)
+const LONGO = { ...PEDIDO_ENTREGA, numero: 132, observacao: 'interfone quebrado, ligar ao chegar', itens: [{ nome: 'Combo Família Gigante Especial da Casa com Pizza Meio a Meio e Refrigerante 2 Litros', quantidade: 1, precoUnitario: 109.9, observacao: 'metade sem cebola, a outra metade com borda recheada de catupiry e bem assada', tamanhoNome: 'Gigante', saborNome: 'Portuguesa / Quatro Queijos', bordaNome: 'Catupiry', massaNome: 'Fina', complementos: [{ nome: 'Bacon crocante extra servido à parte', preco: 9 }, { nome: 'Bacon crocante extra servido à parte', preco: 9 }] }], subtotal: 109.9, total: 112.9 }
+cz('cozinha-nome-grande-80', LONGO)
+cz('cozinha-nome-grande-58', LONGO, EXTRAS, IG, 58)
 r.push(['preconta-mesa-80', renderizarBeta(CONTA_MESA, { saida: join(SAIDA, 'preconta-mesa-80.png') })])
 r.push(['preconta-balcao-taxa-80', renderizarBeta(CONTA_BALCAO_TAXA, { saida: join(SAIDA, 'preconta-balcao-taxa-80.png') })])
+r.push(['preconta-balcao-taxa-58', renderizarBeta(CONTA_BALCAO_TAXA, { paperMm: 58, saida: join(SAIDA, 'preconta-balcao-taxa-58.png') })])
 r.push(['preconta-mesa-58', renderizarBeta(CONTA_MESA, { paperMm: 58, saida: join(SAIDA, 'preconta-mesa-58.png') })])
 for (const [n, x] of r) console.log(n, x.total?.valor, x.total ? `${x.total.de}..${x.total.ate}/${x.total.papel}` : '', x.sobreposicao ? 'SOBREPOSICAO' : '', x.logo)
