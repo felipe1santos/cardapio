@@ -87,7 +87,7 @@ export function Sidebar({
       {aberta && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={onFechar} aria-hidden="true" />}
       <aside
         className={[
-          'z-40 flex h-screen w-[var(--adm-lateral)] flex-shrink-0 flex-col border-r border-[var(--adm-borda)] bg-[var(--adm-superficie)]',
+          'z-40 flex h-screen w-[var(--adm-lateral)] flex-shrink-0 flex-col lg:h-full border-r border-[var(--adm-borda)] bg-[var(--adm-superficie)]',
           'fixed inset-y-0 left-0 transition-transform duration-200 lg:static lg:translate-x-0',
           // `invisible` e não só `-translate-x-full`: deslocada, ela continuaria no
           // caminho do Tab e do leitor de tela. `lg:visible` devolve a coluna fixa.

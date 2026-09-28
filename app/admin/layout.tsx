@@ -16,6 +16,8 @@ import { itensDoMenu } from '@/lib/menu-lateral'
 import { useAvisarPedido, useNotificacoesPedidos } from '@/components/admin/notificacoes-pedidos'
 import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
+import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
+import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -294,8 +296,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       data-painel
       data-admin-shell
       data-rota-kanban={pathname === '/admin/pedidos' || pathname.startsWith('/admin/pedidos/') ? 'sim' : 'nao'}
-      className="flex h-screen overflow-hidden"
+      className="flex h-screen flex-col overflow-hidden"
     >
+      {/* Aviso fixo do novo sistema de impressão: no fluxo, empurra menu e conteúdo. */}
+      {mostrarAvisoNovaImpressao(pathname) && <AvisoNovaImpressao />}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
       {!focusMode && (
         <Sidebar
           items={items}
@@ -316,6 +321,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* `min-w-0`: sem isso o conteúdo largo (tabela, grade de mesas) empurra o flex
           e reaparece a rolagem horizontal que a gaveta veio resolver. */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+      </div>
       {/* "Salvando… / Salvo" no centro da tela para toda gravação feita pelo usuário. */}
       <IndicadorSalvar />
       {fichaAberta && loja && (
