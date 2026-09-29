@@ -34,7 +34,7 @@ import {
   listarPedidosConcluidos,
   listarPedidosLogistica,
   listarResumoCaixa,
-  marcarPedidoEntregue,
+  entregarPedidoEmRota,
   registrarFechamentoCaixa,
   type Entregador,
   type Pedido,
@@ -992,8 +992,8 @@ export default function LogisticaPage() {
   async function deliver(orderId: string) {
     setOrders((prev) => prev.filter((o) => o.id !== orderId))
     try {
-      await marcarPedidoEntregue(supabase, orderId)
-      notificarPedido(orderId, 'entregue')
+      // Já entregue pelo entregador: não avisa o cliente de novo.
+      if (await entregarPedidoEmRota(supabase, orderId)) notificarPedido(orderId, 'entregue')
       if (restauranteId) refetch(restauranteId)
     } catch {
       setError('Não foi possível marcar como entregue.')

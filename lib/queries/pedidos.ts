@@ -572,6 +572,21 @@ export async function marcarPedidoEntregue(supabase: SupabaseClient, pedidoId: s
   await avancarStatusPedido(supabase, pedidoId, 'entregue', de)
 }
 
+/**
+ * "Entregue" pela Logística: só avança quem ainda está em rota. Devolve false se o
+ * entregador já marcou (sem isso, entregue→entregue passava e o cliente recebia o
+ * WhatsApp de entregue duas vezes).
+ */
+export async function entregarPedidoEmRota(supabase: SupabaseClient, pedidoId: string): Promise<boolean> {
+  try {
+    await avancarStatusPedido(supabase, pedidoId, 'entregue', 'em_rota')
+    return true
+  } catch (e) {
+    if (e instanceof ConflitoStatusPedido) return false
+    throw e
+  }
+}
+
 // Cancelamento não passa pelo cliente do navegador: vai por
 // POST /api/admin/pedidos/[id]/cancelar, que valida o motivo, guarda o status
 // server-side e reverte os benefícios de fidelidade. Ver lib/cancelamento.ts.
