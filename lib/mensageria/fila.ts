@@ -61,9 +61,25 @@ export async function enfileirar(admin: SupabaseClient, e: NovoEnvio): Promise<{
 interface EnvioReivindicado {
   id: string
   restaurante_id: string
+  conversa_id?: string | null
   telefone: string
   texto: string
   tipo: string
+  criado_em?: string
+}
+
+/**
+ * A resposta do robô perdeu a vez? Uma falha temporária a reagenda (30 s a 4 min); se
+ * nesse meio tempo um atendente assumiu a conversa, ela não pode sair no meio do
+ * atendimento. Só conta silêncio POSTERIOR à resposta: a própria mensagem de "vou
+ * chamar um atendente" nasce junto com o silêncio e tem que sair.
+ */
+export function respostaDoRoboVencida(
+  envio: Pick<EnvioReivindicado, 'tipo' | 'criado_em'>,
+  conversa: { estado: string | null; silenciada_em: string | null } | undefined,
+): boolean {
+  if (envio.tipo !== 'robo' || !conversa || conversa.estado !== 'silenciada' || !conversa.silenciada_em || !envio.criado_em) return false
+  return Date.parse(conversa.silenciada_em) > Date.parse(envio.criado_em)
 }
 
 export async function processarFila(
@@ -79,10 +95,15 @@ export async function processarFila(
   if (!envios.length) return { enviados: 0, falhas: 0, reivindicados: [] }
 
   const lojas = [...new Set(envios.map((e) => e.restaurante_id))]
-  const [{ data: inst }, { data: cfgs }] = await Promise.all([
+  const conversaIds = [...new Set(envios.filter((e) => e.tipo === 'robo' && e.conversa_id).map((e) => e.conversa_id as string))]
+  const [{ data: inst }, { data: cfgs }, { data: convs }] = await Promise.all([
     admin.from('restaurantes').select('id, evolution_instance').in('id', lojas),
     admin.from('whatsapp_robo_config').select('restaurante_id, robo_ativo').in('restaurante_id', lojas),
+    conversaIds.length
+      ? admin.from('whatsapp_conversas').select('id, estado, silenciada_em').in('id', conversaIds)
+      : Promise.resolve({ data: [] }),
   ])
+  const conversa = new Map(((convs ?? []) as { id: string; estado: string | null; silenciada_em: string | null }[]).map((c) => [c.id, c]))
   const instancia = new Map(((inst ?? []) as { id: string; evolution_instance: string | null }[]).map((r) => [r.id, r.evolution_instance]))
   // Resposta do robô conferida NA HORA de sair: servidor liberado e robô da loja ainda
   // ligado. Desligar o robô com resposta na fila cancela o envio (nada sai depois).
@@ -100,6 +121,9 @@ export async function processarFila(
     if (e.tipo === 'robo' && (!liberado || !roboLigado.has(e.restaurante_id))) {
       resultado = 'definitivo'
       erro = liberado ? 'robô desligado na loja' : 'robô não liberado no servidor'
+    } else if (respostaDoRoboVencida(e, e.conversa_id ? conversa.get(e.conversa_id) : undefined)) {
+      resultado = 'definitivo'
+      erro = 'conversa em atendimento humano'
     } else if (!nome) {
       resultado = 'definitivo'
       erro = 'loja sem WhatsApp conectado'

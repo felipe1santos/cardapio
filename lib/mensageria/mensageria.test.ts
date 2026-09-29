@@ -5,6 +5,7 @@ import {
 } from './robo'
 import { limparErro, mascararTelefone } from './mascara'
 import { interpretarWebhookEvolution } from './provedor'
+import { respostaDoRoboVencida } from './fila'
 
 const loja = { nome: 'Lanches do Zé', slug: 'lanches-ze', boasVindas: null }
 
@@ -173,5 +174,20 @@ describe('fluxos novos da v1', () => {
     expect(roboLiberadoNoServidor({})).toBe(false)
     expect(roboLiberadoNoServidor({ WHATSAPP_ROBO_LIBERADO: 'true' })).toBe(false)
     expect(roboLiberadoNoServidor({ WHATSAPP_ROBO_LIBERADO: '1' })).toBe(true)
+  })
+})
+
+describe('respostaDoRoboVencida (fila do robô)', () => {
+  const envio = { tipo: 'robo', criado_em: '2026-09-29T10:00:00.000Z' }
+  it('atendente assumiu DEPOIS da resposta entrar na fila: não sai', () => {
+    expect(respostaDoRoboVencida(envio, { estado: 'silenciada', silenciada_em: '2026-09-29T10:01:00.000Z' })).toBe(true)
+  })
+  it('mensagem de transferência (silêncio nasce junto) sai', () => {
+    expect(respostaDoRoboVencida(envio, { estado: 'silenciada', silenciada_em: '2026-09-29T10:00:00.000Z' })).toBe(false)
+  })
+  it('conversa com o robô, aviso automático ou sem conversa: sai', () => {
+    expect(respostaDoRoboVencida(envio, { estado: 'robo', silenciada_em: null })).toBe(false)
+    expect(respostaDoRoboVencida({ ...envio, tipo: 'aviso' }, { estado: 'silenciada', silenciada_em: '2026-09-29T11:00:00.000Z' })).toBe(false)
+    expect(respostaDoRoboVencida(envio, undefined)).toBe(false)
   })
 })
