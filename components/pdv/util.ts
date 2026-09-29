@@ -68,9 +68,13 @@ export function mascararTelefone(v: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
 
-/** Valor digitado ("64,90", "1.234,5") para número. */
+/**
+ * Valor digitado ("64,90", "1.234,5", "10.50") para número. Ponto só é milhar quando vem
+ * seguido de exatamente 3 dígitos: o teclado numérico de muitos Android só tem ".", e
+ * "10.50" virava 1050 (desconto zerando a conta, recebido de R$ 5.000).
+ */
 export function lerValor(texto: string): number {
-  const limpo = texto.replace(/\s/g, '').replace(/\./g, '').replace(',', '.')
+  const limpo = texto.replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')
   const n = Number(limpo)
   return Number.isFinite(n) ? n : NaN
 }
