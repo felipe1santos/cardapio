@@ -14,6 +14,8 @@ import type { RegraPrecoPizza } from '@/lib/pizza-preco'
 import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
 import { lerTodas } from './ler-todas'
 
+const centavos = (v: number) => Math.round(v * 100) / 100
+
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
 export type StatusPedido = 'recebido' | 'preparando' | 'pronto' | 'em_rota' | 'entregue' | 'cancelado'
@@ -1283,7 +1285,8 @@ export async function criarPedido(
       const comp = compsDb.find((c) => c.nome === nome && !c.pausado)
       if (comp) complementos.push({ nome: comp.nome, preco: Number(comp.preco) })
     }
-    const precoUnitario = base + complementos.reduce((s, c) => s + c.preco, 0)
+    // Em centavos, como o banco grava (numeric(10,2)): a soma dos itens tem que bater com o total.
+    const precoUnitario = centavos(base + complementos.reduce((s, c) => s + c.preco, 0))
     const quantidade = Math.max(1, Math.floor(linha.quantidade))
     return {
       item_id: linha.itemId,
@@ -1299,7 +1302,9 @@ export async function criarPedido(
     }
   })
 
-  const subtotal = linhas.reduce((s, l) => s + l.preco_unitario * l.quantidade, 0)
+  // 3 × 19,90 em ponto flutuante dá 59,699999…: "frete grátis acima de R$ 59,70" e o
+  // mínimo do cupom falhavam por um centavo que não existe.
+  const subtotal = centavos(linhas.reduce((s, l) => s + l.preco_unitario * l.quantidade, 0))
   // Taxa server-authoritative: mesma regra do endpoint /frete. Endereço fora da
   // área (bairro fora da lista fechada ou fora do raio) rejeita o pedido.
   let taxaEntrega = 0
@@ -1508,7 +1513,7 @@ export async function criarPedido(
 
   // Desconto trava no subtotal (nunca negativa o pedido); a taxa entra por cima já com
   // frete grátis por subtotal e/ou entrega_gratis de cupom/prêmio aplicados.
-  const total = Math.max(0, subtotal - desconto) + taxaEntrega
+  const total = centavos(Math.max(0, subtotal - desconto) + taxaEntrega)
 
   // "Troco para" menor que a conta: o entregador chega sem o troco combinado e o
   // fechamento de caixa fica negativo. O checkout também avisa, mas quem decide é
