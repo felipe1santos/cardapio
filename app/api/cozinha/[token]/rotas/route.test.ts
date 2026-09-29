@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const est = vi.hoisted(() => ({ modo: 'completa' as string }))
-const atribuir = vi.hoisted(() => vi.fn(async () => undefined))
+const atribuir = vi.hoisted(() => vi.fn(async () => ['p1']))
+const efeitos = vi.hoisted(() => vi.fn(async () => true))
+vi.mock('@/lib/pedido-eventos', () => ({ aplicarEfeitosStatusPedidoComTrava: efeitos }))
 vi.mock('@/lib/supabase/admin', () => ({ getAdminSupabase: () => ({}) }))
 vi.mock('@/lib/queries/estacoes', () => ({ buscarEstacaoPorToken: vi.fn(async () => ({ restauranteId: 'r1', modo: est.modo })) }))
 vi.mock('@/lib/queries/ajustes', () => ({ buscarFluxoLoja: vi.fn(async () => ({})), usaDespachoDeRotas: () => true }))
@@ -34,5 +36,13 @@ describe('despacho de rotas pela estação da cozinha', () => {
       expect((await despachar()).status).toBe(403)
     }
     expect(atribuir).not.toHaveBeenCalled()
+  })
+
+  it('despacho pela cozinha completa avisa o cliente (saiu para entrega) no servidor', async () => {
+    est.modo = 'completa'
+    const r = await despachar()
+    expect(r.status).toBe(200)
+    expect(await r.json()).toMatchObject({ feitos: ['p1'] })
+    expect(efeitos).toHaveBeenCalledWith(expect.anything(), 'p1', 'em_rota')
   })
 })

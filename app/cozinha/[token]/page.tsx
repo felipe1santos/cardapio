@@ -1181,6 +1181,7 @@ export default function CozinhaPortalPage() {
                 body: JSON.stringify({ ids, entregadorId }),
               })
               if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Falha ao despachar')
+              return ((await res.json().catch(() => ({}))).feitos ?? ids) as string[]
             },
           }}
         />

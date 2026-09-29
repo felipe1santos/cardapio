@@ -94,7 +94,8 @@ function corPino(p: Pedido, marcado: boolean): string {
 /** Fonte de dados/ações injetável — usada pelo despacho da cozinha (token), sem RLS de admin. */
 export interface RotaDataSource {
   fetch: () => Promise<{ rotas: Pedido[]; entregadores: Entregador[] }>
-  despachar: (ids: string[], entregadorId: string) => Promise<void>
+  /** Devolve os pedidos que saíram; o aviso ao cliente já foi feito no servidor. */
+  despachar: (ids: string[], entregadorId: string) => Promise<string[]>
 }
 
 interface RotaPanelProps {
@@ -388,10 +389,12 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
       if (nextaSelecionado) {
         await despacharPeloNexta(ids)
       } else {
-        let feitos = ids
-        if (dataSource) await dataSource.despachar(ids, motoboy!.id)
-        else feitos = await atribuirEntregadorEmLote(supabase!, ids, motoboy!.id)
-        for (const id of feitos) notificarPedido(id, 'em_rota')
+        let feitos: string[]
+        if (dataSource) feitos = await dataSource.despachar(ids, motoboy!.id)
+        else {
+          feitos = await atribuirEntregadorEmLote(supabase!, ids, motoboy!.id)
+          for (const id of feitos) notificarPedido(id, 'em_rota')
+        }
         if (feitos.length < ids.length) setError(MSG_PEDIDO_MUDOU)
         setMarcados(new Set())
         setMotoboyId(null)

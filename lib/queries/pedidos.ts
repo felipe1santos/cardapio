@@ -556,16 +556,20 @@ export async function atribuirEntregadorEmLote(supabase: SupabaseClient, pedidoI
  * sem RLS): garante que o entregador e os pedidos são da loja da estação, e só
  * despacha pedidos que ainda estão 'pronto'. Usada pelo despacho da cozinha completa.
  */
-export async function atribuirEntregadorEmLoteSeguro(admin: SupabaseClient, restauranteId: string, pedidoIds: string[], entregadorId: string) {
+/** Devolve os pedidos que de fato saíram (os que ainda estavam prontos e são de entrega). */
+export async function atribuirEntregadorEmLoteSeguro(admin: SupabaseClient, restauranteId: string, pedidoIds: string[], entregadorId: string): Promise<string[]> {
   const { data: drv } = await admin.from('entregadores').select('id').eq('id', entregadorId).eq('restaurante_id', restauranteId).maybeSingle()
   if (!drv) throw new Error('Entregador inválido para esta loja')
-  const { error } = await admin
+  const { data, error } = await admin
     .from('pedidos')
     .update({ entregador_id: entregadorId, status: 'em_rota' })
     .in('id', pedidoIds)
     .eq('restaurante_id', restauranteId)
     .eq('status', 'pronto')
+    .eq('tipo', 'entrega')
+    .select('id')
   if (error) throw error
+  return ((data ?? []) as { id: string }[]).map((p) => p.id)
 }
 
 export async function marcarPedidoEntregue(supabase: SupabaseClient, pedidoId: string, de?: StatusPedido) {

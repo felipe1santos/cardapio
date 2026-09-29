@@ -3,6 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarEstacaoPorToken } from '@/lib/queries/estacoes'
 import { atribuirEntregadorEmLoteSeguro } from '@/lib/queries/pedidos'
 import { buscarFluxoLoja, usaDespachoDeRotas } from '@/lib/queries/ajustes'
+import { aplicarEfeitosStatusPedidoComTrava } from '@/lib/pedido-eventos'
 
 /** Despacha (atribui entregador) pedidos prontos a partir da cozinha completa — token da estação. */
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -22,8 +23,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     if (!usaDespachoDeRotas(await buscarFluxoLoja(admin, estacao.restauranteId))) {
       return NextResponse.json({ error: 'Esta loja não trabalha com motoboy: o despacho de rotas está desligado.' }, { status: 409 })
     }
-    await atribuirEntregadorEmLoteSeguro(admin, estacao.restauranteId, ids, entregadorId)
-    return NextResponse.json({ ok: true })
+    const feitos = await atribuirEntregadorEmLoteSeguro(admin, estacao.restauranteId, ids, entregadorId)
+    // "Saiu para entrega" no servidor: a estação entra por token, sem sessão, e o aviso
+    // pelo navegador (/api/pedidos/[id]/notificar) respondia 401 calado — o cliente
+    // nunca sabia que o pedido saiu.
+    await Promise.all(feitos.map((id) => aplicarEfeitosStatusPedidoComTrava(admin, id, 'em_rota').catch(() => null)))
+    return NextResponse.json({ ok: true, feitos })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Não foi possível despachar os pedidos'
     return NextResponse.json({ error: message }, { status: 400 })
