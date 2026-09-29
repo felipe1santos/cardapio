@@ -1,0 +1,36 @@
+
+── 1. Variáveis, acentos, emoji e texto longo ──
+   ✅ um envio — 1
+   🐞 {nome} é substituído pelo nome do cliente — Olá {nome}! Promoção de sábado! 🍔🔥 Aça
+   ✅ acentos e emoji chegam intactos
+   ✅ texto longo (3 mil+) não é cortado — 3070 caracteres
+   ✅ histórico da central marca a mensagem como "disparo" — disparo
+
+── 2. Público: telefone vazio, inválido, duplicado; estimativa x envio ──
+   ✅ estimativa na tela = destinatários da fila — estimativa 2, fila 2 (+1 duplicado)
+   ✅ telefone inválido fica fora da fila (e fora da contagem)
+   ✅ cliente da loja B nunca entra na campanha da A
+   ✅ ninguém recebe duas vezes — 5511912340101,5511912340103
+   ✅ saiu só pela instância da loja A — camp-sim-a
+
+── 3. Descadastro (opt-out) ──
+   🐞 quem respondeu SAIR não recebe a próxima campanha — 1 mensagem(ns) na 2ª campanha
+   ℹ️ coluna de descadastro em clientes — 0 encontrada(s)
+
+── 4. Campanha sem destinatários ──
+   ✅ campanha sem ninguém não fica "agendada" para sempre — recusada: 400 Nenhum cliente com WhatsApp válido neste público. Ajuste o filtro.
+
+── 5. WhatsApp desconectado durante a campanha ──
+   🐞 desconectado: fila espera o WhatsApp voltar (não queima os envios) — [{"status":"erro","n":4}]
+
+── 6. Fila é global: campanha grande de uma loja segura a de outra ──
+   🐞 a campanha da B sai na primeira rodada (lote de 5 dividido entre lojas) — rodada 1: 5 envios, B esperando
+
+── 7. Excluir campanha no meio do envio ──
+   ✅ campanha que já começou a sair não é apagada (histórico e métricas) — DELETE 409; 5 já tinham saído; envios restantes no banco: 8
+
+── 8. Reinício do servidor no meio do disparo (trava vencida) ──
+   ✅ o que estava em envio na queda vira "incerto" e NÃO é reenviado; o resto sai — [{"t":"0600","status":"incerto"},{"t":"0601","status":"enviado"},{"t":"0602","status":"enviado"}]
+
+── 9. Resposta do cliente: conversa da central (número sem o 9º dígito) ──
+   🐞 disparo e resposta ficam na MESMA conversa da central — [{"telefone":"553112340701","n":1},{"telefone":"5531912340701","n":1}]
