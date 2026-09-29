@@ -1454,6 +1454,29 @@ export async function criarPedido(
     recompensaResgatada = recompensa.id
   }
 
+  // Prêmio e uso do cupom foram reservados antes do pedido existir (claim-first). Toda
+  // recusa daqui até o insert precisa devolvê-los, senão o cliente perde o prêmio e o
+  // cupom queima um uso do teto num pedido que não nasceu.
+  const devolverReservas = async () => {
+    if (recompensaResgatada) {
+      try {
+        await admin
+          .from('fidelidade_recompensas')
+          .update({ status: 'disponivel', resgatado_em: null })
+          .eq('id', recompensaResgatada)
+      } catch (reverterError) {
+        console.error(`[criarPedido] falha ao reverter claim da recompensa ${recompensaResgatada}:`, reverterError)
+      }
+    }
+    if (cupomAplicado) {
+      try {
+        await admin.rpc('cupom_devolver_uso', { p_cupom_id: cupomAplicado.id, p_restaurante_id: restauranteId })
+      } catch (reverterError) {
+        console.error(`[criarPedido] falha ao devolver o uso do cupom ${cupomAplicado.codigo}:`, reverterError)
+      }
+    }
+  }
+
   // Desconto trava no subtotal (nunca negativa o pedido); a taxa entra por cima já com
   // frete grátis por subtotal e/ou entrega_gratis de cupom/prêmio aplicados.
   const total = Math.max(0, subtotal - desconto) + taxaEntrega
@@ -1463,7 +1486,10 @@ export async function criarPedido(
   // aqui — o total só existe depois de frete, cupom e prêmio (lib/troco.ts).
   if (input.pagamento === 'dinheiro') {
     const erroTroco = erroDoTroco(total, input.trocoPara)
-    if (erroTroco) throw new Error(erroTroco)
+    if (erroTroco) {
+      await devolverReservas()
+      throw new Error(erroTroco)
+    }
   }
 
   if (opcoes.gravar) {
@@ -1520,27 +1546,7 @@ export async function criarPedido(
     .select('id, numero')
     .single()
   if (pedidoError) {
-    // O prêmio foi consumido no claim-first mas o pedido não nasceu — devolve o prêmio
-    // pro cliente antes de propagar o erro (senão ele perde a recompensa num pedido falho).
-    if (recompensaResgatada) {
-      try {
-        await admin
-          .from('fidelidade_recompensas')
-          .update({ status: 'disponivel', resgatado_em: null })
-          .eq('id', recompensaResgatada)
-      } catch (reverterError) {
-        console.error(`[criarPedido] falha ao reverter claim da recompensa ${recompensaResgatada}:`, reverterError)
-      }
-    }
-    // Mesma coisa para o uso do cupom, reservado antes do insert: sem devolver, um
-    // pedido que falhou queimaria um uso do teto para sempre.
-    if (cupomAplicado) {
-      try {
-        await admin.rpc('cupom_devolver_uso', { p_cupom_id: cupomAplicado.id, p_restaurante_id: restauranteId })
-      } catch (reverterError) {
-        console.error(`[criarPedido] falha ao devolver o uso do cupom ${cupomAplicado.codigo}:`, reverterError)
-      }
-    }
+    await devolverReservas()
     throw pedidoError
   }
 
