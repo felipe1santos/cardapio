@@ -8,11 +8,11 @@ import {
   listarPedidosDisponiveisDespacho,
   listarPedidosEmRotaDoEntregador,
 } from '@/lib/queries/pedidos'
+import { inicioDoDiaSaoPaulo } from '@/lib/servicos/conta-presencial'
 
-function inicioDoDiaISO() {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
-}
+// Meia-noite de São Paulo. Com a data local do servidor (UTC), "concluídos hoje" e o
+// caixa do dia zeravam às 21h — no pico das pizzarias.
+const inicioDoDiaISO = () => inicioDoDiaSaoPaulo()
 
 /** Portal do motoboy: dados do entregador + rota atual, por token público. */
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
