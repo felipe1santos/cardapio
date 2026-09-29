@@ -17,8 +17,14 @@ const OCIOSO_MS = 20 * 60_000
 const PRAZO_PRONTO_MS = 20_000
 const PRAZO_PEDIDO_MS = 60_000
 
+/**
+ * Erro do servidor de impressão. `antesDeEnviar` = a impressão NÃO chegou a ser entregue a
+ * ele (não subiu, não ficou pronto): quem chama pode tentar pelo caminho antigo. Depois de
+ * entregue (prazo estourado, processo caiu no meio), NUNCA repetir aqui — o papel pode ter
+ * saído; vira erro normal e o servidor decide a nova tentativa, como sempre.
+ */
 class ErroDoServidor extends Error {
-  constructor(msg) { super(msg); this.doServidor = true }
+  constructor(msg, antesDeEnviar = false) { super(msg); this.doServidor = true; this.antesDeEnviar = antesDeEnviar }
 }
 
 class ServidorImpressao {
@@ -47,7 +53,7 @@ class ServidorImpressao {
     this.proc = proc
     const rl = readline.createInterface({ input: proc.stdout })
     this.pronto = new Promise((resolve, reject) => {
-      const t = setTimeout(() => { reject(new ErroDoServidor('servidor de impressão não ficou pronto')); this.fechar() }, PRAZO_PRONTO_MS)
+      const t = setTimeout(() => { reject(new ErroDoServidor('servidor de impressão não ficou pronto', true)); this.fechar() }, PRAZO_PRONTO_MS)
       rl.on('line', (l) => {
         if (l === 'MENUZIA-PRONTO') { clearTimeout(t); resolve() ; return }
         if (!l.startsWith('MENUZIA-RESP:')) return
@@ -56,7 +62,7 @@ class ServidorImpressao {
         const p = this.espera.get(String(r.id))
         if (p) { this.espera.delete(String(r.id)); p.resolve(r) }
       })
-      proc.on('error', (e) => { clearTimeout(t); reject(new ErroDoServidor(e.message)) })
+      proc.on('error', (e) => { clearTimeout(t); reject(new ErroDoServidor(e.message, true)) })
     })
     this.pronto.catch(() => {})
     let erroTexto = ''
@@ -79,6 +85,7 @@ class ServidorImpressao {
   async _pedir(pedido) {
     clearTimeout(this.timerOcioso)
     await this.garantir()
+    if (!this.vivo) throw new ErroDoServidor('servidor de impressão fechou antes do pedido', true)
     const id = String(++this.seq)
     const resposta = new Promise((resolve, reject) => {
       const t = setTimeout(() => {

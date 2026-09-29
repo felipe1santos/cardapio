@@ -5,9 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const require = createRequire(import.meta.url)
-const { ServidorImpressao } = require('./servidor-ps.js') as {
-  ServidorImpressao: new (script: string, o?: Record<string, unknown>) => { pedir: (p: Record<string, unknown>) => Promise<{ ok: boolean; erro?: string; log: string[]; ms: number }>; fechar: () => void; vivo: boolean }
-}
+type Srv = { pedir: (p: Record<string, unknown>) => Promise<{ ok: boolean; erro?: string; log: string[]; ms: number }>; fechar: () => void; vivo: boolean }
+const { ServidorImpressao } = require('./servidor-ps.js') as { ServidorImpressao: new (script: string, o?: Record<string, unknown>) => Srv }
 const SCRIPT = join(__dirname, 'servidor-impressao.ps1')
 const windows = process.platform === 'win32'
 const saida = join(tmpdir(), `menuzia-srv-${Date.now()}.bin`)
@@ -47,4 +46,23 @@ describe.runIf(windows)('servidor de impressão residente (servidor-impressao.ps
     const rs = await Promise.all([1, 2, 3].map(() => s.pedir({ acao: 'ping' })))
     expect(rs.every((r) => r.ok)).toBe(true)
   }, 30_000)
+})
+
+describe.runIf(windows)('servidor residente: quando pode cair no caminho antigo (sem imprimir em dobro)', () => {
+  it('não subiu (programa inexistente): erro ANTES de enviar — pode usar o caminho antigo', async () => {
+    const s = new ServidorImpressao(SCRIPT, { executavel: 'programa-que-nao-existe-menuzia.exe' })
+    const e = await s.pedir({ acao: 'ping' }).catch((x) => x)
+    expect(e.doServidor).toBe(true)
+    expect(e.antesDeEnviar).toBe(true)
+    s.fechar()
+  }, 30_000)
+
+  it('prazo estourado DEPOIS de entregue: erro sem caminho antigo (o papel pode ter saído)', async () => {
+    const lento = new ServidorImpressao(SCRIPT, { prazoMs: 1 }) as Srv & { garantir: () => Promise<void> }
+    await lento.garantir()
+    const e = await lento.pedir({ acao: 'ping' }).catch((x) => x)
+    lento.fechar()
+    expect(e.doServidor).toBe(true)
+    expect(e.antesDeEnviar).toBe(false)
+  }, 60_000)
 })

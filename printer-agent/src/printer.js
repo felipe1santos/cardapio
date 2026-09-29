@@ -22,8 +22,9 @@ const { PoolServidores } = require('./servidor-ps')
 const { LINHAS_POR_FAIXA } = require('./escpos')
 
 // Servidor de impressão residente (0.2.0-beta.7): um PowerShell por impressora, já com
-// tudo carregado. Se ele falhar (não sobe, trava), cai no caminho antigo: um PowerShell
-// por impressão. Erro da IMPRESSORA (não achou, recusou) não repete — sai como erro.
+// tudo carregado. Se ele não subir, cai no caminho antigo: um PowerShell por impressão.
+// Se travar DEPOIS de receber a impressão, ou se a impressora recusar, sai como erro
+// (sem repetir aqui: o papel pode ter saído).
 let pool = null
 function poolServidores(logNome) {
   if (!pool) pool = new PoolServidores(SERVIDOR_SCRIPT, { logNome })
@@ -40,7 +41,9 @@ async function pelaImpressora(nomeImpressora, pedido, logNome, argsReserva) {
     }
     return log
   } catch (e) {
-    if (!e.doServidor) throw e
+    // Caminho antigo SÓ se a impressão não chegou ao servidor residente. Depois de entregue
+    // (prazo, queda), repetir aqui poderia imprimir em dobro — sai como erro normal.
+    if (!e.doServidor || !e.antesDeEnviar) throw e
     return runPowershell(argsReserva, { timeout: 60_000, windowsHide: true })
   }
 }
