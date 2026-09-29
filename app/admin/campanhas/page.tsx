@@ -8,7 +8,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTipo, type TipoMensagem } from '@/lib/queries/campanhas'
 import { formatarReal } from '@/lib/moeda'
-import { montarTextoCampanha, MARCADOR_LINK } from '@/lib/mensageria/campanhas'
+import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora } from '@/lib/mensageria/campanhas'
 import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -361,7 +361,7 @@ export default function CampanhasPage() {
     setForm({
       nome: c.nome, tipoMensagem: c.tipoMensagem, mensagem: c.mensagem,
       imagemUrl: c.imagemUrl, audioUrl: c.audioUrl, filtro: c.filtro,
-      agendadoEm: c.agendadoEm ? new Date(c.agendadoEm).toISOString().slice(0, 16) : '',
+      agendadoEm: paraCampoDataHora(c.agendadoEm),
       incluirLink: c.incluirLink,
     })
     setErro(null); setEstimativa(null); setDrawerOpen(true)

@@ -72,3 +72,16 @@ export function acessoDeRobo(userAgent: string | null): boolean {
   if (!ua.trim()) return true
   return /(bot|crawl|spider|preview|facebookexternalhit|whatsapp\/|telegram|slack|discord|skype|curl|wget|python|node-fetch|axios|headless|lighthouse)/i.test(ua)
 }
+
+/**
+ * Horário agendado (ISO, UTC) → valor do `<input type="datetime-local">`, que é hora
+ * LOCAL. `toISOString().slice(0, 16)` mostrava o horário em UTC (3h adiantado em São
+ * Paulo) e o salvar relia como local: cada edição empurrava a campanha 3h para frente.
+ */
+export function paraCampoDataHora(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acessoDeRobo, deduplicarDestinatarios, linkRastreavel, montarTextoCampanha, statusDoProvedor, telefoneChave } from './campanhas'
+import { acessoDeRobo, deduplicarDestinatarios, linkRastreavel, montarTextoCampanha, paraCampoDataHora, statusDoProvedor, telefoneChave } from './campanhas'
 import { interpretarWebhookEvolution } from './provedor'
 
 const TOKEN = 'a1b2c3d4e5f6a1b2c3d4e5f6'
@@ -89,5 +89,27 @@ describe('clique de robô', () => {
     expect(acessoDeRobo(null)).toBe(true)
     expect(acessoDeRobo('Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36')).toBe(false)
     expect(acessoDeRobo('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1')).toBe(false)
+  })
+})
+
+describe('horário agendado no formulário', () => {
+  it('reabrir e salvar sem mexer não muda o horário (campo datetime-local é hora local)', () => {
+    const tzAntes = process.env.TZ
+    process.env.TZ = 'America/Sao_Paulo'
+    try {
+      const agendado = '2026-09-30T23:00:00.000Z' // 20:00 em São Paulo
+      const campo = paraCampoDataHora(agendado)
+      expect(campo).toBe('2026-09-30T20:00')
+      // salvar() faz new Date(campo).toISOString(): tem de voltar ao mesmo instante.
+      expect(new Date(campo).toISOString()).toBe(agendado)
+    } finally {
+      if (tzAntes === undefined) delete process.env.TZ
+      else process.env.TZ = tzAntes
+    }
+  })
+
+  it('vazio ou inválido vira campo vazio', () => {
+    expect(paraCampoDataHora(null)).toBe('')
+    expect(paraCampoDataHora('lixo')).toBe('')
   })
 })
