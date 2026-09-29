@@ -8,6 +8,7 @@ import {
   popularFilaCampanha,
   type CampanhaInput,
 } from '@/lib/queries/campanhas'
+import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -44,16 +45,17 @@ export async function POST(request: Request) {
     if (!body.nome?.trim()) return NextResponse.json({ error: 'Informe o nome da campanha.' }, { status: 400 })
     if (!body.mensagem?.trim() && body.tipoMensagem !== 'audio') return NextResponse.json({ error: 'Informe a mensagem.' }, { status: 400 })
 
-    const campanha = await criarCampanha(supabase, restauranteId, body)
-
-    // Se já tem agendamento, popula a fila de envios imediatamente.
-    if (body.agendadoEm || body.disparar) {
-      const admin = getAdminSupabase()
-      const destinatarios = await resolverDestinatarios(admin, restauranteId, body.filtro)
-      if (destinatarios.length) {
-        await popularFilaCampanha(admin, campanha.id, restauranteId, destinatarios)
-      }
+    // Se já tem agendamento, o público é resolvido ANTES de criar: campanha agendada sem
+    // ninguém na fila nunca concluía (ficava "agendada" para sempre).
+    const admin = getAdminSupabase()
+    const agendar = !!(body.agendadoEm || body.disparar)
+    const destinatarios = agendar ? await resolverDestinatarios(admin, restauranteId, body.filtro) : []
+    if (agendar && deduplicarDestinatarios(destinatarios).unicos.length === 0) {
+      return NextResponse.json({ error: 'Nenhum cliente com WhatsApp válido neste público. Ajuste o filtro.' }, { status: 400 })
     }
+
+    const campanha = await criarCampanha(supabase, restauranteId, body)
+    if (agendar) await popularFilaCampanha(admin, campanha.id, restauranteId, destinatarios)
 
     return NextResponse.json(campanha, { status: 201 })
   } catch (err) {

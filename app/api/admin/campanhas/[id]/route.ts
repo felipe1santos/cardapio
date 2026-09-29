@@ -10,6 +10,7 @@ import {
   cancelarFila,
   type CampanhaInput,
 } from '@/lib/queries/campanhas'
+import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -52,15 +53,24 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
     const patch: Partial<CampanhaInput> & { disparar?: boolean; status?: string } = { ...body }
     delete patch.status
+
+    // Público resolvido antes de gravar: sem ninguém, a campanha ficaria agendada sem fila.
+    const agendar = !!(body.disparar || body.agendadoEm)
+    let destinatarios: { telefone: string; nome: string }[] = []
+    if (agendar) {
+      const { data: atualFiltro } = await supabase.from('campanhas').select('filtro').eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
+      destinatarios = await resolverDestinatarios(admin, restauranteId, body.filtro ?? atualFiltro?.filtro ?? { tipo: 'todos' })
+      if (deduplicarDestinatarios(destinatarios).unicos.length === 0) {
+        return NextResponse.json({ error: 'Nenhum cliente com WhatsApp válido neste público. Ajuste o filtro.' }, { status: 400 })
+      }
+    }
+
     const campanha = await atualizarCampanha(supabase, restauranteId, id, patch as Partial<CampanhaInput>)
 
-    if (body.disparar || (body.agendadoEm && campanha.status === 'agendada')) {
+    if (agendar && campanha.status === 'agendada') {
       // Remove envios pendentes anteriores antes de repopular.
       await admin.from('campanha_envios').delete().eq('campanha_id', id).eq('status', 'pendente')
-      const destinatarios = await resolverDestinatarios(admin, restauranteId, campanha.filtro)
-      if (destinatarios.length) {
-        await popularFilaCampanha(admin, id, restauranteId, destinatarios)
-      }
+      await popularFilaCampanha(admin, id, restauranteId, destinatarios)
     }
 
     return NextResponse.json(campanha)
@@ -77,6 +87,12 @@ export async function DELETE(_: Request, { params }: Ctx) {
     const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
     if (!restauranteId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
+    // Excluir apaga a fila junto (cascade): no meio do envio, o que já saiu sumia das
+    // métricas e do controle. Enquanto envia, só cancelar.
+    const { data: atual } = await supabase.from('campanhas').select('status').eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
+    if (atual?.status === 'enviando') {
+      return NextResponse.json({ error: 'Esta campanha está sendo enviada. Cancele antes de excluir.' }, { status: 409 })
+    }
     await excluirCampanha(supabase, restauranteId, id)
     return NextResponse.json({ ok: true })
   } catch (err) {

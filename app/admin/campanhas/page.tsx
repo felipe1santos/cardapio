@@ -432,7 +432,8 @@ export default function CampanhasPage() {
 
   async function excluirCampanha(id: string) {
     if (!confirm('Excluir esta campanha permanentemente?')) return
-    await fetch(`/api/admin/campanhas/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/admin/campanhas/${id}`, { method: 'DELETE' })
+    if (!res.ok) alert((await res.json().catch(() => null))?.error ?? 'Não foi possível excluir.')
     carregar()
   }
 
