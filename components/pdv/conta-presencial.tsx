@@ -755,7 +755,7 @@ function Moldura({ titulo, children, onVoltar, largura = 'max-w-lg' }: { titulo:
   )
 }
 
-function ReceberModal({
+export function ReceberModal({
   conta,
   formas,
   podeFechar,
@@ -794,7 +794,9 @@ function ReceberModal({
       fecharDepois,
     )
     setEnviando(false)
-    if (!ok) chave.current = novaChave()
+    // Chave nova só depois de registrar. Na falha, a MESMA chave: se a resposta se perdeu
+    // com o pagamento já gravado, o reenvio é reconhecido e não paga em dobro.
+    if (ok) chave.current = novaChave()
   }
 
   return (
