@@ -296,7 +296,7 @@ async function cicloDePolling() {
           const beta = data.cozinhaBeta || {}
           const doc = montarCozinhaBeta(pedido, { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: beta.qr })
           const tLogo = Date.now()
-          const logo = perfilCozinha.imprimirLogo ? await logoParaDesenho() : null
+          const logo = perfilCozinha.imprimirLogo ? await logoParaDesenho(data.loja ? (data.loja.logoUrl ?? null) : undefined) : null
           perfilCozinha.tempos.logoMs = Date.now() - tLogo
           perfilCozinha.tempos._t0 = Date.now()
           saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoDocumento(doc) }, paperMm, { ...perfilCozinha, copias, logo })
@@ -427,13 +427,19 @@ async function obterLogo() {
 
 // A logo vai ao desenho (ticket.html) como data URL — arquivo local "sujaria" o canvas.
 const MIME_LOGO = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp' }
-// Logo em memória (0.2.0-beta.7): confere com o servidor no máximo a cada 5 min — antes era
-// uma ida ao servidor e uma leitura do arquivo a CADA impressão.
+// Logo em memória (0.2.0-beta.7): antes era uma ida ao servidor e uma leitura do arquivo a
+// CADA impressão. Agora: o servidor manda a "versão" da logo (muda quando a loja troca a
+// logo) — mudou, busca na hora; igual, usa a guardada (reconfere a cada 5 min; "sem logo"
+// a cada 30 s, porque a versão de impressão pode ficar pronta um pouco depois).
 let logoDataUrl = null
 let logoDataUrlDe = null
 let logoConferidaEm = 0
-async function logoParaDesenho() {
-  if (logoDataUrl !== null && Date.now() - logoConferidaEm < 5 * 60_000) return logoDataUrl || null
+let logoVersaoAtual
+async function logoParaDesenho(versao) {
+  const validade = logoDataUrl ? 5 * 60_000 : 30_000
+  const mesmaVersao = versao === undefined || versao === logoVersaoAtual
+  if (logoDataUrl !== null && mesmaVersao && Date.now() - logoConferidaEm < validade) return logoDataUrl || null
+  if (versao !== undefined) logoVersaoAtual = versao
   const caminho = await obterLogo()
   logoConferidaEm = Date.now()
   if (!caminho) { logoDataUrl = ''; logoDataUrlDe = null; return null }
@@ -485,14 +491,14 @@ const filas = new FilasPorDispositivo(
     } else if (cozinhaTeste) {
       const doc = montarCozinhaBeta(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
       const tLogo = Date.now()
-      const logo = perfil.imprimirLogo ? await logoParaDesenho() : null
+      const logo = perfil.imprimirLogo ? await logoParaDesenho(t.logoVersao) : null
       if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
       saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
     } else if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
       // QR do rodapé: o do snapshot ou o que o servidor manda com o trabalho (Instagram/cardápio).
       const doc = montarPreContaBeta({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null, loja_dados: t.loja || null })
       const tLogo = Date.now()
-      const logo = perfil.imprimirLogo ? await logoParaDesenho() : null
+      const logo = perfil.imprimirLogo ? await logoParaDesenho(t.logoVersao) : null
       if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
       saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
     } else {

@@ -29,7 +29,7 @@ describe('Comanda da cozinha do Beta — padrão docs/referencias/impressao/coma
     expect(tipos(d)).toEqual([
       'logo', 'titulo', 'pedido', 'horas', 'faixa', 'itens_cab', 'item', 'item', 'item',
       'faixa', 'par', 'par', 'par', 'par', 'tracejado', 'total',
-      'faixa', 'dado', 'dado', 'dado', 'dado', 'separador', 'rodape_loja',
+      'faixa', 'dado', 'dado', 'dado', 'dado', 'dado', 'dado', 'separador', 'rodape_loja',
     ])
     expect(d.blocos[0]).toMatchObject({ t: 'logo', nome: 'PIZZA DO ROSA' })
     expect(d.blocos[1]!.s).toBe('COMANDA COZINHA')
@@ -84,7 +84,8 @@ describe('Comanda da cozinha do Beta — padrão docs/referencias/impressao/coma
 
   it('dados da entrega pensados para o motoboy: cliente, telefone, endereço com complemento, bairro, cidade, referência e troco', () => {
     expect(blocos(doc(), 'dado').map((b) => [b.rotulo, b.valor])).toEqual([
-      ['Cliente:', 'TESTE CLAUDE'], ['Telefone:', '(27) 9992-0804'], ['Endereço:', 'Avenida Henrique Moscoso, 1'], ['Bairro:', 'JABURUNA'],
+      ['Cliente:', 'TESTE CLAUDE'], ['Telefone:', '(27) 9992-0804'], ['Endereço:', 'Avenida Henrique Moscoso, 1, Apto 1203, bloco B'], ['Bairro:', 'JABURUNA'],
+      ['Cidade:', 'Vila Velha/ES'], ['Ref.:', 'Em frente à padaria, portão verde'],
     ])
     const longo = doc({
       ...PEDIDO, formaPagamento: 'dinheiro', trocoPara: 100, enderecoComplemento: 'Apto 1203 bloco B', enderecoCidade: 'Vila Velha/ES',

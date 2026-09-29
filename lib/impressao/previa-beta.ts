@@ -36,14 +36,8 @@ export function pedidoDemonstracao(agora = new Date(), tipo: TipoDemonstracao = 
   if (tipo === 'retirada') {
     return { pedido: { ...base, tipo: 'retirada', canal: 'delivery', taxaEntrega: 0, total: 42.4, clienteNome: 'Maria Souza', clienteTelefone: '27999887766' }, extras: s.extras }
   }
-  return {
-    pedido: {
-      ...base, formaPagamento: 'dinheiro', trocoPara: 100, clienteNome: 'Maria Souza', clienteTelefone: '27999887766',
-      enderecoRua: 'Avenida Estudante José Júlio de Souza', enderecoNumero: '4125', enderecoComplemento: 'Apto 1203, bloco B, interfone 1203',
-      enderecoBairro: 'Praia de Itaparica', enderecoCidade: 'Vila Velha/ES', enderecoReferencia: 'Em frente à padaria Pão Quente, portão verde',
-    },
-    extras: s.extras,
-  }
+  // Entrega = exatamente o pedido do "Testar Cozinha" (o que sai no papel no teste).
+  return { pedido: base, extras: s.extras }
 }
 
 export function contaDemonstracao(loja: string, agora = new Date()) {

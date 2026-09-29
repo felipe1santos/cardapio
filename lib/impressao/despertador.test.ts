@@ -43,6 +43,15 @@ describe('espera longa do Assistente (despertador)', () => {
     expect(chamadas).toBe(3)
   })
 
+  it('a situação mudou durante a espera (loja saiu de Cozinha e Caixa): para e não busca mais', async () => {
+    let buscas = 0
+    let vale = true
+    setTimeout(() => { vale = false; _avisarParaTeste('loja-6') }, 80)
+    const r = await esperarComBusca('loja-6', 20, undefined, async () => { buscas++; return buscas > 1 ? ['ficha'] : [] }, async () => vale)
+    expect(r).toEqual([])
+    expect(buscas).toBe(1)
+  })
+
   it('o Assistente desistiu (conexão caiu): para de esperar', async () => {
     const ctl = new AbortController()
     setTimeout(() => ctl.abort(), 100)

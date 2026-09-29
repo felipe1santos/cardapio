@@ -1,0 +1,638 @@
+{
+  "em": "2026-09-29T02:40:11.270Z",
+  "N": 10,
+  "resultado": {
+    "comanda/quente": [
+      {
+        "apiMs": 125,
+        "esperaMs": null,
+        "logoMs": 11,
+        "desenhoMs": 340,
+        "envioMs": 0,
+        "totalMs": 858,
+        "telaMs": 858
+      },
+      {
+        "apiMs": 112,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 16,
+        "envioMs": 0,
+        "totalMs": 479,
+        "telaMs": 479
+      },
+      {
+        "apiMs": 111,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 13,
+        "envioMs": 0,
+        "totalMs": 279,
+        "telaMs": 279
+      },
+      {
+        "apiMs": 111,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 21,
+        "envioMs": 0,
+        "totalMs": 941,
+        "telaMs": 941
+      },
+      {
+        "apiMs": 120,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 14,
+        "envioMs": 0,
+        "totalMs": 288,
+        "telaMs": 288
+      },
+      {
+        "apiMs": 121,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 14,
+        "envioMs": 0,
+        "totalMs": 160,
+        "telaMs": 160
+      },
+      {
+        "apiMs": 125,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 14,
+        "envioMs": 0,
+        "totalMs": 391,
+        "telaMs": 391
+      },
+      {
+        "apiMs": 123,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 14,
+        "envioMs": 0,
+        "totalMs": 885,
+        "telaMs": 885
+      },
+      {
+        "apiMs": 124,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 16,
+        "envioMs": 0,
+        "totalMs": 191,
+        "telaMs": 191
+      },
+      {
+        "apiMs": 112,
+        "esperaMs": null,
+        "logoMs": 0,
+        "desenhoMs": 14,
+        "envioMs": 0,
+        "totalMs": 612,
+        "telaMs": 612
+      }
+    ],
+    "comanda/frio": [
+      {
+        "apiMs": 148,
+        "esperaMs": null,
+        "logoMs": 12,
+        "desenhoMs": 341,
+        "envioMs": 0,
+        "totalMs": 1038,
+        "telaMs": 1038
+      },
+      {
+        "apiMs": 140,
+        "esperaMs": null,
+        "logoMs": 17,
+        "desenhoMs": 322,
+        "envioMs": 0,
+        "totalMs": 929,
+        "telaMs": 929
+      },
+      {
+        "apiMs": 126,
+        "esperaMs": null,
+        "logoMs": 15,
+        "desenhoMs": 318,
+        "envioMs": 0,
+        "totalMs": 961,
+        "telaMs": 961
+      },
+      {
+        "apiMs": 120,
+        "esperaMs": null,
+        "logoMs": 13,
+        "desenhoMs": 331,
+        "envioMs": 0,
+        "totalMs": 927,
+        "telaMs": 927
+      },
+      {
+        "apiMs": 121,
+        "esperaMs": null,
+        "logoMs": 14,
+        "desenhoMs": 326,
+        "envioMs": 0,
+        "totalMs": 948,
+        "telaMs": 948
+      },
+      {
+        "apiMs": 117,
+        "esperaMs": null,
+        "logoMs": 13,
+        "desenhoMs": 337,
+        "envioMs": 0,
+        "totalMs": 963,
+        "telaMs": 963
+      },
+      {
+        "apiMs": 122,
+        "esperaMs": null,
+        "logoMs": 13,
+        "desenhoMs": 385,
+        "envioMs": 0,
+        "totalMs": 1029,
+        "telaMs": 1029
+      },
+      {
+        "apiMs": 121,
+        "esperaMs": null,
+        "logoMs": 15,
+        "desenhoMs": 339,
+        "envioMs": 0,
+        "totalMs": 897,
+        "telaMs": 897
+      },
+      {
+        "apiMs": 124,
+        "esperaMs": null,
+        "logoMs": 13,
+        "desenhoMs": 323,
+        "envioMs": 0,
+        "totalMs": 937,
+        "telaMs": 937
+      },
+      {
+        "apiMs": 113,
+        "esperaMs": null,
+        "logoMs": 13,
+        "desenhoMs": 345,
+        "envioMs": 0,
+        "totalMs": 953,
+        "telaMs": 953
+      }
+    ],
+    "pre_conta/quente": [
+      {
+        "apiMs": 111,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 41,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 388,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 106,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 23,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 234,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 106,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 576,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 106,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 31,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 670,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 97,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 19,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 254,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 111,
+        "esperaMs": 0,
+        "logoMs": 0,
+        "desenhoMs": 20,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 269,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 100,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 512,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 109,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 20,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 360,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 96,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 21,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 403,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 99,
+        "esperaMs": 0,
+        "logoMs": 0,
+        "desenhoMs": 21,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 388,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      }
+    ],
+    "pre_conta/frio": [
+      {
+        "apiMs": 105,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1044,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 110,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 831,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 110,
+        "esperaMs": 0,
+        "logoMs": 11,
+        "desenhoMs": 415,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 850,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 107,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 731,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 142,
+        "esperaMs": 0,
+        "logoMs": 18,
+        "desenhoMs": 345,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 902,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 115,
+        "esperaMs": 0,
+        "logoMs": 10,
+        "desenhoMs": 377,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 835,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 114,
+        "esperaMs": 0,
+        "logoMs": 10,
+        "desenhoMs": 336,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 752,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 115,
+        "esperaMs": 0,
+        "logoMs": 16,
+        "desenhoMs": 384,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 935,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 116,
+        "esperaMs": 0,
+        "logoMs": 12,
+        "desenhoMs": 328,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 1202,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 107,
+        "esperaMs": 0,
+        "logoMs": 12,
+        "desenhoMs": 378,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 797,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      }
+    ],
+    "teste/quente": [
+      {
+        "apiMs": 102,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 31,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 671,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 106,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 21,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 228,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 106,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 18,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 201,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 113,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 16,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 435,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 108,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 17,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 647,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 105,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 17,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 419,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 102,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 16,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 295,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 101,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 17,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 489,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 102,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 17,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 355,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 97,
+        "esperaMs": 0,
+        "logoMs": 1,
+        "desenhoMs": 17,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 217,
+        "telaMs": 700,
+        "estado": "enviado_spooler"
+      }
+    ],
+    "teste/frio": [
+      {
+        "apiMs": 102,
+        "esperaMs": 0,
+        "logoMs": 12,
+        "desenhoMs": 352,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 1014,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 102,
+        "esperaMs": 0,
+        "logoMs": 11,
+        "desenhoMs": 337,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 784,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 104,
+        "esperaMs": 0,
+        "logoMs": 10,
+        "desenhoMs": 340,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 826,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 109,
+        "esperaMs": 0,
+        "logoMs": 10,
+        "desenhoMs": 351,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 827,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 108,
+        "esperaMs": 0,
+        "logoMs": 10,
+        "desenhoMs": 344,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 777,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 107,
+        "esperaMs": 0,
+        "logoMs": 11,
+        "desenhoMs": 347,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 830,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 109,
+        "esperaMs": 0,
+        "logoMs": 11,
+        "desenhoMs": 378,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 855,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 106,
+        "esperaMs": 0,
+        "logoMs": 12,
+        "desenhoMs": 345,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 800,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 103,
+        "esperaMs": 0,
+        "logoMs": 11,
+        "desenhoMs": 356,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 892,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 113,
+        "esperaMs": 0,
+        "logoMs": 10,
+        "desenhoMs": 347,
+        "envioMs": 0,
+        "confirmacaoMs": null,
+        "totalMs": 792,
+        "telaMs": 1400,
+        "estado": "enviado_spooler"
+      }
+    ]
+  }
+}

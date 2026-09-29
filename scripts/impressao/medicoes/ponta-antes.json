@@ -1,0 +1,638 @@
+{
+  "em": "2026-09-29T02:38:21.607Z",
+  "N": 10,
+  "resultado": {
+    "comanda/quente": [
+      {
+        "apiMs": 137,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 4665,
+        "telaMs": 4665
+      },
+      {
+        "apiMs": 153,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 2274,
+        "telaMs": 2274
+      },
+      {
+        "apiMs": 141,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 2661,
+        "telaMs": 2661
+      },
+      {
+        "apiMs": 141,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 3528,
+        "telaMs": 3528
+      },
+      {
+        "apiMs": 117,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 3307,
+        "telaMs": 3307
+      },
+      {
+        "apiMs": 120,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 4219,
+        "telaMs": 4219
+      },
+      {
+        "apiMs": 140,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 3397,
+        "telaMs": 3397
+      },
+      {
+        "apiMs": 120,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 4027,
+        "telaMs": 4027
+      },
+      {
+        "apiMs": 122,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 4177,
+        "telaMs": 4177
+      },
+      {
+        "apiMs": 134,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 4556,
+        "telaMs": 4556
+      }
+    ],
+    "comanda/frio": [
+      {
+        "apiMs": 168,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5678,
+        "telaMs": 5678
+      },
+      {
+        "apiMs": 180,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5662,
+        "telaMs": 5662
+      },
+      {
+        "apiMs": 184,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5620,
+        "telaMs": 5620
+      },
+      {
+        "apiMs": 148,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5597,
+        "telaMs": 5597
+      },
+      {
+        "apiMs": 151,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5644,
+        "telaMs": 5644
+      },
+      {
+        "apiMs": 156,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5639,
+        "telaMs": 5639
+      },
+      {
+        "apiMs": 160,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5618,
+        "telaMs": 5618
+      },
+      {
+        "apiMs": 178,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5706,
+        "telaMs": 5706
+      },
+      {
+        "apiMs": 189,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5636,
+        "telaMs": 5636
+      },
+      {
+        "apiMs": 183,
+        "esperaMs": null,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "totalMs": 5673,
+        "telaMs": 5673
+      }
+    ],
+    "pre_conta/quente": [
+      {
+        "apiMs": 169,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 2982,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 147,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1844,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 141,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 789,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 137,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1894,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 130,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 2412,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 125,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1064,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 129,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 927,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 143,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 2675,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 129,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 395,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 118,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1462,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      }
+    ],
+    "pre_conta/frio": [
+      {
+        "apiMs": 141,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3703,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 166,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3678,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 129,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3777,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 149,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3669,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 118,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3640,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 166,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3685,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 131,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3643,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 129,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3628,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 119,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3628,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 121,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3623,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      }
+    ],
+    "teste/quente": [
+      {
+        "apiMs": 110,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1043,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 112,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 2312,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 103,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1064,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 101,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 653,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 117,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1125,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 99,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1927,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 101,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 651,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 108,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 1215,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 100,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 595,
+        "telaMs": 2000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 119,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 2146,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      }
+    ],
+    "teste/frio": [
+      {
+        "apiMs": 121,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3680,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 122,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3678,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 120,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3702,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 123,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3649,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 130,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3621,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 118,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3619,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 114,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3634,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 147,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3691,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 116,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3606,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      },
+      {
+        "apiMs": 152,
+        "esperaMs": 0,
+        "logoMs": null,
+        "desenhoMs": null,
+        "envioMs": null,
+        "confirmacaoMs": null,
+        "totalMs": 3596,
+        "telaMs": 4000,
+        "estado": "enviado_spooler"
+      }
+    ]
+  }
+}

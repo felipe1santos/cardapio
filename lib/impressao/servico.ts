@@ -528,6 +528,8 @@ export interface TrabalhoAgente extends PerfilEnvio {
   /** Nome, telefone e endereço da loja (rodapé) e a opção "Imprimir logo da loja" (0.2.0-beta.6+). */
   loja: LojaImpressao | null
   imprimirLogo: boolean
+  /** Muda quando a logo da loja muda (0.2.0-beta.7): o Assistente só baixa de novo aí. */
+  logoVersao: string | null
   dispositivoId: string
   segundosRestantes: number
   tentativas: number
@@ -539,7 +541,7 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
   const ids = [...new Set((r.valor ?? []).map((t) => t.dispositivo_id as string))]
   type Perfil = Record<string, unknown> & { id: string; largura_pontos: number | null; deslocamento_pontos: number; tamanho_fonte: string; restaurantes: (Record<string, unknown> & { slug: string; instagram_url: string | null; impressao_logo: boolean | null }) | null }
   const { data: perfis } = ids.length
-    ? await admin.from('impressao_dispositivos').select(`id, largura_pontos, deslocamento_pontos, tamanho_fonte, ${COLUNAS_ENVIO}, restaurantes ( slug, instagram_url, impressao_logo, ${COLUNAS_LOJA_IMPRESSAO} )`).in('id', ids)
+    ? await admin.from('impressao_dispositivos').select(`id, largura_pontos, deslocamento_pontos, tamanho_fonte, ${COLUNAS_ENVIO}, restaurantes ( slug, instagram_url, impressao_logo, logo_url, ${COLUNAS_LOJA_IMPRESSAO} )`).in('id', ids)
     : { data: [] as Perfil[] }
   const perfil = new Map(((perfis ?? []) as unknown as Perfil[]).map((p) => [p.id, p]))
   const qrDe = (id: string) => {
@@ -563,6 +565,7 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
       qr: qrDe(t.dispositivo_id as string),
       loja: perfil.get(t.dispositivo_id as string)?.restaurantes ? dadosLojaImpressao(perfil.get(t.dispositivo_id as string)!.restaurantes) : null,
       imprimirLogo: perfil.get(t.dispositivo_id as string)?.restaurantes?.impressao_logo !== false,
+      logoVersao: (perfil.get(t.dispositivo_id as string)?.restaurantes?.logo_url as string | null | undefined) ?? null,
       ...perfilEnvio(perfil.get(t.dispositivo_id as string)),
       dispositivoId: t.dispositivo_id as string,
       segundosRestantes: t.segundos_restantes as number,

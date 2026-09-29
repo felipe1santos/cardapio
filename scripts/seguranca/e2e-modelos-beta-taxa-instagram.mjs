@@ -340,6 +340,8 @@ try {
   await pd.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 3000 }).catch(() => {})
   const canvasPrevia = pd.getByTestId('previa-canvas')
   await canvasPrevia.scrollIntoViewIfNeeded()
+  // Prévia de Entrega = o pedido do "Testar Cozinha" (a de Mesa usa os dados da referência).
+  await pd.getByTestId('previa-tipo-entrega').click()
   const medirPrevia = () => pd.waitForFunction(() => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height > 100 ? { w: c.width, h: c.height } : null }, null, { timeout: 20000 }).then((h) => h.jsonValue())
   const pv1 = await medirPrevia()
   ok('comanda desenhada na tela na largura da impressora da Cozinha (576 pontos)', pv1.w === 576 && pv1.h > 900, JSON.stringify(pv1))

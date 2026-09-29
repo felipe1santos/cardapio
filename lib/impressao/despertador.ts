@@ -102,18 +102,29 @@ export async function esperarComBusca<T>(
   segundos: number,
   sinal: AbortSignal | undefined,
   buscar: () => Promise<T[]>,
+  /**
+   * Conferido antes de cada nova busca durante a espera: a situação que valia no começo
+   * (ex.: loja em "Cozinha e Caixa" com este computador na Cozinha) ainda vale? Se não,
+   * para e devolve vazio — nada é reservado para quem deixou de ser o destino.
+   */
+  aindaVale: () => Promise<boolean> = async () => true,
 ): Promise<T[]> {
   const fim = Date.now() + Math.max(0, Math.min(segundos, 20)) * 1000
+  const buscarSeVale = async () => ((await aindaVale()) ? buscar() : null)
   let lista = await buscar()
   while (lista.length === 0 && Date.now() < fim && !sinal?.aborted) {
     const r = await esperarNovidade(restauranteId, fim - Date.now(), sinal)
     if (sinal?.aborted) break
-    lista = await buscar()
+    const nova = await buscarSeVale()
+    if (nova === null) return []
+    lista = nova
     if (r === 'aviso') {
       for (const pausa of [400, 800]) {
         if (lista.length || sinal?.aborted) break
         await new Promise((ok) => setTimeout(ok, pausa))
-        lista = await buscar()
+        const outra = await buscarSeVale()
+        if (outra === null) return []
+        lista = outra
       }
     }
   }

@@ -58,9 +58,16 @@ export async function GET(request: Request) {
     // `?esperar=N` (Beta 0.2.0-beta.7+, até 20 s): sem pedido para imprimir, espera o aviso
     // em tempo real de um pedido novo em vez de o Assistente perguntar a cada 5 s.
     const esperar = souDono ? Math.max(0, Math.min(20, Number(new URL(request.url).searchParams.get('esperar')) || 0)) : 0
+    // Durante a espera, a loja pode sair de "Cozinha e Caixa" ou trocar a impressora da
+    // Cozinha: antes de cada nova busca, confere de novo — senão o Beta reservaria fichas
+    // que agora são do Assistente antigo.
+    const aindaDono = async () => {
+      const [r2, c2] = await Promise.all([destinoCozinha(admin, restauranteId), buscarConfigImpressao(admin, restauranteId)])
+      return r2.ativo && r2.agenteId === rota.agenteId && r2.transferidaEm === rota.transferidaEm && !!c2?.impressaoAutomatica
+    }
     const pedidos = souDono && config?.impressaoAutomatica
       ? await esperarComBusca(restauranteId, esperar, request.signal, async () =>
-          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm))
+          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono)
       : []
     // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
     // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.

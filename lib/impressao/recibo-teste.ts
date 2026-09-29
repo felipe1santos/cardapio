@@ -104,9 +104,12 @@ export function snapshotCozinhaTeste(
     clienteTelefone: '552799920804',
     enderecoRua: 'Avenida Henrique Moscoso',
     enderecoNumero: '1',
-    enderecoComplemento: '',
+    enderecoComplemento: 'Apto 1203, bloco B',
     enderecoBairro: 'JABURUNA',
     enderecoCep: '',
+    // Comanda padrão (0.2.0-beta.7): cidade e referência aparecem nos DADOS DA ENTREGA.
+    enderecoCidade: 'Vila Velha/ES',
+    enderecoReferencia: 'Em frente à padaria, portão verde',
     observacao: '',
     pago: false,
     mesa: null,
