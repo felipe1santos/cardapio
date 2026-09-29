@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { lerTodas, resolverDestinatarios } from './campanhas'
+import { resolverDestinatarios } from './campanhas'
+import { lerTodas } from './ler-todas'
 
 /** Imita o PostgREST: nunca devolve mais de 1000 linhas por resposta. */
 function bancoFalso(tabelas: Record<string, Record<string, unknown>[]>) {

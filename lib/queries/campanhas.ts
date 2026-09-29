@@ -3,6 +3,7 @@ import { normalizarTelefone } from './clientes'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
 import { diaSemanaSaoPaulo } from '@/lib/timezone'
+import { lerTodas } from './ler-todas'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,24 +163,6 @@ export async function uploadMidiaCampanha(supabase: SupabaseClient, restauranteI
 
 const MS_DIA = 86_400_000
 const MS_SEMANA = 7 * MS_DIA
-/** Teto de linhas por resposta do PostgREST (max_rows do Supabase). */
-const PAGINA = 1000
-
-/**
- * Lê TODAS as linhas, de 1000 em 1000. Sem isso o PostgREST corta em 1000 calado: a loja
- * com mais de 1000 clientes perdia o resto do público, e com mais de 1000 pedidos os
- * filtros enxergavam só os 1000 MAIS ANTIGOS (cliente ativo virava "inativo").
- */
-export async function lerTodas<T>(pagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
-  const todas: T[] = []
-  for (let de = 0; ; de += PAGINA) {
-    const { data, error } = await pagina(de, de + PAGINA - 1)
-    if (error) throw error
-    const lote = data ?? []
-    todas.push(...lote)
-    if (lote.length < PAGINA) return todas
-  }
-}
 
 export async function resolverDestinatarios(
   admin: SupabaseClient,

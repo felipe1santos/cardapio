@@ -12,6 +12,7 @@ import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 import { resolverPizza, type SaborCatalogo, type TamanhoCatalogo } from './pedidos-pizza'
 import type { RegraPrecoPizza } from '@/lib/pizza-preco'
 import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
+import { lerTodas } from './ler-todas'
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -826,12 +827,16 @@ export interface DadosDashboard {
 }
 
 export async function carregarDashboard(supabase: SupabaseClient, restauranteId: string): Promise<DadosDashboard> {
-  const { data: pedidos, error } = await supabase
+  // Paginado: sem isso o PostgREST devolve só 1000 pedidos e o painel da loja maior
+  // perde os de hoje sem aviso.
+  const pedidos = await lerTodas<Record<string, unknown>>((de, ate) => supabase
     .from('pedidos')
     .select('total, tipo, status, forma_pagamento, criado_em, cliente_telefone, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
-  if (error) throw error
+    .order('criado_em', { ascending: true })
+    .order('id', { ascending: true })
+    .range(de, ate))
 
   const { data: itens } = await supabase
     .from('itens_cardapio')

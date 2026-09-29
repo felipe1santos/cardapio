@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { enviarWhatsapp, formatarTelefoneWhatsapp } from '@/lib/whatsapp'
+import { lerTodas } from './ler-todas'
 
 export interface EnderecoCliente {
   rua: string
@@ -266,17 +267,24 @@ const MS_POR_SEMANA = 7 * 24 * 60 * 60 * 1000
 
 /** Agrega os pedidos da loja por cliente (telefone) com as métricas de recorrência exibidas em /admin/clientes. */
 export async function listarClientesComMetricas(supabase: SupabaseClient, restauranteId: string): Promise<ClienteMetrica[]> {
-  const [{ data: pedidos, error: pedidosError }, { data: perfis, error: perfisError }] = await Promise.all([
-    supabase
+  // Paginado: o PostgREST corta em 1000 linhas, e a lista ficava com os 1000 pedidos mais
+  // antigos (cliente novo não aparecia, métricas erradas).
+  const [pedidos, perfis] = await Promise.all([
+    lerTodas<PedidoClienteRow>((de, ate) => supabase
       .from('pedidos')
       .select('cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia, total, criado_em')
       .eq('restaurante_id', restauranteId)
       .neq('status', 'cancelado')
-      .order('criado_em', { ascending: true }),
-    supabase.from('clientes').select('telefone, sexo').eq('restaurante_id', restauranteId),
+      .order('criado_em', { ascending: true })
+      .order('id', { ascending: true })
+      .range(de, ate)),
+    lerTodas<{ telefone: string; sexo: SexoCliente }>((de, ate) => supabase
+      .from('clientes')
+      .select('telefone, sexo')
+      .eq('restaurante_id', restauranteId)
+      .order('id', { ascending: true })
+      .range(de, ate)),
   ])
-  if (pedidosError) throw pedidosError
-  if (perfisError) throw perfisError
 
   const sexoPorTelefone = new Map<string, SexoCliente>(
     (perfis ?? []).map((p: { telefone: string; sexo: SexoCliente }) => [normalizarTelefone(p.telefone), p.sexo])
