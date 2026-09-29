@@ -345,6 +345,10 @@ try {
   const medirPrevia = () => pd.waitForFunction(() => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height > 100 ? { w: c.width, h: c.height } : null }, null, { timeout: 20000 }).then((h) => h.jsonValue())
   const pv1 = await medirPrevia()
   ok('comanda desenhada na tela na largura da impressora da Cozinha (576 pontos)', pv1.w === 576 && pv1.h > 900, JSON.stringify(pv1))
+  // Logo do Storage (outro domínio): sem CORS o canvas ficava "sujo" e a prévia mostrava erro de fontes.
+  const erroPrevia = await pd.getByTestId('cartao-previa').getByText('Não foi possível carregar as fontes').count()
+  const pixels = await pd.evaluate(() => { try { document.querySelector('[data-testid=previa-canvas]').getContext('2d').getImageData(0, 0, 1, 1); return true } catch { return false } })
+  ok('prévia sem erro e com os pixels legíveis (logo de outro domínio com CORS)', erroPrevia === 0 && pixels)
   // A mesma comanda desenhada fora da página (render-ticket) tem a mesma altura: é o mesmo desenho.
   const { renderizarTicket } = await import('../impressao/render-ticket.mjs')
   // Mesmos dados de demonstração da prévia (lib/impressao/previa-beta.ts → snapshotCozinhaTeste).

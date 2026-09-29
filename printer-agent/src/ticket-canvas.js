@@ -70,6 +70,9 @@
     if (!url) return Promise.resolve(null)
     return new Promise((ok) => {
       const img = new Image()
+      // Logo do Storage (outro domínio, na prévia do painel): pedida com CORS, senão o
+      // canvas fica "sujo" e não dá para ler os pixels (conversão para 1 bit).
+      if (!/^data:/.test(String(url))) img.crossOrigin = 'anonymous'
       img.onload = () => ok(img.naturalWidth > 0 ? img : null)
       img.onerror = () => ok(null)
       img.src = url
@@ -729,7 +732,13 @@
 
   /** Converte o desenho em 1 bit (preto/branco puro) — o driver não tem mais o que clarear. */
   function monocromatizar(ctx, w, h, reticulas, intensidade) {
-    const img = ctx.getImageData(0, 0, w, h)
+    let img
+    try {
+      img = ctx.getImageData(0, 0, w, h)
+    } catch {
+      // Canvas "sujo" (imagem de outro domínio sem CORS): mantém o desenho como está.
+      return
+    }
     const d = img.data
     const limiar = INTENSIDADES[intensidade] || INTENSIDADES.normal
     const mascara = new Uint8Array(w * h)
