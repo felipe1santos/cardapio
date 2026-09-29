@@ -7,6 +7,7 @@ import { destinoCozinha } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
 import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
 import { esperarComBusca } from '@/lib/impressao/despertador'
+import { anunciaEsperaLonga } from '@/lib/impressao/espera-longa'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +91,7 @@ export async function GET(request: Request) {
       pedidos,
       loja,
       ...(beta ? { cozinhaBeta: beta } : {}),
-      ...(esperar ? { esperaAte: 20 } : {}),
+      ...(anunciaEsperaLonga(esperar, config?.impressaoAutomatica) ? { esperaAte: 20 } : {}),
       destinoCozinha: souDono
         ? { nomeSistema: rota.nomeSistema, larguraMm: rota.larguraMm, tamanhoFonte: rota.tamanhoFonte, copias: rota.copias,
             larguraPontos: rota.larguraPontos, deslocamentoPontos: rota.deslocamentoPontos,
