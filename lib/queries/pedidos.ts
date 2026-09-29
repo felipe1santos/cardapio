@@ -1168,7 +1168,7 @@ export async function criarPedido(
       id, nome, preco, promocao_preco, status, tipo_item, dias_disponiveis,
       disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos,
       item_complementos ( nome, preco, pausado, grupo_id ),
-      grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas ),
+      grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, permite_quantidade ),
       tamanhos_item ( nome, preco ),
       pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) ),
       grupos_cardapio ( horario_ativo_inicio, horario_ativo_fim )
@@ -1280,7 +1280,7 @@ export async function criarPedido(
     // conferiam): grupo obrigatório respondido, mínimo e máximo, e nada pausado.
     // Mesma regra da ficha da vitrine e do garçom (lib/opcoes-item).
     type CompDb = { nome: string; preco: number; pausado: boolean | null; grupo_id: string | null }
-    type GrupoDb = { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number }
+    type GrupoDb = { id: string; nome: string; obrigatorio: boolean; min_escolhas: number; max_escolhas: number; permite_quantidade?: boolean | null }
     const compsDb = (item.item_complementos ?? []) as CompDb[]
     const gruposDb = (item.grupos_item_complementos ?? []) as GrupoDb[]
     const escolhidos = linha.complementos ?? []
@@ -1294,6 +1294,7 @@ export async function criarPedido(
         minEscolhas: g.min_escolhas,
         maxEscolhas: g.max_escolhas,
         opcoes: compsDb.filter((c) => c.grupo_id === g.id && !c.pausado).map((c) => c.nome),
+        permiteQuantidade: g.permite_quantidade === true,
       }))
       const avulsos = new Set(compsDb.filter((c) => !c.grupo_id && !c.pausado).map((c) => c.nome))
       const erros = validarOpcoes(regras, escolhidos.filter((n) => !avulsos.has(n)))

@@ -14,6 +14,11 @@ export interface GrupoOpcoesRegra {
   maxEscolhas: number
   /** Nomes das opções disponíveis (complementos não pausados). */
   opcoes: string[]
+  /**
+   * "Permite quantidade" (0036): a mesma opção pode vir várias vezes (Chocolate ×3) e cada
+   * unidade conta para o mínimo e o máximo — é assim que a vitrine conta e envia.
+   */
+  permiteQuantidade?: boolean
 }
 
 /** Quantas escolhas o grupo exige de verdade. Obrigatório sem mínimo vale 1. */
@@ -47,9 +52,12 @@ export function validarOpcoes(grupos: GrupoOpcoesRegra[], escolhidas: string[]):
 
   for (const g of grupos) {
     if (g.opcoes.length === 0) continue
-    const doGrupo = g.opcoes.filter((o) => conjunto.has(o)).length
+    const doGrupo = g.permiteQuantidade
+      ? escolhidas.filter((e) => g.opcoes.includes(e)).length
+      : g.opcoes.filter((o) => conjunto.has(o)).length
     const min = minimoDoGrupo(g)
-    const max = maximoDoGrupo(g)
+    // Com quantidade, o teto é o do cadastro (0 = sem teto), não o número de opções.
+    const max = g.permiteQuantidade ? (g.maxEscolhas > 0 ? g.maxEscolhas : Infinity) : maximoDoGrupo(g)
 
     if (doGrupo < min) {
       erros.push(min === 1 ? `Escolha uma opção em "${g.nome}".` : `Escolha ${min} opções em "${g.nome}".`)

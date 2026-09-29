@@ -85,3 +85,23 @@ describe('limites do grupo', () => {
     expect(validarOpcoes([{ ...adicionais, maxEscolhas: 1 }], ['Picles', 'Catupiry'])).toEqual(['"Adicionais" aceita no máximo 1 opção.'])
   })
 })
+
+describe('grupo com "permite quantidade"', () => {
+  const bolas = { nome: 'Escolha 3 bolas', obrigatorio: true, minEscolhas: 3, maxEscolhas: 3, opcoes: ['Chocolate', 'Morango'], permiteQuantidade: true }
+
+  it('Chocolate ×3 responde "escolha 3" (a vitrine manda o nome repetido)', () => {
+    expect(validarOpcoes([bolas], ['Chocolate', 'Chocolate', 'Chocolate'])).toEqual([])
+    expect(validarOpcoes([bolas], ['Chocolate', 'Morango', 'Morango'])).toEqual([])
+  })
+
+  it('conta unidades para o mínimo e o máximo', () => {
+    expect(validarOpcoes([bolas], ['Chocolate', 'Chocolate'])).toEqual(['Escolha 3 opções em "Escolha 3 bolas".'])
+    expect(validarOpcoes([bolas], ['Chocolate', 'Chocolate', 'Chocolate', 'Chocolate'])).toEqual(['"Escolha 3 bolas" aceita no máximo 3 opções.'])
+  })
+
+  it('sem "permite quantidade" a regra de sempre (opções distintas) continua', () => {
+    const ponto = { nome: 'Ponto', obrigatorio: true, minEscolhas: 1, maxEscolhas: 1, opcoes: ['Mal', 'Bem'] }
+    expect(validarOpcoes([ponto], ['Mal'])).toEqual([])
+    expect(validarOpcoes([ponto], ['Mal', 'Bem'])).toEqual(['"Ponto" aceita no máximo 1 opção.'])
+  })
+})
