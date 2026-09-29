@@ -160,6 +160,18 @@ function textoDoDocumento(doc) {
         break
       case 'rodape_qr': for (const l of k.linhas || []) if (l.s) out.push(l.s); if (k.qr) out.push('[QR]'); break
       case 'loja': if (k.nome) out.push(k.nome); if (k.telefone) out.push(`Tel.: ${k.telefone}`); if (k.endereco) out.push(k.endereco); break
+      case 'separador': out.push('. . . . . . . . . . . . . . . .'); break
+      case 'rodape_loja': {
+        const l = k.loja || {}
+        if (l.nome) out.push(l.nome)
+        if (l.telefone) out.push(`Tel.: ${l.telefone}`)
+        if (l.linha1) out.push(l.linha1)
+        if (l.cidade) out.push(l.cidade)
+        for (const s of k.chamada || []) out.push(s)
+        if (k.qr) out.push('[QR]')
+        if (k.final) out.push(k.final)
+        break
+      }
       default: break
     }
   }

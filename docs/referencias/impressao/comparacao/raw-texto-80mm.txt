@@ -1,0 +1,31 @@
+LANCHONETE DO CLIENTE
+COMANDA COZINHA
+#207 MESA 05
+Recebido 17:00
+ ITENS DO PEDIDO 
+ITEM                                  VALOR (R$)
+2x PÃO COM LINGUIÇA ESPECIAL               31,80
++ Queijo                                    6,00
+OBS: BEM PASSADO
+................................................
+1x AÇAÍ 500 ML                             34,00
+................................................
+ VALORES 
+Subtotal                                R$ 71,80
+================================================
+TOTAL           R$ 71,80
+ DADOS DA MESA 
+Mesa:      05
+Comanda:   12
+Atendente: João
+Cliente:   CLIENTE
+................................................
+LANCHONETE DO CLIENTE
+Tel.: (27) 3333-4444
+Rua das Flores, 100
+Vila Velha/ES
+PEÇA DE NOVO PELO CARDÁPIO:
+aponte a câmera para o QR Code
+[QR]
+------------------------------------------------
+Feito por Sistema Menuzia

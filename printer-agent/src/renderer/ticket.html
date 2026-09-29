@@ -22,6 +22,13 @@
     const logo = url ? await logos.get(url) : null
     const canvas = document.getElementById('t')
     const r = TicketMenuzia.desenhar(canvas, doc, { ...opcoes, logo })
+    if (opcoes && opcoes.bits) {
+      // Envio direto (ESC/POS): as linhas em 1 bit, no tamanho exato de pontos.
+      const b = TicketMenuzia.bitsDoCanvas(canvas)
+      let s = ''
+      for (let i = 0; i < b.bits.length; i += 0x8000) s += String.fromCharCode.apply(null, b.bits.subarray(i, i + 0x8000))
+      return { bits: btoa(s), largura: b.largura, altura: b.altura, porLinha: b.porLinha }
+    }
     return { png: canvas.toDataURL('image/png'), largura: r.largura, altura: r.altura }
   }
 </script>

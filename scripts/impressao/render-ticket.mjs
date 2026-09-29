@@ -22,13 +22,20 @@ async function paginaPronta() {
   return pagina
 }
 
-/** doc → { png (caminho), largura, altura } */
-export async function renderizarTicket(doc, { larguraMm = 80, larguraPontos = null, tamanhoFonte = 'grande', logo = null, imprimirLogo = true, saida }) {
+/** doc → { png (caminho), largura, altura }. intensidade/umBit: como o Assistente 0.2.0-beta.7. */
+export async function renderizarTicket(doc, { larguraMm = 80, larguraPontos = null, tamanhoFonte = 'grande', logo = null, imprimirLogo = true, intensidade = 'normal', umBit = true, saida }) {
   const p = await paginaPronta()
-  const r = await p.evaluate(async ({ doc, o }) => window.renderizarTicket(doc, o), { doc, o: { larguraMm, larguraPontos, tamanhoFonte, logo, imprimirLogo } })
+  const r = await p.evaluate(async ({ doc, o }) => window.renderizarTicket(doc, o), { doc, o: { larguraMm, larguraPontos, tamanhoFonte, logo, imprimirLogo, intensidade, umBit } })
   mkdirSync(dirname(saida), { recursive: true })
   writeFileSync(saida, Buffer.from(r.png.split(',')[1], 'base64'))
   return { png: saida, largura: r.largura, altura: r.altura }
+}
+
+/** doc → linhas em 1 bit (o que o envio direto ESC/POS manda). */
+export async function bitsDoTicket(doc, { larguraMm = 80, larguraPontos = null, tamanhoFonte = 'grande', logo = null, imprimirLogo = true, intensidade = 'normal' } = {}) {
+  const p = await paginaPronta()
+  const r = await p.evaluate(async ({ doc, o }) => window.renderizarTicket(doc, o), { doc, o: { larguraMm, larguraPontos, tamanhoFonte, logo, imprimirLogo, intensidade, bits: true } })
+  return { bits: new Uint8Array(Buffer.from(r.bits, 'base64')), largura: r.largura, altura: r.altura, porLinha: r.porLinha }
 }
 
 export async function fecharRender() {

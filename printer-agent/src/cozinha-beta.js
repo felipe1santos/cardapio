@@ -53,10 +53,40 @@ function linhasDoQr(qr) {
   return []
 }
 
-/** Nome, telefone e endereço da LOJA (do cadastro — nunca o endereço do cliente). */
+/** Chamada do rodapé, ao lado do QR (comanda padrão). */
+function chamadaDoQr(qr) {
+  if (qr && qr.origem === 'instagram' && arroba(qr.url)) return ['SIGA A GENTE NO INSTAGRAM:', arroba(qr.url)]
+  if (qr) return ['PEÇA DE NOVO PELO CARDÁPIO:', 'aponte a câmera para o QR Code']
+  return []
+}
+
+/**
+ * Nome, telefone e endereço da LOJA (do cadastro — nunca o endereço do cliente).
+ * linha1 = "rua, número" e cidade = "Cidade/UF" (servidor novo); com o servidor antigo,
+ * saem do endereço completo ("rua, nº - complemento - bairro, Cidade/UF").
+ */
 function dadosDaLoja(loja, lojaNome) {
   const l = loja && typeof loja === 'object' ? loja : {}
-  return { nome: maiusculo(l.nome || lojaNome), telefone: texto(l.telefone), endereco: texto(l.endereco) }
+  const endereco = texto(l.endereco)
+  const partes = endereco.split(/\s+-\s+/).filter(Boolean)
+  const ultima = partes.length > 1 ? partes[partes.length - 1] : ''
+  const cidadeDoEndereco = /\/[A-Za-z]{2}$/.test(ultima) ? ultima.split(',').pop().trim() : ''
+  return {
+    nome: maiusculo(l.nome || lojaNome),
+    telefone: texto(l.telefone),
+    endereco,
+    linha1: texto(l.linha1) || texto(partes[0]),
+    cidade: texto(l.cidade) || cidadeDoEndereco,
+  }
+}
+
+/** "(27) 99999-0000" (tira o 55 do país). Outro formato: como veio. */
+function telefone(v) {
+  let d = texto(v).replace(/\D/g, '')
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return texto(v)
 }
 
 /**
@@ -80,10 +110,8 @@ function montarCozinhaBeta(pedido, o = {}) {
   const recebido = hora(p.criadoEm)
   if (recebido) horas.push(`Recebido ${recebido}`)
   const pronto = hora(extras.prontoEm)
-  const aceito = hora(extras.aceitoEm)
   if (pronto) horas.push(`Pronto ${pronto}`)
-  else if (aceito) horas.push(`Aceito ${aceito}`)
-  if (horas.length) b.push({ t: 'horas', s: horas.join('  •  ') })
+  if (horas.length) b.push({ t: 'horas', s: horas.join(' | ') })
   if (teste) b.push({ t: 'aviso', s: 'TESTE DE IMPRESSÃO - NÃO PREPARAR' })
 
   // Itens: "1x NOME" e o valor; adicionais com o valor deles (a coluna soma o Subtotal).
@@ -136,7 +164,8 @@ function montarCozinhaBeta(pedido, o = {}) {
   // Mesa acerta na conta, no fechamento: forma de pagamento aqui só confundiria.
   if (p.canal !== 'mesa' && texto(p.formaPagamento)) {
     valores.push({ rotulo: 'Pagamento', valor: ROTULO_FORMA[p.formaPagamento] || maiusculo(p.formaPagamento), icone: texto(p.formaPagamento) })
-    if (p.formaPagamento === 'dinheiro' && Number(p.trocoPara) > 0) valores.push({ rotulo: 'Troco para', valor: brl(p.trocoPara) })
+    // Entrega: o troco vai nos DADOS DA ENTREGA (é do motoboy).
+    if (p.formaPagamento === 'dinheiro' && Number(p.trocoPara) > 0 && p.tipo !== 'entrega') valores.push({ rotulo: 'Troco para', valor: brl(p.trocoPara) })
     if (p.pago === true) valores.push({ rotulo: 'Status', valor: 'PAGO' })
   }
   valores.forEach((v, i) => b.push({ t: 'par', ...v, primeiro: i === 0 }))
@@ -151,24 +180,32 @@ function montarCozinhaBeta(pedido, o = {}) {
   }
   let secao
   if (p.tipo === 'entrega') {
+    // Pensado para o MOTOBOY: quem, como falar, onde, o que levar de troco.
     secao = 'DADOS DA ENTREGA'
-    dado('Cliente:', p.clienteNome)
-    dado('Telefone:', p.clienteTelefone)
+    dado('Cliente:', maiusculo(p.clienteNome))
+    dado('Telefone:', telefone(p.clienteTelefone))
     const end = [texto(p.enderecoRua), texto(p.enderecoNumero)].filter(Boolean).join(', ')
-    dado('Endereco:', [end, texto(p.enderecoComplemento)].filter(Boolean).join(' - '), false)
+    dado('Endereço:', [end, texto(p.enderecoComplemento)].filter(Boolean).join(', '), false)
     dado('Bairro:', maiusculo(p.enderecoBairro))
+    dado('Cidade:', texto(p.enderecoCidade), false)
+    dado('Ref.:', texto(p.enderecoReferencia), false)
+    if (p.formaPagamento === 'dinheiro' && Number(p.trocoPara) > 0) dado('Troco:', `Troco para ${brl(p.trocoPara)}`)
   } else if (p.canal === 'mesa') {
     secao = 'DADOS DA MESA'
     // "Mesa 01" cadastrada com a palavra: sai "Mesa: 01", não "Mesa: Mesa 01".
     dado('Mesa:', texto(p.mesa).replace(/^mesa\s+/i, ''))
     dado('Comanda:', extras.comandaNumero ? String(extras.comandaNumero) : '')
     dado('Atendente:', extras.atendente)
-    dado('Cliente:', p.clienteNome)
+    dado('Cliente:', maiusculo(p.clienteNome))
+  } else if (p.canal !== 'balcao') {
+    secao = 'DADOS DA RETIRADA'
+    dado('Cliente:', maiusculo(p.clienteNome))
+    dado('Telefone:', telefone(p.clienteTelefone))
   } else {
     secao = 'DADOS DO CLIENTE'
-    dado('Cliente:', p.clienteNome)
-    dado('Telefone:', p.clienteTelefone)
-    if (p.canal === 'balcao' && p.senha) dado('Senha:', String(p.senha))
+    dado('Cliente:', maiusculo(p.clienteNome))
+    dado('Telefone:', telefone(p.clienteTelefone))
+    if (p.senha) dado('Senha:', String(p.senha))
     dado('Atendente:', extras.atendente)
   }
   if (dados.length) {
@@ -176,13 +213,19 @@ function montarCozinhaBeta(pedido, o = {}) {
     dados.forEach((d, i) => b.push({ t: 'dado', ...d, primeiro: i === 0 }))
   }
 
-  // Rodapé: QR, frase, loja (nome, telefone, endereço) e "Feito por".
+  // Rodapé em duas colunas: dados da LOJA à esquerda, QR do cardápio à direita.
   const qr = o.qr && Array.isArray(o.qr.linhas) && o.qr.linhas.length >= 21 ? o.qr : null
-  if (qr) b.push({ t: 'qr', linhas: qr.linhas, icone: qr.origem === 'instagram' ? 'instagram' : '' })
-  b.push({ t: 'rodape', linhas: linhasDoQr(qr), loja, final: 'Feito por Sistema Menuzia' })
+  b.push({ t: 'separador' })
+  b.push({
+    t: 'rodape_loja',
+    loja: { nome: loja.nome, telefone: loja.telefone, linha1: loja.linha1, cidade: loja.cidade },
+    qr: qr ? { linhas: qr.linhas, icone: qr.origem === 'instagram' ? 'instagram' : '' } : null,
+    chamada: chamadaDoQr(qr),
+    final: 'Feito por Sistema Menuzia',
+  })
   if (teste) b.push({ t: 'marcas' })
 
-  return { versao: 4, modelo: 'cozinha', teste, loja: loja.nome, fonteMaior: config.fonteMaiorProducao === true, blocos: b }
+  return { versao: 5, modelo: 'cozinha', teste, loja: loja.nome, fonteMaior: config.fonteMaiorProducao === true, blocos: b }
 }
 
-module.exports = { montarCozinhaBeta, brl, linhasDoQr, dadosDaLoja }
+module.exports = { montarCozinhaBeta, brl, linhasDoQr, chamadaDoQr, dadosDaLoja, telefone }

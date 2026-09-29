@@ -7,6 +7,7 @@ import { chamar, novaChave } from '@/components/pdv/util'
 import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
 import { PreviaBeta } from '@/components/impressao/previa-beta'
+import { EnvioImpressora } from '@/components/impressao/envio-impressora'
 import { AssistenteAntigo, type AssistenteAtual } from '@/components/impressao/assistente-antigo'
 import {
   AjudaDiagnostico, type TamanhoLetra, EtapaConectar, EtapaImpressoras, EtapaModo, ModalImpressoras, ModalModos, ModalPareamento, ModalTestes,
@@ -557,10 +558,10 @@ function Calibracao({
           )}
           {passo === 'imprimir' && (
             <>
-              <p className="font-semibold">2. Imprima a página de calibração</p>
-              <p className="text-text-subtle">Ela tem uma régua numerada, uma barra preta em cada lado, textos e valores em reais.</p>
+              <p className="font-semibold">2. Imprima o teste de largura</p>
+              <p className="text-text-subtle">Ele tem uma régua numerada, uma barra preta em cada lado, acentos, letra pequena e uma faixa cinza.</p>
               <button type="button" disabled={ocupado} onClick={() => void imprimir()} data-testid="imprimir-calibracao" className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-bold text-white disabled:opacity-40">
-                Imprimir página de calibração
+                Imprimir teste de largura
               </button>
             </>
           )}
@@ -606,6 +607,8 @@ function Calibracao({
               Pronto. {d.larguraPontos ? `${nome} imprime com ${d.larguraPontos} pontos de largura.` : `${nome} imprime no padrão do papel de ${d.larguraMm} mm.`}
             </p>
           )}
+
+          <EnvioImpressora d={d} ocupado={ocupado} agir={agir} onImprimirTeste={() => void imprimir()} />
 
           <details className="rounded-menuzia border border-border">
             <summary className="cursor-pointer px-3 py-2 text-[12px] font-semibold text-text-subtle">Ajuste avançado</summary>

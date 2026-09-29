@@ -10,7 +10,7 @@ const { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprim
 const { montarRecibo } = require('./recibo')
 const { montarPreConta, montarTeste, colsPreConta } = require('./pre-conta')
 const { FilasPorDispositivo } = require('./fila-dispositivos')
-const { montarCalibracao } = require('./calibracao')
+const { montarCalibracao, montarTesteLargura } = require('./calibracao')
 const { montarPreContaBeta, textoDoDocumento } = require('./pre-conta-beta')
 const { montarCozinhaBeta } = require('./cozinha-beta')
 
@@ -31,6 +31,14 @@ const EH_BETA = AMBIENTE?.variante === 'beta'
 // O Beta grava no próprio log: o do Assistente antigo (%TEMP%\menuzia-print.log) fica só dele.
 const LOG_NOME = EH_BETA ? 'menuzia-beta-print.log' : 'menuzia-print.log'
 const PERFIL_LOG = EH_BETA ? { logNome: LOG_NOME, prefixoTmp: 'menuzia-beta' } : null
+/** Como a impressora recebe (0.2.0-beta.7): intensidade, envio direto e modo texto. */
+const perfilEnvio = (x) => ({
+  intensidade: x?.intensidade ?? 'normal',
+  envio: x?.envio ?? 'driver',
+  modoImpressao: x?.modoImpressao ?? 'imagem',
+  redeIp: x?.redeIp ?? null,
+  redePorta: x?.redePorta ?? 9100,
+})
 
 // Diagnóstico: grava no MESMO arquivo que o print.ps1 (%TEMP%\menuzia-print.log; no Beta, o dele).
 function logArquivo(msg) {
@@ -266,7 +274,7 @@ async function cicloDePolling() {
         }
 
         const perfilCozinha = EH_BETA && destino
-          ? { ...PERFIL_LOG, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte, imprimirLogo: configImpressao.imprimirLogo !== false }
+          ? { ...PERFIL_LOG, ...perfilEnvio(destino), larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte, imprimirLogo: configImpressao.imprimirLogo !== false }
           : null
         let saida
         if (perfilCozinha) {
@@ -412,6 +420,7 @@ const filas = new FilasPorDispositivo(
     const perfil = EH_BETA
       ? {
           ...PERFIL_LOG,
+          ...perfilEnvio(t),
           larguraPontos: calibracao ? (t.snapshot.largura_pontos ?? null) : (t.larguraPontos ?? null),
           deslocamentoPontos: calibracao ? (t.snapshot.deslocamento_pontos ?? 0) : (t.deslocamentoPontos ?? 0),
           tamanhoFonte: t.tamanhoFonte,
@@ -421,7 +430,11 @@ const filas = new FilasPorDispositivo(
     // Recibo/Extrato no Beta: layout próprio (pre-conta-beta.js + ticket-canvas.js), o MESMO
     // para a conta real e para o teste. Calibração e teste simples seguem no print.ps1.
     let saida
-    if (cozinhaTeste) {
+    if (EH_BETA && calibracao) {
+      // Teste de largura: pelo MESMO caminho da comanda (driver, fila RAW ou rede).
+      const doc = montarTesteLargura(t.snapshot, diagnosticos[t.nomeSistema] || {}, perfil)
+      saida = await imprimirDocumentoBeta(t.nomeSistema, doc, largura, perfil)
+    } else if (cozinhaTeste) {
       const doc = montarCozinhaBeta(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
       const logo = perfil.imprimirLogo ? await logoParaDesenho() : null
       saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
@@ -436,8 +449,9 @@ const filas = new FilasPorDispositivo(
         : await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
     }
     mostrarDiagnostico(saida)
-    const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : reciboTeste ? 'Recibo/Extrato de teste' : cozinhaTeste ? 'Comanda de teste' : calibracao ? 'Página de calibração' : 'Teste'
-    log(`${rotulo} enviado para "${t.nomeSistema}" — o Windows aceitou (confira se o papel saiu).`)
+    const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : reciboTeste ? 'Recibo/Extrato de teste' : cozinhaTeste ? 'Comanda de teste' : calibracao ? (EH_BETA ? 'Teste de largura' : 'Página de calibração') : 'Teste'
+    const pela = perfil?.envio === 'raw_rede' ? `pela rede (${perfil.redeIp}:${perfil.redePorta})` : perfil && (perfil.envio === 'raw_fila' || perfil.modoImpressao === 'texto') ? 'direto pela fila (ESC/POS)' : 'o Windows aceitou'
+    log(`${rotulo} enviado para "${t.nomeSistema}" — ${pela} (confira se o papel saiu).`)
   },
   async (id, ok, erro) => {
     if (!ok) log(`Falha ao enviar trabalho para a impressora: ${erro}`)

@@ -16,6 +16,10 @@ const LIST_SCRIPT = scriptReal('list-printers.ps1')
 const PRINT_SCRIPT = scriptReal('print.ps1')
 const DIAG_SCRIPT = scriptReal('diagnostico-impressoras.ps1')
 const PRINT_IMAGEM_SCRIPT = scriptReal('print-imagem.ps1')
+const PRINT_RAW_SCRIPT = scriptReal('print-raw.ps1')
+const { imagemEscpos, textoEscpos } = require('./escpos')
+const { enviarRede } = require('./envio-direto')
+const { larguraEmPontos } = require('./ticket-canvas')
 
 function runPowershell(args, opcoesExec = {}) {
   return new Promise((resolve, reject) => {
@@ -105,6 +109,55 @@ function janelaDoDesenho() {
   return janelaPronta
 }
 
+/** doc → linhas em 1 bit (envio direto ESC/POS). */
+async function desenharBits(doc, opcoes) {
+  await janelaDoDesenho()
+  const r = await janelaDesenho.webContents.executeJavaScript(`window.renderizarTicket(${JSON.stringify(doc)}, ${JSON.stringify({ ...opcoes, bits: true })})`, true)
+  if (!r || typeof r.bits !== 'string') throw new Error('desenho vazio')
+  return { bits: new Uint8Array(Buffer.from(r.bits, 'base64')), largura: r.largura, altura: r.altura, porLinha: r.porLinha }
+}
+
+/**
+ * Envio DIRETO (0.2.0-beta.7): bytes ESC/POS para a fila do Windows (RAW) ou para IP:porta.
+ * Imagem = a MESMA comanda do ticket-canvas.js em 1 bit; texto = comandos nativos.
+ * Se o desenho falhar, sai em texto ESC/POS — nunca deixa de sair.
+ */
+async function imprimirDireto(nomeImpressora, doc, opcoes, perfil, envio, modo, prefixo) {
+  const largura = larguraEmPontos(opcoes.larguraMm, opcoes.larguraPontos)
+  let bytes
+  let como = modo
+  if (modo === 'texto') {
+    bytes = textoEscpos(doc, { larguraPontos: largura, intensidade: opcoes.intensidade })
+  } else {
+    try {
+      const img = await desenharBits(doc, opcoes)
+      bytes = imagemEscpos(img, { intensidade: opcoes.intensidade, deslocamento: perfil.deslocamentoPontos })
+    } catch (e) {
+      bytes = textoEscpos(doc, { larguraPontos: largura, intensidade: opcoes.intensidade })
+      como = `texto (desenho falhou: ${e.message})`
+    }
+  }
+  const copias = Number.isInteger(perfil.copias) && perfil.copias > 1 ? Math.min(perfil.copias, 5) : 1
+  if (copias > 1) bytes = Buffer.concat(Array(copias).fill(bytes))
+  if (envio === 'raw_rede') {
+    if (!perfil.redeIp) throw new Error('Envio pela rede sem o IP da impressora (Impressão › Calibrar impressora).')
+    const porta = Number(perfil.redePorta) || 9100
+    await enviarRede(perfil.redeIp, porta, bytes)
+    return `MENUZIA: RAW REDE OK ${perfil.redeIp}:${porta} ${bytes.length} bytes, ${largura} pontos (${como}).`
+  }
+  const arquivo = path.join(os.tmpdir(), `${prefixo}-raw-${Date.now()}.bin`)
+  fs.writeFileSync(arquivo, bytes)
+  try {
+    const args = ['-File', PRINT_RAW_SCRIPT, '-PrinterName', nomeImpressora, '-Arquivo', arquivo]
+    if (perfil.logNome) args.push('-LogNome', perfil.logNome)
+    args.push('-Titulo', doc.modelo === 'cozinha' ? 'Menuzia - Comanda' : doc.modelo === 'largura' ? 'Menuzia - Teste de largura' : 'Menuzia - Pre-conta')
+    const saida = await runPowershell(args, { timeout: 60_000, windowsHide: true })
+    return `MENUZIA: RAW FILA ${largura} pontos (${como}).\n${saida || ''}`
+  } finally {
+    fs.unlink(arquivo, () => {})
+  }
+}
+
 /** doc → caminho do PNG (no tmp). */
 async function desenharTicket(doc, opcoes, prefixo) {
   await janelaDoDesenho()
@@ -120,7 +173,9 @@ async function desenharTicket(doc, opcoes, prefixo) {
  * Documentos do Assistente Beta — pré-conta (pre-conta-beta.js) e comanda da cozinha
  * (cozinha-beta.js). Desenha o PNG (ticket-canvas.js) e imprime com print-imagem.ps1;
  * se o desenho falhar, imprime o texto do documento — nunca deixa de sair.
- * perfil: larguraPontos, deslocamentoPontos, tamanhoFonte, logo, imprimirLogo, copias, logNome, prefixoTmp.
+ * perfil: larguraPontos, deslocamentoPontos, tamanhoFonte, logo, imprimirLogo, copias, logNome, prefixoTmp
+ *         e (0.2.0-beta.7) intensidade, envio (driver | raw_fila | raw_rede), modoImpressao
+ *         (imagem | texto), redeIp, redePorta.
  * O Assistente atual não usa isto.
  */
 async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, perfil = {}) {
@@ -132,6 +187,14 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
     // Logo da loja (data URL) e a opção "Imprimir logo da loja".
     logo: typeof perfil.logo === 'string' && perfil.logo.startsWith('data:image/') ? perfil.logo : null,
     imprimirLogo: perfil.imprimirLogo !== false,
+    // Preto e branco de verdade (1 bit) com a intensidade da impressora.
+    intensidade: perfil.intensidade === 'escura' || perfil.intensidade === 'mais_escura' ? perfil.intensidade : 'normal',
+  }
+  // Envio direto: pela fila (RAW) ou pela rede; modo texto é sempre direto (ESC/POS).
+  const envio = perfil.envio === 'raw_fila' || perfil.envio === 'raw_rede' ? perfil.envio : 'driver'
+  const modo = perfil.modoImpressao === 'texto' ? 'texto' : 'imagem'
+  if (envio !== 'driver' || modo === 'texto') {
+    return imprimirDireto(nomeImpressora, doc, opcoes, perfil, envio === 'driver' ? 'raw_fila' : envio, modo, prefixo)
   }
   let png = null
   let txt = null
@@ -159,4 +222,4 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
   }
 }
 
-module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, desenharTicket }
+module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, desenharTicket, desenharBits }

@@ -4,7 +4,7 @@ import { snapshotCozinhaTeste } from '../../lib/impressao/recibo-teste'
 
 const require = createRequire(import.meta.url)
 type Sub = { s: string; valor?: string }
-type Bloco = { t: string; s?: string; rotulo?: string; valor?: string; texto?: string; numero?: string; tipo?: string; nome?: string; subs?: Sub[]; obs?: string; linhas?: { s: string; negrito?: boolean }[]; negrito?: boolean; icone?: string; esq?: string; dir?: string; loja?: { nome: string; telefone: string; endereco: string }; final?: string }
+type Bloco = { t: string; s?: string; rotulo?: string; valor?: string; texto?: string; numero?: string; tipo?: string; nome?: string; subs?: Sub[]; obs?: string; linhas?: { s: string; negrito?: boolean }[]; negrito?: boolean; icone?: string; esq?: string; dir?: string; loja?: { nome: string; telefone: string; endereco?: string; linha1?: string; cidade?: string }; final?: string; chamada?: string[]; qr?: { linhas: string[]; icone: string } | null }
 type Doc = { versao: number; modelo: string; teste: boolean; fonteMaior: boolean; blocos: Bloco[] }
 const { montarCozinhaBeta } = require('./cozinha-beta.js') as { montarCozinhaBeta: (p: unknown, o?: unknown) => Doc }
 const { textoDoDocumento } = require('./pre-conta-beta.js') as { textoDoDocumento: (d: Doc) => string }
@@ -14,27 +14,27 @@ const qr = { origem: 'cardapio', url: 'https://app.menuzia.com.br/loja/pizza-do-
 const snap = snapshotCozinhaTeste(destino, 'Op', qr, new Date('2026-09-28T18:55:00Z')) as { pedido: Record<string, unknown>; extras: Record<string, unknown> }
 const PEDIDO = snap.pedido
 const EXTRAS = snap.extras
-const LOJA = { nome: 'Pizza do Rosa', telefone: '(27) 99999-0000', endereco: 'Av. Nossa Senhora da Penha, 1500 - Cond. Res. Jardim das Orquídeas' }
+const LOJA = { nome: 'Pizza do Rosa', telefone: '(27) 99999-0000', endereco: 'Av. Nossa Senhora da Penha, 1500 - Cond. Res. Jardim das Orquídeas - Praia do Canto, Vitória/ES', linha1: 'Av. Nossa Senhora da Penha, 1500', cidade: 'Vitória/ES' }
 const doc = (p = PEDIDO, o: Record<string, unknown> = {}) => montarCozinhaBeta(p, { config: {}, lojaNome: 'Pizza do Rosa', loja: LOJA, extras: EXTRAS, qr, ...o })
 const tipos = (d: Doc) => d.blocos.map((b) => b.t)
 const blocos = (d: Doc, t: string) => d.blocos.filter((b) => b.t === t)
 const pedido = (d: Doc) => d.blocos.find((b) => b.t === 'pedido')!
 const centavos = (s: string) => Math.round(Number(s.replace(/\./g, '').replace(',', '.')) * 100)
 
-describe('Comanda da cozinha do Beta — modelo docs/referencias/impressao/v3/COMANDA.png', () => {
-  it('ordem do modelo: logo da loja, COMANDA COZINHA, #N com o selo, horários, ITENS DO PEDIDO (ITEM / VALOR), VALORES, TOTAL, DADOS, QR, rodapé', () => {
+describe('Comanda da cozinha do Beta — padrão docs/referencias/impressao/comanda-padrao.png', () => {
+  it('ordem do padrão: logo, COMANDA COZINHA, #N com o selo, horários, ITENS DO PEDIDO (ITEM / VALOR), VALORES, TOTAL, DADOS, separador, rodapé da loja com QR', () => {
     const d = doc()
-    expect(d.versao).toBe(4)
+    expect(d.versao).toBe(5)
     expect(d.modelo).toBe('cozinha')
     expect(tipos(d)).toEqual([
       'logo', 'titulo', 'pedido', 'horas', 'faixa', 'itens_cab', 'item', 'item', 'item',
       'faixa', 'par', 'par', 'par', 'par', 'tracejado', 'total',
-      'faixa', 'dado', 'dado', 'dado', 'dado', 'qr', 'rodape',
+      'faixa', 'dado', 'dado', 'dado', 'dado', 'separador', 'rodape_loja',
     ])
     expect(d.blocos[0]).toMatchObject({ t: 'logo', nome: 'PIZZA DO ROSA' })
     expect(d.blocos[1]!.s).toBe('COMANDA COZINHA')
     expect(pedido(d)).toMatchObject({ numero: '#129', tipo: 'ENTREGA' })
-    expect(blocos(d, 'horas')[0]!.s).toBe('Recebido 15:38  •  Pronto 15:55')
+    expect(blocos(d, 'horas')[0]!.s).toBe('Recebido 15:38 | Pronto 15:55')
     expect(blocos(d, 'itens_cab')[0]).toMatchObject({ esq: 'ITEM', dir: 'VALOR (R$)' })
   })
 
@@ -58,23 +58,45 @@ describe('Comanda da cozinha do Beta — modelo docs/referencias/impressao/v3/CO
     expect(blocos(doc({ ...PEDIDO, formaPagamento: 'cartao' }), 'par')[3]).toMatchObject({ valor: 'CARTAO', icone: 'cartao' })
   })
 
-  it('rodapé: QR, "Peça de novo pelo nosso cardápio", nome/telefone/endereço da LOJA e "Feito por"', () => {
-    const r = blocos(doc(), 'rodape')[0]!
-    expect(r.linhas!.map((l) => l.s)).toEqual(['Peça de novo pelo nosso cardápio'])
-    expect(r.loja).toEqual({ nome: 'PIZZA DO ROSA', telefone: '(27) 99999-0000', endereco: LOJA.endereco })
+  it('rodapé em duas colunas: nome, telefone, rua e Cidade/UF da LOJA; QR com a chamada; "Feito por"', () => {
+    const r = blocos(doc(), 'rodape_loja')[0]!
+    expect(r.loja).toEqual({ nome: 'PIZZA DO ROSA', telefone: '(27) 99999-0000', linha1: 'Av. Nossa Senhora da Penha, 1500', cidade: 'Vitória/ES' })
+    expect(r.chamada).toEqual(['PEÇA DE NOVO PELO CARDÁPIO:', 'aponte a câmera para o QR Code'])
+    expect(r.qr!.linhas).toHaveLength(21)
     expect(r.final).toBe('Feito por Sistema Menuzia')
-    const ig = blocos(doc(PEDIDO, { qr: { ...qr, origem: 'instagram', url: 'https://instagram.com/pizzadorosa' } }), 'rodape')[0]!
-    expect(ig.linhas!.map((l) => l.s)).toEqual(['Siga a gente no Instagram', '@pizzadorosa'])
-    expect(blocos(doc(PEDIDO, { qr: null }), 'qr')).toHaveLength(0)
+    const ig = blocos(doc(PEDIDO, { qr: { ...qr, origem: 'instagram', url: 'https://instagram.com/pizzadorosa' } }), 'rodape_loja')[0]!
+    expect(ig.chamada).toEqual(['SIGA A GENTE NO INSTAGRAM:', '@pizzadorosa'])
+    expect(ig.qr!.icone).toBe('instagram')
+    const semQr = blocos(doc(PEDIDO, { qr: null }), 'rodape_loja')[0]!
+    expect(semQr.qr).toBeNull()
+    expect(semQr.chamada).toEqual([])
     // O endereço do rodapé é o da loja, nunca o do cliente.
     const txt = textoDoDocumento(doc())
     expect(txt.slice(txt.lastIndexOf('PIZZA DO ROSA'))).not.toContain('Henrique Moscoso')
   })
 
-  it('dados da entrega como eram', () => {
+  it('servidor antigo (só "endereco"): rua e Cidade/UF saem do endereço completo; campo vazio = linha omitida', () => {
+    const antigo = blocos(doc(PEDIDO, { loja: { nome: 'Pizza do Rosa', telefone: '', endereco: 'Rua A, 10 - Loja 2 - Centro, Vila Velha/ES' } }), 'rodape_loja')[0]!
+    expect(antigo.loja).toEqual({ nome: 'PIZZA DO ROSA', telefone: '', linha1: 'Rua A, 10', cidade: 'Vila Velha/ES' })
+    const livre = blocos(doc(PEDIDO, { loja: { nome: 'X', telefone: '', endereco: 'Rua sem cidade' } }), 'rodape_loja')[0]!
+    expect(livre.loja).toMatchObject({ linha1: 'Rua sem cidade', cidade: '' })
+  })
+
+  it('dados da entrega pensados para o motoboy: cliente, telefone, endereço com complemento, bairro, cidade, referência e troco', () => {
     expect(blocos(doc(), 'dado').map((b) => [b.rotulo, b.valor])).toEqual([
-      ['Cliente:', 'teste claude'], ['Telefone:', '552799920804'], ['Endereco:', 'Avenida Henrique Moscoso, 1'], ['Bairro:', 'JABURUNA'],
+      ['Cliente:', 'TESTE CLAUDE'], ['Telefone:', '(27) 9992-0804'], ['Endereço:', 'Avenida Henrique Moscoso, 1'], ['Bairro:', 'JABURUNA'],
     ])
+    const longo = doc({
+      ...PEDIDO, formaPagamento: 'dinheiro', trocoPara: 100, enderecoComplemento: 'Apto 1203 bloco B', enderecoCidade: 'Vila Velha/ES',
+      enderecoReferencia: 'Em frente à padaria, portão verde',
+    })
+    const dd = blocos(longo, 'dado')
+    expect(dd.map((b) => [b.rotulo, b.valor, !!b.negrito])).toEqual([
+      ['Cliente:', 'TESTE CLAUDE', true], ['Telefone:', '(27) 9992-0804', true], ['Endereço:', 'Avenida Henrique Moscoso, 1, Apto 1203 bloco B', false],
+      ['Bairro:', 'JABURUNA', true], ['Cidade:', 'Vila Velha/ES', false], ['Ref.:', 'Em frente à padaria, portão verde', false], ['Troco:', 'Troco para R$ 100,00', true],
+    ])
+    // Troco da entrega é do motoboy: sai nos dados, não em VALORES.
+    expect(blocos(longo, 'par').map((b) => b.rotulo)).not.toContain('Troco para')
   })
 
   it('mesa: MESA no selo, DADOS DA MESA (mesa, comanda, atendente), sem endereço e sem forma de pagamento', () => {
@@ -82,14 +104,17 @@ describe('Comanda da cozinha do Beta — modelo docs/referencias/impressao/v3/CO
     expect(pedido(d).tipo).toBe('MESA 07')
     expect(blocos(d, 'dado').map((b) => [b.rotulo, b.valor])).toEqual([['Mesa:', '07'], ['Comanda:', '175'], ['Atendente:', 'Pedro']])
     const t = textoDoDocumento(d)
-    for (const x of ['Endereco', 'Bairro', 'Pagamento', 'Taxa de entrega']) expect(t).not.toContain(x)
+    for (const x of ['Endereço', 'Bairro', 'Pagamento', 'Taxa de entrega']) expect(t).not.toContain(x)
   })
 
-  it('balcão: senha no selo; retirada: DADOS DO CLIENTE', () => {
+  it('retirada: DADOS DA RETIRADA só com cliente e telefone; balcão: senha no selo e DADOS DO CLIENTE', () => {
     expect(pedido(doc({ ...PEDIDO, canal: 'balcao', tipo: 'retirada', senha: 12, taxaEntrega: 0 })).tipo).toBe('SENHA 12')
     const r = doc({ ...PEDIDO, tipo: 'retirada', taxaEntrega: 0 })
     expect(pedido(r).tipo).toBe('RETIRADA')
-    expect(blocos(r, 'faixa').map((x) => x.s)).toContain('DADOS DO CLIENTE')
+    expect(blocos(r, 'faixa').map((x) => x.s)).toContain('DADOS DA RETIRADA')
+    expect(blocos(r, 'dado').map((b) => b.rotulo)).toEqual(['Cliente:', 'Telefone:'])
+    const bal = doc({ ...PEDIDO, canal: 'balcao', tipo: 'retirada', senha: 12, taxaEntrega: 0 })
+    expect(blocos(bal, 'faixa').map((x) => x.s)).toContain('DADOS DO CLIENTE')
   })
 
   it('opções da loja: número do item, nome e preço dos adicionais, multiplicar pela quantidade, fonte maior', () => {
@@ -109,7 +134,7 @@ describe('Comanda da cozinha do Beta — modelo docs/referencias/impressao/v3/CO
       ...PEDIDO, formaPagamento: 'dinheiro', trocoPara: 100, observacao: 'interfone quebrado',
       itens: [{ nome: 'Pizza', quantidade: 1, precoUnitario: 60, tamanhoNome: 'Grande', saborNome: 'Calabresa / Frango', bordaNome: 'Catupiry', massaNome: 'Fina', observacao: '', complementos: [] }],
     }))
-    for (const x of ['1x PIZZA  60,00', 'Grande - Calabresa / Frango', '+ Borda: Catupiry', '+ Massa: Fina', 'Troco para  R$ 100,00', 'OBS. DO PEDIDO: INTERFONE QUEBRADO']) expect(t).toContain(x)
+    for (const x of ['1x PIZZA  60,00', 'Grande - Calabresa / Frango', '+ Borda: Catupiry', '+ Massa: Fina', 'Troco: Troco para R$ 100,00', 'OBS. DO PEDIDO: INTERFONE QUEBRADO']) expect(t).toContain(x)
   })
 
   it('teste: marcas nas bordas e aviso para não preparar', () => {

@@ -5,6 +5,7 @@ import { gerarCodigoPareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN
 import { snapshotCozinhaTeste, snapshotReciboTeste } from './recibo-teste'
 import { COLUNAS_LOJA_IMPRESSAO, dadosLojaImpressao, qrDaCozinha, type LojaImpressao } from './cozinha-beta'
 import { avaliarModos } from './regras-modo'
+import { COLUNAS_ENVIO, perfilEnvio, validarPerfilEnvio, type PerfilEnvio } from './regras-calibracao'
 
 /**
  * Impressão com vários computadores e impressoras — leitura e operações de servidor.
@@ -117,7 +118,7 @@ export interface AgenteVisao {
   criadoPorNome: string | null
 }
 
-export interface DispositivoVisao {
+export interface DispositivoVisao extends PerfilEnvio {
   id: string
   agenteId: string
   nomeSistema: string
@@ -157,7 +158,7 @@ export interface TrabalhoVisao {
 export async function painelImpressao(admin: SupabaseClient, restauranteId: string) {
   const [{ data: ags }, { data: dsp }, { data: fns }, { data: tbs }, { data: loja }] = await Promise.all([
     admin.from('impressao_agentes').select('id, nome, versao, visto_em, revogado_em, criado_em, criado_por_nome').eq('restaurante_id', restauranteId).order('criado_em'),
-    admin.from('impressao_dispositivos').select('id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em').eq('restaurante_id', restauranteId).order('criado_em'),
+    admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
     admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, calibracao:snapshot->>calibracao, recibo_teste:snapshot->>recibo_teste, cozinha_teste:snapshot->>cozinha_teste, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
     admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
@@ -192,6 +193,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     ultimoErro: (d.ultimo_erro as string | null) ?? null,
     ultimoErroEm: (d.ultimo_erro_em as string | null) ?? null,
     funcoes: funcoes.filter((f) => f.dispositivo_id === d.id).map((f) => f.funcao),
+    ...perfilEnvio(d),
   }))
   const trabalhos: TrabalhoVisao[] = ((tbs ?? []) as unknown as (Record<string, unknown> & { impressao_dispositivos: { apelido: string | null; nome_sistema: string } | null })[]).map((t) => ({
     id: t.id as string,
@@ -260,9 +262,20 @@ export async function ajustarDispositivo(
   admin: SupabaseClient,
   op: Operador,
   id: string,
-  a: { apelido?: unknown; larguraMm?: unknown; tamanhoFonte?: unknown; larguraPontos?: unknown; deslocamentoPontos?: unknown },
+  a: {
+    apelido?: unknown; larguraMm?: unknown; tamanhoFonte?: unknown; larguraPontos?: unknown; deslocamentoPontos?: unknown
+    intensidade?: unknown; envio?: unknown; modoImpressao?: unknown; redeIp?: unknown; redePorta?: unknown
+  },
 ): Promise<Resultado<null>> {
   const patch: Record<string, unknown> = {}
+  // Como a impressora recebe (0109): intensidade, envio direto (fila/rede) e modo texto.
+  if ([a.intensidade, a.envio, a.modoImpressao, a.redeIp, a.redePorta].some((v) => v !== undefined)) {
+    const { data: atual } = await admin.from('impressao_dispositivos').select(COLUNAS_ENVIO).eq('id', id).eq('restaurante_id', op.restauranteId).maybeSingle()
+    if (!atual) return falha('Impressora não encontrada nesta loja.', 404, 'dispositivo_inexistente')
+    const v = validarPerfilEnvio(a, perfilEnvio(atual as Record<string, unknown>))
+    if (!v.ok) return falha(v.erro)
+    Object.assign(patch, v.patch)
+  }
   // Perfil de calibração (0100): só desta impressora. null volta ao padrão de fábrica.
   if (a.larguraPontos !== undefined) {
     if (a.larguraPontos !== null && !(Number.isInteger(a.larguraPontos) && (a.larguraPontos as number) >= 256 && (a.larguraPontos as number) <= 832)) {
@@ -276,7 +289,7 @@ export async function ajustarDispositivo(
     }
     patch.deslocamento_pontos = a.deslocamentoPontos
   }
-  if (patch.largura_pontos !== undefined || patch.deslocamento_pontos !== undefined) {
+  if (['largura_pontos', 'deslocamento_pontos', 'intensidade', 'envio', 'modo_impressao', 'rede_ip', 'rede_porta'].some((k) => patch[k] !== undefined)) {
     patch.calibrado_em = new Date().toISOString()
     patch.calibrado_por_nome = op.nome
   }
@@ -498,7 +511,7 @@ export function sanearDiagnostico(d: unknown): Record<string, string | number | 
   return Object.keys(o).length ? o : null
 }
 
-export interface TrabalhoAgente {
+export interface TrabalhoAgente extends PerfilEnvio {
   id: string
   tipo: 'pre_conta' | 'teste_impressora'
   via: number
@@ -524,9 +537,9 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
   const r = await rpc<Record<string, unknown>[]>(admin, 'impressao_trabalhos_reservar', { p_agente: agenteId, p_limite: 10 })
   if (!r.ok) return r
   const ids = [...new Set((r.valor ?? []).map((t) => t.dispositivo_id as string))]
-  type Perfil = { id: string; largura_pontos: number | null; deslocamento_pontos: number; tamanho_fonte: string; restaurantes: (Record<string, unknown> & { slug: string; instagram_url: string | null; impressao_logo: boolean | null }) | null }
+  type Perfil = Record<string, unknown> & { id: string; largura_pontos: number | null; deslocamento_pontos: number; tamanho_fonte: string; restaurantes: (Record<string, unknown> & { slug: string; instagram_url: string | null; impressao_logo: boolean | null }) | null }
   const { data: perfis } = ids.length
-    ? await admin.from('impressao_dispositivos').select(`id, largura_pontos, deslocamento_pontos, tamanho_fonte, restaurantes ( slug, instagram_url, impressao_logo, ${COLUNAS_LOJA_IMPRESSAO} )`).in('id', ids)
+    ? await admin.from('impressao_dispositivos').select(`id, largura_pontos, deslocamento_pontos, tamanho_fonte, ${COLUNAS_ENVIO}, restaurantes ( slug, instagram_url, impressao_logo, ${COLUNAS_LOJA_IMPRESSAO} )`).in('id', ids)
     : { data: [] as Perfil[] }
   const perfil = new Map(((perfis ?? []) as unknown as Perfil[]).map((p) => [p.id, p]))
   const qrDe = (id: string) => {
@@ -550,6 +563,7 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
       qr: qrDe(t.dispositivo_id as string),
       loja: perfil.get(t.dispositivo_id as string)?.restaurantes ? dadosLojaImpressao(perfil.get(t.dispositivo_id as string)!.restaurantes) : null,
       imprimirLogo: perfil.get(t.dispositivo_id as string)?.restaurantes?.impressao_logo !== false,
+      ...perfilEnvio(perfil.get(t.dispositivo_id as string)),
       dispositivoId: t.dispositivo_id as string,
       segundosRestantes: t.segundos_restantes as number,
       tentativas: t.tentativas as number,
@@ -565,7 +579,7 @@ export async function informarResultado(admin: SupabaseClient, agenteId: string,
 
 // ─── roteamento da ficha da cozinha por função (opção da loja) ───────────────
 
-export interface DestinoCozinha {
+export interface DestinoCozinha extends PerfilEnvio {
   ativo: boolean
   agenteId: string | null
   nomeSistema: string | null
@@ -584,12 +598,12 @@ export async function destinoCozinha(admin: SupabaseClient, restauranteId: strin
     admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
     admin
       .from('impressao_funcoes')
-      .select('impressao_dispositivos ( agente_id, nome_sistema, largura_mm, tamanho_fonte, copias, largura_pontos, deslocamento_pontos )')
+      .select(`impressao_dispositivos ( agente_id, nome_sistema, largura_mm, tamanho_fonte, copias, largura_pontos, deslocamento_pontos, ${COLUNAS_ENVIO} )`)
       .eq('restaurante_id', restauranteId)
       .eq('funcao', 'cozinha')
       .maybeSingle(),
   ])
-  const d = (f as unknown as { impressao_dispositivos: { agente_id: string; nome_sistema: string; largura_mm: 58 | 80; tamanho_fonte: string; copias: number; largura_pontos: number | null; deslocamento_pontos: number } | null } | null)
+  const d = (f as unknown as { impressao_dispositivos: (Record<string, unknown> & { agente_id: string; nome_sistema: string; largura_mm: 58 | 80; tamanho_fonte: string; copias: number; largura_pontos: number | null; deslocamento_pontos: number }) | null } | null)
     ?.impressao_dispositivos
   return {
     ativo: loja?.impressao_cozinha_por_funcao === true && !!d,
@@ -601,6 +615,7 @@ export async function destinoCozinha(admin: SupabaseClient, restauranteId: strin
     larguraPontos: d?.largura_pontos ?? null,
     deslocamentoPontos: d?.deslocamento_pontos ?? 0,
     transferidaEm: (loja?.impressao_cozinha_transferida_em as string | null) ?? null,
+    ...perfilEnvio(d),
   }
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import TicketMenuzia from '@/printer-agent/src/ticket-canvas.js'
 import { montarCozinhaBeta } from '@/printer-agent/src/cozinha-beta.js'
 import { montarPreContaBeta } from '@/printer-agent/src/pre-conta-beta.js'
-import { contaDemonstracao, pedidoDemonstracao } from '@/lib/impressao/previa-beta'
+import { contaDemonstracao, pedidoDemonstracao, type TipoDemonstracao } from '@/lib/impressao/previa-beta'
 import type { DispositivoVisao } from '@/lib/impressao/servico'
 import type { ConfigImpressao } from '@/lib/queries/impressao'
 import { SECUNDARIO, TAMANHOS_LETRA, nomeDisp, type PainelDados, type TamanhoLetra } from '@/components/impressao/beta-cards'
@@ -37,7 +37,10 @@ const carregarFontes = () => (fontes ??= TicketMenuzia.carregarRecursos('/impres
   throw e
 }))
 
-type DadosLoja = { loja: { nome: string; telefone: string; endereco: string }; qr: unknown; logoUrl: string | null }
+type Loja = { nome: string; telefone: string; endereco: string; linha1?: string; cidade?: string }
+type DadosLoja = { loja: Loja; qr: unknown; logoUrl: string | null }
+const LOJA_VAZIA: Loja = { nome: '', telefone: '', endereco: '', linha1: '', cidade: '' }
+const TIPOS: { valor: TipoDemonstracao; rotulo: string }[] = [{ valor: 'mesa', rotulo: 'Mesa' }, { valor: 'entrega', rotulo: 'Entrega' }, { valor: 'retirada', rotulo: 'Retirada' }]
 
 export function PreviaBeta({ p, ocupado, config, podeEditar, onPatchConfig, onSalvarLetra }: {
   p: PainelDados
@@ -48,6 +51,7 @@ export function PreviaBeta({ p, ocupado, config, podeEditar, onPatchConfig, onSa
   onSalvarLetra: (d: DispositivoVisao, tamanho: TamanhoLetra) => Promise<void>
 }) {
   const [modelo, setModelo] = useState<Modelo>('cozinha')
+  const [tipoPedido, setTipoPedido] = useState<TipoDemonstracao>('mesa')
   const [dados, setDados] = useState<DadosLoja | null>(null)
   const [logo, setLogo] = useState<HTMLImageElement | null>(null)
   const ativos = useMemo(() => p.dispositivos.filter((d) => !p.agentes.find((a) => a.id === d.agenteId)?.revogado), [p.dispositivos, p.agentes])
@@ -71,12 +75,12 @@ export function PreviaBeta({ p, ocupado, config, podeEditar, onPatchConfig, onSa
       .then((r) => (r.ok ? r.json() : null))
       .then(async (j) => {
         if (!vivo) return
-        const d: DadosLoja = j ? { loja: j.loja ?? { nome: '', telefone: '', endereco: '' }, qr: j.qr ?? null, logoUrl: j.logoUrl ?? null } : { loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null }
+        const d: DadosLoja = j ? { loja: j.loja ?? LOJA_VAZIA, qr: j.qr ?? null, logoUrl: j.logoUrl ?? null } : { loja: LOJA_VAZIA, qr: null, logoUrl: null }
         setDados(d)
         const img = d.logoUrl ? await TicketMenuzia.carregarImagem(d.logoUrl) : null
         if (vivo) setLogo(img)
       })
-      .catch(() => { if (vivo) setDados({ loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null }) })
+      .catch(() => { if (vivo) setDados({ loja: LOJA_VAZIA, qr: null, logoUrl: null }) })
     return () => { vivo = false }
   }, [])
 
@@ -90,21 +94,22 @@ export function PreviaBeta({ p, ocupado, config, podeEditar, onPatchConfig, onSa
     const agora = new Date()
     const doc = modelo === 'cozinha'
       ? (() => {
-          const d = pedidoDemonstracao(agora)
+          const d = pedidoDemonstracao(agora, tipoPedido)
           return montarCozinhaBeta(d.pedido, { config: cfg, lojaNome: dados.loja.nome, loja: dados.loja, extras: d.extras, qr: dados.qr })
         })()
       : montarPreContaBeta({ ...contaDemonstracao(dados.loja.nome, agora), qr: dados.qr, loja_dados: dados.loja })
     carregarFontes()
       .then(() => {
         if (!vivo || !canvas.current) return
-        setMedida(TicketMenuzia.desenhar(canvas.current, doc, { larguraMm, larguraPontos, tamanhoFonte: letraVista, logo, imprimirLogo: cfg.imprimirLogo !== false }))
+        // Mesmo desenho do papel: 1 bit e a intensidade da impressora.
+        setMedida(TicketMenuzia.desenhar(canvas.current, doc, { larguraMm, larguraPontos, tamanhoFonte: letraVista, logo, imprimirLogo: cfg.imprimirLogo !== false, intensidade: imp?.intensidade ?? 'normal' }))
         setErro(null)
       })
       .catch(() => { if (vivo) setErro('Não foi possível carregar as fontes da pré-visualização. Recarregue a página.') })
     return () => { vivo = false }
     // cfg entra pela chave (objeto novo a cada render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dados, logo, modelo, larguraMm, larguraPontos, letraVista, chaveCfg])
+  }, [dados, logo, modelo, tipoPedido, larguraMm, larguraPontos, letraVista, chaveCfg, imp?.intensidade])
 
   function trocarModelo(m: Modelo) {
     setModelo(m)
@@ -125,6 +130,14 @@ export function PreviaBeta({ p, ocupado, config, podeEditar, onPatchConfig, onSa
           <button key={m} type="button" role="tab" aria-selected={modelo === m} onClick={() => trocarModelo(m)} data-testid={`previa-${m}`} className={aba(modelo === m)}>{ROTULO[m]}</button>
         ))}
       </div>
+
+      {modelo === 'cozinha' && (
+        <div className="mt-2 flex gap-1 rounded-[8px] bg-[#F3F4F6] p-1" role="radiogroup" aria-label="Tipo do pedido">
+          {TIPOS.map((t) => (
+            <button key={t.valor} type="button" role="radio" aria-checked={tipoPedido === t.valor} onClick={() => setTipoPedido(t.valor)} data-testid={`previa-tipo-${t.valor}`} className={aba(tipoPedido === t.valor)}>{t.rotulo}</button>
+          ))}
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
         {ativos.length > 0 ? (

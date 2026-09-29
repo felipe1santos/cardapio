@@ -4,7 +4,8 @@ import { ajustarDispositivo, criarReciboTeste, criarTeste } from '@/lib/impressa
 import { ehUuid } from '@/lib/pdv-v2'
 
 /**
- * Apelido/largura/fonte e perfil de calibração (PATCH — larguraPontos/deslocamentoPontos,
+ * Apelido/largura/fonte e perfil de calibração (PATCH — larguraPontos/deslocamentoPontos e,
+ * desde a 0109, intensidade/envio/modoImpressao/redeIp/redePorta,
  * só desta impressora) e impressão de teste ou calibração (POST { acao: "teste" | "calibracao", chave }).
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const r = await ajustarDispositivo(ctx.admin, ctx.op, id, {
     apelido: corpo.apelido, larguraMm: corpo.larguraMm, tamanhoFonte: corpo.tamanhoFonte,
     larguraPontos: corpo.larguraPontos, deslocamentoPontos: corpo.deslocamentoPontos,
+    intensidade: corpo.intensidade, envio: corpo.envio, modoImpressao: corpo.modoImpressao, redeIp: corpo.redeIp, redePorta: corpo.redePorta,
   })
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
   return NextResponse.json({ ok: true })

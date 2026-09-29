@@ -85,4 +85,34 @@ function montarCalibracao(s, diag) {
   return montarCalibracaoLinhas(s, diag).join('\n')
 }
 
-module.exports = { montarCalibracao, montarCalibracaoLinhas, larguraEfetiva }
+const ROTULO_ENVIO = { driver: 'Driver do Windows', raw_fila: 'Direto pela fila (ESC/POS)', raw_rede: 'Direto pela rede (ESC/POS)' }
+const ROTULO_INTENSIDADE = { normal: 'Normal', escura: 'Escura', mais_escura: 'Mais escura' }
+
+/**
+ * TESTE DE LARGURA (Assistente Beta 0.2.0-beta.7): documento `largura` do ticket-canvas.js,
+ * impresso pelo MESMO caminho da comanda (driver, fila RAW ou rede) — barras nas duas
+ * bordas, régua em pontos e o que o sistema aplica. `perfil` = o da impressora agora.
+ */
+function montarTesteLargura(s, diag = {}, perfil = {}) {
+  const largura = larguraEfetiva(s.largura_mm, perfil.larguraPontos ?? s.largura_pontos)
+  const envio = ROTULO_ENVIO[perfil.envio] || ROTULO_ENVIO.driver
+  const linhas = [
+    { rotulo: 'Impressora:', valor: texto(s.impressora ?? s.nome_sistema) },
+    { rotulo: 'Papel:', valor: `${texto(s.largura_mm)} mm` },
+    { rotulo: 'Largura:', valor: `${largura} pontos` },
+    { rotulo: 'Envio:', valor: perfil.envio === 'raw_rede' && perfil.redeIp ? `${envio} ${perfil.redeIp}:${perfil.redePorta || 9100}` : envio },
+    { rotulo: 'Intensidade:', valor: ROTULO_INTENSIDADE[perfil.intensidade] || ROTULO_INTENSIDADE.normal },
+    { rotulo: 'Modo:', valor: perfil.modoImpressao === 'texto' ? 'Texto' : 'Imagem' },
+    { rotulo: 'Driver:', valor: diag.papelLarguraMm ? `${diag.driver ? `${diag.driver} · ` : ''}${diag.papelLarguraMm} mm, ${texto(diag.pontosImprimiveis)} pontos` : texto(diag.driver) },
+  ]
+  const instrucoes = [
+    'As duas barras pretas (esquerda e direita) e o último número da régua precisam aparecer inteiros.',
+    'Cortou a direita? Em Calibrar impressora, escolha uma largura menor ou o envio direto.',
+    'Letra clara ou falhada? Escolha a intensidade Escura.',
+  ]
+  const doc = { versao: 1, modelo: 'largura', blocos: [], linhas, instrucoes }
+  doc.texto = ['TESTE DE LARGURA', ...linhas.map((l) => `${l.rotulo} ${l.valor}`), 'ÇÃÉÕ çãéõ áíú', ...instrucoes].join('\n')
+  return doc
+}
+
+module.exports = { montarCalibracao, montarCalibracaoLinhas, larguraEfetiva, montarTesteLargura }

@@ -94,7 +94,12 @@ export async function lojaDaCozinhaBeta(admin: SupabaseClient, restauranteId: st
 export interface LojaImpressao {
   nome: string
   telefone: string
+  /** Endereço completo numa linha (Assistente 0.2.0-beta.6 e anteriores). */
   endereco: string
+  /** "Rua, número" — linha 1 do rodapé da comanda padrão (0.2.0-beta.7+). */
+  linha1: string
+  /** "Cidade/UF" — linha 2 do rodapé da comanda padrão (0.2.0-beta.7+). */
+  cidade: string
 }
 
 /** Colunas de restaurantes usadas por dadosLojaImpressao (selecione todas). */
@@ -116,17 +121,21 @@ export function telefoneImpressao(v: string | null | undefined): string {
  */
 export function dadosLojaImpressao(r: Record<string, unknown> | null | undefined): LojaImpressao {
   const t = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
-  if (!r) return { nome: '', telefone: '', endereco: '' }
+  if (!r) return { nome: '', telefone: '', endereco: '', linha1: '', cidade: '' }
   const rua = t(r.endereco_rua)
   let endereco = ''
+  let linha1 = ''
+  let cidade = ''
   if (rua) {
-    const cidade = [t(r.endereco_cidade), t(r.endereco_estado)].filter(Boolean).join('/')
+    cidade = [t(r.endereco_cidade), t(r.endereco_estado)].filter(Boolean).join('/')
     const bairroCidade = [t(r.endereco_bairro), cidade].filter(Boolean).join(', ')
-    endereco = [[rua, t(r.endereco_numero)].filter(Boolean).join(', '), t(r.endereco_complemento), bairroCidade].filter(Boolean).join(' - ')
+    linha1 = [rua, t(r.endereco_numero)].filter(Boolean).join(', ')
+    endereco = [linha1, t(r.endereco_complemento), bairroCidade].filter(Boolean).join(' - ')
   } else {
     endereco = t(r.endereco)
+    linha1 = endereco
   }
-  return { nome: t(r.nome), telefone: telefoneImpressao(t(r.telefone)), endereco }
+  return { nome: t(r.nome), telefone: telefoneImpressao(t(r.telefone)), endereco, linha1, cidade }
 }
 
 export async function lojaImpressao(admin: SupabaseClient, restauranteId: string): Promise<LojaImpressao> {

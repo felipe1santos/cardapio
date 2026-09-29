@@ -273,7 +273,7 @@ try {
   ok('Testar Cozinha: trabalho de teste, sem pedido', t1.status < 300 && !!snapT && snapT.pedido?.id === 'teste', `${t1.status}`)
   ok('QR = Instagram da loja (matriz idêntica à do link)', snapT?.qr?.origem === 'instagram' && snapT.qr.url === 'https://instagram.com/menuzia.teste' && JSON.stringify(snapT.qr.linhas) === JSON.stringify(linhasEsperadas))
   const rC = await renderizarCozinhaBeta(snapT.pedido, { config: {}, lojaNome: snapT.loja, extras: snapT.extras, qr: snapT.qr, teste: true }, { saida: join(SHOTS, 'beta-cozinha-teste-instagram.png') })
-  ok('comanda de teste desenhada no modelo (TOTAL R$ 45,40, QR com ícone)', rC.total?.valor === 'R$ 45,40' && rC.doc.blocos.some((b) => b.t === 'qr' && b.icone === 'instagram'))
+  ok('comanda de teste desenhada no modelo (TOTAL R$ 45,40, QR com ícone)', rC.total?.valor === 'R$ 45,40' && rC.doc.blocos.some((b) => (b.t === 'qr' && b.icone === 'instagram') || (b.t === 'rodape_loja' && b.qr?.icone === 'instagram')))
 
   await db.query(`update restaurantes set instagram_url=null where id=$1`, [L])
   await api(pd, `/api/admin/impressao/dispositivos/${dispTermica}`, 'POST', { acao: 'cozinha_teste', chave: uuid() })
@@ -330,7 +330,7 @@ try {
   const betaM = await fila(credCaixa)
   const pm = (betaM.json?.pedidos ?? []).find((p) => p.canal === 'mesa')
   const rM = pm ? await renderizarCozinhaBeta(pm, { config: betaM.json.config, lojaNome: betaM.json.loja?.nome, extras: betaM.json.cozinhaBeta.extras[pm.id], qr: betaM.json.cozinhaBeta.qr }, { saida: join(SHOTS, 'beta-cozinha-real-mesa.png') }) : null
-  ok('ficha de mesa: MESA no topo, DADOS DA MESA com comanda e atendente, sem endereço', lm2.status < 300 && !!rM && rM.texto.includes('MESA 01') && !rM.texto.includes('MESA MESA') && rM.texto.includes('DADOS DA MESA') && /Comanda: \d+/.test(rM.texto) && !rM.texto.includes('Endereco'), rM?.texto.split('\n').slice(-8).join(' | '))
+  ok('ficha de mesa: MESA no topo, DADOS DA MESA com comanda e atendente, sem endereço', lm2.status < 300 && !!rM && rM.texto.includes('MESA 01') && !rM.texto.includes('MESA MESA') && rM.texto.includes('DADOS DA MESA') && /Comanda: \d+/.test(rM.texto) && !rM.texto.includes('Endere'), rM?.texto.split('\n').slice(-8).join(' | '))
   for (const p of betaM.json?.pedidos ?? []) await fetch(`${BASE}/api/agente/pedidos/${p.id}/imprimir`, { method: 'POST', headers: { Authorization: `Bearer ${credCaixa}` } })
 
   // ════════════════════════════════════════════════════════════════════════════

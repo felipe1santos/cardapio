@@ -26,11 +26,15 @@
   const DVSM = 'DejaVu Sans Mono Menuzia'
   const ESCALA_FONTE = { grande: 1, media: 0.92, pequena: 0.85 }
   const PRETO = '#111111'
-  const CINZA_OBS = '#d9d9d9'
-  const CINZA_TEXTO = '#6b6b6b'
-  // Largura dos modelos em pixels e a margem do texto.
+  // Faixa da OBS: cinza da referência (210). No papel vira RETÍCULA uniforme (1 bit).
+  const CINZA_OBS = '#d2d2d2'
+  // Largura dos modelos em pixels e a margem do texto. A comanda segue
+  // docs/referencias/impressao/comanda-padrao.png (papel de 1200 px, margem 48 → ×1,025).
   const BASE = { cozinha: 1230, pre_conta: 1020 }
-  const MARGEM = { cozinha: 60, pre_conta: 54 }
+  const MARGEM = { cozinha: 49, pre_conta: 54 }
+  // Preto e branco de verdade (B1): tudo vira 1 bit no tamanho exato de pontos. Limiar do
+  // texto por intensidade; "mais escura" ainda engrossa o traço em 1 ponto.
+  const INTENSIDADES = { normal: 150, escura: 185, mais_escura: 210 }
 
   /** Fontes que o desenho usa (caminhos relativos a quem carrega). */
   const RECURSOS = {
@@ -38,6 +42,7 @@
       { familia: MONO, peso: '500', arquivo: 'iosevka-500.woff2' },
       { familia: MONO, peso: '600', arquivo: 'iosevka-600.woff2' },
       { familia: MONO, peso: '800', arquivo: 'iosevka-800.woff2' },
+      { familia: COND, peso: '400', arquivo: 'roboto-condensed-400.woff2' },
       { familia: COND, peso: '700', arquivo: 'roboto-condensed-700.woff2' },
       { familia: SANS, peso: '400 700', arquivo: 'arimo.woff2' },
       { familia: DVSC, peso: '400', arquivo: 'DejaVuSansCondensed.ttf' },
@@ -79,7 +84,7 @@
 
   // ── motor de layout ─────────────────────────────────────────────────────────
   // Duas passadas: a primeira só mede (altura), a segunda desenha.
-  function criarPincel(ctx, largura, modelo, tamanhoFonte, desenhar) {
+  function criarPincel(ctx, largura, modelo, tamanhoFonte, desenhar, o = {}) {
     const k = largura / BASE[modelo]
     const fe = ESCALA_FONTE[tamanhoFonte] || 1
     const U = (v) => v * k // horizontal / estrutura
@@ -87,9 +92,17 @@
     const m = U(MARGEM[modelo])
     const dir = largura - m
     const capCache = new Map()
+    // Pré-conta (B1): letra fina/pequena sumia na térmica. Tamanho mínimo e um traço de
+    // reforço no texto regular (efeito "medium") — o desenho continua o mesmo.
+    const minFonte = modelo === 'pre_conta' ? 17 : 11
+    const reforco = modelo === 'pre_conta'
+    let tamAtual = 0
+    let pesoAtual = '400'
 
     const fonte = (familia, peso, tam, espaco = 0) => {
-      ctx.font = `${peso} ${Math.max(9, tam).toFixed(2)}px "${familia}"`
+      tamAtual = Math.max(minFonte, tam)
+      pesoAtual = String(peso)
+      ctx.font = `${peso} ${tamAtual.toFixed(2)}px "${familia}"`
       if ('letterSpacing' in ctx) ctx.letterSpacing = `${espaco.toFixed(2)}px`
     }
     const cap = () => {
@@ -105,6 +118,18 @@
       ctx.textAlign = alinhar
       ctx.textBaseline = 'alphabetic'
       ctx.fillText(s, x, topo + cap())
+      if (reforco && pesoAtual === '400' && cor !== '#ffffff') {
+        ctx.save()
+        ctx.strokeStyle = cor
+        ctx.lineWidth = Math.max(0.5, tamAtual * 0.03)
+        ctx.lineJoin = 'round'
+        ctx.strokeText(s, x, topo + cap())
+        ctx.restore()
+      }
+    }
+    // Área que no papel vira retícula (faixa cinza, logo) em vez de limiar.
+    const reticula = (x, y, w, h) => {
+      if (desenhar && Array.isArray(o.reticulas)) o.reticulas.push({ x: Math.floor(x), y: Math.floor(y), w: Math.ceil(w), h: Math.ceil(h) })
     }
     const ret = (x, y, w, h, cor = PRETO) => {
       if (!desenhar) return
@@ -182,7 +207,7 @@
       const x0 = U(42), x1 = largura - U(42) - w
       for (let i = 0; i < n; i++) ret(x0 + ((x1 - x0) * i) / (n - 1), y, w, h)
     }
-    return { k, fe, U, T, m, dir, largura, fonte, cap, larg, texto, ret, quebrar, espacoPara, faixa, tracejado, pontilhado, qr, marcas }
+    return { k, fe, U, T, m, dir, largura, fonte, cap, larg, texto, ret, quebrar, espacoPara, faixa, tracejado, pontilhado, qr, marcas, reticula }
   }
 
   function arredondado(ctx, x, y, w, h, r) {
@@ -289,6 +314,7 @@
         if ('filter' in ctx) ctx.filter = 'grayscale(1)'
         ctx.drawImage(logo, Math.round((p.largura - w) / 2), Math.round(y), Math.round(w), Math.round(h))
         ctx.restore()
+        p.reticula((p.largura - w) / 2, y, w, h)
       }
       return h
     }
@@ -362,12 +388,26 @@
   // ── comanda da cozinha (modelo v3/COMANDA.png, 1230 px) ─────────────────────
   // Distâncias = do fim do bloco anterior ao topo da tinta do próximo, medidas no modelo.
   function layoutCozinha(ctx, doc, o, desenhar) {
-    const p = criarPincel(ctx, o.largura, 'cozinha', o.tamanhoFonte, desenhar)
+    const p = criarPincel(ctx, o.largura, 'cozinha', o.tamanhoFonte, desenhar, o)
     const { U, T, m, dir, fonte, cap, larg, texto, ret, quebrar, faixa, tracejado, pontilhado } = p
     // Opção da loja "Fonte maior na via de produção": itens um pouco maiores.
     const fi = doc.fonteMaior ? 1.12 : 1
-    fonte(DVSM, '400', T(38.4))
+    // Dados (mesa/entrega/retirada): rótulos numa coluna, valores logo depois do maior.
+    fonte(DVSM, '400', T(53.4))
     const larguraRotulos = Math.max(0, ...doc.blocos.filter((b) => b.t === 'dado').map((b) => larg(b.rotulo)))
+    // Observação: faixa cinza na largura toda (retícula no papel), texto em negrito grande.
+    const faixaObs = (s, topo) => {
+      fonte(COND, '700', T(49) * fi)
+      const padX = U(20.5)
+      const lo = quebrar(s, dir - m - 2 * padX)
+      const c = cap(), passo = T(14)
+      const padV = Math.max(T(10), (T(71.7) - c) / 2)
+      const h = lo.length * c + (lo.length - 1) * passo + 2 * padV
+      ret(m, topo, dir - m, h, CINZA_OBS)
+      p.reticula(m, topo, dir - m, h)
+      lo.forEach((ln, i) => texto(ln, m + padX, topo + padV + i * (c + passo)))
+      return topo + h
+    }
     let y = U(12)
     let anterior = ''
     for (const b of doc.blocos) {
@@ -437,73 +477,57 @@
           break
         }
         case 'faixa': {
-          y += T(anterior === 'total' ? 35 : anterior === 'horas' ? 60 : 41)
-          const h = T(67)
-          const alvo = { 'ITENS DO PEDIDO': U(418), VALORES: U(190), 'DADOS DA ENTREGA': U(445), 'DADOS DA MESA': U(365), 'DADOS DO CLIENTE': U(440) }[b.s]
+          y += T(anterior === 'total' ? 29.7 : anterior === 'horas' ? 34.9 : 40)
+          const h = T(68.7)
+          const alvo = { 'ITENS DO PEDIDO': U(418), VALORES: U(190), 'DADOS DA ENTREGA': U(445), 'DADOS DA MESA': U(365), 'DADOS DO CLIENTE': U(440), 'DADOS DA RETIRADA': U(470) }[b.s]
           faixa(y, h, b.s, MONO, '800', T(40), alvo ? alvo * p.fe : null)
           y += h
           break
         }
         case 'itens_cab': {
-          y += T(34)
-          fonte(COND, '700', T(30))
-          texto(b.esq, m + U(2), y, 'left', CINZA_TEXTO)
-          texto(b.dir, dir, y, 'right', CINZA_TEXTO)
+          y += T(35.9)
+          fonte(COND, '700', T(31.7))
+          texto(b.esq, m + U(2), y)
+          texto(b.dir, dir, y, 'right')
           y += cap()
           break
         }
         case 'item': {
-          if (!b.primeiro) { y += T(29); pontilhado(y); y += Math.max(1, U(5)) }
-          y += T(b.primeiro ? 36 : 40)
-          fonte(COND, '700', T(59.6) * fi)
+          if (b.primeiro) y += T(39)
+          else { y += T(25.6); pontilhado(y); y += Math.max(1, U(5)) + T(44) }
+          fonte(COND, '700', T(64.9) * fi)
           const wv = b.valor ? larg(b.valor) : 0
           texto(b.valor || '', dir, y, 'right')
           const ls = quebrar(b.texto, dir - m - (wv ? wv + U(24) : 0))
-          ls.forEach((ln, i) => texto(ln, m, y + i * T(66) * fi))
-          y += cap() + (ls.length - 1) * T(66) * fi
-          // Adicionais e variações: na margem, sem recuo, com o valor à direita.
-          fonte(SANS, '400', T(38.5) * fi)
+          ls.forEach((ln, i) => texto(ln, m, y + i * T(72) * fi))
+          y += cap() + (ls.length - 1) * T(72) * fi
+          // Complementos: condensada regular GRANDE (~80% do item), na margem, valor à direita.
+          fonte(COND, '400', T(50.5) * fi)
           let primeiroSub = true
           for (const s of b.subs || []) {
             const wsv = s.valor ? larg(s.valor) : 0
             const lsub = quebrar(s.s, dir - m - (wsv ? wsv + U(24) : 0))
             lsub.forEach((ln, i) => {
-              y += primeiroSub ? T(28) : T(27)
+              y += primeiroSub ? T(29.7) : i === 0 ? T(18) : T(12)
               primeiroSub = false
               texto(ln, m, y)
               if (i === 0 && s.valor) texto(s.valor, dir, y, 'right')
               y += cap()
             })
           }
-          // Observação: faixa cinza claro na largura toda.
-          if (b.obs) {
-            fonte(COND, '700', T(36.8) * fi)
-            const padX = U(19), padV = T(17.5)
-            const lo = quebrar(b.obs, dir - m - 2 * padX)
-            const topo = y + T(19)
-            const h = lo.length * cap() + (lo.length - 1) * T(14) + 2 * padV
-            ret(m, topo, dir - m, h, CINZA_OBS)
-            lo.forEach((ln, i) => texto(ln, m + padX, topo + padV + i * (cap() + T(14))))
-            y = topo + h
-          }
+          if (b.obs) y = faixaObs(b.obs, y + T((b.subs || []).length ? 9.2 : 16))
           break
         }
         case 'obs_pedido': {
-          y += T(29)
-          fonte(COND, '700', T(36.8))
-          const padX = U(19), padV = T(17.5)
-          const ls = quebrar(b.s, dir - m - 2 * padX)
-          const h = ls.length * cap() + (ls.length - 1) * T(14) + 2 * padV
-          ret(m, y, dir - m, h, CINZA_OBS)
-          ls.forEach((ln, i) => texto(ln, m + padX, y + padV + i * (cap() + T(14))))
-          y += h
+          y = faixaObs(b.s, y + T(29))
           break
         }
         case 'par': {
-          y += T(b.primeiro ? 30 : 29)
-          fonte(DVSM, '400', T(38.4))
-          texto(b.rotulo, m + U(13), y)
-          if (b.negrito) fonte(DVSM, '700', T(38.4))
+          // Valores em monoespaçada GRANDE: rótulo à esquerda, valor à direita.
+          fonte(DVSM, '400', T(47.8))
+          y += b.primeiro ? T(32.8) : T(64) - cap()
+          texto(b.rotulo, m + U(8), y)
+          if (b.negrito) fonte(DVSM, '700', T(47.8))
           texto(b.valor, dir, y, 'right')
           const chave = b.icone && ICONE_DA_FORMA[b.icone]
           if (chave && ICONES_PAGAMENTO[chave]) {
@@ -515,35 +539,93 @@
           break
         }
         case 'tracejado': {
-          // Linha dupla embaixo dos valores (modelo).
-          y += T(40)
-          tracejado(y, U(15.5), U(8.5), Math.max(1, U(3)), '#333333')
-          y += T(12)
-          tracejado(y, U(15.5), U(8.5), Math.max(1, U(3)), '#333333')
-          y += Math.max(1, U(3))
+          // Linha dupla tracejada embaixo dos valores.
+          y += T(30.8)
+          tracejado(y, U(15.5), U(8.5), Math.max(1, U(4.1)), '#000000')
+          y += T(12.3)
+          tracejado(y, U(15.5), U(8.5), Math.max(1, U(4.1)), '#000000')
+          y += Math.max(1, U(4.1))
           break
         }
         case 'total': {
-          y += T(16)
-          const h = T(121)
-          ret(m, y, dir - m, h)
-          fonte(COND, '700', T(81.5))
-          const c = cap()
-          texto(b.rotulo, m + U(28), y + (h - c) / 2, 'left', '#ffffff')
-          texto(b.valor, dir - U(21), y + (h - c) / 2, 'right', '#ffffff')
-          y += h
+          // TOTAL sem fundo: preto, condensado, negrito e MUITO grande. Valor comprido
+          // (R$ 1.234,56 em 58 mm) diminui até caber sem encostar no rótulo.
+          y += T(64.6)
+          let tam = T(105.2)
+          fonte(COND, '700', tam)
+          while (larg(b.rotulo) + larg(b.valor) + U(40) > dir - m - U(7) && tam > T(40)) { tam *= 0.94; fonte(COND, '700', tam) }
+          texto(b.rotulo, m + U(7), y)
+          texto(b.valor, dir, y, 'right')
+          y += cap()
           break
         }
         case 'dado': {
-          y += T(b.primeiro ? 30 : 32)
-          fonte(DVSM, '400', T(38.4))
-          // Coluna do valor: a do modelo ou, com rótulo maior ("Atendente:"), logo depois dele.
-          const col = Math.max(m + U(250), m + U(13) + larguraRotulos + larg(' '))
-          texto(b.rotulo, m + U(13), y)
-          fonte(DVSM, b.negrito ? '700' : '400', T(38.4))
+          // Monoespaçada GRANDE: rótulo regular numa coluna, valor (negrito) na segunda;
+          // quebra de linha alinhada na coluna do valor, nunca embaixo do rótulo.
+          fonte(DVSM, '400', T(53.4))
+          y += b.primeiro ? T(35.9) : T(76) - cap()
+          const col = Math.max(m + U(250), m + U(8) + larguraRotulos + larg(' '))
+          texto(b.rotulo, m + U(8), y)
+          fonte(DVSM, b.negrito ? '700' : '400', T(53.4))
           const ls = quebrar(b.valor, dir - col)
-          ls.forEach((ln, i) => texto(ln, col, y + i * T(60)))
-          y += cap() + (ls.length - 1) * T(60)
+          ls.forEach((ln, i) => texto(ln, col, y + i * T(64)))
+          y += cap() + (ls.length - 1) * T(64)
+          break
+        }
+        case 'separador': {
+          // Pontilhado na largura toda entre os dados do pedido e o rodapé.
+          y += T(52.3)
+          pontilhado(y)
+          y += Math.max(1, U(5))
+          break
+        }
+        case 'rodape_loja': {
+          // Duas colunas: dados da LOJA à esquerda e o QR do cardápio à direita (topo do QR
+          // junto do nome). Papel estreito com a coluna apertada: QR embaixo, centralizado.
+          const loja = b.loja || {}
+          const qrOk = !!(b.qr && Array.isArray(b.qr.linhas) && b.qr.linhas.length >= 21)
+          const lado = T(261.4)
+          const linhas = []
+          if (loja.nome) linhas.push({ s: loja.nome, peso: '700', tam: T(40.1), passo: 0 })
+          const regulares = [loja.telefone ? `Tel.: ${loja.telefone}` : '', loja.linha1, loja.cidade].filter(Boolean)
+          regulares.forEach((s, i) => linhas.push({ s, peso: '400', tam: T(34.4), passo: i === 0 && loja.nome ? T(62.5) : T(49.2) }))
+          ;(qrOk ? b.chamada || [] : []).forEach((s, i) => linhas.push({ s, peso: i === 0 ? '700' : '400', tam: T(32.9), passo: i === 0 ? T(65.6) : T(47.2) }))
+          if (linhas.length || qrOk) {
+            const xq = dir - lado
+            const disponivel = xq - U(30) - m
+            let maisLarga = 0
+            for (const l of linhas) { fonte(SANS, l.peso, l.tam); maisLarga = Math.max(maisLarga, larg(l.s)) }
+            const ladoALado = qrOk && !(p.largura <= 450 && maisLarga > disponivel)
+            const maxW = ladoALado ? disponivel : dir - m
+            y += T(39)
+            const yq = y
+            let topo = qrOk && ladoALado ? y + T(22.5) : y
+            let fim = y
+            let primeira = true
+            for (const l of linhas) {
+              fonte(SANS, l.peso, l.tam)
+              quebrar(l.s, maxW).forEach((ln, i) => {
+                if (!primeira) topo += i === 0 ? l.passo : cap() * 1.45
+                primeira = false
+                texto(ln, m, topo)
+                fim = topo + cap()
+              })
+            }
+            y = linhas.length ? fim : y
+            if (qrOk) {
+              if (ladoALado) y = Math.max(y, yq + p.qr(b.qr.linhas, xq, yq, lado, b.qr.icone))
+              else { y += linhas.length ? T(34) : 0; y += p.qr(b.qr.linhas, (p.largura - lado) / 2, y, lado, b.qr.icone) }
+            }
+          }
+          y += T(47)
+          tracejado(y, U(15.5), U(8.5), Math.max(1, U(3)), '#000000')
+          y += Math.max(1, U(3))
+          if (b.final) {
+            fonte(SANS, '400', T(27.9))
+            y += T(36)
+            texto(b.final, p.largura / 2, y, 'center')
+            y += cap()
+          }
           break
         }
         case 'qr': {
@@ -579,18 +661,137 @@
       }
       anterior = b.t
     }
-    return y + T(17)
+    return y + T(24)
+  }
+
+  // ── teste de largura (Calibrar impressora) ──────────────────────────────────
+  // Barras pretas no primeiro e no último ponto, régua numerada em pontos, o que o sistema
+  // aplica (papel, pontos, envio, intensidade, modo), acentos, negrito e uma faixa em
+  // retícula — para o cliente conferir no papel se nada corta nem some.
+  function layoutLargura(ctx, doc, o, desenhar) {
+    const p = criarPincel(ctx, o.largura, 'cozinha', o.tamanhoFonte, desenhar, o)
+    const { U, T, m, dir, fonte, cap, larg, texto, ret, quebrar, faixa } = p
+    const W = p.largura
+    const barra = Math.max(4, Math.round(W / 96))
+    const regua = (y0) => {
+      const h = T(96)
+      ret(0, y0, barra, h)
+      ret(W - barra, y0, barra, h)
+      for (let x = 16; x < W - barra; x += 16) {
+        const alto = x % 64 === 0 ? T(44) : T(22)
+        ret(x, y0 + h - alto, Math.max(1, Math.round(W / 384)), alto)
+      }
+      fonte(MONO, '600', T(28))
+      for (let x = 64; x < W - U(60); x += 64) texto(String(x), x, y0 + T(6), 'center')
+      texto(String(W), W - barra - U(6), y0 + T(6), 'right')
+      return y0 + h
+    }
+    let y = regua(0)
+    y += T(30)
+    faixa(y, T(68.7), 'TESTE DE LARGURA', MONO, '800', T(40), null)
+    y += T(68.7)
+    fonte(DVSM, '400', T(40))
+    const larguraRot = Math.max(0, ...(doc.linhas || []).map((l) => larg(l.rotulo)))
+    for (const l of doc.linhas || []) {
+      fonte(DVSM, '400', T(40))
+      y += T(28)
+      const col = m + larguraRot + larg(' ')
+      texto(l.rotulo, m, y)
+      fonte(DVSM, '700', T(40))
+      const ls = quebrar(String(l.valor), dir - col)
+      ls.forEach((ln, i) => texto(ln, col, y + i * T(50)))
+      y += cap() + (ls.length - 1) * T(50)
+    }
+    y += T(34)
+    fonte(COND, '700', T(64.9))
+    texto('ÇÃÉÕ çãéõ áíú', m, y)
+    y += cap() + T(26)
+    fonte(COND, '400', T(50.5))
+    texto('Texto regular: ÂÊÔ à ü  R$ 1.234,56', m, y)
+    y += cap() + T(26)
+    fonte(DVSM, '400', T(30))
+    texto('Texto pequeno: 0123456789 ABCDEFGHIJ', m, y)
+    y += cap() + T(26)
+    fonte(COND, '700', T(49))
+    const h = T(71.7)
+    ret(m, y, dir - m, h, CINZA_OBS)
+    p.reticula(m, y, dir - m, h)
+    texto('FAIXA CINZA (OBS)', m + U(20.5), y + (h - cap()) / 2)
+    y += h + T(30)
+    fonte(SANS, '400', T(32))
+    for (const s of doc.instrucoes || []) {
+      for (const ln of quebrar(s, dir - m)) { texto(ln, m, y); y += cap() + T(12) }
+      y += T(10)
+    }
+    y += T(20)
+    return regua(y)
+  }
+
+  /** Converte o desenho em 1 bit (preto/branco puro) — o driver não tem mais o que clarear. */
+  function monocromatizar(ctx, w, h, reticulas, intensidade) {
+    const img = ctx.getImageData(0, 0, w, h)
+    const d = img.data
+    const limiar = INTENSIDADES[intensidade] || INTENSIDADES.normal
+    const mascara = new Uint8Array(w * h)
+    for (const r of reticulas || []) {
+      const x0 = Math.max(0, r.x), y0 = Math.max(0, r.y), x1 = Math.min(w, r.x + r.w), y1 = Math.min(h, r.y + r.h)
+      for (let y = y0; y < y1; y++) mascara.fill(1, y * w + x0, y * w + x1)
+    }
+    // Bayer 4×4: padrão uniforme e legível para o cinza (faixa da OBS, logo).
+    const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+    const preto = new Uint8Array(w * h)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x
+        const lum = (d[i * 4] * 299 + d[i * 4 + 1] * 587 + d[i * 4 + 2] * 114) / 1000
+        // Quase branco fica branco (sem pontos soltos em volta da logo); escuro é sólido.
+        if (mascara[i]) preto[i] = lum < 100 || (lum < 235 && lum < (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) * 14.72) ? 1 : 0
+        else preto[i] = lum < limiar ? 1 : 0
+      }
+    }
+    let final = preto
+    if (intensidade === 'mais_escura') {
+      final = new Uint8Array(w * h)
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = y * w + x
+          final[i] = preto[i] || (!mascara[i] && ((x > 0 && preto[i - 1]) || (y > 0 && preto[i - w]))) ? 1 : 0
+        }
+      }
+    }
+    for (let i = 0; i < w * h; i++) {
+      const v = final[i] ? 0 : 255
+      d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255
+    }
+    ctx.putImageData(img, 0, 0)
+  }
+
+  /** Linhas de 1 bit empacotadas (1 = preto, bit mais alto à esquerda) — para o ESC/POS. */
+  function bitsDoCanvas(canvas) {
+    const w = canvas.width, h = canvas.height
+    const d = canvas.getContext('2d').getImageData(0, 0, w, h).data
+    const porLinha = Math.ceil(w / 8)
+    const bits = new Uint8Array(porLinha * h)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        if (d[i] < 128) bits[y * porLinha + (x >> 3)] |= 0x80 >> (x & 7)
+      }
+    }
+    return { bits, largura: w, altura: h, porLinha }
   }
 
   // ── pré-conta (modelo v3/PRE-CONTA.png, 1020 px) ────────────────────────────
   function layoutPreConta(ctx, doc, o, desenhar) {
-    const p = criarPincel(ctx, o.largura, 'pre_conta', o.tamanhoFonte, desenhar)
+    const p = criarPincel(ctx, o.largura, 'pre_conta', o.tamanhoFonte, desenhar, o)
     const { U, T, m, dir, fonte, cap, larg, texto, quebrar, faixa, tracejado } = p
     let y = U(29)
     let anterior = ''
     // Colunas: QTD só com o necessário; a descrição começa logo depois; TOTAL só o número.
     const colQtd = m + U(24)
-    const colDesc = m + U(92)
+    // Descrição logo depois de 'QTD' (com a letra mínima em 58 mm, U(92) ficava apertado).
+    fonte(DVSC, '400', T(34.9))
+    const colDesc = Math.max(m + U(92), m + U(2) + larg('QTD') + U(16))
     const dirV = dir - U(3)
     let itemComSubs = false
     for (const b of doc.blocos) {
@@ -624,8 +825,9 @@
         case 'aviso': {
           y += T(27)
           fonte(DVSM, '700', T(27.5))
-          for (const ln of quebrar(b.s, dir - m)) { texto(ln, p.largura / 2, y, 'center'); y += cap() + T(8) }
-          y -= T(8)
+          const entre = Math.max(T(8), cap() * 0.45)
+          for (const ln of quebrar(b.s, dir - m)) { texto(ln, p.largura / 2, y, 'center'); y += cap() + entre }
+          y -= entre
           break
         }
         case 'faixa': {
@@ -731,8 +933,9 @@
         case 'aviso_rodape': {
           y += T(35)
           fonte(DVSM, '400', T(32.9))
-          for (const ln of quebrar(b.s, dir - m)) { texto(ln, p.largura / 2, y, 'center'); y += cap() + T(8) }
-          y -= T(8)
+          const entre = Math.max(T(8), cap() * 0.45)
+          for (const ln of quebrar(b.s, dir - m)) { texto(ln, p.largura / 2, y, 'center'); y += cap() + entre }
+          y -= entre
           break
         }
         default: break
@@ -744,13 +947,17 @@
 
   /**
    * Desenha o documento num canvas (já criado) e devolve a altura usada.
-   * o = { larguraMm, larguraPontos, tamanhoFonte, logo (Image | null), imprimirLogo }
+   * o = { larguraMm, larguraPontos, tamanhoFonte, logo (Image | null), imprimirLogo,
+   *       intensidade: 'normal' | 'escura' | 'mais_escura', umBit (padrão true) }
+   * Sai no tamanho EXATO de pontos da impressora e, por padrão, em 1 bit (preto e branco
+   * de verdade): texto sólido por limiar, cinza em retícula uniforme.
    */
   function desenhar(canvas, doc, o = {}) {
     const largura = larguraEmPontos(o.larguraMm, o.larguraPontos)
     const ctx = canvas.getContext('2d')
-    const opcoes = { largura, tamanhoFonte: o.tamanhoFonte || 'grande', logo: o.logo || null, imprimirLogo: o.imprimirLogo !== false }
-    const layout = doc.modelo === 'pre_conta' ? layoutPreConta : layoutCozinha
+    const intensidade = INTENSIDADES[o.intensidade] ? o.intensidade : 'normal'
+    const opcoes = { largura, tamanhoFonte: o.tamanhoFonte || 'grande', logo: o.logo || null, imprimirLogo: o.imprimirLogo !== false, intensidade, reticulas: [] }
+    const layout = doc.modelo === 'pre_conta' ? layoutPreConta : doc.modelo === 'largura' ? layoutLargura : layoutCozinha
     canvas.width = largura
     canvas.height = 10
     const altura = Math.ceil(layout(ctx, doc, opcoes, false))
@@ -760,8 +967,9 @@
     c2.fillStyle = '#ffffff'
     c2.fillRect(0, 0, largura, altura)
     layout(c2, doc, opcoes, true)
+    if (o.umBit !== false) monocromatizar(c2, largura, altura, opcoes.reticulas, intensidade)
     return { largura, altura }
   }
 
-  return { desenhar, carregarRecursos, carregarImagem, larguraEmPontos, RECURSOS, ESCALA_FONTE, ICONES_PAGAMENTO, ICONE_DA_FORMA }
+  return { desenhar, bitsDoCanvas, carregarRecursos, carregarImagem, larguraEmPontos, RECURSOS, ESCALA_FONTE, INTENSIDADES, ICONES_PAGAMENTO, ICONE_DA_FORMA }
 })

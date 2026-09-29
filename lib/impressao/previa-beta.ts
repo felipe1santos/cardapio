@@ -11,9 +11,39 @@ import { snapshotCozinhaTeste, snapshotReciboTeste } from './recibo-teste'
 
 const DESTINO = { loja: '', impressora: '', nomeSistema: '', computador: '', larguraMm: 80, larguraPontos: null, deslocamentoPontos: 0 }
 
-export function pedidoDemonstracao(agora = new Date()) {
+export type TipoDemonstracao = 'mesa' | 'entrega' | 'retirada'
+
+/**
+ * Pedido de demonstração da comanda por tipo. Mesa = os dados de
+ * docs/referencias/impressao/comanda-padrao.png; entrega com endereço longo, complemento,
+ * referência e troco (o pior caso para o motoboy); retirada só com cliente e telefone.
+ */
+export function pedidoDemonstracao(agora = new Date(), tipo: TipoDemonstracao = 'entrega') {
   const s = snapshotCozinhaTeste(DESTINO, '', null, agora) as { pedido: Record<string, unknown>; extras: Record<string, unknown> }
-  return { pedido: { ...s.pedido, id: 'previa' }, extras: s.extras }
+  const base = { ...s.pedido, id: 'previa' }
+  if (tipo === 'mesa') {
+    const item = (nome: string, precoUnitario: number, complementos: { nome: string; preco: number }[] = [], observacao = '') =>
+      ({ nome, quantidade: 1, precoUnitario, observacao, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', complementos })
+    return {
+      pedido: {
+        ...base, numero: 133, canal: 'mesa', tipo: 'retirada', origem: 'pdv', mesa: '01', formaPagamento: null, clienteNome: 'Cliente Testes', clienteTelefone: '',
+        enderecoRua: '', enderecoNumero: '', enderecoBairro: '', taxaEntrega: 0, subtotal: 59.9, total: 59.9,
+        itens: [item('Coca Lata 350ml', 6), item('Bolo Duplo', 14.9), item('Smash', 29), item('X-Tudo', 10, [{ nome: 'item 2', preco: 1 }], 'sem cebola')],
+      },
+      extras: { ...s.extras, desconto: 0, prontoEm: null, comandaNumero: 21, atendente: 'Administrador' },
+    }
+  }
+  if (tipo === 'retirada') {
+    return { pedido: { ...base, tipo: 'retirada', canal: 'delivery', taxaEntrega: 0, total: 42.4, clienteNome: 'Maria Souza', clienteTelefone: '27999887766' }, extras: s.extras }
+  }
+  return {
+    pedido: {
+      ...base, formaPagamento: 'dinheiro', trocoPara: 100, clienteNome: 'Maria Souza', clienteTelefone: '27999887766',
+      enderecoRua: 'Avenida Estudante José Júlio de Souza', enderecoNumero: '4125', enderecoComplemento: 'Apto 1203, bloco B, interfone 1203',
+      enderecoBairro: 'Praia de Itaparica', enderecoCidade: 'Vila Velha/ES', enderecoReferencia: 'Em frente à padaria Pão Quente, portão verde',
+    },
+    extras: s.extras,
+  }
 }
 
 export function contaDemonstracao(loja: string, agora = new Date()) {

@@ -162,7 +162,7 @@ const impressoraVirtual = {
   // do instalador desenha o PNG (num Chromium sem janela) — o que iria para a impressora.
   imprimirDocumentoBeta: async (nome, doc, paperMm, perfil = {}) => {
     if (!impressorasWindows.includes(nome) || removidas.has(nome)) throw new Error(`Impressora '${nome}' nao encontrada no Windows.`)
-    const tipo = doc.modelo === 'cozinha' ? (doc.teste ? 'cozinha_teste' : 'ficha_cozinha') : doc.teste ? 'recibo_teste' : 'pre_conta'
+    const tipo = doc.modelo === 'largura' ? 'calibracao' : doc.modelo === 'cozinha' ? (doc.teste ? 'cozinha_teste' : 'ficha_cozinha') : doc.teste ? 'recibo_teste' : 'pre_conta'
     const n = ++seq
     const pasta = path.join(SAIDA, nome.replace(/[^A-Za-z0-9]+/g, '_'))
     fs.mkdirSync(pasta, { recursive: true })
@@ -171,9 +171,9 @@ const impressoraVirtual = {
     fs.writeFileSync(`${base}.txt`, doc.texto ?? '', 'utf8')
     const tamanhoFonte = perfil.tamanhoFonte === 'media' || perfil.tamanhoFonte === 'pequena' ? perfil.tamanhoFonte : 'grande'
     const { renderizarTicket } = await render()
-    const r = await renderizarTicket(doc, { larguraMm: Number(paperMm) <= 58 ? 58 : 80, larguraPontos: perfil.larguraPontos ?? null, tamanhoFonte, logo: perfil.logo ?? null, imprimirLogo: perfil.imprimirLogo !== false, saida: `${base}.png` })
+    const r = await renderizarTicket(doc, { larguraMm: Number(paperMm) <= 58 ? 58 : 80, larguraPontos: perfil.larguraPontos ?? null, tamanhoFonte, logo: perfil.logo ?? null, imprimirLogo: perfil.imprimirLogo !== false, intensidade: perfil.intensidade ?? 'normal', saida: `${base}.png` })
     const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias: perfil.copias ?? 1, paperMm, larguraPontos: perfil.larguraPontos ?? null,
-      deslocamentoPontos: perfil.deslocamentoPontos ?? 0, tamanhoFonte, largura: r.largura, altura: r.altura, versao: doc.versao,
+      deslocamentoPontos: perfil.deslocamentoPontos ?? 0, intensidade: perfil.intensidade ?? 'normal', envio: perfil.envio ?? 'driver', modoImpressao: perfil.modoImpressao ?? 'imagem', tamanhoFonte, largura: r.largura, altura: r.altura, versao: doc.versao,
       logo: typeof perfil.logo === 'string' ? perfil.logo.slice(0, 22) : null, imprimirLogo: perfil.imprimirLogo !== false, doc,
       texto: doc.texto ?? '', png: `${base}.png`, txt: `${base}.txt` }
     fs.appendFileSync(path.join(SAIDA, 'impressos.jsonl'), JSON.stringify(registro) + '\n')
