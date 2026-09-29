@@ -316,6 +316,7 @@ export async function listarClientesComMetricas(supabase: SupabaseClient, restau
       .from('clientes')
       .select('telefone, sexo')
       .eq('restaurante_id', restauranteId)
+      .order('criado_em', { ascending: true })
       .order('id', { ascending: true })
       .range(de, ate)),
   ])

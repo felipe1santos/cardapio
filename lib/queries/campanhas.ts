@@ -173,6 +173,9 @@ export async function resolverDestinatarios(
     .from('clientes')
     .select('telefone, nome')
     .eq('restaurante_id', restauranteId)
+    // Mais antigo primeiro (como o select sem ordem devolvia): entre dois cadastros do
+    // mesmo telefone, a deduplicação fica com o primeiro.
+    .order('criado_em', { ascending: true })
     .order('id', { ascending: true })
     .range(de, ate))
   if (!clientes.length) return []
