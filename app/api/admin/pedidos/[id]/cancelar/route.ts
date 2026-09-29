@@ -6,6 +6,7 @@ import { pode } from '@/lib/auth/permissoes'
 import { reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 import { motivoValido, rotuloMotivo, STATUS_NAO_CANCELAVEIS } from '@/lib/cancelamento'
 import * as conta from '@/lib/servicos/conta-presencial'
+import { registrarAuditoria } from '@/lib/auditoria'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -92,6 +93,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!data || data.length === 0) {
     return NextResponse.json({ error: 'Pedido já finalizado ou cancelado.' }, { status: 409 })
   }
+
+  // Quem cancelou, quando e por quê — também no registro de auditoria (o presencial já
+  // registrava pelo serviço da conta; o delivery só gravava no próprio pedido).
+  await registrarAuditoria(admin, {
+    restauranteId,
+    usuarioId: sessao.userId,
+    usuarioNome: sessao.nome,
+    acao: 'pedido.cancelou',
+    entidade: 'pedido',
+    entidadeId: id,
+    dados: { motivo, observacao: observacao || null, canal: 'delivery' },
+  }).catch(() => {})
 
   reverterBeneficiosPedidoCancelado(admin, restauranteId, id).catch(console.error)
   return NextResponse.json({ ok: true })
