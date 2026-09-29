@@ -28,13 +28,16 @@ async function autorizar() {
 }
 
 async function contasDeMesaAbertas(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string): Promise<number> {
+  // Toda conta de mesa aberta conta — inclusive a recém-aberta sem pedido (pode ter taxa
+  // manual paga). Contando só as com pedido, o módulo desligava e a conta ficava
+  // inacessível (a rota da conta responde 404 para mesa com o módulo desligado).
   const { data } = await admin
     .from('comandas')
-    .select('id, pedidos!inner ( canal )')
+    .select('id')
     .eq('restaurante_id', restauranteId)
     .eq('status', 'aberta')
-    .eq('pedidos.canal', 'mesa')
-  return new Set(((data ?? []) as { id: string }[]).map((c) => c.id)).size
+    .eq('tipo', 'mesa')
+  return ((data ?? []) as { id: string }[]).length
 }
 
 export async function GET() {
