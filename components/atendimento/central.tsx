@@ -6,6 +6,7 @@ import {
   Tag as TagIcon, User, UserRound, X,
 } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
+import { iniciais } from '@/lib/mensageria/iniciais'
 import type { ConversaCentral, EstadoAtendimento, MensagemCentral } from '@/lib/mensageria/atendimento'
 
 /**
@@ -60,7 +61,6 @@ function horaCurta(iso: string | null) {
     ? d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })
 }
-const iniciais = (n: string | null, t: string) => (n ? n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') : t.slice(-2))
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 async function chamar<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; dados: T | null; erro: string | null }> {
