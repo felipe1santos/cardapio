@@ -197,6 +197,10 @@ export async function reverterBeneficiosPedidoCancelado(admin: SupabaseClient, r
         .update({ status: 'disponivel', pedido_resgate_id: null, resgatado_em: null })
         .eq('id', pedido.recompensa_id)
         .eq('restaurante_id', restauranteId)
+        // Só se o resgate ainda é DESTE pedido (ou ficou sem vínculo): o cancelamento
+        // reverte duas vezes (rota cancelar + aviso "cancelado"), e se o cliente já usou o
+        // prêmio devolvido num pedido novo, a 2ª reversão o liberava de novo.
+        .or(`pedido_resgate_id.eq.${pedidoId},pedido_resgate_id.is.null`)
       if (recompensaError) throw recompensaError
     }
 
