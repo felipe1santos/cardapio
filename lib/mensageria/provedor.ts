@@ -83,6 +83,13 @@ function tipoEvolution(m: Record<string, unknown> | undefined, tipo: unknown): {
   return { tipo: 'outro', texto: null }
 }
 
+const SEM_CONTEUDO = ['reactionMessage', 'protocolMessage', 'editedMessage', 'pollUpdateMessage', 'keepInChatMessage', 'pinInChatMessage']
+
+function eventoSemConteudo(m: Record<string, unknown> | undefined, tipo: unknown): boolean {
+  if (typeof tipo === 'string' && SEM_CONTEUDO.includes(tipo)) return true
+  return !!m && SEM_CONTEUDO.some((chave) => chave in m)
+}
+
 export function interpretarWebhookEvolution(corpo: unknown): EventoWebhook {
   const c = (corpo ?? {}) as Record<string, unknown>
   const evento = String(c.event ?? '').toLowerCase().replace('_', '.')
@@ -110,6 +117,9 @@ export function interpretarWebhookEvolution(corpo: unknown): EventoWebhook {
     const jid = typeof key.remoteJid === 'string' ? key.remoteJid : ''
     const waId = typeof key.id === 'string' ? key.id : ''
     if (!waId) continue
+    // Reação, edição, "apagada", voto de enquete, fixar: não são mensagem nova. Caíam como
+    // "outro" → mídia, e o robô respondia "Não entendi" a um 👍 (e somava não lida).
+    if (eventoSemConteudo(item.message as Record<string, unknown> | undefined, item.messageType)) continue
     const { tipo, texto } = tipoEvolution(item.message as Record<string, unknown> | undefined, item.messageType)
     const ts = Number(item.messageTimestamp)
     vazio.mensagens.push({
