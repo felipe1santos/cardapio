@@ -697,11 +697,21 @@ export async function marcarEntregaConcluida(admin: SupabaseClient, pedidoId: st
   if (!data) throw new Error('Pedido não encontrado para esse entregador.')
 }
 
-/** Marca um pedido da rota como não entregue/cancelado, só se pertencer a esse entregador. */
-export async function marcarEntregaComProblema(admin: SupabaseClient, pedidoId: string, entregadorId: string) {
+/**
+ * Marca um pedido da rota como não entregue/cancelado, só se pertencer a esse entregador.
+ * Grava motivo, autor e hora como o "Não entregue" da Logística — sem isso o pedido (e o
+ * dinheiro dele) sumia do caixa do entregador sem rastro de quem cancelou.
+ */
+export async function marcarEntregaComProblema(admin: SupabaseClient, pedidoId: string, entregadorId: string, entregadorNome?: string) {
   const { data, error } = await admin
     .from('pedidos')
-    .update({ status: 'cancelado' })
+    .update({
+      status: 'cancelado',
+      cancelado_motivo: 'nao_entregue',
+      cancelado_por: entregadorNome ? `Entregador: ${entregadorNome}`.slice(0, 120) : 'Entregador',
+      cancelado_em: new Date().toISOString(),
+      reimprimir: false,
+    })
     .eq('id', pedidoId)
     .eq('entregador_id', entregadorId)
     .eq('status', 'em_rota')
