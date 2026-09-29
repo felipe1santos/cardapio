@@ -47,6 +47,7 @@ async function reset() {
     await db.query(`delete from whatsapp_mensagens where restaurante_id=$1`, [loja])
     await db.query(`delete from whatsapp_conversas where restaurante_id=$1`, [loja])
     await db.query(`delete from clientes where restaurante_id=$1`, [loja])
+    await db.query(`delete from whatsapp_descadastros where restaurante_id=$1`, [loja])
     await db.query(`update restaurantes set evolution_instance=$2 where id=$1`, [loja, loja === A ? 'camp-sim-a' : 'camp-sim-b'])
   }
 }
@@ -78,7 +79,9 @@ try {
   const s1 = enviados().filter((e) => e.resultado === 'ok')
   linha(s1.length === 1 ? '✅' : '🐞', 'um envio', `${s1.length}`)
   const texto = s1[0]?.texto ?? ''
-  linha(texto.includes('{nome}') ? '🐞' : '✅', '{nome} é substituído pelo nome do cliente', texto.slice(0, 40))
+  linha(texto.startsWith('Olá João!') ? '✅' : '🐞', '{nome} vira o primeiro nome do cliente', texto.slice(0, 40))
+  const desconhecida = await criar({ mensagem: 'Oi {Nome}, use o {cupom}' })
+  linha(desconhecida.s === 400 && /Variável desconhecida/.test(desconhecida.j?.error ?? '') ? '✅' : '🐞', 'variável desconhecida bloqueia o salvar', `${desconhecida.s} ${desconhecida.j?.error ?? ''}`.slice(0, 90))
   linha(texto.includes('🍔🔥') && texto.includes('Açaí') && texto.includes('💚') ? '✅' : '🐞', 'acentos e emoji chegam intactos')
   linha(texto.length >= 3000 ? '✅' : '🐞', 'texto longo (3 mil+) não é cortado', `${texto.length} caracteres`)
   const hist = await um(`select origem, texto from whatsapp_mensagens where restaurante_id=$1 and direcao='loja' order by criado_em desc limit 1`, [A])
@@ -110,21 +113,33 @@ try {
   secao('3. Descadastro (opt-out)')
   await reset()
   await cliente(A, '5511912340101', 'Quer sair')
-  await criar({})
+  await criar({ incluirDescadastro: true })
   await cronAteVazio()
+  const comRodape = enviados().find((e) => e.resultado === 'ok' && e.numero === '5511912340101')?.texto ?? ''
+  linha(/Para não receber mais, responda SAIR\.$/.test(comRodape) ? '✅' : '🐞', 'rodapé "responda SAIR" no fim da campanha', comRodape.slice(-45))
+  limparSimulado()
   // Cliente responde "SAIR" (webhook do robô grava a entrada).
   const seg = (await um(`select webhook_segredo s from whatsapp_robo_config where restaurante_id=$1`, [A])).s
   await fetch(`${BASE}/api/whatsapp/webhook/${seg}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
     event: 'messages.upsert', instance: 'camp-sim-a', sender: '5511900000000@s.whatsapp.net',
     data: { key: { remoteJid: '5511912340101@s.whatsapp.net', fromMe: false, id: `QASAIR${Date.now()}` }, message: { conversation: 'SAIR' }, messageTimestamp: Math.floor(Date.now() / 1000) },
   }) })
+  const confirmacao = enviados().find((e) => e.resultado === 'ok' && e.numero === '5511912340101')?.texto ?? ''
+  linha(/não vai mais receber promoções/.test(confirmacao) ? '✅' : '🐞', 'SAIR responde confirmando (robô da loja desligado)', confirmacao.slice(0, 60))
   limparSimulado()
   await criar({ nome: 'QA 2' })
   await cronAteVazio()
   const aposSair = enviados().filter((e) => e.resultado === 'ok' && e.numero === '5511912340101')
   linha(aposSair.length === 0 ? '✅' : '🐞', 'quem respondeu SAIR não recebe a próxima campanha', `${aposSair.length} mensagem(ns) na 2ª campanha`)
-  const colOpt = await um(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='clientes' and column_name ~ '(opt|campanha|marketing|descadastr)'`)
-  linha('ℹ️', 'coluna de descadastro em clientes', `${colOpt.n} encontrada(s)`)
+  await fetch(`${BASE}/api/whatsapp/webhook/${seg}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    event: 'messages.upsert', instance: 'camp-sim-a', sender: '5511900000000@s.whatsapp.net',
+    data: { key: { remoteJid: '5511912340101@s.whatsapp.net', fromMe: false, id: `QAVOLTAR${Date.now()}` }, message: { conversation: 'Voltar' }, messageTimestamp: Math.floor(Date.now() / 1000) },
+  }) })
+  limparSimulado()
+  await criar({ nome: 'QA 3' })
+  await cronAteVazio()
+  const aposVoltar = enviados().filter((e) => e.resultado === 'ok' && e.numero === '5511912340101')
+  linha(aposVoltar.length === 1 ? '✅' : '🐞', 'VOLTAR: volta a receber', `${aposVoltar.length} mensagem(ns) na 3ª campanha`)
 
   secao('4. Campanha sem destinatários')
   await reset()
@@ -137,10 +152,17 @@ try {
   await reset()
   for (let i = 0; i < 4; i++) await cliente(A, `55119123402${String(i).padStart(2, '0')}`, `D${i}`)
   const c5 = (await criar({})).j
-  controle({ falhar: 'definitivo', restantes: 99 }) // Evolution responde 4xx com a instância fechada
+  controle({ desconectado: true }) // Evolution responde "Connection Closed" com a instância fechada
+  await cronAteVazio(3)
+  const st5 = await q(`select status, count(*)::int n, sum(tentativas)::int t from campanha_envios where campanha_id=$1 group by 1`, [c5.id])
+  const camp5 = await um(`select status, pausa_motivo, total_erros from campanhas where id=$1`, [c5.id])
+  linha(camp5.status === 'pausada' && st5.every((r) => r.status === 'pendente') && camp5.total_erros === 0 ? '✅' : '🐞', 'desconectado: campanha PAUSA e os contatos ficam na fila (nada queimado)', `${camp5.status}/${camp5.pausa_motivo} ${JSON.stringify(st5)}`)
+  // Reconecta.
+  controle({})
   await cronAteVazio()
-  const st5 = await q(`select status, count(*)::int n from campanha_envios where campanha_id=$1 group by 1`, [c5.id])
-  linha(st5.every((r) => r.status === 'erro') ? '🐞' : '✅', 'desconectado: fila espera o WhatsApp voltar (não queima os envios)', JSON.stringify(st5))
+  const st5b = await q(`select status, count(*)::int n from campanha_envios where campanha_id=$1 group by 1`, [c5.id])
+  const camp5b = await um(`select status, total_enviados from campanhas where id=$1`, [c5.id])
+  linha(camp5b.status === 'concluida' && camp5b.total_enviados === 4 ? '✅' : '🐞', 'ao reconectar a campanha retoma sozinha e todos recebem uma vez', `${camp5b.status} ${JSON.stringify(st5b)}`)
   controle({})
 
   secao('6. Fila é global: campanha grande de uma loja segura a de outra')

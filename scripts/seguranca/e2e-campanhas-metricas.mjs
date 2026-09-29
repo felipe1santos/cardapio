@@ -274,9 +274,14 @@ try {
   await db.query(`delete from campanhas where id=$1`, [camp3])
 
   secao('8. Campanha com falha, incerta e sem conversão; sem link')
+  // {link} com o link desligado sairia literal para o cliente: o painel recusa (0112).
+  const linkDesligado = await api(dono.p, '/api/admin/campanhas', 'POST', {
+    nome: 'Sem link', tipoMensagem: 'texto', mensagem: 'Texto puro {link}', filtro: { tipo: 'todos' }, incluirLink: false, disparar: true, agendadoEm: new Date().toISOString(),
+  })
+  ok('{link} com o link desligado é recusado ao salvar', linkDesligado.s === 400 && /Incluir link/.test(linkDesligado.j?.error ?? ''), linkDesligado.j?.error)
   controle({ falhar: 'definitivo', restantes: 2 })
   const cria2 = await api(dono.p, '/api/admin/campanhas', 'POST', {
-    nome: 'Sem link', tipoMensagem: 'texto', mensagem: 'Texto puro {link}', filtro: { tipo: 'todos' }, incluirLink: false, disparar: true, agendadoEm: new Date().toISOString(),
+    nome: 'Sem link', tipoMensagem: 'texto', mensagem: 'Texto puro', filtro: { tipo: 'todos' }, incluirLink: false, disparar: true, agendadoEm: new Date().toISOString(),
   })
   const camp2 = cria2.j.id
   // Um destinatário fica para depois, para a tentativa "incerta".
@@ -288,7 +293,7 @@ try {
   const e2 = await envios(camp2)
   const cont = e2.reduce((m, e) => ({ ...m, [e.status]: (m[e.status] ?? 0) + 1 }), {})
   ok('2 falhas definitivas (sem nova tentativa) e 1 incerta (nunca reenviada)', cont.erro === 2 && cont.incerto === 1 && cont.enviado === 1, JSON.stringify(cont))
-  ok('sem link: mensagem sai exatamente como escrita', enviados().filter((x) => x.resultado === 'ok').at(-1)?.texto === 'Texto puro {link}')
+  ok('sem link: mensagem sai exatamente como escrita', enviados().filter((x) => x.resultado === 'ok').at(-1)?.texto === 'Texto puro')
   const m3 = await metricas(dono.p, `&campanha=${camp2}`)
   const c2m = m3.j.campanhas[0]
   ok('filtro por campanha + métricas da campanha com falha', m3.j.campanhas.length === 1 && c2m.falhas === 2 && c2m.incertos === 1 && c2m.enviadas === 1 && c2m.cliques === 0 && c2m.incluir_link === false)
