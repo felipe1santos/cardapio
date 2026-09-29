@@ -11,6 +11,7 @@
  * Registro é melhor esforço: falha aqui nunca impede o envio nem muda o resultado dele.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { variantesTelefone } from './robo'
 
 export type OrigemSaida = 'atendente' | 'robo' | 'automatico' | 'disparo'
 
@@ -85,12 +86,18 @@ export async function ehSaidaNossa(admin: SupabaseClient, restauranteId: string,
   if ((porId ?? []).length) return true
   const h = await hashTexto(texto)
   if (!h) return false
-  const { data: conversa } = await admin.from('whatsapp_conversas').select('id').eq('restaurante_id', restauranteId).eq('telefone', telefone).maybeSingle()
-  if (!conversa) return false
+  // A saída é gravada com o número completo (com o 9) e o eco chega com o número que o
+  // WhatsApp informa, que em muitos números vem SEM o 9: as duas formas são conversas
+  // diferentes. Buscando só a exata, o eco do aviso virava "a loja respondeu pelo
+  // celular" e o robô ficava calado com o cliente.
+  const formas = variantesTelefone(telefone)
+  const { data: conversas } = await admin.from('whatsapp_conversas').select('id').eq('restaurante_id', restauranteId).in('telefone', formas.length ? formas : [telefone])
+  const ids = ((conversas ?? []) as { id: string }[]).map((c) => c.id)
+  if (!ids.length) return false
   const { data } = await admin
     .from('whatsapp_mensagens')
     .select('id')
-    .eq('conversa_id', conversa.id)
+    .in('conversa_id', ids)
     .eq('texto_hash', h)
     .in('origem', ['atendente', 'robo', 'automatico', 'disparo'])
     .gte('criado_em', new Date(Date.now() - 2 * 60_000).toISOString())
