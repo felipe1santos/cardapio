@@ -22,10 +22,16 @@ export async function POST() {
     .single()
   if (lojaError) return NextResponse.json({ error: 'Erro ao buscar loja' }, { status: 500 })
 
-  const instance = loja.evolution_instance ?? nomeInstancia(restauranteId)
-  if (!loja.evolution_instance) {
-    const { error: updateError } = await admin.from('restaurantes').update({ evolution_instance: instance }).eq('id', restauranteId)
+  // A instância vem do banco (loja da sessão); só na primeira conexão o servidor cria uma,
+  // com nome aleatório. O navegador nunca escolhe (0111).
+  let instance: string = loja.evolution_instance ?? ''
+  if (!instance) {
+    const { error: updateError } = await admin.from('restaurantes').update({ evolution_instance: nomeInstancia() }).eq('id', restauranteId).is('evolution_instance', null)
     if (updateError) return NextResponse.json({ error: 'Erro ao salvar instância' }, { status: 500 })
+    // Dois cliques ao mesmo tempo: vale o nome que ficou gravado.
+    const { data: gravada } = await admin.from('restaurantes').select('evolution_instance').eq('id', restauranteId).single()
+    instance = (gravada?.evolution_instance as string | null) ?? ''
+    if (!instance) return NextResponse.json({ error: 'Erro ao salvar instância' }, { status: 500 })
   }
 
   try {

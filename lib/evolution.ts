@@ -17,9 +17,15 @@ function evolutionHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json', apikey: process.env.EVOLUTION_API_KEY! }
 }
 
-/** Nome da instância Evolution para um restaurante — estável e único. */
-export function nomeInstancia(restauranteId: string): string {
-  return `menuzia-${restauranteId}`
+/**
+ * Nome de uma instância Evolution NOVA: aleatório, sem relação com o id da loja (que é
+ * público). Com `menuzia-<id>`, bastava saber o id de outra loja para apontar para o
+ * WhatsApp dela. Quem liga o nome à loja é `restaurantes.evolution_instance`, gravado só
+ * pelo servidor (0111). Instâncias antigas mantêm o nome (renomear exige novo QR).
+ */
+export function nomeInstancia(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(12))
+  return `menuzia-${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`
 }
 
 export interface QrCode {
