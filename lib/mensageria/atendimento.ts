@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { variantesTelefone, roboLiberadoNoServidor } from './robo'
 import { formatarNumeroWhatsapp } from '@/lib/evolution'
+import { fotosGuardadas, type FotoGuardada } from './fotos'
 
 export type EstadoAtendimento = 'robo' | 'aguardando' | 'humano' | 'encerrada'
 export type OrigemMensagem = 'cliente' | 'atendente' | 'robo' | 'automatico' | 'disparo' | 'loja'
@@ -23,6 +24,10 @@ export interface ConversaCentral {
   ultimaOrigem: OrigemMensagem | null
   ultimaAtividadeEm: string | null
   tags: string[]
+  /** Link da foto de perfil guardado (0108); null = sem foto ou ainda não buscada. */
+  foto: string | null
+  /** Quando a foto foi buscada; null = nunca (o navegador pede quando a linha aparece). */
+  fotoEm: string | null
 }
 
 export interface MensagemCentral {
@@ -84,7 +89,10 @@ interface LinhaConversa {
 const COLUNAS_CONVERSA = 'id, telefone, nome_contato, atendimento, atendente_nome, nao_lidas, ultima_previa, ultima_origem, ultima_atividade_em'
 
 async function mapearConversas(admin: SupabaseClient, restauranteId: string, linhas: LinhaConversa[]): Promise<ConversaCentral[]> {
-  const nomes = await nomesDosClientes(admin, restauranteId, linhas.map((l) => l.telefone))
+  const [nomes, fotos] = await Promise.all([
+    nomesDosClientes(admin, restauranteId, linhas.map((l) => l.telefone)),
+    fotosGuardadas(admin, restauranteId, linhas.map((l) => l.telefone)).catch(() => new Map<string, FotoGuardada>()),
+  ])
   return linhas.map((l) => ({
     id: l.id,
     telefone: l.telefone,
@@ -97,6 +105,8 @@ async function mapearConversas(admin: SupabaseClient, restauranteId: string, lin
     ultimaOrigem: l.ultima_origem,
     ultimaAtividadeEm: l.ultima_atividade_em,
     tags: (l.whatsapp_conversa_tags ?? []).map((t) => t.tag_id),
+    foto: fotos.get(l.telefone)?.url ?? null,
+    fotoEm: fotos.get(l.telefone)?.buscadaEm ?? null,
   }))
 }
 

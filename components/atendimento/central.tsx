@@ -138,6 +138,48 @@ export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMini
     void carregarLista()
   }, [onMudou, carregarLista])
 
+  // Fotos de perfil (0108): só das linhas que aparecem, depois que a rolagem para, até 10
+  // por pedido. Cada telefone é pedido uma vez por sessão (e uma vez mais se o link quebrar).
+  const [fotos, setFotos] = useState<Record<string, string | null>>({})
+  const pedidas = useRef(new Set<string>())
+  const fila = useRef<{ telefones: Set<string>; quebradas: Set<string> }>({ telefones: new Set(), quebradas: new Set() })
+  const esperaFotos = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pedirFotos = useCallback(() => {
+    if (esperaFotos.current) clearTimeout(esperaFotos.current)
+    esperaFotos.current = setTimeout(async () => {
+      const telefones = [...fila.current.telefones].slice(0, 10)
+      const quebradas = [...fila.current.quebradas].slice(0, 10 - telefones.length)
+      telefones.forEach((t) => fila.current.telefones.delete(t))
+      quebradas.forEach((t) => fila.current.quebradas.delete(t))
+      if (!telefones.length && !quebradas.length) return
+      const r = await chamar<{ fotos: Record<string, string | null> }>('/api/admin/whatsapp/atendimento/fotos', { method: 'POST', body: JSON.stringify({ telefones, quebradas }) })
+      if (r.dados) setFotos((f) => ({ ...f, ...r.dados!.fotos }))
+      if (fila.current.telefones.size || fila.current.quebradas.size) pedirFotos()
+    }, 700)
+  }, [])
+  const aoVerLinhas = useCallback((visiveis: ConversaCentral[]) => {
+    let novas = false
+    for (const c of visiveis) {
+      if (pedidas.current.has(c.telefone)) continue
+      const venceu = !c.fotoEm || Date.now() - new Date(c.fotoEm).getTime() > 3 * 24 * 60 * 60_000
+      if (!venceu) continue
+      pedidas.current.add(c.telefone)
+      fila.current.telefones.add(c.telefone)
+      novas = true
+    }
+    if (novas) pedirFotos()
+  }, [pedirFotos])
+  const quebradasPedidas = useRef(new Set<string>())
+  const aoQuebrarFoto = useCallback((telefone: string) => {
+    setFotos((f) => ({ ...f, [telefone]: null }))
+    if (quebradasPedidas.current.has(telefone)) return
+    quebradasPedidas.current.add(telefone)
+    fila.current.quebradas.add(telefone)
+    pedirFotos()
+  }, [pedirFotos])
+  useEffect(() => () => { if (esperaFotos.current) clearTimeout(esperaFotos.current) }, [])
+  const fotoDe = useCallback((c: Pick<ConversaCentral, 'telefone' | 'foto'>) => (c.telefone in fotos ? fotos[c.telefone] : c.foto), [fotos])
+
   // Esc minimiza (sem perder a conversa aberta).
   useEffect(() => {
     if (oculto) return
@@ -227,13 +269,16 @@ export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMini
             selecionada={selecionada}
             onSelecionar={setSelecionada}
             filtro={filtro}
+            fotoDe={fotoDe}
+            onVerLinhas={aoVerLinhas}
+            onFotoQuebrou={aoQuebrarFoto}
           />
         </aside>
 
         {/* DIREITA: conversa */}
         <div className={['flex min-h-0 min-w-0 flex-1', selecionada ? '' : 'max-sm:hidden'].join(' ')}>
           {selecionada ? (
-            <Conversa key={selecionada} id={selecionada} tags={tags} onTagsMudaram={carregarTags} onVoltar={() => setSelecionada(null)} onMudou={mudou} onAviso={setAviso} />
+            <Conversa key={selecionada} id={selecionada} tags={tags} onTagsMudaram={carregarTags} onVoltar={() => setSelecionada(null)} onMudou={mudou} onAviso={setAviso} fotoDe={fotoDe} onFotoQuebrou={aoQuebrarFoto} />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-[#F9FAFB] p-6 text-center">
               <UserRound className="h-10 w-10 text-[#D1D5DB]" />
@@ -249,7 +294,7 @@ export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMini
 
 // ─── lista (desenha só as linhas visíveis) ────────────────────────────────────
 
-function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecionada, onSelecionar, filtro }: {
+function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecionada, onSelecionar, filtro, fotoDe, onVerLinhas, onFotoQuebrou }: {
   conversas: ConversaCentral[]
   tags: Tag[]
   carregando: boolean
@@ -258,6 +303,9 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
   selecionada: string | null
   onSelecionar: (id: string) => void
   filtro: Filtro
+  fotoDe: (c: ConversaCentral) => string | null
+  onVerLinhas: (visiveis: ConversaCentral[]) => void
+  onFotoQuebrou: (telefone: string) => void
 }) {
   const caixa = useRef<HTMLDivElement>(null)
   const [janela, setJanela] = useState({ topo: 0, altura: 600 })
@@ -280,6 +328,12 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
     if (temMais && el.scrollTop + el.clientHeight > el.scrollHeight - ALTURA_LINHA * 3) onMais()
   }
 
+  // Linhas de fato na tela (sem a folga do desenho): são só elas que pedem foto.
+  const vistaDe = Math.floor(janela.topo / ALTURA_LINHA)
+  const vistaAte = Math.min(conversas.length, Math.ceil((janela.topo + janela.altura) / ALTURA_LINHA))
+  useEffect(() => {
+    if (vistaAte > vistaDe) onVerLinhas(conversas.slice(vistaDe, vistaAte))
+  }, [conversas, vistaDe, vistaAte, onVerLinhas])
   if (carregando && !conversas.length) {
     return <div className="space-y-1 p-2" aria-busy="true">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-[60px] animate-pulse rounded-[8px] bg-[#F3F4F6]" />)}</div>
   }
@@ -305,7 +359,7 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
                 data-testid={`atendimento-conversa-${c.telefone}`}
                 className={['flex h-full w-full items-center gap-2.5 border-b border-[#F3F4F6] px-3 text-left hover:bg-[#F9FAFB]', selecionada === c.id ? 'bg-[#EFF6FF]' : ''].join(' ')}
               >
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#E5E7EB] text-[13px] font-semibold text-[#4B5563]">{iniciais(c.nome, c.telefone)}</span>
+                <Avatar nome={c.nome} telefone={c.telefone} foto={fotoDe(c)} tamanho={40} onQuebrou={onFotoQuebrou} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-[#111827]">{c.nome ?? c.telefoneExibido}</span>
@@ -334,15 +388,39 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
   )
 }
 
+// ─── avatar: foto do WhatsApp (carregada só quando aparece) ou iniciais ────────
+
+function Avatar({ nome, telefone, foto, tamanho, onQuebrou }: { nome: string | null; telefone: string; foto: string | null; tamanho: number; onQuebrou: (telefone: string) => void }) {
+  const [quebrou, setQuebrou] = useState(false)
+  useEffect(() => setQuebrou(false), [foto])
+  const estilo = { width: tamanho, height: tamanho }
+  if (foto && !quebrou) {
+    return (
+      // A imagem vem direto do WhatsApp (não passa pelo servidor); sem referrer.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={foto} alt="" width={tamanho} height={tamanho} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={estilo}
+        className="flex-shrink-0 rounded-full bg-[#E5E7EB] object-cover" data-testid="atendimento-foto"
+        onError={() => { setQuebrou(true); onQuebrou(telefone) }} />
+    )
+  }
+  return (
+    <span style={estilo} className={['flex flex-shrink-0 items-center justify-center rounded-full bg-[#E5E7EB] font-semibold text-[#4B5563]', tamanho >= 40 ? 'text-[13px]' : 'text-[12.5px]'].join(' ')}>
+      {iniciais(nome, telefone)}
+    </span>
+  )
+}
+
 // ─── uma conversa ─────────────────────────────────────────────────────────────
 
-function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso }: {
+function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe, onFotoQuebrou }: {
   id: string
   tags: Tag[]
   onTagsMudaram: () => Promise<void>
   onVoltar: () => void
   onMudou: () => void
   onAviso: (t: string | null) => void
+  fotoDe: (c: ConversaCentral) => string | null
+  onFotoQuebrou: (telefone: string) => void
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
@@ -455,7 +533,7 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso }: {
         <div className="flex min-h-[58px] flex-shrink-0 flex-wrap items-center gap-2 border-b border-[#E5E7EB] px-3 py-2">
           <button type="button" onClick={onVoltar} className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#4B5563] hover:bg-[#F3F4F6] sm:hidden" aria-label="Voltar para a lista"><ArrowLeft className="h-4 w-4" /></button>
           <button type="button" onClick={() => setPainelCliente((v) => !v)} className="flex min-w-[150px] flex-1 items-center gap-2.5 text-left" title="Dados do cliente" data-testid="atendimento-cliente-abrir">
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#E5E7EB] text-[12.5px] font-semibold text-[#4B5563]">{c ? iniciais(c.nome, c.telefone) : ''}</span>
+            {c ? <Avatar nome={c.nome} telefone={c.telefone} foto={fotoDe(c)} tamanho={36} onQuebrou={onFotoQuebrou} /> : <span className="h-9 w-9 flex-shrink-0 rounded-full bg-[#E5E7EB]" />}
             <span className="min-w-0">
               <span className="block truncate text-[14px] font-semibold text-[#111827]" data-testid="atendimento-nome">{c ? c.nome ?? c.telefoneExibido : 'Carregando…'}</span>
               <span className="block truncate text-[12px] text-[#6B7280]">{c?.nome ? c.telefoneExibido : ''}{c?.atendenteNome && c.atendimento === 'humano' ? `${c?.nome ? ' · ' : ''}com ${c.atendenteNome}` : ''}</span>

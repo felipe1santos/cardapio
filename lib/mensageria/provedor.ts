@@ -58,6 +58,8 @@ export interface ProvedorWhatsapp {
   interpretarWebhook(corpo: unknown): EventoWebhook
   /** WhatsApp da instância conectado agora? 'desconhecido' quando o provedor não respondeu. */
   conexao(instancia: string): Promise<EstadoConexaoProvedor>
+  /** Link da foto de perfil do contato (null = sem foto ou escondida). ok=false: não deu para saber. */
+  fotoDePerfil(instancia: string, numero: string): Promise<{ ok: true; url: string | null } | { ok: false }>
 }
 
 export type EstadoConexaoProvedor = 'aberto' | 'fechado' | 'desconhecido'
@@ -182,6 +184,27 @@ async function postarEvolution(caminho: string, corpo: unknown): Promise<Resulta
   }
 }
 
+/** Foto de perfil: consulta leve, com prazo curto — a tela não espera por ela. */
+async function fotoEvolution(inst: string, numero: string): Promise<{ ok: true; url: string | null } | { ok: false }> {
+  const url = process.env.EVOLUTION_API_URL
+  const chave = process.env.EVOLUTION_API_KEY
+  if (!url || !chave) return { ok: false }
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/chat/fetchProfilePictureUrl/${encodeURIComponent(inst)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: chave },
+      body: JSON.stringify({ number: numero }),
+      signal: AbortSignal.timeout(6_000),
+    })
+    if (!res.ok) return { ok: false }
+    const j = (await res.json().catch(() => null)) as { profilePictureUrl?: unknown } | null
+    const foto = typeof j?.profilePictureUrl === 'string' ? j.profilePictureUrl : null
+    return { ok: true, url: foto && foto.startsWith('https://') && foto.length <= 2000 ? foto : null }
+  } catch {
+    return { ok: false }
+  }
+}
+
 export const provedorEvolution: ProvedorWhatsapp = {
   nome: 'evolution',
   enviarTexto: (inst, numero, texto) => postarEvolution(`/message/sendText/${encodeURIComponent(inst)}`, { number: numero, text: texto }),
@@ -207,6 +230,7 @@ export const provedorEvolution: ProvedorWhatsapp = {
       clearTimeout(t)
     }
   },
+  fotoDePerfil: fotoEvolution,
 }
 
 // ─── Simulado (testes) ─────────────────────────────────────────────────────────
@@ -265,6 +289,12 @@ export function provedorSimulado(arquivo: string): ProvedorWhatsapp {
     enviarAudio: async (instancia, numero, url) => registrarSimulado(arquivo, { instancia, numero, midia: url }),
     interpretarWebhook: interpretarWebhookEvolution,
     conexao: async () => (lerControle(arquivo).desconectado ? 'fechado' : 'aberto'),
+    // Cada consulta vai para <arquivo>.fotos.jsonl (não conta como mensagem enviada).
+    // Número terminado em dígito ímpar tem foto; par, não tem.
+    fotoDePerfil: async (instancia, numero) => {
+      fsDoServidor().appendFileSync(`${arquivo}.fotos.jsonl`, JSON.stringify({ instancia, numero, em: new Date().toISOString() }) + '\n')
+      return { ok: true, url: Number(numero.slice(-1)) % 2 ? `https://pps.whatsapp.net/simulado/${numero}.jpg` : null }
+    },
   }
 }
 

@@ -58,7 +58,7 @@ async function loja(slug, nome, instancia) {
   const id = (await um(`insert into restaurantes (nome, slug, status_loja) values ($1,$2,'aberto_manual')
     on conflict (slug) do update set nome=excluded.nome returning id`, [nome, slug])).id
   await db.query(`update restaurantes set evolution_instance=$2 where id=$1`, [id, instancia])
-  for (const t of ['whatsapp_eventos', 'whatsapp_envios', 'whatsapp_mensagens', 'whatsapp_conversa_tags', 'whatsapp_conversas', 'whatsapp_tags', 'whatsapp_robo_config']) await db.query(`delete from ${t} where restaurante_id=$1`, [id])
+  for (const t of ['whatsapp_eventos', 'whatsapp_envios', 'whatsapp_mensagens', 'whatsapp_conversa_tags', 'whatsapp_conversas', 'whatsapp_tags', 'whatsapp_contato_fotos', 'whatsapp_robo_config']) await db.query(`delete from ${t} where restaurante_id=$1`, [id])
   await db.query(`delete from campanha_envios where restaurante_id=$1`, [id])
   await db.query(`delete from campanhas where restaurante_id=$1`, [id])
   await db.query(`delete from fidelidade_progresso where restaurante_id=$1`, [id])
@@ -95,6 +95,11 @@ const SEG_A = (await um(`select webhook_segredo s from whatsapp_robo_config wher
 const SEG_B = (await um(`select webhook_segredo s from whatsapp_robo_config where restaurante_id=$1`, [B])).s
 if (existsSync(ARQ)) rmSync(ARQ)
 if (existsSync(`${ARQ}.controle.json`)) rmSync(`${ARQ}.controle.json`)
+if (existsSync(`${ARQ}.fotos.jsonl`)) rmSync(`${ARQ}.fotos.jsonl`)
+// Consultas de foto de perfil feitas ao provedor simulado (0108).
+const fotosPedidas = () => (existsSync(`${ARQ}.fotos.jsonl`) ? readFileSync(`${ARQ}.fotos.jsonl`, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
+// PNG 1×1: a "foto do WhatsApp" servida localmente (nada sai para a internet).
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 let seq = 0
@@ -373,6 +378,41 @@ try {
   await espera(800)
   const linhasNoDom = await dono.p.locator('[data-testid^=atendimento-conversa-]').count()
   ok('lista virtualizada: só as linhas visíveis no DOM', linhasNoDom > 0 && linhasNoDom < 30, `${linhasNoDom} linhas`)
+
+  secao('11b. Fotos de perfil: só as linhas visíveis, uma vez, com cache')
+  await dono.p.route('https://pps.whatsapp.net/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }))
+  const antesFotos = fotosPedidas().length
+  await dono.p.getByTestId('atendimento-filtro-humano').click()
+  await dono.p.getByTestId('atendimento-filtro-todas').click()
+  await dono.p.getByTestId('atendimento-lista').waitFor({ timeout: 5000 })
+  await ate(async () => fotosPedidas().length > antesFotos, 10000)
+  await espera(1500)
+  const lote1 = fotosPedidas().slice(antesFotos)
+  const visiveis = await dono.p.evaluate(() => { const l = document.querySelector('[data-testid=atendimento-lista]'); return Math.ceil(l.clientHeight / 72) + 1 })
+  ok('pede foto só de quem aparece na tela (não das 40+ conversas)', lote1.length > 0 && lote1.length <= visiveis, `${lote1.length} consultas, ~${visiveis} linhas visíveis`)
+  ok('cada telefone consultado uma vez', new Set(lote1.map((f) => f.numero)).size === lote1.length)
+  await ate(async () => (await dono.p.getByTestId('atendimento-foto').count()) > 0, 8000)
+  const comFoto = await dono.p.getByTestId('atendimento-foto').count()
+  ok('contatos com foto mostram a imagem (carregada só quando aparece)', comFoto > 0 && (await dono.p.getByTestId('atendimento-foto').first().getAttribute('loading')) === 'lazy', `${comFoto} fotos`)
+  const guardadas = await um(`select count(*)::int n, count(url)::int com from whatsapp_contato_fotos where restaurante_id=$1`, [A])
+  ok('links guardados na loja (com e sem foto), nada na loja vizinha', guardadas.n >= lote1.length && guardadas.com > 0 && (await um(`select count(*)::int n from whatsapp_contato_fotos where restaurante_id=$1`, [B])).n === 0)
+  await dono.p.getByTestId('atendimento-lista').evaluate((el) => { el.scrollTop = el.scrollHeight })
+  await espera(2500)
+  const lote2 = fotosPedidas().slice(antesFotos)
+  ok('rolando: pede só as linhas novas, nenhuma repetida', lote2.length > lote1.length && new Set(lote2.map((f) => f.numero)).size === lote2.length, `${lote2.length} no total`)
+  await dono.p.getByTestId('atendimento-fechar').click()
+  await dono.p.getByTestId('atendimento-lancador').click()
+  await dono.p.getByTestId('atendimento-central').waitFor({ timeout: 10000 })
+  await dono.p.getByTestId('atendimento-filtro-todas').click()
+  await espera(2500)
+  ok('reaberto: usa o link guardado, sem consultar o WhatsApp de novo', fotosPedidas().slice(antesFotos).length === lote2.length && (await dono.p.getByTestId('atendimento-foto').count()) > 0)
+  const conv = await dono.p.evaluate(async () => (await (await fetch('/api/admin/whatsapp/atendimento/conversas?filtro=todas')).json()).conversas.slice(0, 3).map((c) => ({ f: c.foto, e: c.fotoEm })))
+  ok('lista já vem com a foto guardada (sem pedido extra)', conv.some((c) => c.e))
+  const muitas = await api(dono.p, `${R}/fotos`, 'POST', { telefones: Array.from({ length: 25 }, (_, i) => `55119555${String(i + 1).padStart(5, '0')}`) })
+  ok('API aceita no máximo 10 telefones por pedido', muitas.s === 200 && Object.keys(muitas.j?.fotos ?? {}).length <= 10)
+  const alheio = await api(dono.p, `${R}/fotos`, 'POST', { telefones: [CLI_B] })
+  ok('telefone que não é conversa da loja é ignorado', alheio.s === 200 && !(CLI_B in (alheio.j?.fotos ?? {})))
+  await central.screenshot({ path: join(SHOTS, 'atendimento-fotos.png') })
 
   secao('12. Não cobre modais; celular em tela cheia')
   await dono.p.getByTestId('atendimento-fechar').click()
