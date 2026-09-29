@@ -223,3 +223,15 @@ describe('tolerância a enum novo', () => {
     expect(atualizarNextaEntrega).not.toHaveBeenCalled()
   })
 })
+
+describe('evento atrasado depois do fim da entrega', () => {
+  beforeEach(() => { vi.clearAllMocks(); pedidoAfetado = true; updatePedido = {} })
+
+  it('DELIVERY_ONGOING depois de CANCELLED não reativa a entrega nem mexe no pedido', async () => {
+    const r = await aplicarEventoNexta(fakeAdmin(), entrega({ status: 'CANCELLED' }), ev('DELIVERY_ONGOING'))
+    expect(r).toMatchObject({ aplicado: false, statusNovo: 'CANCELLED', statusPedido: null })
+    const patch = (atualizarNextaEntrega as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][1] as Record<string, unknown>
+    expect(patch.status).toBeUndefined()
+    expect(updatePedido.status).toBeUndefined()
+  })
+})

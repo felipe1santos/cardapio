@@ -127,10 +127,19 @@ export async function aplicarEventoNexta(
 
   // Repetição do mesmo tipo: atualiza o espelho e para por aqui (invariante 1).
   const repetido = tipo === entrega.status
-  if (!repetido) patch.status = tipo
+  // Entrega já encerrada (cancelada, entregue, recusada) não volta a ficar ativa por um
+  // evento atrasado ou reenviado: voltaria a contar no índice de entrega ativa do pedido,
+  // barrando o redespacho — ou, se já redespachado, o update violava o índice, o webhook
+  // respondia 500 e o Nexta reenviava sem parar.
+  const reabriria = !nextaEntregaAtiva(entrega.status) && nextaEntregaAtiva(tipo)
+  if (!repetido && !reabriria) patch.status = tipo
 
   await atualizarNextaEntrega(admin, entrega.id, patch)
 
+  if (reabriria) {
+    console.warn(`[nexta] evento ${tipo} depois do fim (${entrega.status}) na entrega ${entrega.id} — ignorado.`)
+    return { aplicado: false, statusNovo: entrega.status, statusPedido: null }
+  }
   if (repetido) {
     const ehMovimento = NEXTA_EVENTOS_REPETIDOS.includes(tipo)
     if (!ehMovimento) console.warn(`[nexta] evento ${tipo} repetido na entrega ${entrega.id} — só o espelho foi atualizado.`)
