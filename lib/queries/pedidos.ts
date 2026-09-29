@@ -5,7 +5,7 @@ import { resolverFrete } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_ESGOTADO, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
-import { itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
+import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
@@ -15,6 +15,19 @@ import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
 import { lerTodas } from './ler-todas'
 
 const centavos = (v: number) => Math.round(v * 100) / 100
+
+/** Horário da categoria do item, com a regra da vitrine. Sem categoria ou sem janela = sempre. */
+function categoriaNoHorario(categoria: unknown): boolean {
+  const g = (Array.isArray(categoria) ? categoria[0] : categoria) as
+    | { horario_ativo_inicio: string | null; horario_ativo_fim: string | null }
+    | null
+    | undefined
+  if (!g) return true
+  return grupoEstaAtivoAgora({
+    horarioAtivoInicio: g.horario_ativo_inicio?.slice(0, 5) ?? null,
+    horarioAtivoFim: g.horario_ativo_fim?.slice(0, 5) ?? null,
+  })
+}
 
 export type TipoPedido = 'entrega' | 'retirada'
 export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
@@ -1157,7 +1170,8 @@ export async function criarPedido(
       item_complementos ( nome, preco, pausado, grupo_id ),
       grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas ),
       tamanhos_item ( nome, preco ),
-      pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) )
+      pizza_sabores ( nome, status, pizza_sabor_precos ( tamanho_padrao_id, preco ) ),
+      grupos_cardapio ( horario_ativo_inicio, horario_ativo_fim )
     `)
     .eq('restaurante_id', restauranteId)
     .in('id', itemIds)
@@ -1190,6 +1204,12 @@ export async function criarPedido(
     if (!item) throw new Error(`Item ${linha.itemId} não encontrado nesta loja`)
     if (item.status !== 'disponivel') throw new Error(`Item "${item.nome}" não está disponível`)
     if (!itemDisponivelHoje(item.dias_disponiveis ?? [])) throw new Error(`Item "${item.nome}" não está disponível hoje`)
+    // Categoria com horário (ex.: Almoço 11h–15h): a vitrine esconde fora da janela, mas a
+    // sacola montada às 14h58 e enviada às 15h05 (ou um POST direto) passava. Mesma regra
+    // da vitrine e do lançamento da mesa. PDV fica de fora.
+    if (input.origem !== 'pdv' && !categoriaNoHorario(item.grupos_cardapio)) {
+      throw new Error(`"${item.nome}" só é vendido em outro horário.`)
+    }
     // Canal conferido no servidor: a tela já filtra, mas aba aberta antes da mudança e
     // POST direto não podem furar a regra (0069). Item sem a coluna vale nos dois.
     if (
