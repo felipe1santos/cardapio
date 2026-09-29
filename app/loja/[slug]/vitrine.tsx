@@ -35,6 +35,7 @@ import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
 import { avisoRepeticao, fotosDoPedido, montarRepeticaoPedido, type ResultadoRepeticao } from '@/lib/repetir-pedido'
 import { resolverPaleta } from '@/lib/paletas'
+import { idsDeMedicaoSeguros } from '@/lib/pixels'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import { objectPosition, FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
 import {
@@ -920,7 +921,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // ── Tracking pixel injection ───────────────────────────────────────────────
   useEffect(() => {
     if (!restaurante) return
-    const { facebookPixelId: pixelId, googleTagId: tagId } = restaurante
+    // Só ID válido entra no script (ver idsDeMedicaoSeguros).
+    const { pixelId, tagId } = idsDeMedicaoSeguros(restaurante.facebookPixelId, restaurante.googleTagId)
     const scripts: HTMLScriptElement[] = []
     if (pixelId) {
       const s = document.createElement('script')

