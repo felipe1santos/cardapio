@@ -62,11 +62,17 @@ export async function buscarRestauranteIdPorSlug(admin: SupabaseClient, slug: st
 // `podeFallback` indica que o telefone é válido mas o WhatsApp da loja não pôde
 // enviar o código (instância offline ou loja sem WhatsApp) — o checkout então
 // deixa o cliente seguir sem confirmar (ver `criarSessaoNaoVerificada`).
-type ResultadoOtp = { ok: true } | { ok: false; error: string; podeFallback: boolean }
+type ResultadoOtp = { ok: true } | { ok: false; error: string; podeFallback: boolean; aguarde?: true }
 type ResultadoVerificacao = { ok: true; cliente: ClientePerfil } | { ok: false; error: string }
 
 const OTP_VALIDADE_MS = 5 * 60 * 1000
 const OTP_MAX_TENTATIVAS = 5
+/**
+ * Intervalo mínimo entre dois códigos para o mesmo telefone. Sem ele, qualquer um
+ * disparava WhatsApp do número da loja para qualquer número (risco de banimento, e aí
+ * param os avisos de pedido), e cada reenvio zerava as 5 tentativas.
+ */
+export const OTP_INTERVALO_MS = 60 * 1000
 
 /** Gera um código de 6 dígitos e envia pelo WhatsApp conectado da loja. */
 export async function enviarCodigoVerificacao(admin: SupabaseClient, restauranteId: string, telefoneInformado: string): Promise<ResultadoOtp> {
@@ -81,19 +87,40 @@ export async function enviarCodigoVerificacao(admin: SupabaseClient, restaurante
   if (lojaError) throw lojaError
   if (!loja?.evolution_instance) return { ok: false, error: 'Esta loja ainda não habilitou o cadastro por WhatsApp.', podeFallback: true }
 
-  const codigo = String(Math.floor(100000 + Math.random() * 900000))
+  const { data: anterior } = await admin
+    .from('cliente_codigos')
+    .select('criado_em')
+    .eq('restaurante_id', restauranteId)
+    .eq('telefone', telefone)
+    .order('criado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const desde = anterior?.criado_em ? Date.now() - new Date(anterior.criado_em).getTime() : Infinity
+  if (desde < OTP_INTERVALO_MS) {
+    const faltam = Math.max(1, Math.ceil((OTP_INTERVALO_MS - desde) / 1000))
+    return { ok: false, error: `Já enviamos um código agora há pouco. Confira o WhatsApp ou peça outro em ${faltam} s.`, podeFallback: false, aguarde: true }
+  }
+
+  // 100000–999999 com gerador criptográfico (Math.random é previsível).
+  const codigo = String(100000 + (globalThis.crypto.getRandomValues(new Uint32Array(1))[0] % 900000))
   const expiraEm = new Date(Date.now() + OTP_VALIDADE_MS).toISOString()
 
   await admin.from('cliente_codigos').delete().eq('restaurante_id', restauranteId).eq('telefone', telefone)
-  const { error: insertError } = await admin
+  const { data: novo, error: insertError } = await admin
     .from('cliente_codigos')
     .insert({ restaurante_id: restauranteId, telefone, codigo, expira_em: expiraEm })
+    .select('id')
+    .single()
   if (insertError) throw insertError
 
   const texto = `🔐 Seu código de verificação${loja.nome ? ` para *${loja.nome}*` : ''} é *${codigo}*.\nEle expira em 5 minutos.`
   // No histórico da central de atendimento o código NÃO aparece (o eco é reconhecido pelo hash).
   const enviado = await enviarWhatsapp(telefone, texto, loja.evolution_instance, { admin, origem: 'automatico', restauranteId, textoExibido: '🔐 Código de verificação do cardápio enviado.' })
-  if (!enviado) return { ok: false, error: 'Não foi possível enviar o código pelo WhatsApp agora. Tente novamente em instantes.', podeFallback: true }
+  if (!enviado) {
+    // O código não chegou a ninguém: não segura o próximo pedido no intervalo.
+    await admin.from('cliente_codigos').delete().eq('id', novo.id)
+    return { ok: false, error: 'Não foi possível enviar o código pelo WhatsApp agora. Tente novamente em instantes.', podeFallback: true }
+  }
 
   return { ok: true }
 }
@@ -146,10 +173,17 @@ export async function verificarCodigo(admin: SupabaseClient, restauranteId: stri
   if (new Date(registro.expira_em).getTime() < Date.now()) return { ok: false, error: 'Código expirado. Solicite um novo.' }
   if (registro.tentativas >= OTP_MAX_TENTATIVAS) return { ok: false, error: 'Muitas tentativas. Solicite um novo código.' }
 
-  if (registro.codigo !== codigo) {
-    await admin.from('cliente_codigos').update({ tentativas: registro.tentativas + 1 }).eq('id', registro.id)
-    return { ok: false, error: 'Código incorreto.' }
-  }
+  // Conta a tentativa ANTES de comparar, com compare-and-set: requisições em paralelo
+  // leem o mesmo número e só uma avança — as outras não chegam a testar o código.
+  const { data: contada } = await admin
+    .from('cliente_codigos')
+    .update({ tentativas: registro.tentativas + 1 })
+    .eq('id', registro.id)
+    .eq('tentativas', registro.tentativas)
+    .select('id')
+  if (!contada?.length) return { ok: false, error: 'Aguarde um instante e tente de novo.' }
+
+  if (registro.codigo !== codigo) return { ok: false, error: 'Código incorreto.' }
 
   await admin.from('cliente_codigos').delete().eq('id', registro.id)
 

@@ -1605,6 +1605,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         body: JSON.stringify({ telefone: contaTelefone }),
       })
       const data = await res.json()
+      // Código pedido agora há pouco: o anterior ainda vale — vai para onde se digita.
+      if (res.status === 429 && data.aguarde) {
+        setContaStep('codigo')
+        setContaError(data.error)
+        return
+      }
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o código.')
 
       // Fallback: WhatsApp da loja offline — o servidor já logou o cliente sem

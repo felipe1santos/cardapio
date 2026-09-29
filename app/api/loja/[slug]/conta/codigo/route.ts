@@ -21,6 +21,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     const result = await enviarCodigoVerificacao(admin, restauranteId, body.telefone)
     if (result.ok) return NextResponse.json({ ok: true })
 
+    // Código pedido há menos de 60 s: o anterior ainda vale (a vitrine vai para a tela do código).
+    if (result.aguarde) return NextResponse.json({ error: result.error, aguarde: true }, { status: 429 })
+
     // Telefone inválido — erro real, não dá fallback.
     if (!result.podeFallback) return NextResponse.json({ error: result.error }, { status: 400 })
 
