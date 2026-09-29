@@ -113,3 +113,19 @@ describe('horário agendado no formulário', () => {
     expect(paraCampoDataHora('lixo')).toBe('')
   })
 })
+
+describe('público da campanha: telefone inválido', () => {
+  it('fica fora da fila e é contado à parte (não vira "falha" no envio)', () => {
+    const r = deduplicarDestinatarios([
+      { telefone: '5511912340101' },
+      { telefone: '11912340101' },
+      { telefone: '123' },
+      { telefone: '5511912340102999' },
+      { telefone: '' },
+      { telefone: '5511912340103' },
+    ])
+    expect(r.unicos.map((d) => d.telefone)).toEqual(['5511912340101', '5511912340103'])
+    expect(r.repetidos).toBe(1)
+    expect(r.invalidos).toBe(3)
+  })
+})

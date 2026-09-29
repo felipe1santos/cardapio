@@ -38,17 +38,23 @@ export function telefoneChave(telefone: string | null | undefined): string | nul
   return d.slice(0, 2) + d.slice(-8)
 }
 
-/** Um destinatário por telefone (a chave). Devolve os únicos e quantos repetidos saíram. */
-export function deduplicarDestinatarios<T extends { telefone: string }>(lista: T[]): { unicos: T[]; repetidos: number } {
+/**
+ * Um destinatário por telefone (a chave). Telefone que não é número de WhatsApp (curto,
+ * dígito sobrando, vazio) fica FORA: antes entrava na fila, virava "erro" no envio e
+ * contava como falha — e a estimativa da tela não batia com o que saía.
+ */
+export function deduplicarDestinatarios<T extends { telefone: string }>(lista: T[]): { unicos: T[]; repetidos: number; invalidos: number } {
   const vistos = new Set<string>()
   const unicos: T[] = []
+  let invalidos = 0
   for (const d of lista) {
-    const k = telefoneChave(d.telefone) ?? d.telefone.replace(/\D/g, '')
-    if (!k || vistos.has(k)) continue
+    const k = telefoneChave(d.telefone)
+    if (!k) { invalidos++; continue }
+    if (vistos.has(k)) continue
     vistos.add(k)
     unicos.push(d)
   }
-  return { unicos, repetidos: lista.length - unicos.length }
+  return { unicos, repetidos: lista.length - unicos.length - invalidos, invalidos }
 }
 
 export type StatusCampanha = 'entregue' | 'lido'

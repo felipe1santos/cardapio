@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { resolverDestinatarios, type FiltroCampanha } from '@/lib/queries/campanhas'
+import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -23,7 +24,9 @@ export async function POST(request: Request) {
     const { filtro }: { filtro: FiltroCampanha } = await request.json()
     const admin = getAdminSupabase()
     const destinatarios = await resolverDestinatarios(admin, restauranteId, filtro ?? { tipo: 'todos' })
-    return NextResponse.json({ total: destinatarios.length })
+    // Mesma regra da fila (popularFilaCampanha): a tela mostra quantos vão receber.
+    const { unicos, repetidos, invalidos } = deduplicarDestinatarios(destinatarios)
+    return NextResponse.json({ total: unicos.length, repetidos, invalidos })
   } catch (err) {
     console.error('[campanhas/estimativa] erro:', err)
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
