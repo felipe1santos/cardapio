@@ -17,6 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   try {
     const estacao = await buscarEstacaoPorToken(admin, token)
     if (!estacao) return NextResponse.json({ error: 'Link inválido ou estação desativada' }, { status: 404 })
+    if (estacao.modo !== 'completa') return NextResponse.json({ error: 'Esta estação não despacha rotas' }, { status: 403 })
 
     if (!usaDespachoDeRotas(await buscarFluxoLoja(admin, estacao.restauranteId))) {
       return NextResponse.json({ error: 'Esta loja não trabalha com motoboy: o despacho de rotas está desligado.' }, { status: 409 })
