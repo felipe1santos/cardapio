@@ -161,31 +161,51 @@ export async function uploadMidiaCampanha(supabase: SupabaseClient, restauranteI
 
 const MS_DIA = 86_400_000
 const MS_SEMANA = 7 * MS_DIA
+/** Teto de linhas por resposta do PostgREST (max_rows do Supabase). */
+const PAGINA = 1000
+
+/**
+ * Lê TODAS as linhas, de 1000 em 1000. Sem isso o PostgREST corta em 1000 calado: a loja
+ * com mais de 1000 clientes perdia o resto do público, e com mais de 1000 pedidos os
+ * filtros enxergavam só os 1000 MAIS ANTIGOS (cliente ativo virava "inativo").
+ */
+export async function lerTodas<T>(pagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  const todas: T[] = []
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await pagina(de, de + PAGINA - 1)
+    if (error) throw error
+    const lote = data ?? []
+    todas.push(...lote)
+    if (lote.length < PAGINA) return todas
+  }
+}
 
 export async function resolverDestinatarios(
   admin: SupabaseClient,
   restauranteId: string,
   filtro: FiltroCampanha,
 ): Promise<{ telefone: string; nome: string }[]> {
-  const { data: clientes, error: errClientes } = await admin
+  const clientes = await lerTodas<{ telefone: string; nome: string | null }>((de, ate) => admin
     .from('clientes')
     .select('telefone, nome')
     .eq('restaurante_id', restauranteId)
-  if (errClientes) throw errClientes
-  if (!clientes?.length) return []
+    .order('id', { ascending: true })
+    .range(de, ate))
+  if (!clientes.length) return []
 
   if (filtro.tipo === 'todos') return clientes.map((c) => ({ telefone: c.telefone, nome: c.nome ?? '' }))
 
-  const { data: pedidos, error: errPedidos } = await admin
+  const pedidos = await lerTodas<{ cliente_telefone: string; criado_em: string; total: number }>((de, ate) => admin
     .from('pedidos')
     .select('cliente_telefone, criado_em, total')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
     .order('criado_em', { ascending: true })
-  if (errPedidos) throw errPedidos
+    .order('id', { ascending: true })
+    .range(de, ate))
 
   const pedidosPorTelefone = new Map<string, { criado_em: string; total: number }[]>()
-  for (const p of pedidos ?? []) {
+  for (const p of pedidos) {
     const tel = normalizarTelefone(p.cliente_telefone)
     const lista = pedidosPorTelefone.get(tel)
     if (lista) lista.push(p)
