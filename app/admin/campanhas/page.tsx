@@ -8,7 +8,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTipo, type TipoMensagem } from '@/lib/queries/campanhas'
 import { formatarReal } from '@/lib/moeda'
-import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora } from '@/lib/mensageria/campanhas'
+import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora, problemasDasVariaveis, progressoCampanha, situacaoCampanha } from '@/lib/mensageria/campanhas'
 import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -31,7 +31,10 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   rascunho:  { label: 'Rascunho',  cls: 'bg-page text-text-subtle border border-border' },
   agendada:  { label: 'Agendada',  cls: 'bg-alert text-alert' },
   enviando:  { label: 'Enviando',  cls: 'bg-warn/20 text-warn' },
+  pausada:   { label: 'Pausada',   cls: 'bg-warn/20 text-warn' },
   concluida: { label: 'Concluída', cls: 'bg-price-bg text-price-text' },
+  concluida_com_falhas: { label: 'Concluída com falhas', cls: 'bg-warn/20 text-warn' },
+  falhou:    { label: 'Falhou',    cls: 'bg-danger/10 text-danger' },
   cancelada: { label: 'Cancelada', cls: 'bg-danger/10 text-danger' },
 }
 
@@ -63,15 +66,17 @@ interface FormState {
   filtro: FiltroCampanha
   agendadoEm: string
   incluirLink: boolean
+  incluirDescadastro: boolean
 }
 
 function formDefault(): FormState {
-  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '', incluirLink: true }
+  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '', incluirLink: true, incluirDescadastro: true }
 }
 
 /** Prévia com um link de exemplo no lugar do link de cada cliente. */
-function mensagemComLink(mensagem: string, incluirLink: boolean) {
-  return montarTextoCampanha(mensagem, { incluirLink, token: '0'.repeat(24) }).replace(/\/c\/0{24}/, '/c/…')
+function mensagemComLink(mensagem: string, incluirLink: boolean, incluirDescadastro = false) {
+  // {nome} com um nome de exemplo: a prévia mostra como chega para cada cliente.
+  return montarTextoCampanha(mensagem, { incluirLink, token: '0'.repeat(24), nome: 'Maria', incluirDescadastro }).replace(/\/c\/0{24}/, '/c/…')
 }
 
 // ─── WhatsApp Bubble (preview) ────────────────────────────────────────────────
@@ -131,7 +136,7 @@ function WhatsappPreview({ tipo, mensagem, imagemUrl, audioUrl }: {
               )}
 
               <div className="mt-1 flex items-center justify-end gap-1">
-                <span className="text-[10px] text-[#667781]">{horaAgora()}</span>
+                <span className="text-[10px] text-[#667781]" suppressHydrationWarning>{horaAgora()}</span>
                 <svg viewBox="0 0 16 11" className="h-[11px] w-[16px]" fill="#53bdeb"><path d="M11.071.653l-5.268 7.17-2.377-2.376-.707.708 3.084 3.083L11.778 1.36l-.707-.707zm3.15 0l-5.268 7.17-.682-.952-.707.707 1.388 1.976 5.977-8.194-.707-.707z"/></svg>
               </div>
             </div>
@@ -188,15 +193,24 @@ function Badge({ status }: { status: string }) {
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>
 }
 
-function Progress({ enviados, total }: { enviados: number; total: number }) {
-  if (!total) return <span className="text-[12px] text-text-subtle">—</span>
-  const pct = Math.round((enviados / total) * 100)
+/** Enviados (verde) e falhas (vermelho) separados — antes a barra somava os dois em azul. */
+function Progress({ campanha }: { campanha: Campanha }) {
+  const p = progressoCampanha(campanha)
+  if (!p.total) return <span className="text-[12px] text-text-subtle">—</span>
+  const pct = (n: number) => `${(n / p.total) * 100}%`
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-border">
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+    <div>
+      <div className="flex items-center gap-2">
+        <div className="flex h-1.5 w-20 overflow-hidden rounded-full bg-border">
+          <div className="h-full bg-status-ready transition-all" style={{ width: pct(p.enviados) }} />
+          <div className="h-full bg-danger transition-all" style={{ width: pct(p.falhas) }} />
+        </div>
+        <span className="text-[12px] text-text-subtle">{p.enviados}/{p.total} enviadas</span>
       </div>
-      <span className="text-[12px] text-text-subtle">{enviados}/{total}</span>
+      {p.falhas > 0 && <span className="mt-0.5 block text-[11px] text-danger">{p.falhas} {p.falhas === 1 ? 'falha' : 'falhas'}</span>}
+      {campanha.status === 'pausada' && (
+        <span className="mt-0.5 block text-[11px] text-warn">WhatsApp da loja desconectado — volta sozinha ao reconectar</span>
+      )}
     </div>
   )
 }
@@ -363,6 +377,7 @@ export default function CampanhasPage() {
       imagemUrl: c.imagemUrl, audioUrl: c.audioUrl, filtro: c.filtro,
       agendadoEm: paraCampoDataHora(c.agendadoEm),
       incluirLink: c.incluirLink,
+      incluirDescadastro: c.incluirDescadastro,
     })
     setErro(null); setEstimativa(null); setDrawerOpen(true)
   }
@@ -397,6 +412,8 @@ export default function CampanhasPage() {
     if (form.tipoMensagem === 'imagem' && !form.imagemUrl) { setErro('Faça upload da imagem.'); return }
     if (form.tipoMensagem === 'audio' && !form.audioUrl) { setErro('Faça upload do áudio.'); return }
     if (!dispararAgora && !form.agendadoEm) { setErro('Defina o horário ou clique em "Disparar agora".'); return }
+    const variaveis = form.tipoMensagem === 'audio' ? null : problemasDasVariaveis(form.mensagem, { incluirLink: form.incluirLink })
+    if (variaveis) { setErro(variaveis); return }
 
     setSaving(true); setErro(null)
     try {
@@ -405,6 +422,7 @@ export default function CampanhasPage() {
         imagemUrl: form.imagemUrl, audioUrl: form.audioUrl, filtro: form.filtro,
         agendadoEm: dispararAgora ? new Date().toISOString() : (form.agendadoEm ? new Date(form.agendadoEm).toISOString() : null),
         incluirLink: form.tipoMensagem !== 'audio' && form.incluirLink,
+        incluirDescadastro: form.tipoMensagem !== 'audio' && form.incluirDescadastro,
         disparar: true,
       }
       const res = editingId
@@ -482,14 +500,13 @@ export default function CampanhasPage() {
               <Card key={c.id} className="p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <span className="min-w-0 break-words text-[14px] font-bold text-text-main">{c.nome}</span>
-                  <Badge status={c.status} />
+                  <Badge status={situacaoCampanha(c)} />
                 </div>
                 <div className="mt-1.5 text-[12px] text-text-subtle">
                   {TIPO_LABEL[c.tipoMensagem]} · {formatarDataHora(c.agendadoEm)}
                 </div>
                 <div className="mt-2.5">
-                  <Progress enviados={c.totalEnviados + c.totalErros} total={c.totalDestinatarios} />
-                  {c.totalErros > 0 && <span className="mt-0.5 block text-[11px] text-danger">{c.totalErros} erro(s)</span>}
+                  <Progress campanha={c} />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
                   <button
@@ -533,12 +550,11 @@ export default function CampanhasPage() {
                 {campanhas.map((c) => (
                   <tr key={c.id} className="hover:bg-page/60">
                     <td className="px-4 py-3 font-medium text-text-main">{c.nome}</td>
-                    <td className="px-4 py-3"><Badge status={c.status} /></td>
+                    <td className="px-4 py-3"><Badge status={situacaoCampanha(c)} /></td>
                     <td className="px-4 py-3 text-text-subtle">{TIPO_LABEL[c.tipoMensagem]}</td>
                     <td className="px-4 py-3 text-text-subtle">{formatarDataHora(c.agendadoEm)}</td>
                     <td className="px-4 py-3">
-                      <Progress enviados={c.totalEnviados + c.totalErros} total={c.totalDestinatarios} />
-                      {c.totalErros > 0 && <span className="mt-0.5 block text-[11px] text-danger">{c.totalErros} erro(s)</span>}
+                      <Progress campanha={c} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -684,6 +700,20 @@ export default function CampanhasPage() {
               </label>
             )}
 
+            {/* Descadastro (0112) */}
+            {form.tipoMensagem !== 'audio' && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-menuzia border border-border px-3 py-3">
+                <input type="checkbox" checked={form.incluirDescadastro} onChange={(e) => setForm((f) => ({ ...f, incluirDescadastro: e.target.checked }))}
+                  className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-primary" data-testid="incluir-descadastro" />
+                <span>
+                  <span className="block text-[13px] font-semibold text-text-main">Terminar com &quot;Para não receber mais, responda SAIR.&quot;</span>
+                  <span className="block text-[12px] text-text-subtle">
+                    Quem responder SAIR não recebe mais campanhas desta loja (os avisos de pedido continuam). Vale mesmo sem esta linha.
+                  </span>
+                </span>
+              </label>
+            )}
+
             {/* Filtro */}
             <FiltroEditor filtro={form.filtro} onChange={(f) => setForm((prev) => ({ ...prev, filtro: f }))} />
 
@@ -704,7 +734,7 @@ export default function CampanhasPage() {
                 onChange={(e) => setForm((f) => ({ ...f, agendadoEm: e.target.value }))}
                 className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm text-text-main outline-none focus:border-primary"
               />
-              <p className="mt-1 text-[11px] text-text-subtle">Deixe em branco para disparar imediatamente.</p>
+              <p className="mt-1 text-[11px] text-text-subtle">Sem horário? Use o botão &quot;Disparar agora&quot;.</p>
             </div>
 
             {erro && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{erro}</p>}
@@ -716,7 +746,7 @@ export default function CampanhasPage() {
             <div className="flex-1">
               <WhatsappPreview
                 tipo={form.tipoMensagem}
-                mensagem={form.tipoMensagem === 'audio' ? form.mensagem : mensagemComLink(form.mensagem, form.incluirLink)}
+                mensagem={form.tipoMensagem === 'audio' ? form.mensagem : mensagemComLink(form.mensagem, form.incluirLink, form.incluirDescadastro)}
                 imagemUrl={form.imagemUrl}
                 audioUrl={form.audioUrl}
               />

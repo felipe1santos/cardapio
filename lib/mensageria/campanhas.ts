@@ -14,17 +14,51 @@ export function linkRastreavel(token: string): string {
   return `${BASE_PUBLICA()}/c/${token}`
 }
 
+export const MARCADOR_NOME = '{nome}'
+export const VARIAVEIS_CAMPANHA = [MARCADOR_NOME, MARCADOR_LINK] as const
+export const RODAPE_DESCADASTRO = 'Para não receber mais, responda SAIR.'
+
+/** Primeiro nome do cliente para o {nome}; sem nome, "cliente". */
+export function primeiroNome(nome: string | null | undefined): string {
+  const palavra = (nome ?? '').trim().split(/\s+/)[0] ?? ''
+  const limpa = palavra.replace(/[^\p{L}'-]/gu, '')
+  if (!limpa) return 'cliente'
+  return limpa[0].toUpperCase() + limpa.slice(1).toLowerCase()
+}
+
 /**
- * Texto que sai para o cliente. Com o link ligado: troca `{link}` pelo link do
- * destinatário, ou acrescenta no fim se a mensagem não tiver o marcador. Com o link
- * desligado a mensagem sai como a loja escreveu (campanhas antigas não mudam).
+ * Variáveis que a mensagem usa e o sistema não conhece — bloqueiam o salvar. Antes,
+ * `{Nome}` ou `{cupom}` saíam literais para o cliente. `{link}` sem o link ligado também.
  */
-export function montarTextoCampanha(mensagem: string, opcoes: { incluirLink: boolean; token: string | null }): string {
-  const texto = mensagem ?? ''
-  if (!opcoes.incluirLink || !opcoes.token || !TOKEN_VALIDO.test(opcoes.token)) return texto
-  const link = linkRastreavel(opcoes.token)
-  if (texto.includes(MARCADOR_LINK)) return texto.split(MARCADOR_LINK).join(link)
-  return texto.trim() ? `${texto.trimEnd()}\n\n👉 Peça pelo cardápio: ${link}` : link
+export function problemasDasVariaveis(mensagem: string, opcoes: { incluirLink: boolean }): string | null {
+  const usadas = [...new Set((mensagem ?? '').match(/\{[^{}\n]{0,40}\}/g) ?? [])]
+  const desconhecidas = usadas.filter((v) => !(VARIAVEIS_CAMPANHA as readonly string[]).includes(v))
+  if (desconhecidas.length) {
+    return `Variável desconhecida: ${desconhecidas.join(', ')}. Use {nome} (primeiro nome do cliente) ou {link} (link do cardápio).`
+  }
+  if (!opcoes.incluirLink && usadas.includes(MARCADOR_LINK)) {
+    return 'A mensagem usa {link}, mas "Incluir link do cardápio" está desligado. Ligue a opção ou tire o {link}.'
+  }
+  return null
+}
+
+/**
+ * Texto que sai para o cliente: {nome} vira o primeiro nome (ou "cliente"); com o link
+ * ligado, {link} vira o link do destinatário (ou ele vai no fim); com o descadastro ligado,
+ * o rodapé "Para não receber mais, responda SAIR." fecha a mensagem.
+ */
+export function montarTextoCampanha(
+  mensagem: string,
+  opcoes: { incluirLink: boolean; token: string | null; nome?: string | null; incluirDescadastro?: boolean },
+): string {
+  let texto = (mensagem ?? '').split(MARCADOR_NOME).join(primeiroNome(opcoes.nome))
+  if (opcoes.incluirLink && opcoes.token && TOKEN_VALIDO.test(opcoes.token)) {
+    const link = linkRastreavel(opcoes.token)
+    if (texto.includes(MARCADOR_LINK)) texto = texto.split(MARCADOR_LINK).join(link)
+    else texto = texto.trim() ? `${texto.trimEnd()}\n\n👉 Peça pelo cardápio: ${link}` : link
+  }
+  if (opcoes.incluirDescadastro) texto = texto.trim() ? `${texto.trimEnd()}\n\n${RODAPE_DESCADASTRO}` : RODAPE_DESCADASTRO
+  return texto
 }
 
 /**
@@ -90,4 +124,29 @@ export function paraCampoDataHora(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return ''
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+export type SituacaoCampanha = 'rascunho' | 'agendada' | 'enviando' | 'pausada' | 'concluida' | 'concluida_com_falhas' | 'falhou' | 'cancelada'
+
+/**
+ * Como a campanha aparece na lista. "Concluída" com 0 enviados era mentira: a "SDAASD" da
+ * Menuzia (28/09) teve as 4 mensagens recusadas (WhatsApp desconectado) e aparecia
+ * "Concluída · 4/4". Agora: sem nenhum envio = "Falhou"; com parte = "Concluída com falhas".
+ */
+export function situacaoCampanha(c: { status: string; totalEnviados: number; totalErros: number }): SituacaoCampanha {
+  if (c.status === 'concluida') {
+    if (c.totalEnviados === 0) return 'falhou'
+    if (c.totalErros > 0) return 'concluida_com_falhas'
+    return 'concluida'
+  }
+  if (['rascunho', 'agendada', 'enviando', 'pausada', 'cancelada'].includes(c.status)) return c.status as SituacaoCampanha
+  return 'rascunho'
+}
+
+/** Barra de progresso: enviados, falhas e o que ainda não saiu (fila, expirado, incerto). */
+export function progressoCampanha(c: { totalDestinatarios: number; totalEnviados: number; totalErros: number }) {
+  const total = Math.max(0, c.totalDestinatarios)
+  const enviados = Math.min(total, Math.max(0, c.totalEnviados))
+  const falhas = Math.min(total - enviados, Math.max(0, c.totalErros))
+  return { total, enviados, falhas, restantes: total - enviados - falhas }
 }

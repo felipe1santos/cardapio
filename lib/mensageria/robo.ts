@@ -110,6 +110,32 @@ export function textoPadrao(loja: DadosLoja, tipo: TipoMensagem = 'texto', comSa
   return `${saudar(loja, comSaudacao)}${inicio}\n\nCardápio: ${link}\n\n${MENU_OPCOES}`
 }
 
+/**
+ * Descadastro das campanhas (0112). Só a mensagem INTEIRA conta ("sair", "SAIR!", "parar"),
+ * para "vou sair de casa" ou "quero cancelar o pedido" nunca descadastrarem ninguém.
+ * "cancelar" fica de fora de propósito: é como o cliente pede para cancelar um pedido.
+ */
+const PALAVRAS_SAIR = new Set([
+  'sair', 'parar', 'pare', 'stop', 'descadastrar', 'descadastro', 'descadastre', 'remover', 'me remova', 'me tira', 'me tire',
+  'nao quero mais', 'nao quero receber', 'nao quero mais receber', 'parar de receber', 'sair da lista', 'nao envie mais', 'nao mande mais',
+])
+const PALAVRAS_VOLTAR = new Set(['voltar', 'quero voltar', 'voltar a receber', 'receber de novo', 'quero receber'])
+
+export function pedidoDeDescadastro(tipo: TipoMensagem, texto: string | null): 'sair' | 'voltar' | null {
+  if (tipo !== 'texto') return null
+  const t = normalizar(texto ?? '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!t || t.length > 40) return null
+  if (PALAVRAS_SAIR.has(t)) return 'sair'
+  if (PALAVRAS_VOLTAR.has(t)) return 'voltar'
+  return null
+}
+
+export function textoDescadastro(loja: DadosLoja, sair: boolean): string {
+  return sair
+    ? `Pronto! Você não vai mais receber promoções da *${loja.nome}* por aqui. Os avisos dos seus pedidos continuam chegando normalmente.\n\nSe mudar de ideia, é só responder *VOLTAR*.`
+    : `Combinado! Você voltou a receber as novidades da *${loja.nome}*. Para parar, é só responder *SAIR*.`
+}
+
 export function textoAtendente(loja: DadosLoja): string {
   return `Certo! Vou chamar alguém da *${loja.nome}*. Um atendente continua a conversa por aqui assim que possível — enquanto isso, eu fico quietinho.`
 }

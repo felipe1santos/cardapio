@@ -1,14 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizarTelefone } from './clientes'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
-import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
+import { deduplicarDestinatarios, telefoneChave } from '@/lib/mensageria/campanhas'
 import { diaSemanaSaoPaulo } from '@/lib/timezone'
 import { lerTodas } from './ler-todas'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TipoMensagem = 'texto' | 'imagem' | 'audio'
-export type StatusCampanha = 'rascunho' | 'agendada' | 'enviando' | 'concluida' | 'cancelada'
+export type StatusCampanha = 'rascunho' | 'agendada' | 'enviando' | 'pausada' | 'concluida' | 'cancelada'
 export type FiltroTipo = 'todos' | 'inativos' | 'frequentes' | 'recentes' | 'dias_semana' | 'valor_minimo'
 
 export interface FiltroCampanha {
@@ -38,6 +38,11 @@ export interface Campanha {
   /** Link rastreável do cardápio no fim da mensagem (ou no lugar de {link}). */
   incluirLink: boolean
   duplicadosBloqueados: number
+  /** Rodapé "Para não receber mais, responda SAIR." (0112). */
+  incluirDescadastro: boolean
+  /** Pausada porque o WhatsApp da loja caiu (0112). */
+  pausadaEm: string | null
+  pausaMotivo: string | null
 }
 
 // ─── Mapeamento ───────────────────────────────────────────────────────────────
@@ -61,12 +66,15 @@ function mapCampanha(row: any): Campanha {
     criadoEm: row.criado_em,
     incluirLink: row.incluir_link === true,
     duplicadosBloqueados: row.duplicados_bloqueados ?? 0,
+    incluirDescadastro: row.incluir_descadastro === true,
+    pausadaEm: row.pausada_em ?? null,
+    pausaMotivo: row.pausa_motivo ?? null,
   }
 }
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em, incluir_link, duplicados_bloqueados'
+const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em, incluir_link, duplicados_bloqueados, incluir_descadastro, pausada_em, pausa_motivo'
 
 export async function listarCampanhas(supabase: SupabaseClient, restauranteId: string): Promise<Campanha[]> {
   const { data, error } = await supabase
@@ -87,6 +95,7 @@ export interface CampanhaInput {
   filtro: FiltroCampanha
   agendadoEm?: string | null
   incluirLink?: boolean
+  incluirDescadastro?: boolean
 }
 
 export async function criarCampanha(supabase: SupabaseClient, restauranteId: string, input: CampanhaInput): Promise<Campanha> {
@@ -102,6 +111,7 @@ export async function criarCampanha(supabase: SupabaseClient, restauranteId: str
       filtro: input.filtro,
       agendado_em: input.agendadoEm ?? null,
       incluir_link: input.incluirLink === true,
+      incluir_descadastro: input.incluirDescadastro === true,
       status: input.agendadoEm ? 'agendada' : 'rascunho',
     })
     .select(CAMPANHA_SELECT)
@@ -119,6 +129,7 @@ export async function atualizarCampanha(supabase: SupabaseClient, restauranteId:
   if ('audioUrl' in patch) row.audio_url = patch.audioUrl ?? null
   if (patch.filtro !== undefined) row.filtro = patch.filtro
   if (patch.incluirLink !== undefined) row.incluir_link = patch.incluirLink === true
+  if (patch.incluirDescadastro !== undefined) row.incluir_descadastro = patch.incluirDescadastro === true
   if ('agendadoEm' in patch) {
     row.agendado_em = patch.agendadoEm ?? null
     if (!patch.status) row.status = patch.agendadoEm ? 'agendada' : 'rascunho'
@@ -179,6 +190,20 @@ export async function resolverDestinatarios(
     .order('id', { ascending: true })
     .range(de, ate))
   if (!clientes.length) return []
+
+  // Quem respondeu SAIR (0112) nunca entra no público — em nenhum filtro.
+  const saiu = new Set((await lerTodas<{ telefone_chave: string }>((de, ate) => admin
+    .from('whatsapp_descadastros')
+    .select('telefone_chave')
+    .eq('restaurante_id', restauranteId)
+    .order('telefone_chave', { ascending: true })
+    .range(de, ate))).map((d) => d.telefone_chave))
+  if (saiu.size) {
+    const ficam = clientes.filter((c) => !saiu.has(telefoneChave(c.telefone) ?? ''))
+    clientes.length = 0
+    clientes.push(...ficam)
+    if (!clientes.length) return []
+  }
 
   if (filtro.tipo === 'todos') return clientes.map((c) => ({ telefone: c.telefone, nome: c.nome ?? '' }))
 

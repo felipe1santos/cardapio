@@ -14,7 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual } from './provedor'
 import { enfileirar, processarFila } from './fila'
 import {
-  classificarIntencao, extrairBairro, numeroPermitido, roboLiberadoNoServidor, textoAtendente, textoBoasVindas, textoCardapio,
+  classificarIntencao, extrairBairro, numeroPermitido, pedidoDeDescadastro, roboLiberadoNoServidor, textoAtendente, textoBoasVindas, textoCardapio, textoDescadastro,
   textoHorario, textoPadrao, textoStatus, textoTaxa, variantesTelefone, type Acao, type DadosLoja, type FreteLoja,
 } from './robo'
 import { statusDoProvedor } from './campanhas'
@@ -230,6 +230,26 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
     if (d.duplicada) { contar(r, 'duplicada'); continue }
     r.processadas++
     if (m.deMim) { contar(r, 'loja_respondeu'); continue }
+
+    // SAIR / VOLTAR (0112): vale com o robô ligado OU desligado — é direito do cliente
+    // parar de receber campanhas. Avisos de pedido não mudam. A confirmação sai pela fila.
+    const descadastro = pedidoDeDescadastro(m.tipo, m.texto)
+    if (descadastro) {
+      const { error: errDesc } = await admin.rpc('whatsapp_descadastrar', { p_restaurante: restauranteId, p_telefone: m.telefone, p_sair: descadastro === 'sair', p_origem: 'cliente' })
+      if (errDesc) throw errDesc
+      const envio = await enfileirar(admin, {
+        restauranteId,
+        chave: `descadastro:${d.mensagem_id}`,
+        tipo: 'descadastro',
+        telefone: m.telefone,
+        texto: textoDescadastro(loja, descadastro === 'sair'),
+        conversaId: d.conversa_id,
+        origemMensagemId: d.mensagem_id,
+      })
+      if (envio?.novo) r.respostas++
+      contar(r, descadastro === 'sair' ? 'descadastro' : 'recadastro')
+      continue
+    }
     if (!roboAtivo) { contar(r, 'robo_desligado'); continue }
     if (d.acao === 'nada') { contar(r, d.protecao ? 'protecao_loop' : 'silenciada_ou_repetida'); continue }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acessoDeRobo, deduplicarDestinatarios, linkRastreavel, montarTextoCampanha, paraCampoDataHora, statusDoProvedor, telefoneChave } from './campanhas'
+import { acessoDeRobo, deduplicarDestinatarios, linkRastreavel, montarTextoCampanha, paraCampoDataHora, problemasDasVariaveis, progressoCampanha, situacaoCampanha, statusDoProvedor, telefoneChave } from './campanhas'
 import { interpretarWebhookEvolution } from './provedor'
 
 const TOKEN = 'a1b2c3d4e5f6a1b2c3d4e5f6'
@@ -127,5 +127,40 @@ describe('público da campanha: telefone inválido', () => {
     expect(r.unicos.map((d) => d.telefone)).toEqual(['5511912340101', '5511912340103'])
     expect(r.repetidos).toBe(1)
     expect(r.invalidos).toBe(3)
+  })
+})
+
+describe('variáveis da mensagem', () => {
+  it('{nome} vira o primeiro nome; sem nome, "cliente"', () => {
+    expect(montarTextoCampanha('Oi {nome}!', { incluirLink: false, token: null, nome: 'MARIA  da silva' })).toBe('Oi Maria!')
+    expect(montarTextoCampanha('Oi {nome}!', { incluirLink: false, token: null, nome: '  ' })).toBe('Oi cliente!')
+    expect(montarTextoCampanha('Oi {nome}!', { incluirLink: false, token: null, nome: '😀' })).toBe('Oi cliente!')
+  })
+
+  it('variável desconhecida bloqueia; {link} sem o link ligado também', () => {
+    expect(problemasDasVariaveis('Oi {Nome}, use {cupom}', { incluirLink: true })).toMatch(/Variável desconhecida: \{Nome\}, \{cupom\}/)
+    expect(problemasDasVariaveis('Peça: {link}', { incluirLink: false })).toMatch(/Incluir link/)
+    expect(problemasDasVariaveis('Oi {nome}, peça: {link}', { incluirLink: true })).toBeNull()
+    expect(problemasDasVariaveis('Sem variável nenhuma', { incluirLink: false })).toBeNull()
+  })
+
+  it('rodapé do descadastro fecha a mensagem (depois do link)', () => {
+    const t = montarTextoCampanha('Promo!', { incluirLink: true, token: TOKEN, incluirDescadastro: true })
+    expect(t).toBe(`Promo!\n\n👉 Peça pelo cardápio: ${linkRastreavel(TOKEN)}\n\nPara não receber mais, responda SAIR.`)
+    expect(montarTextoCampanha('Promo!', { incluirLink: false, token: null, incluirDescadastro: false })).toBe('Promo!')
+  })
+})
+
+describe('situação e progresso da campanha', () => {
+  it('"Concluída" com 0 enviados é "Falhou" (caso SDAASD)', () => {
+    expect(situacaoCampanha({ status: 'concluida', totalEnviados: 0, totalErros: 4 })).toBe('falhou')
+    expect(situacaoCampanha({ status: 'concluida', totalEnviados: 3, totalErros: 1 })).toBe('concluida_com_falhas')
+    expect(situacaoCampanha({ status: 'concluida', totalEnviados: 4, totalErros: 0 })).toBe('concluida')
+    expect(situacaoCampanha({ status: 'pausada', totalEnviados: 1, totalErros: 0 })).toBe('pausada')
+  })
+
+  it('barra separa enviados, falhas e restantes', () => {
+    expect(progressoCampanha({ totalDestinatarios: 4, totalEnviados: 0, totalErros: 4 })).toEqual({ total: 4, enviados: 0, falhas: 4, restantes: 0 })
+    expect(progressoCampanha({ totalDestinatarios: 10, totalEnviados: 3, totalErros: 1 })).toEqual({ total: 10, enviados: 3, falhas: 1, restantes: 6 })
   })
 })

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatarReal } from '@/lib/moeda'
+import { situacaoCampanha } from '@/lib/mensageria/campanhas'
 import { BolhaIcone, Cartao, Etiqueta, TituloBloco, TONS, type Tom } from '@/components/admin/painel-visual'
 
 /**
@@ -88,7 +89,10 @@ const STATUS_CAMPANHA: Record<string, { label: string; tom: Tom }> = {
   rascunho: { label: 'Rascunho', tom: 'cinza' },
   agendada: { label: 'Agendada', tom: 'azul' },
   enviando: { label: 'Enviando', tom: 'ambar' },
+  pausada: { label: 'Pausada', tom: 'ambar' },
   concluida: { label: 'Concluída', tom: 'verde' },
+  concluida_com_falhas: { label: 'Concluída com falhas', tom: 'ambar' },
+  falhou: { label: 'Falhou', tom: 'vermelho' },
   cancelada: { label: 'Cancelada', tom: 'vermelho' },
 }
 
@@ -308,11 +312,11 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
                     <tr key={c.id} onClick={() => setAberta(c)} className="cursor-pointer transition-colors hover:bg-[#F8FAFC]">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <BolhaIcone icone={Megaphone} tom={STATUS_CAMPANHA[c.status]?.tom ?? 'cinza'} tamanho={32} />
+                          <BolhaIcone icone={Megaphone} tom={STATUS_CAMPANHA[situacaoCampanha({ status: c.status, totalEnviados: c.enviadas, totalErros: c.falhas })]?.tom ?? 'cinza'} tamanho={32} />
                           <span className="min-w-0">
                             <span className="block font-semibold text-[var(--adm-texto)]">{c.nome}</span>
                             <span className="block text-[11.5px] text-[var(--adm-texto-suave)]">
-                              {dataCurta(c.quando)} · {STATUS_CAMPANHA[c.status]?.label ?? c.status}{c.falhas > 0 ? ` · ${contagem(c.falhas, 'falha', 'falhas')}` : ''}
+                              {dataCurta(c.quando)} · {STATUS_CAMPANHA[situacaoCampanha({ status: c.status, totalEnviados: c.enviadas, totalErros: c.falhas })]?.label ?? c.status}{c.falhas > 0 ? ` · ${contagem(c.falhas, 'falha', 'falhas')}` : ''}
                             </span>
                           </span>
                         </div>

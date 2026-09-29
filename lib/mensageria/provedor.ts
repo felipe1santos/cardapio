@@ -56,6 +56,19 @@ export interface ProvedorWhatsapp {
   enviarImagem(instancia: string, numero: string, url: string, legenda: string): Promise<ResultadoEnvio>
   enviarAudio(instancia: string, numero: string, url: string): Promise<ResultadoEnvio>
   interpretarWebhook(corpo: unknown): EventoWebhook
+  /** WhatsApp da instância conectado agora? 'desconhecido' quando o provedor não respondeu. */
+  conexao(instancia: string): Promise<EstadoConexaoProvedor>
+}
+
+export type EstadoConexaoProvedor = 'aberto' | 'fechado' | 'desconhecido'
+
+/**
+ * O erro do provedor diz que o WhatsApp da loja está desconectado? Aí nada saiu e a
+ * culpa não é do número do cliente: a campanha pausa em vez de queimar o contato.
+ * Visto em produção: HTTP 400 "Error: Connection Closed" (e 500 "Connection ...").
+ */
+export function erroDeDesconexao(erro: string | null | undefined): boolean {
+  return /connection closed|conex[aã]o (fechada|encerrada)|not connected|disconnected|desconectad|instance .*(does not exist|not found)|inst[aâ]ncia whatsapp n[aã]o configurada|evolution n[aã]o configurada/i.test(erro ?? '')
 }
 
 const TEMPO_LIMITE_MS = 15_000
@@ -176,6 +189,24 @@ export const provedorEvolution: ProvedorWhatsapp = {
     postarEvolution(`/message/sendMedia/${encodeURIComponent(inst)}`, { number: numero, mediatype: 'image', media: url, caption: legenda }),
   enviarAudio: (inst, numero, url) => postarEvolution(`/message/sendWhatsAppAudio/${encodeURIComponent(inst)}`, { number: numero, audio: url }),
   interpretarWebhook: interpretarWebhookEvolution,
+  conexao: async (inst) => {
+    const url = process.env.EVOLUTION_API_URL
+    const chave = process.env.EVOLUTION_API_KEY
+    if (!url || !chave) return 'fechado'
+    const controle = new AbortController()
+    const t = setTimeout(() => controle.abort(), TEMPO_LIMITE_MS)
+    try {
+      const res = await fetch(`${url.replace(/\/$/, '')}/instance/connectionState/${encodeURIComponent(inst)}`, { headers: { apikey: chave }, signal: controle.signal })
+      if (res.status === 404) return 'fechado'
+      if (!res.ok) return 'desconhecido'
+      const j = (await res.json().catch(() => null)) as { instance?: { state?: string } } | null
+      return j?.instance?.state === 'open' ? 'aberto' : 'fechado'
+    } catch {
+      return 'desconhecido'
+    } finally {
+      clearTimeout(t)
+    }
+  },
 }
 
 // ─── Simulado (testes) ─────────────────────────────────────────────────────────
@@ -184,6 +215,15 @@ interface ControleSimulado {
   /** Próximas N chamadas falham deste jeito. */
   falhar?: 'transitorio' | 'definitivo' | 'incerto' | null
   restantes?: number
+  /** WhatsApp da loja desconectado: todo envio falha como a Evolution real ("Connection Closed"). */
+  desconectado?: boolean
+}
+
+function lerControle(arquivo: string): ControleSimulado {
+  const { existsSync, readFileSync } = fsDoServidor()
+  const arq = `${arquivo}.controle.json`
+  if (!existsSync(arq)) return {}
+  try { return JSON.parse(readFileSync(arq, 'utf8')) as ControleSimulado } catch { return {} }
 }
 
 /**
@@ -203,6 +243,10 @@ function registrarSimulado(arquivo: string, registro: Record<string, unknown>): 
   if (existsSync(arqControle)) {
     try { controle = JSON.parse(readFileSync(arqControle, 'utf8')) } catch { controle = {} }
   }
+  if (controle.desconectado) {
+    appendFileSync(arquivo, JSON.stringify({ ...registro, resultado: 'desconectado', em: new Date().toISOString() }) + '\n')
+    return { ok: false, tipo: 'definitivo', erro: 'HTTP 400 {"status":400,"error":"Bad Request","response":{"message":["Error: Connection Closed"]}}' }
+  }
   if (controle.falhar && (controle.restantes ?? 0) > 0) {
     writeFileSync(arqControle, JSON.stringify({ ...controle, restantes: (controle.restantes ?? 1) - 1 }))
     appendFileSync(arquivo, JSON.stringify({ ...registro, resultado: controle.falhar, em: new Date().toISOString() }) + '\n')
@@ -220,6 +264,7 @@ export function provedorSimulado(arquivo: string): ProvedorWhatsapp {
     enviarImagem: async (instancia, numero, url, legenda) => registrarSimulado(arquivo, { instancia, numero, texto: legenda, midia: url }),
     enviarAudio: async (instancia, numero, url) => registrarSimulado(arquivo, { instancia, numero, midia: url }),
     interpretarWebhook: interpretarWebhookEvolution,
+    conexao: async () => (lerControle(arquivo).desconectado ? 'fechado' : 'aberto'),
   }
 }
 

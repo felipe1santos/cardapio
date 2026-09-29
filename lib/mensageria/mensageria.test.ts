@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  classificarIntencao, extrairBairro, numeroPermitido, linkDaLoja, roboLiberadoNoServidor, textoBoasVindas, textoCardapio,
+  classificarIntencao, extrairBairro, numeroPermitido, linkDaLoja, pedidoDeDescadastro, roboLiberadoNoServidor, textoBoasVindas, textoCardapio, textoDescadastro,
   textoHorario, textoPadrao, textoStatus, textoTaxa, variantesTelefone,
 } from './robo'
 import { limparErro, mascararTelefone } from './mascara'
@@ -189,5 +189,28 @@ describe('respostaDoRoboVencida (fila do robô)', () => {
     expect(respostaDoRoboVencida(envio, { estado: 'robo', silenciada_em: null })).toBe(false)
     expect(respostaDoRoboVencida({ ...envio, tipo: 'aviso' }, { estado: 'silenciada', silenciada_em: '2026-09-29T11:00:00.000Z' })).toBe(false)
     expect(respostaDoRoboVencida(envio, undefined)).toBe(false)
+  })
+})
+
+describe('pedidoDeDescadastro (SAIR / VOLTAR)', () => {
+  it('mensagem inteira pedindo para sair', () => {
+    for (const t of ['SAIR', 'sair!', ' Sair. ', 'PARAR', 'pare', 'Stop', 'descadastrar', 'não quero mais', 'Não quero receber']) {
+      expect(pedidoDeDescadastro('texto', t)).toBe('sair')
+    }
+  })
+  it('voltar a receber', () => {
+    expect(pedidoDeDescadastro('texto', 'VOLTAR')).toBe('voltar')
+    expect(pedidoDeDescadastro('texto', 'quero voltar')).toBe('voltar')
+  })
+  it('frases comuns não descadastram ninguém (nem "cancelar", que é do pedido)', () => {
+    for (const t of ['vou sair de casa', 'cancelar', 'quero cancelar o pedido', 'sair que horas?', 'oi', '', null]) {
+      expect(pedidoDeDescadastro('texto', t)).toBeNull()
+    }
+    expect(pedidoDeDescadastro('audio', null)).toBeNull()
+  })
+  it('confirmação diz que avisos de pedido continuam e como voltar', () => {
+    const loja = { nome: 'Menuzia', slug: 'menuzia', boasVindas: null }
+    expect(textoDescadastro(loja, true)).toMatch(/não vai mais receber promoções.*avisos dos seus pedidos continuam[\s\S]*VOLTAR/)
+    expect(textoDescadastro(loja, false)).toMatch(/voltou a receber[\s\S]*SAIR/)
   })
 })

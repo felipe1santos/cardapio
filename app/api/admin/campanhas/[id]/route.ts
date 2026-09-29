@@ -10,7 +10,7 @@ import {
   cancelarFila,
   type CampanhaInput,
 } from '@/lib/queries/campanhas'
-import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
+import { deduplicarDestinatarios, problemasDasVariaveis } from '@/lib/mensageria/campanhas'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
     const body: Partial<CampanhaInput> & { disparar?: boolean; status?: string } = await request.json()
     const admin = getAdminSupabase()
-    const { data: atual } = await supabase.from('campanhas').select('status').eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
+    const { data: atual } = await supabase.from('campanhas').select('status, mensagem, incluir_link, tipo_mensagem').eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
     if (!atual) return NextResponse.json({ error: 'Campanha não encontrada.' }, { status: 404 })
 
     // Pelo painel, o único status que se escolhe é "cancelada".
@@ -53,6 +53,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
     const patch: Partial<CampanhaInput> & { disparar?: boolean; status?: string } = { ...body }
     delete patch.status
+
+    const tipoFinal = body.tipoMensagem ?? atual.tipo_mensagem
+    const variaveis = tipoFinal === 'audio' ? null : problemasDasVariaveis(body.mensagem ?? atual.mensagem ?? '', { incluirLink: body.incluirLink ?? atual.incluir_link === true })
+    if (variaveis) return NextResponse.json({ error: variaveis }, { status: 400 })
 
     // Público resolvido antes de gravar: sem ninguém, a campanha ficaria agendada sem fila.
     const agendar = !!(body.disparar || body.agendadoEm)

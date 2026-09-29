@@ -20,7 +20,7 @@ import { roboLiberadoNoServidor } from './robo'
 export interface NovoEnvio {
   restauranteId: string
   chave: string
-  tipo: 'robo' | 'aviso_pedido'
+  tipo: 'robo' | 'aviso_pedido' | 'descadastro'
   telefone: string
   texto: string
   conversaId?: string | null
