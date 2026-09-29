@@ -57,3 +57,21 @@ describe('público da campanha em loja grande (mais de 1000 linhas)', () => {
     await expect(lerTodas(() => Promise.resolve({ data: null, error: new Error('falhou') }))).rejects.toThrow('falhou')
   })
 })
+
+describe('filtro "dia da semana"', () => {
+  it('usa o dia de São Paulo, não o do servidor (UTC)', async () => {
+    const clientes = [{ telefone: tel(1), nome: 'Domingo à noite' }]
+    // Domingo 2026-09-27 21:30 em São Paulo = segunda 00:30 UTC.
+    const pedidos = [{ cliente_telefone: tel(1), criado_em: '2026-09-28T00:30:00.000Z', total: 30 }]
+    const tzAntes = process.env.TZ
+    process.env.TZ = 'UTC'
+    try {
+      const { cliente } = bancoFalso({ clientes, pedidos })
+      expect(await resolverDestinatarios(cliente, 'loja', { tipo: 'dias_semana', dias_semana: [0] })).toHaveLength(1)
+      expect(await resolverDestinatarios(cliente, 'loja', { tipo: 'dias_semana', dias_semana: [1] })).toHaveLength(0)
+    } finally {
+      if (tzAntes === undefined) delete process.env.TZ
+      else process.env.TZ = tzAntes
+    }
+  })
+})

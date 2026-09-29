@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizarTelefone } from './clientes'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 import { deduplicarDestinatarios } from '@/lib/mensageria/campanhas'
+import { diaSemanaSaoPaulo } from '@/lib/timezone'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -237,7 +238,9 @@ export async function resolverDestinatarios(
         }
         case 'dias_semana': {
           const diasAlvo = new Set(filtro.dias_semana ?? [])
-          return ordens.some((p) => diasAlvo.has(new Date(p.criado_em).getDay()))
+          // Dia de São Paulo: o servidor roda em UTC e o pedido de domingo 21h (00h UTC
+          // de segunda) contava como segunda.
+          return ordens.some((p) => diasAlvo.has(diaSemanaSaoPaulo(p.criado_em)))
         }
         case 'valor_minimo': {
           if (!ordens.length) return false
