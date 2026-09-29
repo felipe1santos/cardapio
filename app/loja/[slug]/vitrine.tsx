@@ -2044,7 +2044,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Order bump quick-add ──────────────────────────────────────────────────
   function quickAddOrderBump(item: ItemCardapio) {
-    if (item.grupos.some((g) => g.obrigatorio)) {
+    // Tamanho e pizza também exigem escolha: sem a ficha a linha ia sem tamanho.
+    if (item.grupos.some((g) => g.obrigatorio) || item.tamanhos.length > 0 || item.tipoItem === 'pizza') {
       openProduct(item)
       return
     }

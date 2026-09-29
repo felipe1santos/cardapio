@@ -1213,6 +1213,11 @@ export async function criarPedido(
         const massa = massasPizza.find((m) => m.nome === linha.massaNome)
         if (massa) { base += massa.preco; massaNome = massa.nome }
       }
+    } else if (!linha.tamanhoNome && (item.tamanhos_item ?? []).length > 0 && input.origem !== 'pdv') {
+      // Item com tamanhos tem o preço no tamanho (o do item pode ser 0): sem o tamanho,
+      // a linha saía pelo preço-base — açaí de graça. A ficha da vitrine já exige; o
+      // "Peça também", aba antiga e POST direto não passavam por ela. PDV/garçom fora.
+      throw new Error(`Selecione o tamanho de "${item.nome}"`)
     } else if (linha.tamanhoNome) {
       const tamanho = (item.tamanhos_item ?? []).find((t: { nome: string; preco: number }) => t.nome === linha.tamanhoNome)
       if (!tamanho) throw new Error(`Tamanho "${linha.tamanhoNome}" não encontrado para o item "${item.nome}"`)
