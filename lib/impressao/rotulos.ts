@@ -1,15 +1,17 @@
 /**
  * Rótulos dos estados de impressão — usados no painel e no PDV.
  *
- * `enviado_spooler` NÃO é "impresso": o Windows aceitou o trabalho. Impressora térmica
+ * `enviado_spooler` = o Windows (ou a impressora, no envio direto) aceitou o trabalho — a
+ * tela diz "Impresso". Antes disso: "Enviado para a impressora" (o Assistente pegou).
+ * Observação: pelo driver, o Windows aceitar não garante papel na mão. Impressora térmica
  * comum não informa se o papel saiu (sem papel, tampa aberta e offline ficam na fila
  * do Windows). A tela diz exatamente o que o sistema sabe.
  */
 export const ROTULO_ESTADO_IMPRESSAO: Record<string, string> = {
-  pendente: 'Pendente',
-  reservado: 'Enviando…',
-  enviado_spooler: 'Aceito pela fila do Windows',
-  falhou: 'Falha ao enviar',
+  pendente: 'Aguardando o Assistente…',
+  reservado: 'Enviado para a impressora',
+  enviado_spooler: 'Impresso',
+  falhou: 'Erro ao imprimir',
   expirado: 'Expirado',
   cancelado: 'Cancelado',
 }

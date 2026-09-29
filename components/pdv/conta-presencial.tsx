@@ -1273,13 +1273,17 @@ interface ViaPreConta {
 }
 
 const ROTULO_VIA: Record<string, string> = {
-  pendente: 'Pendente',
-  reservado: 'Enviando…',
-  enviado_spooler: 'Aceito pela fila do Windows',
-  falhou: 'Falha ao enviar',
+  pendente: 'Aguardando o Assistente…',
+  reservado: 'Enviado para a impressora',
+  enviado_spooler: 'Impresso',
+  falhou: 'Erro ao imprimir',
   expirado: 'Expirado (não impresso)',
   cancelado: 'Cancelado',
 }
+
+/** Quanto tempo esperar antes de explicar a demora (não trava nada: é só a mensagem). */
+const DEMORA_PEGAR_MS = 10_000
+const DEMORA_IMPRIMIR_MS = 25_000
 
 /**
  * Recibo/Extrato (a "pré-conta"): documento não fiscal para o cliente conferir a conta.
@@ -1305,11 +1309,25 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
 
   const ultima = vias?.[0] ?? null
   const andando = ultima && (ultima.estado === 'pendente' || ultima.estado === 'reservado')
+  // Acompanha rápido nos primeiros segundos (o papel sai em ~1–2 s) e depois sem pressa.
+  const [agora, setAgora] = useState(() => Date.now())
+  const criadoEmUltima = ultima?.criadoEm
   useEffect(() => {
     if (!andando) return
-    const t = setInterval(() => void carregar(), 2000)
-    return () => clearInterval(t)
-  }, [andando, carregar])
+    const criado = new Date(criadoEmUltima ?? Date.now()).getTime()
+    const idade = () => Date.now() - criado
+    let vivo = true
+    let t: ReturnType<typeof setTimeout>
+    const passo = () => {
+      if (!vivo) return
+      void carregar()
+      setAgora(Date.now())
+      t = setTimeout(passo, idade() < 15_000 ? 700 : 2000)
+    }
+    t = setTimeout(passo, idade() < 15_000 ? 700 : 2000)
+    return () => { vivo = false; clearTimeout(t) }
+  }, [andando, carregar, criadoEmUltima, ultima?.estado])
+  const idadeUltima = ultima ? agora - new Date(ultima.criadoEm).getTime() : 0
 
   async function imprimir(reimpressao: boolean) {
     if (enviando) return
@@ -1347,7 +1365,9 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
           <strong className={ultima.estado === 'enviado_spooler' ? 'text-price-text' : ultima.estado === 'falhou' || ultima.estado === 'expirado' ? 'text-danger' : 'text-text-main'}>
             {ROTULO_VIA[ultima.estado] ?? ultima.estado}
           </strong>
-          {andando && !ultima.computadorOnline && <span className="block text-danger">O computador desta impressora está offline. O Recibo/Extrato vence em 10 min.</span>}
+          {andando && !ultima.computadorOnline && <span className="block text-danger" data-testid="pre-conta-demora">Assistente desconectado: abra o Assistente Menuzia no computador da impressora. O Recibo/Extrato vence em 10 min.</span>}
+          {ultima.estado === 'pendente' && ultima.computadorOnline && idadeUltima > DEMORA_PEGAR_MS && <span className="block text-warn" data-testid="pre-conta-demora">O Assistente ainda não pegou o Recibo/Extrato. Confira se ele está aberto e com internet.</span>}
+          {ultima.estado === 'reservado' && idadeUltima > DEMORA_IMPRIMIR_MS && <span className="block text-danger" data-testid="pre-conta-demora">A impressora não respondeu. Confira papel, tampa, cabo e se ela está ligada.</span>}
           {ultima.erro && ultima.estado !== 'enviado_spooler' && <span className="block text-danger">{ultima.erro}</span>}
         </p>
       )}

@@ -17,6 +17,33 @@ const PRINT_SCRIPT = scriptReal('print.ps1')
 const DIAG_SCRIPT = scriptReal('diagnostico-impressoras.ps1')
 const PRINT_IMAGEM_SCRIPT = scriptReal('print-imagem.ps1')
 const PRINT_RAW_SCRIPT = scriptReal('print-raw.ps1')
+const SERVIDOR_SCRIPT = scriptReal('servidor-impressao.ps1')
+const { PoolServidores } = require('./servidor-ps')
+const { LINHAS_POR_FAIXA } = require('./escpos')
+
+// Servidor de impressão residente (0.2.0-beta.7): um PowerShell por impressora, já com
+// tudo carregado. Se ele falhar (não sobe, trava), cai no caminho antigo: um PowerShell
+// por impressão. Erro da IMPRESSORA (não achou, recusou) não repete — sai como erro.
+let pool = null
+function poolServidores(logNome) {
+  if (!pool) pool = new PoolServidores(SERVIDOR_SCRIPT, { logNome })
+  return pool
+}
+async function pelaImpressora(nomeImpressora, pedido, logNome, argsReserva) {
+  try {
+    const r = await poolServidores(logNome).de(nomeImpressora).pedir(pedido)
+    const log = (r.log || []).join('\n')
+    if (!r.ok) {
+      const e = new Error(r.erro || 'falha ao imprimir')
+      e.log = log
+      throw e
+    }
+    return log
+  } catch (e) {
+    if (!e.doServidor) throw e
+    return runPowershell(argsReserva, { timeout: 60_000, windowsHide: true })
+  }
+}
 const { imagemEscpos, textoEscpos } = require('./escpos')
 const { enviarRede } = require('./envio-direto')
 const { larguraEmPontos } = require('./ticket-canvas')
@@ -92,7 +119,19 @@ async function imprimirTexto(nomeImpressora, texto, copias = 1, cols, logoPath, 
 // Sai um PNG, que o print-imagem.ps1 só manda para a impressora.
 let janelaDesenho = null
 let janelaPronta = null
+// PC fraco: a janela de desenho (~60–100 MB) fecha depois de 20 min sem imprimir e
+// reabre na próxima impressão (o Assistente a aquece de novo ao iniciar).
+let usoDesenhoEm = 0
+const OCIOSO_DESENHO_MS = 20 * 60_000
+setInterval(() => {
+  if (janelaDesenho && !janelaDesenho.isDestroyed() && Date.now() - usoDesenhoEm > OCIOSO_DESENHO_MS) {
+    janelaDesenho.destroy()
+    janelaDesenho = null
+    janelaPronta = null
+  }
+}, 60_000).unref?.()
 function janelaDoDesenho() {
+  usoDesenhoEm = Date.now()
   if (janelaPronta && janelaDesenho && !janelaDesenho.isDestroyed()) return janelaPronta
   const { BrowserWindow } = require('electron')
   janelaDesenho = new BrowserWindow({
@@ -139,19 +178,29 @@ async function imprimirDireto(nomeImpressora, doc, opcoes, perfil, envio, modo, 
   }
   const copias = Number.isInteger(perfil.copias) && perfil.copias > 1 ? Math.min(perfil.copias, 5) : 1
   if (copias > 1) bytes = Buffer.concat(Array(copias).fill(bytes))
+  const tempos = perfil.tempos || {}
+  tempos.desenhoMs = Date.now() - (tempos._t0 || Date.now())
+  const tEnvio = Date.now()
+  // Pausa entre faixas: padrão ZERO (tudo de uma vez). Só para impressora que engasga.
+  const pausaMs = Math.max(0, Math.min(500, Number(perfil.pausaFaixasMs) || 0))
+  const bloco = pausaMs > 0 ? 8 + Math.ceil(largura / 8) * LINHAS_POR_FAIXA : 0
   if (envio === 'raw_rede') {
     if (!perfil.redeIp) throw new Error('Envio pela rede sem o IP da impressora (Impressão › Calibrar impressora).')
     const porta = Number(perfil.redePorta) || 9100
-    await enviarRede(perfil.redeIp, porta, bytes)
+    await enviarRede(perfil.redeIp, porta, bytes, { bloco, pausaMs })
+    tempos.envioMs = Date.now() - tEnvio
+    tempos.via = 'raw_rede'
     return `MENUZIA: RAW REDE OK ${perfil.redeIp}:${porta} ${bytes.length} bytes, ${largura} pontos (${como}).`
   }
   const arquivo = path.join(os.tmpdir(), `${prefixo}-raw-${Date.now()}.bin`)
   fs.writeFileSync(arquivo, bytes)
   try {
-    const args = ['-File', PRINT_RAW_SCRIPT, '-PrinterName', nomeImpressora, '-Arquivo', arquivo]
+    const titulo = doc.modelo === 'cozinha' ? 'Menuzia - Comanda' : doc.modelo === 'largura' ? 'Menuzia - Teste de largura' : 'Menuzia - Pre-conta'
+    const args = ['-File', PRINT_RAW_SCRIPT, '-PrinterName', nomeImpressora, '-Arquivo', arquivo, '-Titulo', titulo, '-Bloco', String(bloco), '-PausaMs', String(pausaMs)]
     if (perfil.logNome) args.push('-LogNome', perfil.logNome)
-    args.push('-Titulo', doc.modelo === 'cozinha' ? 'Menuzia - Comanda' : doc.modelo === 'largura' ? 'Menuzia - Teste de largura' : 'Menuzia - Pre-conta')
-    const saida = await runPowershell(args, { timeout: 60_000, windowsHide: true })
+    const saida = await pelaImpressora(nomeImpressora, { acao: 'raw', impressora: nomeImpressora, arquivo, titulo, bloco, pausaMs }, perfil.logNome, args)
+    tempos.envioMs = Date.now() - tEnvio
+    tempos.via = 'raw_fila'
     return `MENUZIA: RAW FILA ${largura} pontos (${como}).\n${saida || ''}`
   } finally {
     fs.unlink(arquivo, () => {})
@@ -196,11 +245,13 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
   if (envio !== 'driver' || modo === 'texto') {
     return imprimirDireto(nomeImpressora, doc, opcoes, perfil, envio === 'driver' ? 'raw_fila' : envio, modo, prefixo)
   }
+  const tempos = perfil.tempos || {}
   let png = null
   let txt = null
   let erroDesenho = null
   try {
     png = await desenharTicket(doc, opcoes, prefixo)
+    tempos.desenhoMs = Date.now() - (tempos._t0 || Date.now())
   } catch (e) {
     erroDesenho = e
     txt = path.join(os.tmpdir(), `${prefixo}-texto-${Date.now()}.txt`)
@@ -213,8 +264,16 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
     if (Number.isInteger(perfil.deslocamentoPontos) && perfil.deslocamentoPontos !== 0) args.push('-DeslocamentoPontos', String(perfil.deslocamentoPontos))
     if (perfil.logNome) args.push('-LogNome', perfil.logNome)
     if (Number.isInteger(perfil.copias) && perfil.copias > 1) args.push('-Copies', String(Math.min(perfil.copias, 5)))
-    args.push('-Titulo', doc.modelo === 'cozinha' ? 'Menuzia - Comanda' : 'Menuzia - Pre-conta')
-    const saida = await runPowershell(args, { timeout: 60_000, windowsHide: true })
+    const titulo = doc.modelo === 'cozinha' ? 'Menuzia - Comanda' : doc.modelo === 'largura' ? 'Menuzia - Teste de largura' : 'Menuzia - Pre-conta'
+    args.push('-Titulo', titulo)
+    const copias = Number.isInteger(perfil.copias) && perfil.copias > 1 ? Math.min(perfil.copias, 5) : 1
+    const tEnvio = Date.now()
+    const pedido = png
+      ? { acao: 'imagem', impressora: nomeImpressora, arquivo: png, copias, desloc: Number(perfil.deslocamentoPontos) || 0, titulo }
+      : { acao: 'texto', impressora: nomeImpressora, arquivo: txt, copias }
+    const saida = await pelaImpressora(nomeImpressora, pedido, perfil.logNome, args)
+    tempos.envioMs = Date.now() - tEnvio
+    tempos.via = 'driver'
     return erroDesenho ? `MENUZIA: DESENHO FALHOU (${erroDesenho.message}); saiu em texto\n${saida || ''}` : saida
   } finally {
     if (png) fs.unlink(png, () => {})
@@ -222,4 +281,21 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
   }
 }
 
-module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, desenharTicket, desenharBits }
+/**
+ * Aquece o que a primeira impressão usaria (Beta 0.2.0-beta.7): a janela de desenho com
+ * as fontes e o servidor de impressão da impressora. Sem isso, a 1ª comanda do dia leva
+ * ~1–2 s a mais. Falhou? Tudo bem: a impressão sobe o que faltar.
+ */
+async function aquecerImpressao(nomesImpressoras = [], logNome) {
+  try {
+    await janelaDoDesenho()
+    await janelaDesenho.webContents.executeJavaScript(`window.renderizarTicket(${JSON.stringify({ versao: 1, modelo: 'largura', blocos: [], linhas: [], instrucoes: [] })}, { larguraMm: 80 })`, true)
+  } catch { /* sobe na primeira impressão */ }
+  for (const nome of nomesImpressoras.slice(0, 4)) {
+    try { await poolServidores(logNome).de(nome).pedir({ acao: 'ping' }) } catch { /* idem */ }
+  }
+}
+
+function encerrarServidores() { if (pool) pool.fecharTodos() }
+
+module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, desenharTicket, desenharBits, aquecerImpressao, encerrarServidores }

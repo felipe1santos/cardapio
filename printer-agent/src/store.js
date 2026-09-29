@@ -10,6 +10,9 @@ const DEFAULTS = {
   impressoraWindows: '',
   impressoraCloudId: '',
   intervaloSegundos: 5,
+  // Pausa entre faixas no envio direto (ESC/POS). Padrão 0 = tudo de uma vez; só para
+  // impressora que engasga (até 500 ms).
+  pausaFaixasMs: 0,
 }
 
 function carregarConfig() {

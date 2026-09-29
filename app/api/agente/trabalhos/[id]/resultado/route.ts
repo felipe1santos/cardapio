@@ -20,5 +20,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const erro = typeof corpo.erro === 'string' ? corpo.erro.slice(0, 300) : null
   const r = await informarResultado(admin, quem.agenteId, id, corpo.ok, erro)
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
+  // Tempos de cada etapa medidos pelo Assistente (0.2.0-beta.7+): só números conhecidos.
+  const tempos = temposValidos(corpo.tempos)
+  if (tempos) await admin.from('impressao_trabalhos').update({ tempos }).eq('id', id).eq('agente_id', quem.agenteId).then(() => {}, () => {})
   return NextResponse.json({ ok: true, ...r.valor })
+}
+
+const CHAVES_TEMPO = ['esperaMs', 'logoMs', 'desenhoMs', 'envioMs', 'totalMs', 'filaMs']
+function temposValidos(v: unknown): Record<string, number | string> | null {
+  if (!v || typeof v !== 'object') return null
+  const o = v as Record<string, unknown>
+  const t: Record<string, number | string> = {}
+  for (const k of CHAVES_TEMPO) {
+    const n = Number(o[k])
+    if (Number.isFinite(n) && n >= 0 && n < 600_000) t[k] = Math.round(n)
+  }
+  if (typeof o.via === 'string' && /^(driver|raw_fila|raw_rede)$/.test(o.via)) t.via = o.via
+  return Object.keys(t).length ? t : null
 }

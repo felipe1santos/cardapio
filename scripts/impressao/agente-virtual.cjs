@@ -156,6 +156,9 @@ const textoLegivel = (t) => t.split('\n').map((l) => {
   return campos.join('   ')
 }).join('\n')
 const impressoraVirtual = {
+  // 0.2.0-beta.7: aquecer/encerrar o servidor de impressão residente (aqui não há PowerShell).
+  aquecerImpressao: async () => {},
+  encerrarServidores: () => {},
   listarImpressorasWindows: async () => impressorasWindows.filter((n) => !removidas.has(n)),
   diagnosticarImpressoras: async () => DIAG,
   // Comanda e Recibo/Extrato do Beta (0.2.0-beta.5+): o MESMO ticket.html / ticket-canvas.js
@@ -171,11 +174,14 @@ const impressoraVirtual = {
     fs.writeFileSync(`${base}.txt`, doc.texto ?? '', 'utf8')
     const tamanhoFonte = perfil.tamanhoFonte === 'media' || perfil.tamanhoFonte === 'pequena' ? perfil.tamanhoFonte : 'grande'
     const { renderizarTicket } = await render()
+    const t0 = Date.now()
     const r = await renderizarTicket(doc, { larguraMm: Number(paperMm) <= 58 ? 58 : 80, larguraPontos: perfil.larguraPontos ?? null, tamanhoFonte, logo: perfil.logo ?? null, imprimirLogo: perfil.imprimirLogo !== false, intensidade: perfil.intensidade ?? 'normal', saida: `${base}.png` })
     const registro = { n, em: new Date().toISOString(), impressora: nome, tipo, copias: perfil.copias ?? 1, paperMm, larguraPontos: perfil.larguraPontos ?? null,
       deslocamentoPontos: perfil.deslocamentoPontos ?? 0, intensidade: perfil.intensidade ?? 'normal', envio: perfil.envio ?? 'driver', modoImpressao: perfil.modoImpressao ?? 'imagem', tamanhoFonte, largura: r.largura, altura: r.altura, versao: doc.versao,
       logo: typeof perfil.logo === 'string' ? perfil.logo.slice(0, 22) : null, imprimirLogo: perfil.imprimirLogo !== false, doc,
       texto: doc.texto ?? '', png: `${base}.png`, txt: `${base}.txt` }
+    // Tempos como o Assistente real mede (aqui o "envio" é virtual: zero).
+    if (perfil.tempos) { perfil.tempos.desenhoMs = Date.now() - t0; perfil.tempos.envioMs = 0; perfil.tempos.via = perfil.envio ?? 'driver' }
     fs.appendFileSync(path.join(SAIDA, 'impressos.jsonl'), JSON.stringify(registro) + '\n')
     const fila = artefatosPendentes.get(nome) ?? []
     fila.push(`${base}.png`)

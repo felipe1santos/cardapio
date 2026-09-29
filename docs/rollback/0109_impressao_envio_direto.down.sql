@@ -12,3 +12,10 @@ alter table public.impressao_dispositivos
   drop column if exists modo_impressao,
   drop column if exists envio,
   drop column if exists intensidade;
+alter table public.impressao_trabalhos drop column if exists tempos;
+do $$
+begin
+  if exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'impressao_trabalhos') then
+    alter publication supabase_realtime drop table public.impressao_trabalhos;
+  end if;
+end $$;

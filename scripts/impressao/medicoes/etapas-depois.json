@@ -1,0 +1,80 @@
+{
+  "em": "2026-09-29T02:20:43.801Z",
+  "linhas": [
+    {
+      "etapa": "desenho da comanda — FRIO (abre o desenho e carrega fontes)",
+      "media": 1873,
+      "max": 1873,
+      "n": 1
+    },
+    {
+      "etapa": "desenho da comanda (PNG) — quente",
+      "media": 13,
+      "max": 14,
+      "min": 12,
+      "n": 10
+    },
+    {
+      "etapa": "desenho da pré-conta (PNG) — quente",
+      "media": 18,
+      "max": 34,
+      "min": 15,
+      "n": 10
+    },
+    {
+      "etapa": "desenho da comanda em bits (ESC/POS) — quente",
+      "media": 12,
+      "max": 18,
+      "min": 10,
+      "n": 10
+    },
+    {
+      "etapa": "montar ESC/POS (imagem, faixas, corte)",
+      "media": 0,
+      "max": 1,
+      "min": 0,
+      "n": 10
+    },
+    {
+      "etapa": "DRIVER: print-imagem.ps1 → PDF (PowerShell novo a cada vez)",
+      "media": 2499,
+      "max": 2742,
+      "min": 1620,
+      "n": 10
+    },
+    {
+      "etapa": "FILA RAW: print-raw.ps1 (PowerShell novo + compila winspool)",
+      "media": 287,
+      "max": 393,
+      "min": 267,
+      "n": 10
+    },
+    {
+      "etapa": "servidor residente: subir (1× por impressora, no início)",
+      "media": 455,
+      "max": 455,
+      "n": 1
+    },
+    {
+      "etapa": "DRIVER via servidor residente → PDF",
+      "media": 2223,
+      "max": 2456,
+      "min": 2006,
+      "n": 10
+    },
+    {
+      "etapa": "FILA RAW via servidor residente",
+      "media": 81,
+      "max": 104,
+      "min": 20,
+      "n": 10
+    },
+    {
+      "etapa": "REDE: IP:9100 (conecta, envia, fecha)",
+      "media": 1,
+      "max": 3,
+      "min": 0,
+      "n": 10
+    }
+  ]
+}

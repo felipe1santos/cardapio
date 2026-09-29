@@ -36,13 +36,13 @@ class FilasPorDispositivo {
   async processar(t, prazo) {
     try {
       if (this.agora() >= prazo) {
-        await this.informar(t.id, false, 'vencido antes de imprimir (não impresso)')
+        await this.informar(t.id, false, 'vencido antes de imprimir (não impresso)', t)
         return
       }
       await this.imprimir(t)
-      await this.informar(t.id, true, null)
+      await this.informar(t.id, true, null, t)
     } catch (err) {
-      await this.informar(t.id, false, (err && err.message) || String(err)).catch(() => {})
+      await this.informar(t.id, false, (err && err.message) || String(err), t).catch(() => {})
     } finally {
       this.emAndamento.delete(t.id)
     }

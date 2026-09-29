@@ -1,0 +1,60 @@
+{
+  "em": "2026-09-29T02:07:13.196Z",
+  "linhas": [
+    {
+      "etapa": "desenho da comanda — FRIO (abre o desenho e carrega fontes)",
+      "media": 798,
+      "max": 798,
+      "n": 1
+    },
+    {
+      "etapa": "desenho da comanda (PNG) — quente",
+      "media": 14,
+      "max": 21,
+      "min": 11,
+      "n": 10
+    },
+    {
+      "etapa": "desenho da pré-conta (PNG) — quente",
+      "media": 20,
+      "max": 40,
+      "min": 17,
+      "n": 10
+    },
+    {
+      "etapa": "desenho da comanda em bits (ESC/POS) — quente",
+      "media": 13,
+      "max": 26,
+      "min": 10,
+      "n": 10
+    },
+    {
+      "etapa": "montar ESC/POS (imagem, faixas, corte)",
+      "media": 0,
+      "max": 0,
+      "min": 0,
+      "n": 10
+    },
+    {
+      "etapa": "DRIVER: print-imagem.ps1 → PDF (PowerShell novo a cada vez)",
+      "media": 2924,
+      "max": 3155,
+      "min": 2064,
+      "n": 10
+    },
+    {
+      "etapa": "FILA RAW: print-raw.ps1 (PowerShell novo + compila winspool)",
+      "media": 457,
+      "max": 658,
+      "min": 394,
+      "n": 10
+    },
+    {
+      "etapa": "REDE: IP:9100 (conecta, envia, fecha)",
+      "media": 1,
+      "max": 3,
+      "min": 0,
+      "n": 10
+    }
+  ]
+}

@@ -6,6 +6,9 @@ import { identificarAgente } from '@/lib/impressao/credenciais'
 import { destinoCozinha } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
 import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
+import { esperarComBusca } from '@/lib/impressao/despertador'
+
+export const dynamic = 'force-dynamic'
 
 /**
  * Fila da FICHA DA COZINHA, consultada periodicamente pelo Assistente de Impressão.
@@ -52,8 +55,13 @@ export async function GET(request: Request) {
   // e a ficha nunca cai na impressora do caixa.
   if (rota.ativo) {
     const souDono = quem.tipo === 'agente' && quem.agenteId === rota.agenteId
-    const lista = souDono && config?.impressaoAutomatica ? await listarPedidosParaImprimir(admin, restauranteId, instancia) : []
-    const pedidos = aposCorteDaTransferencia(lista as { criadoEm?: string | null }[], rota.transferidaEm)
+    // `?esperar=N` (Beta 0.2.0-beta.7+, até 20 s): sem pedido para imprimir, espera o aviso
+    // em tempo real de um pedido novo em vez de o Assistente perguntar a cada 5 s.
+    const esperar = souDono ? Math.max(0, Math.min(20, Number(new URL(request.url).searchParams.get('esperar')) || 0)) : 0
+    const pedidos = souDono && config?.impressaoAutomatica
+      ? await esperarComBusca(restauranteId, esperar, request.signal, async () =>
+          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm))
+      : []
     // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
     // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.
     // Nome, telefone e endereço da loja para o rodapé (0.2.0-beta.6+).
@@ -75,9 +83,12 @@ export async function GET(request: Request) {
       pedidos,
       loja,
       ...(beta ? { cozinhaBeta: beta } : {}),
+      ...(esperar ? { esperaAte: 20 } : {}),
       destinoCozinha: souDono
         ? { nomeSistema: rota.nomeSistema, larguraMm: rota.larguraMm, tamanhoFonte: rota.tamanhoFonte, copias: rota.copias,
-            larguraPontos: rota.larguraPontos, deslocamentoPontos: rota.deslocamentoPontos }
+            larguraPontos: rota.larguraPontos, deslocamentoPontos: rota.deslocamentoPontos,
+            // Como a impressora recebe (0109 / 0.2.0-beta.7): intensidade, envio direto e modo.
+            intensidade: rota.intensidade, envio: rota.envio, modoImpressao: rota.modoImpressao, redeIp: rota.redeIp, redePorta: rota.redePorta }
         : null,
     })
   }

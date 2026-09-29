@@ -6,7 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const crypto = require('crypto')
 const { carregarConfig, salvarConfig, carregarImpressos, marcarImpressoLocal, esquecerImpressoLocal, instanciaAgente } = require('./store')
-const { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta } = require('./printer')
+const { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, aquecerImpressao, encerrarServidores } = require('./printer')
 const { montarRecibo } = require('./recibo')
 const { montarPreConta, montarTeste, colsPreConta } = require('./pre-conta')
 const { FilasPorDispositivo } = require('./fila-dispositivos')
@@ -122,6 +122,8 @@ let mainWindow = null
 let pollTimer = null
 let polling = false
 let cicloRodando = false // trava de reentrância: impede dois ciclos imprimirem o mesmo pedido
+let ultimoCicloPedidos = { longo: false, erro: false, semSucesso: false }
+const aquecidas = new Set()
 
 function log(mensagem) {
   if (mainWindow) mainWindow.webContents.send('log', { ts: new Date().toISOString(), mensagem })
@@ -207,6 +209,7 @@ async function cicloDePolling() {
   // senão dois ciclos veriam impresso=false e imprimiriam o mesmo pedido em duplicidade.
   if (cicloRodando) return
   cicloRodando = true
+  ultimoCicloPedidos = { longo: false, erro: false, semSucesso: false }
 
   // Computador pareado (0.1.26+) usa a própria credencial; senão, o token antigo da loja.
   const auth = { Authorization: `Bearer ${credencial || config.token}`, 'X-Agente-Versao': app.getVersion() }
@@ -217,12 +220,16 @@ async function cicloDePolling() {
   const headers = { ...auth, 'X-Impressora-Id': config.impressoraCloudId || '', 'X-Agente-Instancia': instanciaAgente() }
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos`, { headers })
+    const url = `${API_BASE_URL}/api/agente/pedidos${EH_BETA ? '?esperar=20' : ''}`
+    const res = await fetch(url, { headers, ...(EH_BETA ? { signal: AbortSignal.timeout(35_000) } : {}) })
     if (!res.ok) {
+      ultimoCicloPedidos.erro = true
       log(`Erro ao consultar pedidos (HTTP ${res.status}). Verifique o token em Ajustes > Impressão.`)
       return
     }
+    const recebidoEm = Date.now()
     const data = await res.json()
+    ultimoCicloPedidos.longo = data.esperaAte === 20
     const { config: configImpressao, pedidos } = data
     const lojaNome = data.loja?.nome ?? ''
 
@@ -233,7 +240,13 @@ async function cicloDePolling() {
     // Beta: só imprime a cozinha quando o servidor diz onde ("Cozinha e Caixa").
     if (EH_BETA && !destino) return
     if (!destino && !config.impressoraWindows) return
+    // Servidor de impressão da Cozinha já aberto antes do primeiro pedido.
+    if (EH_BETA && destino?.nomeSistema && !aquecidas.has(destino.nomeSistema)) {
+      aquecidas.add(destino.nomeSistema)
+      void aquecerImpressao([destino.nomeSistema], LOG_NOME)
+    }
     if (!pedidos || pedidos.length === 0) return
+    let impressosNesteCiclo = 0
 
     const impressoras = data.impressoras ?? []
     // Impressora do painel (largura/fonte/cópias). Se o usuário não escolheu uma explícita
@@ -274,7 +287,7 @@ async function cicloDePolling() {
         }
 
         const perfilCozinha = EH_BETA && destino
-          ? { ...PERFIL_LOG, ...perfilEnvio(destino), larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte, imprimirLogo: configImpressao.imprimirLogo !== false }
+          ? { ...PERFIL_LOG, ...perfilEnvio(destino), tempos: { _t0: Date.now() }, pausaFaixasMs: config.pausaFaixasMs ?? 0, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte, imprimirLogo: configImpressao.imprimirLogo !== false }
           : null
         let saida
         if (perfilCozinha) {
@@ -282,13 +295,21 @@ async function cicloDePolling() {
           // com o desconto/horários, o QR e os dados da loja que o servidor manda só para o Beta.
           const beta = data.cozinhaBeta || {}
           const doc = montarCozinhaBeta(pedido, { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: beta.qr })
+          const tLogo = Date.now()
           const logo = perfilCozinha.imprimirLogo ? await logoParaDesenho() : null
+          perfilCozinha.tempos.logoMs = Date.now() - tLogo
+          perfilCozinha.tempos._t0 = Date.now()
           saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoDocumento(doc) }, paperMm, { ...perfilCozinha, copias, logo })
         } else {
           const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
           saida = await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
         }
         mostrarDiagnostico(saida)
+        impressosNesteCiclo++
+        if (perfilCozinha?.tempos) {
+          perfilCozinha.tempos.totalMs = Date.now() - recebidoEm
+          registrarTempos('comanda', pedido.id, perfilCozinha.tempos)
+        }
 
         // A partir daqui o papel pode já ter saído: registra local ANTES de
         // avisar o servidor, porque é a falha do aviso que causava a duplicata.
@@ -304,7 +325,9 @@ async function cicloDePolling() {
     } finally {
       if (logoPath) fs.unlink(logoPath, () => {})
     }
+    if (impressosNesteCiclo === 0) ultimoCicloPedidos.semSucesso = true
   } catch (err) {
+    ultimoCicloPedidos.erro = true
     log(`Falha na consulta/impressão: ${descreverErro(err)}`)
   } finally {
     cicloRodando = false
@@ -346,14 +369,26 @@ let trabalhosTimer = null
 let descobertaTimer = null
 let consultandoTrabalhos = false
 
-async function informarResultado(id, ok, erro) {
+async function informarResultado(id, ok, erro, tempos) {
   const headers = cabecalhosAgente()
   if (!headers) return
   await fetch(`${API_BASE_URL}/api/agente/trabalhos/${id}/resultado`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ok, erro }),
+    body: JSON.stringify(tempos ? { ok, erro, tempos } : { ok, erro }),
   })
+}
+
+// ─── tempos da impressão (0.2.0-beta.7) ──────────────────────────────────────
+// Cada impressão mede: logo, desenho, envio e o total (do recebimento até o Windows /
+// a impressora aceitar). Vai para o servidor (trabalhos) e para %TEMP%\menuzia-beta-tempos.jsonl.
+const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms))
+function registrarTempos(tipo, id, tempos) {
+  if (!EH_BETA || !tempos) return null
+  const limpo = {}
+  for (const [k, v] of Object.entries(tempos)) if (!k.startsWith('_')) limpo[k] = v
+  try { fs.appendFileSync(path.join(os.tmpdir(), 'menuzia-beta-tempos.jsonl'), JSON.stringify({ em: new Date().toISOString(), tipo, id, ...limpo }) + '\n') } catch { /* só diagnóstico */ }
+  return limpo
 }
 
 // ─── logo da loja (Recibo/Extrato do Beta) ───────────────────────────────────
@@ -392,18 +427,29 @@ async function obterLogo() {
 
 // A logo vai ao desenho (ticket.html) como data URL — arquivo local "sujaria" o canvas.
 const MIME_LOGO = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp' }
+// Logo em memória (0.2.0-beta.7): confere com o servidor no máximo a cada 5 min — antes era
+// uma ida ao servidor e uma leitura do arquivo a CADA impressão.
+let logoDataUrl = null
+let logoDataUrlDe = null
+let logoConferidaEm = 0
 async function logoParaDesenho() {
+  if (logoDataUrl !== null && Date.now() - logoConferidaEm < 5 * 60_000) return logoDataUrl || null
   const caminho = await obterLogo()
-  if (!caminho) return null
+  logoConferidaEm = Date.now()
+  if (!caminho) { logoDataUrl = ''; logoDataUrlDe = null; return null }
+  if (logoDataUrl && logoDataUrlDe === caminho) return logoDataUrl
   try {
     const mime = MIME_LOGO[path.extname(caminho).slice(1).toLowerCase()]
-    return mime ? `data:${mime};base64,${fs.readFileSync(caminho).toString('base64')}` : null
-  } catch { return null }
+    logoDataUrl = mime ? `data:${mime};base64,${fs.readFileSync(caminho).toString('base64')}` : ''
+    logoDataUrlDe = caminho
+    return logoDataUrl || null
+  } catch { logoDataUrl = ''; return null }
 }
 
 // Uma fila por impressora do Windows: a do caixa travada não segura a da cozinha.
 const filas = new FilasPorDispositivo(
   async (t) => {
+    t.tempos = { _t0: Date.now() }
     const largura = Number(t.larguraMm) <= 58 ? 58 : 80
     const calibracao = t.tipo === 'teste_impressora' && t.snapshot?.calibracao === true
     // Recibo/Extrato de teste: o MESMO renderizador e o MESMO perfil do Recibo/Extrato real.
@@ -421,6 +467,8 @@ const filas = new FilasPorDispositivo(
       ? {
           ...PERFIL_LOG,
           ...perfilEnvio(t),
+          tempos: t.tempos,
+          pausaFaixasMs: carregarConfig().pausaFaixasMs ?? 0,
           larguraPontos: calibracao ? (t.snapshot.largura_pontos ?? null) : (t.larguraPontos ?? null),
           deslocamentoPontos: calibracao ? (t.snapshot.deslocamento_pontos ?? 0) : (t.deslocamentoPontos ?? 0),
           tamanhoFonte: t.tamanhoFonte,
@@ -436,12 +484,16 @@ const filas = new FilasPorDispositivo(
       saida = await imprimirDocumentoBeta(t.nomeSistema, doc, largura, perfil)
     } else if (cozinhaTeste) {
       const doc = montarCozinhaBeta(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
+      const tLogo = Date.now()
       const logo = perfil.imprimirLogo ? await logoParaDesenho() : null
+      if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
       saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
     } else if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
       // QR do rodapé: o do snapshot ou o que o servidor manda com o trabalho (Instagram/cardápio).
       const doc = montarPreContaBeta({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null, loja_dados: t.loja || null })
+      const tLogo = Date.now()
       const logo = perfil.imprimirLogo ? await logoParaDesenho() : null
+      if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
       saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
     } else {
       saida = perfil
@@ -453,32 +505,60 @@ const filas = new FilasPorDispositivo(
     const pela = perfil?.envio === 'raw_rede' ? `pela rede (${perfil.redeIp}:${perfil.redePorta})` : perfil && (perfil.envio === 'raw_fila' || perfil.modoImpressao === 'texto') ? 'direto pela fila (ESC/POS)' : 'o Windows aceitou'
     log(`${rotulo} enviado para "${t.nomeSistema}" — ${pela} (confira se o papel saiu).`)
   },
-  async (id, ok, erro) => {
+  async (id, ok, erro, t) => {
     if (!ok) log(`Falha ao enviar trabalho para a impressora: ${erro}`)
-    await informarResultado(id, ok, erro)
+    if (t?.tempos) t.tempos.totalMs = Date.now() - (t.recebidoEm || t.tempos._t0)
+    await informarResultado(id, ok, erro, registrarTempos(t?.tipo || 'trabalho', id, t?.tempos))
   },
 )
 
+/**
+ * Busca os trabalhos (pré-conta, testes). Beta 0.2.0-beta.7: pede com espera longa — o
+ * servidor segura a resposta até entrar um trabalho (aviso em tempo real) ou 20 s.
+ * Devolve { longo, erro } para o laço decidir se pergunta de novo na hora.
+ */
 async function consultarTrabalhos() {
   const headers = cabecalhosAgente()
-  if (!headers || consultandoTrabalhos) return
+  if (!headers || consultandoTrabalhos) return { longo: false, erro: !headers }
   consultandoTrabalhos = true
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/trabalhos`, { headers })
+    const url = `${API_BASE_URL}/api/agente/trabalhos${EH_BETA ? '?esperar=20' : ''}`
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(35_000) })
     if (res.status === 401) {
       log('Este computador foi desconectado da loja (credencial revogada). Pareie de novo em Ajustes › Impressão.')
-      return
+      return { longo: false, erro: true }
     }
-    if (!res.ok) return
+    if (!res.ok) return { longo: false, erro: true }
+    const longo = res.headers.get('x-menuzia-espera') === '20'
     const data = await res.json()
     if (Array.isArray(data.trabalhos) && data.trabalhos.length) {
-      if (data.trabalhos.some((t) => t.snapshot?.calibracao === true)) await atualizarDiagnosticos(true)
+      const agora = Date.now()
+      for (const t of data.trabalhos) t.recebidoEm = agora
+      // Diagnóstico do driver para o teste de largura: o guardado (até 10 min) já serve.
+      if (data.trabalhos.some((t) => t.snapshot?.calibracao === true)) await atualizarDiagnosticos(Object.keys(diagnosticos).length === 0)
       filas.receber(data.trabalhos)
     }
+    return { longo, erro: false }
   } catch (err) {
     logArquivo(`TRABALHOS: ${descreverErro(err)}`)
+    return { longo: false, erro: true }
   } finally {
     consultandoTrabalhos = false
+  }
+}
+
+let trabalhosAtivo = false
+/** Laço dos trabalhos: espera longa quando o servidor aceita; senão, a cada 3 s (como antes). */
+async function lacoTrabalhos() {
+  let erros = 0
+  while (trabalhosAtivo) {
+    const inicio = Date.now()
+    const r = await consultarTrabalhos()
+    if (!trabalhosAtivo) break
+    erros = r.erro ? erros + 1 : 0
+    if (r.erro) await esperar(Math.min(30_000, 2000 * erros))
+    else if (!r.longo) await esperar(3000)
+    else if (Date.now() - inicio < 250) await esperar(500) // servidor respondeu vazio na hora: sem laço quente
   }
 }
 
@@ -516,15 +596,25 @@ async function informarImpressoras() {
 }
 
 function iniciarTrabalhos() {
-  if (trabalhosTimer) return
-  trabalhosTimer = setInterval(consultarTrabalhos, 3000)
+  if (trabalhosAtivo || trabalhosTimer) return
   descobertaTimer = setInterval(informarImpressoras, 60_000)
   informarImpressoras()
-  consultarTrabalhos()
+  if (EH_BETA) {
+    // Espera longa (0.2.0-beta.7): o trabalho chega na hora em que é criado.
+    trabalhosAtivo = true
+    trabalhosTimer = true
+    void lacoTrabalhos()
+    // Deixa pronto o desenho (fontes) para a primeira impressão não pagar o "frio".
+    setTimeout(() => { void aquecerImpressao([], LOG_NOME) }, 2000)
+  } else {
+    trabalhosTimer = setInterval(consultarTrabalhos, 3000)
+    consultarTrabalhos()
+  }
 }
 
 function pararTrabalhos() {
-  if (trabalhosTimer) clearInterval(trabalhosTimer)
+  trabalhosAtivo = false
+  if (trabalhosTimer && trabalhosTimer !== true) clearInterval(trabalhosTimer)
   if (descobertaTimer) clearInterval(descobertaTimer)
   trabalhosTimer = null
   descobertaTimer = null
@@ -535,9 +625,32 @@ function iniciarPolling() {
   polling = true
   const config = carregarConfig()
   const intervaloMs = Math.max(2, config.intervaloSegundos || 3) * 1000
-  pollTimer = setInterval(cicloDePolling, intervaloMs)
-  cicloDePolling()
+  if (EH_BETA) {
+    void lacoPedidos(intervaloMs)
+  } else {
+    pollTimer = setInterval(cicloDePolling, intervaloMs)
+    cicloDePolling()
+  }
   log('Assistente de Impressão ativo — verificando pedidos novos periodicamente.')
+}
+
+/**
+ * Beta 0.2.0-beta.7: pedidos da cozinha com espera longa — o servidor responde quando
+ * entra um pedido. Sem espera (servidor antigo, erro, loja fora de "Cozinha e Caixa"):
+ * o intervalo de sempre. Pedido que volta sem conseguir imprimir: pausa, sem laço quente.
+ */
+async function lacoPedidos(intervaloMs) {
+  let erros = 0
+  while (polling) {
+    const inicio = Date.now()
+    await cicloDePolling()
+    if (!polling) break
+    const u = ultimoCicloPedidos
+    erros = u.erro ? erros + 1 : 0
+    if (u.erro) await esperar(Math.min(30_000, intervaloMs * erros))
+    else if (!u.longo || u.semSucesso) await esperar(intervaloMs)
+    else if (Date.now() - inicio < 250) await esperar(500)
+  }
 }
 
 function pararPolling() {
@@ -572,7 +685,7 @@ app.whenReady().then(() => {
   if (EH_BETA) log(`Assistente Menuzia Beta ${app.getVersion()} — convive com o Assistente de Impressão atual, que continua funcionando.`)
 })
 
-app.on('before-quit', () => { app.isQuitting = true })
+app.on('before-quit', () => { app.isQuitting = true; encerrarServidores() })
 app.on('window-all-closed', () => { /* mantém rodando em segundo plano */ })
 
 ipcMain.handle('versao', () => app.getVersion())

@@ -211,6 +211,9 @@ export interface PedidoParaImprimir {
   enderecoComplemento: string
   enderecoBairro: string
   enderecoCep: string
+  /** Comanda padrão (Assistente Beta 0.2.0-beta.7): "Cidade:" e "Ref.:" nos dados da entrega. */
+  enderecoCidade: string
+  enderecoReferencia: string
   observacao: string
   pago: boolean
   origem: string
@@ -269,7 +272,7 @@ export async function listarPedidosParaImprimir(
   const { data, error } = await admin
     .from('pedidos')
     .select(
-      `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep,
+      `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
        observacao, pago, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
        comandas ( senha ),
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
@@ -294,6 +297,8 @@ export async function listarPedidosParaImprimir(
     enderecoComplemento: p.endereco_complemento ?? '',
     enderecoBairro: p.endereco_bairro,
     enderecoCep: p.endereco_cep ?? '',
+    enderecoCidade: p.endereco_cidade ?? '',
+    enderecoReferencia: p.endereco_referencia ?? '',
     observacao: p.observacao,
     pago: Boolean(p.pago),
     origem: p.origem ?? 'cardapio',

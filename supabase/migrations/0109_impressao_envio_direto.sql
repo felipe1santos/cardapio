@@ -38,3 +38,16 @@ alter table public.impressao_dispositivos add constraint impressao_dispositivos_
 alter table public.impressao_dispositivos drop constraint if exists impressao_dispositivos_rede_com_ip_check;
 alter table public.impressao_dispositivos add constraint impressao_dispositivos_rede_com_ip_check
   check (envio <> 'raw_rede' or rede_ip is not null);
+
+-- Impressão rápida (0.2.0-beta.7): o Assistente espera o trabalho em tempo real em vez de
+-- perguntar a cada 3 s — o servidor é acordado pelo Realtime quando entra um trabalho.
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'impressao_trabalhos') then
+    alter publication supabase_realtime add table public.impressao_trabalhos;
+  end if;
+end $$;
+
+-- Tempos de cada etapa medidos pelo Assistente (recebido, desenho, envio, resposta da
+-- impressora), para achar lentidão em produção. Só o servidor grava.
+alter table public.impressao_trabalhos add column if not exists tempos jsonb;
