@@ -126,31 +126,16 @@ export async function enviarCodigoVerificacao(admin: SupabaseClient, restaurante
 }
 
 /**
- * Cria (ou recupera) a sessão do cliente SEM verificação por OTP. Usado como
- * fallback quando o WhatsApp da loja está offline e o código não pôde ser
- * enviado — assim o cliente nunca fica travado no checkout. Um cliente já
- * verificado antes mantém `verificado_em`; um cliente novo entra sem verificação.
+ * Fallback quando o WhatsApp da loja não pôde mandar o código: o cliente segue para o
+ * checkout SEM sessão. Não devolve nem cria nada — antes devolvia o token permanente e os
+ * dados (nome, endereço, prêmios) de quem já tinha cadastro com aquele telefone, e criava
+ * cadastro em nome de um telefone alheio. O pedido entra como "não verificado" e sem
+ * vínculo com cadastro; perfil e prêmios só com o código confirmado.
  */
-export async function criarSessaoNaoVerificada(admin: SupabaseClient, restauranteId: string, telefoneInformado: string): Promise<ResultadoVerificacao> {
+export function sessaoSemVerificacao(telefoneInformado: string): { ok: true; telefone: string } | { ok: false; error: string } {
   const telefone = formatarTelefoneWhatsapp(telefoneInformado)
   if (!telefone) return { ok: false, error: 'Informe um telefone válido com DDD.' }
-
-  const { data: existente, error: existenteError } = await admin
-    .from('clientes')
-    .select(CLIENTE_SELECT)
-    .eq('restaurante_id', restauranteId)
-    .eq('telefone', telefone)
-    .maybeSingle()
-  if (existenteError) throw existenteError
-  if (existente) return { ok: true, cliente: mapCliente(existente as ClienteRow) }
-
-  const { data, error } = await admin
-    .from('clientes')
-    .insert({ restaurante_id: restauranteId, telefone })
-    .select(CLIENTE_SELECT)
-    .single()
-  if (error) throw error
-  return { ok: true, cliente: mapCliente(data as ClienteRow) }
+  return { ok: true, telefone }
 }
 
 /** Confirma o código enviado e cria/recupera o cadastro do cliente, retornando seu perfil + token de sessão. */

@@ -39,8 +39,12 @@ function supabaseFake() {
           },
         }
       }
-      case 'clientes':
-        return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) }
+      case 'clientes': {
+        // Cadastro verificado do dono do prêmio, com o token que a vitrine manda.
+        const f: Record<string, unknown> = {}
+        const b = { select: () => b, eq: (k: string, v: unknown) => { f[k] = v; return b }, maybeSingle: async () => ({ data: !('token' in f) || f.token === 'tok-dono' ? { verificado_em: '2026-09-01T00:00:00Z' } : null, error: null }) }
+        return b
+      }
       case 'pedidos':
         return { insert: (row: unknown) => { pedidoInsert(row); return { select: () => ({ single: async () => ({ data: { id: 'p', numero: 1 }, error: null }) }) } } }
       case 'pedido_itens':
@@ -60,6 +64,7 @@ function input(over: Partial<NovoPedidoInput> = {}): NovoPedidoInput {
     pagamento: 'dinheiro',
     trocoPara: 20, // menor que o total (30 - 5 = 25)
     recompensaId: 'rec-1',
+    clienteToken: 'tok-dono',
     itens: [{ itemId: 'item-1', quantidade: 1, complementos: [], observacao: '' }],
     ...over,
   }
@@ -79,5 +84,13 @@ describe('criarPedido — troco recusado depois de reservar o prêmio', () => {
     expect(pedidoInsert).toHaveBeenCalled()
     expect(recompensaUpdates[0].status).toBe('resgatado')
     expect(recompensaUpdates.some((u) => u.status === 'disponivel')).toBe(false)
+  })
+
+
+  it('vitrine sem o token do cadastro não usa o prêmio (fallback sem código)', async () => {
+    const { client, recompensaUpdates, pedidoInsert } = supabaseFake()
+    await expect(criarPedido(client, 'r1', input({ trocoPara: 50, clienteToken: undefined }))).rejects.toThrow(/Confirme seu telefone/)
+    expect(pedidoInsert).not.toHaveBeenCalled()
+    expect(recompensaUpdates).toHaveLength(0)
   })
 })

@@ -1057,6 +1057,8 @@ export interface NovoPedidoInput {
    * Exclusivo com `cupomCodigo`.
    */
   recompensaId?: string
+  /** Token do cadastro do cliente (vitrine com código confirmado). Sem ele o pedido da vitrine é "não verificado". */
+  clienteToken?: string
   itens: NovoPedidoItemInput[]
 }
 
@@ -1075,15 +1077,21 @@ function normalizarTelefoneCliente(telefone: string): string | null {
 }
 
 /** True se o telefone do cliente foi confirmado por OTP (clientes.verificado_em preenchido). */
-async function telefoneClienteVerificado(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<boolean> {
+async function telefoneClienteVerificado(admin: SupabaseClient, restauranteId: string, telefone: string, token?: string | null): Promise<boolean> {
   const tel = normalizarTelefoneCliente(telefone)
   if (!tel) return false
-  const { data } = await admin
+  let q = admin
     .from('clientes')
     .select('verificado_em')
     .eq('restaurante_id', restauranteId)
     .eq('telefone', tel)
-    .maybeSingle()
+  // Vitrine: vale o token do cadastro, não só o telefone — senão qualquer um que digitasse
+  // o telefone de um cliente verificado gerava pedido "verificado" no nome dele.
+  if (token !== undefined) {
+    if (!token) return false
+    q = q.eq('token', token)
+  }
+  const { data } = await q.maybeSingle()
   return !!data?.verificado_em
 }
 
@@ -1458,6 +1466,10 @@ export async function criarPedido(
   }
 
   if (input.recompensaId) {
+    // Prêmio é do cadastro: na vitrine só com o código confirmado (token do telefone).
+    if (input.origem !== 'pdv' && !(await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone, input.clienteToken ?? null))) {
+      throw new Error('Confirme seu telefone pelo código do WhatsApp para usar o prêmio.')
+    }
     const { data: recompensaRow, error: recompensaError } = await admin
       .from('fidelidade_recompensas')
       .select('id, cliente_telefone, campanha:campanhas_fidelidade ( premio_tipo, premio_valor, premio_item_id, dias_semana_resgate )')
@@ -1558,7 +1570,7 @@ export async function criarPedido(
   const telefoneVerificado =
     input.origem === 'pdv' && !soDigitos(input.cliente.telefone)
       ? true
-      : await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone)
+      : await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone, input.origem === 'pdv' ? undefined : input.clienteToken ?? null)
 
   const { data: pedido, error: pedidoError } = await admin
     .from('pedidos')

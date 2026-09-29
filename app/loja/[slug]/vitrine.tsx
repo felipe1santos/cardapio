@@ -35,6 +35,7 @@ import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
 import { avisoRepeticao, fotosDoPedido, montarRepeticaoPedido, type ResultadoRepeticao } from '@/lib/repetir-pedido'
 import { resolverPaleta } from '@/lib/paletas'
+import { atualizarStatusLocais, pedidoLocal } from '@/lib/vitrine-pedidos-locais'
 import { idsDeMedicaoSeguros } from '@/lib/pixels'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import { objectPosition, FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
@@ -1382,7 +1383,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // Carrega o perfil salvo e pré-preenche o checkout.
   useEffect(() => {
-    if (!clienteSessao || !slug) return
+    // Sessão do fallback (sem código confirmado) não tem token nem cadastro: nada a buscar.
+    if (!clienteSessao?.token || !slug) return
     let cancelled = false
     fetch(`/api/loja/${slug}/conta?telefone=${encodeURIComponent(clienteSessao.telefone)}&token=${encodeURIComponent(clienteSessao.token)}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -1418,7 +1420,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   useEffect(() => {
     if (!slug) return
     let cancelled = false
-    const qs = clienteSessao
+    const qs = clienteSessao?.token
       ? `?telefone=${encodeURIComponent(clienteSessao.telefone)}&token=${encodeURIComponent(clienteSessao.token)}`
       : ''
     fetch(`/api/loja/${slug}/fidelidade${qs}`)
@@ -1616,13 +1618,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       // Fallback: WhatsApp da loja offline — o servidor já logou o cliente sem
       // confirmar o código. Entra direto, sem o passo de digitar o código.
       if (data.fallback) {
-        localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: data.token, verificado: false }))
+        // Sem o código confirmado não há cadastro: sessão sem token, nada pré-preenchido
+        // com dados de quem já tem conta com esse telefone.
+        localStorage.setItem(`menuzia_cliente_${slug}`, JSON.stringify({ telefone: data.telefone, token: '', verificado: false }))
         localStorage.setItem(`menuzia_telefone_${slug}`, data.telefone)
-        setClienteSessao({ telefone: data.telefone, token: data.token, verificado: false })
-        setPerfilCliente(data)
-        setContaNome(data.nome)
-        setContaEndereco(data.endereco)
-        setContaEditando(!data.nome && !data.endereco.rua)
+        setClienteSessao({ telefone: data.telefone, token: '', verificado: false })
+        setPerfilCliente(null)
+        setContaEditando(true)
         showToast('Não deu pra confirmar pelo WhatsApp agora — você já pode finalizar o pedido.')
         return
       }
@@ -1663,6 +1665,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   async function salvarPerfilConta() {
     if (!clienteSessao) return
+    if (!clienteSessao.token) {
+      setContaError('Para salvar seu cadastro, confirme o telefone pelo código do WhatsApp. Seu pedido segue normalmente.')
+      return
+    }
     setContaLoading(true)
     setContaError(null)
     setContaSaved(false)
@@ -2177,6 +2183,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       if (cached && active) setMeusPedidos(pedidosComNomesLimpos(JSON.parse(cached) as PedidoCliente[]))
     } catch { /* cache corrompido — ignora */ }
     const load = async (showSpinner: boolean) => {
+      // Sem código confirmado (fallback): só os pedidos feitos neste aparelho, com o status
+      // da rota pública do pedido — o histórico do telefone não é desta sessão.
+      if (!clienteSessao.token) {
+        let locais: PedidoCliente[] = []
+        try { locais = JSON.parse(localStorage.getItem(`menuzia_pedidos_${slug}`) ?? '[]') as PedidoCliente[] } catch { locais = [] }
+        const atualizados = await atualizarStatusLocais(locais, async (id) => {
+          const res = await fetch(`/api/loja/${slug}/pedido/${encodeURIComponent(id)}`)
+          return res.ok ? ((await res.json()) as { status: PedidoCliente['status'] }) : null
+        })
+        if (!active) return
+        setMeusPedidos(pedidosComNomesLimpos(atualizados))
+        try { localStorage.setItem(`menuzia_pedidos_${slug}`, JSON.stringify(atualizados)) } catch { /* quota/privado */ }
+        return
+      }
       if (showSpinner && active) setPedidosLoading(true)
       try {
         const res = await fetch(`/api/loja/${slug}/conta/pedidos?telefone=${encodeURIComponent(clienteSessao.telefone)}&token=${encodeURIComponent(clienteSessao.token)}`)
@@ -2292,6 +2312,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         // o desconto (o preview do client nunca é enviado).
         cupomCodigo: recompensaSelecionada ? undefined : cupomAplicado?.codigo,
         recompensaId: recompensaSelecionada?.id,
+        // Token do cadastro (código confirmado): o servidor só marca "verificado" com ele.
+        clienteToken: clienteSessao?.token || undefined,
       }
       const res = await fetch(`/api/loja/${slug}/pedido`, {
         method: 'POST',
@@ -2301,6 +2323,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
       rastreio.current?.registrar('pedido')
+      // Sessão sem código confirmado: o aparelho guarda o pedido para acompanhar o status.
+      if (!clienteSessao?.token && typeof data?.id === 'string') {
+        const novo = pedidoLocal({
+          id: data.id, numero: Number(data.numero) || 0, tipo: tipoPedido, formaPagamento: payload.pagamento as PedidoCliente['formaPagamento'],
+          subtotal, desconto, taxaEntrega: tipoPedido === 'retirada' ? 0 : fee, total,
+          itens: cart.map((l) => ({ nome: l.name, quantidade: l.qty, tamanhoNome: l.tamanhoNome, saborNome: l.saborNome, precoUnitario: l.unit, descricao: '', complementos: l.addons.map((a) => a.nome), observacao: l.obs })),
+        })
+        try {
+          const antes = JSON.parse(localStorage.getItem(`menuzia_pedidos_${slug}`) ?? '[]') as PedidoCliente[]
+          localStorage.setItem(`menuzia_pedidos_${slug}`, JSON.stringify([novo, ...antes.filter((x) => x.id !== novo.id)].slice(0, 20)))
+        } catch { /* quota/privado */ }
+        setMeusPedidos((prev) => [novo, ...prev.filter((x) => x.id !== novo.id)])
+      }
       // Endereço confirmado: guarda no aparelho e no perfil (se logado) pra
       // próxima compra já vir preenchida.
       try {
@@ -2313,7 +2348,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           )
         }
       } catch { /* quota/navegação privada */ }
-      if (clienteSessao) {
+      if (clienteSessao?.token) {
         // Numa retirada o perfil guarda só o nome — o endereço que ele já tinha
         // fica como está, senão um pedido de balcão apagaria o endereço de casa.
         const enderecoPerfil = tipoPedido === 'entrega' ? endereco : (perfilCliente?.endereco ?? contaEndereco)
