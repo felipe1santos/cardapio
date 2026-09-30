@@ -732,7 +732,28 @@ export async function pendencias(admin: SupabaseClient, ator: Ator, comandaId: s
   return rpc<Record<string, unknown>>(admin, 'comanda_pendencias', { p_restaurante: ator.restauranteId, p_comanda: comandaId })
 }
 
+/**
+ * Cupom na conta cujo uso ainda não foi gravado. Só o "Fechar conta" completo
+ * (comanda_fechar_completo) reserva o uso e grava em cupom_usos; os fechamentos simples
+ * fechavam sem isso e o limite de usos / uso único por cliente não valia (M17).
+ */
+async function cupomSemUsoGravado(admin: SupabaseClient, restauranteId: string, comandaId: string): Promise<boolean> {
+  const { data: c } = await admin.from('comandas').select('cupom_id').eq('id', comandaId).eq('restaurante_id', restauranteId).maybeSingle()
+  const cupomId = (c?.cupom_id as string | null | undefined) ?? null
+  if (!cupomId) return false
+  const { data: usos } = await admin
+    .from('cupom_usos')
+    .select('id, pedidos!inner(comanda_id)')
+    .eq('cupom_id', cupomId)
+    .eq('pedidos.comanda_id', comandaId)
+    .limit(1)
+  return (usos ?? []).length === 0
+}
+
+export const ERRO_CUPOM_PENDENTE = 'Esta conta tem cupom. Feche pelo "Fechar conta" (com o pagamento) para o uso do cupom ser registrado, ou remova o cupom.'
+
 export async function fechar(admin: SupabaseClient, ator: Ator, conta: AlvoConta, origem: Origem) {
+  if (await cupomSemUsoGravado(admin, ator.restauranteId, conta.id)) return falha(ERRO_CUPOM_PENDENTE, 409, 'cupom_pendente')
   const r = await rpc<Record<string, unknown>>(admin, 'comanda_fechar_presencial', {
     p_restaurante: ator.restauranteId, p_comanda: conta.id, p_ator: ator.userId, p_ator_nome: ator.nome, p_origem: origem,
   })
@@ -765,6 +786,7 @@ export async function resolver(
   a: { acoes: unknown[]; motivo: string; fechar: boolean },
   origem: Origem,
 ) {
+  if (a.fechar && (await cupomSemUsoGravado(admin, ator.restauranteId, conta.id))) return falha(ERRO_CUPOM_PENDENTE, 409, 'cupom_pendente')
   const r = await rpc<{ aplicadas: number; fechamento: Record<string, unknown> | null; erro_fechamento: string | null }>(admin, 'comanda_resolver_pendencias', {
     p_restaurante: ator.restauranteId, p_comanda: conta.id, p_acoes: a.acoes, p_motivo: a.motivo, p_ator: ator.userId,
     p_ator_nome: ator.nome, p_papel: ator.papel, p_origem: origem, p_fechar: a.fechar,

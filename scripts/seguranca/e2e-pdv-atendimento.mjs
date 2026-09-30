@@ -432,6 +432,12 @@ const lCli = await lancar(pAt, { comandaId: cCli.json.id }, [L(FILE)])
 ok('16. cupom inexistente recusado no servidor', (await api(pAt, `/api/admin/comandas/${cCli.json.id}`, 'POST', { acao: 'aplicar_cupom', codigo: 'NAOEXISTE' })).status === 404)
 ok('16. desconto forjado no corpo é ignorado', (await api(pAt, `/api/admin/comandas/${cCli.json.id}`, 'POST', { acao: 'aplicar_cupom', codigo: 'BALCAO10', desconto: 999, descontoValor: 999 })).status === 200
   && (await api(pAt, `/api/admin/comandas/${cCli.json.id}`)).json.conta.totais.desconto === Math.round(Number(FILE.preco) * 0.1 * 100) / 100)
+// M17: fechamento simples e "resolver e fechar" não gravavam o uso do cupom.
+const fSimples = await api(pAt, `/api/admin/comandas/${cCli.json.id}`, 'POST', { acao: 'fechar' })
+const fResolver = await api(pGer, `/api/admin/comandas/${cCli.json.id}`, 'POST', { acao: 'resolver', acoes: [{ pedido_id: lCli.json.id, acao: 'marcar_atendido' }], motivo: '', fechar: true })
+ok('   M17: conta com cupom não fecha pelo fechamento simples nem por "resolver e fechar" (409)', fSimples.json?.codigo === 'cupom_pendente' && fResolver.json?.codigo === 'cupom_pendente'
+  && (await um('select status from comandas where id=$1', [cCli.json.id])).status === 'aberta'
+  && Number((await um('select count(*) n from cupom_usos where cupom_id=$1', [cupom])).n) === 0, `${fSimples.status}/${fResolver.status}`)
 await db.query("update pedidos set status='entregue' where id=$1", [lCli.json.id])
 const totCli = (await api(pAt, `/api/admin/comandas/${cCli.json.id}`)).json.conta.totais.restante
 const fCli = await api(pAt, `/api/admin/comandas/${cCli.json.id}`, 'POST', { acao: 'fechar_completo', chave: uuid(), acoes: [], pagamentos: [{ forma: 'pix', valor: totCli, chave: uuid() }] })
