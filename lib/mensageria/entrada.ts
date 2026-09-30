@@ -226,9 +226,13 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
       p_robo_ativo: roboAtivo,
     })
     if (error) throw error
-    const d = dec as { duplicada: boolean; conversa_id: string; mensagem_id?: string; acao: Acao; boas_vindas?: boolean; protecao?: boolean }
-    if (d.duplicada) { contar(r, 'duplicada'); continue }
-    r.processadas++
+    const d = dec as { duplicada: boolean; sem_envio?: boolean; conversa_id: string; mensagem_id?: string; acao: Acao; boas_vindas?: boolean; protecao?: boolean }
+    // Reentrega do webhook. Só segue quando a 1ª vez registrou a mensagem mas nada entrou
+    // na fila (0116 devolve a decisão gravada): antes o cliente ficava sem resposta (B11).
+    // A chave resposta:<mensagem> garante que, se a 1ª vez enfileirou, não duplica.
+    if (d.duplicada && !(d.sem_envio && d.mensagem_id)) { contar(r, 'duplicada'); continue }
+    if (d.duplicada) contar(r, 'duplicada_sem_resposta')
+    else r.processadas++
     if (m.deMim) { contar(r, 'loja_respondeu'); continue }
 
     // SAIR / VOLTAR (0112): vale com o robô ligado OU desligado — é direito do cliente
