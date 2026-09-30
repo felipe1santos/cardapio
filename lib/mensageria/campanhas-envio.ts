@@ -137,13 +137,24 @@ export async function processarCampanhas(
       pausa = (await provedor.conexao(e.evolution_instance).catch(() => 'desconhecido' as const)) === 'fechado'
     }
     if (pausa) lojasCaidas.add(e.restaurante_id)
-    const { data: final, error: errFim } = await admin.rpc('campanha_concluir_envio', {
-      p_id: e.id,
-      p_resultado: resultado.ok ? 'enviado' : pausa ? 'pausa' : resultado.tipo,
-      p_id_externo: resultado.ok ? resultado.idExterno : null,
-      p_erro: resultado.ok ? null : pausa ? 'WhatsApp da loja desconectado' : resultado.erro,
-    })
-    if (errFim) throw errFim
+    // Falha ao GRAVAR o resultado não pode derrubar o lote: antes o throw abortava o laço e
+    // os contatos já reservados que vinham depois ficavam travados até virar 'incerto' —
+    // sem nunca terem sido enviados. Este fica travado (a trava vencida vira 'incerto',
+    // o certo: a mensagem pode ter saído) e o lote segue.
+    let final: unknown = null
+    try {
+      const { data, error: errFim } = await admin.rpc('campanha_concluir_envio', {
+        p_id: e.id,
+        p_resultado: resultado.ok ? 'enviado' : pausa ? 'pausa' : resultado.tipo,
+        p_id_externo: resultado.ok ? resultado.idExterno : null,
+        p_erro: resultado.ok ? null : pausa ? 'WhatsApp da loja desconectado' : resultado.erro,
+      })
+      if (errFim) throw errFim
+      final = data
+    } catch (err) {
+      console.error('[campanhas] não gravou o resultado do envio', e.id, (err as { message?: string })?.message ?? err)
+      final = 'incerto'
+    }
     r.processados++
     if (final === 'enviado') {
       r.enviados++
