@@ -3,6 +3,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { evolutionConfigurado, nomeInstancia, obterQrCode } from '@/lib/evolution'
+import { garantirWebhookDaLoja } from '@/lib/mensageria/webhook-loja'
 
 /** Cria/conecta a instância WhatsApp do restaurante logado e retorna o QR code para escanear. */
 export async function POST() {
@@ -36,6 +37,8 @@ export async function POST() {
 
   try {
     const qr = await obterQrCode(instance)
+    // Webhook da loja (SAIR, central de atendimento, métricas) já na conexão/reconexão.
+    await garantirWebhookDaLoja(admin, restauranteId).catch(() => null)
     return NextResponse.json(qr)
   } catch (err) {
     console.error('[whatsapp] erro ao obter QR code', err)
