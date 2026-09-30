@@ -926,68 +926,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
   return { pedidos: mapped, grupoPorItem }
 }
 
-// --- Fechamento de caixa por entregador ---
-
-export interface ResumoCaixa {
-  entregadorId: string
-  nome: string
-  valorEsperado: number // soma dos pedidos pagos em dinheiro (em rota + entregues)
-  trocoLevado: number // soma dos trocos solicitados
-  pedidos: number
-}
-
-/** Soma, por entregador, o dinheiro físico esperado das entregas pagas em espécie. */
-export async function listarResumoCaixa(supabase: SupabaseClient, restauranteId: string): Promise<ResumoCaixa[]> {
-  const { data, error } = await supabase
-    .from('pedidos')
-    .select('entregador_id, total, troco_para, entregadores ( nome )')
-    .eq('restaurante_id', restauranteId)
-    .eq('forma_pagamento', 'dinheiro')
-    .not('entregador_id', 'is', null)
-    .in('status', ['em_rota', 'entregue'])
-  if (error) throw error
-
-  const mapa = new Map<string, ResumoCaixa>()
-  for (const row of (data ?? []) as unknown as {
-    entregador_id: string
-    total: number
-    troco_para: number | null
-    entregadores: { nome: string } | null
-  }[]) {
-    const atual = mapa.get(row.entregador_id) ?? {
-      entregadorId: row.entregador_id,
-      nome: row.entregadores?.nome ?? 'Entregador',
-      valorEsperado: 0,
-      trocoLevado: 0,
-      pedidos: 0,
-    }
-    atual.valorEsperado += Number(row.total)
-    atual.trocoLevado += row.troco_para === null ? 0 : Number(row.troco_para)
-    atual.pedidos += 1
-    mapa.set(row.entregador_id, atual)
-  }
-  return [...mapa.values()]
-}
-
-export async function registrarFechamentoCaixa(
-  supabase: SupabaseClient,
-  restauranteId: string,
-  entregadorId: string,
-  valorEsperado: number,
-  trocoLevado: number,
-  valorDeclarado: number
-) {
-  const { error } = await supabase.from('fechamentos_caixa').insert({
-    restaurante_id: restauranteId,
-    entregador_id: entregadorId,
-    valor_esperado: valorEsperado,
-    troco_levado: trocoLevado,
-    valor_declarado: valorDeclarado,
-    diferenca: valorDeclarado - valorEsperado,
-    fechado_em: new Date().toISOString(),
-  })
-  if (error) throw error
-}
+// --- Fechamento de caixa: por turno (0114) em lib/caixa-turno.ts e lib/queries/caixa.ts ---
 
 // --- Criação do pedido pela vitrine (executa no servidor com service_role) ---
 

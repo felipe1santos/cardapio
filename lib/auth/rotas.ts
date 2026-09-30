@@ -52,6 +52,7 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/nexta/config', 'integracoes.gerenciar'],
   ['/api/admin/nexta/testar', 'integracoes.gerenciar'],
   ['/api/admin/nexta', 'logistica.operar'],
+  ['/api/admin/caixa', 'logistica.operar'],
   // Conversas em atendimento humano: dono e gerente. Antes do genérico do WhatsApp.
   ['/api/admin/whatsapp/conversas', 'whatsapp.atender'],
   // Central de atendimento (0107): dono e gerente.

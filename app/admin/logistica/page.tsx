@@ -33,15 +33,13 @@ import {
   listarEntregadores,
   listarPedidosConcluidos,
   listarPedidosLogistica,
-  listarResumoCaixa,
   entregarPedidoEmRota,
-  registrarFechamentoCaixa,
   type Entregador,
   type Pedido,
-  type ResumoCaixa,
   type StatusEntregador,
 } from '@/lib/queries/pedidos'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
+import { CaixaTurnoGaveta } from '@/components/logistica/caixa-turno'
 import { atualizarConfigLoja, buscarFluxoLoja } from '@/lib/queries/ajustes'
 import { formatarReal } from '@/lib/moeda'
 
@@ -501,8 +499,6 @@ export default function LogisticaPage() {
   const [addingDriver, setAddingDriver] = useState(false)
   const [addDriverOpen, setAddDriverOpen] = useState(false)
 
-  const [resumo, setResumo] = useState<ResumoCaixa[]>([])
-  const [declarado, setDeclarado] = useState<Record<string, string>>({})
 
   const [nextaAtivo, setNextaAtivo] = useState(false)
   const [nextaEntregas, setNextaEntregas] = useState<NextaEntregaLinha[]>([])
@@ -1099,27 +1095,9 @@ export default function LogisticaPage() {
     }
   }
 
-  async function openClosing() {
-    if (!restauranteId) return
-    try {
-      setResumo(await listarResumoCaixa(supabase, restauranteId))
-    } catch {
-      setError('Não foi possível calcular o caixa.')
-    }
+  // Turno de caixa (0114): a gaveta carrega e grava pela /api/admin/caixa.
+  function openClosing() {
     setClosingOpen(true)
-  }
-
-  async function saveClosing(r: ResumoCaixa) {
-    if (!restauranteId) return
-    const valor = Number((declarado[r.entregadorId] ?? '').replace(/\./g, '').replace(',', '.'))
-    if (!Number.isFinite(valor)) return
-    try {
-      await registrarFechamentoCaixa(supabase, restauranteId, r.entregadorId, r.valorEsperado, r.trocoLevado, valor)
-      setResumo(await listarResumoCaixa(supabase, restauranteId))
-      setDeclarado((prev) => ({ ...prev, [r.entregadorId]: '' }))
-    } catch {
-      setError('Não foi possível registrar o fechamento.')
-    }
   }
 
   if (loading) {
@@ -1939,74 +1917,8 @@ export default function LogisticaPage() {
         </form>
       </aside>
 
-      {/* Fechamento de caixa */}
-      {closingOpen && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setClosingOpen(false)} />}
-      <aside
-        className={[
-          'fixed right-0 top-0 z-[60] flex h-screen w-[440px] max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300',
-          closingOpen ? 'translate-x-0' : 'translate-x-full',
-        ].join(' ')}
-      >
-        <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
-          <div>
-            <h2 className="text-[15px] font-bold">Fechamento de caixa</h2>
-            <p className="mt-0.5 text-xs text-text-subtle">Conferência entre o dinheiro esperado e o declarado por entregador.</p>
-          </div>
-          <button onClick={() => setClosingOpen(false)} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
-            ×
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4.5">
-          <p className="mb-4 text-xs leading-relaxed text-text-subtle">
-            Valor esperado = soma dos pedidos pagos em dinheiro (em rota + entregues) de cada entregador. Informe o valor declarado ao
-            final da rota para registrar a diferença.
-          </p>
-          {resumo.length === 0 && (
-            <div className="rounded-menuzia border border-dashed border-border p-4 text-center text-xs text-text-subtle">
-              Nenhum pedido em dinheiro atribuído a entregadores ainda.
-            </div>
-          )}
-          {resumo.map((r) => {
-            const valor = Number((declarado[r.entregadorId] ?? '').replace(/\./g, '').replace(',', '.'))
-            const diff = Number.isFinite(valor) && (declarado[r.entregadorId] ?? '') !== '' ? valor - r.valorEsperado : null
-            return (
-              <div key={r.entregadorId} className="mb-3 rounded-menuzia border border-border p-3.5">
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="text-sm font-semibold">{r.nome}</h4>
-                  <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-semibold text-text-subtle">{r.pedidos} pedido(s)</span>
-                </div>
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex justify-between"><span className="text-text-subtle">Valor esperado</span><span className="font-medium">{brl(r.valorEsperado)}</span></div>
-                  <div className="flex justify-between"><span className="text-text-subtle">Troco levado</span><span className="font-medium">{brl(r.trocoLevado)}</span></div>
-                  <div className="flex items-center justify-between gap-2 pt-1">
-                    <span className="text-text-subtle">Valor declarado</span>
-                    <input
-                      value={declarado[r.entregadorId] ?? ''}
-                      onChange={(e) => setDeclarado((prev) => ({ ...prev, [r.entregadorId]: e.target.value }))}
-                      placeholder="0,00"
-                      className="w-28 rounded-menuzia border border-border px-2.5 py-1.5 text-right font-sans text-[13px] outline-none focus:border-primary"
-                    />
-                  </div>
-                  {diff !== null && (
-                    <div className="flex justify-between border-t border-border pt-1.5 font-bold">
-                      <span>Diferença</span>
-                      <span className={diff === 0 ? 'text-price-text' : 'text-danger'}>{diff < 0 ? '− ' : ''}{brl(Math.abs(diff))}</span>
-                    </div>
-                  )}
-                </div>
-                <Button variant="primary" className="mt-3 w-full" onClick={() => saveClosing(r)} disabled={(declarado[r.entregadorId] ?? '') === ''}>
-                  Registrar fechamento
-                </Button>
-              </div>
-            )
-          })}
-        </div>
-        <div className="flex gap-2.5 border-t border-border p-4.5">
-          <Button variant="secondary" className="flex-1" onClick={() => setClosingOpen(false)}>
-            Fechar
-          </Button>
-        </div>
-      </aside>
+      {/* Fechamento de caixa — por turno (0114) */}
+      <CaixaTurnoGaveta aberto={closingOpen} onFechar={() => setClosingOpen(false)} />
 
       {/* Acesso do entregador (link/QR) */}
       {linkDriver && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setLinkDriver(null)} />}
