@@ -2,6 +2,12 @@ import Link from 'next/link'
 import { AuthShell, authInput, authButton } from '@/components/auth/auth-shell'
 import { solicitarTroca } from './actions'
 
+const ERROS_CONHECIDOS: Record<string, string> = {
+  'link-expirado': 'O link expirou ou já foi usado. Peça um novo abaixo.',
+  'link-invalido': 'Link inválido. Peça um novo abaixo.',
+  'sessao-expirada': 'A sessão de troca expirou. Peça um novo link abaixo.',
+}
+
 export default async function RecuperarSenhaPage({
   searchParams,
 }: {
@@ -29,7 +35,7 @@ export default async function RecuperarSenhaPage({
 
           {error && (
             <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
-              {error}
+              {ERROS_CONHECIDOS[error] ?? error}
             </p>
           )}
 

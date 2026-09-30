@@ -1542,7 +1542,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 // ─── Aba Conta ────────────────────────────────────────────────────────────────
 
 function TabConta({ active }: { active: boolean }) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
+  const [senhaAtual, setSenhaAtual] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmarSenha, setConfirmarSenha] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1551,12 +1551,23 @@ function TabConta({ active }: { active: boolean }) {
 
   async function salvar() {
     setError(null)
+    if (!senhaAtual) { setError('Informe a senha atual.'); return }
     if (novaSenha.length < 6) { setError('A senha deve ter no mínimo 6 caracteres.'); return }
     if (novaSenha !== confirmarSenha) { setError('As senhas não coincidem.'); return }
     setSaving(true)
     try {
-      const { error } = await supabase.auth.updateUser({ password: novaSenha })
-      if (error) throw error
+      // Pelo servidor, que confere a senha atual antes de trocar.
+      const res = await fetch('/api/admin/conta/senha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atual: senhaAtual, nova: novaSenha }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        setError(data?.error ?? 'Não foi possível alterar a senha. Tente novamente.')
+        return
+      }
+      setSenhaAtual('')
       setNovaSenha('')
       setConfirmarSenha('')
       setSaved(true)
@@ -1586,6 +1597,15 @@ function TabConta({ active }: { active: boolean }) {
               Defina uma nova senha de acesso ao painel. Você continuará logado nesta sessão.
             </p>
           </div>
+          <Field label="Senha atual">
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={senhaAtual}
+              onChange={(e) => { setSenhaAtual(e.target.value); setSaved(false) }}
+              placeholder="A senha que você usa para entrar"
+            />
+          </Field>
           <Field label="Nova senha">
             <Input
               type="password"

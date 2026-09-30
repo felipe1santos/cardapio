@@ -75,6 +75,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'equipe.desativou': 'Desativou funcionário',
   'equipe.reativou': 'Reativou funcionário',
   'equipe.redefiniu_senha': 'Redefiniu a senha de um funcionário',
+  'equipe.trocou_propria_senha': 'Trocou a própria senha (Ajustes → Conta)',
   'impressao.gerou_token': 'Gerou um token novo para o Assistente de Impressão',
   'caixa.abriu_turno': 'Abriu o turno de caixa',
   'caixa.fechou_turno': 'Fechou o turno de caixa',
