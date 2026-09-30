@@ -1339,7 +1339,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       const raw = localStorage.getItem(`menuzia_cliente_${slug}`)
       if (raw) {
         const sessao = JSON.parse(raw)
-        if (sessao?.telefone && sessao?.token) setClienteSessao(sessao)
+        // Sessão do fallback (sem código confirmado) volta também: sem ela o cliente teria que
+        // digitar o telefone de novo a cada recarga e a janela de login não o deixava pagar.
+        if (sessao?.telefone && (sessao?.token || sessao?.verificado === false)) setClienteSessao({ ...sessao, token: sessao.token ?? '' })
       }
       const ultimo = localStorage.getItem(`menuzia_telefone_${slug}`)
       if (ultimo) setContaTelefone(mascararTelefoneBR(ultimo))
@@ -1597,6 +1599,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (cart.length > 0) void validarCupomCheckout(codigo)
   }
 
+  // Passo do checkout a abrir depois de entrar pelo telefone (0 = resumo no desktop, 1 = pagamento no celular).
+  const checkoutAposLogin = useRef<CheckoutStep | null>(null)
+
   async function enviarCodigoConta() {
     setContaLoading(true)
     setContaError(null)
@@ -1625,6 +1630,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         setClienteSessao({ telefone: data.telefone, token: '', verificado: false })
         setPerfilCliente(null)
         setContaEditando(true)
+        // Não há perfil para mostrar: fecha a janela e deixa seguir para o pagamento. Antes a
+        // janela continuava em "Informe seu telefone" e o cliente não conseguia fechar o pedido.
+        setContaOpen(false)
+        setCliente((c) => ({ ...c, telefone: mascararTelefoneBR(data.telefone) }))
+        // Veio do "Continuar para pagamento": segue direto para o checkout.
+        const passo = checkoutAposLogin.current
+        checkoutAposLogin.current = null
+        if (passo !== null) { setCheckoutOpen(true); setCheckoutMinStep(passo); setCheckoutStep(passo); setCheckoutError(null) }
         showToast('Não deu pra confirmar pelo WhatsApp agora — você já pode finalizar o pedido.')
         return
       }
@@ -3348,7 +3361,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         <button
                           disabled={!restaurante.lojaAberta}
                           onClick={() => {
-                            if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
+                            if (!clienteSessao) { checkoutAposLogin.current = 0; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
                             setCheckoutOpen(true); setCheckoutMinStep(0); setCheckoutStep(0); setCheckoutError(null)
                           }}
@@ -3490,7 +3503,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <button
                     disabled={!restaurante.lojaAberta}
                     onClick={() => {
-                      if (!clienteSessao) { setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
+                      if (!clienteSessao) { checkoutAposLogin.current = 1; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                       // Mobile: a aba carrinho já é o resumo — entra direto no pagamento.
                       setCheckoutOpen(true); setCheckoutMinStep(1); setCheckoutStep(1); setCheckoutError(null)
                     }}
