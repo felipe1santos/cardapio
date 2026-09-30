@@ -744,6 +744,12 @@ function PagamentoModal({
 
 // ─── PDV Page ─────────────────────────────────────────────────────────────────
 
+/** Mensagem do servidor quando a conta não fecha (pendência, saldo, cupom...). */
+async function erroDoFechamento(res: Response): Promise<string> {
+  const data = (await res.json().catch(() => null)) as { error?: string } | null
+  return data?.error ?? 'Não foi possível fechar a conta.'
+}
+
 export default function PdvPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const router = useRouter()
@@ -1103,6 +1109,12 @@ export default function PdvPage() {
         if (res.ok) {
           resetPosFechar()
           await recarregarMesas()
+        } else {
+          // O pagamento entrou, mas a conta não fechou: sem isto o operador achava que fechou (B5).
+          setPagamentoAberto(false)
+          setLaunchMsg({ type: 'err', text: await erroDoFechamento(res) })
+          await recarregarMesas()
+          await recarregarComanda(comandaId)
         }
       } else {
         setPagamentoAberto(false)
@@ -1124,6 +1136,8 @@ export default function PdvPage() {
       if (res.ok) {
         resetPosFechar()
         await recarregarMesas()
+      } else {
+        setLaunchMsg({ type: 'err', text: await erroDoFechamento(res) })
       }
     } finally {
       setFechando(false)
