@@ -8,6 +8,7 @@ import {
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { iniciais } from '@/lib/mensageria/iniciais'
 import type { ConversaCentral, EstadoAtendimento, MensagemCentral } from '@/lib/mensageria/atendimento'
+import { rotuloSaidaNaoConfirmada } from '@/lib/mensageria/atendente-envio'
 
 /**
  * Central de atendimento do WhatsApp (0107) — carregada SOB DEMANDA pelo lancador.tsx.
@@ -517,7 +518,7 @@ function Balao({ m }: { m: MensagemCentral }) {
           {hora}
           {minha && m.statusEnvio === 'enviando' && <Clock className="h-3 w-3" aria-label="Enviando" />}
           {minha && m.statusEnvio === 'enviado' && <CheckCheck className="h-3 w-3 text-[#53BDEB]" aria-label="Enviada" />}
-          {minha && m.statusEnvio === 'falhou' && <span className="font-semibold text-[#DC2626]" title={m.erro ?? ''}>não enviada</span>}
+          {minha && m.statusEnvio === 'falhou' && <span className="font-semibold text-[#DC2626]" title={m.erro ?? ''}>{rotuloSaidaNaoConfirmada(m.erro)}</span>}
         </p>
       </div>
     </div>

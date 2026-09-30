@@ -5,6 +5,7 @@ import { listarMensagens } from '@/lib/mensageria/atendimento'
 import { concluirSaida, registrarSaida } from '@/lib/mensageria/historico'
 import { provedorAtual } from '@/lib/mensageria/provedor'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { mensagemFalhaAtendente } from '@/lib/mensageria/atendente-envio'
 
 /**
  * Mensagens de uma conversa da central.
@@ -84,6 +85,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     restauranteId: ctx.loja, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome,
     acao: 'whatsapp.atendente_respondeu', entidade: 'whatsapp_conversa', entidadeId: id, dados: { tipo: imagem ? 'imagem' : 'texto', ok: r.ok },
   }).catch(() => {})
-  if (!r.ok) return NextResponse.json({ error: 'O WhatsApp não aceitou a mensagem. Tente de novo.', mensagemId: saida.mensagemId }, { status: 502 })
+  if (!r.ok) return NextResponse.json({ error: mensagemFalhaAtendente(r.tipo), codigo: r.tipo, mensagemId: saida.mensagemId }, { status: 502 })
   return NextResponse.json({ ok: true, mensagemId: saida.mensagemId }, { headers: semCache })
 }
