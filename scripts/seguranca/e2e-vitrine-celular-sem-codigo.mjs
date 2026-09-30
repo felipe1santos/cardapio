@@ -5,8 +5,9 @@
  * Bug de 2026-09-30: depois do fallback a janela "Informe seu telefone" continuava na tela
  * e o "Continuar para pagamento" pedia o telefone de novo — o cliente não saía dali.
  *
- * Loja local sem instância de WhatsApp (ORDEM_QR_E2E: ordem-qr-e2e). NÃO finaliza o pedido:
- * vai até a revisão. Servidor local em 127.0.0.1:3999.
+ * Loja local sem instância de WhatsApp (ORDEM_QR_E2E: ordem-qr-e2e). No fim fecha o pedido com
+ * toque duplo em "Fazer pedido" e confere que saiu UM pedido só (chave da tentativa, M24) —
+ * e apaga esse pedido. Servidor local em 127.0.0.1:3999.
  *
  *   node scripts/seguranca/e2e-vitrine-celular-sem-codigo.mjs [pasta-de-prints]
  */
@@ -112,6 +113,30 @@ try {
   await p.getByRole('button', { name: /Continuar para pagamento/ }).last().tap()
   await p.waitForTimeout(800)
   ok('depois de recarregar vai direto ao pagamento (não pede o telefone de novo)', !(await p.getByText('Informe seu telefone').isVisible().catch(() => false)) && await p.getByText('Forma de pagamento', { exact: false }).first().isVisible().catch(() => false))
+
+  // Fecha o pedido com toque duplo: a vitrine manda a chave da tentativa e sai 1 pedido só.
+  await p.getByText('Dinheiro', { exact: true }).first().tap()
+  await p.getByPlaceholder(/Ex: 50,00/).first().fill('100')
+  await p.getByRole('button', { name: /Ir para endereço/ }).tap()
+  await p.waitForTimeout(600)
+  await p.getByPlaceholder('Seu nome').fill('Cliente Celular')
+  await p.getByPlaceholder(/Digite ou toque na seta|^Bairro/).first().fill('Centro')
+  await p.getByPlaceholder('Nome da rua').fill('Rua Teste')
+  await p.getByPlaceholder('123').fill('10')
+  await p.waitForTimeout(1200)
+  await p.getByRole('button', { name: /Revisar pedido/ }).tap()
+  const fazer = p.getByRole('button', { name: /Fazer pedido/ })
+  await fazer.waitFor({ timeout: 5000 })
+  const chaves = []
+  p.on('request', (r) => { if (r.method() === 'POST' && /\/api\/loja\/[^/]+\/pedido$/.test(r.url())) chaves.push(JSON.parse(r.postData() ?? '{}').chavePedido ?? null) })
+  await fazer.dblclick().catch(() => {})
+  await p.waitForTimeout(3000)
+  const dbFim = new pg.Client({ connectionString: DB_URL })
+  await dbFim.connect()
+  const feitos = (await dbFim.query(`select p.id, p.chave_idempotencia from pedidos p join restaurantes r on r.id = p.restaurante_id where r.slug=$1 and p.cliente_telefone like '%27999887766' and p.criado_em > now() - interval '2 minutes'`, [SLUG])).rows
+  ok('toque duplo em "Fazer pedido": 1 pedido só, com a chave da tentativa', feitos.length === 1 && /^vitrine:/.test(feitos[0].chave_idempotencia ?? '') && chaves.length >= 1 && chaves.every((c) => c && c === chaves[0]), `${feitos.length} pedido(s), ${chaves.length} envio(s)`)
+  if (feitos.length) await dbFim.query('delete from pedidos where id = any($1)', [feitos.map((f) => f.id)])
+  await dbFim.end()
 } catch (e) {
   console.error(e); res.push(false)
 } finally {
