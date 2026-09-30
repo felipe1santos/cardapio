@@ -118,7 +118,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'todos', label: 'Tudo', prefixos: [] },
   // Duas famílias: `mesa.*` (uma mesa) e `mesas.*` (configuração do salão).
   { id: 'mesa', label: 'Mesas', prefixos: ['mesa.', 'mesas.'] },
-  { id: 'conta', label: 'Contas e dinheiro', prefixos: ['conta.', 'comanda.'] },
+  { id: 'conta', label: 'Contas e dinheiro', prefixos: ['conta.', 'comanda.', 'caixa.'] },
   { id: 'balcao', label: 'Balcão e pedidos', prefixos: ['balcao.', 'pedido.'] },
   { id: 'pdv_legado', label: 'PDV antigo', prefixos: ['pdv_legado.'] },
   { id: 'chamado', label: 'Chamados', prefixos: ['chamado.'] },
