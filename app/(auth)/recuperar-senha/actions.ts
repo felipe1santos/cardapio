@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
+import { urlPublica } from '@/lib/url-publica'
 import { getServerSupabase } from '@/lib/supabase/server'
 
 export async function solicitarTroca(formData: FormData) {
@@ -10,12 +10,9 @@ export async function solicitarTroca(formData: FormData) {
     redirect(`/recuperar-senha?error=${encodeURIComponent('Informe seu e-mail.')}`)
   }
 
-  const h = await headers()
-  const origin = h.get('origin') ?? `https://${h.get('host')}`
-
   const supabase = await getServerSupabase()
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/redefinir`,
+    redirectTo: `${urlPublica()}/auth/redefinir`,
   })
 
   if (error) {
