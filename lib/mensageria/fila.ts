@@ -14,7 +14,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual, logFalhaEnvio } from './provedor'
-import { concluirSaida, registrarSaida } from './historico'
+import { concluirSaida, hashTexto, registrarSaida } from './historico'
 import { roboLiberadoNoServidor } from './robo'
 
 export interface NovoEnvio {
@@ -66,6 +66,53 @@ interface EnvioReivindicado {
   texto: string
   tipo: string
   criado_em?: string
+  tentativas?: number
+}
+
+/** Quanto a trava de um envio vale a partir de agora (a da reivindicação é de 60 s). */
+const TRAVA_MS = 60_000
+
+/**
+ * Renova a trava dos envios do lote que ainda são nossos e devolve quais continuam.
+ *
+ * A trava de 60 s vale do momento da reivindicação, mas o lote é enviado um por um (até
+ * 15 s cada no provedor): o 5º em diante já estava vencido quando chegava a vez dele, e
+ * outro processador o marcava 'incerto' — sem nunca ter saído (B10). Renovando antes de
+ * cada envio, só o que já foi tomado por outro (estado mudou) fica de fora.
+ */
+async function renovarTrava(admin: SupabaseClient, ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set()
+  const { data, error } = await admin
+    .from('whatsapp_envios')
+    .update({ travado_ate: new Date(Date.now() + TRAVA_MS).toISOString() })
+    .in('id', ids)
+    .eq('estado', 'enviando')
+    .select('id')
+  // Sem conseguir renovar, segue como antes (a trava original ainda pode valer).
+  if (error) return new Set(ids)
+  return new Set(((data ?? []) as { id: string }[]).map((d) => d.id))
+}
+
+/**
+ * Nova tentativa de um envio que já falhou: reaproveita a mensagem que a 1ª tentativa
+ * deixou no histórico ("falhou") em vez de criar outra — antes a conversa mostrava a
+ * mesma resposta duas vezes, uma falhada e uma enviada (B8).
+ */
+async function saidaDaTentativaAnterior(admin: SupabaseClient, e: EnvioReivindicado): Promise<string | null> {
+  if ((e.tentativas ?? 1) <= 1 || !e.criado_em) return null
+  const h = await hashTexto(e.texto)
+  if (!h) return null
+  let q = admin
+    .from('whatsapp_mensagens')
+    .select('id')
+    .eq('restaurante_id', e.restaurante_id)
+    .eq('texto_hash', h)
+    .eq('origem', e.tipo === 'robo' ? 'robo' : 'automatico')
+    .eq('status_envio', 'falhou')
+    .gte('criado_em', e.criado_em)
+  if (e.conversa_id) q = q.eq('conversa_id', e.conversa_id)
+  const { data } = await q.order('criado_em', { ascending: false }).limit(1)
+  return ((data ?? []) as { id: string }[])[0]?.id ?? null
 }
 
 /**
@@ -113,7 +160,10 @@ export async function processarFila(
 
   let enviados = 0
   let falhas = 0
-  for (const e of envios) {
+  for (let i = 0; i < envios.length; i++) {
+    const e = envios[i]
+    const nossos = await renovarTrava(admin, envios.slice(i).map((x) => x.id))
+    if (!nossos.has(e.id)) continue
     const nome = instancia.get(e.restaurante_id)
     let resultado: 'enviado' | 'transitorio' | 'definitivo' | 'incerto'
     let idExterno: string | null = null
@@ -129,9 +179,11 @@ export async function processarFila(
       erro = 'loja sem WhatsApp conectado'
     } else {
       // Histórico da central de atendimento: resposta do robô (ou aviso da fila).
-      const saida = await registrarSaida(admin, { restauranteId: e.restaurante_id, telefone: e.telefone, texto: e.texto, origem: e.tipo === 'robo' ? 'robo' : 'automatico' })
+      const anterior = await saidaDaTentativaAnterior(admin, e).catch(() => null)
+      const mensagemId = anterior
+        ?? (await registrarSaida(admin, { restauranteId: e.restaurante_id, telefone: e.telefone, texto: e.texto, origem: e.tipo === 'robo' ? 'robo' : 'automatico' }))?.mensagemId
       const r = await provedor.enviarTexto(nome, e.telefone, e.texto)
-      await concluirSaida(admin, saida?.mensagemId, r.ok, r.ok ? r.idExterno : null, r.ok ? null : r.erro)
+      await concluirSaida(admin, mensagemId, r.ok, r.ok ? r.idExterno : null, r.ok ? null : r.erro)
       if (r.ok) {
         resultado = 'enviado'
         idExterno = r.idExterno
