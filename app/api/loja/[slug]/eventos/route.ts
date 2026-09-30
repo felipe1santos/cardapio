@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { normalizarLoteEventos } from '@/lib/vitrine-eventos'
+import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
 
 /**
  * Recebe os eventos de navegação da vitrine (ver lib/vitrine-rastreio.ts).
@@ -14,9 +15,15 @@ import { normalizarLoteEventos } from '@/lib/vitrine-eventos'
  */
 const idPorSlug = new Map<string, { id: string; em: number }>()
 const CACHE_MS = 10 * 60_000
+// Envio anônimo por natureza (sendBeacon), mas não sem freio: um navegador manda poucos
+// lotes por minuto; enxurrada do mesmo IP é descartada em silêncio (B16).
+const lotesPorIp = criarLimitador({ max: 60, janelaMs: 60_000 })
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
+  const chave = `${ipDaRequisicao(request.headers)}:${slug}`
+  if (lotesPorIp.excedeu(chave)) return new NextResponse(null, { status: 204 })
+  lotesPorIp.registrar(chave)
 
   let corpo: unknown
   try {

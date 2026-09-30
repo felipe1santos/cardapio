@@ -6,10 +6,25 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 import { acessoValido, buscarEmailPorUsuario, buscarStatusAcesso, registrarLogin } from '@/lib/queries/lojistas'
 import { telaInicialDoPapel } from '@/lib/auth/rotas'
+import { headers } from 'next/headers'
+import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
+
+// Força bruta: 10 senhas erradas em 15 min no mesmo usuário, ou 30 no mesmo IP (a loja
+// inteira pode sair pelo mesmo IP), travam novas tentativas até a janela passar (B16).
+// Só erro conta; entrar certo zera o usuário.
+const falhasPorLogin = criarLimitador({ max: 10, janelaMs: 15 * 60_000 })
+const falhasPorIp = criarLimitador({ max: 30, janelaMs: 15 * 60_000 })
+const MSG_MUITAS = 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
 
 export async function signIn(formData: FormData) {
   const login = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
+  const chaveIp = `ip:${ipDaRequisicao(await headers())}`
+  const chaveLogin = `login:${login.toLowerCase()}`
+  if (falhasPorIp.excedeu(chaveIp) || falhasPorLogin.excedeu(chaveLogin)) {
+    redirect(`/login?error=${encodeURIComponent(MSG_MUITAS)}`)
+  }
+  const falhou = () => { falhasPorIp.registrar(chaveIp); falhasPorLogin.registrar(chaveLogin) }
 
   // O campo aceita e-mail (superadmin/contas antigas) ou o nome de usuário
   // definido no cadastro — usuário não tem '@', então dá pra distinguir.
@@ -17,6 +32,7 @@ export async function signIn(formData: FormData) {
   if (login && !login.includes('@')) {
     const resolvido = await buscarEmailPorUsuario(getAdminSupabase(), login)
     if (!resolvido) {
+      falhou()
       redirect(`/login?error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
     }
     email = resolvido
@@ -26,9 +42,11 @@ export async function signIn(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error || !data.user) {
+    falhou()
     redirect(`/login?error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
   }
 
+  falhasPorLogin.limpar(chaveLogin)
   const admin = getAdminSupabase()
 
   if (isSuperAdminEmail(data.user.email)) {
