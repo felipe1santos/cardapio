@@ -96,7 +96,7 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[13px] text-text-subtle">Nenhum turno de caixa aberto.</p>
+                  <p className="text-[13px] text-text-subtle">Nenhum turno de caixa aberto. Ele abre sozinho na primeira entrega.</p>
                   <Button variant="primary" disabled={enviando} onClick={() => void agir({ acao: 'abrir' })} data-testid="abrir-turno">Abrir turno</Button>
                 </div>
               )}
