@@ -36,7 +36,26 @@ export interface ResultadoWhitelist {
   ok: boolean
   /** Campos internos encontrados no corpo. Vazio quando `ok`. */
   recusados: string[]
+  /** Corpo bem formado, mas com valor fora da regra (ex.: quantidade). Vira 400 com esta mensagem. */
+  erro?: string
   input?: NovoPedidoInput
+}
+
+/**
+ * Teto de unidades por linha. Sem ele, 3 bilhões estouravam o `int` de
+ * pedido_itens.quantidade depois de o pedido já existir — pedido sem itens na cozinha.
+ */
+export const QTD_MAX_POR_ITEM = 999
+
+/**
+ * Chave que a vitrine gera por tentativa de checkout. Se a resposta se perde (rede do
+ * celular) e o cliente toca de novo, a mesma chave devolve o pedido que já existe em vez
+ * de criar outro. Prefixo próprio para nunca colidir com a chave dos lançamentos de mesa
+ * (mesmo índice único da 0065).
+ */
+export function chavePedidoPublico(valor: unknown): string | null {
+  if (typeof valor !== 'string' || !/^[A-Za-z0-9-]{16,64}$/.test(valor)) return null
+  return `vitrine:${valor}`
 }
 
 function texto(valor: unknown, limite = 200): string {
@@ -75,9 +94,16 @@ export function montarPedidoPublico(bruto: unknown): ResultadoWhitelist {
     pagamento: texto(corpo.pagamento, 30) as FormaPagamento,
     trocoPara: typeof corpo.trocoPara === 'number' ? corpo.trocoPara : null,
     itens: Array.isArray(corpo.itens) ? (corpo.itens as NovoPedidoItemInput[]) : [],
+    chaveIdempotencia: chavePedidoPublico(corpo.chavePedido) ?? undefined,
     // Origem é do servidor. O pedido público é sempre da vitrine.
     origem: 'cardapio',
   }
+
+  const qtdRuim = input.itens.some((i) => {
+    const q = (i as { quantidade?: unknown } | null)?.quantidade
+    return typeof q !== 'number' || !Number.isInteger(q) || q < 1 || q > QTD_MAX_POR_ITEM
+  })
+  if (qtdRuim) return { ok: false, recusados: [], erro: `Quantidade por item deve ser de 1 a ${QTD_MAX_POR_ITEM}.` }
 
   if (typeof corpo.cupomCodigo === 'string') input.cupomCodigo = corpo.cupomCodigo.slice(0, 60)
   if (typeof corpo.recompensaId === 'string') input.recompensaId = corpo.recompensaId

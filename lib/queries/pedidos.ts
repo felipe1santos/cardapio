@@ -1065,6 +1065,11 @@ export async function criarPedido(
   opcoes: OpcoesCriarPedido = {},
 ): Promise<{ id: string; numero: number }> {
   if (input.itens.length === 0) throw new Error('Pedido sem itens')
+  // Quantidade fora da faixa virava NaN ou estourava o int de pedido_itens depois de o
+  // pedido já existir (pedido sem itens na cozinha). Mesmo teto da rota pública.
+  if (input.itens.some((l) => !Number.isFinite(l.quantidade) || l.quantidade < 1 || l.quantidade > 999)) {
+    throw new Error('Quantidade por item deve ser de 1 a 999.')
+  }
   if (input.cupomCodigo && input.recompensaId) throw new Error('Use apenas um cupom ou prêmio por pedido.')
   // Cupom e prêmio reservam uso antes do insert e devolvem se ele falhar — lógica que
   // vive no caminho de gravação padrão. Conta presencial não usa nenhum dos dois.

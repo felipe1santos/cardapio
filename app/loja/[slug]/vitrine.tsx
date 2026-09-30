@@ -88,6 +88,12 @@ const STATUS_PEDIDO_INFO: Record<string, { label: string; cls: string }> = {
 }
 
 /** Selo do pedido; na loja sem entregador, o concluído aparece como "Saiu para entrega". */
+// Chave de idempotência do pedido. randomUUID só existe em contexto seguro (https/localhost).
+function novaChavePedido(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+}
+
 function infoStatusPedido(p: { status: string; saidaSemConfirmacao?: boolean }): { label: string; cls: string } {
   // O rótulo é a regra comum com o robô do WhatsApp (lib/status-pedido-cliente); aqui só a cor.
   const label = rotuloStatusPedidoCliente(p)
@@ -2298,6 +2304,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     return linhas.join('\n')
   }
 
+  // Chave da tentativa de pedido: repetir o envio do MESMO pedido (resposta perdida na
+  // rede do celular, toque duplo) devolve o que já foi criado. Mudou o pedido, chave nova.
+  const tentativaPedido = useRef<{ assinatura: string; chave: string } | null>(null)
+
   async function submitOrder() {
     setSubmitting(true)
     setCheckoutError(null)
@@ -2328,13 +2338,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         // Token do cadastro (código confirmado): o servidor só marca "verificado" com ele.
         clienteToken: clienteSessao?.token || undefined,
       }
+      const assinatura = JSON.stringify(payload)
+      if (tentativaPedido.current?.assinatura !== assinatura) tentativaPedido.current = { assinatura, chave: novaChavePedido() }
       const res = await fetch(`/api/loja/${slug}/pedido`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, chavePedido: tentativaPedido.current.chave }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
+      tentativaPedido.current = null
       rastreio.current?.registrar('pedido')
       // Sessão sem código confirmado: o aparelho guarda o pedido para acompanhar o status.
       if (!clienteSessao?.token && typeof data?.id === 'string') {

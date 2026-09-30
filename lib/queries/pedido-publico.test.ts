@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { montarPedidoPublico, CAMPOS_INTERNOS } from './pedido-publico'
+import { montarPedidoPublico, CAMPOS_INTERNOS, chavePedidoPublico, QTD_MAX_POR_ITEM } from './pedido-publico'
 
 const CORPO_HONESTO = {
   tipo: 'entrega',
@@ -82,5 +82,35 @@ describe('montarPedidoPublico', () => {
   it('cupom e prêmio continuam passando — são validados no servidor', () => {
     const r = montarPedidoPublico({ ...CORPO_HONESTO, cupomCodigo: 'BEMVINDO' })
     expect(r.input?.cupomCodigo).toBe('BEMVINDO')
+  })
+})
+
+describe('pedido público: idempotência e quantidade (M24)', () => {
+  it('chave da vitrine vira chave de idempotência com prefixo próprio', () => {
+    const r = montarPedidoPublico({ ...CORPO_HONESTO, chavePedido: '6f1d2c3b-aaaa-4bbb-8ccc-123456789abc' })
+    expect(r.ok).toBe(true)
+    expect(r.input?.chaveIdempotencia).toBe('vitrine:6f1d2c3b-aaaa-4bbb-8ccc-123456789abc')
+  })
+
+  it('sem chave ou chave malformada: pedido segue, sem idempotência', () => {
+    expect(montarPedidoPublico(CORPO_HONESTO).input?.chaveIdempotencia).toBeUndefined()
+    for (const ruim of ['curta', 'x'.repeat(65), 'com espaço aqui 1234567', "';drop--123456789", 123, null]) {
+      expect(chavePedidoPublico(ruim), String(ruim)).toBeNull()
+    }
+  })
+
+  it('o campo interno chaveIdempotencia continua recusado (não dá para escolher a chave da mesa)', () => {
+    const r = montarPedidoPublico({ ...CORPO_HONESTO, chaveIdempotencia: 'mesa-123' })
+    expect(r.ok).toBe(false)
+    expect(r.recusados).toContain('chaveIdempotencia')
+  })
+
+  it('quantidade fora de 1..999, fracionada ou não numérica é recusada com mensagem', () => {
+    for (const q of [0, -1, 1.5, QTD_MAX_POR_ITEM + 1, 3_000_000_000, Number.NaN, '2', null]) {
+      const r = montarPedidoPublico({ ...CORPO_HONESTO, itens: [{ itemId: 'i1', quantidade: q }] })
+      expect(r.ok, String(q)).toBe(false)
+      expect(r.erro).toMatch(/1 a 999/)
+    }
+    expect(montarPedidoPublico({ ...CORPO_HONESTO, itens: [{ itemId: 'i1', quantidade: QTD_MAX_POR_ITEM }] }).ok).toBe(true)
   })
 })

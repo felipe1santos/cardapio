@@ -16,7 +16,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
 
   // Nada de repassar o corpo inteiro: `origem`, `canal`, `comandaId` e companhia são
   // decisão do servidor. Ver lib/queries/pedido-publico.ts.
-  const { ok, recusados, input } = montarPedidoPublico(bruto)
+  const { ok, recusados, erro, input } = montarPedidoPublico(bruto)
+  if (erro) return NextResponse.json({ error: erro }, { status: 400 })
   if (!ok || !input) {
     if (recusados.length > 0) {
       // Registra a tentativa sem guardar o payload: só os nomes dos campos.
@@ -35,12 +36,40 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   if (lojaError) return NextResponse.json({ error: 'Erro ao localizar a loja' }, { status: 500 })
   if (!loja) return NextResponse.json({ error: 'Loja não encontrada' }, { status: 404 })
 
+  // Mesma tentativa de checkout chegando de novo (resposta perdida, toque duplo): devolve
+  // o pedido que já existe. Sem notificar de novo — o cliente já foi avisado na primeira.
+  const chave = input.chaveIdempotencia
+  if (chave) {
+    const existente = await pedidoPorChave(admin, loja.id, chave)
+    if (existente) return NextResponse.json(existente, { status: 200 })
+  }
+
   try {
-    const pedido = await criarPedido(admin, loja.id, input)
+    let pedido: { id: string; numero: number }
+    try {
+      pedido = await criarPedido(admin, loja.id, input)
+    } catch (err) {
+      // As duas chegaram juntas: a primeira criou, a segunda bateu no índice único da 0065.
+      if (chave && (err as { code?: string })?.code === '23505') {
+        const vencedor = await pedidoPorChave(admin, loja.id, chave)
+        if (vencedor) return NextResponse.json(vencedor, { status: 200 })
+      }
+      throw err
+    }
     notificarPedido(admin, pedido.id, 'recebido').catch((err) => console.error('[whatsapp] erro ao notificar pedido recebido', err))
     return NextResponse.json(pedido, { status: 201 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Não foi possível registrar o pedido'
     return NextResponse.json({ error: message }, { status: 400 })
   }
+}
+
+async function pedidoPorChave(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, chave: string) {
+  const { data } = await admin
+    .from('pedidos')
+    .select('id, numero')
+    .eq('restaurante_id', restauranteId)
+    .eq('chave_idempotencia', chave)
+    .maybeSingle()
+  return data ? { id: data.id as string, numero: data.numero as number } : null
 }
