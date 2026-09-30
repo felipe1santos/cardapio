@@ -73,6 +73,33 @@ try {
   await p.getByPlaceholder('123').fill('10')
   await p.waitForTimeout(1500)
   await print('3-endereco')
+
+  // Barra do botão presa ao fundo ao rolar e quando a barra de endereço do navegador
+  // some/aparece (a altura da tela muda no meio da rolagem). Antes (fixed dentro de camada
+  // com transform) o botão subia, abria vão branco embaixo e cobria os campos.
+  const botao = p.getByRole('button', { name: /Revisar pedido/ })
+  const conferirFundo = async (rotulo) => {
+    const alt = p.viewportSize().height
+    const caixa = await botao.boundingBox()
+    const barra = await botao.evaluate((b) => b.parentElement.getBoundingClientRect().bottom)
+    return { rotulo, alt, barraFundo: Math.round(barra), botaoTopo: Math.round(caixa?.y ?? -1) }
+  }
+  const medidas = []
+  for (const [altura, delta] of [[844, 400], [844, -300], [760, 500], [760, -800], [844, 900]]) {
+    await p.setViewportSize({ width: 390, height: altura })
+    await p.mouse.wheel(0, delta)
+    await p.waitForTimeout(250)
+    medidas.push(await conferirFundo(`${altura}px rolando ${delta}`))
+  }
+  ok('botão fica colado no fundo da tela ao rolar e com a barra do navegador mudando', medidas.every((m) => Math.abs(m.barraFundo - m.alt) <= 2), JSON.stringify(medidas.filter((m) => Math.abs(m.barraFundo - m.alt) > 2)))
+  // Rolado até o fim, o último campo aparece inteiro acima da barra (não fica embaixo dela).
+  await p.mouse.wheel(0, 3000)
+  await p.waitForTimeout(300)
+  const ref = p.getByPlaceholder(/ao lado da padaria/).first()
+  const cRef = await ref.boundingBox()
+  const topoBarra = await botao.evaluate((b) => b.parentElement.getBoundingClientRect().top)
+  ok('último campo não fica escondido atrás do botão', !!cRef && cRef.y + cRef.height <= topoBarra + 1, `campo termina em ${Math.round((cRef?.y ?? 0) + (cRef?.height ?? 0))}, barra começa em ${Math.round(topoBarra)}`)
+  await print('3b-endereco-rolado')
   await p.getByRole('button', { name: /Revisar pedido/ }).tap()
   await p.waitForTimeout(1000)
   await print('4-revisao')

@@ -4416,7 +4416,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
       {/* ── Checkout screen ───────────────────────────────────────────── */}
       <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`}>
-        <div className="mx-auto min-h-dvh max-w-[600px] bg-white pb-28 lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
+        <div className="mx-auto flex min-h-dvh max-w-[600px] flex-col bg-white lg:block lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
             <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded bg-[#F3F4F6] text-lg">←</button>
             <span className="text-base font-bold">{checkoutStep === 0 ? 'Resumo do pedido' : checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? (tipoPedido === 'retirada' ? 'Seus dados' : 'Endereço') : 'Revisar pedido'}</span>
@@ -4850,7 +4850,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
           )}
 
-          <div className="camada-propria fixed inset-x-0 bottom-0 mx-auto w-full max-w-[600px] border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:sticky lg:mx-0 lg:max-w-none lg:pb-4">
+          {/* Barra do botão: sticky no fim da área que rola, não fixed. Dentro de uma camada com
+              transform (a gaveta desliza), fixed vira relativo à camada: no celular, quando a
+              barra de endereço do navegador some/aparece ao rolar, o botão subia, abria um vão
+              branco embaixo e cobria os campos — e a mensagem de erro, que cresce a barra,
+              ficava por cima do conteúdo (o espaço reservado era fixo). */}
+          <div className="sticky bottom-0 z-10 mt-auto w-full border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:pb-4">
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
               className={['flex w-full items-center justify-between rounded-lg px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]', checkoutStep === 3 ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)]'].join(' ')}>
