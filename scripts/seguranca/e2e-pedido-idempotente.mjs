@@ -4,7 +4,8 @@
  *   · o mesmo pedido enviado 2× (resposta perdida) devolve o MESMO pedido;
  *   · 3 envios simultâneos com a mesma chave criam 1 pedido só;
  *   · chave nova = pedido novo;
- *   · quantidade absurda (3 bilhões) é recusada antes de criar qualquer coisa.
+ *   · quantidade absurda (3 bilhões) é recusada antes de criar qualquer coisa;
+ *   · acompanhamento do pedido só pela loja do endereço (B16).
  * Apaga os pedidos que criou.
  *
  *   node scripts/seguranca/e2e-pedido-idempotente.mjs      (servidor local em 127.0.0.1:3999)
@@ -64,6 +65,12 @@ try {
   ok('quantidade de 3 bilhões recusada (400) sem criar pedido', absurdo.s === 400 && /999/.test(absurdo.j?.error ?? '') && (await contar()) === antes, `${absurdo.s} ${absurdo.j?.error}`)
   const fracao = await enviar(corpo({ itens: [{ itemId: item.id, quantidade: 1.5, observacao: '', complementos: [] }] }))
   ok('quantidade fracionada recusada', fracao.s === 400)
+
+  // B16: acompanhamento só pela loja do endereço.
+  const st = (slug, id) => fetch(`${BASE}/api/loja/${slug}/pedido/${id}`).then((r) => r.status)
+  ok('B16: status do pedido pela própria loja responde', (await st(SLUG, a.j.id)) === 200)
+  ok('B16: o mesmo pedido pelo endereço de OUTRA loja dá 404', (await st('cantina-pdv2', a.j.id)) === 404)
+  ok('B16: id inválido dá 404 (não 500)', (await st(SLUG, 'nao-e-uuid')) === 404)
 
   const semItens = (await db.query(`select count(*)::int n from pedidos p where p.restaurante_id=$1 and p.cliente_telefone=$2 and not exists (select 1 from pedido_itens i where i.pedido_id=p.id)`, [loja.id, TEL])).rows[0].n
   ok('nenhum pedido ficou sem itens', semItens === 0)

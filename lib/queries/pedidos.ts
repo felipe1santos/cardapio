@@ -1688,8 +1688,13 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
 }
 
 /** Status do pedido para a tela de acompanhamento da vitrine (sem expor dados de outros). */
-export async function buscarStatusPedido(admin: SupabaseClient, pedidoId: string): Promise<{ numero: number; status: StatusPedido } | null> {
-  const { data, error } = await admin.from('pedidos').select('numero, status').eq('id', pedidoId).maybeSingle()
+/**
+ * Status para o acompanhamento da vitrine. Só acha o pedido pela loja do endereço: antes
+ * o slug era ignorado e /loja/qualquer/pedido/<id> respondia pedido de outra loja (B16).
+ */
+export async function buscarStatusPedido(admin: SupabaseClient, pedidoId: string, slug: string): Promise<{ numero: number; status: StatusPedido } | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pedidoId)) return null
+  const { data, error } = await admin.from('pedidos').select('numero, status, restaurantes!inner ( slug )').eq('id', pedidoId).eq('restaurantes.slug', slug).maybeSingle()
   if (error) throw error
   return data ? { numero: data.numero, status: data.status as StatusPedido } : null
 }
