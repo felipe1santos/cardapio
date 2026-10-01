@@ -902,6 +902,7 @@ export default function CozinhaPortalPage() {
 
   // Tracks ids seen so far — used for new-order beep detection
   const idsAnteriores = useRef<Set<string>>(new Set())
+  const temDados = useRef(false)
 
   // Redesign 2026-09-30: preferências do aparelho, itens feitos, tela cheia/acesa,
   // pedidos recém-chegados em destaque, conexão, desfazer.
@@ -944,7 +945,9 @@ export default function CozinhaPortalPage() {
       const res = await fetch(`/api/cozinha/${token}`)
       const json = await res.json()
       if (!res.ok) {
-        setError(json.error ?? 'Link inválido')
+        // Link inválido/desativado (4xx) troca a tela; erro do servidor (5xx) com a tela já
+        // carregada só deixa o indicador de conexão vermelho.
+        if (res.status < 500 || !temDados.current) setError(json.error ?? 'Link inválido')
         return
       }
 
@@ -961,9 +964,13 @@ export default function CozinhaPortalPage() {
       setUltimoOk(Date.now())
 
       setData(json)
+      temDados.current = true
       setError(null)
     } catch {
-      setError('Não foi possível carregar a estação.')
+      // Queda de rede com a tela já carregada: mantém os pedidos e só acende o indicador
+      // de conexão (ele fica vermelho quando passa de 20 s sem resposta). Antes a tela
+      // inteira virava a mensagem de erro e a cozinha perdia tudo de vista.
+      if (!temDados.current) setError('Não foi possível carregar a estação.')
     } finally {
       setLoading(false)
     }

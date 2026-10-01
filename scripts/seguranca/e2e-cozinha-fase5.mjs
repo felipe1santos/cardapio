@@ -116,9 +116,12 @@ try {
   await kp.waitForTimeout(7000)
   ok('pedido novo chega sem recarregar, em destaque', (await kp.locator('.kds-novo').count()) >= 1)
 
-  console.log('   (debug) cartões:', (await kp.locator('body').innerText()).match(/#\d+/g)?.join(' '), '| ret', ret.numero, 'novo', novo.numero)
+  if (process.env.DEBUG_KDS) {
+    await kp.screenshot({ path: 'docs/noturno/2026-09-30/prints/fase5/debug-antes-pegar.png' })
+    console.log('   (debug) botões:', (await kp.getByRole('button').allInnerTexts()).filter((t) => /pegar/i.test(t)).join(' | '))
+  }
   // Pegar → preparo
-  const card = kp.locator('article', { hasText: new RegExp(`#${ret.numero}(?!\\d)`) }).getByRole('button', { name: /Pegar para fazer/ }).first()
+  const card = kp.locator('article').filter({ has: kp.getByText(`#${ret.numero}`, { exact: true }) }).getByRole('button', { name: /pegar para fazer/i }).first()
   await card.click(); await kp.waitForTimeout(1200)
   const itensModal = kp.getByTestId('kds-item')
   ok('preparo: itens com quantidade, "SEM cebola" em vermelho e observação com alerta', (await itensModal.count()) >= 1 && /SEM cebola/i.test(await itensModal.first().innerText()) && await kp.getByTestId('kds-obs').first().isVisible())
@@ -129,25 +132,26 @@ try {
   await kp.getByTestId('kds-item-abrir').first().click()
   const cf = kp.getByTestId('como-fazer')
   await cf.waitFor({ timeout: 8000 })
+  await cf.getByTestId('como-fazer-ingredientes').waitFor({ timeout: 8000 }).catch(() => {})
   ok('"Como fazer": ingredientes e passos da ficha, tempo estimado', /Pão brioche/.test(await cf.innerText()) && /Selar o blend/.test(await cf.innerText()) && /12 min/.test(await cf.innerText()))
-  await cf.getByRole('button', { name: /Próximo/ }).click()
+  await cf.getByRole('button', { name: /próximo/i }).click()
   ok('   próximo passo', /Montar no pão/.test(await cf.innerText()))
   if (PRINTS) await kp.screenshot({ path: join(PRINTS, 'kds-como-fazer.png') })
   await cf.getByRole('button', { name: 'Fechar' }).click()
-  await kp.getByRole('button', { name: /Concluir pedido/ }).click(); await kp.waitForTimeout(1500)
+  await kp.getByRole('button', { name: /concluir pedido/i }).click(); await kp.waitForTimeout(1500)
   ok('concluir manda para "Pronto p/ Despacho"', (await um(`select status from pedidos where id=$1`, [ret.id])).status === 'pronto')
-  await kp.locator('article', { hasText: new RegExp(`#${ret.numero}(?!\\d)`) }).getByRole('button', { name: /^Entregue$/ }).first().click().catch(() => {})
+  await kp.locator('article').filter({ has: kp.getByText(`#${ret.numero}`, { exact: true }) }).getByRole('button', { name: /^entregue$/i }).first().click().catch(() => {})
   await kp.waitForTimeout(1500)
   ok('retirada: "Entregue" conclui', (await um(`select status from pedidos where id=$1`, [ret.id])).status === 'entregue')
 
   // Desfazer "Iniciar preparo"
-  await kp.locator('article', { hasText: new RegExp(`#${novo.numero}(?!\\d)`) }).getByRole('button', { name: /Pegar para fazer/ }).first().click(); await kp.waitForTimeout(1200)
+  await kp.locator('article').filter({ has: kp.getByText(`#${novo.numero}`, { exact: true }) }).getByRole('button', { name: /pegar/i }).first().click(); await kp.waitForTimeout(1200)
   await kp.getByTestId('kds-desfazer').getByRole('button', { name: 'Desfazer' }).click(); await kp.waitForTimeout(1500)
   ok('desfazer "Iniciar preparo" devolve o pedido à fila', (await um(`select status from pedidos where id=$1`, [novo.id])).status === 'recebido')
 
   // Sem ficha
   await db.query(`delete from fichas_preparo where item_id=$1`, [item.id])
-  await kp.locator('article', { hasText: new RegExp(`#${novo.numero}(?!\\d)`) }).getByRole('button', { name: /Pegar para fazer/ }).first().click(); await kp.waitForTimeout(1200)
+  await kp.locator('article').filter({ has: kp.getByText(`#${novo.numero}`, { exact: true }) }).getByRole('button', { name: /pegar/i }).first().click(); await kp.waitForTimeout(1200)
   await kp.getByTestId('kds-item-abrir').first().click()
   await kp.getByTestId('como-fazer-sem-ficha').waitFor({ timeout: 8000 }).catch(() => {})
   ok('sem ficha: "Ficha de preparo ainda não cadastrada"', await kp.getByTestId('como-fazer-sem-ficha').isVisible())
