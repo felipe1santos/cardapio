@@ -23,6 +23,7 @@ import { FecharContaModal } from './fechar-conta'
 import { FotoItem } from './foto-item'
 import { BotaoPdv, CaminhoPilha, ICONES_PDV, RaizPilha, TelaPdv, textoEncerramento, toastPdv } from './tela-pdv'
 import { ICONE_FORMA_PDV } from './icones-forma'
+import { LinhaAjuste } from './linha-ajuste'
 import { SeloAtendimento, SeloCozinha, SeloFinanceiro } from './selos'
 import { TaxasModal, taxasIniciais } from './taxas-conta'
 import { rotuloTaxa, type TaxaEntrada } from '@/lib/taxas-conta'
@@ -83,6 +84,7 @@ type Subtela =
   | { tipo: 'identificar'; aviso?: string; depois?: 'fechar' }
   | { tipo: 'cancelar_conta' }
   | { tipo: 'resumo'; resumo: ResumoEncerramento; emLimpeza?: boolean }
+  | { tipo: 'remover_ajuste'; rotulo: string; corpo: Record<string, unknown> }
 
 const TOM_COZINHA: Record<string, 'pending' | 'preparing' | 'ready' | 'ok' | 'danger'> = {
   recebido: 'pending',
@@ -351,13 +353,26 @@ export function ContaPresencialModal({
             </div>
 
             {/* Totais e ações */}
-            <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border bg-page/60 px-4 py-3 lg:w-[300px] lg:border-l lg:border-t-0">
+            <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border bg-page/60 px-4 py-3 lg:w-[320px] lg:overflow-y-auto lg:border-l lg:border-t-0">
               <div className="rounded-menuzia border border-border bg-white px-3 py-3 text-[13px]" data-testid="conta-totais">
                 <Linha rotulo="Subtotal" valor={conta.totais.subtotal} />
-                {(conta.totais.taxaServico > 0 || conta.tipo === 'mesa') && <Linha rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={conta.totais.taxaServico} />}
+                {(conta.totais.taxaServico > 0 || conta.tipo === 'mesa') && (
+                  <LinhaAjuste
+                    tipo="taxa"
+                    rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`}
+                    valor={conta.totais.taxaServico}
+                    testid="conta-taxa-servico"
+                    onRemover={aberta && pode.ajustar_valores && conta.taxaServicoPercentual > 0 ? () => setSub({
+                      tipo: 'remover_ajuste',
+                      rotulo: `Taxa de serviço (${conta.taxaServicoPercentual}%)`,
+                      corpo: { acao: 'ajustar_valores', taxaServico: 0, descontoTipo: conta.descontoTipo, descontoValor: conta.descontoValor, descontoPercentual: conta.descontoPercentual, motivo: conta.descontoMotivo },
+                    }) : undefined}
+                  />
+                )}
                 {/* Valor cobrado agora: sem item ativo (tudo cancelado) a taxa não entra no total (0099). */}
                 {conta.entrega && (
-                  <Linha
+                  <LinhaAjuste
+                    tipo="taxa"
                     rotulo={conta.entrega.taxa > 0 && conta.totais.taxaEntrega === 0 ? 'Taxa de entrega (não cobrada: sem item ativo)' : `Taxa de entrega${conta.entrega.taxaManual ? ' (manual)' : ''}`}
                     valor={conta.totais.taxaEntrega}
                   />
@@ -365,9 +380,36 @@ export function ContaPresencialModal({
                 {/* Taxa manual só desta conta (0106). */}
                 {/* Cada taxa numa linha (0124); conta de antes só com a taxa manual (0106). */}
                 {conta.taxas.length > 0
-                  ? conta.taxas.map((t, i) => <Linha key={i} rotulo={rotuloTaxa(t)} valor={t.valor} testid="conta-taxa-linha" />)
-                  : conta.taxaExtra && <Linha rotulo={conta.taxaExtra.nome} valor={conta.taxaExtra.valor} testid="conta-taxa-extra" />}
-                {conta.totais.desconto > 0 && <Linha rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={-conta.totais.desconto} />}
+                  ? conta.taxas.map((t, i) => (
+                      <LinhaAjuste
+                        key={i}
+                        tipo="taxa"
+                        rotulo={rotuloTaxa(t)}
+                        valor={t.valor}
+                        testid="conta-taxa-linha"
+                        onRemover={aberta && pode.taxa_extra ? () => setSub({
+                          tipo: 'remover_ajuste',
+                          rotulo: rotuloTaxa(t),
+                          corpo: { acao: 'taxas', taxas: taxasIniciais(conta).filter((_, k) => k !== i) },
+                        }) : undefined}
+                      />
+                    ))
+                  : conta.taxaExtra && <LinhaAjuste tipo="taxa" rotulo={conta.taxaExtra.nome} valor={conta.taxaExtra.valor} testid="conta-taxa-extra" />}
+                {conta.totais.desconto > 0 && (
+                  <LinhaAjuste
+                    tipo="desconto"
+                    rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : conta.descontoTipo === 'percentual' ? `Desconto (${conta.descontoPercentual}%)` : 'Desconto'}
+                    valor={conta.totais.desconto}
+                    testid="conta-desconto"
+                    onRemover={!aberta ? undefined : conta.cupomCodigo
+                      ? (pode.aplicar_cupom ? () => setSub({ tipo: 'remover_ajuste', rotulo: `Cupom ${conta.cupomCodigo}`, corpo: { acao: 'remover_cupom' } }) : undefined)
+                      : (pode.ajustar_valores ? () => setSub({
+                          tipo: 'remover_ajuste',
+                          rotulo: 'Desconto',
+                          corpo: { acao: 'ajustar_valores', taxaServico: conta.taxaServicoPercentual, descontoTipo: 'valor', descontoValor: 0, descontoPercentual: 0 },
+                        }) : undefined)}
+                  />
+                )}
                 <div className="my-1.5 border-t border-border" />
                 <Linha rotulo="Total" valor={conta.totais.total} forte />
                 <Linha rotulo="Pago" valor={conta.totais.pago} />
@@ -418,6 +460,18 @@ export function ContaPresencialModal({
                     ))}
                   </ul>
                 </div>
+              )}
+
+              {aberta && pode.lancar && (
+                <button
+                  type="button"
+                  onClick={() => onLancarItens(conta)}
+                  data-testid="conta-lancar-grande"
+                  className="mt-auto flex h-[68px] w-full items-center justify-center gap-2 rounded-menuzia bg-primary text-[17px] font-bold text-white shadow-sm transition-all hover:bg-primary-dark active:scale-[0.98]"
+                >
+                  <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
+                  Lançar itens
+                </button>
               )}
 
               {/* As ações da conta aberta ficam na barra fixa de baixo (2026-10-01). */}
@@ -624,6 +678,23 @@ export function ContaPresencialModal({
           }}
         />
       )}
+      {conta && sub?.tipo === 'remover_ajuste' && (
+        <TelaPdv titulo={`Remover ${sub.rotulo}?`} onVoltar={() => setSub(null)} livre pequena papel="alertdialog" testid="conta-remover-ajuste">
+          <div className="p-5">
+            <p className="text-[15px] text-text-main">O total da conta será recalculado.</p>
+          </div>
+          <div className="flex gap-2 border-t border-border px-4 py-3">
+            <BotaoPdv icone={ICONES_PDV.voltar} onClick={() => setSub(null)} className="flex-1">Voltar</BotaoPdv>
+            <BotaoPdv icone={ICONES_PDV.fechar} tipo="perigo" disabled={ocupado} testid="conta-remover-confirmar" className="flex-1"
+              onClick={async () => {
+                const r = await agir(sub.corpo, `${sub.rotulo} removido.`)
+                if (r?.ok) setSub(null)
+              }}>
+              Remover
+            </BotaoPdv>
+          </div>
+        </TelaPdv>
+      )}
     </CaminhoPilha>
     </RaizPilha>
   )
@@ -727,9 +798,9 @@ function Ic({ d }: { d: string }) {
 }
 
 /** Sub-tela da conta: uma tela da pilha (cobre a conta; "← Voltar" mostra a conta igual). */
-function Moldura({ titulo, children, onVoltar, sujo }: { titulo: string; children: React.ReactNode; onVoltar: () => void; largura?: string; sujo?: boolean }) {
+function Moldura({ titulo, children, onVoltar, sujo, pequena }: { titulo: string; children: React.ReactNode; onVoltar: () => void; largura?: string; sujo?: boolean; pequena?: boolean }) {
   return (
-    <TelaPdv titulo={titulo} onVoltar={onVoltar} livre sujo={sujo}>
+    <TelaPdv titulo={titulo} onVoltar={onVoltar} livre sujo={sujo} pequena={pequena}>
       {children}
     </TelaPdv>
   )
@@ -823,6 +894,14 @@ export function ReceberModal({
             <span className="text-[14px] font-semibold text-text-subtle">Restante a pagar · {ident}</span>
             <span className="text-[28px] font-extrabold text-text-main" data-testid="receber-restante">{formatBRL(restante)}</span>
           </div>
+          {/* O que já mexeu no total: taxas (azul) e desconto (verde), como na conta. */}
+          {(conta.totais.taxaServico > 0 || conta.taxas.length > 0 || conta.totais.desconto > 0) && (
+            <div data-testid="receber-ajustes">
+              {conta.totais.taxaServico > 0 && <LinhaAjuste tipo="taxa" rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={conta.totais.taxaServico} />}
+              {conta.taxas.map((t, i) => <LinhaAjuste key={i} tipo="taxa" rotulo={rotuloTaxa(t)} valor={t.valor} />)}
+              {conta.totais.desconto > 0 && <LinhaAjuste tipo="desconto" rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={conta.totais.desconto} />}
+            </div>
+          )}
           <label className="block">
             <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Valor a receber</span>
             <input value={valor} inputMode="decimal" onFocus={() => setCampo('valor')} onChange={(e) => setValor(e.target.value)} data-testid="receber-valor"
@@ -1196,7 +1275,7 @@ function MotivoModal({
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   return (
-    <Moldura titulo={titulo} onVoltar={onVoltar}>
+    <Moldura titulo={titulo} onVoltar={onVoltar} pequena>
       <div className="space-y-3 px-4 py-4">
         <p className="text-[13px] text-text-main">{descricao}</p>
         <label className="block">
@@ -1245,7 +1324,7 @@ function AjustarModal({
   const [motivo, setMotivo] = useState(conta.descontoMotivo ?? '')
   const [erro, setErro] = useState<string | null>(null)
   return (
-    <Moldura titulo="Desconto e taxa de serviço" onVoltar={onVoltar}>
+    <Moldura titulo="Desconto e taxa de serviço" onVoltar={onVoltar} pequena>
       <div className="space-y-3 px-4 py-4">
         {podeTaxa ? (
         <label className="block">
@@ -1508,11 +1587,11 @@ function BotaoAcao({ icone, rotulo, onClick, disabled, testid, title, perigo = f
       data-testid={testid}
       title={title ?? rotulo}
       className={[
-        'flex h-[60px] w-[88px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border bg-white text-[11px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
+        'flex h-[84px] w-[88px] flex-shrink-0 flex-col items-center justify-center gap-1.5 rounded-menuzia border bg-white text-[12px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
         perigo ? 'border-danger/40 text-danger hover:bg-danger-bg' : 'border-border text-text-main hover:border-primary hover:text-primary',
       ].join(' ')}
     >
-      <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current" aria-hidden><path d={icone} /></svg>
+      <svg viewBox="0 0 24 24" className="h-[28px] w-[28px] fill-current" aria-hidden><path d={icone} /></svg>
       <span className="max-w-full px-0.5 text-center">{rotulo}</span>
     </button>
   )
@@ -1549,14 +1628,14 @@ function BarraAcoesConta({
       <div className="flex w-full gap-2 sm:w-auto">
         {pode.pagamento && conta.totais.restante > 0 && (
           <button type="button" disabled={ocupado} onClick={onReceber} data-testid="conta-receber"
-            className="flex h-[60px] flex-1 items-center justify-center gap-2 rounded-menuzia bg-primary px-6 text-[16px] font-bold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 sm:flex-none">
+            className="flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia bg-primary px-7 text-[18px] font-bold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 sm:flex-none">
             <Ic d={ICONES_PDV.receber} />
             Receber
           </button>
         )}
         {pode.fechar && (
           <button type="button" disabled={ocupado} onClick={onFechar} data-testid="conta-fechar"
-            className={['flex h-[60px] flex-1 items-center justify-center gap-2 rounded-menuzia border-2 border-status-ready px-6 text-[16px] font-bold transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none',
+            className={['flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia border-2 border-status-ready px-7 text-[18px] font-bold transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none',
               // Uma ação forte por vez: com saldo a receber, o destaque é o Receber.
               pode.pagamento && conta.totais.restante > 0 ? 'bg-white text-status-ready' : 'bg-status-ready text-white'].join(' ')}>
             <Ic d={ICONES_PDV.check} />

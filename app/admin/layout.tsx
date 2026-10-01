@@ -331,7 +331,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* "Salvando… / Salvo" no centro da tela para toda gravação feita pelo usuário. */}
       <IndicadorSalvar />
       {/* Central de atendimento do WhatsApp: só o botão (leve); o painel vem sob demanda. */}
-      {restauranteId && papel && pode(papel, 'whatsapp.atender') && <LancadorAtendimento restauranteId={restauranteId} />}
+      {/* Botão flutuante do atendimento: fora do PDV, Mesas, Comandas e Balcão — lá ele cobria a barra de ações. */}
+      {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} />}
       {fichaAberta && loja && (
         <FichaDaLoja
           loja={{ ...loja, slug: storeSlug }}

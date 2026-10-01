@@ -1083,7 +1083,7 @@ export function ModalMotivo({
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   return (
-    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-motivo">
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-motivo" pequena>
         <div className="p-5">
         <label className="block">
           <span className="mb-1 block text-[13px] font-bold text-text-subtle">Motivo (obrigatório)</span>
@@ -1126,7 +1126,7 @@ export function ModalDestino({
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   return (
-    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-destino">
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-destino" pequena>
         <div className="p-5">
         <select value={destino} onChange={(e) => setDestino(e.target.value)} className={INPUT} aria-label="Mesa de destino">
           {disponiveis.map((m) => (
@@ -1174,7 +1174,7 @@ export function Confirmacao({
 }) {
   const [enviando, setEnviando] = useState(false)
   return (
-    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} testid="tela-confirmacao" papel="alertdialog">
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} testid="tela-confirmacao" papel="alertdialog" pequena>
         <div className="p-5">
         <p className="text-[15px] leading-relaxed text-text-main">{texto}</p>
         </div>

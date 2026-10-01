@@ -8,6 +8,7 @@ import { chamar, formatBRL, horaCurta, lerValor, novaChave } from './util'
 import { TaxasModal, taxasIniciais } from './taxas-conta'
 import { FotoItem } from './foto-item'
 import { BotaoPdv, ICONES_PDV, TelaPdv } from './tela-pdv'
+import { LinhaAjuste } from './linha-ajuste'
 import { Selo } from './selos'
 import { calcularTaxas, rotuloTaxa, type TaxaCalculada, type TaxaEntrada } from '@/lib/taxas-conta'
 
@@ -369,12 +370,12 @@ export function FecharContaModal({
                 )}
                 <Linha rotulo="Subtotal" valor={sim.subtotal} />
                 {sim.cancelados > 0 && <Linha rotulo="Itens cancelados (não cobrados)" valor={sim.cancelados} fraco />}
-                {sim.taxa > 0 && <Linha rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={sim.taxa} />}
+                {sim.taxa > 0 && <LinhaAjuste tipo="taxa" rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={sim.taxa} />}
                 {taxasNaTela.length > 0
-                  ? taxasNaTela.map((t, k) => <Linha key={k} rotulo={rotuloTaxa(t)} valor={t.valor} testid="fechar-taxa-linha" />)
-                  : Number(sim.taxa_extra) > 0 && <Linha rotulo={sim.taxa_extra_nome || 'Taxas'} valor={Number(sim.taxa_extra)} />}
-                {Number(sim.taxa_entrega) > 0 && <Linha rotulo="Taxa de entrega" valor={Number(sim.taxa_entrega)} />}
-                {sim.desconto > 0 && <Linha rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={-sim.desconto} />}
+                  ? taxasNaTela.map((t, k) => <LinhaAjuste key={k} tipo="taxa" rotulo={rotuloTaxa(t)} valor={t.valor} testid="fechar-taxa-linha" />)
+                  : Number(sim.taxa_extra) > 0 && <LinhaAjuste tipo="taxa" rotulo={sim.taxa_extra_nome || 'Taxas'} valor={Number(sim.taxa_extra)} />}
+                {Number(sim.taxa_entrega) > 0 && <LinhaAjuste tipo="taxa" rotulo="Taxa de entrega" valor={Number(sim.taxa_entrega)} />}
+                {sim.desconto > 0 && <LinhaAjuste tipo="desconto" rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : conta.descontoTipo === 'percentual' ? `Desconto (${conta.descontoPercentual}%)` : 'Desconto'} valor={sim.desconto} testid="fechar-desconto" />}
                 <div className="my-1.5 border-t border-border" />
                 <Linha rotulo="Total" valor={sim.total} forte />
                 <Linha rotulo="Já pago" valor={sim.pago} />

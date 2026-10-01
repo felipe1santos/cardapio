@@ -10,6 +10,7 @@ import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
+import { saborDoProprioItem, saboresDoTamanho } from '@/lib/pizza-sabores'
 import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
@@ -1815,16 +1816,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const tamanhoPizzaAtual = tamanhosDoItem.find((t) => t.id === selectedTamanhoPizzaId) ?? null
   const maxSaboresAtual = tamanhoPizzaAtual?.maxSabores ?? 1
 
-  // Sabor sem preço no tamanho escolhido não é vendido nele (o servidor recusa),
-  // então nem aparece na lista.
-  const saboresDisponiveis = useMemo(() => {
+  // Sabores vendáveis no tamanho e o preço de cada um: regra única (lib/pizza-sabores), a mesma
+  // do PDV, do garçom e do servidor. Pizza sem preço por sabor usa o preço do item; pizza sem
+  // sabores não exige sabor (antes a ficha travava em "Nenhum sabor disponível neste tamanho").
+  const vendaveisPizza = useMemo(() => {
     if (!productSheet || productSheet.tipoItem !== 'pizza') return []
-    return productSheet.sabores.filter(
-      (s) =>
-        s.status === 'disponivel' &&
-        (s.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0) > 0,
-    )
+    return saboresDoTamanho(productSheet.sabores, selectedTamanhoPizzaId, productSheet.preco)
   }, [productSheet, selectedTamanhoPizzaId])
+  const saboresDisponiveis = useMemo(() => vendaveisPizza.map((v) => v.sabor), [vendaveisPizza])
+  const precoDoSabor = (id: string) => vendaveisPizza.find((v) => v.sabor.id === id)?.preco ?? 0
+  const pizzaSemSaborNoTamanho = !!productSheet && productSheet.tipoItem === 'pizza' && !!selectedTamanhoPizzaId && saboresDisponiveis.length === 0
 
   /**
    * Menor preço de sabor disponível em cada tamanho — o "a partir de" que a
@@ -1837,10 +1838,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     const mapa = new Map<string, number>()
     if (!productSheet || productSheet.tipoItem !== 'pizza') return mapa
     for (const t of tamanhosDoItem) {
-      const precos = productSheet.sabores
-        .filter((s) => s.status === 'disponivel')
-        .map((s) => s.precos.find((p) => p.tamanhoPadraoId === t.id)?.preco ?? 0)
-        .filter((p) => p > 0)
+      const precos = saboresDoTamanho(productSheet.sabores, t.id, productSheet.preco).map((v) => v.preco).filter((p) => p > 0)
       if (precos.length > 0) mapa.set(t.id, Math.min(...precos))
     }
     return mapa
@@ -1863,9 +1861,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   useEffect(() => {
     setSelectedSaborIds((prev) => {
       const podados = prev.filter((id) => saboresDisponiveis.some((s) => s.id === id)).slice(0, maxSaboresAtual)
-      if (maxSaboresAtual === 1 && podados.length === 0 && saboresDisponiveis.length > 0) return [saboresDisponiveis[0].id]
+      if (maxSaboresAtual === 1 && podados.length === 0 && saboresDisponiveis.length > 0) {
+        // O sabor do próprio produto ("Pizza Calabresa" → Calabresa) vem primeiro; senão o primeiro da lista.
+        const proprio = productSheet ? saborDoProprioItem(productSheet.nome, saboresDisponiveis.map((s) => s.nome)) : null
+        return [(saboresDisponiveis.find((s) => s.nome === proprio) ?? saboresDisponiveis[0]).id]
+      }
       return podados.length === prev.length ? prev : podados
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saboresDisponiveis, maxSaboresAtual])
 
   /**
@@ -1962,14 +1965,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     const saborSumiu =
       item.tipoItem === 'pizza' &&
       nomesAntigos.length > 0 &&
-      !nomesAntigos.every((n) =>
-        item.sabores.some(
-          (s) =>
-            s.nome === n &&
-            s.status === 'disponivel' &&
-            (s.precos.find((p) => p.tamanhoPadraoId === tamanhoRestauradoId)?.preco ?? 0) > 0,
-        ),
-      )
+      !nomesAntigos.every((n) => saboresDoTamanho(item.sabores, tamanhoRestauradoId, item.preco).some((v) => v.sabor.nome === n))
     if (tamanhoSumiu || saborSumiu) showToast('O cardápio mudou — confira as opções antes de salvar.')
   }
 
@@ -2013,13 +2009,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const gruposValidos = useMemo(() => {
     if (!productSheet) return true
     if (productSheet.tamanhos.length > 0 && !selectedTamanhoId) return false
-    if (productSheet.tipoItem === 'pizza' && (!tamanhoPizzaAtual || selectedSabores.length === 0)) return false
+    if (productSheet.tipoItem === 'pizza' && (!tamanhoPizzaAtual || (selectedSabores.length === 0 && !pizzaSemSaborNoTamanho))) return false
     return productSheet.grupos.every((g) => {
       if (!g.obrigatorio) return true
       return totalGrupo(groupSelections.get(g.id)) >= g.minEscolhas
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productSheet, groupSelections, selectedTamanhoId, selectedTamanhoPizzaId, selectedSabores.length, tamanhoPizzaAtual])
+  }, [productSheet, groupSelections, selectedTamanhoId, selectedTamanhoPizzaId, selectedSabores.length, tamanhoPizzaAtual, pizzaSemSaborNoTamanho])
 
   const addonsTotal = useMemo(() => {
     if (!productSheet) return 0
@@ -2042,10 +2038,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const selectedMassa = massasPizza.find((m) => m.id === selectedMassaId) ?? null
   // Meio a meio: a regra da loja (média ou maior) decide o preço dos sabores
   // escolhidos. A mesma função roda no servidor ao gravar o pedido.
-  const precoSaborTamanho = precoPizzaSabores(
-    selectedSabores.map((s) => s.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0),
-    restaurante?.pizzaCalculoPreco ?? 'media',
-  )
+  const precoSaborTamanho = pizzaSemSaborNoTamanho
+    ? (productSheet?.preco ?? 0)
+    : precoPizzaSabores(selectedSabores.map((s) => precoDoSabor(s.id)), restaurante?.pizzaCalculoPreco ?? 'media')
 
   const basePrice = productSheet
     ? productSheet.tipoItem === 'pizza'
@@ -4360,9 +4355,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     <GrupoHeader
                       titulo={maxSaboresAtual > 1 ? 'Sabores' : 'Sabor'}
                       regra={maxSaboresAtual > 1 ? `Escolha até ${maxSaboresAtual}` : 'Escolha 1'}
-                      obrigatorio
+                      obrigatorio={!pizzaSemSaborNoTamanho}
                       contador={`${selectedSabores.length}/${maxSaboresAtual}`}
-                      atendido={selectedSabores.length > 0}
+                      atendido={selectedSabores.length > 0 || pizzaSemSaborNoTamanho}
                       grudado={fichaGaveta}
                     />
                     {saboresDisponiveis.map((sabor) => {
@@ -4370,7 +4365,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       const posicao = selectedSabores.findIndex((s) => s.id === sabor.id)
                       const isSelected = posicao >= 0
                       const cheio = selectedSabores.length >= maxSaboresAtual
-                      const preco = sabor.precos.find((p) => p.tamanhoPadraoId === selectedTamanhoPizzaId)?.preco ?? 0
+                      const preco = precoDoSabor(sabor.id)
                       return (
                         <button
                           key={sabor.id}
@@ -4408,8 +4403,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         </button>
                       )
                     })}
-                    {saboresDisponiveis.length === 0 && (
-                      <p className="py-2.5 text-[13px] text-text-subtle">Nenhum sabor disponível neste tamanho.</p>
+                    {pizzaSemSaborNoTamanho && (
+                      <p className="py-2.5 text-[13px] text-text-subtle" data-sem-sabores>Este tamanho não tem sabores para escolher — a pizza sai como no cardápio.</p>
                     )}
                     {maxSaboresAtual > 1 && selectedSabores.length > 1 && (
                       <p className="mt-2 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] font-medium leading-relaxed text-alert-text">

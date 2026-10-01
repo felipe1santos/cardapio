@@ -10,6 +10,7 @@ import type { GrupoCardapio, ItemCardapio } from '@/lib/queries/cardapio'
 import type { BordaPizza, MassaPizza, TamanhoPadraoPizza } from '@/lib/queries/pizza'
 import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
+import { saborDoProprioItem, saboresDoTamanho } from '@/lib/pizza-sabores'
 import { validarOpcoes, minimoDoGrupo, maximoDoGrupo } from '@/lib/opcoes-item'
 import {
   gruposComOpcao,
@@ -432,21 +433,26 @@ export function ConfiguradorGarcom({
   const tamanhoPizza = ehPizza ? tamanhosPizza.find((t) => t.nome === tamanhoNome) : undefined
   const maxSabores = Math.max(1, tamanhoPizza?.maxSabores ?? 1)
 
+  // Regra única dos sabores (lib/pizza-sabores): pizza sem preço por sabor usa o preço do item;
+  // pizza sem sabores não exige sabor.
+  const vendaveis = useMemo(() => (ehPizza ? saboresDoTamanho(item.sabores, tamanhoPizza?.id, item.preco) : []), [ehPizza, item, tamanhoPizza?.id])
+  const semSabores = ehPizza && !!tamanhoPizza && vendaveis.length === 0
   function precoDoSabor(nome: string): number | undefined {
-    if (!tamanhoPizza) return undefined
-    const p = sabores.find((s) => s.nome === nome)?.precos.find((x) => x.tamanhoPadraoId === tamanhoPizza.id)?.preco
-    return p !== undefined && p > 0 ? p : undefined
+    return vendaveis.find((v) => v.sabor.nome === nome)?.preco
   }
 
   function escolherTamanhoPizza(nome: string) {
     setTamanhoNome(nome)
     // Sabor sem preço no tamanho novo, ou além do limite de sabores, sai da escolha.
     const t = tamanhosPizza.find((x) => x.nome === nome)
-    setSaboresEscolhidos((atual) =>
-      atual
-        .filter((n) => sabores.find((s) => s.nome === n)?.precos.some((p) => p.tamanhoPadraoId === t?.id && p.preco > 0))
-        .slice(0, Math.max(1, t?.maxSabores ?? 1)),
-    )
+    const novos = saboresDoTamanho(item.sabores, t?.id, item.preco)
+    setSaboresEscolhidos((atual) => {
+      const ficam = atual.filter((n) => novos.some((v) => v.sabor.nome === n)).slice(0, Math.max(1, t?.maxSabores ?? 1))
+      if (ficam.length > 0) return ficam
+      // O sabor do próprio produto ("Pizza Calabresa" → Calabresa) já vem marcado.
+      const proprio = saborDoProprioItem(item.nome, novos.map((v) => v.sabor.nome))
+      return proprio ? [proprio] : []
+    })
   }
 
   function alternarSabor(nome: string) {
@@ -475,7 +481,7 @@ export function ConfiguradorGarcom({
   const pendencias: string[] = []
   if (ehPizza) {
     if (!tamanhoPizza) pendencias.push('Escolha o tamanho.')
-    else if (saboresEscolhidos.length === 0) pendencias.push('Escolha o sabor.')
+    else if (saboresEscolhidos.length === 0 && !semSabores) pendencias.push('Escolha o sabor.')
   } else if (tamanhosItem.length > 0 && !tamanhoNome) {
     pendencias.push('Escolha o tamanho.')
   }
@@ -485,7 +491,7 @@ export function ConfiguradorGarcom({
   if (ehPizza) {
     const precos = saboresEscolhidos.map(precoDoSabor).filter((p): p is number => p !== undefined)
     unitario =
-      precoPizzaSabores(precos, pizza.regra) +
+      (semSabores ? item.preco : precoPizzaSabores(precos, pizza.regra)) +
       (pizza.bordas.find((b) => b.nome === bordaNome)?.preco ?? 0) +
       (pizza.massas.find((m) => m.nome === massaNome)?.preco ?? 0) +
       complementos.reduce((s, c) => s + c.preco, 0)
@@ -528,7 +534,8 @@ export function ConfiguradorGarcom({
                 ))}
               </Etapa>
               {tamanhoPizza && (
-                <Etapa titulo={maxSabores > 1 ? `Sabores (até ${maxSabores})` : 'Sabor'} obrigatorio ok={saboresEscolhidos.length > 0}>
+                <Etapa titulo={maxSabores > 1 ? `Sabores (até ${maxSabores})` : 'Sabor'} obrigatorio={!semSabores} ok={saboresEscolhidos.length > 0 || semSabores}>
+                  {semSabores && <p className="px-3 py-2.5 text-[12px] text-text-subtle">Este tamanho não tem sabores cadastrados.</p>}
                   {sabores.map((s) => {
                     const p = precoDoSabor(s.nome)
                     if (p === undefined) return null

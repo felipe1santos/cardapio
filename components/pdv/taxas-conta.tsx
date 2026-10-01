@@ -62,7 +62,7 @@ export function TaxasModal({
       titulo="Taxas da conta"
       onVoltar={onVoltar}
       testid="taxas-modal"
-      larguraMax={900}
+      larguraMax={560} pequena
       sujo={JSON.stringify(entrada) !== JSON.stringify(atuais.map((t) => ({ nome: t.nome, tipo: t.tipo, base: String(t.base).replace('.', ','), quantidade: t.quantidade ?? 1 })))}
       rodape={
         <div className="flex flex-wrap items-center gap-2">

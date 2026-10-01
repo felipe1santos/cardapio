@@ -32,7 +32,7 @@ export function ResumoEncerramentoModal({
     </div>
   )
   return (
-    <TelaPdv titulo={cancelada ? 'Conta cancelada' : 'Conta fechada'} onVoltar={onOk} livre larguraMax={640} testid="resumo-encerramento">
+    <TelaPdv titulo={cancelada ? 'Conta cancelada' : 'Conta fechada'} onVoltar={onOk} livre larguraMax={640} testid="resumo-encerramento" pequena>
       <div>
         <div className={`border-b border-border px-4 py-3 ${cancelada ? 'bg-danger-bg' : 'bg-price-bg'}`}>
           <p className={`text-[11px] font-bold uppercase tracking-wide ${cancelada ? 'text-danger' : 'text-price-text'}`}>

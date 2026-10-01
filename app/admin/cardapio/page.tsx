@@ -1,5 +1,6 @@
 'use client'
 
+import { avisosDoCadastro } from '@/lib/avisos-cadastro'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { avisoDoItem, erroDoItem, statusAoCriarItem } from '@/lib/item-cadastro'
@@ -1047,9 +1048,11 @@ export default function CardapioPage() {
           tagPersonalizadaCor: form.tagPersonalizadaCor,
         },
       }
+      let salvo: ItemCardapio
       if (form.id) {
         const updated = await atualizarItem(supabase, form.id, { ...payload, imagemUrl: form.imagemUrl, imagemThumbUrl: form.imagemThumbUrl })
         setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+        salvo = updated
       } else {
         const created = await criarItem(supabase, restauranteId, payload)
         let final = created
@@ -1057,6 +1060,7 @@ export default function CardapioPage() {
           final = await atualizarItem(supabase, created.id, { ...payload, imagemUrl: form.imagemUrl, imagemThumbUrl: form.imagemThumbUrl })
         }
         setItems((prev) => [...prev, final])
+        salvo = final
         // Update form with the new item id so complementos can be added
         setForm((prev) => ({ ...prev, id: final.id, status: final.status }))
         if (inicial.pausadoAteTerPreco) {
@@ -1065,6 +1069,9 @@ export default function CardapioPage() {
         }
       }
       toasts.mostrar('ok', 'Produto salvo.')
+      // O que deixaria o cliente/operador sem opção para escolher (não bloqueia o salvamento).
+      const avisos = avisosDoCadastro(salvo, tamanhosPizzaCatalogo)
+      if (avisos.length) toasts.mostrar('erro', `Atenção: ${avisos[0]}${avisos.length > 1 ? ` (+${avisos.length - 1})` : ''}`)
       if (fechar) setDrawer(null)
       return true
     } catch (e) {

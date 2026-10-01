@@ -7,6 +7,7 @@ import { SELO_FAVORITO, etiquetaDoItem, mostraSeloFavorito } from '@/lib/etiquet
 import { adicionarNaSelecao } from '@/lib/selecao-mesa'
 import { precificarLinha, type ItemPrecificavel, type OpcaoDaLinha, type PizzaDaLoja, type TipoOpcao } from '@/lib/selecao-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
+import { saboresDoTamanho } from '@/lib/pizza-sabores'
 
 /**
  * Cardápio presencial da mesa.
@@ -1050,6 +1051,8 @@ function Configurador({
    */
   const etapas = useMemo<Etapa[]>(() => {
     const lista: Etapa[] = []
+    // A mesa só recebe sabores disponíveis: no formato da regra única (lib/pizza-sabores).
+    const saboresComStatus = item.sabores.map((sb) => ({ ...sb, status: 'disponivel' }))
     if (ehPizza) {
       // Pizza: tamanho → sabor(es) → borda → massa, e depois os adicionais do item.
       lista.push({
@@ -1061,7 +1064,7 @@ function Configurador({
         min: 1,
         max: 1,
         opcoes: tamanhosPizza.map((t) => {
-          const precos = item.sabores.map((s) => s.precos[t.id] ?? 0).filter((x) => x > 0)
+          const precos = saboresDoTamanho(saboresComStatus, t.id, item.preco).map((v) => v.preco).filter((x) => x > 0)
           return {
             id: t.id,
             nome: t.nome,
@@ -1073,6 +1076,10 @@ function Configurador({
         }),
       })
       const max = Math.max(1, tamanhoPizza?.maxSabores ?? 1)
+      // Regra única dos sabores (lib/pizza-sabores): sem preço por sabor vale o preço do item;
+      // sem sabores, a etapa não é obrigatória.
+      const vendaveis = tamanhoPizza ? saboresDoTamanho(saboresComStatus, tamanhoPizza.id, item.preco) : []
+      const semSabores = !!tamanhoPizza && vendaveis.length === 0
       lista.push({
         id: 'sabor',
         tipo: 'sabor',
@@ -1081,22 +1088,20 @@ function Configurador({
           ? 'Escolha o tamanho primeiro.'
           : max > 1
             ? `Escolha de 1 a ${max} sabores. Com mais de um, o preço é ${pizza.regra === 'maior' ? 'o do sabor mais caro' : 'a média dos sabores'}.`
-            : 'Você deve escolher 1 sabor.',
-        obrigatorio: true,
-        min: 1,
+            : semSabores
+              ? 'Este tamanho não tem sabores para escolher.'
+              : 'Você deve escolher 1 sabor.',
+        obrigatorio: !semSabores,
+        min: semSabores ? 0 : 1,
         max,
-        opcoes: tamanhoPizza
-          ? item.sabores
-              .filter((sb) => (sb.precos[tamanhoPizza.id] ?? 0) > 0)
-              .map((sb) => ({
-                id: `sabor:${sb.nome}`,
-                nome: sb.nome,
-                preco: 0,
-                imagemUrl: null,
-                detalhe: brl(sb.precos[tamanhoPizza.id]!),
-                descricao: sb.descricao || undefined,
-              }))
-          : [],
+        opcoes: vendaveis.map(({ sabor: sb, preco }) => ({
+          id: `sabor:${sb.nome}`,
+          nome: sb.nome,
+          preco: 0,
+          imagemUrl: null,
+          detalhe: brl(preco),
+          descricao: sb.descricao || undefined,
+        })),
       })
       if (pizza.bordas.length > 0) {
         lista.push({
@@ -1167,8 +1172,9 @@ function Configurador({
       if (ehPizza && etapa.tipo === 'tamanho') {
         // Troca de tamanho: sai o sabor sem preço nele e o que passa do limite de sabores.
         const t = tamanhosPizza.find((x) => x.id === opcaoId)
+        const validos = saboresDoTamanho(item.sabores.map((sb) => ({ ...sb, status: 'disponivel' })), t?.id, item.preco)
         const sabores = (atual.sabor ?? [])
-          .filter((id) => (item.sabores.find((sb) => `sabor:${sb.nome}` === id)?.precos[t?.id ?? ''] ?? 0) > 0)
+          .filter((id) => validos.some((v) => `sabor:${v.sabor.nome}` === id))
           .slice(0, Math.max(1, t?.maxSabores ?? 1))
         return { ...atual, tamanho: [opcaoId], sabor: sabores }
       }

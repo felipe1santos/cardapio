@@ -1,4 +1,5 @@
 import { precoPizzaSabores, separarSabores, juntarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
+import { pizzaSemSabores, saboresDoTamanho } from '@/lib/pizza-sabores'
 
 export interface SaborCatalogo {
   nome: string
@@ -20,6 +21,8 @@ export interface ResolverPizzaArgs {
   saborTexto: string
   catalogo: SaborCatalogo[]
   regra: RegraPrecoPizza
+  /** Preço do item: vale para pizza sem preço por sabor e para pizza sem sabores (lib/pizza-sabores). */
+  itemPreco?: number
 }
 
 /** Comparação de nome tolerante a caixa e acento — o cliente manda o que a tela mostrou. */
@@ -32,7 +35,11 @@ function chave(texto: string): string {
  * tamanho e sabores por NOME, e aqui se confere tudo contra o catálogo do
  * tenant antes de calcular.
  */
-export function resolverPizza({ itemNome, tamanho, saborTexto, catalogo, regra }: ResolverPizzaArgs): { base: number; saborNome: string } {
+export function resolverPizza({ itemNome, tamanho, saborTexto, catalogo, regra, itemPreco }: ResolverPizzaArgs): { base: number; saborNome: string } {
+  // Mesma regra das telas (lib/pizza-sabores): o que é vendável neste tamanho e por quanto.
+  const comPrecos = catalogo.map((s) => ({ nome: s.nome, status: s.status, precos: Object.fromEntries(s.precoPorTamanho) }))
+  const vendaveis = saboresDoTamanho(comPrecos, tamanho.id, itemPreco)
+
   // Loja que já existia antes do meio a meio pode ter sabor gravado com " / "
   // no próprio nome ("Frango / Catupiry"). A guarda de cadastro só impede nome
   // NOVO — o que já está no banco tem que continuar vendendo. Então antes de
@@ -43,7 +50,11 @@ export function resolverPizza({ itemNome, tamanho, saborTexto, catalogo, regra }
   const legado = inteiro ? catalogo.find((s) => chave(s.nome) === chave(inteiro)) : undefined
 
   const pedidos = legado ? [legado.nome] : separarSabores(saborTexto)
-  if (pedidos.length === 0) throw new Error(`Selecione o sabor da pizza "${itemNome}"`)
+  if (pedidos.length === 0) {
+    // Pizza sem nenhum sabor cadastrado: o sabor não é obrigatório — sai pelo preço do item.
+    if (itemPreco !== undefined && pizzaSemSabores(comPrecos)) return { base: itemPreco, saborNome: '' }
+    throw new Error(`Selecione o sabor da pizza "${itemNome}"`)
+  }
 
   if (pedidos.length > tamanho.maxSabores) {
     const limite = tamanho.maxSabores === 1 ? '1 sabor' : `${tamanho.maxSabores} sabores`
@@ -63,10 +74,10 @@ export function resolverPizza({ itemNome, tamanho, saborTexto, catalogo, regra }
     if (!sabor || sabor.status !== 'disponivel') {
       throw new Error(`Sabor "${pedido}" não está disponível no item "${itemNome}".`)
     }
-    const preco = sabor.precoPorTamanho.get(tamanho.id)
-    // Preço 0 é "ainda não precificado": nenhuma tela oferece esse sabor nesse tamanho,
-    // então aceitar aqui só serviria para uma pizza sair de graça por POST direto.
-    if (preco === undefined || !(preco > 0)) {
+    // Preço 0 é "ainda não precificado": nenhuma tela oferece esse sabor nesse tamanho
+    // (salvo pizza sem preço por sabor, que vale o preço do item — lib/pizza-sabores).
+    const preco = vendaveis.find((v) => chave(v.sabor.nome) === k)?.preco
+    if (preco === undefined) {
       throw new Error(`O sabor "${sabor.nome}" não é vendido no tamanho "${tamanho.nome}".`)
     }
     nomes.push(sabor.nome)

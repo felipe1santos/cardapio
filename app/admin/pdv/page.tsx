@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { useRouter } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
@@ -9,9 +8,7 @@ import {
   listarGrupos,
   listarItens,
   type GrupoCardapio,
-  type GrupoItemComplementos,
   type ItemCardapio,
-  type PizzaSabor,
 } from '@/lib/queries/cardapio'
 import type { MesaComEstado } from '@/lib/queries/comandas'
 import { AJUDA_ESTADO, estadoDaMesa, ROTULO_ESTADO, type EstadoMesa } from '@/lib/queries/mesas'
@@ -25,8 +22,7 @@ import {
   type TamanhoPadraoPizza,
 } from '@/lib/queries/pizza'
 import { type NovoPedidoItemInput, type Pedido } from '@/lib/queries/pedidos'
-import { juntarSabores, precoPizzaSabores, separarSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
-import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
+import { type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { massasParaEscolha } from '@/lib/massa-padrao'
 import { Button } from '@/components/ui/button'
 import { CentralBalcao } from '@/components/pdv/central-balcao'
@@ -34,6 +30,7 @@ import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { FotoItem } from '@/components/pdv/foto-item'
+import { ConfigurarItem, precoUnitarioPdv, type EstadoConfig } from '@/components/pdv/configurar-item'
 import { BotaoPdv, ICONES_PDV, TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
@@ -52,17 +49,7 @@ interface ComandaLinha {
   observacao: string
 }
 
-interface SeletorState {
-  item: ItemCardapio
-  /** For pizza: tamanho padrão nome. For simples: tamanhos_item nome. */
-  tamanhoNome: string
-  saborNome: string
-  bordaId: string
-  massaId: string
-  /** grupoId → selected complement names */
-  complementosSelecionados: Record<string, string[]>
-  observacao: string
-}
+type SeletorState = EstadoConfig
 
 /** Formas de pagamento oferecidas no fechamento (UI). */
 type FormaPgtoUI = 'dinheiro' | 'pix' | 'debito' | 'credito'
@@ -80,19 +67,6 @@ function needsSelector(item: ItemCardapio): boolean {
   return false
 }
 
-/**
- * Soma o preço dos complementos escolhidos (por nome) contra o catálogo do
- * próprio item — mesma busca que `criarPedido` faz no servidor (`item_complementos`
- * achatado, ungrouped + de cada grupo). Nome que não resolve (removido do
- * cardápio depois que a linha foi montada) é ignorado, nunca "adivinhado".
- */
-function precoComplementosItem(item: ItemCardapio, nomes: string[]): number {
-  const catalogo = [...item.complementos, ...item.grupos.flatMap((g) => g.complementos)]
-  return nomes.reduce((soma, nome) => {
-    const comp = catalogo.find((c) => c.nome === nome)
-    return comp ? soma + comp.preco : soma
-  }, 0)
-}
 
 function linhaDescricao(linha: ComandaLinha): string {
   const parts: string[] = []
@@ -137,376 +111,7 @@ function mesaEstadoVisual(mesa: MesaComEstado): EstadoMesa {
   return estadoDaMesa(mesa, { aberta: !!mesa.comandaAberta, qtdPedidos: mesa.qtdPedidos })
 }
 
-// ─── Product Selector Modal ───────────────────────────────────────────────────
-
-function SeletorModal({
-  state,
-  tamanhosPizza,
-  bordasPizza,
-  massasPizza,
-  onChange,
-  onCancel,
-  onConfirm,
-}: {
-  state: SeletorState
-  tamanhosPizza: TamanhoPadraoPizza[]
-  bordasPizza: BordaPizza[]
-  massasPizza: MassaPizza[]
-  onChange: (patch: Partial<SeletorState>) => void
-  onCancel: () => void
-  onConfirm: (result: Omit<ComandaLinha, 'uid' | 'item' | 'quantidade'>) => void
-}) {
-  const { item } = state
-  const isPizza = item.tipoItem === 'pizza'
-  const hasSimplesTamanhos = !isPizza && item.tamanhos.length > 0
-
-  // Tamanhos que o item realmente vende — mesmo filtro da vitrine
-  // (`tamanhosComPreco`): tamanho em que nenhum sabor do item tem preço não é
-  // vendido, e oferecê-lo ao operador só leva a uma lista de sabores vazia.
-  // Brotinho e Promocional têm preço em um tamanho só.
-  const tamanhosDoItem = isPizza
-    ? tamanhosVendidosDaPizza(tamanhosPizza, item.sabores, item.pizzaTamanhosOcultos)
-    : tamanhosPizza
-
-  // Pizza — o tamanho escolhido decide quantos sabores cabem (maxSabores) e quais
-  // sabores têm preço nele (sabor sem preço no tamanho não é vendido — o servidor recusa).
-  const tamanhoPizzaAtual = isPizza ? (tamanhosDoItem.find((t) => t.nome === state.tamanhoNome) ?? null) : null
-  const maxSaboresAtual = tamanhoPizzaAtual?.maxSabores ?? 1
-  const saboresDisponiveis = isPizza
-    ? item.sabores.filter(
-        (s) => s.status === 'disponivel' && (s.precos.find((p) => p.tamanhoPadraoId === tamanhoPizzaAtual?.id)?.preco ?? 0) > 0,
-      )
-    : []
-  // Lista já sanitizada (só nomes válidos pro tamanho atual, até o limite dele) —
-  // mesmo no frame logo após trocar de tamanho, nunca reflete uma seleção que o
-  // servidor recusaria. Preço e confirmação usam sempre esta lista, nunca o texto cru.
-  const selectedSabores = separarSabores(state.saborNome)
-    .map((n) => saboresDisponiveis.find((s) => s.nome === n))
-    .filter((s): s is PizzaSabor => !!s)
-    .slice(0, maxSaboresAtual)
-
-  // Validate: can confirm?
-  const pizzaReady = isPizza ? state.tamanhoNome !== '' && selectedSabores.length > 0 : true
-  const tamanhosReady = hasSimplesTamanhos ? state.tamanhoNome !== '' : true
-  const gruposReady = item.grupos
-    .filter((g) => g.obrigatorio)
-    .every((g) => {
-      if (g.complementos.length === 0) return true // grupo obrigatório sem opções não trava o botão
-      const sel = state.complementosSelecionados[g.id] ?? []
-      return sel.length >= g.minEscolhas
-    })
-  const canConfirm = pizzaReady && tamanhosReady && gruposReady
-
-  // O que ainda falta selecionar — mostrado quando "Adicionar à comanda" está desabilitado,
-  // pra ficar claro por que o item não pode ser adicionado.
-  const faltando: string[] = []
-  if (isPizza && state.tamanhoNome === '') faltando.push('tamanho')
-  if (isPizza && selectedSabores.length === 0) faltando.push('sabor')
-  if (hasSimplesTamanhos && state.tamanhoNome === '') faltando.push('tamanho')
-  for (const g of item.grupos.filter((x) => x.obrigatorio)) {
-    if (g.complementos.length === 0) continue
-    const sel = state.complementosSelecionados[g.id] ?? []
-    if (sel.length < g.minEscolhas) faltando.push(g.nome)
-  }
-
-  function handleGroupToggle(grupo: GrupoItemComplementos, compNome: string) {
-    const current = state.complementosSelecionados[grupo.id] ?? []
-    let next: string[]
-    if (current.includes(compNome)) {
-      next = current.filter((n) => n !== compNome)
-    } else if (grupo.maxEscolhas === 1) {
-      next = [compNome]
-    } else if (grupo.maxEscolhas === 0 || current.length < grupo.maxEscolhas) {
-      // maxEscolhas 0 = sem limite ("quantos quiser"), igual à vitrine do cliente.
-      next = [...current, compNome]
-    } else {
-      next = current // atingiu o máximo — ignora
-    }
-    onChange({ complementosSelecionados: { ...state.complementosSelecionados, [grupo.id]: next } })
-  }
-
-  function confirm() {
-    const bordaPizza = bordasPizza.find((b) => b.id === state.bordaId)
-    const massaPizza = massasPizza.find((m) => m.id === state.massaId)
-    const complementos: string[] = Object.values(state.complementosSelecionados).flat()
-    onConfirm({
-      tamanhoNome: state.tamanhoNome,
-      saborNome: juntarSabores(selectedSabores.map((s) => s.nome)),
-      bordaNome: bordaPizza?.nome ?? '',
-      massaNome: massaPizza?.nome ?? '',
-      complementos,
-      observacao: state.observacao,
-    })
-  }
-
-  // Chips grandes — o PDV é operado no touch screen.
-  const chipBase = 'rounded-menuzia border-2 px-4 py-2.5 text-[14px] font-semibold transition-colors active:scale-95'
-  const chipActive = 'border-primary bg-primary text-white'
-  const chipIdle = 'border-border bg-white text-text-main hover:border-primary hover:text-primary'
-
-  return (
-    <TelaPdv titulo={item.nome} onVoltar={onCancel} coluna>
-      <div className="flex min-h-0 flex-1 flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Configurar item</p>
-            <h2 className="text-[15px] font-bold text-text-main">{item.nome}</h2>
-          </div>
-          
-</div>
-
-        {/* Scrollable body */}
-        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
-          {/* Pizza — tamanho padrão */}
-          {isPizza && tamanhosDoItem.length > 0 && (
-            <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                Tamanho <span className="text-danger">*</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {tamanhosDoItem.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onChange({ tamanhoNome: t.nome })}
-                    className={[chipBase, state.tamanhoNome === t.nome ? chipActive : chipIdle].join(' ')}
-                  >
-                    {t.nome}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pizza — sabor */}
-          {isPizza && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                  {maxSaboresAtual > 1 ? `Sabores (até ${maxSaboresAtual})` : 'Sabor'}{' '}
-                  <span className="text-danger">*</span>
-                </p>
-                <span className="text-[11px] font-semibold text-text-subtle">
-                  {selectedSabores.length}/{maxSaboresAtual}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {saboresDisponiveis.map((s) => {
-                  const isSelected = selectedSabores.some((sel) => sel.id === s.id)
-                  const cheio = selectedSabores.length >= maxSaboresAtual
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      disabled={!isSelected && cheio}
-                      onClick={() => {
-                        const atuais = selectedSabores.map((sel) => sel.nome)
-                        let proximos: string[]
-                        if (isSelected) proximos = atuais.filter((n) => n !== s.nome)
-                        else if (maxSaboresAtual === 1) proximos = [s.nome]
-                        else if (atuais.length >= maxSaboresAtual) proximos = atuais
-                        else proximos = [...atuais, s.nome]
-                        onChange({ saborNome: juntarSabores(proximos) })
-                      }}
-                      className={[
-                        'rounded-menuzia border-2 px-4 py-3 text-left text-[14px] font-medium transition-colors active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40',
-                        isSelected
-                          ? 'border-primary bg-primary/5 text-primary'
-                          : 'border-border bg-white text-text-main hover:border-primary/50',
-                      ].join(' ')}
-                    >
-                      <span className="font-semibold">{s.nome}</span>
-                      {s.descricao && (
-                        <span className="block text-[11px] font-normal text-text-subtle">{descricaoEmTextoPuro(s.descricao)}</span>
-                      )}
-                    </button>
-                  )
-                })}
-                {!tamanhoPizzaAtual && (
-                  <p className="text-[12px] text-text-subtle">Selecione o tamanho para ver os sabores.</p>
-                )}
-                {tamanhoPizzaAtual && saboresDisponiveis.length === 0 && (
-                  <p className="text-[12px] text-text-subtle">Nenhum sabor disponível neste tamanho.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Pizza — borda (opcional) */}
-          {isPizza && bordasPizza.length > 0 && (
-            <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                Borda <span className="font-normal text-text-subtle/60">(opcional)</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onChange({ bordaId: '' })}
-                  className={[chipBase, state.bordaId === '' ? chipActive : chipIdle].join(' ')}
-                >
-                  Sem borda
-                </button>
-                {bordasPizza.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => onChange({ bordaId: b.id })}
-                    className={[chipBase, state.bordaId === b.id ? chipActive : chipIdle].join(' ')}
-                  >
-                    {b.nome}
-                    {b.preco > 0 && <span className="ml-1 text-[11px] font-normal">(+{formatBRL(b.preco)})</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pizza — massa (opcional) */}
-          {isPizza && massasPizza.length > 0 && (
-            <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                Massa <span className="font-normal text-text-subtle/60">(opcional)</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onChange({ massaId: '' })}
-                  className={[chipBase, state.massaId === '' ? chipActive : chipIdle].join(' ')}
-                >
-                  Padrão
-                </button>
-                {massasPizza.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => onChange({ massaId: m.id })}
-                    className={[chipBase, state.massaId === m.id ? chipActive : chipIdle].join(' ')}
-                  >
-                    {m.nome}
-                    {m.preco > 0 && <span className="ml-1 text-[11px] font-normal">(+{formatBRL(m.preco)})</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Simples/marmita — tamanhos_item */}
-          {hasSimplesTamanhos && (
-            <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                Tamanho <span className="text-danger">*</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {item.tamanhos.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onChange({ tamanhoNome: t.nome })}
-                    className={[chipBase, state.tamanhoNome === t.nome ? chipActive : chipIdle].join(' ')}
-                  >
-                    {t.nome}
-                    <span className="ml-1.5 font-normal">{formatBRL(t.preco)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Complement groups */}
-          {item.grupos.map((grupo) => {
-            const sel = state.complementosSelecionados[grupo.id] ?? []
-            return (
-              <div key={grupo.id}>
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-                  {grupo.nome}
-                  {grupo.obrigatorio && <span className="ml-1 text-danger">*</span>}
-                  <span className="ml-1 font-normal text-text-subtle/60">
-                    {grupo.maxEscolhas === 1
-                      ? '(escolha 1)'
-                      : grupo.maxEscolhas === 0
-                        ? '(quantos quiser)'
-                        : `(até ${grupo.maxEscolhas})`}
-                  </span>
-                </p>
-                <div className="flex flex-col gap-1.5">
-                  {grupo.complementos.map((comp) => {
-                    const isSelected = sel.includes(comp.nome)
-                    return (
-                      <button
-                        key={comp.id}
-                        type="button"
-                        onClick={() => handleGroupToggle(grupo, comp.nome)}
-                        className={[
-                          'flex items-center justify-between rounded-menuzia border-2 px-4 py-3 text-[14px] transition-colors active:scale-[0.99]',
-                          isSelected
-                            ? 'border-primary-dark bg-primary font-semibold text-white'
-                            : 'border-border bg-white text-text-main hover:border-primary/40',
-                        ].join(' ')}
-                      >
-                        <span>{comp.nome}</span>
-                        {comp.preco > 0 && (
-                          <span
-                            className={[
-                              'text-[12px] font-semibold',
-                              isSelected ? 'text-white' : 'text-price-text',
-                            ].join(' ')}
-                          >
-                            +{formatBRL(comp.preco)}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Observação */}
-          <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
-              Observação <span className="font-normal text-text-subtle/60">(opcional)</span>
-            </p>
-            <textarea
-              value={state.observacao}
-              onChange={(e) => onChange({ observacao: e.target.value })}
-              rows={2}
-              placeholder="Ex: sem cebola, ponto da carne…"
-              className="w-full resize-none rounded-menuzia border border-border bg-white px-3 py-2 text-[13px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-border px-4 py-3">
-          {!canConfirm && faltando.length > 0 && (
-            <p className="mb-2 text-[11px] font-medium text-status-pending">
-              Falta selecionar: {faltando.join(', ')}
-            </p>
-          )}
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-menuzia border-2 border-border bg-white px-5 py-3.5 text-[14px] font-bold text-text-subtle transition-colors hover:bg-page active:scale-[0.98]"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={!canConfirm}
-              onClick={confirm}
-              className="flex-1 rounded-menuzia bg-primary py-3.5 text-[15px] font-bold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-40"
-            >
-              Adicionar à comanda
-            </button>
-          </div>
-        </div>
-      </div>
-    </TelaPdv>
-  )
-}
+// A janela "Configurar item" mora em components/pdv/configurar-item.tsx (2026-10-01).
 
 // ─── Modal de pagamento / fechamento de conta ──────────────────────────────────
 
@@ -919,9 +524,20 @@ export default function PdvPage() {
   }, [supabase, recarregarMesas, recarregarComanda, restauranteId])
 
   // ── Filtered items ─────────────────────────────────────────────────────────
+  // Busca larga (≥ 1024 px) fica sempre à vista; em tela estreita é uma lupa que expande.
+  const [buscaAberta, setBuscaAberta] = useState(false)
+  const [buscaLarga, setBuscaLarga] = useState(true)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const ver = () => setBuscaLarga(mq.matches)
+    ver()
+    mq.addEventListener('change', ver)
+    return () => mq.removeEventListener('change', ver)
+  }, [])
+
   const itensFiltrados = useMemo(() => {
     let list = itens
-    if (grupoFiltro) list = list.filter((i) => i.grupoId === grupoFiltro)
+    if (grupoFiltro && !busca.trim()) list = list.filter((i) => i.grupoId === grupoFiltro)
     if (busca.trim()) {
       const q = busca.toLowerCase()
       list = list.filter((i) => i.nome.toLowerCase().includes(q) || i.descricao.toLowerCase().includes(q))
@@ -1029,10 +645,13 @@ export default function PdvPage() {
     })
   }
 
-  function confirmarSeletor(result: Omit<ComandaLinha, 'uid' | 'item' | 'quantidade'>) {
+  function confirmarSeletor(result: Omit<ComandaLinha, 'uid' | 'item' | 'quantidade'>, quantidade = 1) {
     if (!seletor) return
-    setComanda((prev) => [...prev, { uid: makeUid(), item: seletor.item, quantidade: 1, ...result }])
+    const nome = seletor.item.nome
+    setComanda((prev) => [...prev, { uid: makeUid(), item: seletor.item, quantidade, ...result }])
     setSeletor(null)
+    // Volta para o Lançar itens com a confirmação (a janela some na hora).
+    setToastLancado({ texto: `${quantidade > 1 ? `${quantidade}× ` : ''}${nome} adicionado ao pedido.`, comandaId: null })
   }
 
   function alterarQtd(uidTarget: string, delta: number) {
@@ -1267,23 +886,9 @@ export default function PdvPage() {
   // demais itens: preço base (ou promo) + complementos.
   // O servidor sempre recalcula o real ao lançar — isto é só o que mostramos aqui.
   function precoLinha(linha: ComandaLinha): number {
-    const precoComplementos = precoComplementosItem(linha.item, linha.complementos)
-    if (linha.item.tipoItem !== 'pizza') {
-      const tamanho = linha.tamanhoNome ? linha.item.tamanhos.find((t) => t.nome === linha.tamanhoNome) : undefined
-      const base = tamanho ? tamanho.preco : (linha.item.promocaoPreco ?? linha.item.preco)
-      return (base + precoComplementos) * linha.quantidade
-    }
-    const tamPizza = tamanhosPizza.find((t) => t.nome === linha.tamanhoNome)
-    const precoSabores = precoPizzaSabores(
-      separarSabores(linha.saborNome).map(
-        (n) => linha.item.sabores.find((s) => s.nome === n)?.precos.find((p) => p.tamanhoPadraoId === tamPizza?.id)?.preco ?? 0,
-      ),
-      regraPizza,
-    )
-    const precoBorda = bordasPizza.find((b) => b.nome === linha.bordaNome)?.preco ?? 0
-    const precoMassa = massasPizza.find((m) => m.nome === linha.massaNome)?.preco ?? 0
-    return (precoSabores + precoBorda + precoMassa + precoComplementos) * linha.quantidade
+    return precoUnitarioPdv(linha.item, linha, { tamanhosPizza, bordasPizza, massasPizza, regraPizza }) * linha.quantidade
   }
+
 
   const totalConta = pedidosComanda
     .filter((p) => p.status !== 'cancelado')
@@ -1344,11 +949,9 @@ export default function PdvPage() {
     <>
       {/* Product selector modal */}
       {seletor && (
-        <SeletorModal
+        <ConfigurarItem
           state={seletor}
-          tamanhosPizza={tamanhosPizza}
-          bordasPizza={bordasPizza}
-          massasPizza={massasPizza}
+          catalogo={{ tamanhosPizza, bordasPizza, massasPizza, regraPizza }}
           onChange={(patch) => setSeletor((prev) => (prev ? { ...prev, ...patch } : prev))}
           onCancel={() => setSeletor(null)}
           onConfirm={confirmarSeletor}
@@ -1594,7 +1197,7 @@ export default function PdvPage() {
 
       {/* Confirmação de saída do PDV */}
       {sairConfirm && (
-        <TelaPdv titulo="Sair do PDV" onVoltar={() => setSairConfirm(false)} livre larguraMax={560} testid="pdv-sair">
+        <TelaPdv titulo="Sair do PDV" onVoltar={() => setSairConfirm(false)} livre larguraMax={560} testid="pdv-sair" pequena>
           <div className="p-6 text-center">
             <p className="text-[17px] font-bold text-text-main">Sair do PDV?</p>
             <p className="mt-1 text-[14px] text-text-subtle">Você volta ao menu principal.</p>
@@ -1759,47 +1362,82 @@ export default function PdvPage() {
                   </span>
                   <div className="flex flex-shrink-0 items-center gap-2">{botaoTelaCheia}{botaoSair}</div>
                 </div>
-            {/* Search + category chips */}
-            <div className="border-b border-border bg-white px-3 py-2.5 space-y-2">
-              <input
-                type="text"
-                value={busca}
-                onChange={(e) => {
-                  setBusca(e.target.value)
-                  setGrupoFiltro(null)
-                }}
-                placeholder="Buscar item…"
-                className="h-[42px] w-full rounded-menuzia border border-border bg-white px-3 text-[14px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary lg:h-[36px] lg:text-[13px]"
-              />
-              <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <button
-                  type="button"
-                  onClick={() => { setGrupoFiltro(null); setBusca('') }}
-                  className={[
-                    'h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3.5 text-[13px] font-semibold transition-colors sm:px-4',
-                    grupoFiltro === null && !busca
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
-                  ].join(' ')}
-                >
-                  Todos
-                </button>
-                {grupos.map((g) => (
+            {/* Categorias à esquerda + busca à direita, numa linha só (2026-10-01). A linha não rola
+                com os produtos (só a grade rola). Telas estreitas: a busca vira uma lupa que expande. */}
+            <div className="flex items-center gap-2 border-b border-border bg-white px-3 py-2" data-testid="pdv-linha-filtros">
+              {!(buscaAberta && !buscaLarga) && (
+                <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="pdv-categorias">
                   <button
-                    key={g.id}
                     type="button"
-                    onClick={() => { setGrupoFiltro(g.id); setBusca('') }}
+                    onClick={() => { setGrupoFiltro(null); setBusca('') }}
                     className={[
-                      'h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3.5 text-[13px] font-semibold transition-colors sm:px-4',
-                      grupoFiltro === g.id
+                      'h-[52px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-4 text-[15px] font-semibold transition-colors',
+                      grupoFiltro === null && !busca
                         ? 'border-primary bg-primary text-white'
                         : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
                     ].join(' ')}
                   >
-                    {g.nome}
+                    Todos
                   </button>
-                ))}
-              </div>
+                  {grupos.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => { setGrupoFiltro(g.id); setBusca('') }}
+                      className={[
+                        'h-[52px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-4 text-[15px] font-semibold transition-colors',
+                        grupoFiltro === g.id && !busca
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
+                      ].join(' ')}
+                    >
+                      {g.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {buscaLarga || buscaAberta ? (
+                <label className={['relative flex-shrink-0', buscaLarga ? 'w-[300px]' : 'min-w-0 flex-1'].join(' ')}>
+                  <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 fill-text-subtle" aria-hidden>
+                    <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={busca}
+                    autoFocus={!buscaLarga}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar item…"
+                    aria-label="Buscar item"
+                    data-testid="pdv-busca"
+                    className="h-[52px] w-full rounded-menuzia border border-border bg-white pl-10 pr-11 text-[15px] text-text-main placeholder:text-text-subtle/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary [&::-webkit-search-cancel-button]:hidden"
+                  />
+                  {(busca || !buscaLarga) && (
+                    <button
+                      type="button"
+                      onClick={() => { setBusca(''); if (!buscaLarga) setBuscaAberta(false) }}
+                      aria-label="Limpar busca"
+                      data-testid="pdv-busca-limpar"
+                      className="absolute right-1.5 top-1/2 flex h-[40px] w-[40px] -translate-y-1/2 items-center justify-center rounded-full text-text-subtle hover:bg-page hover:text-text-main"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
+                        <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                      </svg>
+                    </button>
+                  )}
+                </label>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBuscaAberta(true)}
+                  aria-label="Buscar item"
+                  data-testid="pdv-busca-abrir"
+                  className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-white text-text-main hover:border-primary hover:text-primary"
+                >
+                  <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden>
+                    <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                  </svg>
+                </button>
+              )}
             </div>
 
             {/* Items grid */}
@@ -2116,9 +1754,9 @@ export default function PdvPage() {
                   onClick={voltarParaMesas}
                   data-testid="pdv-pos-lancar-mesas"
                   aria-label={pdvV2 && telaBalcao ? 'Voltar ao balcão' : 'Voltar às mesas'}
-                  className="flex h-[60px] w-[64px] flex-shrink-0 flex-col items-center justify-center gap-0.5 rounded-menuzia border border-border bg-white text-[11px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]"
+                  className="flex h-[84px] w-[76px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border border-border bg-white text-[13px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]"
                 >
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+                  <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
                   {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
                 </button>
                 {pdvV2 && alvoV2?.comandaId && (
@@ -2126,12 +1764,13 @@ export default function PdvPage() {
                     type="button"
                     onClick={() => setContaAberta(alvoV2.comandaId!)}
                     data-testid="pdv-ver-conta"
-                    className="relative flex h-[60px] w-[76px] flex-shrink-0 flex-col items-center justify-center gap-0.5 rounded-menuzia border border-border bg-white text-[11px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]"
+                    className={['relative flex h-[84px] w-[96px] flex-shrink-0 flex-col items-center gap-1 rounded-menuzia border border-border bg-white text-[13px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]',
+                      totalContaAlvo !== null && totalContaAlvo > 0 ? 'justify-end pb-2.5' : 'justify-center'].join(' ')}
                   >
-                    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d="M19.5 3.5 18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2v14H3v3c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3V2l-1.5 1.5zM19 19c0 .55-.45 1-1 1s-1-.45-1-1v-3H8V5h11v14zM9 7h6v2H9zm7 0h2v2h-2zm-7 3h6v2H9zm7 0h2v2h-2z" /></svg>
+                    <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden><path d="M19.5 3.5 18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2v14H3v3c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3V2l-1.5 1.5zM19 19c0 .55-.45 1-1 1s-1-.45-1-1v-3H8V5h11v14zM9 7h6v2H9zm7 0h2v2h-2zm-7 3h6v2H9zm7 0h2v2h-2z" /></svg>
                     Ver conta
                     {totalContaAlvo !== null && totalContaAlvo > 0 && (
-                      <span className="absolute -right-1.5 -top-2 rounded-full bg-primary px-1.5 py-[1px] text-[10px] font-bold text-white" data-testid="pdv-ver-conta-total">
+                      <span className="absolute inset-x-1 top-1 truncate rounded-full bg-primary px-1.5 py-[1px] text-center text-[11px] font-bold leading-[16px] text-white" data-testid="pdv-ver-conta-total">
                         {formatBRL(totalContaAlvo)}
                       </span>
                     )}
@@ -2142,8 +1781,9 @@ export default function PdvPage() {
                   disabled={(pdvV2 ? !alvoV2 : !mesaEscolhida) || comanda.length === 0 || launching}
                   onClick={lancarNaCozinha}
                   data-testid="pdv-lancar"
-                  className="h-[60px] min-w-0 flex-1 rounded-menuzia bg-status-ready text-[16px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
+                  className="flex h-[84px] min-w-0 flex-1 items-center justify-center gap-2 rounded-menuzia bg-status-ready text-[17px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
                 >
+                  <svg viewBox="0 0 24 24" className="h-7 w-7 flex-shrink-0 fill-current" aria-hidden><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" /></svg>
                   {launching ? 'Lançando…' : 'Lançar na cozinha'}
                 </button>
               </div>

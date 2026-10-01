@@ -1,14 +1,17 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 
 /**
- * Navegação em PILHA do PDV/Mesas/Balcão (2026-10-01): uma tela por vez.
+ * Navegação em PILHA do PDV/Mesas/Balcão (2026-10-01, refinada no mesmo dia).
  *
- * Cada `TelaPdv` é uma camada opaca de tela inteira (fundo da aplicação + painel de ~90%,
- * máx. 1200 px; tela cheia no celular). A tela de trás continua MONTADA embaixo — só fica
- * coberta —, então ao voltar ela reaparece exatamente como estava (rolagem, digitação e
- * seleções). Cabeçalho com "← Voltar", o caminho ("Mesa 04 · Comanda 26 › Receber") e o
+ * Telas de FUNDO (grade de mesas, Lançar itens) ocupam a página; cada `TelaPdv` é uma JANELA
+ * por cima, com o fundo visível e escurecido atrás:
+ * - janela GRANDE (~90% × 94%, máx. 1200 px; tela cheia no celular): só uma visível por vez —
+ *   abrir outra grande esconde a de baixo NA HORA (ela continua montada, invisível), e o Voltar
+ *   a mostra exatamente como estava (rolagem, digitação e seleções);
+ * - janela PEQUENA (`pequena`, ~480–560 px: Desconto, Taxas, confirmações): abre SOBRE a janela
+ *   atual sem escondê-la. Cabeçalho com "← Voltar", o caminho ("Mesa 04 · Comanda 26 › Receber") e o
  * "X", que fecha a pilha inteira (confirma só se alguma tela tiver dado não salvo).
  *
  * Voltar funciona pelo botão, pela tecla Esc e pelo voltar do navegador/Android/gesto: cada
@@ -17,7 +20,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useRef, useSt
  */
 
 // ── gerenciador único (módulo) ───────────────────────────────────────────────
-interface Entrada { id: string; voltar: () => void; sujo: () => boolean; porPop: boolean }
+interface Entrada { id: string; voltar: () => void; sujo: () => boolean; porPop: boolean; pequena: boolean }
 const pilha: Entrada[] = []
 let ignorarPops = 0
 let instalado = false
@@ -41,9 +44,20 @@ function instalar() {
   })
 }
 
+// Quem está coberto por uma janela grande muda quando a pilha muda: as telas assinam.
+const ouvintes = new Set<() => void>()
+function avisar() { ouvintes.forEach((f) => f()) }
+function assinar(f: () => void) { ouvintes.add(f); return () => { ouvintes.delete(f) } }
+/** Há uma janela GRANDE acima desta na pilha? (a de baixo some enquanto isso) */
+function cobertaPorGrande(id: string): boolean {
+  const i = pilha.findIndex((x) => x.id === id)
+  return i >= 0 && pilha.slice(i + 1).some((x) => !x.pequena)
+}
+
 function registrar(e: Entrada) {
   instalar()
   pilha.push(e)
+  avisar()
   window.history.pushState({ ...(window.history.state ?? {}), pdvTela: e.id }, '')
 }
 
@@ -51,6 +65,7 @@ function desregistrar(id: string) {
   const i = pilha.findIndex((x) => x.id === id)
   if (i < 0) return
   const [e] = pilha.splice(i, 1)
+  avisar()
   // Fechada por código (não pelo voltar): tira a entrada do histórico sem fechar outra tela.
   // Várias de uma vez ("fechar tudo") viram UM history.go(-n) — um popstate só, ignorado.
   if (!e.porPop) {
@@ -116,6 +131,7 @@ export function TelaPdv({
   livre = false,
   coluna = false,
   papel = 'dialog',
+  pequena = false,
 }: {
   titulo: string
   /** Fecha esta tela e mostra a de trás. */
@@ -140,6 +156,8 @@ export function TelaPdv({
   coluna?: boolean
   /** "alertdialog" para telas que só pedem confirmação. */
   papel?: 'dialog' | 'alertdialog'
+  /** Janela pequena (~480–560 px) que abre SOBRE a atual sem escondê-la (Desconto, Taxas, confirmações). */
+  pequena?: boolean
 }) {
   const id = useId()
   const ctx = useContext(PilhaContext)
@@ -150,10 +168,13 @@ export function TelaPdv({
   const [confirmarFechar, setConfirmarFechar] = useState(false)
 
   useEffect(() => {
-    const e: Entrada = { id, voltar: () => voltarRef.current(), sujo: () => sujoRef.current, porPop: false }
+    const e: Entrada = { id, voltar: () => voltarRef.current(), sujo: () => sujoRef.current, porPop: false, pequena }
     registrar(e)
     return () => desregistrar(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+  // Coberta por outra janela grande: some na hora (continua montada, estado preservado).
+  const coberta = useSyncExternalStore(assinar, () => cobertaPorGrande(id), () => false)
 
   const voltar = useCallback(() => {
     // Pelo histórico: o popstate fecha esta tela (mantém o voltar do navegador em dia).
@@ -180,14 +201,24 @@ export function TelaPdv({
 
   return (
     <div
-      className="tela-pdv fixed inset-0 z-[60] flex items-stretch justify-center bg-page sm:items-center sm:p-[3vh]"
+      className={['tela-pdv fixed inset-0 z-[60] flex justify-center sm:items-center sm:p-[3vh]',
+        // Fundo visível e escurecido; a pequena escurece menos (a janela de trás continua à vista).
+        pequena ? 'items-end bg-black/30 sm:items-center' : 'items-stretch bg-black/50',
+        coberta ? 'invisible' : ''].join(' ')}
+      aria-hidden={coberta || undefined}
+      data-coberta={coberta ? '' : undefined}
+      data-tamanho={pequena ? 'pequena' : 'grande'}
       role={papel}
       aria-modal="true"
       aria-label={caminho.join(' › ')}
       data-testid={testid}
       data-tela-pdv
     >
-      <div className="tela-pdv-painel relative flex h-full w-full flex-col overflow-hidden bg-white shadow-xl sm:h-[94vh] sm:max-h-[94vh] sm:rounded-menuzia sm:border sm:border-border" style={{ maxWidth: larguraMax }}>
+      <div
+        className={['tela-pdv-painel relative flex w-full flex-col overflow-hidden bg-white shadow-xl sm:rounded-menuzia sm:border sm:border-border',
+          pequena ? 'max-h-[92vh] rounded-t-[12px] sm:max-h-[90vh]' : 'h-full sm:h-[94vh] sm:max-h-[94vh]'].join(' ')}
+        style={{ maxWidth: pequena ? Math.min(larguraMax, 560) : larguraMax }}
+      >
         <header className="flex flex-shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
           {!semVoltar && (
             <button type="button" onClick={voltar} aria-label="Voltar" data-testid="tela-voltar"

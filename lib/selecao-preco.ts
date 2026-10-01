@@ -1,5 +1,6 @@
 import { precoPizzaSabores, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
+import { saboresDoTamanho } from './pizza-sabores'
 
 /**
  * Preço de uma linha da seleção da mesa (cardápio do QR), a partir do catálogo.
@@ -70,16 +71,17 @@ export function precificarLinha(item: ItemPrecificavel, opcoes: OpcaoDaLinha[], 
     const tamanho = pizza.tamanhos.find(
       (t) => t.nome === doTipo('tamanho')[0]?.escolha && !tamanhoOcultoNaPizza(item.tamanhosOcultos, t.id),
     )
-    const sabores = tamanho
-      ? doTipo('sabor')
-          .map((o) => item.sabores.find((s) => s.nome === o.escolha))
-          .filter((s): s is ItemPrecificavel['sabores'][number] => !!s && (s.precos[tamanho.id] ?? 0) > 0)
-          .slice(0, Math.max(1, tamanho.maxSabores))
-      : []
-    completa = !!tamanho && sabores.length > 0
+    // Regra única dos sabores (lib/pizza-sabores): sem preço por sabor vale o preço do item;
+    // sem sabores, o sabor não é exigido.
+    const vendaveis = tamanho ? saboresDoTamanho(item.sabores.map((s) => ({ ...s, status: 'disponivel' })), tamanho.id, item.preco) : []
+    const sabores = doTipo('sabor')
+      .map((o) => vendaveis.find((v) => v.sabor.nome === o.escolha))
+      .filter((v): v is (typeof vendaveis)[number] => !!v)
+      .slice(0, Math.max(1, tamanho?.maxSabores ?? 1))
+    completa = !!tamanho && (sabores.length > 0 || vendaveis.length === 0)
     if (tamanho) saida.push({ grupo: 'Tamanho', escolha: tamanho.nome, preco: 0, tipo: 'tamanho' })
-    for (const s of sabores) saida.push({ grupo: 'Sabor', escolha: s.nome, preco: 0, tipo: 'sabor' })
-    if (completa) base = precoPizzaSabores(sabores.map((s) => s.precos[tamanho!.id]!), pizza.regra)
+    for (const s of sabores) saida.push({ grupo: 'Sabor', escolha: s.sabor.nome, preco: 0, tipo: 'sabor' })
+    if (completa) base = vendaveis.length === 0 ? item.preco : precoPizzaSabores(sabores.map((s) => s.preco), pizza.regra)
 
     const borda = pizza.bordas.find((b) => b.nome === doTipo('borda')[0]?.escolha)
     if (borda) saida.push({ grupo: 'Borda', escolha: borda.nome, preco: borda.preco, tipo: 'borda' })

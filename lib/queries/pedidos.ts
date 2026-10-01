@@ -1261,10 +1261,13 @@ export async function criarPedido(
         saborTexto: linha.saborNome ?? '',
         catalogo,
         regra: regraPizza,
+        itemPreco: Number(item.preco ?? 0),
       })
       base = resolvido.base
       tamanhoNome = tamanho.nome
       saborNome = resolvido.saborNome
+      // Pizza vendida sem sabor (cadastro sem sabores): fica no log para a loja corrigir.
+      if (!saborNome) console.warn(`[cardápio] pizza sem sabores cadastrados vendida pelo preço do item: "${item.nome}" (${tamanho.nome})`)
 
       if (linha.bordaNome) {
         const borda = bordasPizza.find((b) => b.nome === linha.bordaNome)
