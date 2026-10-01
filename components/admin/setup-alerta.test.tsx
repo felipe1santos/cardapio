@@ -20,9 +20,12 @@ const atencao: PendenciaSetup = {
 }
 
 describe('SetupAlerta', () => {
-  it('não renderiza nada sem pendência', () => {
-    const { container } = render(<SetupAlerta pendencias={[]} onDispensar={vi.fn()} onResolver={vi.fn()} />)
-    expect(container).toBeEmptyDOMElement()
+  it('sem pendência (aberto pelo ícone de alerta): confirma que está tudo certo', async () => {
+    const onDispensar = vi.fn()
+    render(<SetupAlerta pendencias={[]} onDispensar={onDispensar} onResolver={vi.fn()} />)
+    expect(screen.getByText('Nenhuma pendência')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'OK' }))
+    expect(onDispensar).toHaveBeenCalled()
   })
 
   it('lista as pendências com a severidade de cada uma', () => {
@@ -61,7 +64,7 @@ describe('SetupAlerta', () => {
   it('cada pendência tem seu próprio atalho para a seção que a resolve', async () => {
     const onResolver = vi.fn()
     render(<SetupAlerta pendencias={[critica, atencao]} onDispensar={vi.fn()} onResolver={onResolver} />)
-    await userEvent.click(screen.getByRole('button', { name: /ir para ajustes/i }))
+    await userEvent.click(screen.getAllByTestId('pendencia-resolver').find((b) => /Ajustes/.test(b.textContent ?? ''))!)
     expect(onResolver).toHaveBeenCalledWith('/admin/ajustes')
   })
 })

@@ -90,7 +90,7 @@ describe('AdminLayout', () => {
         <p>Conteúdo da página</p>
       </AdminLayout>
     )
-    expect(screen.getByText('menuzia')).toBeInTheDocument()
+    expect(screen.queryByText('menuzia')).toBeNull()
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.getByText('Painel de Pedidos')).toBeInTheDocument()
     expect(screen.getByText('Conteúdo da página')).toBeInTheDocument()
@@ -148,7 +148,7 @@ describe('AdminLayout — checklist de configuração', () => {
     expect(screen.queryByText(/pendência/i)).not.toBeInTheDocument()
   })
 
-  it('abre o alerta e, no OK, deixa só o marcador no menu da seção', async () => {
+  it('abre o alerta e, no OK, deixa só o alerta no card da loja', async () => {
     vi.mocked(buscarRestauranteIdDoUsuario).mockResolvedValue('loja-1')
     vi.mocked(carregarDadosSetup).mockResolvedValue(dadosSetup({ itensDisponiveis: 0 }))
 
@@ -160,7 +160,7 @@ describe('AdminLayout — checklist de configuração', () => {
     await userEvent.click(screen.getByRole('button', { name: /ok, entendi/i }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    // Marcador no item de menu que resolve (Cardápio) e atalho no rodapé.
+    // Alerta no card da loja (o marcador nos itens do menu saiu em 2026-09-30).
     expect(screen.getByLabelText('1 pendência de configuração')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /1 pendência/i })).toBeInTheDocument()
     expect(localStorage.getItem('menuzia:setup-ok:loja-1')).toBe('sem-item-disponivel')
@@ -198,7 +198,7 @@ describe('AdminLayout — checklist de configuração', () => {
 
     await waitFor(() => expect(carregarDadosSetup).toHaveBeenCalledTimes(2))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/pendência de configuração/)).not.toBeInTheDocument()
+    expect(screen.queryByTestId('menu-alerta-badge')).not.toBeInTheDocument()
   })
 
   it('só avisos não interrompem: nada de modal, só o marcador', async () => {
@@ -238,7 +238,7 @@ describe('AdminLayout — checklist de configuração', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('o atalho do rodapé reabre o alerta depois do OK', async () => {
+  it('o ícone de alerta do card reabre o alerta depois do OK', async () => {
     vi.mocked(buscarRestauranteIdDoUsuario).mockResolvedValue('loja-1')
     vi.mocked(carregarDadosSetup).mockResolvedValue(dadosSetup({ itensDisponiveis: 0 }))
 

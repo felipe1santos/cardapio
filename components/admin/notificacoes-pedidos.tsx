@@ -149,3 +149,54 @@ export function ItemNotificacoes({ estado, onAtivar }: { estado: EstadoNotificac
     </div>
   )
 }
+
+/**
+ * Sino compacto do card da loja no menu (2026-09-30). Mesmo comportamento do item antigo:
+ * com a permissão ainda não pedida, o clique ativa; nos outros estados, o clique abre a
+ * explicação (ativas: só com o painel aberto; bloqueadas: como liberar no navegador).
+ * Ativas = sino com ponto verde; desativadas/bloqueadas = sino cortado, cinza.
+ */
+export function SinoNotificacoes({ estado, onAtivar }: { estado: EstadoNotificacao; onAtivar: () => void }) {
+  const [aberto, setAberto] = useState(false)
+  const raiz = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!aberto) return
+    const fora = (e: MouseEvent) => { if (raiz.current && !raiz.current.contains(e.target as Node)) setAberto(false) }
+    document.addEventListener('mousedown', fora)
+    return () => document.removeEventListener('mousedown', fora)
+  }, [aberto])
+  const ativas = estado === 'ativas'
+  const caminhos = ativas ? ICONES.sinoAtivo : estado === 'disponivel' ? ICONES.sino : ICONES.sinoMudo
+  return (
+    <span ref={raiz} className="relative flex">
+      <button
+        type="button"
+        data-testid="menu-sino"
+        data-estado={estado}
+        onClick={() => {
+          if (estado === 'disponivel') { onAtivar(); return }
+          setAberto((v) => !v)
+        }}
+        title={ROTULO_ESTADO[estado]}
+        aria-label={ROTULO_ESTADO[estado]}
+        aria-expanded={estado === 'disponivel' ? undefined : aberto}
+        className={[
+          'relative grid h-[32px] w-[30px] place-items-center rounded-[var(--adm-raio-sm)] transition-colors hover:bg-[var(--adm-hover)]',
+          ativas ? 'text-[var(--adm-azul-escuro)]' : 'text-[var(--adm-texto-suave)]',
+        ].join(' ')}
+      >
+        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
+          {caminhos.map((d) => (<path key={d} d={d} />))}
+        </svg>
+        {ativas && <span className="absolute right-[5px] top-[6px] h-[7px] w-[7px] rounded-full border border-white bg-status-ready" aria-hidden="true" />}
+      </button>
+      {aberto && estado !== 'disponivel' && (
+        <span role="status" className="absolute right-0 top-full z-50 mt-1 w-[230px] rounded-[var(--adm-raio-sm)] border border-[var(--adm-borda)] bg-white px-3 py-2 text-[11.5px] leading-relaxed text-[var(--adm-texto-suave)] shadow-lg">
+          <strong className="block text-[12px] font-semibold text-[var(--adm-texto)]">{ROTULO_ESTADO[estado]}</strong>
+          {AJUDA_ESTADO[estado]}
+          {ativas && <> <strong className="font-semibold">Só com o painel aberto:</strong> com o navegador fechado o aviso não chega.</>}
+        </span>
+      )}
+    </span>
+  )
+}

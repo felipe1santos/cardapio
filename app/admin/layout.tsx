@@ -9,7 +9,7 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { contarBadgesNav, type BadgesNav } from '@/lib/queries/pedidos'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { carregarDadosSetup } from '@/lib/queries/setup'
-import { assinaturaPendencias, avaliarSetup, contarPorMenu, type PendenciaSetup } from '@/lib/setup-checklist'
+import { assinaturaPendencias, avaliarSetup, type PendenciaSetup } from '@/lib/setup-checklist'
 import { SetupAlerta } from '@/components/admin/setup-alerta'
 import { pode } from '@/lib/auth/permissoes'
 import { itensDoMenu } from '@/lib/menu-lateral'
@@ -263,12 +263,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [supabase, restauranteId, avisarPedido])
 
-  const alertasPorMenu = contarPorMenu(pendencias)
-
   // Regra do menu (papel × flag de mesas × logística) em lib/menu-lateral.ts, testada.
+  // Pendências de configuração ficam só no alerta do card da loja (2026-09-30): os
+  // marcadores numéricos nos itens do menu saíram.
   const items = itensDoMenu({ papel, moduloMesas, usaLogistica }).map((item) => {
-    const alerta = alertasPorMenu[item.href]
-    const base = alerta ? { ...item, alerta } : item
+    const base = item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
     if (item.href === '/admin/logistica') return { ...base, badge: semEntregador ? 0 : badges.logisticaPendente }
     return base
@@ -314,6 +313,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           // Pendência de configuração é assunto de quem configura a loja. Mostrar "6
           // pendências" ao garçom seria só ruído — ele não tem acesso a Ajustes.
           pendencias={papel === null || pode(papel, 'ajustes.editar') ? pendencias.length : 0}
+          mostrarPendencias={papel === null || pode(papel, 'ajustes.editar')}
           onAbrirPendencias={() => setAlertaAberto(true)}
           onAbrirLoja={() => setFichaAberta(true)}
           notificacoes={{ estado: estadoNotificacoes, onAtivar: () => void pedirPermissao() }}

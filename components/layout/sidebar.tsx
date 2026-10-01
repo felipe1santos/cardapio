@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { urlCardapio } from '@/lib/qr-cardapio'
-import { ItemNotificacoes } from '@/components/admin/notificacoes-pedidos'
+import { SinoNotificacoes } from '@/components/admin/notificacoes-pedidos'
 import type { EstadoNotificacao } from '@/lib/notificacoes-pedido'
 import { ICONES } from '@/lib/icones-painel'
 
@@ -34,8 +34,10 @@ export interface SidebarProps {
   /** Aviso de pedido novo pelo navegador — estado real e o pedido de permissão. */
   notificacoes?: { estado: EstadoNotificacao; onAtivar: () => void }
   onSignOut?: () => void
-  /** Total de pendências de configuração — mostra o atalho pra reabrir o alerta. */
+  /** Total de pendências de configuração — badge no ícone de alerta do card da loja. */
   pendencias?: number
+  /** Quem configura a loja vê o ícone de alerta (garçom não tem acesso a Ajustes). */
+  mostrarPendencias?: boolean
   onAbrirPendencias?: () => void
   /**
    * Abaixo de `lg` a sidebar sai do fluxo e vira gaveta. O garçom trabalha com o celular
@@ -77,10 +79,40 @@ export function Sidebar({
   notificacoes,
   onSignOut,
   pendencias = 0,
+  mostrarPendencias = true,
   onAbrirPendencias,
   aberta = false,
   onFechar,
 }: SidebarProps) {
+  // Sino de notificações e alerta de pendências: no card da loja (ou, sem a loja
+  // carregada, na faixa do topo).
+  const avisos = (
+    <>
+      {notificacoes && <SinoNotificacoes estado={notificacoes.estado} onAtivar={notificacoes.onAtivar} />}
+      {mostrarPendencias && onAbrirPendencias && (
+        <button
+          type="button"
+          data-testid="menu-alerta"
+          onClick={onAbrirPendencias}
+          title={pendencias > 0 ? `${pendencias} ${pendencias === 1 ? 'pendência' : 'pendências'} de configuração` : 'Nenhuma pendência de configuração'}
+          aria-label={pendencias > 0 ? `${pendencias} ${pendencias === 1 ? 'pendência' : 'pendências'} de configuração` : 'Nenhuma pendência de configuração'}
+          className={[
+            'relative grid h-[32px] w-[30px] flex-shrink-0 place-items-center rounded-[var(--adm-raio-sm)] transition-colors hover:bg-[var(--adm-hover)]',
+            pendencias > 0 ? 'text-[var(--adm-vermelho-texto)]' : 'text-[var(--adm-texto-suave)]',
+          ].join(' ')}
+        >
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
+            {ICONES.aviso.map((d) => (<path key={d} d={d} />))}
+          </svg>
+          {pendencias > 0 && (
+            <span data-testid="menu-alerta-badge" className="absolute -right-0.5 top-0 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[var(--adm-vermelho)] px-1 text-[9.5px] font-bold leading-none text-white">
+              {pendencias > 9 ? '9+' : pendencias}
+            </span>
+          )}
+        </button>
+      )}
+    </>
+  )
   return (
     <>
       {/* Véu da gaveta: existe só abaixo de lg, e só com ela aberta. */}
@@ -94,50 +126,58 @@ export function Sidebar({
           aberta ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible',
         ].join(' ')}
       >
-      <div className="flex h-[var(--adm-topo)] flex-shrink-0 items-center gap-1.5 border-b border-[var(--adm-borda)] px-4">
-        <span className="text-[15px] font-bold lowercase tracking-tight text-[var(--adm-azul)]">menuzia</span>
-        {storeSlug && <CopiarLinkCardapio slug={storeSlug} />}
-        <button className="-mr-2 ml-auto p-2.5 text-[var(--adm-texto-suave)] lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
-          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-            {ICONES.fechar.map((d) => (<path key={d} d={d} />))}
-          </svg>
-        </button>
-      </div>
-
-      {/* Ficha da loja: quem abre o painel precisa saber QUAL loja está mexendo —
-          é a primeira coisa que o dono com duas operações procura. Mostra só o
-          que a configuração já carrega; clicar abre a ficha completa. */}
-      {loja && (
-        <button
-          type="button"
-          onClick={onAbrirLoja}
-          className="flex flex-shrink-0 items-center gap-2.5 border-b border-[var(--adm-borda)] px-4 py-2.5 text-left transition-colors hover:bg-[var(--adm-superficie-2)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
-          aria-label={`Ver os dados de ${loja.nome}`}
-        >
-          {loja.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={loja.logoUrl}
-              alt=""
-              className="h-8 w-8 flex-shrink-0 rounded-[3px] border border-[var(--adm-borda)] object-cover"
-            />
-          ) : (
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[3px] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul-escuro)]">
-              {loja.nome.charAt(0).toUpperCase()}
-            </span>
-          )}
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13.5px] font-semibold text-[var(--adm-menu-texto)]">{loja.nome}</span>
-            {(loja.bairro || loja.cidade) && (
-              <span className="block truncate text-[12px] text-[var(--adm-menu-suave)]">
-                {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}
+      {/* O menu começa direto no card da loja (2026-09-30): sem a faixa da marca. Os avisos
+          (sino de notificações e alerta de pendências) moram no card, antes da seta. */}
+      {loja ? (
+        <div data-testid="menu-card-loja" className="flex min-h-[var(--adm-topo)] flex-shrink-0 items-center gap-1 border-b border-[var(--adm-borda)] py-2 pl-4 pr-2">
+          <button
+            type="button"
+            onClick={onAbrirLoja}
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[var(--adm-raio-sm)] py-0.5 text-left transition-colors hover:bg-[var(--adm-superficie-2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--adm-azul)]"
+            aria-label={`Ver os dados de ${loja.nome}`}
+          >
+            {loja.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={loja.logoUrl}
+                alt=""
+                className="h-8 w-8 flex-shrink-0 rounded-[3px] border border-[var(--adm-borda)] object-cover"
+              />
+            ) : (
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[3px] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul-escuro)]">
+                {loja.nome.charAt(0).toUpperCase()}
               </span>
             )}
-          </span>
-          <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[var(--adm-texto-suave)]" aria-hidden="true">
-            {ICONES.seta.map((d) => (<path key={d} d={d} />))}
-          </svg>
-        </button>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13.5px] font-semibold text-[var(--adm-menu-texto)]">{loja.nome}</span>
+              {(loja.bairro || loja.cidade) && (
+                <span className="block truncate text-[12px] text-[var(--adm-menu-suave)]">
+                  {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}
+                </span>
+              )}
+            </span>
+          </button>
+          {avisos}
+          <button type="button" onClick={onAbrirLoja} aria-label={`Abrir a ficha de ${loja.nome}`} className="hidden h-[32px] w-[18px] flex-shrink-0 place-items-center lg:grid">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-texto-suave)]" aria-hidden="true">
+              {ICONES.seta.map((d) => (<path key={d} d={d} />))}
+            </svg>
+          </button>
+          <button className="-mr-1 grid h-[32px] w-[30px] flex-shrink-0 place-items-center text-[var(--adm-texto-suave)] lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+              {ICONES.fechar.map((d) => (<path key={d} d={d} />))}
+            </svg>
+          </button>
+        </div>
+      ) : (
+        <div className="flex h-[var(--adm-topo)] flex-shrink-0 items-center justify-end gap-1 border-b border-[var(--adm-borda)] px-2">
+          {avisos}
+          <button className="-mr-1 grid h-[32px] w-[30px] flex-shrink-0 place-items-center text-[var(--adm-texto-suave)] lg:hidden" onClick={onFechar} aria-label="Fechar o menu">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+              {ICONES.fechar.map((d) => (<path key={d} d={d} />))}
+            </svg>
+          </button>
+        </div>
       )}
 
       <nav className="flex flex-1 flex-col overflow-y-auto py-2">
@@ -168,17 +208,6 @@ export function Sidebar({
                 </svg>
               )}
               <span className="truncate">{item.label}</span>
-              {/* Marcador de configuração pendente: fica colado no nome da seção
-                  que resolve o problema, pra o dono saber onde clicar. */}
-              {item.alerta !== undefined && item.alerta > 0 && (
-                <span
-                  className="animate-alerta-menu flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-vermelho)] px-1 text-[10px] font-bold text-white"
-                  title={`${item.alerta} ${item.alerta === 1 ? 'pendência de configuração' : 'pendências de configuração'}`}
-                  aria-label={`${item.alerta} ${item.alerta === 1 ? 'pendência de configuração' : 'pendências de configuração'}`}
-                >
-                  {item.alerta}
-                </span>
-              )}
               {item.novidade && (
                 <span className="flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10px] font-bold text-[var(--adm-alta)]">
                   Novo
@@ -194,41 +223,24 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* Rodapé de apoio: o que fica fora da navegação de módulos. O aviso de
-          pedido novo mora aqui porque é uma preferência do aparelho, não uma
-          seção do painel. */}
-      {notificacoes && (
-        <div className="flex-shrink-0 border-t border-[var(--adm-borda)] pt-2">
-          <ItemNotificacoes estado={notificacoes.estado} onAtivar={notificacoes.onAtivar} />
-        </div>
-      )}
-
       {storeSlug && (
+        <div className="mb-1 mt-1 flex items-center border-t border-[var(--adm-borda)] pt-1 pr-2">
         <a
           href={`/loja/${storeSlug}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="mb-1 flex min-h-[36px] items-center gap-3 border-l-[3px] border-transparent pl-[13px] pr-3 text-[13.5px] font-normal leading-none text-[var(--adm-menu-texto)] transition-colors hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
+          className="flex min-h-[36px] min-w-0 flex-1 items-center gap-3 border-l-[3px] border-transparent pl-[13px] pr-3 text-[13.5px] font-normal leading-none text-[var(--adm-menu-texto)] transition-colors hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
         >
           <svg viewBox="0 0 24 24" className="h-[19px] w-[19px] flex-shrink-0 fill-current" aria-hidden="true">
             {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
           </svg>
           <span className="truncate">Ver meu cardápio</span>
         </a>
+        {/* O "copiar link" saiu do topo junto com a faixa da marca e mora aqui. */}
+        <CopiarLinkCardapio slug={storeSlug} />
+        </div>
       )}
 
-      {pendencias > 0 && onAbrirPendencias && (
-        <button
-          type="button"
-          onClick={onAbrirPendencias}
-          className="mx-3 mb-2 flex items-center justify-center gap-2 rounded-[3px] border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] font-semibold text-[var(--adm-vermelho-texto)] transition-colors hover:bg-danger/20"
-        >
-          <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] flex-shrink-0 fill-current">
-            {ICONES.aviso.map((d) => (<path key={d} d={d} />))}
-          </svg>
-          {pendencias} {pendencias === 1 ? 'pendência' : 'pendências'}
-        </button>
-      )}
       {onSignOut && (
         <button
           type="button"

@@ -30,9 +30,29 @@ describe('Sidebar', () => {
     expect(inativo?.className).not.toContain('--adm-azul-claro')
   })
 
-  it('renders the lowercase brand name', () => {
+  it('o menu começa no card da loja: sem a faixa da marca (2026-09-30)', () => {
     render(<Sidebar items={ITEMS} activeHref="/dashboard" />)
-    expect(screen.getByText('menuzia')).toBeInTheDocument()
+    expect(screen.queryByText('menuzia')).toBeNull()
+  })
+
+  it('card da loja: sino e alerta antes da seta; badge só com pendência', () => {
+    const loja = { nome: 'Fire House', logoUrl: null, bairro: 'Centro', cidade: 'Vitória' }
+    const onAbrir = vi.fn()
+    const { rerender } = render(<Sidebar items={ITEMS} activeHref="/dashboard" loja={loja} pendencias={3} onAbrirPendencias={onAbrir} notificacoes={{ estado: 'ativas', onAtivar: vi.fn() }} />)
+    expect(screen.getByTestId('menu-sino')).toHaveAttribute('data-estado', 'ativas')
+    expect(screen.getByTestId('menu-alerta-badge')).toHaveTextContent('3')
+    fireEvent.click(screen.getByTestId('menu-alerta'))
+    expect(onAbrir).toHaveBeenCalled()
+    rerender(<Sidebar items={ITEMS} activeHref="/dashboard" loja={loja} pendencias={0} onAbrirPendencias={onAbrir} />)
+    expect(screen.queryByTestId('menu-alerta-badge')).toBeNull()
+    rerender(<Sidebar items={ITEMS} activeHref="/dashboard" loja={loja} pendencias={2} mostrarPendencias={false} onAbrirPendencias={onAbrir} />)
+    expect(screen.queryByTestId('menu-alerta')).toBeNull()
+  })
+
+  it('itens do menu não têm mais marcador de pendência; "Novo" continua', () => {
+    render(<Sidebar items={[{ href: '/a', label: 'Cardápio', alerta: 2 }, { href: '/b', label: 'Campanhas', novidade: true }]} activeHref="/a" />)
+    expect(screen.queryByLabelText(/pendência/)).toBeNull()
+    expect(screen.getByText('Novo')).toBeInTheDocument()
   })
 })
 

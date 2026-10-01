@@ -24,7 +24,18 @@ const MENU_LABEL: Record<string, string> = {
  * guardada pelo AdminLayout).
  */
 export function SetupAlerta({ pendencias, onDispensar, onResolver }: SetupAlertaProps) {
-  if (pendencias.length === 0) return null
+  // Aberto pelo ícone de alerta do menu sem nada pendente: confirma que está tudo certo.
+  if (pendencias.length === 0) {
+    return (
+      <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/70 p-4" role="dialog" aria-modal="true" aria-labelledby="setup-alerta-titulo" onClick={onDispensar}>
+        <div className="w-full max-w-[420px] rounded-menuzia border border-border bg-main p-5 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <h2 id="setup-alerta-titulo" className="text-[15px] font-bold text-text-main">Nenhuma pendência</h2>
+          <p className="mt-1 text-[13px] text-text-subtle">A configuração da sua loja está completa.</p>
+          <button type="button" onClick={onDispensar} className="mt-4 rounded-menuzia bg-primary px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark">OK</button>
+        </div>
+      </div>
+    )
+  }
 
   const criticas = pendencias.filter((p) => p.severidade === 'critico')
   const primeira = criticas[0] ?? pendencias[0]
@@ -67,10 +78,11 @@ export function SetupAlerta({ pendencias, onDispensar, onResolver }: SetupAlerta
               <p className="mt-1 text-[12.5px] leading-relaxed text-text-subtle">{p.descricao}</p>
               <button
                 type="button"
+                data-testid="pendencia-resolver"
                 onClick={() => onResolver(p.href)}
-                className="mt-2 text-[12px] font-bold uppercase tracking-wide text-primary hover:text-primary-dark"
+                className="mt-2 rounded-menuzia bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark"
               >
-                Ir para {MENU_LABEL[p.href] ?? 'Ajustes'} →
+                Resolver <span className="font-normal normal-case opacity-80">· {MENU_LABEL[p.href] ?? 'Ajustes'}</span>
               </button>
             </li>
           ))}
