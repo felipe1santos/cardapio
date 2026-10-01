@@ -13,6 +13,7 @@ import { assinaturaPendencias, avaliarSetup, type PendenciaSetup } from '@/lib/s
 import { SetupAlerta } from '@/components/admin/setup-alerta'
 import { pode } from '@/lib/auth/permissoes'
 import { itensDoMenu } from '@/lib/menu-lateral'
+import { caminhoPermitidoCompleto, normalizarAcessos, type Acessos } from '@/lib/acessos'
 import { useAvisarPedido, useNotificacoesPedidos } from '@/components/admin/notificacoes-pedidos'
 import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
@@ -85,6 +86,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Papel de quem está logado. null = ainda carregando: aí o menu NÃO é filtrado, para
   // não sumir tudo por um instante na tela do dono (que é quem existe hoje em produção).
   const [papel, setPapel] = useState<string | null>(null)
+  // Acessos do funcionário (0120): o menu mostra só as áreas liberadas.
+  const [acessos, setAcessos] = useState<Acessos | null>(null)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // null = nenhum sinal explícito ainda; cai no default por rota.
   const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
@@ -137,9 +140,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             if (!active) return
             if (data.user) {
               // Só colunas liberadas por grant (0062): select('*') em usuarios é recusado.
-              const { data: u } = await supabase.from('usuarios').select('papel').eq('id', data.user.id).maybeSingle()
+              const { data: u } = await supabase.from('usuarios').select('papel, acessos').eq('id', data.user.id).maybeSingle()
               if (active && u) {
                 setPapel(u.papel as string)
+                setAcessos(normalizarAcessos((u as { acessos?: unknown }).acessos))
                 return
               }
             }
@@ -266,7 +270,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Regra do menu (papel × flag de mesas × logística) em lib/menu-lateral.ts, testada.
   // Pendências de configuração ficam só no alerta do card da loja (2026-09-30): os
   // marcadores numéricos nos itens do menu saíram.
-  const items = itensDoMenu({ papel, moduloMesas, usaLogistica }).map((item) => {
+  const items = itensDoMenu({ papel, moduloMesas, usaLogistica }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
     const base = item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
     if (item.href === '/admin/logistica') return { ...base, badge: semEntregador ? 0 : badges.logisticaPendente }

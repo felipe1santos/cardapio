@@ -5,6 +5,8 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { pode, papeisQuePodeGerenciar, type Papel } from '@/lib/auth/permissoes'
 import { criarFuncionario, listarEquipe, validarNovoFuncionario } from '@/lib/queries/equipe'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { normalizarAcessos, resumoAcessos } from '@/lib/acessos'
+import { definirAcessos } from '@/lib/queries/equipe'
 
 /**
  * Equipe da loja. O middleware já exige `equipe.gerenciar` nesta rota; a checagem se
@@ -63,6 +65,11 @@ export async function POST(request: Request) {
   })
   if (!resultado.ok) return NextResponse.json({ error: resultado.erro }, { status: 409 })
 
+  // Acessos escolhidos no cadastro (modelo ou caixas). Só o dono libera a área Equipe.
+  const acessos = normalizarAcessos(corpo.acessos)
+  if (acessos && sessao.papel !== 'dono') acessos.areas = acessos.areas.filter((a) => a !== 'equipe')
+  if (acessos) await definirAcessos(admin, sessao.restauranteId, resultado.valor.id, acessos)
+
   await registrarAuditoria(admin, {
     restauranteId: sessao.restauranteId,
     usuarioId: sessao.userId,
@@ -71,7 +78,7 @@ export async function POST(request: Request) {
     entidade: 'usuario',
     entidadeId: resultado.valor.id,
     // Nunca a senha, nunca o e-mail técnico.
-    dados: { nome: resultado.valor.nome, login: resultado.valor.usuario, papel: resultado.valor.papel },
+    dados: { nome: resultado.valor.nome, login: resultado.valor.usuario, papel: resultado.valor.papel, acessos: resumoAcessos(resultado.valor.papel, acessos) },
   })
 
   return NextResponse.json({ funcionario: resultado.valor }, { status: 201 })

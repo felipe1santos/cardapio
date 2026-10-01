@@ -6,6 +6,8 @@ import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { Papel } from '@/lib/auth/permissoes'
+import { EditorAcessos } from '@/components/admin/editor-acessos'
+import { MODELOS, resumoAcessos, type Acessos } from '@/lib/acessos'
 
 /**
  * Equipe do estabelecimento.
@@ -22,6 +24,7 @@ interface Funcionario {
   ativo: boolean
   ultimoLoginEm: string | null
   criadoEm: string
+  acessos: Acessos | null
 }
 
 const ROTULO_PAPEL: Record<string, string> = {
@@ -53,6 +56,7 @@ export default function EquipePage() {
   const [erro, setErro] = useState<string | null>(null)
   const [novoAberto, setNovoAberto] = useState(false)
   const [senhaDe, setSenhaDe] = useState<Funcionario | null>(null)
+  const [acessosDe, setAcessosDe] = useState<Funcionario | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
@@ -139,8 +143,10 @@ export default function EquipePage() {
                     </Badge>
                     <span className="text-[12px] text-text-subtle">{quando(f.ultimoLoginEm)}</span>
                   </div>
+                  <div className="mt-1.5 text-[12px] text-text-main">Acessos: {resumoAcessos(f.papel, f.acessos)}</div>
                   {administravel && (
                     <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                      {f.papel !== 'dono' && <Button variant="outline" className="col-span-2" onClick={() => setAcessosDe(f)}>Editar acessos</Button>}
                       <Button variant="outline" onClick={() => setSenhaDe(f)}>
                         <KeyRound className="mr-1 inline h-3.5 w-3.5" />
                         Senha
@@ -171,6 +177,7 @@ export default function EquipePage() {
                   <th className="px-4 py-2.5 font-semibold">Nome</th>
                   <th className="px-4 py-2.5 font-semibold">Login</th>
                   <th className="px-4 py-2.5 font-semibold">Papel</th>
+                  <th className="px-4 py-2.5 font-semibold">Acessos</th>
                   <th className="px-4 py-2.5 font-semibold">Situação</th>
                   <th className="px-4 py-2.5 font-semibold">Último acesso</th>
                   <th className="px-4 py-2.5" />
@@ -193,6 +200,7 @@ export default function EquipePage() {
                           {ROTULO_PAPEL[f.papel] ?? f.papel}
                         </Badge>
                       </td>
+                      <td className="px-4 py-3 text-[12px] text-text-main" data-testid="acessos-resumo">{resumoAcessos(f.papel, f.acessos)}</td>
                       <td className="px-4 py-3">
                         <Badge tone={f.ativo ? 'ok' : 'danger'}>{f.ativo ? 'Ativo' : 'Desativado'}</Badge>
                       </td>
@@ -200,6 +208,9 @@ export default function EquipePage() {
                       <td className="px-4 py-3 text-right">
                         {administravel && (
                           <div className="flex justify-end gap-1.5">
+                            {f.papel !== 'dono' && (
+                              <Button variant="outline" className="!px-2.5" onClick={() => setAcessosDe(f)} data-testid="editar-acessos">Editar acessos</Button>
+                            )}
                             <Button variant="outline" className="!px-2" onClick={() => setSenhaDe(f)} title="Redefinir senha">
                               <KeyRound className="h-3.5 w-3.5" />
                             </Button>
@@ -241,6 +252,19 @@ export default function EquipePage() {
           onCriado={async (nome) => {
             setNovoAberto(false)
             setAviso(`${nome} foi cadastrado e já pode entrar com o login e a senha definidos.`)
+            await carregar()
+          }}
+        />
+      )}
+
+      {acessosDe && (
+        <EditarAcessos
+          funcionario={acessosDe}
+          podeEquipe={eu !== null && equipe.find((x) => x.id === eu)?.papel === 'dono'}
+          onCancelar={() => setAcessosDe(null)}
+          onFeito={async () => {
+            setAviso(`Acessos de ${acessosDe.nome} atualizados. Valem na próxima ação, sem precisar sair.`)
+            setAcessosDe(null)
             await carregar()
           }}
         />
@@ -303,6 +327,11 @@ function NovoFuncionario({
   const [senha, setSenha] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // Acessos começam pelo modelo do papel (Garçom = só Mesas e Comandas).
+  const [acessos, setAcessos] = useState<Acessos>(() => {
+    const m = MODELOS.find((x) => x.papel === (papeis.includes('garcom') ? 'garcom' : papeis[0]))
+    return m ? { areas: [...m.acessos.areas], sensiveis: [...m.acessos.sensiveis] } : { areas: [], sensiveis: [] }
+  })
 
   async function salvar() {
     setSalvando(true)
@@ -310,7 +339,7 @@ function NovoFuncionario({
     const r = await fetch('/api/admin/equipe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, usuario, papel, senha }),
+      body: JSON.stringify({ nome, usuario, papel, senha, acessos }),
     })
     const corpo = await r.json()
     setSalvando(false)
@@ -350,6 +379,7 @@ function NovoFuncionario({
         <Campo label="Senha inicial" hint="Pelo menos 8 caracteres. Passe para a pessoa pessoalmente.">
           <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className={INPUT} autoComplete="new-password" />
         </Campo>
+        <EditorAcessos acessos={acessos} onChange={setAcessos} papeisPermitidos={papeis} onModelo={(p) => setPapel(p as Papel)} />
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
       </div>
       <div className="flex gap-2 border-t border-border p-5">
@@ -415,6 +445,59 @@ function RedefinirSenha({
         </Button>
         <Button className="flex-1" onClick={salvar} disabled={salvando}>
           {salvando ? 'Salvando…' : 'Redefinir senha'}
+        </Button>
+      </div>
+    </Gaveta>
+  )
+}
+
+function EditarAcessos({
+  funcionario,
+  podeEquipe,
+  onCancelar,
+  onFeito,
+}: {
+  funcionario: Funcionario
+  podeEquipe: boolean
+  onCancelar: () => void
+  onFeito: () => void
+}) {
+  const inicial = funcionario.acessos ?? MODELOS.find((m) => m.papel === funcionario.papel)?.acessos ?? { areas: [], sensiveis: [] }
+  const [acessos, setAcessos] = useState<Acessos>({ areas: [...inicial.areas], sensiveis: [...inicial.sensiveis] })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function salvar(valor: Acessos | null) {
+    setSalvando(true)
+    setErro(null)
+    const r = await fetch(`/api/admin/equipe/${funcionario.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acessos: valor }),
+    })
+    const corpo = await r.json().catch(() => ({}))
+    setSalvando(false)
+    if (!r.ok) {
+      setErro(corpo.error ?? 'Não foi possível salvar.')
+      return
+    }
+    onFeito()
+  }
+
+  return (
+    <Gaveta titulo={`Acessos de ${funcionario.nome}`} onFechar={onCancelar}>
+      <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        <p className="text-[12px] text-text-subtle">
+          Papel: <strong>{ROTULO_PAPEL[funcionario.papel] ?? funcionario.papel}</strong>. Os acessos limitam o que a pessoa vê e faz; nunca liberam mais do que o papel permite.
+        </p>
+        <EditorAcessos acessos={acessos} onChange={setAcessos} papeisPermitidos={[funcionario.papel]} podeEquipe={podeEquipe} />
+        {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
+      </div>
+      <div className="flex flex-wrap gap-2 border-t border-border p-5">
+        <Button variant="outline" onClick={() => void salvar(null)} disabled={salvando}>Voltar ao padrão do papel</Button>
+        <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={salvando}>Cancelar</Button>
+        <Button className="flex-1" onClick={() => void salvar(acessos)} disabled={salvando} data-testid="salvar-acessos">
+          {salvando ? 'Salvando…' : 'Salvar acessos'}
         </Button>
       </div>
     </Gaveta>

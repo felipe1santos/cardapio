@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { normalizarAcessos, type Acessos } from '@/lib/acessos'
 import { normalizarUsuario, usuarioDisponivel } from './lojistas'
 import { papeisQuePodeGerenciar, pode, type Papel } from '@/lib/auth/permissoes'
 
@@ -20,6 +21,8 @@ export interface Funcionario {
   ativo: boolean
   ultimoLoginEm: string | null
   criadoEm: string
+  /** Acessos do funcionário (0120). Null = padrão do papel. */
+  acessos: Acessos | null
 }
 
 export const SENHA_MINIMA = 8
@@ -65,12 +68,13 @@ interface UsuarioRow {
   desativado_em: string | null
   ultimo_login_em: string | null
   criado_em: string
+  acessos?: unknown
 }
 
 export async function listarEquipe(admin: SupabaseClient, restauranteId: string): Promise<Funcionario[]> {
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, nome, usuario, papel, desativado_em, ultimo_login_em, criado_em')
+    .select('id, nome, usuario, papel, desativado_em, ultimo_login_em, criado_em, acessos')
     .eq('restaurante_id', restauranteId)
     .order('criado_em', { ascending: true })
   if (error) throw error
@@ -82,6 +86,7 @@ export async function listarEquipe(admin: SupabaseClient, restauranteId: string)
     ativo: !u.desativado_em,
     ultimoLoginEm: u.ultimo_login_em,
     criadoEm: u.criado_em,
+    acessos: normalizarAcessos(u.acessos),
   }))
 }
 
@@ -140,8 +145,14 @@ export async function criarFuncionario(
   const u = data as UsuarioRow
   return {
     ok: true,
-    valor: { id: u.id, nome: u.nome, usuario: u.usuario, papel: u.papel, ativo: true, ultimoLoginEm: null, criadoEm: u.criado_em },
+    valor: { id: u.id, nome: u.nome, usuario: u.usuario, papel: u.papel, ativo: true, ultimoLoginEm: null, criadoEm: u.criado_em, acessos: null },
   }
+}
+
+/** Grava os acessos (null = volta ao padrão do papel). Só pelo servidor (gatilho da 0120). */
+export async function definirAcessos(admin: SupabaseClient, restauranteId: string, id: string, acessos: Acessos | null): Promise<void> {
+  const { error } = await admin.from('usuarios').update({ acessos }).eq('id', id).eq('restaurante_id', restauranteId)
+  if (error) throw error
 }
 
 export async function buscarFuncionario(

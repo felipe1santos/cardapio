@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { decidirAcesso, ehRotaDoModuloMesas, superficie } from '@/lib/auth/rotas'
+import { caminhoPermitidoCompleto, normalizarAcessos, podeSensivel, primeiraTela, sensivelDaRequisicao, type Acessos } from '@/lib/acessos'
 
 /**
  * Porteiro do painel. Esconder item do menu não protege nada: quem digita a URL entra.
@@ -44,10 +45,11 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
   let papel: string | null = null
+  let acessos: Acessos | null = null
 
   const { data: auth } = await supabase.auth.getUser()
   if (auth.user) {
-    const { data, error } = await supabase.from('usuarios').select('papel').eq('id', auth.user.id).maybeSingle()
+    const { data, error } = await supabase.from('usuarios').select('papel, acessos').eq('id', auth.user.id).maybeSingle()
     if (error) {
       console.error('[middleware] não consegui ler o papel', error.message)
       // Falha de rede/banco, não de permissão. Numa PÁGINA, deixar passar é o menor mal:
@@ -69,6 +71,34 @@ export async function middleware(request: NextRequest) {
       return response
     }
     papel = (data?.papel as string | undefined) ?? null
+    acessos = normalizarAcessos((data as { acessos?: unknown } | null)?.acessos)
+  }
+
+  // Acessos por funcionário (0120): por cima do papel, relidos a cada requisição — a
+  // mudança vale na próxima ação, sem deslogar. O dono nunca é limitado.
+  if (papel && papel !== 'dono' && acessos) {
+    if (pathname === '/admin/sem-acesso') return response
+    const onde = superficie(pathname)
+    if ((pathname === '/admin' || pathname === '/admin/') && onde === 'pagina') {
+      const destino = request.nextUrl.clone()
+      destino.pathname = primeiraTela(acessos) ?? '/admin/sem-acesso'
+      destino.search = ''
+      return NextResponse.redirect(destino)
+    }
+    if (!caminhoPermitidoCompleto(pathname, papel, acessos)) {
+      if (onde === 'api') return NextResponse.json({ error: 'Você não tem acesso a esta área.', codigo: 'sem_acesso' }, { status: 403 })
+      const destino = request.nextUrl.clone()
+      destino.pathname = '/admin/sem-acesso'
+      destino.search = ''
+      return NextResponse.redirect(destino)
+    }
+    if (onde === 'api' && request.method !== 'GET') {
+      const corpo = await request.clone().json().catch(() => null)
+      const sensivel = sensivelDaRequisicao(request.method, pathname, corpo)
+      if (sensivel && !podeSensivel(papel, acessos, sensivel)) {
+        return NextResponse.json({ error: 'Você não tem permissão para esta ação.', codigo: 'sem_permissao_acao', acao: sensivel }, { status: 403 })
+      }
+    }
   }
 
   let decisao = decidirAcesso(pathname, papel)

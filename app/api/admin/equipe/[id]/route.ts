@@ -5,6 +5,8 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { pode, podeAdministrar, papeisQuePodeGerenciar, MENSAGEM_RECUSA, type Papel } from '@/lib/auth/permissoes'
 import { atualizarNomeEPapel, buscarFuncionario, contarOutrosAdminsAtivos, definirAtivo } from '@/lib/queries/equipe'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { normalizarAcessos, resumoAcessos } from '@/lib/acessos'
+import { definirAcessos } from '@/lib/queries/equipe'
 
 /** Editar nome/papel e ativar/desativar um funcionário. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -56,6 +58,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (patch.nome || patch.papel) {
     await atualizarNomeEPapel(admin, sessao.restauranteId, id, patch)
     acoes.push('equipe.editou')
+  }
+
+  // Acessos (0120). O dono nunca é limitado; só o dono libera a área Equipe. Vale na
+  // próxima ação do funcionário (o middleware relê a cada requisição).
+  let acessosDepois: string | null = null
+  if ('acessos' in corpo) {
+    if (alvo.papel === 'dono') return NextResponse.json({ error: 'O dono sempre tem acesso total.' }, { status: 400 })
+    const novos = corpo.acessos === null ? null : normalizarAcessos(corpo.acessos)
+    if (corpo.acessos !== null && !novos) return NextResponse.json({ error: 'Acessos inválidos.' }, { status: 400 })
+    if (novos && sessao.papel !== 'dono') novos.areas = novos.areas.filter((a) => a !== 'equipe')
+    await definirAcessos(admin, sessao.restauranteId, id, novos)
+    acessosDepois = resumoAcessos(patch.papel ?? alvo.papel, novos)
+    await registrarAuditoria(admin, {
+      restauranteId: sessao.restauranteId, usuarioId: sessao.userId, usuarioNome: sessao.nome,
+      acao: 'equipe.acessos_alterados', entidade: 'usuario', entidadeId: id,
+      dados: { alvo: alvo.nome, login: alvo.usuario, antes: resumoAcessos(alvo.papel, alvo.acessos), depois: acessosDepois, areas: (novos?.areas ?? []).join(', '), sensiveis: (novos?.sensiveis ?? []).join(', ') },
+    })
   }
 
   for (const acao of acoes) {
