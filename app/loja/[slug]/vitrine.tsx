@@ -218,6 +218,12 @@ function PixIcon({ className = 'h-6 w-6' }: { className?: string }) {
  * Encurta o texto de próxima abertura pra caber na pílula do cabeçalho:
  * "abre amanhã às 18:00" → "Amanhã 18:00", "abre sábado às 11:00" → "Sáb 11:00".
  */
+function numeroWaLojaDe(telefone: string | null | undefined): string {
+  const d = (telefone ?? '').replace(/D/g, '')
+  if (d.length < 10) return ''
+  return d.startsWith('55') ? d : `55${d}`
+}
+
 function abreviarProximaAbertura(texto: string | null): string | null {
   if (!texto) return null
   const abreviacoes: Record<string, string> = {
@@ -2233,6 +2239,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }
 
   /** Telefone da loja em formato wa.me (só dígitos, com DDI 55). '' se inválido. */
+  const linkDuvidasWa = `https://wa.me/${numeroWaLojaDe(restaurante?.telefone)}?text=${encodeURIComponent('Olá! Vim pelo cardápio online e tenho uma dúvida.')}`
   function numeroWaLoja(): string {
     const d = (restaurante?.telefone ?? '').replace(/\D/g, '')
     if (d.length < 10) return ''
@@ -3119,7 +3126,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 comida. Aqui ela é a primeira coisa dentro do cardápio, que é
                 onde um anúncio é lido sem atrapalhar quem já sabe o que quer. */}
             {bannerPromo.tipo !== 'nenhum' && !gavetaEmTela && (
-              <div className="mx-4 mt-[16px] lg:mx-8">
+              <div className="mx-[16px] mt-[16px] lg:mx-8">
                 {bannerPromo.tipo === 'texto' ? (
                   // Aviso escrito pela loja, para quem não tem arte pronta. Usa a
                   // cor do tema para pertencer à loja, e não parecer erro do app.
@@ -3867,17 +3874,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </button>
         )}
 
-        {/* ── "Tirar dúvidas no WhatsApp" (REF-BANNER / REF-DESTAQUES) ─────────────
-            Fixo no rodapé, logo acima da navegação. Decisão: some enquanto a barra
-            "Ver sacola" está na tela (as duas no mesmo lugar empilhariam três barras),
-            fora da Home e com checkout/ficha abertos. Sem WhatsApp da loja, não aparece. */}
         {numeroWaLoja() && tab === 'home' && cartCount === 0 && !checkoutOpen && !productSheet && (
           <a
-            href={`https://wa.me/${numeroWaLoja()}?text=${encodeURIComponent('Olá! Vim pelo cardápio online e tenho uma dúvida.')}`}
+            href={linkDuvidasWa}
             target="_blank"
             rel="noopener noreferrer"
-            data-testid="tirar-duvidas-whatsapp"
-            className="camada-propria fixed inset-x-0 bottom-[calc(62px+env(safe-area-inset-bottom))] z-20 mx-auto flex h-[40px] w-full max-w-[600px] items-center justify-center gap-[8px] border-t border-[var(--v-borda)] bg-white/95 text-[13px] font-medium text-[#6B7280] backdrop-blur lg:bottom-[16px] lg:w-auto lg:rounded-full lg:border lg:px-[18px] lg:shadow-md"
+            data-testid="tirar-duvidas-whatsapp-desktop"
+            className="camada-propria fixed inset-x-0 bottom-[16px] z-20 mx-auto hidden w-fit items-center gap-[8px] rounded-full border border-[var(--v-borda)] bg-white px-[18px] py-[9px] text-[13px] font-medium text-[#6B7280] shadow-md lg:flex"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/vitrine/whatsapp.svg" alt="" width={16} height={16} className="h-[16px] w-[16px]" />
@@ -3888,6 +3891,23 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
         {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
         <nav className="nav-rodape fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
+          {/* "Tirar dúvidas no WhatsApp" (REF-BANNER / REF-DESTAQUES): no topo da própria
+              navegação, então fica sempre colado nela, fixo no rodapé. Some com a barra
+              "Ver sacola" na tela, fora da Home, no checkout e sem WhatsApp da loja. */}
+          {numeroWaLoja() && tab === 'home' && cartCount === 0 && !checkoutOpen && !productSheet && (
+            <a
+              href={linkDuvidasWa}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="tirar-duvidas-whatsapp"
+              className="-mt-1 mb-1 flex h-[38px] items-center justify-center gap-[8px] border-b border-[var(--v-borda)] text-[13px] font-medium text-[#6B7280]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/vitrine/whatsapp.svg" alt="" width={16} height={16} className="h-[16px] w-[16px]" />
+              <span>Tirar dúvidas no WhatsApp</span>
+              <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-[#9CA3AF]" aria-hidden><path d="M8.6 5.4 7.2 6.8 12.4 12l-5.2 5.2 1.4 1.4L15.2 12z" /></svg>
+            </a>
+          )}
           <div className="flex">
             {([
               { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M12 3.1 2.5 11.4a1 1 0 0 0 .66 1.75H4.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-4.25h3.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-6.85h1.34a1 1 0 0 0 .66-1.75L12 3.1z" /></svg> },
