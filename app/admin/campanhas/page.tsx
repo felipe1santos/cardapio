@@ -3,14 +3,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTipo, type TipoMensagem } from '@/lib/queries/campanhas'
 import { formatarReal } from '@/lib/moeda'
-import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora, problemasDasVariaveis, progressoCampanha, situacaoCampanha, BOTOES_MAX, BOTAO_TEXTO_MAX, type BotaoCampanha } from '@/lib/mensageria/campanhas'
+import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora, problemasDasVariaveis, BOTOES_MAX, BOTAO_TEXTO_MAX, type BotaoCampanha } from '@/lib/mensageria/campanhas'
 import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
 import { PushNotificacoes } from '@/components/admin/push-notificacoes'
+import { SubmenuVertical } from '@/components/admin/submenu-vertical'
+import { PilhaToasts, useToasts } from '@/components/admin/toasts'
+import { VisaoGeral } from '@/components/admin/campanhas/visao-geral'
+import { Agendamentos, ListaCampanhas, type AcoesCampanha } from '@/components/admin/campanhas/listas'
+import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-automaticas'
+import { Modelos, useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
+import { BoasPraticas } from '@/components/admin/campanhas/boas-praticas'
+import { Ajuda, Confirmar } from '@/components/admin/campanhas/comum'
+import { Lightbulb, Power, Send } from 'lucide-react'
+
+type Aba = 'visao' | 'campanhas' | 'agendamentos' | 'automaticas' | 'notificacoes' | 'modelos'
+const ABAS: { id: Aba; label: string }[] = [
+  { id: 'visao', label: 'Visão geral' },
+  { id: 'campanhas', label: 'Campanhas' },
+  { id: 'agendamentos', label: 'Agendamentos' },
+  { id: 'automaticas', label: 'Mensagens automáticas' },
+  { id: 'notificacoes', label: 'Notificações do app' },
+  { id: 'modelos', label: 'Modelos de mensagem' },
+]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -27,17 +45,6 @@ function horaAgora() {
 }
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
-const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  rascunho:  { label: 'Rascunho',  cls: 'bg-page text-text-subtle border border-border' },
-  agendada:  { label: 'Agendada',  cls: 'bg-alert text-alert' },
-  enviando:  { label: 'Enviando',  cls: 'bg-warn/20 text-warn' },
-  pausada:   { label: 'Pausada',   cls: 'bg-warn/20 text-warn' },
-  concluida: { label: 'Concluída', cls: 'bg-price-bg text-price-text' },
-  concluida_com_falhas: { label: 'Concluída com falhas', cls: 'bg-warn/20 text-warn' },
-  falhou:    { label: 'Falhou',    cls: 'bg-danger/10 text-danger' },
-  cancelada: { label: 'Cancelada', cls: 'bg-danger/10 text-danger' },
-}
 
 const TIPO_LABEL: Record<TipoMensagem, string> = {
   texto:  'Texto',
@@ -190,35 +197,6 @@ function CampanhaPreviewModal({ campanha, onClose }: { campanha: Campanha; onClo
   )
 }
 
-// ─── Badge e Progress ─────────────────────────────────────────────────────────
-
-function Badge({ status }: { status: string }) {
-  const s = STATUS_LABEL[status] ?? { label: status, cls: 'bg-page text-text-subtle' }
-  return <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>
-}
-
-/** Enviados (verde) e falhas (vermelho) separados — antes a barra somava os dois em azul. */
-function Progress({ campanha }: { campanha: Campanha }) {
-  const p = progressoCampanha(campanha)
-  if (!p.total) return <span className="text-[12px] text-text-subtle">—</span>
-  const pct = (n: number) => `${(n / p.total) * 100}%`
-  return (
-    <div>
-      <div className="flex items-center gap-2">
-        <div className="flex h-1.5 w-20 overflow-hidden rounded-full bg-border">
-          <div className="h-full bg-status-ready transition-all" style={{ width: pct(p.enviados) }} />
-          <div className="h-full bg-danger transition-all" style={{ width: pct(p.falhas) }} />
-        </div>
-        <span className="text-[12px] text-text-subtle">{p.enviados}/{p.total} enviadas</span>
-      </div>
-      {p.falhas > 0 && <span className="mt-0.5 block text-[11px] text-danger">{p.falhas} {p.falhas === 1 ? 'falha' : 'falhas'}</span>}
-      {campanha.status === 'pausada' && (
-        <span className="mt-0.5 block text-[11px] text-warn">WhatsApp da loja desconectado — volta sozinha ao reconectar</span>
-      )}
-    </div>
-  )
-}
-
 // ─── Filtro Editor ────────────────────────────────────────────────────────────
 
 function FiltroEditor({ filtro, onChange }: { filtro: FiltroCampanha; onChange: (f: FiltroCampanha) => void }) {
@@ -328,10 +306,20 @@ export default function CampanhasPage() {
 
   // Modal preview de campanha existente
   const [previewCampanha, setPreviewCampanha] = useState<Campanha | null>(null)
-  const [aba, setAba] = useState<'campanhas' | 'metricas' | 'notificacoes'>('campanhas')
-  // Atalho da Fidelidade: /admin/campanhas?aba=notificacoes abre direto as notificações do app.
+  const [aba, setAba] = useState<Aba>('visao')
+  // Atalho: /admin/campanhas?aba=notificacoes (Fidelidade) abre direto a seção; "metricas" virou a Visão geral.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('aba') === 'notificacoes') setAba('notificacoes')
+    const q = new URLSearchParams(window.location.search).get('aba')
+    if (q && ABAS.some((a) => a.id === q)) setAba(q as Aba)
+  }, [])
+  const toasts = useToasts()
+  const [boasPraticas, setBoasPraticas] = useState(false)
+  const [automaticoLigado, setAutomaticoLigado] = useState<boolean | null>(null)
+  const [confirmacao, setConfirmacao] = useState<{ tipo: 'cancelar' | 'excluir'; c: Campanha } | null>(null)
+  const modelos = useModelos(restauranteId)
+  // Status do envio automático no topo (Ligado/Desligado), sem esperar abrir a seção.
+  useEffect(() => {
+    fetch('/api/admin/campanhas/automaticas', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) setAutomaticoLigado(j.config.ativo) }, () => {})
   }, [])
 
   // Uploads
@@ -400,6 +388,30 @@ export default function CampanhasPage() {
 
   function fecharDrawer() { setDrawerOpen(false); setEditingId(null) }
 
+  /** Duplicar: mesma mensagem e público, sem horário — a pessoa escolhe quando enviar. */
+  function duplicar(c: Campanha) {
+    setEditingId(null)
+    setForm({
+      nome: `${c.nome} (cópia)`.slice(0, 120), tipoMensagem: c.tipoMensagem, mensagem: c.mensagem,
+      imagemUrl: c.imagemUrl, audioUrl: c.audioUrl, filtro: c.filtro, agendadoEm: '',
+      incluirLink: c.incluirLink, incluirDescadastro: c.incluirDescadastro, botoes: c.botoes ?? [],
+    })
+    setErro(null); setEstimativa(null); setDrawerOpen(true)
+  }
+
+  function usarModelo(m: ModeloMensagem) {
+    setEditingId(null)
+    setForm({ ...formDefault(), nome: m.nome, mensagem: m.mensagem, imagemUrl: m.imagem_url, tipoMensagem: m.imagem_url ? 'imagem' : 'texto' })
+    setErro(null); setEstimativa(null); setDrawerOpen(true)
+  }
+
+  async function salvarComoModelo() {
+    if (form.tipoMensagem === 'audio') { setErro('Modelo é só para texto ou imagem.'); return }
+    if (!form.mensagem.trim()) { setErro('Escreva a mensagem antes de salvar como modelo.'); return }
+    const e = await modelos.salvar({ nome: form.nome.trim() || 'Modelo sem nome', mensagem: form.mensagem, imagem_url: form.tipoMensagem === 'imagem' ? form.imagemUrl : null })
+    toasts.mostrar(e ? 'erro' : 'ok', e ?? 'Modelo salvo. Ele aparece em "Modelos de mensagem".')
+  }
+
   // ── Upload ────────────────────────────────────────────────────────────────
 
   async function handleImagemPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -459,161 +471,88 @@ export default function CampanhasPage() {
   // ── Ações lista ───────────────────────────────────────────────────────────
 
   async function cancelarCampanha(id: string) {
-    if (!confirm('Cancelar esta campanha?')) return
     const res = await fetch(`/api/admin/campanhas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelada' }) })
-    if (!res.ok) alert((await res.json().catch(() => null))?.error ?? 'Não foi possível cancelar.')
+    if (!res.ok) toasts.mostrar('erro', (await res.json().catch(() => null))?.error ?? 'Não foi possível cancelar.')
+    else toasts.mostrar('ok', 'Campanha cancelada. Quem ainda não recebeu não recebe mais.')
     carregar()
   }
 
   async function excluirCampanha(id: string) {
-    if (!confirm('Excluir esta campanha permanentemente?')) return
     const res = await fetch(`/api/admin/campanhas/${id}`, { method: 'DELETE' })
-    if (!res.ok) alert((await res.json().catch(() => null))?.error ?? 'Não foi possível excluir.')
+    if (!res.ok) toasts.mostrar('erro', (await res.json().catch(() => null))?.error ?? 'Não foi possível excluir.')
+    else toasts.mostrar('ok', 'Campanha excluída.')
     carregar()
+  }
+
+  const acoes: AcoesCampanha = {
+    onVer: (c) => setPreviewCampanha(c),
+    onEditar: abrirEditar,
+    onDuplicar: duplicar,
+    onCancelar: (c) => setConfirmacao({ tipo: 'cancelar', c }),
+    onExcluir: (c) => setConfirmacao({ tipo: 'excluir', c }),
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TopBar title="Campanhas" breadcrumb="Disparo de mensagens WhatsApp" />
+      <TopBar
+        title="Campanhas via WhatsApp"
+        breadcrumb="Disparos, agendamentos e mensagens automáticas"
+        right={<span className="hidden sm:inline-flex"><Ajuda texto="Mensagens para os clientes da loja pelo WhatsApp: campanhas na hora ou agendadas, mensagens automáticas do status do pedido e notificações do app do cardápio." /></span>}
+      />
 
-      <div className="flex flex-1 flex-col overflow-y-auto p-5 space-y-4">
-        <div className="flex gap-1 border-b border-border" role="tablist">
-          {([['campanhas', 'Campanhas'], ['metricas', 'Métricas'], ['notificacoes', 'Notificações do app']] as const).map(([id, rotulo]) => (
-            <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}
-              className={['-mb-px h-[38px] border-b-2 px-4 text-[13px] font-semibold transition-colors',
-                aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main'].join(' ')}>
-              {rotulo}
-            </button>
-          ))}
+      {/* Barra de ações: envio automático, boas práticas e o disparo. */}
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--adm-borda)] bg-white px-4 py-2.5 sm:px-5">
+        <button type="button" onClick={() => setAba('automaticas')} data-testid="status-automatico"
+          className={`inline-flex h-9 items-center gap-2 rounded-[5px] border px-3 text-[12.5px] font-bold ${automaticoLigado === false ? 'border-[#fdba74] bg-[#fff7ed] text-[#c2410c]' : 'border-[#86efac] bg-[#f0fdf4] text-[#15803d]'}`}
+          title="Envio automático do status do pedido">
+          <Power className="h-4 w-4" />
+          {automaticoLigado === null ? 'Envio automático' : automaticoLigado ? 'Envio automático ligado' : 'Envio automático desligado'}
+        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setBoasPraticas(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="abrir-boas-praticas">
+            <Lightbulb className="h-4 w-4" /> Boas práticas
+          </button>
+          <button type="button" onClick={abrirNovo} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-bold text-white hover:bg-[#0570ae]" data-testid="disparar-mensagem">
+            <Send className="h-4 w-4" /> Disparar mensagem
+          </button>
         </div>
-
-        {aba === 'notificacoes' ? (
-          <PushNotificacoes />
-        ) : aba === 'metricas' ? (
-          <CampanhasMetricas opcoesCampanhas={campanhas.map((c) => ({ id: c.id, nome: c.nome }))} />
-        ) : (<>
-        <div className="flex items-center justify-between max-lg:flex-col max-lg:items-stretch max-lg:gap-2">
-          <p className="text-[13px] text-text-subtle">Dispare mensagens, imagens ou áudios para clientes segmentados.</p>
-          <Button onClick={abrirNovo}>+ Nova campanha</Button>
-        </div>
-
-        {loading ? (
-          <p className="text-[13px] text-text-subtle">Carregando…</p>
-        ) : campanhas.length === 0 ? (
-          <Card className="flex flex-col items-center gap-3 py-12 text-center">
-            <svg viewBox="0 0 24 24" className="h-10 w-10 fill-text-subtle/30">
-              <path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.61-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.62zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.54.8 1.07 1.2 1.61.96-.72 2.21-1.65 3.2-2.41zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z" />
-            </svg>
-            <p className="text-[13px] font-medium text-text-subtle">Nenhuma campanha criada ainda.</p>
-            <Button onClick={abrirNovo}>Criar primeira campanha</Button>
-          </Card>
-        ) : (
-          <>
-          {/* Celular: cartão por campanha. Na tabela espremida, "Agendado" e "Progresso"
-              (o que a pessoa vem conferir) ficavam ilegíveis, e as ações viravam três
-              links colados de 11px. */}
-          <div className="flex flex-col gap-2 lg:hidden">
-            {campanhas.map((c) => (
-              <Card key={c.id} className="p-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="min-w-0 break-words text-[14px] font-bold text-text-main">{c.nome}</span>
-                  <Badge status={situacaoCampanha(c)} />
-                </div>
-                <div className="mt-1.5 text-[12px] text-text-subtle">
-                  {TIPO_LABEL[c.tipoMensagem]} · {formatarDataHora(c.agendadoEm)}
-                </div>
-                <div className="mt-2.5">
-                  <Progress campanha={c} />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-                  <button
-                    onClick={() => setPreviewCampanha(c)}
-                    className="rounded-menuzia border border-border px-3 text-[12px] font-semibold text-text-subtle"
-                  >
-                    Ver mensagem
-                  </button>
-                  {(c.status === 'rascunho' || c.status === 'agendada') && (
-                    <button onClick={() => abrirEditar(c)} className="rounded-menuzia border border-primary px-3 text-[12px] font-semibold text-primary">
-                      Editar
-                    </button>
-                  )}
-                  {(c.status === 'agendada' || c.status === 'enviando') && (
-                    <button onClick={() => cancelarCampanha(c.id)} className="rounded-menuzia border border-danger px-3 text-[12px] font-semibold text-danger">
-                      Cancelar
-                    </button>
-                  )}
-                  {(c.status === 'rascunho' || c.status === 'concluida' || c.status === 'cancelada') && (
-                    <button onClick={() => excluirCampanha(c.id)} className="rounded-menuzia border border-border px-3 text-[12px] font-semibold text-text-subtle">
-                      Excluir
-                    </button>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-          <Card className="hidden overflow-hidden p-0 lg:block">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b border-border bg-page">
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Nome</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Status</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Tipo</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Agendado</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Progresso</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {campanhas.map((c) => (
-                  <tr key={c.id} className="hover:bg-page/60">
-                    <td className="px-4 py-3 font-medium text-text-main">{c.nome}</td>
-                    <td className="px-4 py-3"><Badge status={situacaoCampanha(c)} /></td>
-                    <td className="px-4 py-3 text-text-subtle">{TIPO_LABEL[c.tipoMensagem]}</td>
-                    <td className="px-4 py-3 text-text-subtle">{formatarDataHora(c.agendadoEm)}</td>
-                    <td className="px-4 py-3">
-                      <Progress campanha={c} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* Olhinho — ver mensagem enviada */}
-                        <button
-                          onClick={() => setPreviewCampanha(c)}
-                          title="Ver mensagem"
-                          className="flex h-7 w-7 items-center justify-center rounded text-text-subtle hover:bg-page hover:text-primary transition-colors"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                          </svg>
-                        </button>
-                        {(c.status === 'rascunho' || c.status === 'agendada') && (
-                          <button onClick={() => abrirEditar(c)} className="rounded px-2 py-1 text-[11px] font-semibold text-primary hover:bg-alert/20">Editar</button>
-                        )}
-                        {(c.status === 'agendada' || c.status === 'enviando') && (
-                          <button onClick={() => cancelarCampanha(c.id)} className="rounded px-2 py-1 text-[11px] font-semibold text-danger hover:bg-danger/10">Cancelar</button>
-                        )}
-                        {(c.status === 'rascunho' || c.status === 'concluida' || c.status === 'cancelada') && (
-                          <button onClick={() => excluirCampanha(c.id)} className="rounded px-2 py-1 text-[11px] font-semibold text-text-subtle hover:text-danger hover:bg-danger/10">Excluir</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-          </>
-        )}
-        </>)}
       </div>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        <SubmenuVertical itens={ABAS} ativo={aba} onSelecionar={setAba} titulo="Seções de campanhas" />
+        <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-5" data-testid={`secao-${aba}`}>
+          {aba === 'visao' && (
+            <VisaoGeral onDisparar={abrirNovo} detalhado={<CampanhasMetricas opcoesCampanhas={campanhas.map((c) => ({ id: c.id, nome: c.nome }))} />} />
+          )}
+          {aba === 'campanhas' && <ListaCampanhas campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
+          {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
+          {aba === 'automaticas' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={setAutomaticoLigado} />}
+          {aba === 'notificacoes' && <PushNotificacoes />}
+          {aba === 'modelos' && <Modelos api={modelos} onUsar={usarModelo} onToast={toasts.mostrar} />}
+        </div>
+      </div>
+
+      {boasPraticas && <BoasPraticas onFechar={() => setBoasPraticas(false)} />}
+      {confirmacao && (
+        <Confirmar
+          titulo={confirmacao.tipo === 'cancelar' ? 'Cancelar campanha' : 'Excluir campanha'}
+          texto={confirmacao.tipo === 'cancelar' ? `"${confirmacao.c.nome}" para de enviar. Quem ainda não recebeu não recebe mais.` : `"${confirmacao.c.nome}" será apagada de vez, com o histórico de envios.`}
+          botao={confirmacao.tipo === 'cancelar' ? 'Cancelar envio' : 'Excluir'}
+          perigo
+          onCancelar={() => setConfirmacao(null)}
+          onConfirmar={() => { const c = confirmacao; setConfirmacao(null); void (c.tipo === 'cancelar' ? cancelarCampanha(c.c.id) : excluirCampanha(c.c.id)) }}
+        />
+      )}
+      <PilhaToasts itens={toasts.itens} />
 
       {/* ── Modal preview campanha existente ─────────────────────────────── */}
       {previewCampanha && <CampanhaPreviewModal campanha={previewCampanha} onClose={() => setPreviewCampanha(null)} />}
 
       {/* ── Drawer ─────────────────────────────────────────────────────── */}
       {drawerOpen && <div className="fixed inset-0 z-40 bg-[#111827]/40" onClick={fecharDrawer} />}
-      <div className={['fixed right-0 top-0 z-50 flex h-full w-full max-w-[900px] flex-col bg-white shadow-2xl transition-transform duration-300', drawerOpen ? 'translate-x-0' : 'translate-x-full'].join(' ')}>
+      <div className={['fixed right-0 top-0 z-50 flex h-full w-full max-w-[900px] flex-col bg-white shadow-2xl transition-transform duration-300', drawerOpen ? 'translate-x-0' : 'translate-x-full'].join(' ')} data-testid="drawer-campanha" aria-hidden={!drawerOpen}>
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-[15px] font-bold text-text-main">{editingId ? 'Editar campanha' : 'Nova campanha'}</h2>
@@ -809,7 +748,10 @@ export default function CampanhasPage() {
 
         {/* Footer */}
         <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-border bg-white px-5 py-4">
-          <Button variant="outline" onClick={fecharDrawer}>Cancelar</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={fecharDrawer}>Cancelar</Button>
+            {form.tipoMensagem !== 'audio' && <Button variant="ghost" onClick={() => void salvarComoModelo()} data-testid="salvar-como-modelo">Salvar como modelo</Button>}
+          </div>
           <div className="flex gap-2">
             <Button variant="secondary" disabled={saving} onClick={() => salvar(true)}>
               {saving ? 'Salvando…' : 'Disparar agora'}

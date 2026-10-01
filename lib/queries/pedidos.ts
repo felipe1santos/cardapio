@@ -1797,20 +1797,22 @@ export async function buscarStatusPedido(admin: SupabaseClient, pedidoId: string
 export async function buscarPedidoParaNotificacao(
   admin: SupabaseClient,
   pedidoId: string
-): Promise<{ pedido: Pedido; restauranteNome: string; evolutionInstance: string | null } | null> {
+): Promise<{ pedido: Pedido; restauranteId: string; restauranteNome: string; evolutionInstance: string | null } | null> {
   const { data, error } = await admin
     .from('pedidos')
-    .select(`${PEDIDO_SELECT}, restaurantes ( nome, evolution_instance )`)
+    .select(`${PEDIDO_SELECT}, restaurante_id, restaurantes ( nome, evolution_instance )`)
     .eq('id', pedidoId)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
 
   const { restaurantes, ...row } = data as unknown as PedidoRow & {
+    restaurante_id: string
     restaurantes: { nome: string; evolution_instance: string | null } | null
   }
   return {
     pedido: mapPedido(row as PedidoRow),
+    restauranteId: row.restaurante_id,
     restauranteNome: restaurantes?.nome ?? '',
     evolutionInstance: restaurantes?.evolution_instance ?? null,
   }

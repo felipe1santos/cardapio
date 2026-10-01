@@ -869,3 +869,41 @@ html:has(.vitrine-sem-zoom) {
 .equipe-acao:hover { background-color: #eef6fc; color: #0688d4; }
 .equipe-acao.perigo:hover { background-color: #fee2e2; color: #dc2626; }
 .equipe-acao:disabled { opacity: 0.35; cursor: not-allowed; background: none; color: #5b6472; }
+
+/* Campanhas (repaginação 2026-10): controles miúdos da paginação e filtros. */
+[data-admin-shell] main select.campanha-select-mini {
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 0 24px 0 8px !important;
+  font-size: 12.5px !important;
+  background-color: #ffffff !important;
+}
+.campanha-seta {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 5px; color: #374151;
+  transition: background-color 150ms;
+}
+.campanha-seta:hover:not(:disabled) { background-color: #eef6fc; color: #0688d4; }
+.campanha-seta:disabled { opacity: 0.35; cursor: not-allowed; }
+[data-admin-shell] main input.campanha-busca {
+  height: 40px !important; min-height: 40px !important;
+  padding: 0 12px 0 36px !important; font-size: 13.5px !important;
+  background-color: #ffffff !important; border: 1px solid #d6dae1 !important; border-radius: 5px !important; color: #1f2937 !important;
+}
+[data-admin-shell] main select.campanha-filtro {
+  height: 40px !important; min-height: 40px !important;
+  padding: 0 28px 0 12px !important; font-size: 13px !important;
+  background-color: #ffffff !important; border: 1px solid #d6dae1 !important; border-radius: 5px !important; color: #374151 !important;
+}
+[data-admin-shell] main input.campanha-data {
+  height: 36px !important; min-height: 36px !important; padding: 0 8px !important;
+  font-size: 13px !important; background: #fff !important; border: 1px solid #d6dae1 !important; border-radius: 5px !important; color: #1f2937 !important;
+}
+.campanha-cartao { transition: border-color 150ms, box-shadow 150ms; }
+.campanha-cartao:hover { border-color: #c9d2dc; box-shadow: 0 4px 14px rgba(16, 24, 40, 0.06); }
+.campanha-linha { transition: background-color 150ms; }
+.campanha-linha:hover { background-color: #f7f9fb; }
+[data-admin-shell] main textarea.campanha-texto {
+  min-height: 104px; padding: 10px 12px !important; font-size: 13.5px !important; line-height: 1.5;
+  background: #fff !important; border: 1px solid #d6dae1 !important; border-radius: 5px !important; color: #1f2937 !important;
+}

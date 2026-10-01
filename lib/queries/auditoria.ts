@@ -71,6 +71,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'chamado.criou': 'Cliente chamou o garçom',
   'chamado.assumiu': 'Assumiu o chamado',
   'chamado.concluiu': 'Atendeu o chamado',
+  'campanhas.mensagens_automaticas': 'Alterou as mensagens automáticas do WhatsApp',
   'equipe.criou': 'Cadastrou funcionário',
   'equipe.editou': 'Alterou nome ou papel de funcionário',
   'equipe.desativou': 'Desativou funcionário',
@@ -129,7 +130,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'pdv_legado', label: 'PDV antigo', prefixos: ['pdv_legado.'] },
   { id: 'chamado', label: 'Chamados', prefixos: ['chamado.'] },
   { id: 'equipe', label: 'Equipe', prefixos: ['equipe.'] },
-  { id: 'whatsapp', label: 'WhatsApp', prefixos: ['whatsapp.'] },
+  { id: 'whatsapp', label: 'WhatsApp', prefixos: ['whatsapp.', 'campanhas.'] },
   { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },
 ]
 

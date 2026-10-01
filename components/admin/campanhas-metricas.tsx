@@ -500,7 +500,7 @@ function FaturamentoPorCampanha({ campanhas }: { campanhas: MetricaCampanha[] })
   )
 }
 
-function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampanha; onClose: () => void }) {
+export function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampanha; onClose: () => void }) {
   const [lista, setLista] = useState<Destinatario[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 

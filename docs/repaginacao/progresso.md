@@ -18,7 +18,16 @@ Branch `feat/repaginacao` (sobre main + pdv-janelas + dashboard-filtro + push). 
 - [x] Regressão: e2e-equipe-acessos 27/27 (portado para o modal), checkpoint-e 90/90, unitários 1863
 
 ## Fase 2 — Campanhas
-- [ ] (a detalhar ao iniciar)
+- [x] Migration 0129: restaurantes.mensagens_status (nulo = padrão), campanha_modelos (RLS gestor), campanhas_visao_geral (72 h), campanhas_ultimo_envio — aplicada no local
+- [x] Cabeçalho "Campanhas via WhatsApp" + (?), Boas práticas, Disparar mensagem, envio automático Ligado/Desligado
+- [x] Submenu vertical (trilho rolável no celular): Visão geral, Campanhas, Agendamentos, Mensagens automáticas, Notificações do app, Modelos
+- [x] Visão geral: período ‹ › + calendário, 9 métricas com (?), leitura/clique "Indisponível" sem dado, gráficos, tabela com ordem e paginação, vazio com ilustração própria; relatório detalhado (0104) mantido
+- [x] Campanhas: busca, filtro de status, paginação, selos
+- [x] Agendamentos: busca, + Filtro, contadores clicáveis, miniatura e prévia, enviada + resultado, editar/duplicar/destinatários/excluir, registros por página
+- [x] Mensagens automáticas: geral + tipos de pedido, cartão por etapa, variáveis destacadas, editor com Restaurar padrão; padrão idêntico ao que já saía (unitário compara com montarMensagemStatus)
+- [x] Modelos de mensagem: criar, validar variáveis, usar, salvar do disparo, excluir
+- [x] confirm()/alert() trocados por janela própria
+- [x] E2E e2e-campanhas-repaginada 71/71 (provedor simulado, telefones fictícios); regressão métricas 63/63, botões 9/9, push 68/68, unitários 1870
 
 ## Fase 3 — Cardápio
 - [ ] (a detalhar ao iniciar)

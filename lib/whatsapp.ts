@@ -3,6 +3,7 @@ import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
 import { concluirSaida, registrarSaida } from '@/lib/mensageria/historico'
 import { textoAgendado } from '@/lib/agendamento'
+import { decidirMensagem, etapaDoStatus, normalizarConfig, renderizar, tipoAutomatico, type ConfigMensagens } from '@/lib/mensagens-automaticas'
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
@@ -209,19 +210,43 @@ export async function notificarPedido(admin: SupabaseClient, pedidoId: string, s
   return resultado
 }
 
+/**
+ * Texto da notificação, respeitando as mensagens automáticas da loja (0129). Sem
+ * configuração (ou se a leitura falhar) sai exatamente o texto padrão de sempre.
+ */
+export async function textoDaNotificacao(admin: SupabaseClient, restauranteId: string, pedido: Pedido, status: StatusPedido, restauranteNome: string): Promise<string | null> {
+  const etapa = etapaDoStatus(status, pedido.tipo, !!pedido.agendadoPara)
+  if (!etapa) return montarMensagemStatus(pedido, status)
+  let cfg: ConfigMensagens | null = null
+  if (restauranteId) {
+    const { data, error } = await admin.from('restaurantes').select('mensagens_status').eq('id', restauranteId).maybeSingle()
+    if (!error) cfg = normalizarConfig((data as { mensagens_status?: unknown } | null)?.mensagens_status)
+  }
+  const d = decidirMensagem(cfg, etapa, tipoAutomatico(pedido.canal, pedido.tipo))
+  if (!d.sai) return null
+  if (d.texto) {
+    return renderizar(d.texto, {
+      nome: (pedido.clienteNome ?? '').trim().split(/\s+/)[0] ?? '',
+      numero: String(pedido.numero),
+      loja: restauranteNome,
+      tipo: pedido.tipo === 'retirada' ? 'retirada' : 'entrega',
+      horario: pedido.agendadoPara ? textoAgendado(pedido.agendadoPara) : '',
+    })
+  }
+  return status === 'preparando' ? montarResumoPedido(pedido, restauranteNome) : montarMensagemStatus(pedido, status)
+}
+
 async function notificarPedidoWhatsapp(admin: SupabaseClient, pedidoId: string, status: StatusPedido): Promise<ResultadoNotificacao> {
   const dados = await buscarPedidoParaNotificacao(admin, pedidoId)
   if (!dados) return 'sem_pedido'
 
-  const { pedido, restauranteNome, evolutionInstance } = dados
+  const { pedido, restauranteId, restauranteNome, evolutionInstance } = dados
   if (!evolutionInstance) return 'sem_whatsapp'
 
   const numero = formatarTelefoneWhatsapp(pedido.clienteTelefone)
   if (!numero) return 'sem_telefone'
 
-  const texto = status === 'preparando'
-    ? montarResumoPedido(pedido, restauranteNome)
-    : montarMensagemStatus(pedido, status)
+  const texto = await textoDaNotificacao(admin, restauranteId, pedido, status, restauranteNome)
   if (!texto) return 'sem_mensagem'
 
   return (await enviarWhatsapp(numero, texto, evolutionInstance, { admin, origem: 'automatico' })) ? 'enviada' : 'falhou'

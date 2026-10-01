@@ -47,7 +47,7 @@ try {
   await Promise.all([p.waitForURL((u) => u.pathname.startsWith('/admin')), p.click('button[type="submit"]')])
   await p.goto(`${BASE}/admin/campanhas`, { waitUntil: 'networkidle' })
   await p.getByRole('button', { name: /OK, entendi/ }).click({ timeout: 2500 }).catch(() => {})
-  await p.getByRole('button', { name: /Nova campanha/ }).first().click()
+  await p.getByRole('button', { name: /Nova campanha|Disparar mensagem/ }).first().click()
   await p.getByPlaceholder(/Promoção|Nome/).first().fill('TESTE Campanha com botões').catch(() => {})
   const nome = p.locator('input').first()
   if (!(await nome.inputValue())) await nome.fill('TESTE Campanha com botões')

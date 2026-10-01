@@ -46,3 +46,12 @@ especificação.
 | `…144423.png` | Página de configuração com submenu vertical à esquerda |
 | `…143301.png` | Estilo de cartão (borda fina, cabeçalho com ícone, respiro) |
 | `…144019.png` | Gráfico de barras |
+
+## 4. O que foi tirado de cada print (Fase 2)
+- **143941/143859**: cabeçalho com título + (?) e, à direita, "Boas práticas" (contorno) e "Disparar mensagem" (cheio). Na Menuzia: azul #0688D4 no lugar do roxo, botões em caixa normal (padrão do painel) e o "Ligado/Desligado" virou um selo clicável que leva às mensagens automáticas.
+- **143941**: cartões com ícone em círculo de cor clara e (?) ao lado do rótulo; linha de 4 indicadores numa faixa única; tabela com ordenação; vazio com ilustração + período. A ilustração é desenho próprio (megafone).
+- **143859**: contadores "0 Ativas / 1 Processadas / 1 Canceladas" em pílula dupla (número + rótulo) que filtram; ações por ícone; "Registros por página".
+- **144223**: cartão por etapa com toggle e selo Ativo; texto com {variáveis} em destaque; "Mensagem padrão"; Editar. A parte da API oficial da Meta não se aplica (a Menuzia usa a instância própria) e virou o aviso de WhatsApp conectado/desconectado.
+- **144423**: submenu vertical à esquerda — reaproveitado o SubmenuVertical que já existe em Ajustes/Fidelidade.
+- **143301**: cartão com bolha de ícone + título + subtítulo (Modelos, Boas práticas).
+- **144019**: barras horizontais com valor ao lado ("Receita por campanha"); o gráfico diário usa barras verticais no mesmo azul (#2779bd, cor de gráfico do painel).
