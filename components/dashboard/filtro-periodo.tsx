@@ -76,12 +76,13 @@ export function FiltroPeriodo({
         onClick={() => setAberto((v) => !v)}
         aria-expanded={aberto}
         aria-label="Escolher o período do dashboard"
-        className="flex w-full items-center gap-2 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white px-3 py-2.5 text-left transition-colors hover:bg-[var(--adm-superficie-2)]"
+        // Largura do conteúdo (calendário junto do texto); no celular, a linha inteira.
+        className="flex w-full items-center gap-2.5 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white px-3 py-2.5 text-left transition-colors hover:bg-[var(--adm-superficie-2)] sm:w-auto sm:min-w-[340px] sm:justify-between"
       >
         <span className="text-[12.8px] font-semibold text-[var(--adm-texto-medio)]">
           {rotuloDoIntervalo(intervalo, agora)}
         </span>
-        <svg viewBox="0 0 24 24" className="ml-auto h-[18px] w-[18px] flex-shrink-0 fill-[var(--adm-texto-suave)]" aria-hidden="true">
+        <svg viewBox="0 0 24 24" className="ml-auto h-[18px] w-[18px] flex-shrink-0 fill-[var(--adm-texto-suave)] sm:ml-0" aria-hidden="true">
           {ICONES.calendario.map((d) => (
             <path key={d} d={d} />
           ))}
