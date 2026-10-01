@@ -92,7 +92,7 @@ try {
   const idCaixa = (await um(`select id from usuarios where usuario=$1`, [`teste.caixa.${SUF}`])).id
   ok('caixa entra no PDV', (await api(cx.p, '/api/admin/pdv/mesas')) !== 403)
   await dono.p.goto(`${BASE}/admin/equipe`, { waitUntil: 'networkidle' })
-  await dono.p.locator('tr', { hasText: 'TESTE caixa' }).getByTestId('editar-acessos').click()
+  await dono.p.locator('tr', { hasText: `teste.caixa.${SUF}` }).getByTestId('editar-acessos').click()
   await dono.p.getByTestId('area-pdv').uncheck()
   await dono.p.getByTestId('salvar-acessos').click(); await dono.p.waitForTimeout(1000)
   const st2 = await api(cx.p, '/api/admin/pdv/mesas')
