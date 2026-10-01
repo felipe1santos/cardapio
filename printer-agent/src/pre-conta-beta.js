@@ -99,7 +99,15 @@ function montarPreContaBeta(s) {
   b.push({ t: 'faixa', s: 'VALORES' })
   const valores = [{ rotulo: 'Subtotal', valor: brl(s.subtotal) }]
   if (Number(s.taxa) > 0 || Number(s.taxa_percentual) > 0) valores.push({ rotulo: 'Taxa de serviço', valor: brl(s.taxa) })
-  if (Number(s.taxa_extra) > 0) valores.push({ rotulo: texto(s.taxa_extra_nome) || 'Taxa', valor: brl(s.taxa_extra) })
+  // Taxas da conta (0126): uma linha por taxa, com o detalhe ("2 x R$ 15,00", "5% do
+  // subtotal") na linha de baixo. Servidor antigo (sem a lista): a soma numa linha, como antes.
+  const taxas = Array.isArray(s.taxas) ? s.taxas.filter((t) => Number(t && t.valor) > 0) : []
+  if (taxas.length) {
+    for (const t of taxas) {
+      valores.push({ rotulo: texto(t.nome) || 'Taxa', valor: brl(t.valor) })
+      if (texto(t.detalhe)) valores.push({ rotulo: `  ${texto(t.detalhe)}`, valor: '' })
+    }
+  } else if (Number(s.taxa_extra) > 0) valores.push({ rotulo: texto(s.taxa_extra_nome) || 'Taxa', valor: brl(s.taxa_extra) })
   if (Number(s.taxa_entrega) > 0) valores.push({ rotulo: 'Taxa de entrega', valor: brl(s.taxa_entrega) })
   if (Number(s.desconto) > 0) valores.push({ rotulo: 'Desconto', valor: `- ${brl(s.desconto)}` })
   const pago = Number(s.pago) || 0

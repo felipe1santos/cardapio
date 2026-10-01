@@ -63,6 +63,28 @@ describe('Pré-conta do Beta — modelo docs/referencias/impressao/v3/PRE-CONTA.
     expect(total(montarPreContaBeta(CONTAS.milhar))?.valor).toBe('R$ 4.088,00')
   })
 
+  it('várias taxas (0126): uma linha por taxa, detalhe embaixo; sem a lista, a soma como antes', () => {
+    const d = montarPreContaBeta({
+      ...CONTAS.mesa, taxa_extra: 60.95, taxa_extra_nome: 'Taxas (3)',
+      taxas: [
+        { nome: 'Couvert artístico', detalhe: '2 x R$ 15,00', valor: 30 },
+        { nome: 'Taxa de rolha', detalhe: null, valor: 30 },
+        { nome: 'Taxa especial', detalhe: '5% do subtotal', valor: 0.95 },
+      ],
+    })
+    const linhas = d.blocos.filter((b) => b.t === 'par').map((b) => [b.rotulo, b.valor])
+    expect(linhas.slice(2, 7)).toEqual([
+      ['Couvert artístico', 'R$ 30,00'],
+      ['  2 x R$ 15,00', ''],
+      ['Taxa de rolha', 'R$ 30,00'],
+      ['Taxa especial', 'R$ 0,95'],
+      ['  5% do subtotal', ''],
+    ])
+    expect(linhas.some(([r]) => r === 'Taxas (3)')).toBe(false)
+    const antigo = montarPreContaBeta({ ...CONTAS.mesa, taxa_extra: 15, taxa_extra_nome: 'Couvert' })
+    expect(par(antigo, 'Couvert')).toBe('R$ 15,00')
+  })
+
   it('rodapé: frase do QR e "Sistema Menuzia"; Instagram com o @; sem QR, só o nome do sistema', () => {
     const r = (s: Record<string, unknown>) => montarPreContaBeta(s).blocos.find((b) => b.t === 'rodape_qr')!
     expect(r({ ...CONTAS.mesa, qr: QR }).linhas!.map((l) => l.s)).toEqual(['Peça de novo pelo nosso cardápio', '', 'Sistema Menuzia'])
