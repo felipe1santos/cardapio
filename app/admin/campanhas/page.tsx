@@ -10,6 +10,7 @@ import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTip
 import { formatarReal } from '@/lib/moeda'
 import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora, problemasDasVariaveis, progressoCampanha, situacaoCampanha, BOTOES_MAX, BOTAO_TEXTO_MAX, type BotaoCampanha } from '@/lib/mensageria/campanhas'
 import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
+import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -327,7 +328,11 @@ export default function CampanhasPage() {
 
   // Modal preview de campanha existente
   const [previewCampanha, setPreviewCampanha] = useState<Campanha | null>(null)
-  const [aba, setAba] = useState<'campanhas' | 'metricas'>('campanhas')
+  const [aba, setAba] = useState<'campanhas' | 'metricas' | 'notificacoes'>('campanhas')
+  // Atalho da Fidelidade: /admin/campanhas?aba=notificacoes abre direto as notificações do app.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('aba') === 'notificacoes') setAba('notificacoes')
+  }, [])
 
   // Uploads
   const [uploadingImagem, setUploadingImagem] = useState(false)
@@ -475,7 +480,7 @@ export default function CampanhasPage() {
 
       <div className="flex flex-1 flex-col overflow-y-auto p-5 space-y-4">
         <div className="flex gap-1 border-b border-border" role="tablist">
-          {([['campanhas', 'Campanhas'], ['metricas', 'Métricas']] as const).map(([id, rotulo]) => (
+          {([['campanhas', 'Campanhas'], ['metricas', 'Métricas'], ['notificacoes', 'Notificações do app']] as const).map(([id, rotulo]) => (
             <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)}
               className={['-mb-px h-[38px] border-b-2 px-4 text-[13px] font-semibold transition-colors',
                 aba === id ? 'border-primary text-primary' : 'border-transparent text-text-subtle hover:text-text-main'].join(' ')}>
@@ -484,7 +489,9 @@ export default function CampanhasPage() {
           ))}
         </div>
 
-        {aba === 'metricas' ? (
+        {aba === 'notificacoes' ? (
+          <PushNotificacoes />
+        ) : aba === 'metricas' ? (
           <CampanhasMetricas opcoesCampanhas={campanhas.map((c) => ({ id: c.id, nome: c.nome }))} />
         ) : (<>
         <div className="flex items-center justify-between max-lg:flex-col max-lg:items-stretch max-lg:gap-2">

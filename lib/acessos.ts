@@ -130,6 +130,8 @@ export function sensivelDaRequisicao(metodo: string, pathname: string, corpo: un
   }
   if (/^\/api\/admin\/caixa\/?$/.test(pathname) && (c.acao === 'fechar' || c.acao === 'acertar')) return 'fechar_caixa'
   if (/^\/api\/admin\/campanhas(\/[^/]+)?\/?$/.test(pathname) && (c.disparar === true || !!c.agendadoEm)) return 'disparar_campanhas'
+  // Notificações push do app (0127): enviar avulsa (agora ou agendada) e o teste também disparam.
+  if (metodo === 'POST' && /^\/api\/admin\/campanhas\/push\/(avulsas|teste)\/?$/.test(pathname)) return 'disparar_campanhas'
   return null
 }
 

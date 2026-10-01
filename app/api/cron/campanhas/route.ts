@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { provedorAtual } from '@/lib/mensageria/provedor'
 import { processarCampanhas } from '@/lib/mensageria/campanhas-envio'
+import { cicloPush } from '@/lib/push/ciclo'
 
 // Cron chamado pelo Coolify (ou qualquer scheduler) — protegido por CRON_SECRET.
 // Configuração no Coolify: POST /api/cron/campanhas a cada 60 segundos
@@ -30,8 +31,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
+    // Push do app do cardápio (0127) pega carona neste cron: isolado, nunca derruba as campanhas.
+    const push = cicloPush(getAdminSupabase()).catch((e) => ({ erro: (e as Error).message?.slice(0, 160) }))
     const resumo = await processarCampanhas(getAdminSupabase(), provedorAtual(), { limite: BATCH_SIZE, intervalo: randomDelay })
-    return NextResponse.json(resumo)
+    return NextResponse.json({ ...resumo, push: await push })
   } catch (err) {
     console.error('[cron/campanhas] erro:', (err as Error).message?.slice(0, 200))
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })

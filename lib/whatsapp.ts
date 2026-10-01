@@ -177,7 +177,39 @@ export async function enviarWhatsapp(numero: string, texto: string, instance: st
  */
 export type ResultadoNotificacao = 'enviada' | 'falhou' | 'sem_whatsapp' | 'sem_telefone' | 'sem_pedido' | 'sem_mensagem'
 
+/**
+ * Gancho do push (0127). Registrado só no servidor (instrumentation.ts → lib/push/gancho.ts): este
+ * arquivo também chega ao navegador (via lib/queries/clientes), e o motor do push usa sharp e
+ * web-push, que não existem lá.
+ */
+type GanchoPushStatus = (admin: SupabaseClient, pedidoId: string, status: StatusPedido) => Promise<unknown>
+// Em globalThis: o instrumentation.ts é outro bundle (outra cópia deste módulo) no mesmo processo.
+const GANCHO = '__menuziaGanchoPushStatus'
+export function registrarGanchoPushStatus(g: GanchoPushStatus) {
+  ;(globalThis as Record<string, unknown>)[GANCHO] = g
+}
+function ganchoPushStatus(admin: SupabaseClient, pedidoId: string, status: StatusPedido): Promise<unknown> {
+  const g = (globalThis as Record<string, unknown>)[GANCHO] as GanchoPushStatus | undefined
+  return g ? g(admin, pedidoId, status) : Promise.resolve(null)
+}
+
+/**
+ * Avisa o cliente da mudança de status: WhatsApp (abaixo) e, em paralelo, push do app do
+ * cardápio (0127) para quem ativou as notificações. O push nunca muda o resultado do WhatsApp
+ * nem derruba o fluxo.
+ */
 export async function notificarPedido(admin: SupabaseClient, pedidoId: string, status: StatusPedido): Promise<ResultadoNotificacao> {
+  const [resultado] = await Promise.all([
+    notificarPedidoWhatsapp(admin, pedidoId, status),
+    ganchoPushStatus(admin, pedidoId, status).catch((e) => {
+      console.error('[push] status do pedido:', (e as Error).message?.slice(0, 160))
+      return null
+    }),
+  ])
+  return resultado
+}
+
+async function notificarPedidoWhatsapp(admin: SupabaseClient, pedidoId: string, status: StatusPedido): Promise<ResultadoNotificacao> {
   const dados = await buscarPedidoParaNotificacao(admin, pedidoId)
   if (!dados) return 'sem_pedido'
 
