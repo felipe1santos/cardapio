@@ -18,6 +18,14 @@ describe('limparNomeArquivo', () => {
     expect(limparNomeArquivo('Screenshot 2026-01-01 123456.png')).toBeNull()
     expect(limparNomeArquivo('PXL_20260101_123456.jpg')).toBeNull()
     expect(limparNomeArquivo('foto.jpg')).toBeNull()
+    // Bug 2026-09-30: UUID e hash viravam nome de produto.
+    expect(limparNomeArquivo('b2ab1fe1-dd8c-4b89-9070-35c9b6531642.jpg')).toBeNull()
+    expect(limparNomeArquivo('65205105_A2CC_43C3_BC10_DB256CCFA40F.webp')).toBeNull()
+    expect(limparNomeArquivo('b2ab1fe1-dd8c-4b89-9070-35c9b6531642 (1).png')).toBeNull()
+    expect(limparNomeArquivo('9f86d081884c7d659a2feaa0c55ad015.jpg')).toBeNull()
+    expect(limparNomeArquivo('download (3).jpg')).toBeNull()
+    expect(limparNomeArquivo('cafe-expresso.jpg')).toBe('Cafe Expresso')
+    expect(limparNomeArquivo('bacon-cheddar-2024.jpg')).toBe('Bacon Cheddar 2024')
     expect(limparNomeArquivo('image (3).png')).toBeNull()
   })
 

@@ -14,6 +14,7 @@ import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
 import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
+import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import { criarRastreador, type Rastreador } from '@/lib/vitrine-rastreio'
 import {
@@ -888,7 +889,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           ])
         if (cancelled) return
         if (lojaAtual) setRestaurante(lojaAtual)
-        setGroups(cardapio.map((g) => ({ ...g, itens: comNomesLimpos(g.itens) })))
+        setGroups(cardapio.map((g) => ({ ...g, itens: comNomesLimpos(g.itens.filter(itemVendavelNaVitrine)) })).filter((g) => g.itens.length > 0))
         setBairros(taxasBairro)
         setTemRaio(temRaioLoja)
         setOrderBumps(comNomesLimpos(bumps))

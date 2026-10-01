@@ -18,6 +18,11 @@ const PADROES_GENERICOS = [
   /^screenshot[\s\S]*$/i,
   /^captura[\s\S]*$/i,
   /^[\d\s\-_.()]*$/,
+  // Nomes que são códigos: UUID (arquivo baixado de app/CDN) e hash hexadecimal longo.
+  // Viravam produtos "B2ab1fe1 Dd8c 4b89 9070 35c9b6531642" na vitrine (2026-09-30).
+  /^[0-9a-f]{8}[\s\-_]?[0-9a-f]{4}[\s\-_]?[0-9a-f]{4}[\s\-_]?[0-9a-f]{4}[\s\-_]?[0-9a-f]{12}[\s\-_.()\d]*$/i,
+  /^[0-9a-f]{16,}$/i,
+  /^(download|untitled|sem[\s\-_]*t[ií]tulo)[\s\-_]*[\d\s\-_.()]*$/i,
 ]
 
 export function limparNomeArquivo(fileName: string): string | null {
