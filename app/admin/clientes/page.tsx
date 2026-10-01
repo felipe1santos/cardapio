@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { janelaVisivel } from '@/lib/janela-virtual'
 import { TopBar } from '@/components/layout/topbar'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
@@ -29,12 +30,26 @@ function formatarEndereco(cliente: ClienteMetrica): string {
   return cep ? `${endereco}${endereco ? ' · ' : ''}CEP ${cep}` : endereco
 }
 
+/** Linhas de altura fixa: só as visíveis entram no DOM (lib/janela-virtual.ts). */
+const ALTURA_LINHA = 37
+
 export default function ClientesPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [clientes, setClientes] = useState<ClienteMetrica[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const rolagemRef = useRef<HTMLDivElement>(null)
+  const [janela, setJanela] = useState({ top: 0, altura: 800 })
+  useEffect(() => {
+    const el = rolagemRef.current
+    if (!el) return
+    const medir = () => setJanela({ top: el.scrollTop, altura: el.clientHeight })
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [loading, clientes.length])
 
   useEffect(() => {
     let active = true
@@ -64,6 +79,10 @@ export default function ClientesPage() {
     if (!termo) return clientes
     return clientes.filter((c) => c.nome.toLowerCase().includes(termo) || c.telefone.includes(termo))
   }, [clientes, busca])
+
+  const contador = busca.trim()
+    ? `${filtrados.length.toLocaleString('pt-BR')} de ${clientes.length.toLocaleString('pt-BR')} clientes`
+    : `${clientes.length.toLocaleString('pt-BR')} ${clientes.length === 1 ? 'cliente' : 'clientes'}`
 
   const stats = useMemo(() => {
     const total = clientes.length
@@ -96,7 +115,7 @@ export default function ClientesPage() {
     <>
       <TopBar title="Base de Clientes" breadcrumb="Clientes" />
 
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5 lg:min-h-0 lg:overflow-hidden">
         {error && (
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
@@ -108,39 +127,47 @@ export default function ClientesPage() {
           <CartaoNumero icone={ICONES.ticket} tom="azul" rotulo="Ticket médio" valor={brl(stats.ticketMedio)} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-1 items-center gap-2 rounded-menuzia border border-border bg-white px-2.5 py-2 sm:max-w-xs">
-            <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-text-subtle">
-              <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-            </svg>
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nome ou telefone…"
-              className="w-full border-none bg-transparent font-sans text-[13px] text-text-main outline-none placeholder:text-text-subtle/60"
-            />
+        {/* Card da tabela: título + contador à esquerda; busca e exportar à direita (no
+            celular descem para baixo, em largura total). No desktop o card ocupa até o fim
+            da tela e só a tabela rola — com o cabeçalho e a coluna "Cliente" fixos. */}
+        <div className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white lg:min-h-0 lg:flex-1" data-testid="clientes-card">
+          <div className="flex flex-col gap-2.5 border-b border-[var(--adm-borda)] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">
+              Clientes <span className="font-normal text-[var(--adm-texto-suave)]" data-testid="clientes-contador">· {contador}</span>
+            </h3>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-2 rounded-menuzia border border-border bg-white px-2.5 py-2 sm:w-[280px]">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-text-subtle">
+                  <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                </svg>
+                <input
+                  value={busca}
+                  onChange={(e) => { setBusca(e.target.value); if (rolagemRef.current) rolagemRef.current.scrollTop = 0 }}
+                  placeholder="Buscar por nome ou telefone…"
+                  className="w-full border-none bg-transparent text-[13px] text-text-main outline-none placeholder:text-text-subtle/60"
+                  data-testid="clientes-busca"
+                />
+              </div>
+              <button
+                onClick={exportarCsv}
+                disabled={filtrados.length === 0}
+                className="rounded-menuzia bg-primary px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+              >
+                Exportar CSV (Meta Ads)
+              </button>
+            </div>
           </div>
-          <button
-            onClick={exportarCsv}
-            disabled={filtrados.length === 0}
-            className="rounded-menuzia bg-primary px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
-          >
-            Exportar CSV (Meta Ads)
-          </button>
-        </div>
 
         {filtrados.length === 0 ? (
-          <div className="rounded-menuzia border border-dashed border-border bg-white p-8 text-center text-sm text-text-subtle">
+          <div className="m-4 rounded-menuzia border border-dashed border-border bg-white p-8 text-center text-sm text-text-subtle">
             {clientes.length === 0
               ? 'Nenhum pedido registrado ainda — a base de clientes aparece aqui conforme os pedidos chegam.'
               : 'Nenhum cliente encontrado para essa busca.'}
           </div>
         ) : (
           <>
-          {/* Celular: a tabela de 1180px virava rolagem lateral infinita. Cada cliente
-              vira um cartão com o mesmo conteúdo, na ordem em que se lê. O desktop
-              continua na tabela — a comparação linha a linha é o valor dela. */}
-          <div className="flex flex-col gap-2 lg:hidden">
+          {/* Celular: cada cliente vira um cartão (a página rola normalmente). */}
+          <div className="flex flex-col gap-2 p-3 lg:hidden">
             {filtrados.map((cliente) => (
               <div key={cliente.telefone} className="rounded-menuzia border border-border bg-white p-3.5">
                 <div className="flex items-start justify-between gap-3">
@@ -181,18 +208,14 @@ export default function ClientesPage() {
               </div>
             ))}
           </div>
-          {/* Desktop: uma linha por cliente. Nome e telefone lado a lado, endereço
-              cortado com reticências (inteiro no title) — antes cada célula
-              quebrava em duas ou três linhas e a lista ficava grossa demais. */}
-          <div className="hidden overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white lg:block">
-            <div className="flex items-center justify-between border-b border-[var(--adm-borda)] px-4 py-3">
-              <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Clientes</h3>
-              <span className="text-[12px] text-[var(--adm-texto-suave)]">
-                {filtrados.length.toLocaleString('pt-BR')} {filtrados.length === 1 ? 'cliente' : 'clientes'}
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] table-fixed border-collapse">
+          {/* Desktop: rolagem própria nos dois sentidos, barra fina. */}
+          <div
+            ref={rolagemRef}
+            onScroll={(e) => setJanela({ top: e.currentTarget.scrollTop, altura: e.currentTarget.clientHeight })}
+            className="rolagem-fina hidden min-h-0 flex-1 overflow-auto lg:block"
+            data-testid="clientes-rolagem"
+          >
+            <table className="w-full min-w-[1100px] table-fixed border-separate border-spacing-0">
               <colgroup>
                 <col className="w-[190px]" />
                 <col className="w-[140px]" />
@@ -206,11 +229,11 @@ export default function ClientesPage() {
                 <col className="w-[104px]" />
               </colgroup>
               <thead>
-                <tr className="bg-[#f1f2f4]">
+                <tr>
                   {['Cliente', 'Telefone', 'Endereço', 'Pedidos', 'Última compra', 'Total gasto', 'Ticket médio', 'Recorrência', 'Dia pref.', 'Gasto/semana'].map((t, i) => (
                     <th
                       key={t}
-                      className={`sticky top-0 whitespace-nowrap px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-texto-forte)] ${i >= 3 && i !== 4 && i !== 8 ? 'text-right' : 'text-left'}`}
+                      className={`sticky top-0 whitespace-nowrap border-b border-[var(--adm-borda)] bg-[#f1f2f4] px-3 py-2.5 text-[12px] font-semibold text-[var(--adm-texto-forte)] ${i === 0 ? 'left-0 z-30' : 'z-20'} ${i >= 3 && i !== 4 && i !== 8 ? 'text-right' : 'text-left'}`}
                     >
                       {t}
                     </th>
@@ -218,37 +241,46 @@ export default function ClientesPage() {
                 </tr>
               </thead>
               <tbody className="text-[12.8px]">
-                {filtrados.map((cliente) => {
-                  const endereco = formatarEndereco(cliente)
+                {(() => {
+                  const { inicio, fim } = janelaVisivel(filtrados.length, janela.top, janela.altura, ALTURA_LINHA)
                   return (
-                    <tr key={cliente.telefone} className="border-b border-[var(--adm-borda)] last:border-b-0 hover:bg-[var(--adm-superficie-2)]">
-                      <td className="truncate whitespace-nowrap px-3 py-2 font-semibold text-[var(--adm-texto)]" title={cliente.nome}>
-                        {cliente.nome || '—'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 tabular-nums text-[var(--adm-texto-medio)]">{cliente.telefone}</td>
-                      <td className="truncate whitespace-nowrap px-3 py-2 text-[var(--adm-texto-suave)]" title={endereco}>
-                        {endereco || '—'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{cliente.totalPedidos}</td>
-                      <td className="whitespace-nowrap px-3 py-2 tabular-nums text-[var(--adm-texto-medio)]">{formatarData(cliente.ultimaCompraEm)}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-price-text">{brl(cliente.valorTotal)}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{brl(cliente.ticketMedio)}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[var(--adm-texto-medio)]">
-                        {cliente.pedidosPorSemana.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x/sem
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-[var(--adm-texto-medio)]">
-                        {cliente.diaSemanaPreferido !== null ? DIAS_SEMANA[cliente.diaSemanaPreferido] : '—'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{brl(cliente.gastoSemanalMedio)}</td>
-                    </tr>
+                    <>
+                      {inicio > 0 && <tr aria-hidden style={{ height: inicio * ALTURA_LINHA }}><td colSpan={10} /></tr>}
+                      {filtrados.slice(inicio, fim).map((cliente) => {
+                        const endereco = formatarEndereco(cliente)
+                        return (
+                          <tr key={cliente.telefone} className="group" style={{ height: ALTURA_LINHA }} data-cliente-linha>
+                            <td className="sticky left-0 z-10 truncate whitespace-nowrap border-b border-[var(--adm-borda)] bg-white px-3 py-2 font-semibold text-[var(--adm-texto)] group-hover:bg-[#f7f8f9]" title={cliente.nome}>
+                              {cliente.nome || '—'}
+                            </td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 tabular-nums text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">{cliente.telefone}</td>
+                            <td className="truncate whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-[var(--adm-texto-suave)] group-hover:bg-[#f7f8f9]" title={endereco}>
+                              {endereco || '—'}
+                            </td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right font-semibold tabular-nums group-hover:bg-[#f7f8f9]">{cliente.totalPedidos}</td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 tabular-nums text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">{formatarData(cliente.ultimaCompraEm)}</td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right font-semibold tabular-nums text-price-text group-hover:bg-[#f7f8f9]">{brl(cliente.valorTotal)}</td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right tabular-nums group-hover:bg-[#f7f8f9]">{brl(cliente.ticketMedio)}</td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right tabular-nums text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">
+                              {cliente.pedidosPorSemana.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x/sem
+                            </td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">
+                              {cliente.diaSemanaPreferido !== null ? DIAS_SEMANA[cliente.diaSemanaPreferido] : '—'}
+                            </td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right tabular-nums group-hover:bg-[#f7f8f9]" data-coluna="gasto-semana">{brl(cliente.gastoSemanalMedio)}</td>
+                          </tr>
+                        )
+                      })}
+                      {fim < filtrados.length && <tr aria-hidden style={{ height: (filtrados.length - fim) * ALTURA_LINHA }}><td colSpan={10} /></tr>}
+                    </>
                   )
-                })}
+                })()}
               </tbody>
             </table>
-            </div>
           </div>
           </>
         )}
+        </div>
       </div>
     </>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Megaphone, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
@@ -18,6 +18,11 @@ import { EtiquetasPrincipais, EtiquetasUtilitarias, LojaEtiquetasContext, NomeCo
 import { precoDeVitrine } from '@/lib/garcom-catalogo'
 import { useEsconderAoRolar } from '@/components/vitrine/use-esconder-ao-rolar'
 import { ConviteApp } from '@/components/vitrine/convite-app'
+import { AvisoVitrine } from '@/components/vitrine/aviso-vitrine'
+import { AVISO_PADRAO } from '@/lib/aviso-vitrine'
+import { SucessoResgate } from '@/components/vitrine/sucesso-resgate'
+import { IconeTagSvg } from '@/components/vitrine/icones-tags'
+import { useVisivel } from '@/components/vitrine/use-visivel'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import { criarRastreador, type Rastreador } from '@/lib/vitrine-rastreio'
 import {
@@ -239,6 +244,27 @@ function abreviarProximaAbertura(texto: string | null): string | null {
     if (texto.includes(dia)) return `${curto} ${hora}`.trim()
   }
   return hora ? `Abre ${hora}` : texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+/**
+ * Faixa "Você tem N cupons pra resgatar →" (2026-10-01): azul da caixa informativa do
+ * sistema (#E0F2FE / #0369A1), ticket SVG local que balança a cada ~3 s e pulsar leve.
+ * Efeitos só CSS (globals.css), pausados fora da tela e desligados com "reduzir movimento".
+ */
+function FaixaResgate({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  const [ref, visivel] = useVisivel<HTMLButtonElement>()
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      data-testid="faixa-resgate"
+      data-visivel={visivel ? 'sim' : 'nao'}
+      className="efeito-pulsar flex w-full items-center gap-3 rounded-md border border-[#7DD3FC] bg-[#E0F2FE] px-3.5 py-3 text-left text-[#0369A1] shadow-sm"
+    >
+      <span className="efeito-balancar inline-flex"><IconeTagSvg nome="ticket" tamanho={22} /></span>
+      <span className="flex-1 text-[13px] font-bold">{children}</span>
+    </button>
+  )
 }
 
 function PriceTag({ price, originalPrice, hideDiscount = false, aPartirDe = false }: { price: number; originalPrice?: number | null; hideDiscount?: boolean; aPartirDe?: boolean }) {
@@ -1052,6 +1078,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   } | null>(null)
   // Prêmio de fidelidade escolhido na aba Cupons (exclusivo com cupomAplicado).
   const [recompensaSelecionada, setRecompensaSelecionada] = useState<RecompensaDisponivel | null>(null)
+  // Resgate (2026-10-01): efeito de sucesso e destaque do primeiro disponível na aba Cupons.
+  const [sucessoResgate, setSucessoResgate] = useState<string | null>(null)
+  const [destacarCupons, setDestacarCupons] = useState(false)
+  const [resgatando, setResgatando] = useState<string | null>(null)
 
   // Benefício ativo (prêmio tem prioridade — os dois nunca coexistem, ver handlers).
   const beneficio = recompensaSelecionada
@@ -1562,24 +1592,41 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   /** Aba Cupons → "USAR NO PEDIDO": guarda o prêmio e leva pro carrinho. */
   function usarRecompensa(r: RecompensaDisponivel) {
     if (!r.podeResgatarHoje) return
+    // Resgatar NÃO consome: o prêmio fica na sacola e só é usado quando o pedido é criado
+    // (o servidor reserva e devolve se o pedido falhar). Tirar da sacola o devolve aqui.
     setRecompensaSelecionada(r)
     setCupomAplicado(null)
     setCupomCodigoInput('')
     setCupomErro(null)
-    setTab('cart')
-    showToast('Prêmio selecionado! Finalize o pedido para resgatar.')
+    setSucessoResgate('Prêmio na sacola!')
   }
 
   /** Aba Cupons → "APLICAR": preenche o código pro checkout e leva pro carrinho. */
-  function aplicarCupomDaAba(codigo: string) {
-    setRecompensaSelecionada(null)
-    setCupomAplicado(null)
-    setCupomErro(null)
-    setCupomCodigoInput(codigo)
-    setTab('cart')
-    showToast(`Cupom ${codigo} pronto pra aplicar no checkout.`)
-    // Com itens na sacola já dá pra validar de imediato (o chip aparece no checkout).
-    if (cart.length > 0) void validarCupomCheckout(codigo)
+  async function aplicarCupomDaAba(codigo: string) {
+    // Valida no servidor com a sacola de agora: se não puder (mínimo, validade, já usado),
+    // mostra o motivo em vez do efeito de sucesso. Não consome — só no pedido criado.
+    setResgatando(codigo)
+    try {
+      const res = await fetch(`/api/loja/${slug}/cupom/validar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, telefone: clienteSessao?.telefone, token: clienteSessao?.token, subtotal }),
+      })
+      const data = await res.json()
+      if (data.ok && data.cupom) {
+        setRecompensaSelecionada(null)
+        setCupomAplicado(data.cupom)
+        setCupomCodigoInput(data.cupom.codigo)
+        setCupomErro(null)
+        setSucessoResgate('Cupom aplicado!')
+      } else {
+        showToast(data.motivo ?? data.error ?? 'Este cupom não pode ser usado agora.')
+      }
+    } catch {
+      showToast('Não foi possível resgatar agora. Tente novamente.')
+    } finally {
+      setResgatando(null)
+    }
   }
 
   // Passo do checkout a abrir depois de entrar pelo telefone (0 = resumo no desktop, 1 = pagamento no celular).
@@ -2122,6 +2169,27 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }, [checkoutOpen, restaurante?.podeAgendar, slug])
   // Menu inferior some ao rolar para baixo e volta ao subir (só fora do checkout/ficha/conta).
   const navOculta = useEsconderAoRolar(!checkoutOpen && !productSheet && !contaOpen)
+  const fimSucessoResgate = useCallback(() => { setSucessoResgate(null); setTab('cart') }, [])
+
+  // Destaque dos disponíveis na aba Cupons por ~2,5 s depois do clique na faixa.
+  useEffect(() => {
+    if (!destacarCupons) return
+    const t = setTimeout(() => setDestacarCupons(false), 2500)
+    return () => clearTimeout(t)
+  }, [destacarCupons])
+
+  // Sacola esvaziada (tinha itens e ficou vazia): o cupom/prêmio volta para a aba Cupons.
+  const tinhaItens = useRef(false)
+  useEffect(() => {
+    if (cart.length > 0) { tinhaItens.current = true; return }
+    if (tinhaItens.current && (cupomAplicado || recompensaSelecionada)) {
+      setCupomAplicado(null)
+      setRecompensaSelecionada(null)
+      setCupomCodigoInput('')
+    }
+    tinhaItens.current = false
+  }, [cart.length, cupomAplicado, recompensaSelecionada])
+
   // Checkout no documento (celular): abre no topo e, ao fechar, devolve o cliente para onde
   // ele estava no cardápio.
   const rolagemAntesDoCheckout = useRef(0)
@@ -2698,13 +2766,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         <div className="truncate text-[13px] font-bold text-[#15803D]">
           {recompensaSelecionada
             ? `Prêmio: ${premioLabelCampanha({ premioTipo: recompensaSelecionada.premioTipo, premioValor: recompensaSelecionada.premioValor }, recompensaSelecionada.premioItemNome)}`
-            : `Cupom ${cupomAplicado?.codigo}`}
+            : `Cupom ${cupomAplicado?.codigo} aplicado${desconto > 0 ? ` – ${brl(desconto)}` : ''}`}
         </div>
         <div className={`text-[12px] ${beneficioInutilNaRetirada ? 'font-semibold text-text-main' : 'truncate text-[#15803D]/80'}`}>
           {beneficioInutilNaRetirada
             ? 'Na retirada não há taxa de entrega, então este benefício não vai descontar nada — e mesmo assim seria consumido. Troque para Entrega ou remova aqui ao lado.'
             : beneficio?.tipo === 'item_gratis'
-              ? `Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`
+              ? `Brinde: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`
               : beneficio?.tipo === 'entrega_gratis'
                 ? 'Entrega grátis neste pedido'
                 : beneficio?.tipo === 'desconto_percentual'
@@ -3224,10 +3292,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 {bannerPromo.tipo === 'texto' ? (
                   // Aviso escrito pela loja, para quem não tem arte pronta. Usa a
                   // cor do tema para pertencer à loja, e não parecer erro do app.
-                  <div className="flex min-h-[64px] items-center gap-3 rounded-md border border-[var(--tema-primaria)]/30 bg-[var(--tema-light)] px-4 py-3">
-                    <Megaphone className="h-5 w-5 flex-shrink-0 text-[var(--tema-primaria)]" strokeWidth={2} />
-                    <p className="text-[13px] font-semibold leading-[18px] text-[var(--v-texto)]">{bannerPromo.texto}</p>
-                  </div>
+                  <AvisoVitrine texto={bannerPromo.texto} estilo={restaurante.avisoEstilo ?? AVISO_PADRAO} />
                 ) : (
                   <CarrosselPromo
                     urls={bannerPromo.urls}
@@ -3268,13 +3333,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {/* Banner ÚNICO de resgate: prêmios prontos hoje + cupons públicos da loja */}
             {bannerResgateTexto && activeCategory !== '__promos__' && !search.trim() && !gavetaEmTela && (
               <div className="px-4 pt-3 lg:px-0">
-                <button
-                  onClick={() => setTab('cupons')}
-                  className="animate-resgate flex w-full items-center gap-3 rounded-md border border-warn bg-warn-bg px-3.5 py-3 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
-                >
-                  <span className="text-[20px] leading-none">🎁</span>
-                  <span className="flex-1 text-[13px] font-bold text-[#92400E]">{bannerResgateTexto}</span>
-                </button>
+                <FaixaResgate onClick={() => { setTab('cupons'); setDestacarCupons(true); window.scrollTo({ top: 0 }) }}>
+                  {bannerResgateTexto}
+                </FaixaResgate>
               </div>
             )}
 
@@ -3846,6 +3907,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           className={[
                             'overflow-hidden rounded-md bg-white shadow-sm',
                             r.podeResgatarHoje ? 'animate-premio-pronto border-2 border-promo' : 'border border-border opacity-90',
+                            destacarCupons && r.podeResgatarHoje ? 'ring-2 ring-[#0369A1] ring-offset-2' : '',
                           ].join(' ')}
                         >
                           <div className="flex items-start gap-3.5 p-3.5">
@@ -3860,13 +3922,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             </div>
                           </div>
                           <div className="px-3.5 pb-3.5">
+                            {recompensaSelecionada?.id === r.id ? (
+                              <button onClick={removerBeneficio} className="w-full rounded border border-promo py-3 text-[12px] font-bold uppercase tracking-wide text-promo" data-testid="resgate-na-sacola">
+                                Na sacola · remover
+                              </button>
+                            ) : (
                             <button
                               onClick={() => usarRecompensa(r)}
                               disabled={!r.podeResgatarHoje}
+                              data-testid="resgatar-premio"
                               className={['w-full rounded py-3 text-[12px] font-bold uppercase tracking-wide transition-all', r.podeResgatarHoje ? 'bg-promo text-white hover:bg-promo-dark active:scale-[0.99]' : 'cursor-not-allowed bg-[#F3F4F6] text-text-subtle'].join(' ')}
                             >
-                              Usar no pedido
+                              Resgatar
                             </button>
+                            )}
                             {!r.podeResgatarHoje && diasTexto && (
                               <p className="mt-2 rounded border border-warn bg-warn-bg px-2.5 py-1.5 text-[12px] font-medium text-[#92400E]">
                                 Hoje não é dia de resgate — este prêmio vale {diasTexto}.
@@ -3924,7 +3993,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </h2>
                   <div className="space-y-3">
                     {cuponsLoja.map((c) => (
-                      <div key={c.id} className="rounded-md border border-border bg-white p-3.5 shadow-sm">
+                      <div key={c.id} data-resgate-disponivel className={['rounded-md border border-border bg-white p-3.5 shadow-sm', destacarCupons ? 'ring-2 ring-[#0369A1] ring-offset-2' : ''].join(' ')}>
                         <div className="flex items-center gap-3">
                           <ProductThumb item={{ nome: nomeLimpo(c.itemNome) || labelCupom(c), imagemUrl: c.itemImagemUrl ?? null }} size={48} fallbackIcon={iconePremio(c.tipo)} />
                           <span className="flex-shrink-0 rounded border border-dashed border-[var(--tema-primaria)] bg-[var(--tema-light)] px-2.5 py-1.5 text-[13px] font-extrabold tracking-widest text-[var(--tema-primaria)]">{c.codigo}</span>
@@ -3941,12 +4010,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             )}
                           </div>
                         </div>
+                        {cupomAplicado?.codigo === c.codigo ? (
+                          <button onClick={removerBeneficio} className="mt-3 w-full rounded border border-promo py-2.5 text-[12px] font-bold uppercase tracking-wide text-promo" data-testid="resgate-na-sacola">
+                            Na sacola · remover
+                          </button>
+                        ) : (
                         <button
-                          onClick={() => aplicarCupomDaAba(c.codigo)}
-                          className="mt-3 w-full rounded border border-[var(--tema-primaria)] py-2.5 text-[12px] font-bold uppercase tracking-wide text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-light)] active:scale-[0.99]"
+                          onClick={() => void aplicarCupomDaAba(c.codigo)}
+                          disabled={resgatando === c.codigo}
+                          data-testid="resgatar-cupom"
+                          className="mt-3 w-full rounded bg-[var(--tema-primaria)] py-2.5 text-[12px] font-bold uppercase tracking-wide text-white transition-colors hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
                         >
-                          Aplicar
+                          {resgatando === c.codigo ? 'Conferindo…' : 'Resgatar'}
                         </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -5467,6 +5544,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
           </div>
         </>
+      )}
+
+      {/* Efeito de sucesso do resgate; ao terminar, leva para a sacola. */}
+      {sucessoResgate && (
+        <SucessoResgate texto={sucessoResgate} onFim={fimSucessoResgate} />
       )}
 
       {/* ── Toast container ───────────────────────────────────────────── */}

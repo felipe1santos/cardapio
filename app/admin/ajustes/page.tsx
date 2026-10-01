@@ -5,6 +5,7 @@ import { normalizarBairro, type FreteForaDaLista } from '@/lib/frete'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { EditorAviso } from '@/components/admin/editor-aviso'
 import { AgendamentoAjustes } from '@/components/admin/agendamento-ajustes'
 import { InstalarAppButton } from '@/components/instalar-app-button'
 import { Field, Input, ToggleRow } from '@/components/admin/campos-ajustes'
@@ -215,6 +216,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     bannerPromocionalUrl: '',
     bannerPromoUrls: [] as string[],
     bannerPromoTexto: '',
+    avisoCorTexto: null as string | null,
+    avisoCorFundo: null as string | null,
+    avisoPulsar: false,
     layoutCardapio: 'categoria' as LayoutCardapio,
     imagemGrande: false,
     bannerFoco: FOCO_PADRAO as Foco,
@@ -267,6 +271,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromocionalUrl: c.bannerPromocionalUrl ?? '',
         bannerPromoUrls: c.bannerPromoUrls ?? [],
         bannerPromoTexto: c.bannerPromoTexto ?? '',
+        avisoCorTexto: c.avisoCorTexto,
+        avisoCorFundo: c.avisoCorFundo,
+        avisoPulsar: c.avisoPulsar,
         layoutCardapio: c.layoutCardapio,
         imagemGrande: c.imagemGrande,
         bannerFoco: c.bannerFoco,
@@ -484,6 +491,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromocionalUrl: form.bannerPromocionalUrl.trim() || null,
         bannerPromoUrls: form.bannerPromoUrls,
         bannerPromoTexto: form.bannerPromoTexto.trim() || null,
+        avisoCorTexto: form.avisoCorTexto,
+        avisoCorFundo: form.avisoCorFundo,
+        avisoPulsar: form.avisoPulsar,
         layoutCardapio: form.layoutCardapio,
         imagemGrande: form.imagemGrande,
         bannerFoco: form.bannerFoco,
@@ -864,7 +874,17 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
                   Ou um aviso em texto
                 </div>
+                {/* Chrome tratava este campo como "usuário" (sem name/type e com campos de senha
+                    na mesma página) e o preenchia com o e-mail salvo (2026-10-01). */}
                 <input
+                  type="text"
+                  id="aviso-vitrine-texto"
+                  name="aviso-vitrine-texto"
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-form-type="other"
+                  data-testid="aviso-texto"
                   value={form.bannerPromoTexto}
                   onChange={(e) => { setForm((prev) => ({ ...prev, bannerPromoTexto: e.target.value.slice(0, BANNER_PROMO_MAX_TEXTO) })); setSaved(false) }}
                   placeholder="Ex.: Hoje a pizza grande sai por R$ 49 até 22h"
@@ -878,6 +898,11 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                   </p>
                   <span className="flex-shrink-0 text-[11px] text-text-subtle">{form.bannerPromoTexto.length}/{BANNER_PROMO_MAX_TEXTO}</span>
                 </div>
+                <EditorAviso
+                  texto={form.bannerPromoTexto}
+                  estilo={{ corTexto: form.avisoCorTexto, corFundo: form.avisoCorFundo, pulsar: form.avisoPulsar }}
+                  onChange={(e) => { setForm((prev) => ({ ...prev, avisoCorTexto: e.corTexto, avisoCorFundo: e.corFundo, avisoPulsar: e.pulsar })); setSaved(false) }}
+                />
               </div>
             </div>
           </Field>
@@ -1590,6 +1615,9 @@ function TabConta({ active }: { active: boolean }) {
           </p>
           <InstalarAppButton />
         </Card>
+        {/* Senhas só no DOM com a aba aberta: escondidas (hidden) elas faziam o navegador
+            achar que a página inteira era um login e preencher outros campos com o e-mail. */}
+        {active && (
         <Card className="max-w-xl space-y-5">
           <div>
             <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Alterar senha</h3>
@@ -1629,6 +1657,7 @@ function TabConta({ active }: { active: boolean }) {
           </Field>
           {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
         </Card>
+        )}
       </div>
       <SaveBar saved={saved} saving={saving} onSave={salvar} />
     </div>

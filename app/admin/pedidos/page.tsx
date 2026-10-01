@@ -14,9 +14,7 @@ import {
   Inbox,
   ChefHat,
   HandPlatter,
-  ClipboardList,
   Clock,
-  Banknote,
   PrinterCheck,
   Eye,
   EyeOff,
@@ -49,6 +47,8 @@ import {
   type StatusPedido,
 } from '@/lib/queries/pedidos'
 import { formatarReal } from '@/lib/moeda'
+import { CartaoNumero } from '@/components/admin/cartao-numero'
+import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
 
 function inicioDoDiaISO() {
@@ -257,42 +257,6 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido
   )
 }
 
-const STAT_TINT: Record<string, { box: string; icon: string }> = {
-  orange: { box: 'bg-status-pending/10', icon: 'text-status-pending' },
-  blue: { box: 'bg-status-preparing/10', icon: 'text-status-preparing' },
-  indigo: { box: 'bg-status-preparing/10', icon: 'text-status-preparing' },
-  green: { box: 'bg-price-bg', icon: 'text-price-text' },
-}
-
-function StatCard({
-  tint,
-  value,
-  label,
-  icon,
-  priceColor,
-}: {
-  tint: keyof typeof STAT_TINT
-  value: React.ReactNode
-  label: string
-  icon: React.ReactNode
-  priceColor?: boolean
-}) {
-  const t = STAT_TINT[tint]
-  return (
-    <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-white px-3 py-2">
-      <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-menuzia ${t.box} ${t.icon}`}>{icon}</div>
-      <div>
-        <div className={`text-lg font-bold leading-none ${priceColor ? 'text-price-text' : ''}`}>{value}</div>
-        <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
-      </div>
-    </div>
-  )
-}
-
-const IconCheck = <ClipboardList className="h-5 w-5" strokeWidth={2} />
-const IconClock = <Clock className="h-5 w-5" strokeWidth={2} />
-const IconCapacete = <Capacete className="h-5 w-5" strokeWidth={2} />
-const IconMoney = <Banknote className="h-5 w-5" strokeWidth={2} />
 
 export default function PedidosPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
@@ -1032,11 +996,12 @@ export default function PedidosPage() {
 
         {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia ou pelo botão Métricas) */}
         {!focusMode && showStats && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard tint="orange" value={abertos} label="Pedidos abertos" icon={IconCheck} />
-            <StatCard tint="blue" value={`${tempoMedioMin} min`} label="Tempo médio" icon={IconClock} />
-            <StatCard tint="indigo" value={emEntrega} label="Em entrega" icon={IconCapacete} />
-            <StatCard tint="green" value={brl(faturamentoTurno)} label="Faturamento do turno" icon={IconMoney} priceColor />
+          // Mesmo cartão da tela Clientes (components/admin/cartao-numero.tsx).
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="cards-resumo-pedidos">
+            <CartaoNumero icone={ICONES.pedidos} tom="laranja" rotulo="Pedidos abertos" valor={abertos} />
+            <CartaoNumero icone={ICONES.cronometro} tom="azul" rotulo="Tempo médio" valor={`${tempoMedioMin} min`} />
+            <CartaoNumero icone={ICONES.moto} tom="roxo" rotulo="Em entrega" valor={emEntrega} />
+            <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Faturamento do turno" valor={<span className="text-price-text">{brl(faturamentoTurno)}</span>} />
           </div>
         )}
 

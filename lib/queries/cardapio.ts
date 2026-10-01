@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, proximaAbertura, textoProximaAbertura } from '@/lib/timezone'
 import { limparTagPersonalizada } from '@/lib/etiquetas-vitrine'
+import { hexValido, type EstiloAviso } from '@/lib/aviso-vitrine'
 import { configAgendamento, podeAgendar, somenteAgendado, textoAbrimos, type ConfigAgendamento } from '@/lib/agendamento'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
@@ -1114,13 +1115,15 @@ export interface RestauranteVitrine {
   somenteAgendado: boolean
   /** "Abrimos hoje (domingo) às 13:00". Null = sem previsão. */
   abrimosTexto: string | null
+  /** Aviso em texto: cores e efeito (0123). Nulos = visual de sempre. */
+  avisoEstilo: EstiloAviso
 }
 
 export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1170,6 +1173,11 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     podeAgendar: podeAgendar(agendamento, aberta),
     somenteAgendado: somenteAgendado(agendamento, aberta),
     abrimosTexto: estadoLoja.statusLoja === 'fechado_manual' ? null : textoAbrimos(proximaAbertura(estadoLoja.horarioFuncionamento)),
+    avisoEstilo: {
+      corTexto: hexValido(data.aviso_cor_texto) ? data.aviso_cor_texto : null,
+      corFundo: hexValido(data.aviso_cor_fundo) ? data.aviso_cor_fundo : null,
+      pulsar: data.aviso_pulsar === true,
+    },
   }
 }
 

@@ -662,3 +662,73 @@ html:has(.vitrine-sem-zoom) {
 .kds-escuro .hover\:bg-border:hover { background-color: #2A3547; }
 @keyframes kds-novo { 0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } 50% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.55); } }
 .kds-novo { animation: kds-novo 1.2s ease-in-out 5; }
+
+/* Barra de rolagem fina e discreta (painel, 2026-10-01): tabelas com rolagem própria. */
+.rolagem-fina {
+  scrollbar-width: thin;
+  scrollbar-color: #c7cbd1 transparent;
+}
+.rolagem-fina::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.rolagem-fina::-webkit-scrollbar-thumb {
+  background: #c7cbd1;
+  border-radius: 8px;
+}
+.rolagem-fina::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Efeitos leves da vitrine (2026-10-01): só transform/opacity (GPU), param fora da tela
+   (data-visivel="nao") e somem para quem pediu "reduzir movimento". */
+@keyframes efeito-pulsar {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.02); opacity: 0.86; }
+}
+.efeito-pulsar {
+  animation: efeito-pulsar 1.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+@keyframes efeito-balancar {
+  0%, 82%, 100% { transform: rotate(0deg); }
+  86% { transform: rotate(-12deg); }
+  90% { transform: rotate(10deg); }
+  94% { transform: rotate(-6deg); }
+  97% { transform: rotate(3deg); }
+}
+.efeito-balancar {
+  animation: efeito-balancar 3s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+[data-visivel="nao"].efeito-pulsar,
+[data-visivel="nao"] .efeito-pulsar,
+[data-visivel="nao"] .efeito-balancar {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .efeito-pulsar,
+  .efeito-balancar,
+  .efeito-confete,
+  .efeito-check {
+    animation: none !important;
+  }
+}
+@keyframes efeito-check {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.efeito-check {
+  animation: efeito-check 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+@keyframes efeito-confete {
+  0% { transform: translate(-50%, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), var(--dy)) rotate(var(--rot)); opacity: 0; }
+}
+.efeito-confete {
+  animation: efeito-confete 0.9s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .efeito-confete { display: none; }
+}
