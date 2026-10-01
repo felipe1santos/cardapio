@@ -3,6 +3,7 @@ import { pode } from '@/lib/auth/permissoes'
 import { contextoSalao } from '@/lib/auth/salao'
 import { FORMAS_PAGAMENTO_OFERECIDAS, ehFormaOferecida } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { calcularTaxas } from '@/lib/taxas-conta'
 
 /**
  * Configuração da conta das mesas: taxa de serviço padrão, formas de pagamento aceitas e
@@ -22,7 +23,10 @@ export async function GET() {
     .select('taxa_servico_padrao, formas_pagamento_mesa')
     .eq('id', ctx.sessao.restauranteId)
     .maybeSingle()
+  // Taxas padrão (0124): coluna à parte, para a tela continuar abrindo antes da migration.
+  const { data: tx } = await ctx.admin.from('restaurantes').select('taxas_padrao_mesa').eq('id', ctx.sessao.restauranteId).maybeSingle()
   return NextResponse.json({
+    taxasPadrao: (tx?.taxas_padrao_mesa as unknown[] | null) ?? [],
     taxaServicoPadrao: Number(data?.taxa_servico_padrao ?? 0),
     // Loja que já tinha `fiado` gravado não o vê mais na lista: filtrar aqui evita
     // a caixinha marcada e invisível voltar para o banco no próximo salvar.
@@ -39,7 +43,7 @@ export async function PUT(request: Request) {
   const ctx = await contextoSalao('mesas.gerenciar')
   if ('erro' in ctx) return ctx.erro
 
-  let corpo: { taxaServicoPadrao?: unknown; formasPagamento?: unknown; regras?: unknown }
+  let corpo: { taxaServicoPadrao?: unknown; formasPagamento?: unknown; regras?: unknown; taxasPadrao?: unknown }
   try {
     corpo = await request.json()
   } catch {
@@ -60,6 +64,13 @@ export async function PUT(request: Request) {
   const patch: Record<string, unknown> = {
     taxa_servico_padrao: Math.round(taxa * 100) / 100,
     formas_pagamento_mesa: ordenadas,
+  }
+
+  // Taxas padrão (atalhos de um toque na conta): mesma validação das taxas da conta.
+  if (corpo.taxasPadrao !== undefined) {
+    const c = calcularTaxas(corpo.taxasPadrao, 0)
+    if (!c.ok) return NextResponse.json({ error: c.erro }, { status: 400 })
+    patch.taxas_padrao_mesa = c.taxas.map(({ nome, tipo, base, quantidade }) => ({ nome, tipo, base, quantidade }))
   }
 
   // Regras: allowlist de três booleanos. Qualquer outra chave do corpo é ignorada.

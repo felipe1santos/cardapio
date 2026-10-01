@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { calcularTaxas, type TaxaCalculada, type TipoTaxa } from '@/lib/taxas-conta'
 import { mensagemDeErroConta, formatarResumoPagamento, ehFormaOferecida, type FormaPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { criarPedido, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
@@ -147,6 +148,8 @@ export interface ContaPresencial {
   descontoMotivo: string | null
   /** Taxa manual só desta conta (0106): nome e valor em R$. Não é item nem catálogo. */
   taxaExtra: { nome: string; valor: number; porNome: string | null; em: string | null } | null
+  /** Detalhe das taxas da conta (0124): cada uma com nome, tipo e valor. A soma é a taxaExtra. */
+  taxas: TaxaCalculada[]
   /** `taxaEntrega` = a taxa que a conta está cobrando agora (0 sem item ativo — 0099). */
   totais: { subtotal: number; taxaServico: number; taxaExtra: number; desconto: number; taxaEntrega: number; total: number; pago: number; restante: number }
   situacao: ReturnType<typeof situacaoFinanceira>
@@ -164,7 +167,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
   const row = c as unknown as Record<string, unknown> & { mesas: { nome: string } | { nome: string }[] | null }
   const mesa = Array.isArray(row.mesas) ? row.mesas[0] : row.mesas
 
-  const [{ data: t }, { data: peds }, { data: pags }, { data: sols }] = await Promise.all([
+  const [{ data: t }, { data: peds }, { data: pags }, { data: sols }, { data: txs }] = await Promise.all([
     admin.rpc('comanda_totais', { p_comanda: comandaId }),
     admin
       .from('pedidos')
@@ -184,6 +187,9 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
       .eq('status', 'pendente')
       .eq('pedidos.comanda_id', comandaId)
       .order('solicitado_em', { ascending: true }),
+    // Detalhe das taxas (0124). Antes da migration a tabela não existe: lista vazia.
+    admin.from('comanda_taxas').select('nome, tipo, base, quantidade, valor').eq('comanda_id', comandaId).order('posicao', { ascending: true })
+      .then((r) => (r.error ? { data: [] as unknown[] } : r), () => ({ data: [] as unknown[] })),
   ])
   const tot = ((t as unknown[] | null) ?? [])[0] as Record<string, string | number> | undefined
 
@@ -323,6 +329,9 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
           em: (row.taxa_extra_em as string | null) ?? null,
         }
       : null,
+    taxas: ((txs ?? []) as { nome: string; tipo: TipoTaxa; base: number; quantidade: number; valor: number }[]).map((x) => ({
+      nome: x.nome, tipo: x.tipo, base: Number(x.base), quantidade: Number(x.quantidade), valor: Number(x.valor),
+    })),
     totais,
     situacao: situacaoFinanceira(totais.total, totais.pago, pagamentos.filter((p) => p.estornado).length, row.status as string),
     pedidos,
@@ -982,6 +991,29 @@ export async function definirTaxaExtra(admin: SupabaseClient, ator: Ator, comand
   const n = typeof nome === 'string' ? nome.trim().slice(0, 60) : ''
   return rpc<Record<string, number | string | null>>(admin, 'comanda_taxa_extra_definir', {
     p_restaurante: ator.restauranteId, p_comanda: comandaId, p_nome: n || null, p_valor: Math.round(v * 100) / 100,
+    p_ator: ator.userId, p_ator_nome: ator.nome,
+  })
+}
+
+/**
+ * Várias taxas (0124): calcula cada uma sobre o subtotal da conta — já com as decisões do
+ * fechamento, quando vierem — e grava a lista; a soma vira a taxa manual da conta.
+ */
+export async function definirTaxas(admin: SupabaseClient, ator: Ator, comandaId: string, entrada: unknown, acoes: DecisaoFechamento[] = []) {
+  let subtotal: number
+  if (acoes.length) {
+    const sim = await simularFechamento(admin, ator, comandaId, acoes)
+    if (!sim.ok) return sim
+    subtotal = Number(sim.valor.subtotal)
+  } else {
+    const { data } = await admin.rpc('comanda_totais', { p_comanda: comandaId })
+    subtotal = Number((((data as unknown[] | null) ?? [])[0] as { subtotal?: number } | undefined)?.subtotal ?? 0)
+  }
+  const calc = calcularTaxas(entrada, subtotal)
+  if (!calc.ok) return falha(calc.erro)
+  return rpc<Record<string, number | string | null>>(admin, 'comanda_taxas_definir', {
+    p_restaurante: ator.restauranteId, p_comanda: comandaId,
+    p_taxas: calc.taxas.map((t) => ({ nome: t.nome, tipo: t.tipo, base: t.base, quantidade: t.quantidade, valor: t.valor })),
     p_ator: ator.userId, p_ator_nome: ator.nome,
   })
 }

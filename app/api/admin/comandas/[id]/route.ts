@@ -4,6 +4,7 @@ import { ehAcaoConta, ehUuid, permissoesDaConta, PERMISSAO_DA_ACAO, sanearFecham
 import { ajustarValores, cancelarComanda } from '@/lib/queries/conta'
 import { ehFormaOferecida } from '@/lib/conta'
 import * as conta from '@/lib/servicos/conta-presencial'
+import { registrarAuditoria } from '@/lib/auditoria'
 
 /**
  * Conta presencial (mesa ou balcão) no PDV v2: leitura completa (GET) e toda ação que
@@ -55,6 +56,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       pendencias: pend && pend.ok ? pend.valor : null,
       formasPagamento: ctx.loja.formasPagamento.filter((f) => ehFormaOferecida(f) || f === 'fiado'),
       permissoes,
+      // Atalhos de taxa da loja (Ajustes › Mesas, 0124). Sem a coluna: nenhum.
+      taxasPadrao: await ctx.admin.from('restaurantes').select('taxas_padrao_mesa').eq('id', ctx.sessao.restauranteId).maybeSingle()
+        .then((r) => (r.error ? [] : ((r.data?.taxas_padrao_mesa as unknown[]) ?? [])), () => []),
     },
     { headers: { 'Cache-Control': 'no-store' } },
   )
@@ -113,6 +117,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case 'taxa_extra':
       return responder(await conta.definirTaxaExtra(ctx.admin, eu, c.id, corpo.nome, corpo.valor))
 
+    case 'taxas': {
+      // As decisões do fechamento (se vierem) entram só para calcular o subtotal da %.
+      const s = Array.isArray(corpo.acoes) ? sanearFechamento({ acoes: corpo.acoes }, false) : null
+      if (s && !s.ok) return NextResponse.json({ error: s.erro }, { status: 400 })
+      return responder(await conta.definirTaxas(ctx.admin, eu, c.id, corpo.taxas, s && s.ok ? s.acoes : []))
+    }
+
     case 'atender': {
       const p = pedidoDaConta(corpo.pedidoId)
       if (!p) return NextResponse.json({ error: 'Pedido não pertence a esta conta.' }, { status: 404 })
@@ -161,7 +172,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Sem permissão para resolver pendências no fechamento.', codigo: 'sem_permissao_resolver' }, { status: 403 })
       }
       if (acao === 'simular_fechamento') return responder(await conta.simularFechamento(ctx.admin, eu, c.id, s.acoes))
-      return responder(await conta.fecharCompleto(ctx.admin, eu, c, s, ctx.loja.formasPagamento, 'pdv', forcada && !ctx.pode('comanda.resolver_forcado') ? 'comanda.fechamento_resolver' : forcada ? 'comanda.resolver_forcado' : null))
+      const fechou = await conta.fecharCompleto(ctx.admin, eu, c, s, ctx.loja.formasPagamento, 'pdv', forcada && !ctx.pode('comanda.resolver_forcado') ? 'comanda.fechamento_resolver' : forcada ? 'comanda.resolver_forcado' : null)
+      // Conta fechada com saldo ZERO (ex.: tudo cancelado): registra explicitamente quem
+      // fechou e que foi recebido R$ 0,00 (2026-10-01).
+      if (fechou.ok && s.pagamentos.length === 0) {
+        const { data: t } = await ctx.admin.rpc('comanda_totais', { p_comanda: c.id })
+        const tot = ((t as unknown[] | null) ?? [])[0] as { total?: number } | undefined
+        if (Number(tot?.total ?? 0) <= 0.004) {
+          await registrarAuditoria(ctx.admin, {
+            restauranteId: eu.restauranteId, usuarioId: eu.userId, usuarioNome: eu.nome,
+            acao: 'conta.fechou_valor_zero', entidade: 'comanda', entidadeId: c.id,
+            dados: { recebido: 0, resumo: 'Fechou a conta com valor zero (Recebido R$ 0,00)' },
+          })
+        }
+      }
+      return responder(fechou)
     }
 
     case 'aplicar_cupom':

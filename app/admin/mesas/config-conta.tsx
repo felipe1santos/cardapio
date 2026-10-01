@@ -5,6 +5,8 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
 import type { RegrasSalao } from '@/lib/auth/permissoes'
+import { TaxasModal } from '@/components/pdv/taxas-conta'
+import { rotuloTaxa, type TaxaEntrada } from '@/lib/taxas-conta'
 
 /**
  * Taxa de serviço padrão, formas de pagamento aceitas nas mesas e as regras do salão
@@ -41,6 +43,9 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
   const [erro, setErro] = useState<string | null>(null)
   const [salvo, setSalvo] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  // Taxas padrão da loja (0124): atalhos de um toque nas taxas da conta.
+  const [taxasPadrao, setTaxasPadrao] = useState<TaxaEntrada[]>([])
+  const [editarTaxas, setEditarTaxas] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -54,6 +59,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
       setFormas(corpo.formasPagamento)
       setDisponiveis(corpo.formasDisponiveis)
       setRegras(corpo.regras ?? null)
+      setTaxasPadrao(Array.isArray(corpo.taxasPadrao) ? corpo.taxasPadrao : [])
       setPodeEditarRegras(corpo.podeEditarRegras === true)
     })()
   }, [])
@@ -68,6 +74,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
       body: JSON.stringify({
         taxaServicoPadrao: Number((taxa || '0').replace(',', '.')),
         formasPagamento: formas,
+        taxasPadrao,
         ...(podeEditarRegras && regras ? { regras } : {}),
       }),
     })
@@ -101,6 +108,29 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
             Vale para contas abertas a partir de agora. Use 0 para não cobrar. A gestão ainda pode ajustar em cada conta.
           </span>
         </label>
+
+        <div className="mt-4" data-testid="config-taxas-padrao">
+          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Taxas padrão (atalhos na conta)</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {taxasPadrao.length === 0 && <span className="text-[12px] text-text-subtle">Nenhuma — a conta sugere Couvert e Taxa de rolha.</span>}
+            {taxasPadrao.map((t, i) => (
+              <span key={i} className="rounded-menuzia border border-border bg-page px-2 py-1 text-[12px] text-text-main">{rotuloTaxa(t)}</span>
+            ))}
+            <button type="button" onClick={() => setEditarTaxas(true)} className="min-h-[40px] rounded-menuzia border border-primary px-3 text-[12px] font-semibold text-primary" data-testid="config-taxas-editar">
+              Editar taxas padrão
+            </button>
+          </div>
+          <span className="mt-1 block text-[11px] text-text-subtle">Ex.: Couvert R$ 15 por pessoa, Taxa de rolha R$ 30. Aparecem como atalhos de um toque em cada conta. Salve abaixo.</span>
+          {editarTaxas && (
+            <TaxasModal
+              atuais={taxasPadrao}
+              padrao={[]}
+              subtotal={100}
+              onVoltar={() => setEditarTaxas(false)}
+              onSalvar={async (lista) => { setTaxasPadrao(lista); setEditarTaxas(false); setSalvo(false); return null }}
+            />
+          )}
+        </div>
 
         <fieldset className="mt-4">
           <legend className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Formas de pagamento aceitas</legend>

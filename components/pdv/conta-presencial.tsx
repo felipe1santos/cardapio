@@ -22,7 +22,8 @@ import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde,
 import { FecharContaModal } from './fechar-conta'
 import { FotoItem } from './foto-item'
 import { SeloAtendimento, SeloCozinha, SeloFinanceiro } from './selos'
-import { TaxaExtraModal } from './taxa-extra'
+import { TaxasModal, taxasIniciais } from './taxas-conta'
+import { rotuloTaxa, type TaxaEntrada } from '@/lib/taxas-conta'
 import { IdentificarModal } from './atendimento'
 import { ResumoEncerramentoModal } from './resumo-encerramento'
 import { montarResumoEncerramento, type ResumoEncerramento } from '@/lib/encerramento-conta'
@@ -61,6 +62,8 @@ interface DadosConta {
   pendencias: Pendencias | null
   formasPagamento: string[]
   permissoes: Permissoes
+  /** Taxas padrão da loja (Ajustes › Mesas, 0124). */
+  taxasPadrao?: TaxaEntrada[]
 }
 
 type Subtela =
@@ -344,7 +347,10 @@ export function ContaPresencialModal({
                   />
                 )}
                 {/* Taxa manual só desta conta (0106). */}
-                {conta.taxaExtra && <Linha rotulo={conta.taxaExtra.nome} valor={conta.taxaExtra.valor} testid="conta-taxa-extra" />}
+                {/* Cada taxa numa linha (0124); conta de antes só com a taxa manual (0106). */}
+                {conta.taxas.length > 0
+                  ? conta.taxas.map((t, i) => <Linha key={i} rotulo={rotuloTaxa(t)} valor={t.valor} testid="conta-taxa-linha" />)
+                  : conta.taxaExtra && <Linha rotulo={conta.taxaExtra.nome} valor={conta.taxaExtra.valor} testid="conta-taxa-extra" />}
                 {conta.totais.desconto > 0 && <Linha rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={-conta.totais.desconto} />}
                 <div className="my-1.5 border-t border-border" />
                 <Linha rotulo="Total" valor={conta.totais.total} forte />
@@ -456,6 +462,7 @@ export function ContaPresencialModal({
           podeForcar={Boolean(pode?.resolver_no_fechamento)}
           podePagar={Boolean(pode?.pagamento)}
           podeTaxaExtra={Boolean(pode?.taxa_extra)}
+          taxasPadrao={dados?.taxasPadrao ?? []}
           onVoltar={() => {
             setSub(null)
             void carregar()
@@ -589,11 +596,13 @@ export function ContaPresencialModal({
         />
       )}
       {conta && sub?.tipo === 'taxa_extra' && (
-        <TaxaExtraModal
-          atual={conta.taxaExtra}
+        <TaxasModal
+          atuais={taxasIniciais(conta)}
+          padrao={dados?.taxasPadrao ?? []}
+          subtotal={conta.totais.subtotal}
           onVoltar={() => setSub(null)}
-          onSalvar={async (nome, valor) => {
-            const r = await agir({ acao: 'taxa_extra', nome, valor }, valor > 0 ? 'Taxa salva.' : 'Taxa removida.')
+          onSalvar={async (taxas) => {
+            const r = await agir({ acao: 'taxas', taxas }, taxas.length ? 'Taxas salvas.' : 'Taxas removidas.')
             if (r?.ok) setSub(null)
             return r?.ok ? null : r?.erro ?? 'Não foi possível.'
           }}

@@ -57,6 +57,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'conta.desconto': 'Aplicou ou alterou desconto',
   'conta.taxa_extra': 'Adicionou ou alterou taxa na conta',
   'conta.removeu_taxa_extra': 'Removeu a taxa da conta',
+  'conta.fechou_valor_zero': 'Fechou a conta com valor zero (Recebido R$ 0,00)',
   'conta.solicitou_cancelamento': 'Pediu cancelamento à gestão',
   'conta.aprovou_cancelamento': 'Aprovou pedido de cancelamento',
   'conta.recusou_cancelamento': 'Recusou pedido de cancelamento',
