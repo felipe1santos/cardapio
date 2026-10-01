@@ -151,7 +151,7 @@ Medição em `medicao-efeitos.json`, com `scripts/vitrine/medir-efeitos.mjs`: ce
 - **Produção:** nada criado.
 
 ## 6. Recibo com várias taxas (pedido do dono, depois do retoque)
-- 0126:  manda  [{nome, detalhe, valor}] (backup pre-0126). Campos antigos (soma) mantidos.
+- 0126: `impressao_snapshot_pre_conta` manda `taxas` [{nome, detalhe, valor}] (backup pre-0126). Campos antigos (soma) mantidos.
 - Assistente **0.2.0-beta.8** (release printer-agent-v0.2.0-beta.8, SHA-256 0f6a7167…18b2): uma linha por taxa, detalhe embaixo ("2 x R$ 15,00", "5% do subtotal"). Assistente antigo continua imprimindo a soma até a loja instalar por cima.
 - Papel virtual 80 e 58 mm: prints/recibo/. Testes do Assistente 82/82 (novo caso de várias taxas).
 - Link de download em Impressão aponta para a beta.8.
