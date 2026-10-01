@@ -7,10 +7,19 @@ export type AcaoCozinha = 'pegar' | 'devolver' | 'concluir' | 'entregue'
 
 export const MODOS: ModoEstacao[] = ['producao', 'expedicao', 'completa']
 
+// Nomes de 2026-09-30 (os valores no banco não mudam): Produção = Preparo, Expedição =
+// Embalo / Expedição, Cozinha completa = Completa. Links e estações antigas continuam.
 export const LABEL_MODO: Record<ModoEstacao, string> = {
-  producao: 'Produção',
-  expedicao: 'Expedição',
-  completa: 'Cozinha completa',
+  producao: 'Preparo',
+  expedicao: 'Embalo / Expedição',
+  completa: 'Completa',
+}
+
+/** Uma linha que explica o tipo (modal "Nova estação"). */
+export const DESCRICAO_MODO: Record<ModoEstacao, string> = {
+  producao: 'Recebe o pedido, prepara e manda para "Pronto".',
+  expedicao: 'Recebe o que está pronto, embala e manda para o despacho.',
+  completa: 'Faz tudo: Disponíveis → Em preparo → Pronto p/ despacho.',
 }
 
 const STATUS_POR_MODO: Record<ModoEstacao, StatusPedido[]> = {

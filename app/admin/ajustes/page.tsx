@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import QRCode from 'qrcode'
-import { Copy, Check, QrCode } from 'lucide-react'
 import { normalizarBairro, type FreteForaDaLista } from '@/lib/frete'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -41,14 +39,12 @@ import { turnosDoDia } from '@/lib/timezone'
 import { StorePinMap } from '@/components/maps/store-pin-map'
 import { composeEndereco } from '@/lib/endereco'
 import { PALETAS, temaCores } from '@/lib/paletas'
-import { listarEstacoes, criarEstacao, atualizarEstacao, rotacionarTokenEstacao, removerEstacao, type Estacao } from '@/lib/queries/estacoes'
-import { MODOS, LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import { listarMesas, criarMesa, atualizarMesa, removerMesa, type Mesa } from '@/lib/queries/mesas'
 import { CardModuloMesas } from '@/components/admin/modulo-mesas'
 import { CardapioDaMesaConfig } from '@/app/admin/mesas/cardapio-mesa'
 import { ConfigConta } from '@/app/admin/mesas/config-conta'
 
-type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'conta' | 'aparencia' | 'cozinha'
+type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'conta' | 'aparencia'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'loja', label: 'Perfil da loja' },
@@ -56,7 +52,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'mesas', label: 'Mesas' },
   { id: 'qrcode', label: 'QR Code' },
   { id: 'aparencia', label: 'Aparência' },
-  { id: 'cozinha', label: 'Cozinha' },
   { id: 'conta', label: 'Conta' },
 ]
 
@@ -1775,274 +1770,6 @@ function TabAparencia({ restauranteId, active }: { restauranteId: string; active
   )
 }
 
-// ─── Aba Cozinha (Estações) ───────────────────────────────────────────────────
-
-const MODO_BADGE: Record<ModoEstacao, string> = {
-  producao:  'bg-status-pending/10 text-status-pending',
-  expedicao: 'bg-status-preparing/10 text-status-preparing',
-  completa:  'bg-status-ready/10 text-status-ready',
-}
-
-function TabEstacoes({ restauranteId, active }: { restauranteId: string; active: boolean }) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [loaded, setLoaded] = useState(false)
-  const [estacoes, setEstacoes] = useState<Estacao[]>([])
-  const [novaEstacaoNome, setNovaEstacaoNome] = useState('')
-  const [novaEstacaoModo, setNovaEstacaoModo] = useState<ModoEstacao>('producao')
-  const [error, setError] = useState<string | null>(null)
-  // Per-station UI state
-  const [copiadoId, setCopiadoId] = useState<string | null>(null)
-  const [qrData, setQrData] = useState<Record<string, string>>({})
-  const [qrOpen, setQrOpen] = useState<Record<string, boolean>>({})
-
-  const carregarEstacoes = useCallback(async (rid: string) => {
-    try {
-      setEstacoes(await listarEstacoes(supabase, rid))
-    } catch {
-      // silently ignore — polling may fail if offline
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    if (!active) return
-    if (!loaded) {
-      carregarEstacoes(restauranteId).then(() => setLoaded(true))
-    }
-    const t = setInterval(() => carregarEstacoes(restauranteId), 10000)
-    return () => clearInterval(t)
-  }, [active, loaded, restauranteId, carregarEstacoes])
-
-  async function handleCriarEstacao() {
-    if (!novaEstacaoNome.trim()) return
-    setError(null)
-    try {
-      await criarEstacao(supabase, restauranteId, novaEstacaoNome.trim(), novaEstacaoModo)
-      setNovaEstacaoNome('')
-      await carregarEstacoes(restauranteId)
-    } catch {
-      setError('Não foi possível criar a estação.')
-    }
-  }
-
-  async function handleToggleEstacao(e: Estacao) {
-    setError(null)
-    try {
-      await atualizarEstacao(supabase, e.id, { ativo: !e.ativo })
-      await carregarEstacoes(restauranteId)
-    } catch {
-      setError('Não foi possível atualizar a estação.')
-    }
-  }
-
-  async function handleRotacionar(e: Estacao) {
-    setError(null)
-    try {
-      await rotacionarTokenEstacao(supabase, e.id)
-      // Clear cached QR for this station so it regenerates with the new token
-      setQrData((prev) => { const next = { ...prev }; delete next[e.id]; return next })
-      setQrOpen((prev) => ({ ...prev, [e.id]: false }))
-      await carregarEstacoes(restauranteId)
-    } catch {
-      setError('Não foi possível rotacionar o token.')
-    }
-  }
-
-  async function handleRemoverEstacao(e: Estacao) {
-    if (!confirm(`Remover a estação "${e.nome}"? O link atual deixa de funcionar.`)) return
-    setError(null)
-    try {
-      await removerEstacao(supabase, e.id)
-      await carregarEstacoes(restauranteId)
-    } catch {
-      setError('Não foi possível remover a estação.')
-    }
-  }
-
-  function handleCopiar(e: Estacao) {
-    if (typeof window === 'undefined') return
-    const url = `${window.location.origin}/cozinha/${e.token}`
-    navigator.clipboard.writeText(url).then(() => {
-      setCopiadoId(e.id)
-      setTimeout(() => setCopiadoId((prev) => (prev === e.id ? null : prev)), 1500)
-    })
-  }
-
-  async function handleToggleQr(e: Estacao) {
-    const nowOpen = !qrOpen[e.id]
-    setQrOpen((prev) => ({ ...prev, [e.id]: nowOpen }))
-    if (nowOpen && !qrData[e.id]) {
-      try {
-        const url = typeof window !== 'undefined'
-          ? `${window.location.origin}/cozinha/${e.token}`
-          : `/cozinha/${e.token}`
-        const dataUrl = await QRCode.toDataURL(url, { width: 240, margin: 1 })
-        setQrData((prev) => ({ ...prev, [e.id]: dataUrl }))
-      } catch {
-        // silently ignore
-      }
-    }
-  }
-
-  return (
-    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
-      <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="max-w-xl space-y-6">
-          {/* Create form */}
-          <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Estações de cozinha</h3>
-            <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
-              Crie um acesso por link para a cozinha usar no celular ou tablet. Cada estação vê só a sua etapa.
-            </p>
-            <div className="flex flex-wrap items-end gap-2">
-              <input
-                value={novaEstacaoNome}
-                onChange={(e) => setNovaEstacaoNome(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCriarEstacao()}
-                placeholder="Nome (ex.: Chapa, Expedição)"
-                className="h-9 min-w-0 flex-1 rounded-menuzia border border-border bg-white px-3 text-sm outline-none focus:border-primary placeholder:text-text-subtle/60"
-              />
-              <select
-                value={novaEstacaoModo}
-                onChange={(e) => setNovaEstacaoModo(e.target.value as ModoEstacao)}
-                className="h-9 rounded-menuzia border border-border bg-white px-2 text-sm outline-none focus:border-primary"
-              >
-                {MODOS.map((m) => <option key={m} value={m}>{LABEL_MODO[m]}</option>)}
-              </select>
-              <button
-                onClick={handleCriarEstacao}
-                disabled={!novaEstacaoNome.trim()}
-                className="h-9 rounded-menuzia bg-primary px-4 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
-              >
-                Criar estação
-              </button>
-            </div>
-          </Card>
-
-          {/* Station cards */}
-          <div className="space-y-3">
-            {estacoes.length === 0 && (
-              <div className="rounded-menuzia border border-dashed border-border bg-white px-4 py-6 text-center text-[13px] text-text-subtle">
-                Nenhuma estação criada ainda. Use o formulário acima para criar a primeira.
-              </div>
-            )}
-            {estacoes.map((e) => {
-              const url = typeof window !== 'undefined'
-                ? `${window.location.origin}/cozinha/${e.token}`
-                : `/cozinha/${e.token}`
-              const isCopied = copiadoId === e.id
-              const isQrOpen = !!qrOpen[e.id]
-              return (
-                <div
-                  key={e.id}
-                  className={['overflow-hidden rounded-menuzia border border-border bg-white', !e.ativo ? 'opacity-60' : ''].join(' ')}
-                >
-                  {/* Card header */}
-                  <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-                    <span
-                      title={e.online ? 'Online' : 'Offline'}
-                      className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${e.online ? 'bg-status-ready' : 'bg-text-subtle'}`}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-main">{e.nome}</span>
-                    <span className={`flex-shrink-0 rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${MODO_BADGE[e.modo]}`}>
-                      {LABEL_MODO[e.modo]}
-                    </span>
-                    {!e.ativo && (
-                      <span className="flex-shrink-0 rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
-                        Inativa
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Card body */}
-                  <div className="space-y-2.5 px-4 py-3">
-                    {/* Link row — min-w-0 + overflow-hidden prevent URL from expanding the card */}
-                    <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-menuzia border border-border bg-page px-3 py-1.5">
-                      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-subtle">{url}</span>
-                      <button
-                        onClick={() => handleCopiar(e)}
-                        title={isCopied ? 'Copiado!' : 'Copiar link'}
-                        className={[
-                          'flex flex-shrink-0 items-center gap-1 rounded-menuzia px-2 py-1 text-[11px] font-semibold transition-colors',
-                          isCopied ? 'text-status-ready' : 'text-primary hover:bg-primary/10',
-                        ].join(' ')}
-                      >
-                        {isCopied ? <Check size={13} /> : <Copy size={13} />}
-                        {isCopied ? 'Copiado!' : 'Copiar'}
-                      </button>
-                    </div>
-
-                    {/* QR code toggle */}
-                    <div>
-                      <button
-                        onClick={() => handleToggleQr(e)}
-                        className="flex items-center gap-1.5 text-[12px] font-semibold text-text-subtle transition-colors hover:text-text-main"
-                      >
-                        <QrCode size={14} />
-                        {isQrOpen ? 'Ocultar QR Code' : 'Ver QR Code'}
-                      </button>
-                      {isQrOpen && (
-                        <div className="mt-2.5">
-                          {qrData[e.id] ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={qrData[e.id]}
-                              alt={`QR Code — ${e.nome}`}
-                              className="h-[120px] w-[120px] rounded-menuzia border border-border"
-                            />
-                          ) : (
-                            <div className="flex h-[120px] w-[120px] items-center justify-center rounded-menuzia border border-border bg-page text-[11px] text-text-subtle">
-                              Gerando…
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Card footer */}
-                  <div className="flex items-center gap-3 border-t border-border px-4 py-2.5">
-                    <button
-                      onClick={() => handleToggleEstacao(e)}
-                      className={[
-                        'text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                        e.ativo ? 'text-text-subtle hover:text-text-main' : 'text-primary hover:underline',
-                      ].join(' ')}
-                    >
-                      {e.ativo ? 'Desativar' : 'Ativar'}
-                    </button>
-                    <span className="select-none text-border">·</span>
-                    <button
-                      onClick={() => handleRotacionar(e)}
-                      className="text-[11px] font-semibold uppercase tracking-wide text-warn transition-colors hover:underline"
-                    >
-                      Novo link
-                    </button>
-                    <span className="flex-1" />
-                    <button
-                      onClick={() => handleRemoverEstacao(e)}
-                      className="text-[11px] font-semibold uppercase tracking-wide text-danger transition-colors hover:underline"
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {error && (
-            <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">
-              {error}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Aba Mesas ────────────────────────────────────────────────────────────────
-
 function TabMesas({ restauranteId, active }: { restauranteId: string; active: boolean }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
@@ -2235,7 +1962,10 @@ export default function AjustesPage() {
 
   // A Impressão tem uma página só (menu lateral). Link antigo (?aba=impressao) vai para ela.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('aba') === 'impressao') window.location.replace('/admin/impressao')
+    const aba = new URLSearchParams(window.location.search).get('aba')
+    if (aba === 'impressao') window.location.replace('/admin/impressao')
+    // As estações da cozinha viraram item do menu (2026-09-30): link antigo vai para lá.
+    if (aba === 'cozinha') window.location.replace('/admin/cozinha')
   }, [])
 
   return (
@@ -2261,7 +1991,6 @@ export default function AjustesPage() {
               <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
               <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
               <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
-              <TabEstacoes restauranteId={restauranteId} active={tab === 'cozinha'} />
               <TabConta active={tab === 'conta'} />
             </>
           )}

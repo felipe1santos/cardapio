@@ -58,6 +58,7 @@ const NAV_ICONS: Record<string, string[]> = {
   '/admin/pedidos': ICONES.pedidos,
   '/admin/pdv': ICONES.pdv,
   '/admin/mesas': ICONES.mesas,
+  '/admin/cozinha': ICONES.cozinha,
   '/admin/logistica': ICONES.logistica,
   '/admin/cardapio': ICONES.cardapio,
   '/admin/clientes': ICONES.clientes,

@@ -51,6 +51,7 @@ const ESPERADO: Record<Permissao, Papel[]> = {
   'comanda.taxa': ['dono', 'gerente'],
   'comanda.pre_conta': ['dono', 'gerente', 'atendente'],
   'impressao.configurar': ['dono', 'gerente'],
+  'cozinha.gerenciar': ['dono', 'gerente'],
   'clientes.ver': ['dono', 'gerente', 'atendente'],
   'dashboard.faturamento': ['dono', 'gerente'],
   'cardapio.editar': ['dono', 'gerente'],

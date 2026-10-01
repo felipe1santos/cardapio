@@ -18,6 +18,7 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/pdv', 'pedidos.balcao.criar'],
   // Ver o salão e a conta: garçom e caixa. Cada ação confere a sua permissão por dentro.
   ['/admin/mesas', 'comanda.ver'],
+  ['/admin/cozinha', 'cozinha.gerenciar'],
   ['/admin/equipe', 'equipe.gerenciar'],
   ['/admin/auditoria', 'auditoria.ver'],
   ['/admin/logistica', 'logistica.operar'],

@@ -33,6 +33,6 @@ describe('ORIGEM_ESPERADA', () => {
 describe('metadados', () => {
   it('lista os 3 modos com rótulos', () => {
     expect(MODOS).toEqual(['producao', 'expedicao', 'completa'])
-    expect(LABEL_MODO.producao).toBe('Produção')
+    expect(LABEL_MODO.producao).toBe('Preparo')
   })
 })

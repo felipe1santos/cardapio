@@ -17,6 +17,8 @@ export interface Estacao {
   ativo: boolean
   online: boolean
   criadoEm: string
+  /** Último sinal da tela da estação (heartbeat). */
+  ultimoVistoEm: string | null
 }
 
 export interface EstacaoPortal {
@@ -44,6 +46,7 @@ export async function listarEstacoes(supabase: SupabaseClient, restauranteId: st
     ativo: e.ativo,
     online: !!e.ultimo_visto_em && agora - new Date(e.ultimo_visto_em).getTime() < ESTACAO_ONLINE_MS,
     criadoEm: e.criado_em,
+    ultimoVistoEm: e.ultimo_visto_em ?? null,
   }))
 }
 
