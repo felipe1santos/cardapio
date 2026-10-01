@@ -3,6 +3,7 @@
  * enfileira o status do pedido, as avulsas e o teste. Regras puras em ./regras; conteúdo em
  * ./conteudo; envio/fila em ./envio. Toda consulta filtra a loja (isolamento entre lojas).
  */
+import { agendaDaLinha, promocaoVigente } from '@/lib/promocao-agenda'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { horaAtualSaoPaulo, lojaEstaAberta, proximaAbertura, diaSemanaSaoPaulo, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { resolverPaleta } from '@/lib/paletas'
@@ -318,12 +319,13 @@ export async function avaliarLoja(admin: SupabaseClient, loja: LojaPush, opcoes:
   if (ligada('loja_abriu') && janela.aberta) {
     const { data: itens } = await admin
       .from('itens_cardapio')
-      .select('id, nome, preco, promocao_preco, promocao_inicio, promocao_fim, imagem_url')
+      .select('id, nome, preco, promocao_preco, promocao_inicio, promocao_fim, promocao_dias, promocao_hora_inicio, promocao_hora_fim, imagem_url')
       .eq('restaurante_id', loja.id)
       .eq('status', 'disponivel')
       .not('promocao_preco', 'is', null)
       .limit(50)
-    const p = (itens ?? []).find((i) => (!i.promocao_inicio || i.promocao_inicio <= hoje) && (!i.promocao_fim || i.promocao_fim >= hoje))
+    // Agenda completa da promoção (0130): datas, dias e horário.
+    const p = (itens ?? []).find((i) => promocaoVigente(agendaDaLinha(i)))
     if (p) promo = { id: p.id, nome: p.nome, preco: Number(p.promocao_preco), de: Number(p.preco), imagem: p.imagem_url }
   }
   // (d) item novo: criado nas últimas 48 h ou marcado como Novidade há até ~2 dias (novidade_ate = marcação + 30 dias)

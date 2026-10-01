@@ -55,3 +55,15 @@ especificação.
 - **144423**: submenu vertical à esquerda — reaproveitado o SubmenuVertical que já existe em Ajustes/Fidelidade.
 - **143301**: cartão com bolha de ícone + título + subtítulo (Modelos, Boas práticas).
 - **144019**: barras horizontais com valor ao lado ("Receita por campanha"); o gráfico diário usa barras verticais no mesmo azul (#2779bd, cor de gráfico do painel).
+
+## 5. Hover do Cardápio (Fase 3) — o que foi implementado
+| Elemento | Repouso | Hover / foco | Toque (sem hover) |
+|---|---|---|---|
+| Categoria (lista à esquerda) | nome + contagem; alça e ⋮ escondidos | fundo `#f3f6f9`, barra esquerda azul clara `#9fd3f2`, alça ⋮⋮ e ⋮ aparecem | alça e ⋮ sempre à vista |
+| Categoria aberta | fundo azul claro, barra `#0688D4`, ⋮ sempre à vista | — | — |
+| Menu ⋮ da categoria | — | Subir/Descer na ordem, Editar nome e foto, Horário automático, Fotos em massa, Excluir | igual |
+| Produto (tabela) | ações escondidas | fundo `#f7fafd`, barra azul de 3 px à esquerda, Editar e Pausar aparecem | ações sempre à vista |
+| Produto (cartão) | ações escondidas | sobe 2 px, sombra `0 8px 20px`, borda `#9fd3f2`, Pausar e Editar aparecem | sem elevação, ações sempre à vista |
+
+Transições de 150 ms (`transition: … 150ms`); `prefers-reduced-motion` tira o deslocamento do cartão.
+Regras em `app/globals.css` (bloco "Cardápio: hover das categorias e dos produtos").

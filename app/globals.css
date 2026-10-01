@@ -907,3 +907,37 @@ html:has(.vitrine-sem-zoom) {
   min-height: 104px; padding: 10px 12px !important; font-size: 13.5px !important; line-height: 1.5;
   background: #fff !important; border: 1px solid #d6dae1 !important; border-radius: 5px !important; color: #1f2937 !important;
 }
+
+/* ══ Cardápio: hover das categorias e dos produtos (repaginação 2026-10) ══════
+   No mouse, alça de arrastar e ⋮ aparecem só no hover/foco; em tela de toque
+   (sem hover) ficam sempre à vista. Transições de 150 ms. */
+.cardapio-categoria { transition: background-color 150ms, border-color 150ms, color 150ms; }
+.cardapio-categoria:not([data-ativa='sim']):hover { background-color: #f3f6f9; border-left-color: #9fd3f2 !important; }
+.cardapio-categoria .cat-alca,
+.cardapio-categoria .cat-acoes { opacity: 0; transition: opacity 150ms; }
+.cardapio-categoria:hover .cat-alca,
+.cardapio-categoria:hover .cat-acoes,
+.cardapio-categoria:focus-within .cat-alca,
+.cardapio-categoria:focus-within .cat-acoes,
+.cardapio-categoria[data-ativa='sim'] .cat-acoes,
+.cardapio-categoria[data-menu='sim'] .cat-acoes { opacity: 1; }
+.cardapio-produto-linha { transition: background-color 150ms, box-shadow 150ms; }
+.cardapio-produto-linha:hover { background-color: #f7fafd; box-shadow: inset 3px 0 0 #0688d4; }
+.cardapio-produto-linha .prod-acoes,
+.cardapio-produto-cartao .prod-acoes { opacity: 0; transition: opacity 150ms; }
+.cardapio-produto-linha:hover .prod-acoes,
+.cardapio-produto-linha:focus-within .prod-acoes,
+.cardapio-produto-cartao:hover .prod-acoes,
+.cardapio-produto-cartao:focus-within .prod-acoes { opacity: 1; }
+.cardapio-produto-cartao { transition: transform 150ms, box-shadow 150ms, border-color 150ms; }
+.cardapio-produto-cartao:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16, 24, 40, 0.1); border-color: #9fd3f2 !important; }
+@media (hover: none) {
+  .cardapio-categoria .cat-alca,
+  .cardapio-categoria .cat-acoes,
+  .cardapio-produto-linha .prod-acoes,
+  .cardapio-produto-cartao .prod-acoes { opacity: 1 !important; }
+  .cardapio-produto-cartao:hover { transform: none; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cardapio-produto-cartao:hover { transform: none; }
+}

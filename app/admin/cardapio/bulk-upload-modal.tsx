@@ -208,7 +208,8 @@ export function BulkUploadModal({
             status: linha.item.status,
             diasDisponiveis: linha.item.diasDisponiveis,
             imagemUrl: linha.item.imagemUrl,
-            promocaoPreco: linha.item.promocaoPreco,
+            // O gravado (fora da agenda da promoção o vigente vem null — 0130).
+            promocaoPreco: linha.item.promocaoPrecoCadastrado ?? linha.item.promocaoPreco,
             maisVendido: linha.item.maisVendido,
             tag: linha.item.tag,
             tipoItem: linha.item.tipoItem,

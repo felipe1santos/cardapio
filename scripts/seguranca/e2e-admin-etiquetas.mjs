@@ -41,7 +41,8 @@ try {
   await p.getByPlaceholder('Buscar item…').first().fill(NOME)
   await p.waitForTimeout(600)
   await p.locator('tr', { hasText: NOME }).getByTitle('Editar').first().click()
-  await p.getByRole('button', { name: /Exibição/ }).first().click()
+  // Repaginação 2026-10: etiquetas têm aba própria no modal do produto.
+  await p.getByTestId('produto-aba-etiquetas').click()
   const sec = p.getByTestId('etiquetas-produto')
   await sec.waitFor({ timeout: 10000 })
   ok('seção "Etiquetas do produto" no cadastro', await sec.isVisible())
@@ -65,7 +66,7 @@ try {
   ok('prévia ao vivo: Combo especial + Oferta limitada (Novidade fica de fora)', JSON.stringify(tipos) === JSON.stringify(['combo_especial', 'oferta_limitada']), tipos.join(','))
   ok('prévia mostra as utilitárias', /Serve até 3 pessoas/.test(await previa.innerText()) && /Item promocional/.test(await previa.innerText()) && (await previa.locator('[data-etiqueta="personalizada"][data-cor="azul"]').count()) === 1)
   if (PRINTS) await sec.screenshot({ path: join(PRINTS, 'admin-etiquetas.png') })
-  await p.getByRole('button', { name: 'Concluir' }).click()
+  await p.getByTestId('produto-salvar').click()
   await p.waitForTimeout(1500)
   ok('salvar mostra o toast de confirmação', (await p.getByTestId('toast').count()) > 0)
   const salvo = await um(`select combo_especial, novidade_ate > now() + interval '25 days' novidade30, edicao_limitada, item_promocional, serve_pessoas, tag_personalizada, tag_personalizada_cor, tag from itens_cardapio where id=$1`, [itemId])

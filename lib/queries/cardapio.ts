@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { agendaDaLinha, promocaoVigente, type AgendaPromocao } from '@/lib/promocao-agenda'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, proximaAbertura, textoProximaAbertura } from '@/lib/timezone'
 import { limparTagPersonalizada } from '@/lib/etiquetas-vitrine'
@@ -147,7 +148,21 @@ export interface ItemCardapio {
   imagemThumbUrl: string | null
   status: StatusItem
   diasDisponiveis: number[]
+  /**
+   * Preço promocional que vale AGORA (agenda da 0130 aplicada em `promocaoVigente`). Todos
+   * os canais leem este. O cadastro (admin) lê `promocaoPrecoCadastrado`.
+   */
   promocaoPreco: number | null
+  /** Preço promocional gravado, valendo ou não neste momento (0130). */
+  promocaoPrecoCadastrado?: number | null
+  /** Agenda da promoção (0130). Tudo vazio = vale sempre. */
+  promocaoInicio?: string | null
+  promocaoFim?: string | null
+  promocaoDias?: number[] | null
+  promocaoHoraInicio?: string | null
+  promocaoHoraFim?: string | null
+  /** Fotos extras do produto (0130), até 4. */
+  imagensExtras?: { url: string; thumb: string | null }[]
   maisVendido: boolean
   /** Etiqueta de destaque exibida na vitrine (ex.: 'mais_pedido'). Null = sem tag. */
   tag: TagItem | null
@@ -206,6 +221,12 @@ interface ItemRow {
   status: StatusItem
   dias_disponiveis: number[]
   promocao_preco: number | null
+  promocao_inicio?: string | null
+  promocao_fim?: string | null
+  promocao_dias?: number[] | null
+  promocao_hora_inicio?: string | null
+  promocao_hora_fim?: string | null
+  imagens_extras?: { url: string; thumb: string | null }[] | null
   mais_vendido: boolean
   tag: TagItem | null
   novidade_ate?: string | null
@@ -266,7 +287,10 @@ function mapItem(row: ItemRow): ItemCardapio {
     imagemThumbUrl: row.imagem_thumb_url ?? null,
     status: row.status,
     diasDisponiveis: row.dias_disponiveis ?? [],
-    promocaoPreco: row.promocao_preco === null ? null : Number(row.promocao_preco),
+    promocaoPreco: row.promocao_preco === null || !promocaoVigente(agendaDaLinha(row)) ? null : Number(row.promocao_preco),
+    promocaoPrecoCadastrado: row.promocao_preco === null ? null : Number(row.promocao_preco),
+    ...agendaDaLinha(row),
+    imagensExtras: Array.isArray(row.imagens_extras) ? row.imagens_extras.filter((f) => f && typeof f.url === 'string') : [],
     maisVendido: row.mais_vendido,
     tag: row.tag ?? null,
     novidadeAte: row.novidade_ate ?? null,
@@ -469,6 +493,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
+  promocao_inicio, promocao_fim, promocao_dias, promocao_hora_inicio, promocao_hora_fim, imagens_extras,
   novidade_ate, edicao_limitada, item_promocional, entrega_gratis, serve_pessoas, combo_especial, tag_personalizada, tag_personalizada_cor,
   disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
@@ -490,7 +515,28 @@ export async function listarItens(supabase: ClienteLeitura, restauranteId: strin
   return ordenar(((data ?? []) as unknown as ItemRow[]).map(mapItem))
 }
 
-export interface NovoItemInput {
+/** Agenda da promoção e fotos extras (0130). Ausente = não mexe. */
+export interface ExtrasItemInput {
+  agenda?: AgendaPromocao
+  imagensExtras?: { url: string; thumb: string | null }[]
+}
+
+function colunasExtras(input: ExtrasItemInput): Record<string, unknown> {
+  const c: Record<string, unknown> = {}
+  if (input.agenda) {
+    const a = input.agenda
+    c.promocao_inicio = a.promocaoInicio || null
+    c.promocao_fim = a.promocaoFim || null
+    c.promocao_dias = a.promocaoDias && a.promocaoDias.length && a.promocaoDias.length < 7 ? a.promocaoDias : null
+    const comHora = !!(a.promocaoHoraInicio && a.promocaoHoraFim && a.promocaoHoraInicio !== a.promocaoHoraFim)
+    c.promocao_hora_inicio = comHora ? a.promocaoHoraInicio : null
+    c.promocao_hora_fim = comHora ? a.promocaoHoraFim : null
+  }
+  if (input.imagensExtras) c.imagens_extras = input.imagensExtras.slice(0, 4)
+  return c
+}
+
+export interface NovoItemInput extends ExtrasItemInput {
   grupoId: string | null
   nome: string
   descricao: string
@@ -529,6 +575,7 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       imagem_thumb_url: input.imagemThumbUrl ?? null,
       disponivel_delivery: input.disponivelDelivery ?? true,
       disponivel_salao: input.disponivelSalao ?? true,
+      ...colunasExtras(input),
     })
     .select(ITEM_SELECT)
     .single()
@@ -537,7 +584,7 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
   return mapItem(data as unknown as ItemRow)
 }
 
-export interface AtualizarItemInput {
+export interface AtualizarItemInput extends ExtrasItemInput {
   grupoId: string | null
   nome: string
   descricao: string
@@ -578,6 +625,7 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
       // Mesmo cuidado da thumb: edição que não fala de canal não muda o canal.
       ...('disponivelDelivery' in input ? { disponivel_delivery: input.disponivelDelivery } : {}),
       ...('disponivelSalao' in input ? { disponivel_salao: input.disponivelSalao } : {}),
+      ...colunasExtras(input),
     })
     .eq('id', itemId)
     .select(ITEM_SELECT)

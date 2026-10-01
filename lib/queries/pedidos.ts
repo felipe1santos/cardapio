@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { agendaDaLinha, promocaoVigente } from '@/lib/promocao-agenda'
 import { erroDoTroco } from '@/lib/troco'
 import { motivoTelefoneDoPedido, soDigitos, telefoneWhatsapp } from '@/lib/telefone-br'
 import { resolverFrete } from '@/lib/frete'
@@ -1174,6 +1175,7 @@ export async function criarPedido(
     .from('itens_cardapio')
     .select(`
       id, nome, preco, promocao_preco, status, tipo_item, dias_disponiveis,
+      promocao_inicio, promocao_fim, promocao_dias, promocao_hora_inicio, promocao_hora_fim,
       disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos,
       item_complementos ( nome, preco, pausado, grupo_id ),
       grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, permite_quantidade ),
@@ -1231,7 +1233,8 @@ export async function criarPedido(
       throw new Error(`Item "${item.nome}" não é vendido neste canal`)
     }
 
-    let base = item.promocao_preco === null || item.promocao_preco === undefined ? Number(item.preco) : Number(item.promocao_preco)
+    // Promoção só vale dentro da agenda (0130); fora dela, o preço cheio.
+    let base = item.promocao_preco === null || item.promocao_preco === undefined || !promocaoVigente(agendaDaLinha(item)) ? Number(item.preco) : Number(item.promocao_preco)
     let tamanhoNome = ''
     let saborNome = ''
     let bordaNome = ''

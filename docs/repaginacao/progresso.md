@@ -30,4 +30,12 @@ Branch `feat/repaginacao` (sobre main + pdv-janelas + dashboard-filtro + push). 
 - [x] E2E e2e-campanhas-repaginada 71/71 (provedor simulado, telefones fictícios); regressão métricas 63/63, botões 9/9, push 68/68, unitários 1870
 
 ## Fase 3 — Cardápio
-- [ ] (a detalhar ao iniciar)
+- [x] Inventário de TODOS os campos do produto (docs/repaginacao/inventario-produto.md) — nada saiu
+- [x] Migration 0130: fotos extras, agenda da promoção (dias/horas + datas que já existiam), itens_cardapio_gestao (custo e códigos, só gestor), gatilho "editar preços" cobrindo a agenda — aplicada no local
+- [x] Regra única da agenda (lib/promocao-agenda.ts, 6 unitários) aplicada no mapeamento do item (todos os canais) e no preço do servidor
+- [x] Modal do produto: abas Informações · Complementos · Disponibilidade · Etiquetas · Ficha de preparo · Custo; foto grande + 4 extras; rótulos flutuantes; Destaque/Promocional; dia/hora da promoção; custo e códigos; descrição com dica; Configurações avançadas; rodapé fixo com Salvar só com alteração e carregando; aviso ao fechar com alteração
+- [x] Produto novo: salva e continua aberto (complementos, tamanhos e ficha liberam)
+- [x] Pausado-até-ter-preço volta a Disponível quando um tamanho ganha preço (o Salvar acende)
+- [x] Hover: categoria (fundo, barra, alça, ⋮ com menu), produto em tabela e cartão (destaque/elevação, ações), 150 ms, toque sempre à vista
+- [x] E2E e2e-produto-repaginado 65/65 (comparação campo a campo de simples, açaí, pizza e combo; agenda no preço do servidor; custo invisível ao visitante)
+- [x] Regressão portada: cadastro-matriz 45/45, admin-etiquetas 14/14; unitários 1876
