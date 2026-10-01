@@ -66,7 +66,8 @@ import { FoodIcon } from '@/components/cardapio/icone-comida'
 import { Aviso, BotaoIcone, FaixaErro, ItemThumb } from '@/components/cardapio/ui'
 import { EtiquetasProdutoForm } from '@/components/admin/etiquetas-produto-form'
 import { FichaPreparoForm } from '@/components/admin/ficha-preparo-form'
-import { etiquetasPrincipais } from '@/lib/etiquetas-vitrine'
+import { etiquetasTopoLigadas, motivoTagPersonalizadaInvalida } from '@/lib/etiquetas-vitrine'
+import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -108,6 +109,11 @@ interface ItemFormState {
   itemPromocional: boolean
   entregaGratis: boolean
   servePessoas: string
+  /** Tags 0122. */
+  comboEspecial: boolean
+  tagPersonalizadaLigada: boolean
+  tagPersonalizada: string
+  tagPersonalizadaCor: 'preta' | 'azul'
 }
 
 
@@ -118,6 +124,7 @@ function blankForm(grupoId: string | null): ItemFormState {
     id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null, imagemThumbUrl: null,
     promocaoPreco: '', maisVendido: false, tag: null, tipoItem: 'simples',
     novidade: false, novidadeAteAtual: null, novidadeDias: '30', edicaoLimitada: false, itemPromocional: false, entregaGratis: false, servePessoas: '',
+    comboEspecial: false, tagPersonalizadaLigada: false, tagPersonalizada: '', tagPersonalizadaCor: 'preta',
     // Item novo nasce nos dois canais: é o comportamento de sempre e o default da 0069.
     disponivelDelivery: true, disponivelSalao: true,
   }
@@ -141,7 +148,7 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     disponivelDelivery: item.disponivelDelivery,
     disponivelSalao: item.disponivelSalao,
     // Item salvo antes da 0117: as etiquetas novas saem da `tag` antiga.
-    novidade: etiquetasPrincipais(item).includes('novidade'),
+    novidade: etiquetasTopoLigadas(item).includes('novidade'),
     novidadeAteAtual: item.novidadeAte ?? null,
     novidadeDias: '30',
     edicaoLimitada: item.edicaoLimitada === true || item.tag === 'edicao_limitada',
@@ -150,6 +157,10 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     maisVendido: item.maisVendido || item.tag === 'mais_pedido' || item.tag === 'favorito',
     entregaGratis: item.entregaGratis ?? false,
     servePessoas: item.servePessoas ? String(item.servePessoas) : '',
+    comboEspecial: item.comboEspecial === true,
+    tagPersonalizadaLigada: !!item.tagPersonalizada,
+    tagPersonalizada: item.tagPersonalizada ?? '',
+    tagPersonalizadaCor: item.tagPersonalizadaCor === 'azul' ? 'azul' : 'preta',
   }
 }
 
@@ -741,6 +752,7 @@ export default function CardapioPage() {
   const [drawer, setDrawer] = useState<Drawer>(null)
   const [bulkTarget, setBulkTarget] = useState<BulkUploadTarget | null>(null)
   const [actionsOpen, setActionsOpen] = useState(false)
+  const toasts = useToasts()
   const [saving, setSaving] = useState(false)
   const [statusSavingId, setStatusSavingId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -982,6 +994,10 @@ export default function CardapioPage() {
   /** Salva o item (create ou update). `fechar` controla se o drawer fecha — o wizard salva a cada etapa sem fechar. */
   async function saveItem(fechar = true): Promise<boolean> {
     if (!restauranteId || !form.nome.trim()) return false
+    {
+      const motivo = form.tagPersonalizadaLigada ? motivoTagPersonalizadaInvalida(form.tagPersonalizada, form.tagPersonalizadaCor) : null
+      if (motivo) { setError(motivo); return false }
+    }
     // Item de graça na vitrine e "promoção" sem desconto: dois cadastros que o
     // cliente sente antes do lojista perceber (lib/item-cadastro.ts).
     // Tamanho a R$ 0 não conta: o tamanho substitui o preço-base, então marmita só
@@ -1025,7 +1041,10 @@ export default function CardapioPage() {
           edicaoLimitada: form.edicaoLimitada,
           itemPromocional: form.itemPromocional,
           entregaGratis: form.entregaGratis,
-          servePessoas: form.servePessoas.trim() ? Number(form.servePessoas) : null,
+          servePessoas: form.servePessoas.trim() ? Math.max(1, Math.min(20, Number(form.servePessoas))) : null,
+          comboEspecial: form.comboEspecial,
+          tagPersonalizada: form.tagPersonalizadaLigada && form.tagPersonalizada.trim() ? form.tagPersonalizada : null,
+          tagPersonalizadaCor: form.tagPersonalizadaCor,
         },
       }
       if (form.id) {
@@ -1045,6 +1064,7 @@ export default function CardapioPage() {
           setAvisoItem('Item salvo como PAUSADO: ele volta a aparecer quando tiver um tamanho com preço.')
         }
       }
+      toasts.mostrar('ok', 'Produto salvo.')
       if (fechar) setDrawer(null)
       return true
     } catch (e) {
@@ -1496,6 +1516,7 @@ export default function CardapioPage() {
 
   return (
     <>
+      <PilhaToasts itens={toasts.itens} />
       <TopBar
         title="Gestor de Cardápio"
         breadcrumb={

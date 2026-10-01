@@ -14,7 +14,7 @@ import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
-import { EtiquetasPrincipais, EtiquetasUtilitarias, LojaEtiquetasContext, PrecoVitrine } from '@/components/vitrine/etiquetas'
+import { EtiquetasPrincipais, EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine } from '@/components/vitrine/etiquetas'
 import { precoDeVitrine } from '@/lib/garcom-catalogo'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import { criarRastreador, type Rastreador } from '@/lib/vitrine-rastreio'
@@ -561,8 +561,16 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
         {compact && <EtiquetasPrincipais item={item} max={1} className="absolute left-[8px] top-[8px] shadow-sm" />}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
-        {!compact && <EtiquetasPrincipais item={item} className="mb-[6px]" />}
-        <div className={`${compact ? 'line-clamp-2 min-h-[36px] leading-[18px]' : 'line-clamp-2 min-h-[40px] leading-[20px]'} mb-[6px] text-[14px] font-semibold text-[var(--v-texto)]`}><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
+        {compact ? (
+          <div className="mb-[6px] line-clamp-2 min-h-[36px] text-[14px] font-semibold leading-[18px] text-[var(--v-texto)]"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
+        ) : (
+          // Tags de topo na linha do nome, à direita (descem se o nome não deixar espaço).
+          <div className="mb-[6px]">
+            <NomeComEtiquetas item={item} className="line-clamp-2 text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]">
+              <NomeItem texto={item.nomeFormatado ?? item.nome} />
+            </NomeComEtiquetas>
+          </div>
+        )}
         {item.descricao && !compact && (
           <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
@@ -600,17 +608,20 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       className="flex w-full gap-[12px] border-b border-[var(--v-borda)] bg-white py-[16px] pl-[16px] pr-[8px] text-left transition-colors last:border-none hover:bg-[#FAFAFA] active:bg-[#F3F4F6]"
     >
       <div className="min-w-0 flex-1">
-        {/* Etiqueta acima do nome, e não sobre a foto: em 120px, "Favorito da
-            casa" ou "Edição limitada" não cabem e saem cortadas. Aqui têm a
-            largura da coluna de texto e ainda anunciam o item antes do nome. */}
-        <EtiquetasPrincipais item={item} className="mb-[6px]" />
-        <div className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
+        {/* Tags de topo na mesma linha do nome, à direita (REF-TAGS). Nome comprido
+            empurra as tags para a linha de baixo — nada é cortado e a foto não se mexe. */}
+        <NomeComEtiquetas item={item} className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">
+          <NomeItem texto={item.nomeFormatado ?? item.nome} />
+        </NomeComEtiquetas>
         {item.descricao && (
           <DescricaoItem texto={item.descricao} className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
         <EtiquetasUtilitarias item={item} className="mt-[8px]" />
         <div className="mt-[8px]">
-          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
+          {(() => {
+            const pv = precoDeVitrine(item)
+            return <PriceTag price={pv.aPartirDe ? pv.valor : (item.promocaoPreco ?? item.preco)} originalPrice={!pv.aPartirDe && item.promocaoPreco ? item.preco : null} aPartirDe={pv.aPartirDe} />
+          })()}
         </div>
       </div>
       <div className="relative flex-shrink-0">
@@ -2719,6 +2730,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     return partes.length > 0 ? `Você tem ${partes.join(' e ')} pra resgatar →` : null
   })()
 
+  /**
+   * Total ORIGINAL da linha quando o item está com desconto (preço riscado na sacola).
+   * Só item de preço único: tamanho/sabor têm preço próprio e o desconto não se aplica.
+   */
+  const originalDaLinha = (line: CartLine): number | null => {
+    if (line.tamanhoNome || line.saborNome) return null
+    const it = allItems.find((x) => x.id === line.itemId)
+    if (!it || it.promocaoPreco === null || it.promocaoPreco === undefined || !(it.promocaoPreco < it.preco)) return null
+    return (line.unit + (it.preco - it.promocaoPreco)) * line.qty
+  }
+
   /** Linha do carrinho — clicável pra editar (complementos, observação, quantidade). */
   const renderCartLine = (line: CartLine, hasBorder: boolean) => (
     <div key={line.key} className={['flex items-start gap-3 p-3.5', hasBorder ? 'border-b border-border' : ''].join(' ')}>
@@ -2749,7 +2771,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
           )}
           {line.obs && <div className="mt-0.5 truncate text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
-          <div className="mt-1.5 text-[15px] font-bold text-promo">{brl(line.unit * line.qty)}</div>
+          {originalDaLinha(line) !== null && (
+            <div className="mt-1.5 text-[12px] font-medium leading-[15px] line-through" style={{ color: '#A1A1AA' }} data-preco-antigo>{brl(originalDaLinha(line)!)}</div>
+          )}
+          <div className={[originalDaLinha(line) !== null ? 'mt-0' : 'mt-1.5', 'text-[15px] font-bold text-promo'].join(' ')}>{brl(line.unit * line.qty)}</div>
         </div>
       </button>
       <div className="flex flex-shrink-0 items-center rounded-md border border-border bg-white">
@@ -4182,8 +4207,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><HandPlatter className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
               <div className="p-4.5">
-                <h2 className="text-xl font-bold tracking-tight"><NomeItem texto={productSheet.nomeFormatado ?? productSheet.nome} /></h2>
-                <EtiquetasPrincipais item={productSheet} className="mt-[6px]" />
+                <NomeComEtiquetas item={productSheet}>
+                  <h2 className="text-xl font-bold tracking-tight"><NomeItem texto={productSheet.nomeFormatado ?? productSheet.nome} /></h2>
+                </NomeComEtiquetas>
                 <DescricaoItem texto={productSheet.descricao} className="my-2 text-[13px] leading-[19px] text-[var(--v-secundario)]" />
                 <EtiquetasUtilitarias item={productSheet} className="mb-2" />
                 {productSheet.tipoItem !== 'pizza' && productSheet.tamanhos.length === 0 && (
@@ -4895,7 +4921,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       )}
                       {l.obs && <div className="mt-0.5 text-[13px] italic text-text-subtle">&ldquo;{l.obs}&rdquo;</div>}
                     </div>
-                    <span className="flex-shrink-0 text-[15px] font-bold">{brl(l.unit * l.qty)}</span>
+                    <span className="flex flex-shrink-0 flex-col items-end">
+                      {originalDaLinha(l) !== null && <span className="text-[12px] font-medium leading-[15px] line-through" style={{ color: '#A1A1AA' }}>{brl(originalDaLinha(l)!)}</span>}
+                      <span className="text-[15px] font-bold">{brl(l.unit * l.qty)}</span>
+                    </span>
                   </div>
                 ))}
               </div>

@@ -1,46 +1,97 @@
-import { describe, it, expect } from 'vitest'
-import { etiquetasPrincipais, etiquetasUtilitarias, percentualDesconto } from './etiquetas-vitrine'
+import { describe, expect, it } from 'vitest'
+import {
+  etiquetasTopo,
+  etiquetasTopoLigadas,
+  etiquetasUtilitarias,
+  limparTagPersonalizada,
+  motivoTagPersonalizadaInvalida,
+  percentualDesconto,
+  textoServe,
+} from './etiquetas-vitrine'
+import { colunasEtiquetas } from './queries/cardapio'
 
-const agora = Date.parse('2026-10-01T12:00:00Z')
-const futuro = '2026-10-20T00:00:00Z'
-const passado = '2026-09-01T00:00:00Z'
+const AGORA = Date.parse('2026-10-01T12:00:00Z')
+const FUTURO = '2026-10-20T00:00:00Z'
 
-describe('etiquetas principais (3.3)', () => {
-  it('ordem: Mais pedido, Novidade, Edição limitada — no máximo 2', () => {
-    expect(etiquetasPrincipais({ maisVendido: true, novidadeAte: futuro, edicaoLimitada: true }, agora)).toEqual(['mais_pedido', 'novidade'])
-    expect(etiquetasPrincipais({ maisVendido: false, novidadeAte: futuro, edicaoLimitada: true }, agora)).toEqual(['novidade', 'edicao_limitada'])
+describe('tags de topo: prioridade e limite', () => {
+  it('ordem Mais vendido > Combo especial > Oferta limitada > Novidade, no máximo 2', () => {
+    const tudo = { maisVendido: true, comboEspecial: true, edicaoLimitada: true, novidadeAte: FUTURO }
+    expect(etiquetasTopoLigadas(tudo, AGORA)).toEqual(['mais_vendido', 'combo_especial', 'oferta_limitada', 'novidade'])
+    expect(etiquetasTopo(tudo, 2, AGORA)).toEqual(['mais_vendido', 'combo_especial'])
+    expect(etiquetasTopo({ edicaoLimitada: true, novidadeAte: FUTURO, comboEspecial: true }, 2, AGORA)).toEqual(['combo_especial', 'oferta_limitada'])
   })
-  it('Novidade some depois da data', () => {
-    expect(etiquetasPrincipais({ novidadeAte: passado, edicaoLimitada: false }, agora)).toEqual([])
+  it('destaques mostram só a mais importante; nunca passa de 2', () => {
+    expect(etiquetasTopo({ comboEspecial: true, maisVendido: true }, 1, AGORA)).toEqual(['mais_vendido'])
+    expect(etiquetasTopo({ comboEspecial: true, maisVendido: true, edicaoLimitada: true }, 5, AGORA)).toHaveLength(2)
   })
-  it('estrela do Gestor (antigo "Favorito") vira Mais pedido', () => {
-    expect(etiquetasPrincipais({ maisVendido: true }, agora)).toEqual(['mais_pedido'])
+  it('novidade vencida some', () => {
+    expect(etiquetasTopo({ novidadeAte: '2026-09-01T00:00:00Z' }, 2, AGORA)).toEqual([])
   })
-  it('item salvo antes da 0117: entende a tag antiga', () => {
-    expect(etiquetasPrincipais({ tag: 'novo' }, agora)).toEqual(['novidade'])
-    expect(etiquetasPrincipais({ tag: 'edicao_limitada' }, agora)).toEqual(['edicao_limitada'])
-    expect(etiquetasPrincipais({ tag: 'favorito' }, agora)).toEqual(['mais_pedido'])
-  })
-  it('tag antiga ainda vale mesmo com as colunas novas em falso (item salvo por aba antiga)', () => {
-    expect(etiquetasPrincipais({ tag: 'edicao_limitada', novidadeAte: null, edicaoLimitada: false }, agora)).toEqual(['edicao_limitada'])
+  it('sem tags = nada', () => {
+    expect(etiquetasTopo({}, 2, AGORA)).toEqual([])
+    expect(etiquetasUtilitarias({})).toEqual([])
   })
 })
 
-describe('etiquetas utilitárias (3.3)', () => {
-  it('ordem: Item promocional, Entrega grátis, Serve', () => {
-    expect(etiquetasUtilitarias({ itemPromocional: true, entregaGratis: true, servePessoas: 4 }, { freteGratisAcima: 45 }).map((e) => e.texto))
-      .toEqual(['Item promocional', 'Entrega grátis a partir de R$ 45', 'Serve 4 pessoas'])
+describe('migração das tags antigas (sem converter dado)', () => {
+  it('Favorito/Mais pedido → Mais vendido (automático); Edição limitada → Oferta limitada; novo → Novidade; promoção → Item promocional', () => {
+    expect(etiquetasTopo({ tag: 'favorito' }, 2, AGORA)).toEqual(['mais_vendido'])
+    expect(etiquetasTopo({ tag: 'mais_pedido' }, 2, AGORA)).toEqual(['mais_vendido'])
+    expect(etiquetasTopo({ tag: 'edicao_limitada' }, 2, AGORA)).toEqual(['oferta_limitada'])
+    expect(etiquetasTopo({ edicaoLimitada: true }, 2, AGORA)).toEqual(['oferta_limitada'])
+    expect(etiquetasTopo({ tag: 'novo' }, 2, AGORA)).toEqual(['novidade'])
+    expect(etiquetasUtilitarias({ tag: 'promocao' })).toEqual([{ tipo: 'item_promocional', texto: 'Item promocional' }])
   })
-  it('sem regra da loja: só "Entrega grátis"; 1 pessoa no singular; centavos', () => {
-    expect(etiquetasUtilitarias({ itemPromocional: false, entregaGratis: true, servePessoas: 1 }).map((e) => e.texto)).toEqual(['Entrega grátis', 'Serve 1 pessoa'])
-    expect(etiquetasUtilitarias({ itemPromocional: false, entregaGratis: true }, { freteGratisAcima: 39.9 })[0].texto).toBe('Entrega grátis a partir de R$ 39,90')
+  it('tag antiga + coluna nova iguais não duplicam', () => {
+    expect(etiquetasTopo({ tag: 'favorito', maisVendido: true }, 2, AGORA)).toEqual(['mais_vendido'])
+    expect(etiquetasUtilitarias({ tag: 'promocao', itemPromocional: true })).toHaveLength(1)
   })
-  it('tag antiga "promocao" vira Item promocional', () => {
-    expect(etiquetasUtilitarias({ tag: 'promocao' })[0].texto).toBe('Item promocional')
+})
+
+describe('utilitárias', () => {
+  it('Serve: singular com 1, "até X" no plural', () => {
+    expect(textoServe(1)).toBe('Serve 1 pessoa')
+    expect(textoServe(2)).toBe('Serve até 2 pessoas')
+    expect(textoServe(10)).toBe('Serve até 10 pessoas')
+    expect(etiquetasUtilitarias({ servePessoas: 1 })[0].texto).toBe('Serve 1 pessoa')
+  })
+  it('ordem: Serve, Item promocional, personalizada', () => {
+    const l = etiquetasUtilitarias({ servePessoas: 4, itemPromocional: true, tagPersonalizada: 'Receita da casa', tagPersonalizadaCor: 'azul' })
+    expect(l.map((e) => e.tipo)).toEqual(['serve', 'item_promocional', 'personalizada'])
+    expect(l[2]).toEqual({ tipo: 'personalizada', texto: 'Receita da casa', cor: 'azul' })
+  })
+  it('personalizada igual a outra tag não duplica; cor inválida vira preta', () => {
+    expect(etiquetasUtilitarias({ itemPromocional: true, tagPersonalizada: 'item promocional' })).toHaveLength(1)
+    expect(etiquetasUtilitarias({ tagPersonalizada: 'X', tagPersonalizadaCor: 'verde' })[0]).toMatchObject({ cor: 'preta' })
+  })
+})
+
+describe('tag personalizada: validação', () => {
+  it('limpa: uma linha, até 24, vazio = null', () => {
+    expect(limparTagPersonalizada('  Receita\n da casa  ')).toBe('Receita da casa')
+    expect(limparTagPersonalizada('a'.repeat(30))).toHaveLength(24)
+    expect(limparTagPersonalizada('   ')).toBeNull()
+  })
+  it('motivo', () => {
+    expect(motivoTagPersonalizadaInvalida('Ok', 'preta')).toBeNull()
+    expect(motivoTagPersonalizadaInvalida('', 'preta')).toBeNull()
+    expect(motivoTagPersonalizadaInvalida('a'.repeat(25), 'preta')).toMatch(/24/)
+    expect(motivoTagPersonalizadaInvalida('a\nb', 'azul')).toMatch(/uma linha/)
+    expect(motivoTagPersonalizadaInvalida('Ok', 'verde')).toMatch(/cor/)
+  })
+  it('colunasEtiquetas grava a personalizada limpa e o combo', () => {
+    const c = colunasEtiquetas({ novidade: false, edicaoLimitada: true, itemPromocional: false, entregaGratis: false, servePessoas: 2, comboEspecial: true, tagPersonalizada: ' Receita da casa ', tagPersonalizadaCor: 'azul' })
+    expect(c).toMatchObject({ combo_especial: true, edicao_limitada: true, tag_personalizada: 'Receita da casa', tag_personalizada_cor: 'azul', serve_pessoas: 2, tag: null })
+    const sem = colunasEtiquetas({ novidade: false, edicaoLimitada: false, itemPromocional: false, entregaGratis: false, servePessoas: null, tagPersonalizada: null })
+    expect(sem).toMatchObject({ tag_personalizada: null, tag_personalizada_cor: 'preta' })
   })
 })
 
 describe('desconto', () => {
-  it('7,50 → 5,63 = 25%', () => expect(percentualDesconto(5.63, 7.5)).toBe(25))
-  it('sem desconto = 0', () => expect(percentualDesconto(10, 10)).toBe(0))
+  it('percentual inteiro', () => {
+    expect(percentualDesconto(5.63, 7.5)).toBe(25)
+    expect(percentualDesconto(10, 10)).toBe(0)
+    expect(percentualDesconto(12, 10)).toBe(0)
+    expect(percentualDesconto(5, 0)).toBe(0)
+  })
 })

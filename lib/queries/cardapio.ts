@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, proximaAbertura, textoProximaAbertura } from '@/lib/timezone'
+import { limparTagPersonalizada } from '@/lib/etiquetas-vitrine'
 import { configAgendamento, podeAgendar, somenteAgendado, textoAbrimos, type ConfigAgendamento } from '@/lib/agendamento'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
@@ -27,6 +28,11 @@ export interface EtiquetasProdutoInput {
   itemPromocional: boolean
   entregaGratis: boolean
   servePessoas: number | null
+  /** 0122: tag de topo "Combo especial". */
+  comboEspecial?: boolean
+  /** 0122: tag utilitária de texto livre (até 24) e a cor. */
+  tagPersonalizada?: string | null
+  tagPersonalizadaCor?: 'preta' | 'azul'
 }
 
 export function colunasEtiquetas(e: EtiquetasProdutoInput | undefined): Record<string, unknown> {
@@ -40,6 +46,10 @@ export function colunasEtiquetas(e: EtiquetasProdutoInput | undefined): Record<s
     item_promocional: e.itemPromocional,
     entrega_gratis: e.entregaGratis,
     serve_pessoas: serve,
+    ...(e.comboEspecial !== undefined ? { combo_especial: e.comboEspecial } : {}),
+    ...(e.tagPersonalizada !== undefined
+      ? { tag_personalizada: limparTagPersonalizada(e.tagPersonalizada), tag_personalizada_cor: e.tagPersonalizadaCor === 'azul' ? 'azul' : 'preta' }
+      : {}),
     // As etiquetas novas substituem a antiga: quem salva pelo formulário novo zera a `tag`.
     tag: null,
   }
@@ -146,6 +156,10 @@ export interface ItemCardapio {
   itemPromocional?: boolean
   entregaGratis?: boolean
   servePessoas?: number | null
+  /** Tags 0122 — ver lib/etiquetas-vitrine.ts. */
+  comboEspecial?: boolean
+  tagPersonalizada?: string | null
+  tagPersonalizadaCor?: 'preta' | 'azul'
   tipoItem: TipoItem
   /**
    * Canais em que o item aparece. O catálogo é um só: estas duas colunas moram no próprio
@@ -198,6 +212,9 @@ interface ItemRow {
   item_promocional?: boolean | null
   entrega_gratis?: boolean | null
   serve_pessoas?: number | null
+  combo_especial?: boolean | null
+  tag_personalizada?: string | null
+  tag_personalizada_cor?: string | null
   tipo_item: TipoItem
   disponivel_delivery: boolean | null
   disponivel_salao: boolean | null
@@ -256,6 +273,9 @@ function mapItem(row: ItemRow): ItemCardapio {
     itemPromocional: row.item_promocional === true,
     entregaGratis: row.entrega_gratis === true,
     servePessoas: row.serve_pessoas ?? null,
+    comboEspecial: row.combo_especial === true,
+    tagPersonalizada: row.tag_personalizada ?? null,
+    tagPersonalizadaCor: row.tag_personalizada_cor === 'azul' ? 'azul' : 'preta',
     tipoItem: row.tipo_item ?? 'simples',
     // `?? true`: linha lida antes da 0069 (ou por um select que não trouxe a coluna)
     // continua valendo nos dois canais, como sempre valeu.
@@ -448,7 +468,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
-  novidade_ate, edicao_limitada, item_promocional, entrega_gratis, serve_pessoas,
+  novidade_ate, edicao_limitada, item_promocional, entrega_gratis, serve_pessoas, combo_especial, tag_personalizada, tag_personalizada_cor,
   disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
