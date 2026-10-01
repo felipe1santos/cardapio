@@ -140,10 +140,12 @@ try {
       if (PRINTS) await p.screenshot({ path: join(PRINTS, `destaques-${rotulo}.png`) })
     }
     // Busca
-    const busca = p.locator('input[type="search"], input[placeholder*="Buscar" i]').first()
+    await p.evaluate(() => window.scrollTo(0, 0))
+    await p.getByRole('button', { name: 'Buscar no cardápio' }).first().click().catch(() => {})
+    const busca = p.getByPlaceholder('Buscar no cardápio…').first()
+    await busca.waitFor({ timeout: 5000 }).catch(() => {})
+    if (rotulo === '390') ok('busca aberta', await busca.isVisible())
     if (await busca.count()) {
-      await p.evaluate(() => window.scrollTo(0, 0))
-      if (!(await busca.isVisible())) await p.getByRole('button', { name: /buscar|pesquisar/i }).first().click().catch(() => {})
       await busca.fill('TESTE X-Burger').catch(() => {})
       await p.waitForTimeout(600)
       if (rotulo === '390') ok('busca: mesmas tags', (await p.locator(`button[data-item-id="${ids['TESTE X-Burger']}"] [data-etiqueta="mais_vendido"]`).count()) >= 1)
