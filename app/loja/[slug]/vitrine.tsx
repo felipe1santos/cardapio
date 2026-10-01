@@ -14,7 +14,7 @@ import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
-import { EtiquetasPrincipais, EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine } from '@/components/vitrine/etiquetas'
+import { EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine } from '@/components/vitrine/etiquetas'
 import { precoDeVitrine } from '@/lib/garcom-catalogo'
 import { useEsconderAoRolar } from '@/components/vitrine/use-esconder-ao-rolar'
 import { ConviteApp } from '@/components/vitrine/convite-app'
@@ -585,8 +585,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
       <div className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
-        {/* Destaques: a etiqueta principal vai sobre a foto, no canto (REF-DESTAQUES). */}
-        {compact && <EtiquetasPrincipais item={item} max={1} className="absolute left-[8px] top-[8px] shadow-sm" />}
+        {/* Destaques: NENHUMA tag, marcada ou não (pedido do dono, 2026-10-01). */}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
         {compact ? (

@@ -33,11 +33,12 @@ export interface ItemComEtiquetas {
 
 export type IconeEtiqueta = 'fogo' | 'diamante' | 'ampulheta' | 'brilho' | 'pessoas' | 'etiqueta' | 'ticket'
 
-export interface EstiloTag { texto: string; icone: IconeEtiqueta | null; fundo: string; cor: string; corIcone?: string; peso: 500 | 600 | 700 }
+export interface EstiloTag { texto: string; icone: IconeEtiqueta | null; fundo: string; cor: string; corIcone?: string; peso: 500 | 600 | 700; /** Canto em px (padrão da caixa: 6). */ raio?: number }
 
 export const ESTILO_TOPO: Record<EtiquetaTopo, EstiloTag> = {
-  // REF-TAGS "Mais vendido": vermelho forte, texto e fogo brancos, negrito.
-  mais_vendido: { texto: 'Mais vendido', icone: 'fogo', fundo: '#E91E20', cor: '#FFFFFF', peso: 700 },
+  // "Mais vendido": vermelho rgb(232 0 2) e canto de 3px pedidos pelo dono (2026-10-01);
+  // texto e fogo brancos, negrito.
+  mais_vendido: { texto: 'Mais vendido', icone: 'fogo', fundo: '#E80002', cor: '#FFFFFF', peso: 700, raio: 3 },
   // REF-CORES (roxo do iFood): diamante #A135F4, texto #9A3AE1, fundo lilás da REF-TAGS.
   combo_especial: { texto: 'Combo especial', icone: 'diamante', fundo: '#F2EAFC', cor: '#9A3AE1', corIcone: '#A135F4', peso: 600 },
   // Sem referência em imagem: rosa da mesma família.

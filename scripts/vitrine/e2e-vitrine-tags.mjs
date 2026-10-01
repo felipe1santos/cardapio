@@ -85,8 +85,8 @@ try {
 
     await linha('TESTE MV').scrollIntoViewIfNeeded()
     if (rotulo === '390') {
-      ok('Mais vendido: vermelho #E91E20, texto branco negrito, fogo', JSON.stringify(await topo('TESTE MV')) === '["mais_vendido"]' &&
-        (await linha('TESTE MV').locator('[data-etiqueta="mais_vendido"]').evaluate((e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.color, s.fontWeight] })).join('|') === `${rgb('#E91E20')}|rgb(255, 255, 255)|700`)
+      ok('Mais vendido: vermelho rgb(232 0 2), texto branco negrito, canto 3px', JSON.stringify(await topo('TESTE MV')) === '["mais_vendido"]' &&
+        (await linha('TESTE MV').locator('[data-etiqueta="mais_vendido"]').evaluate((e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.color, s.fontWeight, s.borderTopLeftRadius] })).join('|') === 'rgb(232, 0, 2)|rgb(255, 255, 255)|700|3px')
       const nomeBox = await linha('TESTE MV').getByText('TESTE MV', { exact: true }).boundingBox()
       const tagBox = await linha('TESTE MV').locator('[data-etiqueta="mais_vendido"]').boundingBox()
       ok('tag de topo na MESMA linha do nome, à direita', tagBox && nomeBox && tagBox.x > nomeBox.x + nomeBox.width && Math.abs((tagBox.y + tagBox.height / 2) - (nomeBox.y + nomeBox.height / 2)) < 8, `nome y=${nomeBox?.y} tag y=${tagBox?.y}`)
@@ -128,14 +128,14 @@ try {
       await linha('TESTE Desconto').scrollIntoViewIfNeeded()
       await p.screenshot({ path: join(PRINTS, `lista-${rotulo}-3.png`) })
     }
-    // Destaques (os itens com estrela entram em "Mais Pedidos"): só 1 tag sobre a foto.
+    // Destaques (os itens com estrela entram em "Mais Pedidos"): NENHUMA tag (2026-10-01).
     const mp = p.getByTestId('mais-pedidos')
     if (await mp.count()) {
       await mp.scrollIntoViewIfNeeded()
       const card = mp.locator(`button[data-item-id="${ids['TESTE Quatro de topo']}"]`)
       if (await card.count()) {
         const n = await card.locator('[data-etiqueta]').count()
-        if (rotulo === '390') ok('destaques: só a tag de topo mais importante sobre a foto', n === 1 && (await card.locator('[data-etiqueta="mais_vendido"]').count()) === 1, String(n))
+        ok(`destaques ${rotulo}: nenhuma tag, mesmo com 4 marcadas`, n === 0, String(n))
       }
       if (PRINTS) await p.screenshot({ path: join(PRINTS, `destaques-${rotulo}.png`) })
     }

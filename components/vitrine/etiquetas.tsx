@@ -30,7 +30,7 @@ const CAIXA = 'inline-flex h-[22px] w-fit max-w-full items-center gap-[5px] whit
 function TagTopo({ tipo }: { tipo: EtiquetaTopo }) {
   const e = ESTILO_TOPO[tipo]
   return (
-    <span data-etiqueta={tipo} className={CAIXA} style={{ background: e.fundo, color: e.cor, fontWeight: e.peso }}>
+    <span data-etiqueta={tipo} className={CAIXA} style={{ background: e.fundo, color: e.cor, fontWeight: e.peso, ...(e.raio !== undefined ? { borderRadius: e.raio } : {}) }}>
       {e.icone && <span style={{ color: e.corIcone ?? e.cor }} className="inline-flex"><IconeTagSvg nome={e.icone} tamanho={14} /></span>}
       {e.texto}
     </span>
