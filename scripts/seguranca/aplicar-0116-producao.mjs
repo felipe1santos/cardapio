@@ -78,10 +78,13 @@ Rollback (voltar o código antes): docs/rollback/0116_config_por_papel_fotos_con
   console.log(`backup salvo em ${dir}`)
 }
 
-const fotoAntes = await foto()
+let fotoAntes = null
 console.log(`▶ ${hora()} início ${NOME}`)
 try {
-  await c.query('begin')
+  // Foto dentro de um snapshot fixo (repeatable read): pedidos e mensagens que chegam
+  // durante a aplicação não contam como "mudou" — só o que a migration mexer conta.
+  await c.query('begin isolation level repeatable read')
+  fotoAntes = await foto()
   await c.query(`set local lock_timeout = '15s'`)
   await c.query(sql)
   await c.query('insert into schema_migrations (name) values ($1)', [NOME])
@@ -91,6 +94,8 @@ try {
   const col = await um(`select count(*)::int n from information_schema.columns where table_name='whatsapp_mensagens' and column_name='acao_robo'`)
   const variantes = await um(`select public.whatsapp_variantes_telefone('5527992534407') v`)
   const fotoDepois = await foto()
+  const mudou = Object.keys(fotoAntes).filter((k) => JSON.stringify(fotoAntes[k]) !== JSON.stringify(fotoDepois[k]))
+  if (mudou.length) console.log('   (mudou: ' + mudou.join(', ') + ')')
   const conf = [
     ['gatilho de configuração só pela gestão criado', gatilho.n === 1],
     ['bucket: listagem pública removida, a da própria loja criada', pol.length === 1 && pol[0].policyname === 'Tenant members read their menu photos'],
