@@ -6,8 +6,8 @@ import { ChefHat, Clock, GripVertical, Map as MapIcon, PackageCheck } from 'luci
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
 import { rotuloOrigemPedido } from '@/lib/pedido-origem'
-import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
+import { ComoFazerModal, Desfazer, ItemKds, corDoTempo, filtrar, usePrefsKds, useItensFeitos, useTelaCheiaEAcesa, type FiltroKds } from '@/components/cozinha/kds'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Audio beep (keep from original)
@@ -53,11 +53,12 @@ function formatElapsed(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+// Limites do cronômetro: configuráveis por aparelho (cabeçalho › ⏱). A página atualiza
+// este valor a cada render com as preferências da estação.
+let limitesTempo = { atencaoMin: 10, atrasoMin: 20 }
 function timerColor(ms: number): string {
-  const min = ms / 60000
-  if (min <= 10) return 'text-status-ready'
-  if (min <= 20) return 'text-status-pending'
-  return 'text-danger'
+  const c = corDoTempo(ms, limitesTempo)
+  return c === 'normal' ? 'text-status-ready' : c === 'atencao' ? 'text-[#FBBF24]' : 'text-danger'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,8 +80,8 @@ function ElapsedTimer({ criadoEm, now }: { criadoEm: string; now: number }) {
   const ms = elapsedMs(criadoEm, now)
   const color = timerColor(ms)
   return (
-    <span className={`inline-flex items-center gap-1 font-mono text-[12px] font-bold ${color}`}>
-      <Clock className="h-3.5 w-3.5 animate-pulse" />
+    <span data-testid="kds-cronometro" className={`inline-flex items-center gap-1 font-mono text-[20px] font-black ${color}`}>
+      <Clock className="h-5 w-5 animate-pulse" />
       {formatElapsed(ms)}
     </span>
   )
@@ -143,8 +144,9 @@ interface PrepModalProps {
   onRefetch: () => Promise<void>
 }
 
-function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepModalProps) {
+function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch, feitos, onAlternarFeito }: PrepModalProps & { feitos: string[]; onAlternarFeito: (itemId: string) => void }) {
   const origem = rotuloOrigemPedido(pedido)
+  const [comoFazer, setComoFazer] = useState<PedidoItem | null>(null)
   const [busy, setBusy] = useState<'devolver' | 'concluir' | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmandoDevolver, setConfirmandoDevolver] = useState(false)
@@ -284,49 +286,13 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch }: PrepM
             </div>
           )}
 
-          {/* Item list */}
+          {/* Itens: marcar um a um como feito (risca) e tocar no nome abre o "Como fazer". */}
           <div className="space-y-3">
-            {pedido.itens.map((item: PedidoItem, idx: number) => (
-              <div key={idx} className="rounded-menuzia border border-border border-l-4 border-l-[#024A7D] bg-main p-4 shadow-sm">
-                {/* Quantity + name — bigger and black */}
-                <p className="text-[20px] font-extrabold leading-tight text-black">
-                  {item.quantidade}× {item.nome}
-                </p>
-
-                {/* Variants (tamanho / sabor / borda / massa) */}
-                {(item.tamanhoNome || item.saborNome || item.bordaNome || item.massaNome) && (
-                  <p className="mt-1 text-[14px] font-semibold text-text-main">
-                    {[item.tamanhoNome, item.saborNome, item.bordaNome, item.massaNome]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                )}
-
-                {/* Descrição do item — como montar (fonte maior pra leitura na bancada) */}
-                {item.descricao && (
-                  // A descrição carrega a marcação de negrito/cor da vitrine
-                  // (**…**, [[cor]]…[[/]]); na bancada vale só o texto.
-                  <p className="mt-1.5 text-[14px] leading-relaxed text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</p>
-                )}
-
-                {/* Complementos (adicionais) — verde escuro, fonte maior */}
-                {item.complementos.length > 0 && (
-                  <div className="mt-2.5 space-y-1 rounded-menuzia bg-green-50 px-3 py-2">
-                    {item.complementos.map((c, ci) => (
-                      <p key={ci} className="text-[16px] font-extrabold text-green-800">
-                        + {c.nome}
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                {/* Item-level restriction — RED UPPERCASE BOLD */}
-                {item.observacao && (
-                  <p className="mt-2.5 rounded-menuzia bg-danger-bg px-3 py-2 text-[15px] font-extrabold uppercase text-danger">{item.observacao}</p>
-                )}
-              </div>
+            {pedido.itens.map((item: PedidoItem) => (
+              <ItemKds key={item.id} item={item} grande feito={feitos.includes(item.id)} onAlternar={() => onAlternarFeito(item.id)} onComoFazer={() => setComoFazer(item)} />
             ))}
           </div>
+          {comoFazer && <ComoFazerModal token={token} item={comoFazer} onFechar={() => setComoFazer(null)} />}
         </div>
 
         {/* Footer — fixed at bottom, only these two buttons close the modal */}
@@ -375,7 +341,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
       ].join(' ')}
     >
       <div className={['flex items-center justify-between border-b border-border px-3 py-2.5 text-white', devolvido ? 'bg-[#B45309]' : 'bg-[#EA580C]'].join(' ')}>
-        <span className="text-lg font-extrabold">#{pedido.numero}</span>
+        <span className="text-[30px] font-black leading-none">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
           <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
             <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
@@ -388,7 +354,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[15px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
@@ -410,7 +376,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
         </div>
 
         {/* Items summary */}
-        <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
+        <ul className="space-y-1 text-[17px] font-semibold text-text-main">
           {pedido.itens.map((item, idx) => (
             <li key={idx}>
               {item.quantidade}× {item.nome}
@@ -420,7 +386,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
 
         {/* Order-level restriction preview — RED UPPERCASE */}
         {pedido.observacao && (
-          <p className="text-[12px] font-bold uppercase text-danger">{pedido.observacao}</p>
+          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-extrabold uppercase text-danger">⚠️ {pedido.observacao}</p>
         )}
       </div>
 
@@ -462,7 +428,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
       onClick={isOwner ? () => onOpen(pedido) : undefined}
     >
       <div className="flex items-center justify-between border-b border-border bg-[#024A7D] px-3 py-2.5 text-white">
-        <span className="text-lg font-extrabold">#{pedido.numero}</span>
+        <span className="text-[30px] font-black leading-none">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
           <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
             <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
@@ -475,7 +441,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[15px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
             <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
               📍 {pedido.enderecoBairro}
@@ -490,7 +456,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
         )}
 
         {/* Items summary */}
-        <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
+        <ul className="space-y-1 text-[17px] font-semibold text-text-main">
           {pedido.itens.map((item, idx) => (
             <li key={idx}>
               {item.quantidade}× {item.nome}
@@ -500,7 +466,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
 
         {/* Order-level restriction preview — RED UPPERCASE */}
         {pedido.observacao && (
-          <p className="text-[11px] font-bold uppercase text-danger">{pedido.observacao}</p>
+          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-extrabold uppercase text-danger">⚠️ {pedido.observacao}</p>
         )}
       </div>
 
@@ -734,7 +700,7 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
       ].join(' ')}
     >
       <div className={['flex items-center justify-between border-b border-border px-3 py-2.5 text-white', devolvido ? 'bg-[#B45309]' : 'bg-[#EA580C]'].join(' ')}>
-        <span className="text-lg font-extrabold">#{pedido.numero}</span>
+        <span className="text-[30px] font-black leading-none">#{pedido.numero}</span>
         <div className="flex items-center gap-1.5">
           <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
             <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
@@ -747,7 +713,7 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[15px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
@@ -768,7 +734,7 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
           )}
         </div>
 
-        <ul className="space-y-0.5 text-[13px] font-medium text-text-main">
+        <ul className="space-y-1 text-[17px] font-semibold text-text-main">
           {pedido.itens.map((item, idx) => (
             <li key={idx}>
               {item.quantidade}× {item.nome}
@@ -777,7 +743,7 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
         </ul>
 
         {pedido.observacao && (
-          <p className="text-[12px] font-bold uppercase text-danger">{pedido.observacao}</p>
+          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-extrabold uppercase text-danger">⚠️ {pedido.observacao}</p>
         )}
       </div>
 
@@ -937,6 +903,19 @@ export default function CozinhaPortalPage() {
   // Tracks ids seen so far — used for new-order beep detection
   const idsAnteriores = useRef<Set<string>>(new Set())
 
+  // Redesign 2026-09-30: preferências do aparelho, itens feitos, tela cheia/acesa,
+  // pedidos recém-chegados em destaque, conexão, desfazer.
+  const [prefs, mudarPrefs] = usePrefsKds(token)
+  const [feitos, alternarFeito] = useItensFeitos(token)
+  const tela = useTelaCheiaEAcesa()
+  const [novos, setNovos] = useState<Set<string>>(new Set())
+  const [ultimoOk, setUltimoOk] = useState<number>(() => Date.now())
+  const [desfazer, setDesfazer] = useState<{ texto: string; fazer: () => void } | null>(null)
+  const [ajustesTempo, setAjustesTempo] = useState(false)
+  const somRef = useRef(prefs.som)
+  somRef.current = prefs.som
+  limitesTempo = { atencaoMin: prefs.atencaoMin, atrasoMin: prefs.atrasoMin }
+
   // ── Initialize cook name from localStorage ──────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem(storageKey)
@@ -971,9 +950,15 @@ export default function CozinhaPortalPage() {
 
       // Beep when a new order appears in the feed
       const idsAgora = new Set<string>((json.pedidos as Pedido[]).map((p) => p.id))
-      const temNovo = [...idsAgora].some((id) => !idsAnteriores.current.has(id))
-      if (temNovo && idsAnteriores.current.size > 0) playBeep()
+      const chegaram = [...idsAgora].filter((id) => !idsAnteriores.current.has(id))
+      if (chegaram.length && idsAnteriores.current.size > 0) {
+        if (somRef.current) playBeep()
+        // Destaque por alguns segundos nos pedidos que acabaram de chegar.
+        setNovos((prev) => new Set([...prev, ...chegaram]))
+        setTimeout(() => setNovos((prev) => { const n = new Set(prev); chegaram.forEach((id) => n.delete(id)); return n }), 8000)
+      }
       idsAnteriores.current = idsAgora
+      setUltimoOk(Date.now())
 
       setData(json)
       setError(null)
@@ -990,6 +975,20 @@ export default function CozinhaPortalPage() {
     const interval = setInterval(refetch, 6000)
     return () => clearInterval(interval)
   }, [refetch])
+
+  // Atalhos de teclado (opcionais): F tela cheia, M som, 1-4 filtros.
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return
+      const k = e.key.toLowerCase()
+      if (k === 'f') void tela.alternar()
+      if (k === 'm') mudarPrefs({ som: !prefs.som })
+      const f: Record<string, FiltroKds> = { '1': 'todos', '2': 'mesa', '3': 'entrega', '4': 'retirada' }
+      if (f[k]) mudarPrefs({ filtro: f[k] })
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [tela, prefs.som, mudarPrefs])
 
   // 1-second clock for all timers
   useEffect(() => {
@@ -1055,6 +1054,14 @@ export default function CozinhaPortalPage() {
       // Open modal immediately; sync effect will update it once refetch settles
       setModalPedido(p)
       await refetch()
+      // Alguns segundos para desfazer o "Iniciar preparo" (devolve à fila).
+      setDesfazer({
+        texto: `Preparo do #${p.numero} iniciado`,
+        fazer: () => {
+          void fetch(`/api/cozinha/${token}/pedidos/${p.id}/acao`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'devolver', cozinheiro }) })
+            .then(() => { setModalPedido(null); return refetch() })
+        },
+      })
     } finally {
       setBusy(null)
     }
@@ -1083,16 +1090,19 @@ export default function CozinhaPortalPage() {
 
   const isExpedicao = data.estacao.modo === 'expedicao'
   const isCompleta = data.estacao.modo === 'completa'
+  const pedidosFiltrados = filtrar(data.pedidos, prefs.filtro)
+  const conectado = now - ultimoOk < 20_000
+  const destaque = (id: string) => (novos.has(id) ? 'kds-novo rounded-menuzia' : '')
 
   // Split into columns for producao / completa
-  const disponiveis = data.pedidos
+  const disponiveis = pedidosFiltrados
     .filter((p) => p.status === 'recebido')
     .sort((a, b) => new Date(a.criadoEm).getTime() - new Date(b.criadoEm).getTime())
 
-  const emPreparo = data.pedidos.filter((p) => p.status === 'preparando')
+  const emPreparo = pedidosFiltrados.filter((p) => p.status === 'preparando')
 
   return (
-    <div className="min-h-dvh bg-page">
+    <div className="kds-escuro min-h-dvh bg-page" data-testid="kds">
       {/* Cook name overlay — blocks until name is set (producao/completa only) */}
       {showNameOverlay && !isExpedicao && <NameOverlay onSave={saveName} />}
 
@@ -1120,46 +1130,63 @@ export default function CozinhaPortalPage() {
           now={now}
           onClose={() => setModalPedido(null)}
           onRefetch={refetch}
+          feitos={feitos[modalPedido.id] ?? []}
+          onAlternarFeito={(itemId) => {
+            const item = modalPedido.itens.find((i) => i.id === itemId)
+            const marcando = !(feitos[modalPedido.id] ?? []).includes(itemId)
+            alternarFeito(modalPedido.id, itemId)
+            if (marcando) setDesfazer({ texto: `${item?.nome ?? 'Item'} marcado como feito`, fazer: () => alternarFeito(modalPedido.id, itemId) })
+          }}
         />
       )}
+      {desfazer && <Desfazer texto={desfazer.texto} onDesfazer={() => { desfazer.fazer(); setDesfazer(null) }} onFim={() => setDesfazer(null)} />}
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-sidebar-bg px-4 py-3 text-white shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <ChefHat className="h-5 w-5 text-primary" />
-          <div>
-            <p className="text-sm font-semibold leading-tight">{data.estacao.nome}</p>
-            <p className="text-[11px] text-sidebar-text">
-              {data.estacao.restauranteNome} · {LABEL_MODO[data.estacao.modo]}
-            </p>
+      {/* ── Cabeçalho compacto (2026-09-30) ─────────────────────────────── */}
+      <header className="sticky top-0 z-10 border-b border-[#2A3547] bg-[#111827] px-4 py-2.5 text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <ChefHat className="h-7 w-7 flex-shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="truncate text-[20px] font-extrabold leading-tight" data-testid="kds-estacao">{data.estacao.nome}</p>
+              <p className="truncate text-[12px] text-[#A3ACBA]">{data.estacao.restauranteNome} · {LABEL_MODO[data.estacao.modo]}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[24px] font-black tabular-nums" data-testid="kds-relogio">{new Date(now).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}</span>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-[14px] font-bold" data-testid="kds-contador">{pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''}</span>
+            <span className={['flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold', conectado ? 'bg-[#064E3B] text-[#6EE7B7]' : 'bg-[#7F1D1D] text-[#FECACA]'].join(' ')} data-testid="kds-conexao" data-estado={conectado ? 'online' : 'offline'}>
+              <span className={['h-2.5 w-2.5 rounded-full', conectado ? 'bg-[#10B981]' : 'animate-pulse bg-[#EF4444]'].join(' ')} />
+              {conectado ? 'Conectado' : 'Sem conexão · tentando…'}
+            </span>
+            {!isExpedicao && cozinheiro && (
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                {cozinheiro}
+                <button onClick={trocarNome} className="rounded-[6px] bg-white/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide hover:bg-white/20">Trocar</button>
+              </span>
+            )}
+            {isCompleta && data.despachoRotas !== false && (
+              <button onClick={() => setMapaAberto(true)} className="inline-flex items-center gap-1.5 rounded-[6px] bg-[#0688D4] px-3 py-1.5 text-[12px] font-bold uppercase tracking-wide text-white hover:brightness-95">
+                <MapIcon className="h-4 w-4" />Mapa
+              </button>
+            )}
+            <button onClick={() => mudarPrefs({ som: !prefs.som })} data-testid="kds-som" aria-pressed={prefs.som} title="Som (M)" className="rounded-[6px] bg-white/10 px-3 py-1.5 text-[13px] font-bold hover:bg-white/20">{prefs.som ? '🔔 Som' : '🔕 Mudo'}</button>
+            <button onClick={() => setAjustesTempo((v) => !v)} title="Limites do cronômetro" data-testid="kds-ajustes-tempo" className="rounded-[6px] bg-white/10 px-3 py-1.5 text-[13px] font-bold hover:bg-white/20">⏱</button>
+            <button onClick={() => void tela.alternar()} data-testid="kds-tela-cheia" title="Tela cheia (F)" className="rounded-[6px] bg-[#0688D4] px-3 py-1.5 text-[13px] font-bold uppercase hover:brightness-95">{tela.cheia ? 'Sair da tela cheia' : 'Tela cheia'}</button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Mapa de despacho (modo completa) */}
-          {isCompleta && data.despachoRotas !== false && (
-            <button
-              onClick={() => setMapaAberto(true)}
-              className="inline-flex items-center gap-1.5 rounded-menuzia bg-[#0688D4] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white hover:brightness-95"
-            >
-              <MapIcon className="h-3.5 w-3.5" />
-              Mapa
+        <div className="mt-2 flex flex-wrap items-center gap-2" role="tablist" aria-label="Filtro">
+          {(['todos', 'mesa', 'entrega', 'retirada'] as FiltroKds[]).map((f, i) => (
+            <button key={f} role="tab" aria-selected={prefs.filtro === f} onClick={() => mudarPrefs({ filtro: f })} data-testid={`kds-filtro-${f}`}
+              className={['rounded-full px-4 py-1.5 text-[14px] font-bold', prefs.filtro === f ? 'bg-white text-[#111827]' : 'bg-white/10 text-white hover:bg-white/20'].join(' ')}>
+              {f === 'todos' ? 'Todos' : f === 'mesa' ? 'Mesa' : f === 'entrega' ? 'Entrega' : 'Retirada'} <span className="ml-1 text-[11px] opacity-60">{i + 1}</span>
             </button>
+          ))}
+          {ajustesTempo && (
+            <span className="ml-auto flex items-center gap-2 rounded-[6px] bg-white/10 px-3 py-1.5 text-[13px]" data-testid="kds-limites">
+              Atenção em <input type="number" min={1} max={120} value={prefs.atencaoMin} onChange={(e) => mudarPrefs({ atencaoMin: Math.max(1, Number(e.target.value) || 1) })} className="w-14 rounded bg-[#0B1220] px-1 text-center" data-testid="kds-atencao" /> min ·
+              atrasado em <input type="number" min={2} max={240} value={prefs.atrasoMin} onChange={(e) => mudarPrefs({ atrasoMin: Math.max(prefs.atencaoMin + 1, Number(e.target.value) || 2) })} className="w-14 rounded bg-[#0B1220] px-1 text-center" data-testid="kds-atraso" /> min
+            </span>
           )}
-          {/* Cook name badge + swap button (producao/completa only) */}
-          {!isExpedicao && cozinheiro && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-semibold text-sidebar-text">{cozinheiro}</span>
-              <button
-                onClick={trocarNome}
-                className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sidebar-text hover:bg-white/20"
-              >
-                trocar
-              </button>
-            </div>
-          )}
-          <span className="rounded-menuzia bg-white/10 px-2.5 py-1 text-[11px] font-semibold">
-            {data.pedidos.length} pedido{data.pedidos.length !== 1 ? 's' : ''}
-          </span>
         </div>
       </header>
 
@@ -1205,7 +1232,7 @@ export default function CozinhaPortalPage() {
               {data.pedidos.filter((p) => p.status === 'pronto').length}
             </span>
           </div>
-          <ExpedicaoView pedidos={data.pedidos} token={token} now={now} onRefetch={refetch} />
+          <ExpedicaoView pedidos={pedidosFiltrados} token={token} now={now} onRefetch={refetch} />
         </main>
       )}
 
@@ -1227,7 +1254,7 @@ export default function CozinhaPortalPage() {
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {disponiveis.map((p) => (
-                <ProducaoTile key={p.id} pedido={p} now={now} onClick={setConfirmarPedido} />
+                <div key={p.id} className={destaque(p.id)}><ProducaoTile pedido={p} now={now} onClick={setConfirmarPedido} /></div>
               ))}
             </div>
           )}
@@ -1256,13 +1283,12 @@ export default function CozinhaPortalPage() {
               ) : (
                 <div className="flex flex-col gap-3">
                   {disponiveis.map((p) => (
-                    <DisponiveisCard
-                      key={p.id}
+                    <div key={p.id} className={destaque(p.id)}><DisponiveisCard
                       pedido={p}
                       now={now}
                       onPegar={pegarPedido}
                       busy={busy}
-                    />
+                    /></div>
                   ))}
                 </div>
               )}
@@ -1309,7 +1335,7 @@ export default function CozinhaPortalPage() {
                     {data.pedidos.filter((p) => p.status === 'pronto').length}
                   </span>
                 </div>
-                <ExpedicaoView pedidos={data.pedidos} token={token} now={now} onRefetch={refetch} />
+                <ExpedicaoView pedidos={pedidosFiltrados} token={token} now={now} onRefetch={refetch} />
               </section>
             )}
           </div>

@@ -626,3 +626,23 @@ html:has(.vitrine-sem-zoom) {
     animation: none;
   }
 }
+
+/* ── Tela da cozinha (KDS) em tema escuro (2026-09-30) ─────────────────────────
+   Fica numa TV/monitor/tablet, vista de longe: fundo escuro, alto contraste. As telas da
+   estação usam as classes do painel; aqui elas ganham as cores escuras sem reescrever
+   cada componente. Escopo: só dentro de .kds-escuro. */
+.kds-escuro { background-color: #0B1220; color: #F3F4F6; }
+.kds-escuro .bg-page { background-color: #0B1220; }
+.kds-escuro .bg-main { background-color: #151E2E; }
+.kds-escuro .border-border { border-color: #2A3547; }
+.kds-escuro .text-text-main, .kds-escuro .text-black { color: #F9FAFB; }
+.kds-escuro .text-text-subtle { color: #A3ACBA; }
+.kds-escuro .bg-danger-bg { background-color: rgba(239, 68, 68, 0.18); }
+.kds-escuro .text-danger { color: #FCA5A5; }
+.kds-escuro .bg-green-50 { background-color: rgba(16, 185, 129, 0.16); }
+.kds-escuro .text-green-800 { color: #6EE7B7; }
+.kds-escuro .bg-alert-bg { background-color: rgba(6, 136, 212, 0.2); }
+.kds-escuro .text-alert-text { color: #7DD3FC; }
+.kds-escuro .hover\:bg-border:hover { background-color: #2A3547; }
+@keyframes kds-novo { 0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } 50% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.55); } }
+.kds-novo { animation: kds-novo 1.2s ease-in-out 5; }
