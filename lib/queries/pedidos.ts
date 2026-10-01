@@ -1357,6 +1357,7 @@ export async function criarPedido(
   // recalculado do banco. O campo `desconto` NUNCA vem do payload.
   let desconto = 0
   let cupomAplicado: { id: string; codigo: string; usos: number } | null = null
+  let cupomReservaCliente: { cupomId: string; telefone: string } | null = null
   let recompensaResgatada: string | null = null
 
   /**
@@ -1464,6 +1465,26 @@ export async function criarPedido(
     if (reservaError) throw reservaError
     if (reservou !== true) throw new Error(MOTIVO_CUPOM_ESGOTADO)
 
+    // Uso único por cliente (0125): reserva (cupom, telefone) ANTES do pedido — duas abas ou
+    // dois aparelhos com o mesmo telefone ao mesmo tempo não levam o desconto duas vezes.
+    if (cupom.uso_unico_por_cliente) {
+      const tel = normalizarTelefone(input.cliente.telefone)
+      const { data: reservouCliente, error: reservaClienteError } = await admin.rpc('cupom_reservar_cliente', {
+        p_cupom_id: cupom.id, p_restaurante_id: restauranteId, p_telefone: tel,
+      })
+      // Antes da 0125 a função não existe: segue a regra antiga (histórico + índice único).
+      const semFuncao = reservaClienteError && /cupom_reservar_cliente|function|PGRST202/i.test(reservaClienteError.message + (reservaClienteError.code ?? ''))
+      if (reservaClienteError && !semFuncao) {
+        await admin.rpc('cupom_devolver_uso', { p_cupom_id: cupom.id, p_restaurante_id: restauranteId })
+        throw reservaClienteError
+      }
+      if (!semFuncao && reservouCliente !== true) {
+        await admin.rpc('cupom_devolver_uso', { p_cupom_id: cupom.id, p_restaurante_id: restauranteId })
+        throw new Error('Este cupom já foi usado (ou está sendo usado agora) neste telefone.')
+      }
+      if (!semFuncao) cupomReservaCliente = { cupomId: cupom.id, telefone: tel }
+    }
+
     cupomAplicado = { id: cupom.id, codigo: cupom.codigo, usos: cupom.usos }
   }
 
@@ -1535,6 +1556,13 @@ export async function criarPedido(
           .eq('id', recompensaResgatada)
       } catch (reverterError) {
         console.error(`[criarPedido] falha ao reverter claim da recompensa ${recompensaResgatada}:`, reverterError)
+      }
+    }
+    if (cupomReservaCliente) {
+      try {
+        await admin.rpc('cupom_liberar_cliente', { p_cupom_id: cupomReservaCliente.cupomId, p_telefone: cupomReservaCliente.telefone })
+      } catch (reverterError) {
+        console.error('[criarPedido] falha ao liberar a reserva do cupom por cliente:', reverterError)
       }
     }
     if (cupomAplicado) {

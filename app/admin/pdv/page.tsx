@@ -2149,6 +2149,7 @@ export default function PdvPage() {
                   type="button"
                   onClick={voltarParaMesas}
                   data-testid="pdv-pos-lancar-mesas"
+                  aria-label={pdvV2 && telaBalcao ? 'Voltar ao balcão' : 'Voltar às mesas'}
                   className="flex h-[60px] w-[64px] flex-shrink-0 flex-col items-center justify-center gap-0.5 rounded-menuzia border border-border bg-white text-[11px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>

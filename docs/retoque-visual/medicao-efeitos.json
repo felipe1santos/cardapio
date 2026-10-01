@@ -1,0 +1,28 @@
+{
+  "url": "http://127.0.0.1:3999/loja/ordem-qr-e2e",
+  "cpu": "4x",
+  "comEfeitos": {
+    "quadros": 376,
+    "mediaMs": 16.7,
+    "fps": 60,
+    "lentos50ms": 0,
+    "longTasks": 0,
+    "efeitos": [
+      "efeito-pulsar",
+      "efeito-pulsar",
+      "efeito-balancar"
+    ]
+  },
+  "reduzirMovimento": {
+    "quadros": 373,
+    "mediaMs": 16.7,
+    "fps": 60,
+    "lentos50ms": 0,
+    "longTasks": 0,
+    "efeitos": [
+      "none",
+      "none",
+      "none"
+    ]
+  }
+}

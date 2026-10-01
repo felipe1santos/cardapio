@@ -190,7 +190,7 @@ secao('Conta do João: pendências, estados separados, pagamento real, fechament
 await pa.getByTestId(`balcao-linha-${cJoao.senha}`).click()
 await pa.getByTestId('conta-titulo').getByText('João Teste').waitFor()
 ok('cabeçalho: Balcão · Senha · Nome', (await pa.getByTestId('conta-titulo').innerText()).includes(`Senha ${cJoao.senha} · João Teste`))
-ok('dimensões separadas visíveis', /Cozinha:.*aguardando/.test(await pa.getByTestId('conta-dimensoes').innerText()))
+ok('dimensões separadas visíveis (selos)', /Cozinha:[\s\S]*aguardando/.test(await pa.getByTestId('conta-dimensoes').innerText()))
 await foto(pa, '07-conta-balcao-aberta')
 // 0096: "Fechar conta" mostra cada pendência da cozinha e exige decisão explícita.
 await pa.getByTestId('conta-fechar').click()

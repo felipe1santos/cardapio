@@ -9,7 +9,7 @@ import type { ContaDaMesa, EventoHistorico, ItemDaConta, LancamentoDaConta } fro
 import type { ContaPresencial } from '@/lib/servicos/conta-presencial'
 import { montarResumoEncerramento, type ContaParaResumo, type ResumoEncerramento } from '@/lib/encerramento-conta'
 import { FecharContaModal } from '@/components/pdv/fechar-conta'
-import { TaxaExtraModal } from '@/components/pdv/taxa-extra'
+import { TaxasModal, taxasIniciais } from '@/components/pdv/taxas-conta'
 import { IdentificarModal } from '@/components/pdv/atendimento'
 import { ResumoEncerramentoModal } from '@/components/pdv/resumo-encerramento'
 import { chamar, mascararTelefone } from '@/components/pdv/util'
@@ -610,7 +610,7 @@ export function PainelConta({
               data-testid="mesa-adicionar-taxa"
               className="mt-2 w-full rounded-menuzia border border-dashed border-primary py-2 text-[12px] font-bold text-primary hover:bg-primary hover:text-white"
             >
-              {conta.taxaExtra ? `Alterar taxa (${conta.taxaExtra.nome})` : '+ Adicionar taxa'}
+              {conta.taxaExtra ? `Alterar taxas (${conta.taxaExtra.nome})` : '+ Adicionar taxa'}
             </button>
           )}
         </div>
@@ -771,11 +771,13 @@ export function PainelConta({
       )}
 
       {taxaExtraAberta && (
-        <TaxaExtraModal
-          atual={conta.taxaExtra}
+        <TaxasModal
+          atuais={taxasIniciais(conta)}
+          padrao={[]}
+          subtotal={conta.totais.subtotal}
           onVoltar={() => setTaxaExtraAberta(false)}
-          onSalvar={async (nome, valor) => {
-            const r = await executar('taxa_extra', { nome, valor }, valor > 0 ? 'Taxa salva.' : 'Taxa removida.')
+          onSalvar={async (taxas) => {
+            const r = await executar('taxas', { taxas }, taxas.length ? 'Taxas salvas.' : 'Taxas removidas.')
             if (!r.ok) return r.error ?? 'Não foi possível salvar a taxa.'
             setTaxaExtraAberta(false)
             return null

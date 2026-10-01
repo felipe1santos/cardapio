@@ -1450,12 +1450,12 @@ function BotaoAcao({ icone, rotulo, onClick, disabled, testid, title, perigo = f
       data-testid={testid}
       title={title ?? rotulo}
       className={[
-        'flex h-[64px] w-[76px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border bg-white text-[11px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
+        'flex h-[60px] w-[78px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border bg-white text-[11px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
         perigo ? 'border-danger/40 text-danger hover:bg-danger-bg' : 'border-border text-text-main hover:border-primary hover:text-primary',
       ].join(' ')}
     >
       <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current" aria-hidden><path d={icone} /></svg>
-      <span className="max-w-full truncate px-1">{rotulo}</span>
+      <span className="max-w-full px-0.5 text-center">{rotulo}</span>
     </button>
   )
 }
@@ -1478,15 +1478,15 @@ function BarraAcoesConta({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-border bg-white px-3 py-2.5" data-testid="conta-barra-acoes">
-      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5">
-        {pode.lancar && <BotaoAcao icone={ICONE_ACAO.lancar} rotulo="Lançar itens" onClick={onLancar} disabled={ocupado} testid="conta-lancar" />}
+      <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+        {pode.lancar && <BotaoAcao icone={ICONE_ACAO.lancar} rotulo="Lançar" onClick={onLancar} disabled={ocupado} testid="conta-lancar" />}
         {pode.pre_conta && !conta.entrega && <PreContaBloco comandaId={conta.id} variante="barra" />}
         {(pode.taxa_extra || pode.ajustar_valores) && <BotaoAcao icone={ICONE_ACAO.taxas} rotulo="Taxas" onClick={onTaxas} disabled={ocupado} testid="conta-adicionar-taxa" />}
         {pode.ajustar_valores && <BotaoAcao icone={ICONE_ACAO.taxas} rotulo="Desconto" onClick={onAjustar} disabled={ocupado} testid="conta-ajustar" />}
         <BotaoAcao icone={ICONE_ACAO.pendencias} rotulo="Pendências" onClick={onPendencias} testid="conta-pendencias" />
         {pode.identificar && <BotaoAcao icone={ICONE_ACAO.cliente} rotulo="Cliente" onClick={onCliente} testid="conta-identificar" />}
         <BotaoAcao icone={ICONE_ACAO.historico} rotulo="Histórico" onClick={onHistorico} testid="conta-historico" />
-        {pode.cancelar_conta && <BotaoAcao icone={ICONE_ACAO.cancelar} rotulo="Cancelar conta" onClick={onCancelar} disabled={ocupado} testid="conta-cancelar-conta" perigo />}
+        {pode.cancelar_conta && <BotaoAcao icone={ICONE_ACAO.cancelar} rotulo="Cancelar" onClick={onCancelar} disabled={ocupado} testid="conta-cancelar-conta" perigo />}
       </div>
       <div className="flex w-full gap-2 sm:w-auto">
         {pode.pagamento && conta.totais.restante > 0 && (

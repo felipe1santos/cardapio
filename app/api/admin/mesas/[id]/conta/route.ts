@@ -37,6 +37,7 @@ const PERMISSAO_DA_ACAO: Record<string, Permissao> = {
   ajustar_valores: 'comanda.desconto',
   // Taxa manual da conta (0106): mesma mão que ajusta serviço e desconto.
   taxa_extra: 'comanda.desconto',
+  taxas: 'comanda.desconto',
   fechar: 'comanda.fechar',
   transferir_mesa: 'comanda.transferir',
   transferir_itens: 'comanda.transferir',
@@ -248,6 +249,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       if (!r.ok) return falhou(r)
       // A função do banco já auditou taxa e desconto com antes, depois e motivo.
+      return NextResponse.json({ ok: true, totais: r.valor })
+    }
+
+    case 'taxas': {
+      // Várias taxas (0124): mesma regra e permissão da taxa manual.
+      const r = await servicoConta.definirTaxas(
+        admin,
+        { restauranteId: sessao.restauranteId, userId: sessao.userId, nome: sessao.nome, papel: sessao.papel },
+        conta!.comandaId, corpo.taxas,
+      )
+      if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
       return NextResponse.json({ ok: true, totais: r.valor })
     }
 
