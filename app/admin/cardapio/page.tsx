@@ -65,6 +65,7 @@ import { TamanhosDoItem } from '@/components/cardapio/tamanhos-do-item'
 import { FoodIcon } from '@/components/cardapio/icone-comida'
 import { Aviso, BotaoIcone, FaixaErro, ItemThumb } from '@/components/cardapio/ui'
 import { EtiquetasProdutoForm } from '@/components/admin/etiquetas-produto-form'
+import { FichaPreparoForm } from '@/components/admin/ficha-preparo-form'
 import { etiquetasPrincipais } from '@/lib/etiquetas-vitrine'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -2242,6 +2243,8 @@ export default function CardapioPage() {
           </div>
 
           <EtiquetasProdutoForm form={form} setForm={setForm} freteGratisAcima={freteGratisLoja} />
+
+          <FichaPreparoForm itemId={form.id} restauranteId={restauranteId} />
 
           <div className="mt-4 flex gap-3">
             <div className="flex-1">
