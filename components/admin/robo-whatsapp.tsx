@@ -121,8 +121,11 @@ export function RoboWhatsappCard({ conexao, onConectar, avisar }: {
   const bloqueado = !estado.liberadoNoServidor
   const verificando = conexao === null
   const conectado = conexao !== null && conexao !== 'falhou' && conexao.conectado
-  // Desligar sempre pode. Ligar precisa do WhatsApp conectado e da liberação da Menuzia.
-  const toggleDesabilitado = salvando || (!ligado && (bloqueado || !conectado))
+  // Só bloqueia o "ligar" quando a conexão foi CONFIRMADA como desligada. Antes, enquanto a
+  // tela ainda conferia (ou se a conferência falhasse/demorasse), o interruptor ficava
+  // travado e o lojista não conseguia ativar o robô (bug de 2026-09-30).
+  const desconectadoConfirmado = conexao !== null && conexao !== 'falhou' && !conexao.conectado
+  const toggleDesabilitado = salvando || (!ligado && (bloqueado || desconectadoConfirmado))
   const aguardando = conversas?.emAtendimento ?? []
 
   async function alternar() {
@@ -179,7 +182,7 @@ export function RoboWhatsappCard({ conexao, onConectar, avisar }: {
               <span className={['absolute h-[18px] w-[18px] rounded-full bg-white shadow transition-transform duration-200', ligado ? 'translate-x-[21px]' : 'translate-x-[3px]'].join(' ')} />
             </span>
           </button>
-          {!ligado && !bloqueado && !conectado && !verificando && (
+          {!ligado && !bloqueado && desconectadoConfirmado && (
             <span className="flex items-center gap-1 text-[12px] text-[#6B7280]" data-testid="robo-dica">
               Conecte o WhatsApp para ativar ·
               <button type="button" onClick={onConectar} className="font-semibold text-[#0688D4] hover:underline" data-testid="robo-ir-conectar">Conectar</button>

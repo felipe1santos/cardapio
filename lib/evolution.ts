@@ -58,10 +58,15 @@ export type EstadoConexao = 'open' | 'connecting' | 'close'
 
 /** Estado atual da conexão WhatsApp da instância. `null` se a instância não existe ainda. */
 export async function estadoConexao(instance: string): Promise<EstadoConexao | null> {
-  const res = await fetch(evolutionUrl(`/instance/connectionState/${instance}`), { headers: evolutionHeaders() })
-  if (!res.ok) return null
-  const data = await res.json()
-  return (data?.instance?.state as EstadoConexao | undefined) ?? null
+  // Com prazo: sem ele, uma Evolution lenta segurava a tela de Integrações em "verificando".
+  try {
+    const res = await fetch(evolutionUrl(`/instance/connectionState/${instance}`), { headers: evolutionHeaders(), signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    return (data?.instance?.state as EstadoConexao | undefined) ?? null
+  } catch {
+    return null
+  }
 }
 
 /** Desconecta o WhatsApp da instância (mantém a instância para reconectar depois). */

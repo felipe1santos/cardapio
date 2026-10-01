@@ -31,6 +31,7 @@ export async function GET() {
   // Com o WhatsApp conectado, o número (para "Conectado · (27) 99999-0000").
   const numero = state === 'open' ? formatarNumeroWhatsapp(await numeroConectado(loja.evolution_instance)) : null
   // Conectado (inclusive reconectado pelo celular, sem passar pelo QR): confere o webhook.
-  if (state === 'open') await garantirWebhookDeTempoEmTempo(admin, restauranteId).catch(() => null)
+  // Sem esperar: registrar o webhook não pode atrasar a resposta da tela.
+  if (state === 'open') void garantirWebhookDeTempoEmTempo(admin, restauranteId).catch(() => null)
   return NextResponse.json({ configurado: true, connected: state === 'open', state, numero })
 }

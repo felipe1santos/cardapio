@@ -371,8 +371,14 @@ export default function IntegracoesPage() {
     }
   }, [])
 
+  // Confere de novo a cada 30 s e ao voltar para a aba: quem reconecta pelo celular vê a
+  // tela (e o interruptor do robô) refletir sem recarregar.
   useEffect(() => {
     void atualizarStatusWhatsapp()
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void atualizarStatusWhatsapp() }, 30_000)
+    const aoVoltar = () => { if (document.visibilityState === 'visible') void atualizarStatusWhatsapp() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [atualizarStatusWhatsapp])
 
   // Enquanto o QR está na tela, verifica a cada 3s se o WhatsApp já foi conectado.
