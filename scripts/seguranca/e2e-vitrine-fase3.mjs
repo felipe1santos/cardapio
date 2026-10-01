@@ -56,6 +56,7 @@ try {
     const card = mp.locator('button[data-item-id]').first()
     const cBox = await card.boundingBox()
     const foto = await card.locator('div.relative').first().boundingBox()
+    ok('primeiro cartão com a margem do conteúdo (16px)', cBox && Math.abs(cBox.x - 16) <= 1, `x=${cBox?.x}`)
     ok('cartão com ~36,5% da tela e foto quadrada (2 inteiros + parte do 3º)', cBox && Math.abs(cBox.width - Math.max(128, largura * 0.365)) <= 2 && foto && Math.abs(foto.width - foto.height) <= 1, `${cBox?.width}px · foto ${foto?.width}×${foto?.height}`)
     const rolagem = await mp.locator('div.flex').first().evaluate((el) => ({ snap: getComputedStyle(el).scrollSnapType, rola: el.scrollWidth > el.clientWidth }))
     ok('rolagem lateral com snap', /x/.test(rolagem.snap) && rolagem.rola, JSON.stringify(rolagem))

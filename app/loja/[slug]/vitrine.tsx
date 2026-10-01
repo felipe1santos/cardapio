@@ -3193,7 +3193,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     largura da tela (2 inteiros + parte do 3º, convida a rolar para o lado),
                     foto quadrada, nome em até 2 linhas e "A partir de" quando o preço varia. */}
                 <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">Mais Pedidos</h2>
-                <div className="flex snap-x snap-mandatory items-start gap-[10px] overflow-x-auto scroll-smooth px-[16px] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:snap-none lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:px-0 xl:grid-cols-5">
+                <div className="flex snap-x snap-mandatory scroll-px-[16px] items-start gap-[10px] overflow-x-auto scroll-smooth px-[16px] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:snap-none lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:px-0 xl:grid-cols-5">
                   {destaques.map((item) => (
                     <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[36.5vw] min-w-[128px] max-w-[170px] flex-shrink-0 snap-start lg:w-auto lg:max-w-none" compact />
                   ))}
