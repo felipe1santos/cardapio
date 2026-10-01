@@ -18,7 +18,8 @@
     "next": "^15.5.16",
     "qrcode": "^1.5.4",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@material-design-icons/svg": "^0.14.15",

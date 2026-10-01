@@ -2,6 +2,8 @@ import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import type { Viewport } from 'next'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
+import { urlPublica } from '@/lib/url-publica'
+import { PREVIA_ALTURA, PREVIA_LARGURA, versaoPrevia } from '@/lib/previa-loja'
 import { buscarRestaurantePorSlug } from '@/lib/queries/cardapio'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import { resolverPaleta } from '@/lib/paletas'
@@ -74,10 +76,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   try {
     const loja = await carregarLoja(slug)
     if (!loja) return { title: 'Loja não encontrada' }
+    // Prévia do link (WhatsApp etc.): imagem própria da loja, JPEG 1200×630 < 300 KB, com
+    // versão na URL para o WhatsApp buscar de novo quando a capa muda (lib/previa-loja.ts).
+    const base = urlPublica()
+    const v = versaoPrevia({ nome: loja.nome, bannerUrl: loja.bannerUrl ?? null, logoUrl: loja.logoUrl ?? null, cor: resolverPaleta(loja.corTema).primaria })
+    const imagem = { url: `${base}/api/loja/${loja.slug}/previa?v=${v}`, width: PREVIA_LARGURA, height: PREVIA_ALTURA, type: 'image/jpeg', alt: loja.nome }
+    const descricao = `Peça online no ${loja.nome}.`
     return {
+      metadataBase: new URL(base),
       title: loja.nome,
-      description: `Peça online no ${loja.nome}.`,
-      openGraph: { title: loja.nome, images: loja.bannerUrl ? [loja.bannerUrl] : undefined },
+      description: descricao,
+      openGraph: { type: 'website', title: loja.nome, description: descricao, url: `${base}/loja/${loja.slug}`, siteName: loja.nome, images: [imagem] },
+      twitter: { card: 'summary_large_image', title: loja.nome, description: descricao, images: [imagem.url] },
     }
   } catch {
     return { title: 'Menuzia' }
