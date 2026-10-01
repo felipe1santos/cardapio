@@ -31,7 +31,7 @@ export interface ItemComEtiquetas {
   tagPersonalizadaCor?: string | null
 }
 
-export type IconeEtiqueta = 'fogo' | 'diamante' | 'ampulheta' | 'brilho' | 'pessoas' | 'etiqueta' | 'ticket'
+export type IconeEtiqueta = 'fogo' | 'diamante' | 'ampulheta' | 'brilho' | 'selo' | 'pessoas' | 'etiqueta' | 'ticket'
 
 export interface EstiloTag { texto: string; icone: IconeEtiqueta | null; fundo: string; cor: string; corIcone?: string; peso: 500 | 600 | 700; /** Canto em px (padrão da caixa: 6). */ raio?: number }
 
@@ -43,7 +43,8 @@ export const ESTILO_TOPO: Record<EtiquetaTopo, EstiloTag> = {
   combo_especial: { texto: 'Combo especial', icone: 'diamante', fundo: '#F2EAFC', cor: '#9A3AE1', corIcone: '#A135F4', peso: 600 },
   // Sem referência em imagem: rosa da mesma família.
   oferta_limitada: { texto: 'Oferta limitada', icone: 'ampulheta', fundo: '#FCE7F3', cor: '#BE185D', peso: 600 },
-  novidade: { texto: 'Novidade', icone: 'brilho', fundo: '#A3F7B5', cor: '#14532D', peso: 600 },
+  // Cores pedidas pelo dono (2026-10-01): fundo rgb(0 255 142 / 35%), texto rgb(0 45 3); ícone de selo.
+  novidade: { texto: 'Novidade', icone: 'selo', fundo: 'rgb(0 255 142 / 35%)', cor: 'rgb(0 45 3)', peso: 600 },
 }
 
 export const ESTILO_UTIL = {

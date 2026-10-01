@@ -3258,9 +3258,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
-                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-[14px] py-[6px] text-[14px] font-medium leading-[20px] transition-colors', activeCategory === '__promos__' ? 'border-promo bg-promo text-white shadow-sm' : 'border-border bg-white text-text-subtle hover:border-promo hover:text-promo'].join(' ')}
+                  // Cores da tag de desconto (ESTILO_DESCONTO: #EAFFF5 / #24A96A); acende só quando ativa.
+                  data-chip-promocoes
+                  className={['inline-flex flex-shrink-0 items-center gap-[6px] whitespace-nowrap rounded-full border px-[14px] py-[6px] text-[14px] font-medium leading-[20px] transition-colors', activeCategory === '__promos__' ? 'border-[#24A96A] bg-[#EAFFF5] font-semibold text-[#24A96A]' : 'border-border bg-white text-text-subtle hover:border-[#24A96A] hover:text-[#24A96A]'].join(' ')}
                 >
-                  🏷️ Promoções
+                  <span className="inline-flex -rotate-45 text-[#24A96A]"><IconeTagSvg nome="ticket" tamanho={15} /></span>
+                  Promoções
                 </button>
               )}
               {!gavetaAtiva && groups.map((cat) => (
@@ -3370,7 +3373,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 )}
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
-                  <span className="rounded bg-promo px-2 py-0.5 text-[11px] font-bold text-white">{promoItems.length} {promoItems.length === 1 ? 'item' : 'itens'}</span>
+                  <span className="text-[12px] font-bold text-[#15803D]" data-contador-promocoes>{promoItems.length} {promoItems.length === 1 ? 'item' : 'itens'}</span>
                 </div>
                 <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={(i) => openProduct(i, gavetaAtiva ? { capaUrl: null, capaFoco: FOCO_PADRAO } : undefined)} imagemGrande={restaurante.imagemGrande} />
               </div>

@@ -95,6 +95,9 @@ try {
       ok('4 de topo → só 2, na ordem (Mais vendido, Combo especial)', JSON.stringify(await topo('TESTE Quatro de topo')) === '["mais_vendido","combo_especial"]')
       ok('topo + utilitárias (Serve até 4 · Item promocional)', JSON.stringify(await topo('TESTE X-Burger')) === '["mais_vendido"]' && (await utils('TESTE X-Burger')).join('|') === 'Serve até 4 pessoas|Item promocional', (await utils('TESTE X-Burger')).join('|'))
       ok('Serve 1 pessoa (singular) / Serve até 10 pessoas', (await utils('TESTE Serve 1')).join() === 'Serve 1 pessoa' && (await utils('TESTE Serve 10')).join() === 'Serve até 10 pessoas')
+      const nov = linha('TESTE Novidade').locator('[data-etiqueta="novidade"]')
+      ok('Novidade: fundo rgb(0 255 142 / 35%), texto rgb(0 45 3), ícone de selo',
+        (await nov.evaluate((e) => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color].join('|'))) === 'rgba(0, 255, 142, 0.35)|rgb(0, 45, 3)' && (await nov.locator('svg path[fill-rule="evenodd"]').count()) === 1)
       const preta = linha('TESTE Personalizada preta').locator('[data-etiqueta="personalizada"]')
       const azul = linha('TESTE Personalizada azul').locator('[data-etiqueta="personalizada"]')
       ok('personalizada preta e azul, 24 caracteres, uma linha', (await preta.textContent()) === 'Receita da casa especial' && (await preta.evaluate((e) => getComputedStyle(e).backgroundColor)) === rgb('#1F1F1F') &&
@@ -138,6 +141,24 @@ try {
         ok(`destaques ${rotulo}: nenhuma tag, mesmo com 4 marcadas`, n === 0, String(n))
       }
       if (PRINTS) await p.screenshot({ path: join(PRINTS, `destaques-${rotulo}.png`) })
+    }
+    // Chip de Promoções: cores da tag de desconto, acende só quando ativa; contador só texto.
+    if (rotulo === '390') {
+      await p.evaluate(() => window.scrollTo(0, 0))
+      const chip = p.locator('[data-chip-promocoes]').first()
+      const cores = () => chip.evaluate((e) => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color].join('|'))
+      const antes = await cores()
+      await chip.click()
+      await p.locator('[data-contador-promocoes]').waitFor({ timeout: 5000 })
+      await p.waitForTimeout(500) // transição de cor de 150 ms
+      const acesas = await chip.locator('xpath=..').locator('button[class*=" bg-[var(--tema-primaria)]"]').count()
+      ok('só a chip de Promoções acesa (nenhuma categoria junto)', acesas === 0, String(acesas))
+      ok('chip Promoções: apagado antes, verde do desconto (#EAFFF5 / #24A96A) quando ativa', !antes.startsWith('rgb(234, 255, 245)') && (await cores()) === 'rgb(234, 255, 245)|rgb(36, 169, 106)', antes + ' → ' + (await cores()))
+      const cont = await p.locator('[data-contador-promocoes]').evaluate((e) => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color].join('|'))
+      ok('contador da seção Promoções sem fundo, texto verde escuro', cont === 'rgba(0, 0, 0, 0)|rgb(21, 128, 61)', cont)
+      if (PRINTS) await p.screenshot({ path: join(PRINTS, 'promocoes-390.png') })
+      await p.reload({ waitUntil: 'networkidle' })
+      await p.waitForTimeout(800)
     }
     // Busca
     await p.evaluate(() => window.scrollTo(0, 0))
