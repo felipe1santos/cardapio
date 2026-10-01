@@ -35,7 +35,7 @@ function escaparXml(t: string): string {
   return t.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c] as string)
 }
 
-async function baixar(url: string): Promise<Buffer | null> {
+export async function baixar(url: string): Promise<Buffer | null> {
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(8000) })
     if (!r.ok) return null

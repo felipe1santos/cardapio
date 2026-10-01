@@ -3,6 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { criarPedido } from '@/lib/queries/pedidos'
 import { montarPedidoPublico } from '@/lib/queries/pedido-publico'
 import { notificarPedido } from '@/lib/whatsapp'
+import { registrarPedidoDoPush } from '@/lib/push/motor'
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -57,6 +58,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       throw err
     }
     notificarPedido(admin, pedido.id, 'recebido').catch((err) => console.error('[whatsapp] erro ao notificar pedido recebido', err))
+    // Pedido até 48 h depois de tocar numa notificação push: conta para o relatório da loja (0127).
+    const origemPush = (bruto as { origemPush?: unknown }).origemPush
+    if (typeof origemPush === 'string' && /^[0-9a-f-]{36}$/i.test(origemPush)) {
+      registrarPedidoDoPush(admin, loja.id, origemPush, pedido.id).catch(() => null)
+    }
     return NextResponse.json(pedido, { status: 201 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Não foi possível registrar o pedido'

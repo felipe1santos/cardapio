@@ -23,6 +23,8 @@ import { AvisoVitrine } from '@/components/vitrine/aviso-vitrine'
 import { AVISO_PADRAO } from '@/lib/aviso-vitrine'
 import { SucessoResgate } from '@/components/vitrine/sucesso-resgate'
 import { IconeTagSvg } from '@/components/vitrine/icones-tags'
+import { ConvitePushPosPedido, PainelNotificacoesPush } from '@/components/vitrine/notificacoes-push'
+import { limparOrigemPush, origemPushRecente, registrarCliqueDaUrl } from '@/lib/push/cliente'
 import { useVisivel } from '@/components/vitrine/use-visivel'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import { criarRastreador, type Rastreador } from '@/lib/vitrine-rastreio'
@@ -1066,6 +1068,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [premioCarrinhoVisto, setPremioCarrinhoVisto] = useState(false)
   const [premioCarrinhoAberto, setPremioCarrinhoAberto] = useState(false)
   const [cupomCodigoInput, setCupomCodigoInput] = useState('')
+  // Último pedido feito neste aparelho: prova para ligar a assinatura de push ao telefone (0127).
+  const [ultimoPedidoId, setUltimoPedidoId] = useState<string | null>(null)
   const [cupomValidando, setCupomValidando] = useState(false)
   const [cupomErro, setCupomErro] = useState<string | null>(null)
   // Cupom aprovado pelo POST /cupom/validar (shape da resposta da Task 8).
@@ -1893,6 +1897,29 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     setSelectedMassaId(null)
   }
 
+  // Links que chegam pela notificação push (0127): ?push=<envio> registra o clique; ?item= abre o
+  // produto, ?aba=pedidos|promocoes troca a aba, ?cupom= já deixa o código no campo. Os parâmetros
+  // saem da barra de endereço depois (replaceState, sem mexer no histórico).
+  const linksTratados = useRef(false)
+  useEffect(() => {
+    if (linksTratados.current || loading || !allItems.length) return
+    linksTratados.current = true
+    registrarCliqueDaUrl(slug)
+    const url = new URL(window.location.href)
+    const item = url.searchParams.get('item')
+    const aba = url.searchParams.get('aba')
+    const cupom = url.searchParams.get('cupom')
+    const alvo = item ? allItems.find((i) => i.id === item) : undefined
+    if (alvo) openProduct(alvo)
+    else if (aba === 'pedidos') setTab('pedidos')
+    else if (aba === 'promocoes' && promoItems.length) setActiveCategory('__promos__')
+    if (cupom) setCupomCodigoInput(cupom.trim().toUpperCase().slice(0, 40))
+    let mudou = false
+    for (const k of ['push', 'item', 'aba', 'cupom']) if (url.searchParams.has(k)) { url.searchParams.delete(k); mudou = true }
+    if (mudou) window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, allItems, promoItems.length, slug])
+
   function closeProductSheet() {
     setProductSheet(null)
     setEditingLineKey(null)
@@ -2422,6 +2449,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         // Token do cadastro (código confirmado): o servidor só marca "verificado" com ele.
         clienteToken: clienteSessao?.token || undefined,
         agendadoPara: agendando && agData && agHora ? instanteDoHorario(agData, agHora) : undefined,
+        // Pedido feito até 48 h depois de tocar numa notificação push (relatório da loja).
+        origemPush: origemPushRecente(slug) ?? undefined,
       }
       const assinatura = JSON.stringify(payload)
       if (tentativaPedido.current?.assinatura !== assinatura) tentativaPedido.current = { assinatura, chave: novaChavePedido() }
@@ -2434,6 +2463,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
       tentativaPedido.current = null
       rastreio.current?.registrar('pedido')
+      if (typeof data?.id === 'string') setUltimoPedidoId(data.id)
+      limparOrigemPush(slug)
       // Sessão sem código confirmado: o aparelho guarda o pedido para acompanhar o status.
       if (!clienteSessao?.token && typeof data?.id === 'string') {
         const novo = pedidoLocal({
@@ -4262,6 +4293,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <p className="mx-auto mt-1 max-w-[300px] text-center text-[13px] text-text-subtle">
               A loja já recebeu seu pedido. Acompanhe o status na aba Pedidos.
             </p>
+            <ConvitePushPosPedido slug={slug} lojaNome={restaurante?.nome ?? 'loja'} vinculo={{ telefone: clienteSessao?.telefone, token: clienteSessao?.token, pedidoId: ultimoPedidoId ?? undefined }} />
             <div className="mt-5 flex flex-col gap-2.5">
               {pedidoWa && (
                 <a
@@ -5353,6 +5385,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </div>
                 </>
               )}
+              {/* Perfil › Notificações (push do app, 0127): só aparece se a loja oferece. */}
+              <div className="mt-4">
+                <PainelNotificacoesPush slug={slug} vinculo={{ telefone: clienteSessao?.telefone, token: clienteSessao?.token, pedidoId: ultimoPedidoId ?? undefined }} />
+              </div>
             </div>
           </div>
         </div>
