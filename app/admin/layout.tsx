@@ -252,7 +252,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           // Aviso do navegador: só para pedido NOVO que ainda espera aceite. Mudança
           // de status do que já está na cozinha não vira notificação.
           const novo = payload.eventType === 'INSERT' ? (payload.new as Record<string, unknown> | null) : null
-          if (!novo || novo.status !== 'recebido') return
+          // Agendado (0121) não é pedido novo agora: entra no Kanban perto do horário.
+          if (!novo || novo.status !== 'recebido' || novo.agendado_para) return
           avisarPedido({
             id: String(novo.id),
             numero: typeof novo.numero === 'number' ? novo.numero : null,

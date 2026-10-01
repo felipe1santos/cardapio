@@ -5,6 +5,7 @@ import { normalizarBairro, type FreteForaDaLista } from '@/lib/frete'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { AgendamentoAjustes } from '@/components/admin/agendamento-ajustes'
 import { InstalarAppButton } from '@/components/instalar-app-button'
 import { Field, Input, ToggleRow } from '@/components/admin/campos-ajustes'
 import { TabQrCode } from '@/components/admin/ajustes-qrcode'
@@ -729,6 +730,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             </div>
           </Field>
         </Secao>
+
+        <AgendamentoAjustes restauranteId={restauranteId} />
 
         <Secao titulo="Imagens do cardápio" descricao="Capa e destaque promocional exibidos na vitrine pública.">
           <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">

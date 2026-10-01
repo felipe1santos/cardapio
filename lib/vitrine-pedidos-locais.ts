@@ -21,6 +21,7 @@ export interface DadosPedidoLocal {
   total: number
   itens: PedidoCliente['itens']
   agora?: Date
+  agendadoPara?: string | null
 }
 
 export function pedidoLocal(d: DadosPedidoLocal): PedidoCliente {
@@ -36,6 +37,7 @@ export function pedidoLocal(d: DadosPedidoLocal): PedidoCliente {
     formaPagamento: d.formaPagamento,
     observacao: '',
     criadoEm: (d.agora ?? new Date()).toISOString(),
+    agendadoPara: d.agendadoPara ?? null,
     itens: d.itens,
   }
 }

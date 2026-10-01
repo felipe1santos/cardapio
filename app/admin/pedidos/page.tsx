@@ -49,6 +49,7 @@ import {
   type StatusPedido,
 } from '@/lib/queries/pedidos'
 import { formatarReal } from '@/lib/moeda'
+import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -301,6 +302,10 @@ export default function PedidosPage() {
   // Recado curto depois da saída sem entregador: diz se o cliente foi avisado.
   const [avisoSaida, setAvisoSaida] = useState<{ tom: 'ok' | 'alerta'; texto: string } | null>(null)
   const [orders, setOrders] = useState<Pedido[]>([])
+  // Agendados (0121) que ainda não entraram no fluxo: ficam numa faixa à parte, sem
+  // alarme, sem aceite automático e sem impressão até `liberaMin` antes do horário.
+  const [agendados, setAgendados] = useState<Pedido[]>([])
+  const liberaMinRef = useRef(30)
   const [transit, setTransit] = useState<Pedido[]>([])
   const [concluded, setConcluded] = useState<Pedido[]>([])
   const [detail, setDetail] = useState<Pedido | null>(null)
@@ -529,7 +534,8 @@ export default function PedidosPage() {
     async (id: string) => {
       const seq = ++refetchSeq.current
       try {
-        const [kanban, logistica, finalizados] = await Promise.all([
+        // eslint-disable-next-line prefer-const
+        let [kanban, logistica, finalizados] = await Promise.all([
           listarPedidosKanban(supabase, id),
           listarPedidosLogistica(supabase, id),
           listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
@@ -538,6 +544,11 @@ export default function PedidosPage() {
         // desatualizada em vez de deixá-la sobrescrever o estado por último.
         if (seq !== refetchSeq.current) return
 
+        const agora = new Date()
+        const esperando = kanban.filter((p) => p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, liberaMinRef.current, agora))
+        const idsEsperando = new Set(esperando.map((p) => p.id))
+        kanban = kanban.filter((p) => !idsEsperando.has(p.id))
+        setAgendados(esperando.sort((a, b) => String(a.agendadoPara).localeCompare(String(b.agendadoPara))))
         setOrders(kanban)
         setTransit(logistica.filter((p) => p.status === 'em_rota'))
         setConcluded(finalizados)
@@ -634,6 +645,12 @@ export default function PedidosPage() {
       setRestauranteId(id)
       // carrega o aceite automático ANTES do primeiro fetch, para os pedidos
       // pendentes já entrarem na fila de aceite se a chave estiver ligada.
+      try {
+        const { data: ag } = await supabase.from('restaurantes').select('agendamento_libera_min').eq('id', id).maybeSingle()
+        if (typeof ag?.agendamento_libera_min === 'number') liberaMinRef.current = ag.agendamento_libera_min
+      } catch {
+        /* sem a coluna (antes da 0121) — fica o padrão */
+      }
       try {
         const cfg = await buscarConfigImpressao(supabase, id)
         const ligado = cfg?.aceitarPedidosAutomaticamente ?? false
@@ -1023,6 +1040,23 @@ export default function PedidosPage() {
           </div>
         )}
 
+        {agendados.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto rounded-menuzia border border-border bg-white px-3 py-2" data-testid="faixa-agendados">
+            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Agendados ({agendados.length})</span>
+            {agendados.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setDetail(p)}
+                className="shrink-0 rounded-menuzia border border-border bg-page px-2.5 py-1 text-[12px] text-text-main hover:border-primary"
+                title="Entra no painel, na cozinha e na impressão perto do horário"
+              >
+                <strong>#{p.numero}</strong> · {textoAgendado(p.agendadoPara!)} · {p.clienteNome}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Board */}
         <div className={`grid flex-1 grid-cols-1 gap-3 overflow-hidden max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
@@ -1067,6 +1101,7 @@ export default function PedidosPage() {
                             {origemDoCard(order).posto === 'Salão' && <Badge tone="ready">Salão</Badge>}
                             {origemDoCard(order).posto === 'PDV' && <Badge tone="alert">PDV</Badge>}
                             {origemDoCard(order).posto === 'Delivery' && <Badge tone="paused">Delivery</Badge>}
+                            {order.agendadoPara && <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge>}
                           </div>
                           <div className="flex flex-shrink-0 items-center gap-1.5">
                             <span
@@ -1235,6 +1270,7 @@ export default function PedidosPage() {
                   celular descem para a linha de baixo, ainda à direita, sem espremer o título. */}
               <div className="max-sm:order-3 max-sm:w-full sm:flex-shrink-0">
                 <EtiquetasPedido pedido={detail} />
+                {detail.agendadoPara && <p className="mt-1 text-right text-[12px] font-semibold text-alert-text" data-testid="detalhe-agendado">Agendado para {textoAgendado(detail.agendadoPara)}</p>}
               </div>
               <button onClick={() => setDetail(null)} aria-label="Fechar detalhes" className="toque-icone flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
                 ×

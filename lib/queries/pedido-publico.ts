@@ -108,6 +108,8 @@ export function montarPedidoPublico(bruto: unknown): ResultadoWhitelist {
   if (typeof corpo.cupomCodigo === 'string') input.cupomCodigo = corpo.cupomCodigo.slice(0, 60)
   if (typeof corpo.recompensaId === 'string') input.recompensaId = corpo.recompensaId
   if (typeof corpo.clienteToken === 'string' && corpo.clienteToken) input.clienteToken = corpo.clienteToken.slice(0, 200)
+  // Agendamento (0121): só o instante viaja; criarPedido confere tudo.
+  if (typeof corpo.agendadoPara === 'string' && corpo.agendadoPara) input.agendadoPara = corpo.agendadoPara.slice(0, 40)
 
   return { ok: true, recusados: [], input }
 }

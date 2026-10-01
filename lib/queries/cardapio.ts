@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
-import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, textoProximaAbertura } from '@/lib/timezone'
+import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, proximaAbertura, textoProximaAbertura } from '@/lib/timezone'
+import { configAgendamento, podeAgendar, somenteAgendado, textoAbrimos, type ConfigAgendamento } from '@/lib/agendamento'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 import { nomeTemSeparador, type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
@@ -1085,13 +1086,21 @@ export interface RestauranteVitrine {
   aceitaRetirada: boolean
   /** Como a loja calcula o preço de pizza com mais de um sabor. */
   pizzaCalculoPreco: RegraPrecoPizza
+  /** Agendamento de pedidos (0121). Desligado por padrão. */
+  agendamento: ConfigAgendamento
+  /** A vitrine oferece "Agendar" agora? */
+  podeAgendar: boolean
+  /** Loja fechada, mas vendendo para depois ("Somente pedidos agendados"). */
+  somenteAgendado: boolean
+  /** "Abrimos hoje (domingo) às 13:00". Null = sem previsão. */
+  abrimosTexto: string | null
 }
 
 export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: string): Promise<RestauranteVitrine | null> {
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1101,6 +1110,8 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     statusLoja: data.status_loja ?? 'automatico',
     horarioFuncionamento: data.horario_funcionamento ?? null,
   }
+  const agendamento = configAgendamento(data as unknown as Record<string, unknown>)
+  const aberta = lojaEstaAberta(estadoLoja)
   return {
     id: data.id,
     nome: data.nome,
@@ -1135,6 +1146,10 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     aceitaEntrega: data.aceita_entrega ?? true,
     aceitaRetirada: data.aceita_retirada ?? false,
     pizzaCalculoPreco: (data.pizza_calculo_preco === 'maior' ? 'maior' : 'media') as RegraPrecoPizza,
+    agendamento,
+    podeAgendar: podeAgendar(agendamento, aberta),
+    somenteAgendado: somenteAgendado(agendamento, aberta),
+    abrimosTexto: estadoLoja.statusLoja === 'fechado_manual' ? null : textoAbrimos(proximaAbertura(estadoLoja.horarioFuncionamento)),
   }
 }
 

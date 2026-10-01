@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
 import { concluirSaida, registrarSaida } from '@/lib/mensageria/historico'
+import { textoAgendado } from '@/lib/agendamento'
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
@@ -75,6 +76,12 @@ export function montarResumoPedido(pedido: Pedido, restauranteNome: string): str
 export function montarMensagemStatus(pedido: Pedido, status: StatusPedido): string | null {
   switch (status) {
     case 'recebido':
+      // Agendado (0121): confirma o horário escolhido; o resto do fluxo segue igual.
+      if (pedido.agendadoPara) {
+        const quando = textoAgendado(pedido.agendadoPara)
+        const canal = pedido.tipo === 'retirada' ? 'retirada' : 'entrega'
+        return `🗓️ Recebemos seu pedido agendado *#${pedido.numero}* para *${quando}* (${canal}). A loja começa a preparar perto do horário 🙌`
+      }
       return `📥 Recebemos seu pedido *#${pedido.numero}*! Aguarde a confirmação da loja 🙌`
     case 'pronto':
       return pedido.tipo === 'retirada'

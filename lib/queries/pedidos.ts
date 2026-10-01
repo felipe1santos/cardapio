@@ -6,6 +6,7 @@ import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTI
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
 import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
+import { configAgendamento, motivoAgendamentoInvalido } from '@/lib/agendamento'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
@@ -17,7 +18,7 @@ import { lerTodas } from './ler-todas'
 const centavos = (v: number) => Math.round(v * 100) / 100
 
 /** Horário da categoria do item, com a regra da vitrine. Sem categoria ou sem janela = sempre. */
-function categoriaNoHorario(categoria: unknown): boolean {
+function categoriaNoHorario(categoria: unknown, em?: Date): boolean {
   const g = (Array.isArray(categoria) ? categoria[0] : categoria) as
     | { horario_ativo_inicio: string | null; horario_ativo_fim: string | null }
     | null
@@ -26,7 +27,7 @@ function categoriaNoHorario(categoria: unknown): boolean {
   return grupoEstaAtivoAgora({
     horarioAtivoInicio: g.horario_ativo_inicio?.slice(0, 5) ?? null,
     horarioAtivoFim: g.horario_ativo_fim?.slice(0, 5) ?? null,
-  })
+  }, em)
 }
 
 export type TipoPedido = 'entrega' | 'retirada'
@@ -101,6 +102,8 @@ export interface Pedido {
   canceladoPor: string | null
   criadoEm: string
   atualizadoEm: string
+  /** Pedido agendado (0121): horário escolhido pelo cliente. Null = para agora. */
+  agendadoPara?: string | null
   itens: PedidoItem[]
 }
 
@@ -157,6 +160,7 @@ interface PedidoRow {
   cancelado_por: string | null
   criado_em: string
   atualizado_em: string
+  agendado_para?: string | null
   pedido_itens: {
     id: string
     item_id?: string | null
@@ -178,7 +182,7 @@ export const PEDIDO_SELECT = `
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, comanda:comandas ( numero, senha ),
-  cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em,
+  cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
   pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
@@ -225,6 +229,7 @@ export function mapPedido(row: PedidoRow): Pedido {
     canceladoPor: row.cancelado_por ?? null,
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
+    agendadoPara: row.agendado_para ?? null,
     itens: (row.pedido_itens ?? []).map((i) => ({
       id: i.id,
       nome: i.nome,
@@ -292,17 +297,31 @@ export async function listarPedidosKanban(supabase: SupabaseClient, restauranteI
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
 }
 
+/**
+ * Instante até o qual um agendado já está liberado para o fluxo (agora + minutos de
+ * antecedência da loja, 0121). Agendado com horário depois disso ainda não aparece na
+ * cozinha nem conta no badge. Coluna ausente = 30 (o padrão da migration).
+ */
+export async function corteLiberacaoAgendados(supabase: SupabaseClient, restauranteId: string): Promise<string> {
+  const { data } = await supabase.from('restaurantes').select('agendamento_libera_min').eq('id', restauranteId).maybeSingle()
+  const min = typeof data?.agendamento_libera_min === 'number' ? data.agendamento_libera_min : 30
+  return new Date(Date.now() + min * 60_000).toISOString()
+}
+
 /** Pedidos de uma loja num conjunto de status — usado pelo portal da cozinha (admin client). */
 export async function listarPedidosPorStatus(
   supabase: SupabaseClient,
   restauranteId: string,
   status: StatusPedido[]
 ): Promise<Pedido[]> {
+  // Agendado só chega à cozinha quando é liberado (0121).
+  const corte = await corteLiberacaoAgendados(supabase, restauranteId)
   const { data, error } = await supabase
     .from('pedidos')
     .select(PEDIDO_SELECT)
     .eq('restaurante_id', restauranteId)
     .in('status', status)
+    .or(`agendado_para.is.null,agendado_para.lte.${corte}`)
     .order('criado_em', { ascending: true })
   if (error) throw error
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
@@ -368,11 +387,15 @@ export async function avancarStatusPedido(supabase: SupabaseClient, pedidoId: st
 
 /** Claim atômico de um pedido pela cozinha: só pega se ainda estiver 'recebido'. Retorna se conseguiu. */
 export async function pegarPedidoCozinha(admin: SupabaseClient, pedidoId: string, cozinheiro: string): Promise<boolean> {
+  // Agendado ainda não liberado não pode ser pego pela cozinha (0121).
+  const { data: ped } = await admin.from('pedidos').select('restaurante_id').eq('id', pedidoId).maybeSingle()
+  const corte = ped ? await corteLiberacaoAgendados(admin, ped.restaurante_id) : new Date().toISOString()
   const { data, error } = await admin
     .from('pedidos')
     .update({ status: 'preparando', preparando_por: cozinheiro })
     .eq('id', pedidoId)
     .eq('status', 'recebido')
+    .or(`agendado_para.is.null,agendado_para.lte.${corte}`)
     .select('id')
   if (error) throw error
   return (data?.length ?? 0) > 0
@@ -837,8 +860,10 @@ export interface BadgesNav {
 
 /** Contadores ao vivo para os badges do menu lateral. */
 export async function contarBadgesNav(supabase: SupabaseClient, restauranteId: string): Promise<BadgesNav> {
+  const corte = await corteLiberacaoAgendados(supabase, restauranteId)
   const [novos, logistica] = await Promise.all([
-    supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'recebido'),
+    supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'recebido')
+      .or(`agendado_para.is.null,agendado_para.lte.${corte}`),
     supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'pronto').eq('tipo', 'entrega'),
   ])
   // Falhou (o supabase-js não rejeita num 5xx) → lança: o layout mantém o número que já
@@ -1002,6 +1027,11 @@ export interface NovoPedidoInput {
   recompensaId?: string
   /** Token do cadastro do cliente (vitrine com código confirmado). Sem ele o pedido da vitrine é "não verificado". */
   clienteToken?: string
+  /**
+   * Pedido agendado (0121): instante ISO escolhido na vitrine. Conferido no servidor
+   * (loja aceita, canal, grade, antecedência, intervalo, lotação) — nunca confiado.
+   */
+  agendadoPara?: string | null
   itens: NovoPedidoItemInput[]
 }
 
@@ -1088,21 +1118,43 @@ export async function criarPedido(
 
   const { data: lojaRow, error: lojaError } = await admin
     .from('restaurantes')
-    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada, pizza_calculo_preco')
+    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min')
     .eq('id', restauranteId)
     .single()
   if (lojaError) throw lojaError
 
   const canal = canalDoPedido(input)
+  const lojaAberta = lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })
+
+  // Agendamento (0121): só a vitrine agenda. Tudo conferido aqui de novo — a tela só
+  // mostra os horários válidos, mas um POST direto não pode escolher outro.
+  let agendadoPara: string | null = null
+  if (input.agendadoPara) {
+    if (input.origem === 'pdv' || canal === 'mesa') throw new Error('Agendamento só vale para pedidos da vitrine.')
+    const config = configAgendamento(lojaRow as unknown as Record<string, unknown>)
+    const t = new Date(input.agendadoPara)
+    let ocupacao = new Map<string, number>()
+    if (config.limite !== null && !Number.isNaN(t.getTime())) {
+      const { count } = await admin
+        .from('pedidos')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurante_id', restauranteId)
+        .eq('agendado_para', t.toISOString())
+        .neq('status', 'cancelado')
+      ocupacao = new Map([[t.toISOString(), count ?? 0]])
+    }
+    const motivo = motivoAgendamentoInvalido(config, lojaRow.horario_funcionamento ?? null, input.agendadoPara, input.tipo, lojaAberta, new Date(), ocupacao)
+    if (motivo) throw new Error(motivo)
+    agendadoPara = t.toISOString()
+  }
+  // Referência de horário dos itens: a hora agendada (o cliente come às 19h, não agora).
+  const referenciaItens = agendadoPara ? new Date(agendadoPara) : undefined
 
   // Horário de funcionamento é regra de VITRINE: é o que impede o cliente de pedir de
   // casa às 4h. Mesa é atendimento presencial lançado por funcionário autenticado que
   // está dentro da loja — se a loja pausou o delivery, o salão continua servindo.
   // O balcão (PDV) fica como sempre esteve, para não mudar o comportamento de quem já usa.
-  if (
-    canal !== 'mesa' &&
-    !lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })
-  ) {
+  if (canal !== 'mesa' && !lojaAberta && !agendadoPara) {
     throw new Error('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
   }
   // Canal server-authoritative: a vitrine já esconde o que a loja desligou, mas
@@ -1159,11 +1211,13 @@ export async function criarPedido(
     const item = byId.get(linha.itemId)
     if (!item) throw new Error(`Item ${linha.itemId} não encontrado nesta loja`)
     if (item.status !== 'disponivel') throw new Error(`Item "${item.nome}" não está disponível`)
-    if (!itemDisponivelHoje(item.dias_disponiveis ?? [])) throw new Error(`Item "${item.nome}" não está disponível hoje`)
+    if (!itemDisponivelHoje(item.dias_disponiveis ?? [], referenciaItens)) {
+      throw new Error(referenciaItens ? `Item "${item.nome}" não está disponível no dia agendado` : `Item "${item.nome}" não está disponível hoje`)
+    }
     // Categoria com horário (ex.: Almoço 11h–15h): a vitrine esconde fora da janela, mas a
     // sacola montada às 14h58 e enviada às 15h05 (ou um POST direto) passava. Mesma regra
     // da vitrine e do lançamento da mesa. PDV fica de fora.
-    if (input.origem !== 'pdv' && !categoriaNoHorario(item.grupos_cardapio)) {
+    if (input.origem !== 'pdv' && !categoriaNoHorario(item.grupos_cardapio, referenciaItens)) {
       throw new Error(`"${item.nome}" só é vendido em outro horário.`)
     }
     // Canal conferido no servidor: a tela já filtra, mas aba aberta antes da mudança e
@@ -1557,6 +1611,7 @@ export async function criarPedido(
       lancado_via: input.lancadoVia ?? null,
       cupom_codigo: cupomAplicado?.codigo ?? null,
       recompensa_id: recompensaResgatada,
+      ...(agendadoPara ? { agendado_para: agendadoPara } : {}),
     })
     .select('id, numero')
     .single()
@@ -1621,6 +1676,8 @@ export interface PedidoCliente {
   formaPagamento: FormaPagamento
   observacao: string
   criadoEm: string
+  /** Pedido agendado (0121). */
+  agendadoPara?: string | null
   itens: PedidoClienteItem[]
   /**
    * Entrega de loja sem entregador (0079): o pedido fecha na saída, sem ninguém
@@ -1637,7 +1694,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
   const semEntregador = Boolean(loja) && (loja?.usa_logistica === false || Boolean(loja?.entrega_sem_entregador))
   const { data, error } = await admin
     .from('pedidos')
-    .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
+    .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, agendado_para, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
     .eq('restaurante_id', restauranteId)
     .eq('cliente_telefone', telefone)
     .order('criado_em', { ascending: false })
@@ -1655,6 +1712,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
     forma_pagamento: FormaPagamento
     observacao: string | null
     criado_em: string
+    agendado_para?: string | null
     pedido_itens: {
       nome: string
       quantidade: number
@@ -1677,6 +1735,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
     formaPagamento: p.forma_pagamento,
     observacao: p.observacao ?? '',
     criadoEm: p.criado_em,
+    agendadoPara: p.agendado_para ?? null,
     saidaSemConfirmacao: semEntregador && p.tipo === 'entrega',
     itens: (p.pedido_itens ?? []).map((i) => ({
       nome: i.nome,

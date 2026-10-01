@@ -177,12 +177,15 @@ export function horarioFechamentoAtual(restaurante: {
 }
 
 /** true se o grupo (categoria) está ativo agora — sem horário configurado = sempre ativo. */
-export function grupoEstaAtivoAgora(grupo: { horarioAtivoInicio: string | null; horarioAtivoFim: string | null }): boolean {
+export function grupoEstaAtivoAgora(grupo: { horarioAtivoInicio: string | null; horarioAtivoFim: string | null }, em?: Date): boolean {
   if (!grupo.horarioAtivoInicio || !grupo.horarioAtivoFim) return true
-  return horaDentroDoIntervalo(horaAtualSaoPaulo(), grupo.horarioAtivoInicio, grupo.horarioAtivoFim)
+  const hora = em
+    ? new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(em)
+    : horaAtualSaoPaulo()
+  return horaDentroDoIntervalo(hora, grupo.horarioAtivoInicio, grupo.horarioAtivoFim)
 }
 
 /** true se o item está disponível no dia da semana atual (SP). Sem dias configurados = nunca disponível. */
-export function itemDisponivelHoje(diasDisponiveis: number[]): boolean {
-  return diasDisponiveis.includes(diaSemanaSaoPaulo(new Date().toISOString()))
+export function itemDisponivelHoje(diasDisponiveis: number[], em?: Date): boolean {
+  return diasDisponiveis.includes(diaSemanaSaoPaulo((em ?? new Date()).toISOString()))
 }

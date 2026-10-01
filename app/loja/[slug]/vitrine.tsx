@@ -32,6 +32,7 @@ import {
 } from '@/lib/queries/cardapio'
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
+import { instanteDoHorario, textoAgendado, type DiaAgendamento } from '@/lib/agendamento'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
@@ -116,9 +117,10 @@ const PEDIDO_ATIVO = new Set(['recebido', 'preparando', 'pronto', 'em_rota'])
  */
 const ACOMPANHAMENTO_MAX_MS = 12 * 60 * 60 * 1000
 
-export function pedidoEstaEmAndamento(pedido: { status: string; criadoEm: string }, agora: number): boolean {
+export function pedidoEstaEmAndamento(pedido: { status: string; criadoEm: string; agendadoPara?: string | null }, agora: number): boolean {
   if (!PEDIDO_ATIVO.has(pedido.status)) return false
-  const feito = Date.parse(pedido.criadoEm)
+  // Agendado (0121): conta a partir do horário marcado, não de quando foi feito.
+  const feito = Math.max(Date.parse(pedido.criadoEm), pedido.agendadoPara ? Date.parse(pedido.agendadoPara) : 0)
   // Data ilegível não deve esconder um pedido que pode ser real.
   if (!Number.isFinite(feito)) return true
   return agora - feito < ACOMPANHAMENTO_MAX_MS
@@ -2084,6 +2086,27 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [changeFor, setChangeFor] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  // Agendamento (0121): "Agora" ou "Agendar" + dia e horário. Loja fechada que aceita
+  // agendado só vende agendado. Horários vêm do servidor (sem os lotados).
+  const [agendarEscolhido, setAgendarEscolhido] = useState(false)
+  const [agDias, setAgDias] = useState<DiaAgendamento[] | null>(null)
+  const [agData, setAgData] = useState('')
+  const [agHora, setAgHora] = useState('')
+  const agendando = Boolean(restaurante?.somenteAgendado) || (Boolean(restaurante?.podeAgendar) && agendarEscolhido)
+  useEffect(() => {
+    if (!checkoutOpen || !restaurante?.podeAgendar) return
+    let vivo = true
+    fetch(`/api/loja/${slug}/agendamento`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d: { dias?: DiaAgendamento[] }) => {
+        if (!vivo) return
+        const dias = d.dias ?? []
+        setAgDias(dias)
+        setAgData((atual) => (dias.some((x) => x.data === atual) ? atual : dias[0]?.data ?? ''))
+      })
+      .catch(() => { if (vivo) setAgDias([]) })
+    return () => { vivo = false }
+  }, [checkoutOpen, restaurante?.podeAgendar, slug])
 
   // ── Analytics da vitrine ──────────────────────────────────────────────────
   // Alimenta o funil do Dashboard (Visitas → Visualizações → Sacola →
@@ -2300,6 +2323,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         recompensaId: recompensaSelecionada?.id,
         // Token do cadastro (código confirmado): o servidor só marca "verificado" com ele.
         clienteToken: clienteSessao?.token || undefined,
+        agendadoPara: agendando && agData && agHora ? instanteDoHorario(agData, agHora) : undefined,
       }
       const assinatura = JSON.stringify(payload)
       if (tentativaPedido.current?.assinatura !== assinatura) tentativaPedido.current = { assinatura, chave: novaChavePedido() }
@@ -2318,6 +2342,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           id: data.id, numero: Number(data.numero) || 0, tipo: tipoPedido, formaPagamento: payload.pagamento as PedidoCliente['formaPagamento'],
           subtotal, desconto, taxaEntrega: tipoPedido === 'retirada' ? 0 : fee, total,
           itens: cart.map((l) => ({ nome: l.name, quantidade: l.qty, tamanhoNome: l.tamanhoNome, saborNome: l.saborNome, precoUnitario: l.unit, descricao: '', complementos: l.addons.map((a) => a.nome), observacao: l.obs })),
+          agendadoPara: payload.agendadoPara ?? null,
         })
         try {
           const antes = JSON.parse(localStorage.getItem(`menuzia_pedidos_${slug}`) ?? '[]') as PedidoCliente[]
@@ -2374,7 +2399,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }
 
   function checkoutNext() {
-    if (!restaurante?.lojaAberta) {
+    if (!restaurante?.lojaAberta && !restaurante?.somenteAgendado) {
       setCheckoutError('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
       return
     }
@@ -2412,6 +2437,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           setCheckoutError(freteCalc?.motivo || 'Não entregamos nesse endereço.')
           return
         }
+      }
+    }
+    if (checkoutStep === 3 && agendando) {
+      if (!agData || !agHora) {
+        setCheckoutError('Escolha o dia e o horário do agendamento.')
+        return
+      }
+      const ag = restaurante?.agendamento
+      if (ag && ((tipoPedido === 'entrega' && !ag.entrega) || (tipoPedido === 'retirada' && !ag.retirada))) {
+        setCheckoutError(tipoPedido === 'entrega' ? 'Agendamento não vale para entrega nesta loja.' : 'Agendamento não vale para retirada nesta loja.')
+        return
       }
     }
     setCheckoutError(null)
@@ -2973,6 +3009,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       </span>
                       {restaurante.fechamentoHoraTexto ? `Aberta até ${restaurante.fechamentoHoraTexto}` : 'Aberta agora'}
                     </span>
+                  ) : restaurante.somenteAgendado ? (
+                    <span className="mb-[2px] flex flex-col text-[11px] font-bold leading-[16px] text-[var(--v-acao)]" data-testid="status-somente-agendado">
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[var(--v-acao)]" />
+                        Somente pedidos agendados
+                      </span>
+                      {restaurante.abrimosTexto && <span className="truncate font-semibold text-[var(--v-secundario)]">{restaurante.abrimosTexto}</span>}
+                    </span>
                   ) : (
                     <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-bold leading-[16px] text-[#B91C1C]">
                       <span className="h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[#B91C1C]" />
@@ -3277,7 +3321,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <footer className="mt-6 border-t border-border px-4 py-7 text-center lg:px-0">
                 <p className="text-[12px] font-semibold text-text-subtle">Você chegou ao fim do cardápio</p>
                 <p className="mt-1 text-[11.5px] text-text-subtle/80">
-                  {restaurante.lojaAberta ? 'Bom apetite!' : 'Volte no horário de funcionamento pra fazer seu pedido.'}
+                  {restaurante.lojaAberta ? 'Bom apetite!' : restaurante.somenteAgendado ? 'Agende seu pedido e receba no horário que escolher.' : 'Volte no horário de funcionamento pra fazer seu pedido.'}
                 </p>
                 <a
                   href="https://menuzia.com.br"
@@ -3339,7 +3383,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         </button>
                         )}
                         <button
-                          disabled={!restaurante.lojaAberta}
+                          disabled={!restaurante.lojaAberta && !restaurante.somenteAgendado}
                           onClick={() => {
                             if (!clienteSessao) { checkoutAposLogin.current = 0; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
@@ -3394,7 +3438,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             cliente montar o pedido inteiro e tentar finalizar — tarde demais.
             Aqui ele é a primeira coisa da tela, e continua visível enquanto o
             cliente rola a sacola. */}
-        {tab === 'cart' && !restaurante.lojaAberta && (
+        {tab === 'cart' && !restaurante.lojaAberta && restaurante.somenteAgendado && (
+          <div className="sticky top-0 z-20 flex items-start gap-2.5 border-b border-[var(--v-acao)]/25 bg-[var(--v-acao-bg)] px-4 py-3 shadow-sm" data-testid="faixa-somente-agendado">
+            <Clock className="mt-[1px] h-4 w-4 flex-shrink-0 text-[var(--v-acao)]" strokeWidth={2.4} />
+            <p className="text-[12px] font-semibold leading-[16px] text-[var(--v-acao)]">
+              Somente pedidos agendados — você escolhe o dia e o horário ao finalizar.
+              {restaurante.abrimosTexto ? ` ${restaurante.abrimosTexto}.` : ''}
+            </p>
+          </div>
+        )}
+        {tab === 'cart' && !restaurante.lojaAberta && !restaurante.somenteAgendado && (
           <div className="sticky top-0 z-20 flex items-start gap-2.5 border-b border-danger/30 bg-danger-bg px-4 py-3 shadow-sm">
             <Clock className="mt-[1px] h-4 w-4 flex-shrink-0 text-danger" strokeWidth={2.4} />
             <p className="text-[12px] font-semibold leading-[16px] text-danger">
@@ -3481,7 +3534,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     Continuar comprando
                   </button>
                   <button
-                    disabled={!restaurante.lojaAberta}
+                    disabled={!restaurante.lojaAberta && !restaurante.somenteAgendado}
                     onClick={() => {
                       if (!clienteSessao) { checkoutAposLogin.current = 1; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                       // Mobile: a aba carrinho já é o resumo — entra direto no pagamento.
@@ -3616,6 +3669,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       {new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
+                  {p.agendadoPara && (
+                    <p className="mt-2 rounded-md bg-[var(--v-acao-bg)] px-3 py-2 text-[13px] font-semibold text-[var(--v-acao)]" data-testid="pedido-agendado-para">
+                      Agendado para {textoAgendado(p.agendadoPara)}
+                    </p>
+                  )}
                   {ativo && <div className="mt-4"><PedidoTimeline status={p.status} tipo={p.tipo} semConfirmacao={p.saidaSemConfirmacao} /></div>}
                   {p.status === 'cancelado' && (
                     <div className="mt-4 rounded bg-danger-bg px-3 py-2 text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
@@ -4771,6 +4829,48 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
           {checkoutStep === 3 && (
             <div className="px-4 pb-5">
+              {restaurante.podeAgendar && (
+                <div className="mb-3 rounded-lg border border-border bg-white p-4" data-testid="checkout-agendamento">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Quando você quer {tipoPedido === 'retirada' ? 'retirar' : 'receber'}?</h3>
+                  {!restaurante.somenteAgendado && (
+                    <div className="mb-3 grid grid-cols-2 gap-2">
+                      {[{ v: false, t: 'Agora' }, { v: true, t: 'Agendar' }].map((o) => (
+                        <button
+                          key={o.t}
+                          type="button"
+                          onClick={() => setAgendarEscolhido(o.v)}
+                          className={['rounded-lg border px-3 py-2.5 text-[14px] font-semibold transition-colors', agendarEscolhido === o.v ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)] text-[var(--tema-primaria)]' : 'border-border text-text-main'].join(' ')}
+                        >
+                          {o.t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {agendando && (
+                    agDias === null ? (
+                      <p className="text-[13px] text-text-subtle">Carregando horários…</p>
+                    ) : agDias.length === 0 ? (
+                      <p className="text-[13px] font-semibold text-danger">Não há horários disponíveis para agendar agora.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="text-[12px] text-text-subtle">
+                          Dia
+                          <select value={agData} onChange={(e) => { setAgData(e.target.value); setAgHora('') }} className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2.5 text-[15px] text-text-main" data-testid="agendamento-dia">
+                            {agDias.map((d) => <option key={d.data} value={d.data}>{d.rotulo}</option>)}
+                          </select>
+                        </label>
+                        <label className="text-[12px] text-text-subtle">
+                          Horário
+                          <select value={agHora} onChange={(e) => setAgHora(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2.5 text-[15px] text-text-main" data-testid="agendamento-hora">
+                            <option value="">Escolha</option>
+                            {(agDias.find((d) => d.data === agData)?.horarios ?? []).map((h) => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
               {/* Itens do pedido — com foto e detalhes, fáceis de conferir */}
               <div className="rounded-lg border border-border bg-white p-4">
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seu pedido</h3>

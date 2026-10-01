@@ -19,11 +19,12 @@ describe('conta (checklist)', () => {
 
 /** Cliente falso: cada `from().select().eq()...` resolve com o próximo resultado da fila. */
 function clienteCom(...resultados: { count: number | null; error: unknown }[]) {
-  const fila = [...resultados]
+  // 1º: a loja (minutos de liberação dos agendados, 0121); depois as contagens.
+  const fila: unknown[] = [{ data: { agendamento_libera_min: 30 }, error: null }, ...resultados]
   const consulta = (): unknown => {
     const r = fila.shift()
     const q: Record<string, unknown> = { then: (ok: (v: unknown) => unknown) => Promise.resolve(r).then(ok) }
-    for (const m of ['select', 'eq']) q[m] = () => q
+    for (const m of ['select', 'eq', 'or', 'maybeSingle']) q[m] = () => q
     return q
   }
   return { from: vi.fn(consulta) } as unknown as SupabaseClient
