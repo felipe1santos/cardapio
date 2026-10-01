@@ -8,6 +8,7 @@ import { carregarDashboard, type DadosDashboard, type PedidoDashboard } from '@/
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { HeatmapCard } from '@/components/dashboard/heatmap-card'
 import { FiltroPeriodo } from '@/components/dashboard/filtro-periodo'
+import { DicaInfo } from '@/components/dashboard/dica-info'
 import { CartaoFunil } from '@/components/dashboard/cartao-funil'
 import { GraficoLinhas } from '@/components/dashboard/grafico-linhas'
 import { GraficoArea } from '@/components/dashboard/grafico-area'
@@ -189,8 +190,9 @@ interface LinhaBairro {
 export default function DashboardPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [agora] = useState(() => Date.now())
-  const [intervalo, setIntervalo] = useState<Intervalo>(() => intervaloDoPreset('7d', Date.now()))
-  const [preset, setPreset] = useState<PresetPeriodo | null>('7d')
+  // Padrão: últimos 30 dias (2026-10-01). Só muda quando o usuário escolhe outro período.
+  const [intervalo, setIntervalo] = useState<Intervalo>(() => intervaloDoPreset('30d', Date.now()))
+  const [preset, setPreset] = useState<PresetPeriodo | null>('30d')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {} })
@@ -459,15 +461,23 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <FiltroPeriodo
-          intervalo={intervalo}
-          preset={preset}
-          agora={agora}
-          onEscolher={(novo, atalho) => {
-            setIntervalo(novo)
-            setPreset(atalho)
-          }}
-        />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 sm:flex-none">
+            <FiltroPeriodo
+              intervalo={intervalo}
+              preset={preset}
+              agora={agora}
+              onEscolher={(novo, atalho) => {
+                setIntervalo(novo)
+                setPreset(atalho)
+              }}
+            />
+          </div>
+          {/* O aviso do rastreio da vitrine virou um ⓘ discreto (passar o mouse ou tocar). */}
+          {vitrine !== null && (
+            <DicaInfo texto="Visitas, visualizações, sacola e checkout são contadas a partir da ativação do rastreio da vitrine (23/09/2026). Cada visitante conta uma vez por etapa." />
+          )}
+        </div>
 
         {!m.temAnterior && (
           <p className="text-[11px] text-[var(--adm-texto-suave)]">
@@ -480,11 +490,7 @@ export default function DashboardPage() {
           <p className="rounded-[6px] border-[0.8px] border-[#fcd34d] bg-[var(--adm-laranja-claro)] px-3.5 py-2.5 text-[12.8px] text-[var(--adm-laranja)]">
             O rastreio da vitrine ainda não foi ativado no banco — as métricas de visitas aparecem assim que ele for ligado.
           </p>
-        ) : (
-          <p className="rounded-[6px] border-[0.8px] border-[#bae6fd] bg-[#f0f9ff] px-3.5 py-2.5 text-[12.8px] text-[#0369A1]">
-            Visitas, visualizações, sacola e checkout são contadas a partir da ativação do rastreio da vitrine (23/09/2026). Cada visitante conta uma vez por etapa.
-          </p>
-        )}
+        ) : null}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {funil
             ? funil.map((etapa) => <CartaoFunil key={etapa.id} etapa={etapa} />)
