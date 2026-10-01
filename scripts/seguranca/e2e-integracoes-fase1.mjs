@@ -106,8 +106,8 @@ try {
   await p.getByTestId('robo-dica').waitFor({ timeout: 15000 })
   ok('desconectado confirmado: "Conecte o WhatsApp para ativar"', await p.getByTestId('robo-alternar').isDisabled())
   await db.query('update restaurantes set evolution_instance=$2 where id=$1', [L, `sim-${E2E_LOJA}`])
-  await p.getByTestId('whatsapp-status').filter({ hasText: 'Conectado' }).waitFor({ timeout: 40000 }).catch(() => {})
-  ok('reconectou: tela mostra "Conectado" e libera o robô SEM recarregar', /Conectado/.test(await p.getByTestId('whatsapp-status').innerText()) && !(await p.getByTestId('robo-alternar').isDisabled()))
+  await p.getByTestId('whatsapp-status').filter({ hasText: /^Conectado/ }).waitFor({ timeout: 70000 }).catch(() => {})
+  ok('reconectou: tela mostra "Conectado" e libera o robô SEM recarregar', /^Conectado/.test(await p.getByTestId('whatsapp-status').innerText()) && !(await p.getByTestId('robo-alternar').isDisabled()), await p.getByTestId('whatsapp-status').innerText())
   await p.screenshot({ path: join(SHOTS, 'fase1-robo-reconectou.png'), fullPage: true })
 
   secao('3. Facebook Pixel')
