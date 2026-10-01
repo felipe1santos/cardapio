@@ -68,7 +68,25 @@ cantos de 4–8 px). Nenhum logo, nome, texto ou ícone de terceiros.
   "editar preços" passa a cobrir a agenda.
 
 ## Testes
-REGRESSAO
+| Suíte | Resultado |
+|---|---|
+| e2e-equipe-repaginada (novo) | 75/75 |
+| e2e-campanhas-repaginada (novo, provedor simulado) | 71/71 |
+| e2e-produto-repaginado (novo) | 65/65 |
+| e2e-equipe-acessos (portado) | 27/27 |
+| e2e-checkpoint-e | 90/90 |
+| e2e-campanhas-metricas (portado) | 63/63 |
+| e2e-campanha-botoes | 9/9 |
+| e2e-push | 68/68 |
+| e2e-cadastro-matriz (portado) | 45/45 |
+| e2e-admin-etiquetas (portado) | 14/14 |
+| e2e-vitrine-tags | 27/27 |
+| e2e-pdv-janelas | 53/53 |
+| unitários (vitest) | 1876 |
+| tsc / eslint | limpos |
+
+A rodada final de regressão foi interrompida pelo sistema (memória do computador baixa) depois de
+vitrine-tags e pdv-janelas: pdv-v2 e garçom não chegaram a rodar com o código final.
 
 **Ambiente local**: o Storage local está com o esquema adiantado em relação ao contêiner (qualquer upload,
 até com service_role, responde `42P10`; já acontecia antes desta tarefa). Nos e2e de produto e da matriz de
