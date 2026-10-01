@@ -424,7 +424,7 @@ secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
   ok('funcionário criado pela tela, na loja do dono, papel garçom', maria?.papel === 'garcom' && maria.restaurante_id === loja)
 
   const ofertas = await api(dono.page, '/api/admin/equipe')
-  ok('dono vê as opções gerente/garçom/atendente e nunca dono', JSON.stringify([...ofertas.json.papeisOferecidos].sort()) === JSON.stringify(['atendente', 'garcom', 'gerente']))
+  ok('dono vê as opções gerente/garçom/atendente/logística e nunca dono', JSON.stringify([...ofertas.json.papeisOferecidos].sort()) === JSON.stringify(['atendente', 'garcom', 'gerente', 'logistica']))
 
   // Login repetido é impossível.
   const dup = await api(dono.page, '/api/admin/equipe', 'POST', { nome: 'Outra', usuario: USU.funcionarioNovo, papel: 'garcom', senha: 'qualquer123' })
