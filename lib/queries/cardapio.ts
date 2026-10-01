@@ -15,6 +15,35 @@ export type TipoItem = 'simples' | 'pizza' | 'marmita'
 /** Etiquetas de destaque que a loja pode marcar num item (exibidas na vitrine). */
 export type TagItem = 'mais_pedido' | 'edicao_limitada' | 'novo' | 'promocao' | 'favorito'
 
+/** Etiquetas do produto (0117), como o formulário do Gestor grava. */
+export interface EtiquetasProdutoInput {
+  novidade: boolean
+  /** Quantos dias a "Novidade" fica (padrão 30). Só vale ao marcar. */
+  novidadeDias?: number
+  /** Data que já estava gravada: remarcar não renova o prazo. */
+  novidadeAteAtual?: string | null
+  edicaoLimitada: boolean
+  itemPromocional: boolean
+  entregaGratis: boolean
+  servePessoas: number | null
+}
+
+export function colunasEtiquetas(e: EtiquetasProdutoInput | undefined): Record<string, unknown> {
+  if (!e) return {}
+  const dias = Math.max(1, Math.min(365, Math.round(e.novidadeDias ?? 30)))
+  const ateAtual = e.novidadeAteAtual && Date.parse(e.novidadeAteAtual) > Date.now() ? e.novidadeAteAtual : null
+  const serve = e.servePessoas !== null && Number.isFinite(e.servePessoas) ? Math.max(1, Math.min(50, Math.round(e.servePessoas))) : null
+  return {
+    novidade_ate: e.novidade ? (ateAtual ?? new Date(Date.now() + dias * 86_400_000).toISOString()) : null,
+    edicao_limitada: e.edicaoLimitada,
+    item_promocional: e.itemPromocional,
+    entrega_gratis: e.entregaGratis,
+    serve_pessoas: serve,
+    // As etiquetas novas substituem a antiga: quem salva pelo formulário novo zera a `tag`.
+    tag: null,
+  }
+}
+
 export const TAGS_ITEM: { id: TagItem; label: string }[] = [
   { id: 'mais_pedido', label: 'Mais pedido' },
   { id: 'edicao_limitada', label: 'Edição limitada' },
@@ -110,6 +139,12 @@ export interface ItemCardapio {
   maisVendido: boolean
   /** Etiqueta de destaque exibida na vitrine (ex.: 'mais_pedido'). Null = sem tag. */
   tag: TagItem | null
+  /** Etiquetas do produto (0117) — ver lib/etiquetas-vitrine.ts. */
+  novidadeAte?: string | null
+  edicaoLimitada?: boolean
+  itemPromocional?: boolean
+  entregaGratis?: boolean
+  servePessoas?: number | null
   tipoItem: TipoItem
   /**
    * Canais em que o item aparece. O catálogo é um só: estas duas colunas moram no próprio
@@ -157,6 +192,11 @@ interface ItemRow {
   promocao_preco: number | null
   mais_vendido: boolean
   tag: TagItem | null
+  novidade_ate?: string | null
+  edicao_limitada?: boolean | null
+  item_promocional?: boolean | null
+  entrega_gratis?: boolean | null
+  serve_pessoas?: number | null
   tipo_item: TipoItem
   disponivel_delivery: boolean | null
   disponivel_salao: boolean | null
@@ -210,6 +250,11 @@ function mapItem(row: ItemRow): ItemCardapio {
     promocaoPreco: row.promocao_preco === null ? null : Number(row.promocao_preco),
     maisVendido: row.mais_vendido,
     tag: row.tag ?? null,
+    novidadeAte: row.novidade_ate ?? null,
+    edicaoLimitada: row.edicao_limitada === true,
+    itemPromocional: row.item_promocional === true,
+    entregaGratis: row.entrega_gratis === true,
+    servePessoas: row.serve_pessoas ?? null,
     tipoItem: row.tipo_item ?? 'simples',
     // `?? true`: linha lida antes da 0069 (ou por um select que não trouxe a coluna)
     // continua valendo nos dois canais, como sempre valeu.
@@ -402,6 +447,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
+  novidade_ate, edicao_limitada, item_promocional, entrega_gratis, serve_pessoas,
   disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
   grupos_item_complementos ( id, nome, obrigatorio, min_escolhas, max_escolhas, posicao, permite_quantidade ),
@@ -432,6 +478,7 @@ export interface NovoItemInput {
   promocaoPreco: number | null
   maisVendido: boolean
   tag: TagItem | null
+  etiquetas?: EtiquetasProdutoInput
   tipoItem: TipoItem
   imagemUrl?: string | null
   imagemThumbUrl?: string | null
@@ -454,6 +501,7 @@ export async function criarItem(supabase: SupabaseClient, restauranteId: string,
       promocao_preco: input.promocaoPreco,
       mais_vendido: input.maisVendido,
       tag: input.tag,
+      ...colunasEtiquetas(input.etiquetas),
       tipo_item: input.tipoItem,
       imagem_url: input.imagemUrl ?? null,
       imagem_thumb_url: input.imagemThumbUrl ?? null,
@@ -479,6 +527,7 @@ export interface AtualizarItemInput {
   promocaoPreco: number | null
   maisVendido: boolean
   tag: TagItem | null
+  etiquetas?: EtiquetasProdutoInput
   tipoItem: TipoItem
   /** Ausente = não mexe no canal que o item já tem. */
   disponivelDelivery?: boolean
@@ -502,6 +551,7 @@ export async function atualizarItem(supabase: SupabaseClient, itemId: string, in
       promocao_preco: input.promocaoPreco,
       mais_vendido: input.maisVendido,
       tag: input.tag,
+      ...colunasEtiquetas(input.etiquetas),
       tipo_item: input.tipoItem,
       // Mesmo cuidado da thumb: edição que não fala de canal não muda o canal.
       ...('disponivelDelivery' in input ? { disponivel_delivery: input.disponivelDelivery } : {}),

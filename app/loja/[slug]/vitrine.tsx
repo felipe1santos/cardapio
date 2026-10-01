@@ -7,7 +7,6 @@ import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
 import { erroDoTroco } from '@/lib/troco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
-import { ETIQUETAS_ITEM, SELO_FAVORITO, mostraSeloFavorito, tagDoItem } from '@/lib/etiqueta-item'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -15,6 +14,8 @@ import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
+import { EtiquetasPrincipais, EtiquetasUtilitarias, LojaEtiquetasContext, PrecoVitrine } from '@/components/vitrine/etiquetas'
+import { precoDeVitrine } from '@/lib/garcom-catalogo'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import { criarRastreador, type Rastreador } from '@/lib/vitrine-rastreio'
 import {
@@ -230,22 +231,10 @@ function abreviarProximaAbertura(texto: string | null): string | null {
   return hora ? `Abre ${hora}` : texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
-function PriceTag({ price, originalPrice, hideDiscount = false }: { price: number; originalPrice?: number | null; hideDiscount?: boolean }) {
-  if (originalPrice && !hideDiscount) {
-    const off = Math.round((1 - price / originalPrice) * 100)
-    // Em promoção: preço verde (fonte fina), valor antigo riscado e pill de % verde.
-    return (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="text-[14px] font-semibold text-promo">{brl(price)}</span>
-        <span className="text-[12px] font-normal text-[var(--v-secundario)] line-through">{brl(originalPrice)}</span>
-        <span className="rounded-full bg-promo-bg px-2 py-0.5 text-[10px] font-medium text-promo">-{off}%</span>
-      </span>
-    )
-  }
-  // Sem desconto: preço neutro (não verde), no mesmo corpo e peso do nome do
-  // item — é assim na referência, e o preço em destaque maior fazia a lista
-  // parecer uma tabela de valores em vez de um cardápio.
-  return <span className="text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]">{brl(price)}</span>
+function PriceTag({ price, originalPrice, hideDiscount = false, aPartirDe = false }: { price: number; originalPrice?: number | null; hideDiscount?: boolean; aPartirDe?: boolean }) {
+  // Preço antigo riscado EM CIMA, preço atual + pílula do desconto com ticket embaixo
+  // (components/vitrine/etiquetas.tsx). Lista, destaques, ficha e busca usam este.
+  return <PrecoVitrine price={price} originalPrice={hideDiscount ? null : originalPrice} aPartirDe={aPartirDe} />
 }
 
 /**
@@ -433,7 +422,7 @@ function CarrosselPromo({ urls, foco }: { urls: string[]; foco: string }) {
   }, [atual, urls.length])
 
   return (
-    <div className="relative h-[139px] w-full overflow-hidden rounded-md border border-border sm:h-[169px]">
+    <div data-testid="banner-promo" className="relative aspect-[141/100] w-full overflow-hidden rounded-[10px] border border-border lg:mx-auto lg:max-w-[640px]">
       {urls.map((url, i) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -464,33 +453,7 @@ function CarrosselPromo({ urls, foco }: { urls: string[]; foco: string }) {
   )
 }
 
-/** Pílula de etiqueta do item na vitrine (configurada no cadastro). */
-function TagBadge({ tag }: { tag: string | null }) {
-  if (!tag) return null
-  const s = ETIQUETAS_ITEM[tag]
-  if (!s) return null
-  return (
-    <span className={`inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-full px-[8px] py-[3px] text-[10px] font-semibold leading-[14px] shadow-sm ${s.cls}`}>
-      {s.label}
-    </span>
-  )
-}
 
-/**
- * "★ Favorito" — o item que o Gestor marcou com a estrela. Texto pequeno numa pílula
- * própria, fora da foto e sem cobrir nome, preço ou botão (lib/etiqueta-item.ts).
- */
-function SeloFavorito() {
-  return (
-    <span
-      data-selo-favorito
-      className="inline-flex w-fit items-center whitespace-nowrap rounded-full px-[8px] py-[3px] text-[10px] font-semibold leading-[14px]"
-      style={{ background: SELO_FAVORITO.fundo, color: SELO_FAVORITO.texto }}
-    >
-      {SELO_FAVORITO.label}
-    </span>
-  )
-}
 
 /**
  * O que basta para desenhar a foto de um item. `imagemThumbUrl` é opcional
@@ -586,26 +549,21 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
       <div className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
-        {/* Etiqueta sobre a foto (não acima do nome). Uma só: `tagDoItem` já
-            resolve a precedência entre etiqueta do cadastro, promoção e destaque. */}
-        {tagDoItem(item) && (
-          <span className="absolute left-[8px] top-[8px]">
-            <TagBadge tag={tagDoItem(item)} />
-          </span>
-        )}
+        {/* Destaques: a etiqueta principal vai sobre a foto, no canto (REF-DESTAQUES). */}
+        {compact && <EtiquetasPrincipais item={item} max={1} className="absolute left-[8px] top-[8px] shadow-sm" />}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
-        {mostraSeloFavorito(item) && !compact && (
-          <span className="mb-[6px] flex">
-            <SeloFavorito />
-          </span>
-        )}
-        <div className={`${compact ? 'line-clamp-1' : 'line-clamp-2 min-h-[40px]'} mb-[8px] text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]`}><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
+        {!compact && <EtiquetasPrincipais item={item} className="mb-[6px]" />}
+        <div className={`${compact ? 'line-clamp-2 min-h-[36px] leading-[18px]' : 'line-clamp-2 min-h-[40px] leading-[20px]'} mb-[6px] text-[14px] font-semibold text-[var(--v-texto)]`}><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
         {item.descricao && !compact && (
           <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
+        {!compact && <EtiquetasUtilitarias item={item} className="mb-[6px]" />}
         <div className={compact ? 'pt-0.5' : ''}>
-          <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
+          {(() => {
+            const pv = precoDeVitrine(item)
+            return <PriceTag price={pv.aPartirDe ? pv.valor : (item.promocaoPreco ?? item.preco)} originalPrice={!pv.aPartirDe && item.promocaoPreco ? item.preco : null} aPartirDe={pv.aPartirDe} />
+          })()}
         </div>
       </div>
     </button>
@@ -637,16 +595,12 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
         {/* Etiqueta acima do nome, e não sobre a foto: em 120px, "Favorito da
             casa" ou "Edição limitada" não cabem e saem cortadas. Aqui têm a
             largura da coluna de texto e ainda anunciam o item antes do nome. */}
-        {(tagDoItem(item) || mostraSeloFavorito(item)) && (
-          <span className="mb-[6px] flex flex-wrap gap-[6px]">
-            {mostraSeloFavorito(item) && <SeloFavorito />}
-            <TagBadge tag={tagDoItem(item)} />
-          </span>
-        )}
+        <EtiquetasPrincipais item={item} className="mb-[6px]" />
         <div className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
         {item.descricao && (
           <DescricaoItem texto={item.descricao} className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
+        <EtiquetasUtilitarias item={item} className="mt-[8px]" />
         <div className="mt-[8px]">
           <PriceTag price={item.promocaoPreco ?? item.preco} originalPrice={item.promocaoPreco ? item.preco : null} />
         </div>
@@ -974,6 +928,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
    * cabeçalho, com a logo à esquerda e os dados ao lado.
    */
   const semCapa = !restaurante?.bannerUrl
+  const etiquetasLoja = useMemo(() => ({ freteGratisAcima: restaurante?.freteGratisAcima ?? null }), [restaurante?.freteGratisAcima])
 
   /**
    * O que a faixa promocional mostra: as imagens novas, a imagem única do
@@ -2859,6 +2814,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
+    <LojaEtiquetasContext.Provider value={etiquetasLoja}>
     <div
       className="font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]"
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
@@ -2912,7 +2868,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </div>
       </header>
 
-      <div className="relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-24 lg:max-w-[1280px] lg:pb-16">
+      <div className="relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-[136px] lg:max-w-[1280px] lg:pb-20">
 
         {/* ── HOME header: cover banner + profile + search + category nav ── */}
         {tab === 'home' && (
@@ -3163,7 +3119,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 comida. Aqui ela é a primeira coisa dentro do cardápio, que é
                 onde um anúncio é lido sem atrapalhar quem já sabe o que quer. */}
             {bannerPromo.tipo !== 'nenhum' && !gavetaEmTela && (
-              <div className="mx-4 mt-3 lg:mx-8">
+              <div className="mx-4 mt-[16px] lg:mx-8">
                 {bannerPromo.tipo === 'texto' ? (
                   // Aviso escrito pela loja, para quem não tem arte pronta. Usa a
                   // cor do tema para pertencer à loja, e não parecer erro do app.
@@ -3225,11 +3181,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 ali a tela é daquela categoria, e os destaques ficariam por cima
                 dela como se fossem parte da lista (mesma razão do rodapé). */}
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && catGaveta === null && (
-              <div className="px-4 pb-1 pt-3 lg:px-0">
-                <h2 className="mb-2.5 text-[17px] font-bold tracking-tight">Destaques</h2>
-                <div className="flex items-start gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible xl:grid-cols-4">
+              <div className="pb-1 pt-[4px] lg:px-0" data-testid="mais-pedidos">
+                {/* REF-DESTAQUES: título centralizado como os das seções; cartão com ~36,5% da
+                    largura da tela (2 inteiros + parte do 3º, convida a rolar para o lado),
+                    foto quadrada, nome em até 2 linhas e "A partir de" quando o preço varia. */}
+                <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">Mais Pedidos</h2>
+                <div className="flex snap-x snap-mandatory items-start gap-[10px] overflow-x-auto scroll-smooth px-[16px] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:snap-none lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:px-0 xl:grid-cols-5">
                   {destaques.map((item) => (
-                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[120px] flex-shrink-0 lg:w-auto" compact />
+                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[36.5vw] min-w-[128px] max-w-[170px] flex-shrink-0 snap-start lg:w-auto lg:max-w-none" compact />
                   ))}
                 </div>
               </div>
@@ -3908,6 +3867,25 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </button>
         )}
 
+        {/* ── "Tirar dúvidas no WhatsApp" (REF-BANNER / REF-DESTAQUES) ─────────────
+            Fixo no rodapé, logo acima da navegação. Decisão: some enquanto a barra
+            "Ver sacola" está na tela (as duas no mesmo lugar empilhariam três barras),
+            fora da Home e com checkout/ficha abertos. Sem WhatsApp da loja, não aparece. */}
+        {numeroWaLoja() && tab === 'home' && cartCount === 0 && !checkoutOpen && !productSheet && (
+          <a
+            href={`https://wa.me/${numeroWaLoja()}?text=${encodeURIComponent('Olá! Vim pelo cardápio online e tenho uma dúvida.')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="tirar-duvidas-whatsapp"
+            className="camada-propria fixed inset-x-0 bottom-[calc(62px+env(safe-area-inset-bottom))] z-20 mx-auto flex h-[40px] w-full max-w-[600px] items-center justify-center gap-[8px] border-t border-[var(--v-borda)] bg-white/95 text-[13px] font-medium text-[#6B7280] backdrop-blur lg:bottom-[16px] lg:w-auto lg:rounded-full lg:border lg:px-[18px] lg:shadow-md"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/vitrine/whatsapp.svg" alt="" width={16} height={16} className="h-[16px] w-[16px]" />
+            <span>Tirar dúvidas no WhatsApp</span>
+            <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-[#9CA3AF]" aria-hidden><path d="M8.6 5.4 7.2 6.8 12.4 12l-5.2 5.2 1.4 1.4L15.2 12z" /></svg>
+          </a>
+        )}
+
         {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
         <nav className="nav-rodape fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
           <div className="flex">
@@ -4127,13 +4105,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               }
               <div className="p-4.5">
                 <h2 className="text-xl font-bold tracking-tight"><NomeItem texto={productSheet.nomeFormatado ?? productSheet.nome} /></h2>
-                {(mostraSeloFavorito(productSheet) || tagDoItem(productSheet)) && (
-                  <span className="mt-[6px] flex flex-wrap gap-[6px]">
-                    {mostraSeloFavorito(productSheet) && <SeloFavorito />}
-                    <TagBadge tag={tagDoItem(productSheet)} />
-                  </span>
-                )}
+                <EtiquetasPrincipais item={productSheet} className="mt-[6px]" />
                 <DescricaoItem texto={productSheet.descricao} className="my-2 text-[13px] leading-[19px] text-[var(--v-secundario)]" />
+                <EtiquetasUtilitarias item={productSheet} className="mb-2" />
                 {productSheet.tipoItem !== 'pizza' && productSheet.tamanhos.length === 0 && (
                   <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
                 )}
@@ -5327,5 +5301,6 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         ))}
       </div>
     </div>
+    </LojaEtiquetasContext.Provider>
   )
 }

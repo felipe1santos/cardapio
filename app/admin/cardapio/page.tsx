@@ -39,7 +39,6 @@ import {
   type StatusItem,
   type TipoItem,
   type TagItem,
-  TAGS_ITEM,
 } from '@/lib/queries/cardapio'
 import {
   listarTamanhosPadraoPizza,
@@ -65,6 +64,8 @@ import { PizzaTamanhosPrecos } from '@/components/cardapio/pizza-tamanhos-precos
 import { TamanhosDoItem } from '@/components/cardapio/tamanhos-do-item'
 import { FoodIcon } from '@/components/cardapio/icone-comida'
 import { Aviso, BotaoIcone, FaixaErro, ItemThumb } from '@/components/cardapio/ui'
+import { EtiquetasProdutoForm } from '@/components/admin/etiquetas-produto-form'
+import { etiquetasPrincipais } from '@/lib/etiquetas-vitrine'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -98,6 +99,14 @@ interface ItemFormState {
   tipoItem: TipoItem
   disponivelDelivery: boolean
   disponivelSalao: boolean
+  /** Etiquetas do produto (0117). */
+  novidade: boolean
+  novidadeAteAtual: string | null
+  novidadeDias: string
+  edicaoLimitada: boolean
+  itemPromocional: boolean
+  entregaGratis: boolean
+  servePessoas: string
 }
 
 
@@ -107,6 +116,7 @@ function blankForm(grupoId: string | null): ItemFormState {
   return {
     id: null, grupoId, nome: '', descricao: '', preco: '', status: 'disponivel', diasDisponiveis: ALL_DAYS, imagemUrl: null, imagemThumbUrl: null,
     promocaoPreco: '', maisVendido: false, tag: null, tipoItem: 'simples',
+    novidade: false, novidadeAteAtual: null, novidadeDias: '30', edicaoLimitada: false, itemPromocional: false, entregaGratis: false, servePessoas: '',
     // Item novo nasce nos dois canais: é o comportamento de sempre e o default da 0069.
     disponivelDelivery: true, disponivelSalao: true,
   }
@@ -129,6 +139,14 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     tipoItem: item.tipoItem,
     disponivelDelivery: item.disponivelDelivery,
     disponivelSalao: item.disponivelSalao,
+    // Item salvo antes da 0117: as etiquetas novas saem da `tag` antiga.
+    novidade: etiquetasPrincipais(item).includes('novidade') || (item.novidadeAte === undefined && item.tag === 'novo'),
+    novidadeAteAtual: item.novidadeAte ?? null,
+    novidadeDias: '30',
+    edicaoLimitada: item.edicaoLimitada ?? item.tag === 'edicao_limitada',
+    itemPromocional: item.itemPromocional ?? item.tag === 'promocao',
+    entregaGratis: item.entregaGratis ?? false,
+    servePessoas: item.servePessoas ? String(item.servePessoas) : '',
   }
 }
 
@@ -726,6 +744,13 @@ export default function CardapioPage() {
   const [newGroupName, setNewGroupName] = useState('')
 
   const [form, setForm] = useState<ItemFormState>(blankForm(null))
+  // Regra de frete grátis da loja, para a etiqueta "Entrega grátis a partir de R$ X".
+  const [freteGratisLoja, setFreteGratisLoja] = useState<number | null>(null)
+  useEffect(() => {
+    if (!restauranteId) return
+    supabase.from('restaurantes').select('frete_gratis_acima').eq('id', restauranteId).maybeSingle()
+      .then(({ data }) => setFreteGratisLoja(data?.frete_gratis_acima ? Number(data.frete_gratis_acima) : null), () => setFreteGratisLoja(null))
+  }, [supabase, restauranteId])
 
   // State for creating a new complement group inside the item drawer
   const [creatingGrupo, setCreatingGrupo] = useState(false)
@@ -990,6 +1015,15 @@ export default function CardapioPage() {
         tipoItem: form.tipoItem,
         disponivelDelivery: form.disponivelDelivery,
         disponivelSalao: form.disponivelSalao,
+        etiquetas: {
+          novidade: form.novidade,
+          novidadeDias: Number(form.novidadeDias) || 30,
+          novidadeAteAtual: form.novidadeAteAtual,
+          edicaoLimitada: form.edicaoLimitada,
+          itemPromocional: form.itemPromocional,
+          entregaGratis: form.entregaGratis,
+          servePessoas: form.servePessoas.trim() ? Number(form.servePessoas) : null,
+        },
       }
       if (form.id) {
         const updated = await atualizarItem(supabase, form.id, { ...payload, imagemUrl: form.imagemUrl, imagemThumbUrl: form.imagemThumbUrl })
@@ -2203,31 +2237,9 @@ export default function CardapioPage() {
                 <p className="mt-1 text-[11px] text-text-subtle">Se preenchido, o item aparece em promoção (com desconto) no cardápio.</p>
               </div>
             )}
-            <div className="flex-1">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Favorito</div>
-              <label className="flex h-[34px] cursor-pointer items-center gap-2 rounded-menuzia border border-border px-2.5 text-[13px] font-medium text-text-main">
-                <input type="checkbox" checked={form.maisVendido} onChange={(e) => setForm((prev) => ({ ...prev, maisVendido: e.target.checked }))}
-                  className="h-3.5 w-3.5 accent-primary" />
-                Item favorito
-              </label>
-              <p className="mt-1 text-[11px] text-text-subtle">Marca o item com ★ aqui no painel e mostra “★ Favorito” na vitrine e nos QR Codes. Não muda a posição do item.</p>
-            </div>
           </div>
 
-          <div className="mt-4">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Etiqueta na vitrine</div>
-            <select
-              value={form.tag ?? ''}
-              onChange={(e) => setForm((prev) => ({ ...prev, tag: (e.target.value || null) as TagItem | null }))}
-              className="w-full rounded-menuzia border border-border bg-white px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary"
-            >
-              <option value="">Sem etiqueta</option>
-              {TAGS_ITEM.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-text-subtle">Pílula colorida exibida no card do produto na vitrine (ex.: &ldquo;Mais pedido&rdquo;, &ldquo;Edição limitada&rdquo;).</p>
-          </div>
+          <EtiquetasProdutoForm form={form} setForm={setForm} freteGratisAcima={freteGratisLoja} />
 
           <div className="mt-4 flex gap-3">
             <div className="flex-1">
