@@ -266,7 +266,8 @@ const NIVEL: Record<Papel, number> = {
  */
 export function papeisQuePodeGerenciar(papel: string | null | undefined): Papel[] {
   if (!pode(papel, 'equipe.gerenciar')) return []
-  const oferecidos: Papel[] = ['gerente', 'garcom', 'atendente']
+  // 'logistica' entra no painel (despacho e caixa do entregador) desde a Fase 6 (acessos).
+  const oferecidos: Papel[] = ['gerente', 'garcom', 'atendente', 'logistica']
   const meu = NIVEL[papel as Papel] ?? 0
   // Ninguém administra nível igual ou superior ao seu — o que também impede um gerente
   // de criar outro gerente, e qualquer um de criar um dono.

@@ -23,7 +23,7 @@ describe('validarNovoFuncionario', () => {
   })
 
   it('não oferece papéis de portal por token', () => {
-    for (const papel of ['cozinha', 'logistica', 'entregador']) {
+    for (const papel of ['cozinha', 'entregador']) {
       expect(validarNovoFuncionario({ ...BASE, papel }, 'dono').length).toBeGreaterThan(0)
     }
   })

@@ -146,12 +146,12 @@ describe('papel desconhecido e ausente', () => {
 })
 
 describe('papéis oferecidos na tela de Equipe', () => {
-  it('dono cria gerente, garçom e atendente — nunca outro dono', () => {
-    expect(papeisQuePodeGerenciar('dono').sort()).toEqual(['atendente', 'garcom', 'gerente'])
+  it('dono cria gerente, garçom, atendente e logística (Fase 6) — nunca outro dono', () => {
+    expect(papeisQuePodeGerenciar('dono').sort()).toEqual(['atendente', 'garcom', 'gerente', 'logistica'])
   })
 
-  it('gerente cria garçom e atendente — nunca outro gerente', () => {
-    expect(papeisQuePodeGerenciar('gerente').sort()).toEqual(['atendente', 'garcom'])
+  it('gerente cria garçom, atendente e logística — nunca outro gerente', () => {
+    expect(papeisQuePodeGerenciar('gerente').sort()).toEqual(['atendente', 'garcom', 'logistica'])
   })
 
   it('quem não gerencia equipe não cria ninguém', () => {
@@ -160,11 +160,10 @@ describe('papéis oferecidos na tela de Equipe', () => {
     }
   })
 
-  it('cozinha, logística e entregador não são oferecidos enquanto forem por token', () => {
+  it('cozinha e entregador não são oferecidos (entram por token); logística sim (Fase 6)', () => {
     for (const papel of ['dono', 'gerente']) {
       const oferecidos = papeisQuePodeGerenciar(papel)
       expect(oferecidos).not.toContain('cozinha')
-      expect(oferecidos).not.toContain('logistica')
       expect(oferecidos).not.toContain('entregador')
       expect(oferecidos).not.toContain('dono')
     }

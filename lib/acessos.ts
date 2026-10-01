@@ -92,7 +92,8 @@ export function primeiraTela(acessos: Acessos | null): string | null {
 export const MODELOS: { chave: string; rotulo: string; papel: string; acessos: Acessos }[] = [
   { chave: 'garcom', rotulo: 'Garçom', papel: 'garcom', acessos: { areas: ['mesas'], sensiveis: [] } },
   { chave: 'caixa', rotulo: 'Caixa', papel: 'atendente', acessos: { areas: ['pedidos', 'pdv', 'mesas', 'clientes'], sensiveis: ['desconto', 'fechar_caixa'] } },
-  { chave: 'cozinha', rotulo: 'Cozinha', papel: 'cozinha', acessos: { areas: ['pedidos', 'cozinha'], sensiveis: [] } },
+  // A tela de preparo é o link da estação (sem login); no painel, a cozinha acompanha o Kanban.
+  { chave: 'cozinha', rotulo: 'Cozinha', papel: 'atendente', acessos: { areas: ['pedidos'], sensiveis: [] } },
   { chave: 'entregador', rotulo: 'Entregador / Logística', papel: 'logistica', acessos: { areas: ['pedidos', 'logistica'], sensiveis: ['fechar_caixa'] } },
   { chave: 'gerente', rotulo: 'Gerente', papel: 'gerente', acessos: { areas: AREAS.map((a) => a.chave).filter((a) => a !== 'equipe'), sensiveis: SENSIVEIS.map((s) => s.chave) } },
 ]
