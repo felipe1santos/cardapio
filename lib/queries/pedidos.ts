@@ -51,6 +51,8 @@ export interface PedidoItem {
   saborNome: string
   bordaNome: string
   massaNome: string
+  /** Item do cardápio (para a ficha de preparo na cozinha). Null em item apagado. */
+  itemId?: string | null
 }
 
 export interface Pedido {
@@ -157,6 +159,7 @@ interface PedidoRow {
   atualizado_em: string
   pedido_itens: {
     id: string
+    item_id?: string | null
     nome: string
     preco_unitario: number
     quantidade: number
@@ -176,7 +179,7 @@ export const PEDIDO_SELECT = `
   forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em,
-  pedido_itens ( id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
+  pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
 export function mapPedido(row: PedidoRow): Pedido {
@@ -234,6 +237,7 @@ export function mapPedido(row: PedidoRow): Pedido {
       saborNome: i.sabor_nome ?? '',
       bordaNome: i.borda_nome ?? '',
       massaNome: i.massa_nome ?? '',
+      itemId: i.item_id ?? null,
     })),
   }
 }
