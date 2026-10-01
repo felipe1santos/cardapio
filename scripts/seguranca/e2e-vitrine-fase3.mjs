@@ -55,15 +55,14 @@ try {
     ok('"Mais Pedidos" centralizado', tBox && Math.abs(tBox.x + tBox.width / 2 - largura / 2) < 30)
     const card = mp.locator('button[data-item-id]').first()
     const cBox = await card.boundingBox()
-    const foto = await card.locator('div.relative > *').first().boundingBox()
-    const xLista = (await p.locator('button[data-item-id]').last().boundingBox())?.x
-    ok('destaque alinhado como os itens da lista', cBox && xLista !== undefined && Math.abs(cBox.x - xLista) <= 1, `x=${cBox?.x} / lista ${xLista}`)
-    // 2026-10-01: destaque com a MESMA largura e foto dos itens da lista normal (mesmo componente).
-    const idDestaque = await card.getAttribute('data-item-id')
-    const naLista = p.locator(`button[data-item-id="${idDestaque}"]`).last()
-    const lBox = await naLista.boundingBox()
-    const lFoto = await naLista.locator('div.relative > *').first().boundingBox()
-    ok('destaque com a mesma largura e a mesma foto do item da lista normal', cBox && lBox && Math.abs(cBox.width - lBox.width) <= 1 && foto && lFoto && Math.abs(foto.width - lFoto.width) <= 1 && Math.abs(foto.height - lFoto.height) <= 1, `${cBox?.width}/${lBox?.width} · foto ${foto?.width}×${foto?.height} / ${lFoto?.width}×${lFoto?.height}`)
+    const foto = await card.locator('div.relative').first().boundingBox()
+    ok('primeiro cartão com a margem do conteúdo (16px)', cBox && Math.abs(cBox.x - 16) <= 1, `x=${cBox?.x}`)
+    // 2026-10-01: a foto do destaque tem o tamanho da foto da lista (120 px; 140 com imagem grande).
+    const fotoLista = await p.locator('button[data-item-id]').last().locator('div.relative > *').first().boundingBox()
+    ok('foto do destaque quadrada e do mesmo tamanho da foto da lista', foto && fotoLista && Math.abs(foto.width - foto.height) <= 1 && Math.abs(foto.width - fotoLista.width) <= 1 && Math.abs(cBox.width - foto.width) <= 1, `foto ${foto?.width}×${foto?.height} · lista ${fotoLista?.width} · cartão ${cBox?.width}`)
+    // Rola para o lado quando os destaques não cabem (com cartões de 120 px, poucos itens cabem inteiros).
+    const rolagem = await mp.locator('div.flex').first().evaluate((el) => ({ snap: getComputedStyle(el).scrollSnapType, overflow: getComputedStyle(el).overflowX, cabe: el.scrollWidth <= el.clientWidth, rola: el.scrollWidth > el.clientWidth }))
+    ok('carrossel horizontal com snap (rola quando não cabe)', /x/.test(rolagem.snap) && rolagem.overflow === 'auto' && (rolagem.rola || rolagem.cabe), JSON.stringify(rolagem))
     if (PRINTS) await p.screenshot({ path: join(PRINTS, `topo-${largura}.png`) })
 
     // Item de teste na lista
@@ -89,8 +88,9 @@ try {
     ok('ícones SVG embutidos (Phosphor), nada de CDN nem emoji', icones >= 4 && externos === 0, String(icones))
     if (PRINTS) await linha.screenshot({ path: join(PRINTS, `produto-etiquetas-${largura}.png`) })
 
-    // Destaque do item de teste: NENHUMA tag nos destaques (regra de 2026-10-01).
+    // Destaque do item de teste: etiqueta principal sobre a foto
     const dest = mp.locator(`button[data-item-id="${itemId}"]`)
+    // Regra de 2026-10-01: destaques sem NENHUMA tag.
     ok('no destaque, nenhuma tag (nem Mais vendido)', (await dest.locator('[data-etiqueta]').count()) === 0)
 
     // Botão do WhatsApp fixo
