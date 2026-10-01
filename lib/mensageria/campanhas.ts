@@ -47,9 +47,46 @@ export function problemasDasVariaveis(mensagem: string, opcoes: { incluirLink: b
  * ligado, {link} vira o link do destinatário (ou ele vai no fim); com o descadastro ligado,
  * o rodapé "Para não receber mais, responda SAIR." fecha a mensagem.
  */
+/**
+ * Botões de link da campanha (Fase 4, 2026-09-30). A conexão das lojas é pelo WhatsApp Web
+ * (Evolution 2.3.7/Baileys, QR Code): o envio de botões dá erro nessa versão e, quando sai,
+ * não aparece em parte dos aparelhos — além de arriscar o número. Por isso os botões saem
+ * SEMPRE como links no texto, um por linha ("👉 Ver cardápio: https://..."); o primeiro
+ * link gera a prévia com a imagem da loja. A campanha nunca falha por causa dos botões.
+ */
+export const BOTOES_MAX = 2
+export const BOTAO_TEXTO_MAX = 20
+
+export interface BotaoCampanha { texto: string; url: string }
+
+/** Valida e limpa os botões vindos da tela. Erro em português ou a lista pronta. */
+export function validarBotoes(bruto: unknown): { ok: true; botoes: BotaoCampanha[] } | { ok: false; erro: string } {
+  if (bruto === undefined || bruto === null) return { ok: true, botoes: [] }
+  if (!Array.isArray(bruto)) return { ok: false, erro: 'Botões inválidos.' }
+  const lista = (bruto as Partial<BotaoCampanha>[]).filter((b) => b && (String(b.texto ?? '').trim() || String(b.url ?? '').trim()))
+  if (lista.length > BOTOES_MAX) return { ok: false, erro: `No máximo ${BOTOES_MAX} botões.` }
+  const botoes: BotaoCampanha[] = []
+  for (const b of lista) {
+    const texto = String(b.texto ?? '').trim()
+    const url = String(b.url ?? '').trim()
+    if (!texto) return { ok: false, erro: 'Escreva o texto do botão.' }
+    if (texto.length > BOTAO_TEXTO_MAX) return { ok: false, erro: `O texto do botão pode ter até ${BOTAO_TEXTO_MAX} caracteres.` }
+    let u: URL
+    try { u = new URL(url) } catch { return { ok: false, erro: `Link inválido no botão "${texto}".` } }
+    if (u.protocol !== 'https:') return { ok: false, erro: `O link do botão "${texto}" precisa começar com https://` }
+    botoes.push({ texto, url: u.toString() })
+  }
+  return { ok: true, botoes }
+}
+
+/** Os botões como linhas de texto (o jeito confiável de enviar pela conexão por QR Code). */
+export function linhasDosBotoes(botoes: BotaoCampanha[] | null | undefined): string {
+  return (botoes ?? []).map((b) => `👉 ${b.texto}: ${b.url}`).join('\n')
+}
+
 export function montarTextoCampanha(
   mensagem: string,
-  opcoes: { incluirLink: boolean; token: string | null; nome?: string | null; incluirDescadastro?: boolean },
+  opcoes: { incluirLink: boolean; token: string | null; nome?: string | null; incluirDescadastro?: boolean; botoes?: BotaoCampanha[] | null },
 ): string {
   let texto = (mensagem ?? '').split(MARCADOR_NOME).join(primeiroNome(opcoes.nome))
   if (opcoes.incluirLink && opcoes.token && TOKEN_VALIDO.test(opcoes.token)) {
@@ -57,6 +94,8 @@ export function montarTextoCampanha(
     if (texto.includes(MARCADOR_LINK)) texto = texto.split(MARCADOR_LINK).join(link)
     else texto = texto.trim() ? `${texto.trimEnd()}\n\n👉 Peça pelo cardápio: ${link}` : link
   }
+  const linhas = linhasDosBotoes(opcoes.botoes)
+  if (linhas) texto = texto.trim() ? `${texto.trimEnd()}\n\n${linhas}` : linhas
   if (opcoes.incluirDescadastro) texto = texto.trim() ? `${texto.trimEnd()}\n\n${RODAPE_DESCADASTRO}` : RODAPE_DESCADASTRO
   return texto
 }

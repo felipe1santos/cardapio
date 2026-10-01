@@ -10,7 +10,7 @@ import {
   cancelarFila,
   type CampanhaInput,
 } from '@/lib/queries/campanhas'
-import { deduplicarDestinatarios, problemasDasVariaveis } from '@/lib/mensageria/campanhas'
+import { deduplicarDestinatarios, problemasDasVariaveis, validarBotoes } from '@/lib/mensageria/campanhas'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -57,6 +57,11 @@ export async function PATCH(request: Request, { params }: Ctx) {
     const tipoFinal = body.tipoMensagem ?? atual.tipo_mensagem
     const variaveis = tipoFinal === 'audio' ? null : problemasDasVariaveis(body.mensagem ?? atual.mensagem ?? '', { incluirLink: body.incluirLink ?? atual.incluir_link === true })
     if (variaveis) return NextResponse.json({ error: variaveis }, { status: 400 })
+    if ('botoes' in body) {
+      const botoes = validarBotoes((body as { botoes?: unknown }).botoes)
+      if (!botoes.ok) return NextResponse.json({ error: botoes.erro }, { status: 400 })
+      ;(patch as Record<string, unknown>).botoes = tipoFinal === 'audio' ? [] : botoes.botoes
+    }
 
     // Público resolvido antes de gravar: sem ninguém, a campanha ficaria agendada sem fila.
     const agendar = !!(body.disparar || body.agendadoEm)

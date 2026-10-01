@@ -14,7 +14,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { erroDeDesconexao, logFalhaEnvio, type EstadoConexaoProvedor, type ProvedorWhatsapp, type ResultadoEnvio } from './provedor'
-import { montarTextoCampanha } from './campanhas'
+import { montarTextoCampanha, type BotaoCampanha } from './campanhas'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { concluirSaida, registrarSaida } from './historico'
 
@@ -33,6 +33,8 @@ interface EnvioReservado {
   evolution_instance: string | null
   slug: string
   incluir_descadastro?: boolean
+  /** Botões da campanha (0118) — carregados à parte, por campanha. */
+  botoes?: BotaoCampanha[]
 }
 
 export interface ResumoCampanhas {
@@ -49,7 +51,18 @@ export interface ResumoCampanhas {
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function textoDoEnvio(e: EnvioReservado): string {
-  return montarTextoCampanha(e.mensagem, { incluirLink: e.incluir_link, token: e.token, nome: e.nome_cliente, incluirDescadastro: e.incluir_descadastro === true })
+  return montarTextoCampanha(e.mensagem, { incluirLink: e.incluir_link, token: e.token, nome: e.nome_cliente, incluirDescadastro: e.incluir_descadastro === true, botoes: e.tipo_mensagem === 'audio' ? [] : e.botoes })
+}
+
+/** Botões de cada campanha do lote, numa consulta só. Falhou: segue sem botões. */
+async function botoesDasCampanhas(admin: SupabaseClient, ids: string[]): Promise<Map<string, BotaoCampanha[]>> {
+  const mapa = new Map<string, BotaoCampanha[]>()
+  if (!ids.length) return mapa
+  try {
+    const { data } = await admin.from('campanhas').select('id, botoes').in('id', ids)
+    for (const c of (data ?? []) as { id: string; botoes: unknown }[]) mapa.set(c.id, Array.isArray(c.botoes) ? (c.botoes as BotaoCampanha[]) : [])
+  } catch { /* sem botões */ }
+  return mapa
 }
 
 /** Disparo enviado: entra no histórico do cliente na central de atendimento (origem "disparo"). */
@@ -58,8 +71,13 @@ async function registrarDisparo(admin: SupabaseClient, e: EnvioReservado, idExte
   if (!numero) return
   const texto = textoDoEnvio(e)
   const tipo = e.tipo_mensagem === 'imagem' && e.imagem_url ? 'imagem' : e.tipo_mensagem === 'audio' && e.audio_url ? 'audio' : 'texto'
+  // Histórico: como saiu. Botões vão como links no texto (conexão por QR Code).
+  const comBotoes = (e.botoes?.length ?? 0) > 0 && tipo !== 'audio'
   const saida = await registrarSaida(admin, {
     restauranteId: e.restaurante_id, telefone: numero, texto: texto || (tipo === 'audio' ? '🎤 Áudio da campanha' : ''), origem: 'disparo', tipo,
+    textoExibido: comBotoes ? `${texto}
+
+(botões enviados como links no texto)` : undefined,
     midiaUrl: tipo === 'imagem' ? e.imagem_url : null,
   })
   await concluirSaida(admin, saida?.mensagemId, true, idExterno)
@@ -116,6 +134,8 @@ export async function processarCampanhas(
   const { data, error } = await admin.rpc('campanha_reservar_envios', { p_limite: opcoes.limite })
   if (error) throw error
   const lista = (data ?? []) as EnvioReservado[]
+  const botoes = await botoesDasCampanhas(admin, [...new Set(lista.map((e) => e.campanha_id))])
+  for (const e of lista) e.botoes = botoes.get(e.campanha_id) ?? []
   const lojasCaidas = new Set<string>()
 
   for (let i = 0; i < lista.length; i++) {

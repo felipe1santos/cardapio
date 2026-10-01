@@ -8,7 +8,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTipo, type TipoMensagem } from '@/lib/queries/campanhas'
 import { formatarReal } from '@/lib/moeda'
-import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora, problemasDasVariaveis, progressoCampanha, situacaoCampanha } from '@/lib/mensageria/campanhas'
+import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora, problemasDasVariaveis, progressoCampanha, situacaoCampanha, BOTOES_MAX, BOTAO_TEXTO_MAX, type BotaoCampanha } from '@/lib/mensageria/campanhas'
 import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -67,16 +67,19 @@ interface FormState {
   agendadoEm: string
   incluirLink: boolean
   incluirDescadastro: boolean
+  /** Botões de link (Fase 4): saem como links no texto. */
+  botoes: BotaoCampanha[]
 }
 
 function formDefault(): FormState {
-  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '', incluirLink: true, incluirDescadastro: true }
+  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '', incluirLink: true, incluirDescadastro: true, botoes: [] }
 }
 
 /** Prévia com um link de exemplo no lugar do link de cada cliente. */
-function mensagemComLink(mensagem: string, incluirLink: boolean, incluirDescadastro = false) {
+function mensagemComLink(mensagem: string, incluirLink: boolean, incluirDescadastro = false, botoes: BotaoCampanha[] = []) {
   // {nome} com um nome de exemplo: a prévia mostra como chega para cada cliente.
-  return montarTextoCampanha(mensagem, { incluirLink, token: '0'.repeat(24), nome: 'Maria', incluirDescadastro }).replace(/\/c\/0{24}/, '/c/…')
+  const validos = botoes.filter((b) => b.texto.trim() && b.url.trim())
+  return montarTextoCampanha(mensagem, { incluirLink, token: '0'.repeat(24), nome: 'Maria', incluirDescadastro, botoes: validos }).replace(/\/c\/0{24}/, '/c/…')
 }
 
 // ─── WhatsApp Bubble (preview) ────────────────────────────────────────────────
@@ -303,6 +306,13 @@ function FiltroEditor({ filtro, onChange }: { filtro: FiltroCampanha; onChange: 
 export default function CampanhasPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  // Link da vitrine para o atalho "Ver cardápio" dos botões.
+  const [slugLoja, setSlugLoja] = useState<string | null>(null)
+  useEffect(() => {
+    if (!restauranteId) return
+    supabase.from('restaurantes').select('slug').eq('id', restauranteId).maybeSingle().then(({ data }) => setSlugLoja((data?.slug as string | undefined) ?? null), () => setSlugLoja(null))
+  }, [supabase, restauranteId])
+  const urlCardapioLoja = slugLoja ? `https://app.menuzia.com.br/loja/${slugLoja}` : ''
   const [campanhas, setCampanhas] = useState<Campanha[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -378,6 +388,7 @@ export default function CampanhasPage() {
       agendadoEm: paraCampoDataHora(c.agendadoEm),
       incluirLink: c.incluirLink,
       incluirDescadastro: c.incluirDescadastro,
+      botoes: c.botoes ?? [],
     })
     setErro(null); setEstimativa(null); setDrawerOpen(true)
   }
@@ -423,6 +434,7 @@ export default function CampanhasPage() {
         agendadoEm: dispararAgora ? new Date().toISOString() : (form.agendadoEm ? new Date(form.agendadoEm).toISOString() : null),
         incluirLink: form.tipoMensagem !== 'audio' && form.incluirLink,
         incluirDescadastro: form.tipoMensagem !== 'audio' && form.incluirDescadastro,
+        botoes: form.tipoMensagem === 'audio' ? [] : form.botoes.filter((b) => b.texto.trim() || b.url.trim()),
         disparar: true,
       }
       const res = editingId
@@ -714,6 +726,40 @@ export default function CampanhasPage() {
               </label>
             )}
 
+            {/* Botões (Fase 4) */}
+            {form.tipoMensagem !== 'audio' && (
+              <div className="rounded-menuzia border border-border px-3 py-3" data-testid="campanha-botoes">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-text-main">Botões (opcional)</span>
+                  {form.botoes.length < BOTOES_MAX && (
+                    <span className="flex gap-2">
+                      {slugLoja && !form.botoes.some((b) => b.url === urlCardapioLoja) && (
+                        <button type="button" data-testid="botao-ver-cardapio" onClick={() => setForm((f) => ({ ...f, botoes: [...f.botoes, { texto: 'Ver cardápio', url: urlCardapioLoja }] }))}
+                          className="rounded-menuzia border border-primary/40 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/5">+ Ver cardápio</button>
+                      )}
+                      <button type="button" data-testid="botao-adicionar" onClick={() => setForm((f) => ({ ...f, botoes: [...f.botoes, { texto: '', url: 'https://' }] }))}
+                        className="rounded-menuzia border border-border px-2 py-1 text-[11px] font-semibold text-text-subtle hover:bg-page">+ Botão</button>
+                    </span>
+                  )}
+                </div>
+                {form.botoes.map((b, i) => (
+                  <div key={i} className="mt-2 flex gap-2">
+                    <input value={b.texto} maxLength={BOTAO_TEXTO_MAX} placeholder="Texto (ex.: Pegar cupom)"
+                      onChange={(e) => setForm((f) => ({ ...f, botoes: f.botoes.map((x, j) => (j === i ? { ...x, texto: e.target.value } : x)) }))}
+                      className="w-[38%] rounded-menuzia border border-border px-2 py-1.5 text-[13px]" data-testid={`botao-texto-${i}`} />
+                    <input value={b.url} placeholder="https://"
+                      onChange={(e) => setForm((f) => ({ ...f, botoes: f.botoes.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) }))}
+                      className="min-w-0 flex-1 rounded-menuzia border border-border px-2 py-1.5 text-[13px]" data-testid={`botao-url-${i}`} />
+                    <button type="button" aria-label="Remover botão" onClick={() => setForm((f) => ({ ...f, botoes: f.botoes.filter((_, j) => j !== i) }))}
+                      className="rounded-menuzia border border-border px-2 text-text-subtle hover:text-danger">×</button>
+                  </div>
+                ))}
+                <p className="mt-2 text-[11px] text-text-subtle">
+                  Até {BOTOES_MAX} botões com link https. Pela conexão do WhatsApp por QR Code, botões não aparecem em todos os celulares — por isso eles saem como links no texto, um por linha (o primeiro mostra a prévia com a imagem da loja).
+                </p>
+              </div>
+            )}
+
             {/* Filtro */}
             <FiltroEditor filtro={form.filtro} onChange={(f) => setForm((prev) => ({ ...prev, filtro: f }))} />
 
@@ -746,7 +792,7 @@ export default function CampanhasPage() {
             <div className="flex-1">
               <WhatsappPreview
                 tipo={form.tipoMensagem}
-                mensagem={form.tipoMensagem === 'audio' ? form.mensagem : mensagemComLink(form.mensagem, form.incluirLink, form.incluirDescadastro)}
+                mensagem={form.tipoMensagem === 'audio' ? form.mensagem : mensagemComLink(form.mensagem, form.incluirLink, form.incluirDescadastro, form.botoes)}
                 imagemUrl={form.imagemUrl}
                 audioUrl={form.audioUrl}
               />

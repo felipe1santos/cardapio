@@ -8,7 +8,7 @@ import {
   popularFilaCampanha,
   type CampanhaInput,
 } from '@/lib/queries/campanhas'
-import { deduplicarDestinatarios, problemasDasVariaveis } from '@/lib/mensageria/campanhas'
+import { deduplicarDestinatarios, problemasDasVariaveis, validarBotoes } from '@/lib/mensageria/campanhas'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -47,6 +47,9 @@ export async function POST(request: Request) {
     // Variável desconhecida ({Nome}, {cupom}…) sairia literal para o cliente: bloqueia.
     const variaveis = body.tipoMensagem === 'audio' ? null : problemasDasVariaveis(body.mensagem ?? '', { incluirLink: body.incluirLink === true })
     if (variaveis) return NextResponse.json({ error: variaveis }, { status: 400 })
+    const botoes = validarBotoes(body.botoes)
+    if (!botoes.ok) return NextResponse.json({ error: botoes.erro }, { status: 400 })
+    body.botoes = body.tipoMensagem === 'audio' ? [] : botoes.botoes
 
     // Se já tem agendamento, o público é resolvido ANTES de criar: campanha agendada sem
     // ninguém na fila nunca concluía (ficava "agendada" para sempre).

@@ -1,3 +1,4 @@
+import type { BotaoCampanha } from '@/lib/mensageria/campanhas'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizarTelefone } from './clientes'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
@@ -40,6 +41,8 @@ export interface Campanha {
   duplicadosBloqueados: number
   /** Rodapé "Para não receber mais, responda SAIR." (0112). */
   incluirDescadastro: boolean
+  /** Botões de link (0118), enviados como links no texto. */
+  botoes: BotaoCampanha[]
   /** Pausada porque o WhatsApp da loja caiu (0112). */
   pausadaEm: string | null
   pausaMotivo: string | null
@@ -67,6 +70,7 @@ function mapCampanha(row: any): Campanha {
     incluirLink: row.incluir_link === true,
     duplicadosBloqueados: row.duplicados_bloqueados ?? 0,
     incluirDescadastro: row.incluir_descadastro === true,
+    botoes: Array.isArray(row.botoes) ? (row.botoes as BotaoCampanha[]) : [],
     pausadaEm: row.pausada_em ?? null,
     pausaMotivo: row.pausa_motivo ?? null,
   }
@@ -74,7 +78,7 @@ function mapCampanha(row: any): Campanha {
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em, incluir_link, duplicados_bloqueados, incluir_descadastro, pausada_em, pausa_motivo'
+const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em, incluir_link, duplicados_bloqueados, incluir_descadastro, pausada_em, pausa_motivo, botoes'
 
 export async function listarCampanhas(supabase: SupabaseClient, restauranteId: string): Promise<Campanha[]> {
   const { data, error } = await supabase
@@ -96,6 +100,7 @@ export interface CampanhaInput {
   agendadoEm?: string | null
   incluirLink?: boolean
   incluirDescadastro?: boolean
+  botoes?: BotaoCampanha[]
 }
 
 export async function criarCampanha(supabase: SupabaseClient, restauranteId: string, input: CampanhaInput): Promise<Campanha> {
@@ -112,6 +117,7 @@ export async function criarCampanha(supabase: SupabaseClient, restauranteId: str
       agendado_em: input.agendadoEm ?? null,
       incluir_link: input.incluirLink === true,
       incluir_descadastro: input.incluirDescadastro === true,
+      botoes: input.botoes ?? [],
       status: input.agendadoEm ? 'agendada' : 'rascunho',
     })
     .select(CAMPANHA_SELECT)
@@ -130,6 +136,7 @@ export async function atualizarCampanha(supabase: SupabaseClient, restauranteId:
   if (patch.filtro !== undefined) row.filtro = patch.filtro
   if (patch.incluirLink !== undefined) row.incluir_link = patch.incluirLink === true
   if (patch.incluirDescadastro !== undefined) row.incluir_descadastro = patch.incluirDescadastro === true
+  if (patch.botoes !== undefined) row.botoes = patch.botoes
   if ('agendadoEm' in patch) {
     row.agendado_em = patch.agendadoEm ?? null
     if (!patch.status) row.status = patch.agendadoEm ? 'agendada' : 'rascunho'

@@ -164,3 +164,25 @@ describe('situação e progresso da campanha', () => {
     expect(progressoCampanha({ totalDestinatarios: 10, totalEnviados: 3, totalErros: 1 })).toEqual({ total: 10, enviados: 3, falhas: 1, restantes: 6 })
   })
 })
+
+describe('botões da campanha (Fase 4)', () => {
+  it('valida: máx. 2, texto até 20, link https', async () => {
+    const { validarBotoes } = await import('./campanhas')
+    expect(validarBotoes(undefined)).toEqual({ ok: true, botoes: [] })
+    expect(validarBotoes([{ texto: 'Ver cardápio', url: 'https://app.menuzia.com.br/loja/x' }])).toMatchObject({ ok: true })
+    expect(validarBotoes([{ texto: 'A', url: 'https://a.com' }, { texto: 'B', url: 'https://b.com' }, { texto: 'C', url: 'https://c.com' }])).toMatchObject({ ok: false })
+    expect(validarBotoes([{ texto: 'x'.repeat(21), url: 'https://a.com' }])).toMatchObject({ ok: false })
+    expect(validarBotoes([{ texto: 'Site', url: 'http://a.com' }])).toMatchObject({ ok: false, erro: expect.stringMatching(/https/) })
+    expect(validarBotoes([{ texto: 'Site', url: 'javascript:alert(1)' }])).toMatchObject({ ok: false })
+    expect(validarBotoes([{ texto: '', url: '' }])).toEqual({ ok: true, botoes: [] })
+  })
+  it('saem como links no texto, um por linha, antes do rodapé do SAIR', async () => {
+    const { montarTextoCampanha } = await import('./campanhas')
+    const t = montarTextoCampanha('Promo hoje!', { incluirLink: false, token: null, incluirDescadastro: true, botoes: [{ texto: 'Ver cardápio', url: 'https://app.menuzia.com.br/loja/x' }, { texto: 'Pegar cupom', url: 'https://app.menuzia.com.br/c/1' }] })
+    expect(t).toBe('Promo hoje!\n\n👉 Ver cardápio: https://app.menuzia.com.br/loja/x\n👉 Pegar cupom: https://app.menuzia.com.br/c/1\n\nPara não receber mais, responda SAIR.')
+  })
+  it('campanha antiga (sem botões) sai igual', async () => {
+    const { montarTextoCampanha } = await import('./campanhas')
+    expect(montarTextoCampanha('Oi', { incluirLink: false, token: null })).toBe('Oi')
+  })
+})
