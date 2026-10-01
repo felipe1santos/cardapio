@@ -36,6 +36,7 @@ export const SENSIVEIS = [
   { chave: 'financeiro', rotulo: 'Ver valores e relatórios financeiros' },
   { chave: 'disparar_campanhas', rotulo: 'Disparar campanhas' },
   { chave: 'editar_precos', rotulo: 'Editar preços' },
+  { chave: 'clientes_csv', rotulo: 'Importar/exportar clientes' },
 ] as const
 
 export type Sensivel = (typeof SENSIVEIS)[number]['chave']
@@ -131,11 +132,23 @@ export function sensivelDaRequisicao(metodo: string, pathname: string, corpo: un
   }
   // Taxas da conta (serviço, couvert, outras — 0124) e a taxa extra (0106).
   if (/^\/api\/admin\/(comandas\/[^/]+|mesas\/[^/]+\/conta)\/?$/.test(pathname) && (c.acao === 'taxas' || c.acao === 'taxa_extra')) return 'taxa'
+  // Importar/exportar clientes (CSV) e desfazer importação.
+  if (/^\/api\/admin\/clientes\/(exportar|importar|importacoes)(\/.*)?$/.test(pathname)) return 'clientes_csv'
   if (/^\/api\/admin\/caixa\/?$/.test(pathname) && (c.acao === 'fechar' || c.acao === 'acertar')) return 'fechar_caixa'
   if (/^\/api\/admin\/campanhas(\/[^/]+)?\/?$/.test(pathname) && (c.disparar === true || !!c.agendadoEm)) return 'disparar_campanhas'
   // Notificações push do app (0127): enviar avulsa (agora ou agendada) e o teste também disparam.
   if (metodo === 'POST' && /^\/api\/admin\/campanhas\/push\/(avulsas|teste)\/?$/.test(pathname)) return 'disparar_campanhas'
   return null
+}
+
+/**
+ * Importar/exportar clientes (CSV): dono sempre; gerente pelo papel; com acessos próprios,
+ * precisa da área Clientes E da permissão "Importar/exportar clientes".
+ */
+export function podeClientesCsv(papel: string | null, acessos: Acessos | null): boolean {
+  if (papel === 'dono') return true
+  if (acessos) return acessos.areas.includes('clientes') && acessos.sensiveis.includes('clientes_csv')
+  return papel === 'gerente'
 }
 
 /** Dashboard mostra faturamento: além da área, exige "ver valores/relatórios financeiros". */

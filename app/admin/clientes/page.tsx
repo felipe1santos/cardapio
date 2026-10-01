@@ -9,15 +9,18 @@ import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import {
   listarClientesComMetricas,
-  gerarCsvMetaAds,
   type ClienteMetrica,
 } from '@/lib/queries/clientes'
+import { MenuCsv } from '@/components/admin/clientes/menu-csv'
+import { PilhaToasts, useToasts } from '@/components/admin/toasts'
+import { normalizarAcessos, podeClientesCsv } from '@/lib/acessos'
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 const brl = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-function formatarData(iso: string) {
+function formatarData(iso: string | null) {
+  if (!iso) return '—'
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
@@ -39,6 +42,21 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  /** CSV (importar/exportar): dono, gerente, ou quem tem a permissão nos acessos. O servidor confere de novo. */
+  const [podeCsv, setPodeCsv] = useState(false)
+  const toasts = useToasts()
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return
+      const { data: u } = await supabase.from('usuarios').select('papel, acessos').eq('id', data.user.id).maybeSingle()
+      if (u) setPodeCsv(podeClientesCsv(u.papel as string, normalizarAcessos((u as { acessos?: unknown }).acessos)))
+    }, () => {})
+  }, [supabase])
+  async function recarregar() {
+    if (!restauranteId) return
+    try { setClientes(await listarClientesComMetricas(supabase, restauranteId)) } catch { /* mantém a lista */ }
+  }
   const rolagemRef = useRef<HTMLDivElement>(null)
   const [janela, setJanela] = useState({ top: 0, altura: 800 })
   useEffect(() => {
@@ -61,6 +79,7 @@ export default function ClientesPage() {
         setLoading(false)
         return
       }
+      setRestauranteId(id)
       try {
         setClientes(await listarClientesComMetricas(supabase, id))
       } catch {
@@ -85,22 +104,13 @@ export default function ClientesPage() {
     : `${clientes.length.toLocaleString('pt-BR')} ${clientes.length === 1 ? 'cliente' : 'clientes'}`
 
   const stats = useMemo(() => {
+    // Importados sem pedido entram no total, mas não nas métricas de compra (0131).
     const total = clientes.length
-    const recorrentes = clientes.filter((c) => c.totalPedidos > 1).length
-    const ticketMedio = total ? clientes.reduce((s, c) => s + c.ticketMedio, 0) / total : 0
-    return { total, unicos: total - recorrentes, recorrentes, ticketMedio }
+    const compraram = clientes.filter((c) => c.totalPedidos > 0)
+    const recorrentes = compraram.filter((c) => c.totalPedidos > 1).length
+    const ticketMedio = compraram.length ? compraram.reduce((s, c) => s + c.ticketMedio, 0) / compraram.length : 0
+    return { total, unicos: compraram.length - recorrentes, recorrentes, ticketMedio }
   }, [clientes])
-
-  const exportarCsv = () => {
-    const csv = gerarCsvMetaAds(filtrados)
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `clientes-meta-ads-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
 
   if (loading) {
     return (
@@ -148,13 +158,7 @@ export default function ClientesPage() {
                   data-testid="clientes-busca"
                 />
               </div>
-              <button
-                onClick={exportarCsv}
-                disabled={filtrados.length === 0}
-                className="rounded-menuzia bg-primary px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
-              >
-                Exportar CSV (Meta Ads)
-              </button>
+              {podeCsv && <MenuCsv onToast={toasts.mostrar} onMudou={() => void recarregar()} />}
             </div>
           </div>
 
@@ -172,7 +176,7 @@ export default function ClientesPage() {
               <div key={cliente.telefone} className="rounded-menuzia border border-border bg-white p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-[14px] font-bold">{cliente.nome || '—'}</div>
+                    <div className="truncate text-[14px] font-bold">{cliente.nome || '—'}{cliente.origem === 'importado' && <span className="ml-1.5 rounded-[3px] bg-[#E0F2FE] px-1 py-[1px] text-[10.5px] font-semibold text-[#0570AE]">Importado</span>}</div>
                     <div className="text-[12px] text-text-subtle">{cliente.telefone}</div>
                   </div>
                   <div className="flex-shrink-0 text-right">
@@ -186,7 +190,7 @@ export default function ClientesPage() {
                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border pt-3 text-[12px]">
                   <div>
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Última compra</dt>
-                    <dd className="mt-0.5">{formatarData(cliente.ultimaCompraEm)}</dd>
+                    <dd className="mt-0.5">{cliente.ultimaCompraEm ? formatarData(cliente.ultimaCompraEm) : cliente.importadoEm ? `Importado (${new Date(cliente.importadoEm).toLocaleDateString('pt-BR')})` : '—'}</dd>
                   </div>
                   <div>
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Ticket médio</dt>
@@ -252,13 +256,14 @@ export default function ClientesPage() {
                           <tr key={cliente.telefone} className="group" style={{ height: ALTURA_LINHA }} data-cliente-linha>
                             <td className="sticky left-0 z-10 truncate whitespace-nowrap border-b border-[var(--adm-borda)] bg-white px-3 py-2 font-semibold text-[var(--adm-texto)] group-hover:bg-[#f7f8f9]" title={cliente.nome}>
                               {cliente.nome || '—'}
+                              {cliente.origem === 'importado' && <span className="ml-1.5 rounded-[3px] bg-[#E0F2FE] px-1 py-[1px] text-[10.5px] font-semibold text-[#0570AE]" data-testid="selo-importado">Importado</span>}
                             </td>
                             <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 tabular-nums text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">{cliente.telefone}</td>
                             <td className="truncate whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-[var(--adm-texto-suave)] group-hover:bg-[#f7f8f9]" title={endereco}>
                               {endereco || '—'}
                             </td>
                             <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right font-semibold tabular-nums group-hover:bg-[#f7f8f9]">{cliente.totalPedidos}</td>
-                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 tabular-nums text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">{formatarData(cliente.ultimaCompraEm)}</td>
+                            <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 tabular-nums text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">{cliente.ultimaCompraEm ? formatarData(cliente.ultimaCompraEm) : cliente.importadoEm ? `Importado (${new Date(cliente.importadoEm).toLocaleDateString('pt-BR')})` : '—'}</td>
                             <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right font-semibold tabular-nums text-price-text group-hover:bg-[#f7f8f9]">{brl(cliente.valorTotal)}</td>
                             <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right tabular-nums group-hover:bg-[#f7f8f9]">{brl(cliente.ticketMedio)}</td>
                             <td className="whitespace-nowrap border-b border-[var(--adm-borda)] px-3 py-2 text-right tabular-nums text-[var(--adm-texto-medio)] group-hover:bg-[#f7f8f9]">
@@ -282,6 +287,7 @@ export default function ClientesPage() {
         )}
         </div>
       </div>
+      <PilhaToasts itens={toasts.itens} />
     </>
   )
 }

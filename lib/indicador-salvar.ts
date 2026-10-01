@@ -49,6 +49,9 @@ export function ehGravacaoDoUsuario(
   // Central de atendimento do WhatsApp: tem o próprio retorno (balão enviando/enviado,
   // avisos) e um "Salvando…" no meio da tela a cada mensagem cobriria a conversa.
   if (caminho.startsWith('/api/admin/whatsapp/atendimento/')) return false
+  // CSV dos clientes: exportar é download, a conferência não grava nada e a importação
+  // tem barra de progresso e resultado próprios.
+  if (/^\/api\/admin\/clientes\/(exportar|importar)(\/|$)/.test(caminho)) return false
   return caminho.includes('/rest/v1/') || caminho.includes('/storage/v1/object/') || caminho.startsWith('/api/')
 }
 

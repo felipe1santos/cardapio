@@ -256,11 +256,31 @@ export interface ClienteMetrica {
   totalPedidos: number
   valorTotal: number
   ticketMedio: number
-  primeiraCompraEm: string
-  ultimaCompraEm: string
+  /** Null = cliente importado que ainda não pediu (0131). */
+  primeiraCompraEm: string | null
+  ultimaCompraEm: string | null
+  /** Primeira compra; para importado sem pedido, a data da importação. */
+  cadastradoEm: string | null
+  /** 'importado' = veio de um CSV (0131). Null = cadastro de sempre. */
+  origem: 'importado' | null
+  importadoEm: string | null
   pedidosPorSemana: number
   gastoSemanalMedio: number
   diaSemanaPreferido: number | null // 0 = domingo .. 6 = sábado
+}
+
+interface PerfilClienteRow {
+  telefone: string
+  sexo: SexoCliente
+  nome: string | null
+  endereco_rua: string | null
+  endereco_numero: string | null
+  endereco_complemento: string | null
+  endereco_bairro: string | null
+  endereco_cep: string | null
+  endereco_cidade: string | null
+  origem: string | null
+  criado_em: string
 }
 
 interface PedidoClienteRow {
@@ -297,9 +317,9 @@ export async function listarClientesComMetricas(supabase: SupabaseClient, restau
       .order('criado_em', { ascending: true })
       .order('id', { ascending: true })
       .range(de, ate)),
-    lerTodas<{ telefone: string; sexo: SexoCliente }>((de, ate) => supabase
+    lerTodas<PerfilClienteRow>((de, ate) => supabase
       .from('clientes')
-      .select('telefone, sexo')
+      .select('telefone, sexo, nome, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, origem, criado_em')
       .eq('restaurante_id', restauranteId)
       .order('criado_em', { ascending: true })
       .order('id', { ascending: true })
@@ -307,8 +327,9 @@ export async function listarClientesComMetricas(supabase: SupabaseClient, restau
   ])
 
   const sexoPorTelefone = new Map<string, SexoCliente>(
-    (perfis ?? []).map((p: { telefone: string; sexo: SexoCliente }) => [normalizarTelefone(p.telefone), p.sexo])
+    (perfis ?? []).map((p: PerfilClienteRow) => [normalizarTelefone(p.telefone), p.sexo])
   )
+  const perfilPorTelefone = new Map<string, PerfilClienteRow>((perfis ?? []).map((p: PerfilClienteRow) => [normalizarTelefone(p.telefone), p]))
 
   const grupos = new Map<string, PedidoClienteRow[]>()
   for (const pedido of (pedidos ?? []) as PedidoClienteRow[]) {
@@ -357,13 +378,42 @@ export async function listarClientesComMetricas(supabase: SupabaseClient, restau
       ticketMedio: valorTotal / totalPedidos,
       primeiraCompraEm: primeiro.criado_em,
       ultimaCompraEm: ultimo.criado_em,
+      cadastradoEm: primeiro.criado_em,
+      origem: perfilPorTelefone.get(chave)?.origem === 'importado' ? 'importado' : null,
+      importadoEm: perfilPorTelefone.get(chave)?.origem === 'importado' ? perfilPorTelefone.get(chave)!.criado_em : null,
       pedidosPorSemana: totalPedidos / semanas,
       gastoSemanalMedio: valorTotal / semanas,
       diaSemanaPreferido,
     })
   }
 
-  resultado.sort((a, b) => new Date(b.ultimaCompraEm).getTime() - new Date(a.ultimaCompraEm).getTime())
+  // Importados que ainda não pediram (0131): entram na lista com 0 pedidos. Não mexem nas
+  // métricas de compra — quem calcula "Compraram 1x", "Recorrentes" e "Ticket médio" olha só
+  // quem tem pedido.
+  for (const [chave, p] of perfilPorTelefone) {
+    if (p.origem !== 'importado' || grupos.has(chave)) continue
+    resultado.push({
+      telefone: p.telefone,
+      nome: p.nome ?? '',
+      endereco: { rua: p.endereco_rua ?? '', numero: p.endereco_numero ?? '', complemento: p.endereco_complemento ?? '', bairro: p.endereco_bairro ?? '', cep: p.endereco_cep ?? '', cidade: p.endereco_cidade ?? '', referencia: '' },
+      sexo: p.sexo ?? '',
+      totalPedidos: 0,
+      valorTotal: 0,
+      ticketMedio: 0,
+      primeiraCompraEm: null,
+      ultimaCompraEm: null,
+      cadastradoEm: p.criado_em,
+      origem: 'importado',
+      importadoEm: p.criado_em,
+      pedidosPorSemana: 0,
+      gastoSemanalMedio: 0,
+      diaSemanaPreferido: null,
+    })
+  }
+
+  // Quem já comprou primeiro (última compra mais recente); importados sem pedido no fim, os mais novos antes.
+  const ts = (c: ClienteMetrica) => (c.ultimaCompraEm ? new Date(c.ultimaCompraEm).getTime() : -1)
+  resultado.sort((a, b) => ts(b) - ts(a) || (b.cadastradoEm ?? '').localeCompare(a.cadastradoEm ?? ''))
   return resultado
 }
 

@@ -193,6 +193,7 @@ export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[] }[] = [
       { tipo: 'sensivel', chave: 'fechar_caixa', rotulo: rotSens('fechar_caixa'), descricao: 'Fechar e acertar o caixa.' },
       { tipo: 'sensivel', chave: 'disparar_campanhas', rotulo: rotSens('disparar_campanhas'), descricao: 'Enviar campanhas e notificações.' },
       { tipo: 'sensivel', chave: 'editar_precos', rotulo: rotSens('editar_precos'), descricao: 'Mudar preço e promoção no cardápio.' },
+      { tipo: 'sensivel', chave: 'clientes_csv', rotulo: rotSens('clientes_csv'), descricao: 'Baixar a base de clientes e importar planilhas.' },
     ],
   },
 ]
