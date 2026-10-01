@@ -895,10 +895,10 @@ export function ReceberModal({
             <span className="text-[28px] font-extrabold text-text-main" data-testid="receber-restante">{formatBRL(restante)}</span>
           </div>
           {/* O que já mexeu no total: taxas (azul) e desconto (verde), como na conta. */}
-          {(conta.totais.taxaServico > 0 || conta.taxas.length > 0 || conta.totais.desconto > 0) && (
+          {(conta.totais.taxaServico > 0 || (conta.taxas ?? []).length > 0 || conta.totais.desconto > 0) && (
             <div data-testid="receber-ajustes">
               {conta.totais.taxaServico > 0 && <LinhaAjuste tipo="taxa" rotulo={`Taxa de serviço (${conta.taxaServicoPercentual}%)`} valor={conta.totais.taxaServico} />}
-              {conta.taxas.map((t, i) => <LinhaAjuste key={i} tipo="taxa" rotulo={rotuloTaxa(t)} valor={t.valor} />)}
+              {(conta.taxas ?? []).map((t, i) => <LinhaAjuste key={i} tipo="taxa" rotulo={rotuloTaxa(t)} valor={t.valor} />)}
               {conta.totais.desconto > 0 && <LinhaAjuste tipo="desconto" rotulo={conta.cupomCodigo ? `Desconto (cupom ${conta.cupomCodigo})` : 'Desconto'} valor={conta.totais.desconto} />}
             </div>
           )}

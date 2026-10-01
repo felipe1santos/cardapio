@@ -58,16 +58,16 @@ async function logar(viewport) {
 const dispensar = (page) => page.getByRole('button', { name: /ok, entendi/i }).click({ timeout: 2500 }).catch(() => {})
 const irPdv = async (page) => { await page.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' }); await dispensar(page) }
 
-/** Uma tela por vez: quem aparece no ponto central é a tela do TOPO, e ela é opaca. */
+/** Uma janela grande por vez: a do TOPO está no ponto central e as grandes de baixo ficam ocultas. */
 const telaUnica = (page) =>
   page.evaluate(() => {
     const telas = [...document.querySelectorAll('[data-tela-pdv]')]
     const topo = telas[telas.length - 1]
     if (!topo) return { n: 0, ok: false }
     const noCentro = document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('[data-tela-pdv]')
-    const fundo = getComputedStyle(topo).backgroundColor
-    const opaca = /^rgb\(/.test(fundo) || /rgba\([^)]*,\s*1\)$/.test(fundo)
-    return { n: telas.length, ok: noCentro === topo && opaca, titulo: topo.querySelector('[data-testid="tela-titulo"]')?.textContent }
+    // 2026-10-01: o fundo da página aparece escurecido atrás; as janelas GRANDES de baixo ficam ocultas.
+    const debaixoOcultas = telas.slice(0, -1).every((t) => t.getAttribute('data-tamanho') === 'pequena' || getComputedStyle(t).visibility === 'hidden')
+    return { n: telas.length, ok: noCentro === topo && debaixoOcultas, titulo: topo.querySelector('[data-testid="tela-titulo"]')?.textContent }
   })
 const qtdTelas = (page) => page.locator('[data-tela-pdv]').count()
 
@@ -116,7 +116,7 @@ try {
   await p.getByTestId('conta-tela').waitFor()
   const cm = await um(`select id from comandas where mesa_id=$1 and status='aberta'`, [mesa.id])
   let t = await telaUnica(p)
-  ok('conta abre como UMA tela (opaca, no topo)', t.n === 1 && t.ok, `${t.n} tela(s)`)
+  ok('conta abre como UMA janela (no topo)', t.n === 1 && t.ok, `${t.n} tela(s)`)
 
   // dado digitado na conta, para conferir que ela volta igual
   await p.getByTestId('conta-cupom-codigo').fill('PRESERVA1')

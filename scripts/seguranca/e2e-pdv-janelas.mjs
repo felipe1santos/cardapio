@@ -28,7 +28,10 @@ const secao = (t) => console.log(`\n── ${t} ──`)
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms))
 const foto = async (p, nome) => { if (PRINTS) await p.screenshot({ path: join(PRINTS, `${nome}.png`) }) }
 
-const loja = await um(`select id, pdv_v2 from restaurantes where slug=$1`, [E2E_LOJA])
+const loja = await um(`select id, pdv_v2, pizza_calculo_preco from restaurantes where slug=$1`, [E2E_LOJA])
+// Meio a meio pela regra da loja: média (72,50) ou maior (75,00) de Calabresa 70 + Portuguesa 75.
+const MEIO = loja.pizza_calculo_preco === 'maior' ? 75 : 72.5
+const MEIO_TXT = MEIO.toFixed(2).replace('.', ',')
 const L = loja.id
 
 // ── semente ─────────────────────────────────────────────────────────────────
@@ -163,7 +166,7 @@ try {
   ok('preço R$ 50,00 no G', /R\$\s?50,00/.test(await p.getByTestId('config-adicionar').innerText()))
   await p.locator('[data-config-tamanho="TESTE GG"]').click()
   await p.locator('[data-config-sabor="Portuguesa"]').click()
-  ok('GG meio a meio (até 2): Calabresa + Portuguesa, preço pela regra da loja', /Adicionar · R\$\s?72,50/.test(await p.getByTestId('config-adicionar').innerText()), await p.getByTestId('config-adicionar').innerText())
+  ok('GG meio a meio (até 2): Calabresa + Portuguesa, preço pela regra da loja', new RegExp(`Adicionar · R\\$\\s?${MEIO_TXT}`).test(await p.getByTestId('config-adicionar').innerText()), await p.getByTestId('config-adicionar').innerText())
   await foto(p, '05-pizza-meio-a-meio')
   await p.getByTestId('config-adicionar').click()
   await p.getByRole('button', { name: /Adicionar TESTE Pizza Sem Sabor/ }).click()
@@ -185,7 +188,7 @@ try {
   const itens = await q(`select pi.nome, pi.sabor_nome, pi.tamanho_nome, pi.preco_unitario, pi.quantidade, pi.complementos from pedido_itens pi join pedidos pe on pe.id=pi.pedido_id join comandas c on c.id=pe.comanda_id where c.restaurante_id=$1 and c.cliente_nome='TESTE Janelas' and c.status='aberta' order by pi.nome`, [L])
   const por = Object.fromEntries(itens.map((i) => [i.nome, i]))
   ok('cozinha recebeu o açaí ×2 com Banana ×2 e Chocolate (R$ 25,50 cada)', por['TESTE Açaí 500 mL']?.quantidade === 2 && Number(por['TESTE Açaí 500 mL']?.preco_unitario) === 25.5, JSON.stringify(por['TESTE Açaí 500 mL']))
-  ok('pizza meio a meio gravada "Calabresa / Portuguesa" (R$ 72,50)', por['TESTE Pizza Calabresa']?.sabor_nome === 'Calabresa / Portuguesa' && Number(por['TESTE Pizza Calabresa']?.preco_unitario) === 72.5)
+  ok(`pizza meio a meio gravada "Calabresa / Portuguesa" (R$ ${MEIO_TXT}, regra ${loja.pizza_calculo_preco})`, por['TESTE Pizza Calabresa']?.sabor_nome === 'Calabresa / Portuguesa' && Number(por['TESTE Pizza Calabresa']?.preco_unitario) === MEIO)
   ok('pizza sem sabores gravada sem sabor, R$ 39,00', por['TESTE Pizza Sem Sabor']?.sabor_nome === '' && Number(por['TESTE Pizza Sem Sabor']?.preco_unitario) === 39)
   ok('brotinho gravada com o sabor e R$ 49,00', por['TESTE Pizza Brotinho']?.sabor_nome === 'Brot Milho' && Number(por['TESTE Pizza Brotinho']?.preco_unitario) === 49)
 
@@ -210,10 +213,12 @@ try {
   t = await telas(p)
   const conta = t.find((x) => x.testid === 'conta-tela')
   ok('Desconto: janela pequena SOBRE a conta (a conta continua à vista)', t.at(-1).tamanho === 'pequena' && conta && !conta.coberta && conta.visivel === 'visible', JSON.stringify(t))
+  await esperar(400)
   await foto(p, '07-desconto-sobre-conta')
   const pequena = p.locator('[data-tamanho="pequena"]').last()
   await pequena.getByRole('button', { name: /Desconto em %/ }).click()
   await pequena.locator('input').nth(1).fill('10')
+  await pequena.locator('input').nth(2).fill('TESTE cortesia')
   await pequena.getByRole('button', { name: /Salvar/ }).click()
   await p.getByTestId('conta-desconto').waitFor({ timeout: 10000 })
   ok('desconto em pílula verde "Desconto (10%) − R$"', /Desconto \(10%\)[\s\S]*−\s?R\$/.test(await p.getByTestId('conta-desconto').innerText()) && /rgb\(26, 167, 100\)/.test(await p.getByTestId('conta-desconto').evaluate((e) => getComputedStyle(e).color)))
@@ -247,11 +252,11 @@ try {
   ok('Voltar (Esc): a conta volta igual (cupom digitado)', (await p.getByTestId('conta-cupom-codigo').inputValue()) === 'PRESERVA')
   await p.getByTestId('conta-fechar').click()
   await p.getByTestId('fechar-modal').waitFor()
-  ok('Fechar conta mostra o desconto em verde', (await p.getByTestId('fechar-desconto').count()) === 1)
   const ent = p.locator('[data-testid^="fechar-pendencia-"][data-testid$="-entregue"]')
   await ent.first().waitFor({ timeout: 8000 }).catch(() => {})
   for (let i = 0, n = await ent.count(); i < n; i++) await ent.nth(i).click()
   await p.getByTestId('fechar-restante-topo').waitFor({ timeout: 15000 })
+  ok('Fechar conta mostra o desconto em verde', (await p.getByTestId('fechar-desconto').count()) === 1)
   await p.getByTestId('fechar-pag-0-forma-pix').click()
   await p.getByTestId('fechar-atalhos').getByRole('button', { name: 'Exato' }).click()
   await p.getByTestId('fechar-confirmar').click()
@@ -263,7 +268,7 @@ try {
 
   // ════════════════════════════════════════════════════════════════════════
   secao('7. Mesa ocupada → Conta por cima da grade; Conta › Lançar → Lançar itens')
-  const outra = await um(`select m.nome from mesas m where m.restaurante_id=$1 and m.ativa and m.bloqueada_em is null and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by m.ordem limit 1`, [L])
+  const outra = await um(`select m.nome from mesas m where m.restaurante_id=$1 and m.ativa and m.bloqueada_em is null and m.limpeza_desde is null and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by m.ordem limit 1`, [L])
   await p.getByRole('button', { name: new RegExp(outra.nome) }).first().click()
   await p.getByTestId('mesa-nome').fill('TESTE Janelas 2')
   await p.getByTestId('mesa-abrir').click()
@@ -299,10 +304,27 @@ try {
   secao('9. Vitrine: a mesma regra dos sabores')
   const v = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR' })).newPage()
   await v.goto(`${BASE}/loja/${E2E_LOJA}`, { waitUntil: 'networkidle' })
-  await v.getByText('TESTE Pizza Brotinho').first().click()
-  await v.getByText('TESTE G', { exact: true }).first().click().catch(() => {})
+  // Pop-up de cupom/convite da loja, se houver, sai da frente.
+  const fecharPopup = () => v.getByRole('button', { name: 'Continuar no cardápio' }).click({ timeout: 3000 }).catch(() => {})
+  await fecharPopup()
+  // Loja no modo gaveta: abre a categoria antes.
+  await v.getByText('TESTE Janelas').first().click().catch(() => {})
+  const cartao = v.locator(`button[data-item-id="${pzBrot}"]`).first()
+  await cartao.scrollIntoViewIfNeeded()
+  await cartao.click()
+  await v.getByRole('button', { name: /TESTE G(?!G)/ }).first().click()
   await esperar(500)
-  ok('vitrine: Brotinho mostra os sabores com o preço do item', (await v.getByText('Brot Frango').count()) > 0 && (await v.getByText('Nenhum sabor disponível').count()) === 0)
+  ok('vitrine: Brotinho mostra os sabores com o preço do item', (await v.getByText('Brot Frango').count()) > 0 && (await v.getByText('R$ 49,00').count()) > 0 && (await v.getByText('Nenhum sabor disponível').count()) === 0)
+  await foto(v, '11-vitrine-brotinho')
+  await v.goto(`${BASE}/loja/${E2E_LOJA}`, { waitUntil: 'networkidle' })
+  await fecharPopup()
+  await v.getByText('TESTE Janelas').first().click().catch(() => {})
+  const cartao2 = v.locator(`button[data-item-id="${pzSem}"]`).first()
+  await cartao2.scrollIntoViewIfNeeded()
+  await cartao2.click()
+  await v.getByRole('button', { name: /TESTE G(?!G)/ }).first().click()
+  await esperar(500)
+  ok('vitrine: pizza sem sabores não trava (aviso, sem "Nenhum sabor disponível")', (await v.locator('[data-sem-sabores]').count()) === 1)
   await v.goBack().catch(() => {})
 } catch (e) {
   console.error(e)

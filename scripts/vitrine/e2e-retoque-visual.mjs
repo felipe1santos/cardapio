@@ -257,7 +257,8 @@ try {
   const bar = await pa.getByTestId('conta-barra-acoes').innerText()
   ok('conta: barra de ações embaixo (Lançar, Imprimir/Pendências, Cliente, Receber, Fechar)', ['Lançar', 'Pendências', 'Cliente', 'Histórico', 'Fechar conta'].every((t) => bar.includes(t)), bar.replace(/\n/g, ' · '))
   const hBtn = (await pa.getByTestId('conta-fechar').boundingBox())?.height ?? 0
-  ok('botões principais com 56–64 px de altura', hBtn >= 56 && hBtn <= 64, String(hBtn))
+  // 2026-10-01 (PDV / janelas): a barra da conta subiu para 80–88 px.
+  ok('botões principais com 80–88 px de altura', hBtn >= 80 && hBtn <= 88, String(hBtn))
   ok('fotos dos itens na conta', (await pa.locator('[data-foto-item]').count()) > 0)
   await foto(pa, 'conta-barra-1280')
   // Várias taxas

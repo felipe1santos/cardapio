@@ -129,19 +129,21 @@ export function ConfigurarItem({
   const semSabores = isPizza && !!tamanhoPizza && vendaveis.length === 0
   const saboresEscolhidos = separarSabores(state.saborNome).filter((n) => vendaveis.some((v) => v.sabor.nome === n)).slice(0, maxSabores)
 
+  // Pizza: ao escolher o tamanho, o sabor do próprio produto ("Pizza Calabresa" → Calabresa) já
+  // vem marcado; sabores que não valem no tamanho novo saem.
+  function escolherTamanho(id: string, nome: string) {
+    const novos = saboresDoTamanho(item.sabores, id, item.preco)
+    const max = tamanhosDoItem.find((t) => t.id === id)?.maxSabores ?? 1
+    const ficam = separarSabores(state.saborNome).filter((n) => novos.some((v) => v.sabor.nome === n)).slice(0, max)
+    const proprio = ficam.length ? null : saborDoProprioItem(item.nome, novos.map((v) => v.sabor.nome))
+    onChange({ tamanhoNome: nome, saborNome: juntarSabores(ficam.length ? ficam : proprio ? [proprio] : []) })
+  }
   // Um tamanho só: já vem escolhido.
   useEffect(() => {
-    if (isPizza && !state.tamanhoNome && tamanhosDoItem.length === 1) onChange({ tamanhoNome: tamanhosDoItem[0].nome })
+    if (isPizza && !state.tamanhoNome && tamanhosDoItem.length === 1) escolherTamanho(tamanhosDoItem[0].id, tamanhosDoItem[0].nome)
     if (temTamanhos && !state.tamanhoNome && item.tamanhos.length === 1) onChange({ tamanhoNome: item.tamanhos[0].nome })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  // Ao escolher o tamanho, o sabor do próprio produto vem marcado ("Pizza Calabresa" → Calabresa).
-  useEffect(() => {
-    if (!isPizza || !tamanhoPizza || saboresEscolhidos.length > 0) return
-    const proprio = saborDoProprioItem(item.nome, vendaveis.map((v) => v.sabor.nome))
-    if (proprio) onChange({ saborNome: proprio })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tamanhoPizza?.id])
   // Aviso para a loja corrigir o cadastro (fica no console do navegador do operador).
   useEffect(() => {
     if (semSabores) console.warn(`[cardápio] "${item.nome}": o tamanho "${tamanhoPizza?.nome}" não tem sabores cadastrados.`)
@@ -259,7 +261,7 @@ export function ConfigurarItem({
                 {tamanhosDoItem.map((t) => {
                   const on = state.tamanhoNome === t.nome
                   return (
-                    <button key={t.id} type="button" onClick={() => onChange({ tamanhoNome: t.nome, saborNome: '' })} className={[LINHA, on ? LINHA_ON : LINHA_OFF].join(' ')} data-config-tamanho={t.nome}>
+                    <button key={t.id} type="button" onClick={() => escolherTamanho(t.id, t.nome)} className={[LINHA, on ? LINHA_ON : LINHA_OFF].join(' ')} data-config-tamanho={t.nome}>
                       <Marca marcada={on} redonda />
                       <span className="min-w-0 flex-1 text-[15px] font-semibold text-text-main">{t.nome}</span>
                       {t.maxSabores > 1 && <span className="text-[12px] text-text-subtle">até {t.maxSabores} sabores</span>}
