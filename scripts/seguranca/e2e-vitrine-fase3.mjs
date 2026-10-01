@@ -55,11 +55,15 @@ try {
     ok('"Mais Pedidos" centralizado', tBox && Math.abs(tBox.x + tBox.width / 2 - largura / 2) < 30)
     const card = mp.locator('button[data-item-id]').first()
     const cBox = await card.boundingBox()
-    const foto = await card.locator('div.relative').first().boundingBox()
-    ok('primeiro cartão com a margem do conteúdo (16px)', cBox && Math.abs(cBox.x - 16) <= 1, `x=${cBox?.x}`)
-    ok('cartão com ~36,5% da tela e foto quadrada (2 inteiros + parte do 3º)', cBox && Math.abs(cBox.width - Math.max(128, largura * 0.365)) <= 2 && foto && Math.abs(foto.width - foto.height) <= 1, `${cBox?.width}px · foto ${foto?.width}×${foto?.height}`)
-    const rolagem = await mp.locator('div.flex').first().evaluate((el) => ({ snap: getComputedStyle(el).scrollSnapType, rola: el.scrollWidth > el.clientWidth }))
-    ok('rolagem lateral com snap', /x/.test(rolagem.snap) && rolagem.rola, JSON.stringify(rolagem))
+    const foto = await card.locator('div.relative > *').first().boundingBox()
+    const xLista = (await p.locator('button[data-item-id]').last().boundingBox())?.x
+    ok('destaque alinhado como os itens da lista', cBox && xLista !== undefined && Math.abs(cBox.x - xLista) <= 1, `x=${cBox?.x} / lista ${xLista}`)
+    // 2026-10-01: destaque com a MESMA largura e foto dos itens da lista normal (mesmo componente).
+    const idDestaque = await card.getAttribute('data-item-id')
+    const naLista = p.locator(`button[data-item-id="${idDestaque}"]`).last()
+    const lBox = await naLista.boundingBox()
+    const lFoto = await naLista.locator('div.relative > *').first().boundingBox()
+    ok('destaque com a mesma largura e a mesma foto do item da lista normal', cBox && lBox && Math.abs(cBox.width - lBox.width) <= 1 && foto && lFoto && Math.abs(foto.width - lFoto.width) <= 1 && Math.abs(foto.height - lFoto.height) <= 1, `${cBox?.width}/${lBox?.width} · foto ${foto?.width}×${foto?.height} / ${lFoto?.width}×${lFoto?.height}`)
     if (PRINTS) await p.screenshot({ path: join(PRINTS, `topo-${largura}.png`) })
 
     // Item de teste na lista
@@ -85,9 +89,9 @@ try {
     ok('ícones SVG embutidos (Phosphor), nada de CDN nem emoji', icones >= 4 && externos === 0, String(icones))
     if (PRINTS) await linha.screenshot({ path: join(PRINTS, `produto-etiquetas-${largura}.png`) })
 
-    // Destaque do item de teste: etiqueta principal sobre a foto
+    // Destaque do item de teste: NENHUMA tag nos destaques (regra de 2026-10-01).
     const dest = mp.locator(`button[data-item-id="${itemId}"]`)
-    ok('no destaque, a etiqueta de topo (Mais vendido) fica sobre a foto', (await dest.locator('[data-etiqueta="mais_vendido"]').count()) === 1)
+    ok('no destaque, nenhuma tag (nem Mais vendido)', (await dest.locator('[data-etiqueta]').count()) === 0)
 
     // Botão do WhatsApp fixo
     // Desde 2026-10-01 o menu (com o WhatsApp dentro) some ao rolar para baixo e volta ao subir:

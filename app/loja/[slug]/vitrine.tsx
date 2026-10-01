@@ -577,7 +577,7 @@ function ProductImage({ item, className = '', prioritaria = false }: { item: Fot
   )
 }
 
-function ProductCard({ item, onClick, className = '', compact = false }: { item: ItemCardapio; onClick: () => void; className?: string; compact?: boolean }) {
+function ProductCard({ item, onClick, className = '', compact = false, semEtiquetas = false }: { item: ItemCardapio; onClick: () => void; className?: string; compact?: boolean; semEtiquetas?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -596,15 +596,19 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
         ) : (
           // Tags de topo na linha do nome, à direita (descem se o nome não deixar espaço).
           <div className="mb-[6px]">
-            <NomeComEtiquetas item={item} className="line-clamp-2 text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]">
-              <NomeItem texto={item.nomeFormatado ?? item.nome} />
-            </NomeComEtiquetas>
+            {semEtiquetas ? (
+              <div className="line-clamp-2 text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
+            ) : (
+              <NomeComEtiquetas item={item} className="line-clamp-2 text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]">
+                <NomeItem texto={item.nomeFormatado ?? item.nome} />
+              </NomeComEtiquetas>
+            )}
           </div>
         )}
         {item.descricao && !compact && (
           <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
-        {!compact && <EtiquetasUtilitarias item={item} className="mb-[6px]" />}
+        {!compact && !semEtiquetas && <EtiquetasUtilitarias item={item} className="mb-[6px]" />}
         <div className={compact ? 'pt-0.5' : ''}>
           {(() => {
             const pv = precoDeVitrine(item)
@@ -630,7 +634,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
  * As medidas vão em px e não nos utilitários em rem: a base do painel é 87,5%,
  * e cada `gap-3`/`py-4`/`leading-4` chegaria 12,5% menor (ver app/globals.css).
  */
-function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCardapio; onClick: () => void; imagemGrande?: boolean }) {
+function ProductListRow({ item, onClick, imagemGrande = false, semEtiquetas = false }: { item: ItemCardapio; onClick: () => void; imagemGrande?: boolean; semEtiquetas?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -640,13 +644,17 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       <div className="min-w-0 flex-1">
         {/* Tags de topo na mesma linha do nome, à direita (REF-TAGS). Nome comprido
             empurra as tags para a linha de baixo — nada é cortado e a foto não se mexe. */}
-        <NomeComEtiquetas item={item} className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">
-          <NomeItem texto={item.nomeFormatado ?? item.nome} />
-        </NomeComEtiquetas>
+        {semEtiquetas ? (
+          <div className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
+        ) : (
+          <NomeComEtiquetas item={item} className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">
+            <NomeItem texto={item.nomeFormatado ?? item.nome} />
+          </NomeComEtiquetas>
+        )}
         {item.descricao && (
           <DescricaoItem texto={item.descricao} className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
-        <EtiquetasUtilitarias item={item} className="mt-[8px]" />
+        {!semEtiquetas && <EtiquetasUtilitarias item={item} className="mt-[8px]" />}
         <div className="mt-[8px]">
           {(() => {
             const pv = precoDeVitrine(item)
@@ -661,14 +669,14 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
   )
 }
 
-function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: ItemCardapio[]; layout: LayoutCardapio; onSelect: (item: ItemCardapio) => void; imagemGrande?: boolean }) {
+function ItemsGrid({ items, layout, onSelect, imagemGrande = false, semEtiquetas = false }: { items: ItemCardapio[]; layout: LayoutCardapio; onSelect: (item: ItemCardapio) => void; imagemGrande?: boolean; semEtiquetas?: boolean }) {
   if (layout === 'lista') {
     // Sem cartão em volta: a lista é uma folha branca com linhas separadas por
     // um fio, como na referência. O contorno duplicava a moldura do conteúdo.
     return (
       <div className="bg-white">
         {items.map((item) => (
-          <ProductListRow key={item.id} item={item} onClick={() => onSelect(item)} imagemGrande={imagemGrande} />
+          <ProductListRow key={item.id} item={item} onClick={() => onSelect(item)} imagemGrande={imagemGrande} semEtiquetas={semEtiquetas} />
         ))}
       </div>
     )
@@ -676,7 +684,7 @@ function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: I
   return (
     <div className="grid grid-cols-2 gap-3 px-4 lg:grid-cols-3 lg:gap-4 lg:px-0 xl:grid-cols-4">
       {items.map((item) => (
-        <ProductCard key={item.id} item={item} onClick={() => onSelect(item)} />
+        <ProductCard key={item.id} item={item} onClick={() => onSelect(item)} semEtiquetas={semEtiquetas} />
       ))}
     </div>
   )
@@ -3374,15 +3382,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 dela como se fossem parte da lista (mesma razão do rodapé). */}
             {destaques.length > 0 && activeCategory !== '__promos__' && !search.trim() && catGaveta === null && (
               <div className="pb-1 pt-[4px] lg:px-0" data-testid="mais-pedidos">
-                {/* REF-DESTAQUES: título centralizado como os das seções; cartão com ~36,5% da
-                    largura da tela (2 inteiros + parte do 3º, convida a rolar para o lado),
-                    foto quadrada, nome em até 2 linhas e "A partir de" quando o preço varia. */}
+                {/* Destaques com a MESMA altura e largura dos itens da lista normal (pedido do dono,
+                    2026-10-01): mesmo componente e mesmas medidas do layout da loja — linha com foto
+                    de 120/140px no "lista", cartão da grade nos outros. Continuam sem nenhuma tag. */}
                 <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">Mais Pedidos</h2>
-                <div className="flex snap-x snap-mandatory scroll-px-[16px] items-start gap-[10px] overflow-x-auto scroll-smooth px-[16px] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:snap-none lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:px-0 xl:grid-cols-5">
-                  {destaques.map((item) => (
-                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[36.5vw] min-w-[128px] max-w-[170px] flex-shrink-0 snap-start lg:w-auto lg:max-w-none" compact />
-                  ))}
-                </div>
+                <ItemsGrid items={destaques} layout={restaurante.layoutCardapio === 'lista' ? 'lista' : 'categoria'} onSelect={(i) => openProduct(i)} imagemGrande={restaurante.imagemGrande} semEtiquetas />
               </div>
             )}
 
