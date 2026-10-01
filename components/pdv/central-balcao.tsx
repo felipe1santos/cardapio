@@ -6,9 +6,11 @@ import { ShoppingBag } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Capacete } from '@/components/icones/capacete'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
-import { contaAAcertar, resumirDimensoes, situacaoFinanceira, telefoneParcial, ROTULO_FINANCEIRO, TOM_FINANCEIRO } from '@/lib/pdv-v2'
+import { contaAAcertar, resumirDimensoes, situacaoFinanceira, telefoneParcial } from '@/lib/pdv-v2'
 import type { LinhaCentral } from '@/lib/servicos/conta-presencial'
 import { chamar, formatBRL, horaCurta, mascararTelefone, novaChave, tempoCurto } from './util'
+import { SeloAtendimento, SeloCozinha, SeloFinanceiro } from './selos'
+import { NomeClienteComSugestoes } from './nome-cliente-sugestoes'
 
 /**
  * Central de Balcão (spec 13.1): todas as comandas de balcão abertas, com as quatro
@@ -222,7 +224,8 @@ export function CentralBalcao({
                 const encerrada = l.status !== 'aberta'
                 const acertar = contaAAcertar(l)
                 return (
-                  <li key={l.id}>
+                  // Linha que pede ação (entregue e sem pagamento) ganha a borda esquerda colorida.
+                  <li key={l.id} className={acertar ? 'border-l-4 border-l-danger' : ''}>
                     <button
                       type="button"
                       onClick={() => onAbrirConta(l.id)}
@@ -240,22 +243,20 @@ export function CentralBalcao({
                           )}
                         </span>
                         {l.telefone && <span className="block text-[11px] text-text-subtle">{telefoneParcial(l.telefone)}</span>}
-                        <span className="mt-0.5 block text-[11px] text-text-subtle lg:hidden">
-                          {dim.texto.cozinha} · {dim.texto.atendimento} · {acertar ? 'Entregue · a receber' : ROTULO_FINANCEIRO[fin]}
+                        <span className="mt-1 flex flex-wrap gap-1 lg:hidden">
+                          <SeloCozinha dim={dim} total={l.pedidos.length} />
+                          <SeloAtendimento dim={dim} />
+                          <SeloFinanceiro situacao={fin} aAcertar={acertar} />
                         </span>
                       </span>
                       <span className="hidden text-[12px] text-text-subtle lg:block">{horaCurta(l.abertaEm)}</span>
                       <span className="hidden text-[12px] text-text-subtle lg:block">{encerrada ? horaCurta(l.fechadaEm) : tempoCurto(l.abertaEm, agora)}</span>
                       <span className="hidden text-[13px] text-text-main lg:block">{l.qtdPedidos}</span>
                       <span className="text-right text-[14px] font-bold text-text-main lg:order-none">{formatBRL(l.total)}</span>
-                      <span className="hidden text-[12px] text-text-main lg:block">{dim.texto.cozinha}</span>
-                      <span className="hidden text-[12px] text-text-main lg:block">{dim.texto.atendimento}</span>
+                      <span className="hidden min-w-0 lg:block"><SeloCozinha dim={dim} total={l.pedidos.length} /></span>
+                      <span className="hidden min-w-0 lg:block"><SeloAtendimento dim={dim} /></span>
                       <span className="hidden lg:block" data-testid={`balcao-financeiro-${l.senha}`}>
-                        {acertar ? (
-                          <Badge tone="pending">Entregue · a receber</Badge>
-                        ) : (
-                          <Badge tone={TOM_FINANCEIRO[fin]}>{ROTULO_FINANCEIRO[fin]}</Badge>
-                        )}
+                        <SeloFinanceiro situacao={fin} aAcertar={acertar} />
                         {encerrada && l.status !== 'cancelada' && (
                           <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Fechada</span>
                         )}
@@ -449,7 +450,7 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
                 <span className={ROTULO}>
                   Nome do cliente <span className="text-danger">*</span>
                 </span>
-                <input autoFocus value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)} data-testid="balcao-nome" className={CAMPO} />
+                <NomeClienteComSugestoes nome={nome} setNome={setNome} setTelefone={setTelefone} testid="balcao-nome" className={CAMPO} />
               </label>
               <label className="block">
                 <span className={ROTULO}>Telefone (opcional)</span>

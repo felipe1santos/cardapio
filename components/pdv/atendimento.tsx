@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { chamar, horaCurta, mascararTelefone, novaChave } from './util'
+import { NomeClienteComSugestoes } from './nome-cliente-sugestoes'
 
 /**
  * Identificação do atendimento (0094) e mesa em limpeza (0095): três modais pequenos,
@@ -55,7 +56,7 @@ function CamposCliente({ nome, setNome, telefone, setTelefone, prefixo }: {
         <span className={ROTULO}>
           Nome do cliente <span className="text-danger">*</span>
         </span>
-        <input autoFocus value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)} data-testid={`${prefixo}-nome`} className={CAMPO} />
+        <NomeClienteComSugestoes nome={nome} setNome={setNome} setTelefone={setTelefone} testid={`${prefixo}-nome`} className={CAMPO} />
       </label>
       <label className="block">
         <span className={ROTULO}>Telefone (opcional)</span>

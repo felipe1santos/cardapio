@@ -12,7 +12,6 @@ import {
   ROTULO_COZINHA,
   ROTULO_FINANCEIRO,
   ROTULO_PENDENCIA,
-  TOM_FINANCEIRO,
   type AcaoConta,
   type AcaoResolucao,
   type StatusCozinha,
@@ -21,6 +20,8 @@ import type { ContaPresencial, PedidoConta } from '@/lib/servicos/conta-presenci
 import type { EventoHistorico } from '@/lib/queries/conta'
 import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde, novaChave, tempoCurto } from './util'
 import { FecharContaModal } from './fechar-conta'
+import { FotoItem } from './foto-item'
+import { SeloAtendimento, SeloCozinha, SeloFinanceiro } from './selos'
 import { TaxaExtraModal } from './taxa-extra'
 import { IdentificarModal } from './atendimento'
 import { ResumoEncerramentoModal } from './resumo-encerramento'
@@ -240,12 +241,7 @@ export function ContaPresencialModal({
             )}
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
-            {conta && aberta && pode?.identificar && (
-              <button type="button" onClick={() => setSub({ tipo: 'identificar' })} data-testid="conta-identificar" className="rounded-menuzia border border-border px-3 py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
-                Cliente
-              </button>
-            )}
-            {conta && (
+            {conta && !aberta && (
               <button type="button" onClick={() => setSub({ tipo: 'historico' })} className="rounded-menuzia border border-border px-3 py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
                 Histórico
               </button>
@@ -261,13 +257,11 @@ export function ContaPresencialModal({
         {/* Dimensões */}
         {conta && dim && (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-border bg-page/50 px-4 py-2 text-[12px]" data-testid="conta-dimensoes">
-            <span><span className="text-text-subtle">Cozinha:</span> <strong className="text-text-main">{dim.texto.cozinha}</strong></span>
-            <span><span className="text-text-subtle">Atendimento:</span> <strong className="text-text-main">{dim.texto.atendimento}</strong></span>
+            <span className="flex items-center gap-1.5"><span className="text-text-subtle">Cozinha:</span> <SeloCozinha dim={dim} total={conta.pedidos.length} /></span>
+            <span className="flex items-center gap-1.5"><span className="text-text-subtle">Atendimento:</span> <SeloAtendimento dim={dim} /></span>
             <span className="flex items-center gap-1.5">
               <span className="text-text-subtle">Financeiro:</span>
-              <Badge tone={TOM_FINANCEIRO[conta.situacao] ?? 'pending'}>
-                {ROTULO_FINANCEIRO[conta.situacao]}
-              </Badge>
+              <SeloFinanceiro situacao={conta.situacao} />
             </span>
           </div>
         )}
@@ -295,6 +289,7 @@ export function ContaPresencialModal({
         {!conta && !erro && <p className="p-8 text-center text-[13px] text-text-subtle">Carregando…</p>}
 
         {conta && pode && (
+          <>
           <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
             {/* Pedidos */}
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
@@ -403,52 +398,8 @@ export function ContaPresencialModal({
                 </div>
               )}
 
-              {aberta ? (
-                <>
-                  {pode.lancar && (
-                    <button type="button" disabled={ocupado} onClick={() => onLancarItens(conta)} data-testid="conta-lancar" className="w-full rounded-menuzia border-2 border-primary bg-white py-3.5 text-[14px] font-bold text-primary transition-all hover:bg-primary hover:text-white disabled:opacity-50">
-                      + Lançar itens
-                    </button>
-                  )}
-                  {pode.pre_conta && !conta.entrega && <PreContaBloco comandaId={conta.id} />}
-                  {pode.pagamento && conta.totais.restante > 0 && (
-                    <button type="button" disabled={ocupado} onClick={() => setSub({ tipo: 'receber' })} data-testid="conta-receber" className="w-full rounded-menuzia bg-primary py-3.5 text-[14px] font-bold text-white transition-all hover:bg-primary-dark disabled:opacity-50">
-                      Receber
-                    </button>
-                  )}
-                  {pode.fechar && (
-                    <button type="button" disabled={ocupado} onClick={() => void fechar()} data-testid="conta-fechar" className="w-full rounded-menuzia bg-status-ready py-3.5 text-[14px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50">
-                      {ocupado ? 'Aguarde…' : 'Fechar conta'}
-                    </button>
-                  )}
-                  {pode.cancelar_conta && (
-                    <button type="button" disabled={ocupado} onClick={() => setSub({ tipo: 'cancelar_conta' })} data-testid="conta-cancelar-conta" className="w-full rounded-menuzia border border-danger bg-white py-2.5 text-[12px] font-bold uppercase tracking-wide text-danger hover:bg-danger-bg disabled:opacity-50">
-                      Cancelar a conta
-                    </button>
-                  )}
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => void abrirPendencias()} className="flex-1 rounded-menuzia border border-border bg-white py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
-                      Pendências
-                    </button>
-                    {pode.ajustar_valores && (
-                      <button type="button" onClick={() => setSub({ tipo: 'ajustar' })} className="flex-1 rounded-menuzia border border-border bg-white py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
-                        Desconto/taxa
-                      </button>
-                    )}
-                  </div>
-                  {pode.taxa_extra && (
-                    <button
-                      type="button"
-                      disabled={ocupado}
-                      onClick={() => setSub({ tipo: 'taxa_extra' })}
-                      data-testid="conta-adicionar-taxa"
-                      className="w-full rounded-menuzia border border-dashed border-primary bg-white py-2 text-[12px] font-bold text-primary hover:bg-primary hover:text-white disabled:opacity-50"
-                    >
-                      {conta.taxaExtra ? `Alterar taxa (${conta.taxaExtra.nome})` : '+ Adicionar taxa'}
-                    </button>
-                  )}
-                </>
-              ) : (
+              {/* As ações da conta aberta ficam na barra fixa de baixo (2026-10-01). */}
+              {!aberta && (
                 <>
                   <p className="rounded-menuzia bg-white px-3 py-2 text-[12px] text-text-subtle">
                     {conta.status === 'fechada' ? `Fechada ${horaCurta(conta.fechadaEm)} por ${conta.fechadaPorNome ?? '—'}.` : 'Conta encerrada.'}
@@ -463,6 +414,23 @@ export function ContaPresencialModal({
               )}
             </div>
           </div>
+          {aberta && (
+            <BarraAcoesConta
+              conta={conta}
+              pode={pode}
+              ocupado={ocupado}
+              onLancar={() => onLancarItens(conta)}
+              onReceber={() => setSub({ tipo: 'receber' })}
+              onFechar={() => void fechar()}
+              onTaxas={() => setSub({ tipo: pode.taxa_extra ? 'taxa_extra' : 'ajustar' })}
+              onAjustar={() => setSub({ tipo: 'ajustar' })}
+              onPendencias={() => void abrirPendencias()}
+              onCliente={() => setSub({ tipo: 'identificar' })}
+              onHistorico={() => setSub({ tipo: 'historico' })}
+              onCancelar={() => setSub({ tipo: 'cancelar_conta' })}
+            />
+          )}
+          </>
         )}
       </div>
 
@@ -695,12 +663,15 @@ function CartaoPedido({
       {cancelado && p.canceladoMotivo && <p className="mt-0.5 text-[11px] text-danger">Cancelado: {p.canceladoMotivo}</p>}
       <ul className="mt-2 space-y-1">
         {p.itens.map((i) => (
-          <li key={i.id} className={['text-[13px]', i.cancelado ? 'text-text-subtle line-through' : 'text-text-main'].join(' ')}>
-            <span className="font-semibold">{i.quantidade}×</span> {i.nome}
-            {(i.detalhe || i.complementos.length > 0) && (
-              <span className="text-[12px] text-text-subtle"> — {[i.detalhe, ...i.complementos].filter(Boolean).join(', ')}</span>
-            )}
-            {i.observacao && <span className="block text-[12px] italic text-text-subtle">“{i.observacao}”</span>}
+          <li key={i.id} className={['flex items-start gap-2.5 text-[13px]', i.cancelado ? 'text-text-subtle line-through' : 'text-text-main'].join(' ')}>
+            <FotoItem url={i.imagemUrl} nome={i.nome} tamanho={40} className={i.cancelado ? 'opacity-50' : ''} />
+            <span className="min-w-0 flex-1 pt-0.5">
+              <span className="font-semibold">{i.quantidade}×</span> {i.nome}
+              {(i.detalhe || i.complementos.length > 0) && (
+                <span className="text-[12px] text-text-subtle"> — {[i.detalhe, ...i.complementos].filter(Boolean).join(', ')}</span>
+              )}
+              {i.observacao && <span className="block text-[12px] italic text-text-subtle">“{i.observacao}”</span>}
+            </span>
           </li>
         ))}
       </ul>
@@ -1294,7 +1265,7 @@ const DEMORA_IMPRIMIR_MS = 25_000
  * servidor monta tudo; a tela manda só a chave. Mostra a última via e o estado real
  * ("aceito pela fila do Windows" não quer dizer papel na mão).
  */
-function PreContaBloco({ comandaId }: { comandaId: string }) {
+function PreContaBloco({ comandaId, variante = 'bloco' }: { comandaId: string; variante?: 'bloco' | 'barra' }) {
   const [vias, setVias] = useState<ViaPreConta[] | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<{ texto: string; semCaixa: boolean } | null>(null)
@@ -1350,6 +1321,24 @@ function PreContaBloco({ comandaId }: { comandaId: string }) {
     await carregar()
   }
 
+  if (variante === 'barra') {
+    const problema = erro?.texto
+      ?? (ultima && andando && !ultima.computadorOnline ? 'Assistente desconectado' : null)
+      ?? (ultima && (ultima.estado === 'falhou' || ultima.estado === 'expirado') ? 'Falhou' : null)
+    return (
+      <div className="flex flex-col items-center" data-testid="pre-conta">
+        <BotaoAcao
+          icone={ICONE_ACAO.imprimir}
+          rotulo={enviando ? 'Enviando…' : ultima ? 'Reimprimir' : 'Imprimir'}
+          disabled={enviando}
+          onClick={() => void imprimir(Boolean(ultima))}
+          testid={ultima ? 'pre-conta-reimprimir' : 'pre-conta-imprimir'}
+          title={ultima ? `${ultima.via}ª via · ${ROTULO_VIA[ultima.estado] ?? ultima.estado}` : 'Imprimir Recibo/Extrato'}
+        />
+        {problema && <span className="mt-0.5 max-w-[96px] text-center text-[10px] font-semibold leading-tight text-danger" data-testid="pre-conta-demora">{problema}</span>}
+      </div>
+    )
+  }
   return (
     <div className="rounded-menuzia border border-border bg-white px-3 py-2" data-testid="pre-conta">
       <button
@@ -1427,5 +1416,83 @@ function CupomBloco({ conta, ocupado, onAgir }: {
         Aplicar
       </button>
     </form>
+  )
+}
+
+// ─── Barra de ações da conta (2026-10-01) ─────────────────────────────────────
+// Toque: botões de 64px, sem depender de hover. Principais grandes à direita; secundárias
+// com ícone + legenda à esquerda; "Cancelar a conta" separado, em vermelho (confirma com motivo).
+const ICONE_ACAO = {
+  lancar: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  imprimir: 'M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z',
+  taxas: 'M7.5 4C5.57 4 4 5.57 4 7.5S5.57 11 7.5 11 11 9.43 11 7.5 9.43 4 7.5 4zm0 5C6.67 9 6 8.33 6 7.5S6.67 6 7.5 6 9 6.67 9 7.5 8.33 9 7.5 9zm9 4c-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5 3.5-1.57 3.5-3.5-1.57-3.5-3.5-3.5zm0 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5.41 20 4 18.59 18.59 4 20 5.41 5.41 20z',
+  pendencias: 'M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z',
+  cliente: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
+  historico: 'M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z',
+  cancelar: 'M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z',
+} as const
+
+function BotaoAcao({ icone, rotulo, onClick, disabled, testid, title, perigo = false }: { icone: string; rotulo: string; onClick: () => void; disabled?: boolean; testid?: string; title?: string; perigo?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={testid}
+      title={title ?? rotulo}
+      className={[
+        'flex h-[64px] w-[76px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border bg-white text-[11px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
+        perigo ? 'border-danger/40 text-danger hover:bg-danger-bg' : 'border-border text-text-main hover:border-primary hover:text-primary',
+      ].join(' ')}
+    >
+      <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current" aria-hidden><path d={icone} /></svg>
+      <span className="max-w-full truncate px-1">{rotulo}</span>
+    </button>
+  )
+}
+
+function BarraAcoesConta({
+  conta, pode, ocupado, onLancar, onReceber, onFechar, onTaxas, onAjustar, onPendencias, onCliente, onHistorico, onCancelar,
+}: {
+  conta: ContaPresencial
+  pode: Record<string, boolean>
+  ocupado: boolean
+  onLancar: () => void
+  onReceber: () => void
+  onFechar: () => void
+  onTaxas: () => void
+  onAjustar: () => void
+  onPendencias: () => void
+  onCliente: () => void
+  onHistorico: () => void
+  onCancelar: () => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-border bg-white px-3 py-2.5" data-testid="conta-barra-acoes">
+      <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5">
+        {pode.lancar && <BotaoAcao icone={ICONE_ACAO.lancar} rotulo="Lançar itens" onClick={onLancar} disabled={ocupado} testid="conta-lancar" />}
+        {pode.pre_conta && !conta.entrega && <PreContaBloco comandaId={conta.id} variante="barra" />}
+        {(pode.taxa_extra || pode.ajustar_valores) && <BotaoAcao icone={ICONE_ACAO.taxas} rotulo="Taxas" onClick={onTaxas} disabled={ocupado} testid="conta-adicionar-taxa" />}
+        {pode.ajustar_valores && <BotaoAcao icone={ICONE_ACAO.taxas} rotulo="Desconto" onClick={onAjustar} disabled={ocupado} testid="conta-ajustar" />}
+        <BotaoAcao icone={ICONE_ACAO.pendencias} rotulo="Pendências" onClick={onPendencias} testid="conta-pendencias" />
+        {pode.identificar && <BotaoAcao icone={ICONE_ACAO.cliente} rotulo="Cliente" onClick={onCliente} testid="conta-identificar" />}
+        <BotaoAcao icone={ICONE_ACAO.historico} rotulo="Histórico" onClick={onHistorico} testid="conta-historico" />
+        {pode.cancelar_conta && <BotaoAcao icone={ICONE_ACAO.cancelar} rotulo="Cancelar conta" onClick={onCancelar} disabled={ocupado} testid="conta-cancelar-conta" perigo />}
+      </div>
+      <div className="flex w-full gap-2 sm:w-auto">
+        {pode.pagamento && conta.totais.restante > 0 && (
+          <button type="button" disabled={ocupado} onClick={onReceber} data-testid="conta-receber"
+            className="h-[60px] flex-1 rounded-menuzia bg-primary px-6 text-[15px] font-bold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 sm:flex-none">
+            Receber
+          </button>
+        )}
+        {pode.fechar && (
+          <button type="button" disabled={ocupado} onClick={onFechar} data-testid="conta-fechar"
+            className="h-[60px] flex-1 rounded-menuzia bg-status-ready px-6 text-[15px] font-bold text-white transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none">
+            {ocupado ? 'Aguarde…' : 'Fechar conta'}
+          </button>
+        )}
+      </div>
+    </div>
   )
 }

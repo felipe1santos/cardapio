@@ -33,6 +33,7 @@ import { CentralBalcao } from '@/components/pdv/central-balcao'
 import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
+import { FotoItem } from '@/components/pdv/foto-item'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
 
@@ -796,6 +797,15 @@ export default function PdvPage() {
   // ── Launch ────────────────────────────────────────────────────────────────
   const [launching, setLaunching] = useState(false)
   const [launchMsg, setLaunchMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  // Sucesso do lançamento vira toast (some sozinho) com o atalho "Ver conta" (2026-10-01).
+  const [toastLancado, setToastLancado] = useState<{ texto: string; comandaId: string | null } | null>(null)
+  useEffect(() => {
+    if (!toastLancado) return
+    const t = setTimeout(() => setToastLancado(null), 6000)
+    return () => clearTimeout(t)
+  }, [toastLancado])
+  // Total em aberto da conta do alvo (badge do botão "Ver conta").
+  const [totalContaAlvo, setTotalContaAlvo] = useState<number | null>(null)
 
   // ── Mobile tab ────────────────────────────────────────────────────────────
   const [mobileTab, setMobileTab] = useState<'cardapio' | 'comanda'>('cardapio')
@@ -1178,11 +1188,21 @@ export default function PdvPage() {
     }
     chaveLancamento.current = novaChave()
     setComanda([])
-    setLaunchMsg({ type: 'ok', text: `Pedido #${r.dados.numero} lançado em ${alvoV2.rotulo}!` })
+    setToastLancado({ texto: `Pedido #${r.dados.numero} lançado em ${alvoV2.rotulo}!`, comandaId: r.dados.comandaId })
     // A mesa livre ganhou comanda no primeiro lançamento: os próximos caem nela.
     setAlvoV2((a) => (a ? { ...a, comandaId: r.dados!.comandaId } : a))
     void recarregarMesas()
   }
+
+  useEffect(() => {
+    const id = alvoV2?.comandaId
+    if (!pdvV2 || !id) { setTotalContaAlvo(null); return }
+    let vivo = true
+    void chamar<{ conta: { totais: { restante: number } } }>(`/api/admin/comandas/${id}`).then((r) => {
+      if (vivo && r.ok && r.dados) setTotalContaAlvo(Number(r.dados.conta.totais.restante))
+    })
+    return () => { vivo = false }
+  }, [pdvV2, alvoV2?.comandaId, toastLancado])
 
   async function lancarNaCozinha() {
     if (pdvV2) return lancarNaCozinhaV2()
@@ -1227,7 +1247,7 @@ export default function PdvPage() {
         const mesaIdAntes = mesaSelecionada?.id
         setComanda([])
         setNomeCliente('')
-        setLaunchMsg({ type: 'ok', text: `Pedido #${data.numero} lançado em ${local}!` })
+        setToastLancado({ texto: `Pedido #${data.numero} lançado em ${local}!`, comandaId: null })
         // Recarregar mesas + re-selecionar a mesa atualizada (agora ocupada)
         const atualizadas = await fetch('/api/admin/pdv/comanda')
           .then((r) => r.json() as Promise<{ mesas: MesaComEstado[] }>)
@@ -1939,6 +1959,19 @@ export default function PdvPage() {
                 {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
               </button>
             </div>
+            {toastLancado && (
+              <div className="fixed inset-x-0 bottom-6 z-[70] flex justify-center px-4" role="status" data-testid="pdv-toast-lancado">
+                <div className="flex items-center gap-3 rounded-[10px] bg-[#111827] px-4 py-3 text-[14px] font-semibold text-white shadow-[0_8px_24px_rgba(15,23,42,0.25)]">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 fill-[#34D399]" aria-hidden><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" /></svg>
+                  <span>{toastLancado.texto}</span>
+                  {toastLancado.comandaId && (
+                    <button type="button" onClick={() => { setContaAberta(toastLancado.comandaId!); setToastLancado(null) }} className="ml-1 rounded-menuzia bg-white/15 px-3 py-2 text-[12px] font-bold hover:bg-white/25">
+                      Ver conta
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             {/* Header */}
             <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
               <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Pedido</p>
@@ -1948,49 +1981,18 @@ export default function PdvPage() {
             </div>
 
             {/* Launch feedback */}
-            {launchMsg && (
+            {launchMsg?.type === 'err' && (
               <div
                 className={[
                   'mx-3 mt-3 rounded-menuzia px-3 py-2 text-[12px] font-semibold',
-                  launchMsg.type === 'ok' ? 'bg-price-bg text-price-text' : 'bg-danger-bg text-danger',
+                  'bg-danger-bg text-danger',
                 ].join(' ')}
               >
                 {launchMsg.text}
-                {launchMsg.type === 'ok' && (
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={voltarParaMesas}
-                      data-testid="pdv-pos-lancar-mesas"
-                      className="h-[38px] flex-1 rounded-menuzia bg-primary px-3 text-[13px] font-bold text-white hover:bg-primary-dark"
-                    >
-                      {pdvV2 && telaBalcao ? 'Voltar ao balcão' : 'Voltar às mesas'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMobileTab('cardapio')}
-                      className="h-[38px] flex-1 rounded-menuzia border border-price-text/40 bg-white px-3 text-[13px] font-bold text-price-text lg:hidden"
-                    >
-                      Continuar lançando
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* PDV v2: a conta (itens, estados, pagamentos) abre no modal da conta. */}
-            {pdvV2 && alvoV2?.comandaId && (
-              <div className="border-b border-border bg-page/50 p-3">
-                <button
-                  type="button"
-                  onClick={() => setContaAberta(alvoV2.comandaId!)}
-                  data-testid="pdv-ver-conta"
-                  className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
-                >
-                  Ver conta · receber · fechar
-                </button>
-              </div>
-            )}
+            {/* "Ver conta" e "Mesas" ficam na barra de baixo, junto do "Lançar na cozinha". */}
 
             {/* Conta da mesa — resumo compacto do que já foi lançado */}
             {!pdvV2 && mesaSelecionada?.comandaAberta && (
@@ -2076,24 +2078,7 @@ export default function PdvPage() {
                     const precoRef = precoLinha(linha)
                     return (
                       <li key={linha.uid} className="flex gap-2.5 px-3 py-3">
-                        {linha.item.imagemUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={linha.item.imagemUrl}
-                            alt={linha.item.nome}
-                            loading="lazy"
-                            decoding="async"
-                            width={56}
-                            height={56}
-                            className="h-14 w-14 flex-shrink-0 rounded-menuzia bg-page object-contain"
-                          />
-                        ) : (
-                          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-text-subtle/25">
-                            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-                              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
-                            </svg>
-                          </div>
-                        )}
+                        <FotoItem url={linha.item.imagemThumbUrl ?? linha.item.imagemUrl} nome={linha.item.nome} tamanho={48} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-[14px] font-semibold leading-tight text-text-main lg:text-[13px]">
@@ -2159,15 +2144,42 @@ export default function PdvPage() {
                   <span className="font-bold text-text-main">{formatBRL(subtotal)}</span>
                 </div>
               )}
-              <button
-                type="button"
-                disabled={(pdvV2 ? !alvoV2 : !mesaEscolhida) || comanda.length === 0 || launching}
-                onClick={lancarNaCozinha}
-                data-testid="pdv-lancar"
-                className="w-full rounded-menuzia bg-status-ready py-4 text-[16px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
-              >
-                {launching ? 'Lançando…' : 'Lançar na cozinha'}
-              </button>
+              <div className="flex items-stretch gap-2">
+                <button
+                  type="button"
+                  onClick={voltarParaMesas}
+                  data-testid="pdv-pos-lancar-mesas"
+                  className="flex h-[60px] w-[64px] flex-shrink-0 flex-col items-center justify-center gap-0.5 rounded-menuzia border border-border bg-white text-[11px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+                  {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
+                </button>
+                {pdvV2 && alvoV2?.comandaId && (
+                  <button
+                    type="button"
+                    onClick={() => setContaAberta(alvoV2.comandaId!)}
+                    data-testid="pdv-ver-conta"
+                    className="relative flex h-[60px] w-[76px] flex-shrink-0 flex-col items-center justify-center gap-0.5 rounded-menuzia border border-border bg-white text-[11px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d="M19.5 3.5 18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2v14H3v3c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3V2l-1.5 1.5zM19 19c0 .55-.45 1-1 1s-1-.45-1-1v-3H8V5h11v14zM9 7h6v2H9zm7 0h2v2h-2zm-7 3h6v2H9zm7 0h2v2h-2z" /></svg>
+                    Ver conta
+                    {totalContaAlvo !== null && totalContaAlvo > 0 && (
+                      <span className="absolute -right-1.5 -top-2 rounded-full bg-primary px-1.5 py-[1px] text-[10px] font-bold text-white" data-testid="pdv-ver-conta-total">
+                        {formatBRL(totalContaAlvo)}
+                      </span>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={(pdvV2 ? !alvoV2 : !mesaEscolhida) || comanda.length === 0 || launching}
+                  onClick={lancarNaCozinha}
+                  data-testid="pdv-lancar"
+                  className="h-[60px] min-w-0 flex-1 rounded-menuzia bg-status-ready text-[16px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
+                >
+                  {launching ? 'Lançando…' : 'Lançar na cozinha'}
+                </button>
+              </div>
             </div>
               </aside>
             </div>

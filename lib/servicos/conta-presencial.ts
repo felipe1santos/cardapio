@@ -75,6 +75,8 @@ export interface ItemConta {
   observacao: string | null
   cancelado: boolean
   canceladoMotivo: string | null
+  /** Miniatura do produto (versão pequena), quando o item ainda existe no cardápio. */
+  imagemUrl?: string | null
 }
 
 export interface PedidoConta {
@@ -166,7 +168,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     admin.rpc('comanda_totais', { p_comanda: comandaId }),
     admin
       .from('pedidos')
-      .select('id, numero, status, atendimento_status, total, criado_em, preparando_em, pronto_em, atendido_em, atendido_por_nome, criado_por_nome, impresso, resolvido_forcado, cancelado_observacao, pedido_itens ( id, nome, quantidade, preco_unitario, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, observacao, cancelado_em, cancelado_motivo )')
+      .select('id, numero, status, atendimento_status, total, criado_em, preparando_em, pronto_em, atendido_em, atendido_por_nome, criado_por_nome, impresso, resolvido_forcado, cancelado_observacao, pedido_itens ( id, nome, quantidade, preco_unitario, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, observacao, cancelado_em, cancelado_motivo, item:itens_cardapio ( imagem_thumb_url, imagem_url ) )')
       .eq('comanda_id', comandaId)
       .eq('restaurante_id', restauranteId)
       .order('criado_em', { ascending: true }),
@@ -193,6 +195,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
       id: string; nome: string; quantidade: number; preco_unitario: number; complementos: { nome: string }[] | null
       tamanho_nome: string | null; sabor_nome: string | null; borda_nome: string | null; massa_nome: string | null
       observacao: string | null; cancelado_em: string | null; cancelado_motivo: string | null
+      item: { imagem_thumb_url: string | null; imagem_url: string | null } | null
     }[]
   }[]).map((p) => ({
     id: p.id,
@@ -221,6 +224,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
       observacao: i.observacao || null,
       cancelado: i.cancelado_em !== null,
       canceladoMotivo: i.cancelado_motivo,
+      imagemUrl: i.item?.imagem_thumb_url ?? i.item?.imagem_url ?? null,
     })),
   }))
 
