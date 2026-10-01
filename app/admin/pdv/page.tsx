@@ -34,6 +34,7 @@ import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { FotoItem } from '@/components/pdv/foto-item'
+import { BotaoPdv, ICONES_PDV, TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
 
@@ -244,24 +245,16 @@ function SeletorModal({
   const chipIdle = 'border-border bg-white text-text-main hover:border-primary hover:text-primary'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
+    <TelaPdv titulo={item.nome} onVoltar={onCancel} coluna>
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Configurar item</p>
             <h2 className="text-[15px] font-bold text-text-main">{item.nome}</h2>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded p-1 text-text-subtle transition-colors hover:bg-page hover:text-text-main"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        </div>
+          
+</div>
 
         {/* Scrollable body */}
         <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
@@ -511,7 +504,7 @@ function SeletorModal({
           </div>
         </div>
       </div>
-    </div>
+    </TelaPdv>
   )
 }
 
@@ -594,24 +587,16 @@ function PagamentoModal({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
+    <TelaPdv titulo={`Receber · ${localNome}`} onVoltar={onCancel} coluna>
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Fechar conta</p>
             <h2 className="text-[15px] font-bold text-text-main">{localNome}</h2>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded p-1 text-text-subtle transition-colors hover:bg-page hover:text-text-main"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        </div>
+          
+</div>
 
         {/* Body — 2 colunas em telas largas (Resumo | Pagamento) */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -739,7 +724,7 @@ function PagamentoModal({
           </button>
         </div>
       </div>
-    </div>
+    </TelaPdv>
   )
 }
 
@@ -1000,6 +985,7 @@ export default function PdvPage() {
   }
 
   function sairDoPdv() {
+    saindoDaPilha()
     setSairConfirm(false)
     router.push('/admin/dashboard')
   }
@@ -1396,23 +1382,15 @@ export default function PdvPage() {
           entregue: { label: 'Entregue', cls: 'bg-status-ready/15 text-status-ready' },
         }
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
+          <TelaPdv titulo={"Conta da mesa"} onVoltar={() => setPedidosModalAberto(false)} coluna>
+            <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Conta da mesa</p>
                   <h2 className="text-[18px] font-bold text-text-main">{mesaSelecionada.nome}</h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setPedidosModalAberto(false)}
-                  className="flex h-11 w-11 items-center justify-center rounded-menuzia bg-page text-text-subtle transition-colors hover:bg-border hover:text-text-main"
-                >
-                  <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                  </svg>
-                </button>
-              </div>
+                
+</div>
 
               {/* 2 colunas: itens pedidos (esq.) + total e ações grandes (dir.) */}
               <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
@@ -1528,7 +1506,7 @@ export default function PdvPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </TelaPdv>
         )
       })()}
 
@@ -1616,28 +1594,16 @@ export default function PdvPage() {
 
       {/* Confirmação de saída do PDV */}
       {sairConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xs rounded-menuzia bg-[#111827] p-5 text-center text-white shadow-xl">
-            <p className="text-[15px] font-bold">Tem certeza que quer sair do sistema?</p>
-            <p className="mt-1 text-[12px] text-white/60">Você voltará ao menu principal.</p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setSairConfirm(false)}
-                className="flex-1 rounded-menuzia border border-white/20 py-2 text-[13px] font-semibold text-white/80 transition-colors hover:bg-white/10"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={sairDoPdv}
-                className="flex-1 rounded-menuzia bg-danger py-2 text-[13px] font-bold text-white transition-colors hover:brightness-110"
-              >
-                Sair
-              </button>
-            </div>
+        <TelaPdv titulo="Sair do PDV" onVoltar={() => setSairConfirm(false)} livre larguraMax={560} testid="pdv-sair">
+          <div className="p-6 text-center">
+            <p className="text-[17px] font-bold text-text-main">Sair do PDV?</p>
+            <p className="mt-1 text-[14px] text-text-subtle">Você volta ao menu principal.</p>
           </div>
-        </div>
+          <div className="flex gap-2 border-t border-border px-4 py-3">
+            <BotaoPdv icone={ICONES_PDV.voltar} onClick={() => setSairConfirm(false)} className="flex-1">Continuar no PDV</BotaoPdv>
+            <BotaoPdv icone={ICONES_PDV.fechar} tipo="perigo" onClick={sairDoPdv} className="flex-1">Sair</BotaoPdv>
+          </div>
+        </TelaPdv>
       )}
 
 

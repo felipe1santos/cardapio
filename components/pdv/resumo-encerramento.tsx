@@ -2,6 +2,7 @@
 
 import type { ResumoEncerramento } from '@/lib/encerramento-conta'
 import { formatBRL } from './util'
+import { ICONES_PDV, TelaPdv } from './tela-pdv'
 
 /**
  * Depois de fechar ou cancelar uma conta: o que aconteceu, em números, antes de a tela
@@ -31,8 +32,8 @@ export function ResumoEncerramentoModal({
     </div>
   )
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Resumo do encerramento" data-testid="resumo-encerramento">
-      <div className="w-full max-w-sm overflow-hidden rounded-menuzia bg-white shadow-xl">
+    <TelaPdv titulo={cancelada ? 'Conta cancelada' : 'Conta fechada'} onVoltar={onOk} livre larguraMax={640} testid="resumo-encerramento">
+      <div>
         <div className={`border-b border-border px-4 py-3 ${cancelada ? 'bg-danger-bg' : 'bg-price-bg'}`}>
           <p className={`text-[11px] font-bold uppercase tracking-wide ${cancelada ? 'text-danger' : 'text-price-text'}`}>
             {cancelada ? 'Conta cancelada' : 'Conta fechada'}
@@ -63,12 +64,13 @@ export function ResumoEncerramentoModal({
             </p>
           )}
         </div>
-        <div className="border-t border-border px-4 py-3">
-          <button type="button" onClick={onOk} className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-bold uppercase tracking-wide text-white hover:bg-primary-dark">
-            Ok
-          </button>
-        </div>
       </div>
-    </div>
+      <div className="border-t border-border px-4 py-3">
+        <button type="button" onClick={onOk} className="flex w-full items-center justify-center gap-2 rounded-menuzia bg-primary text-white hover:bg-primary-dark">
+          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.check} /></svg>
+          Ok
+        </button>
+      </div>
+    </TelaPdv>
   )
 }

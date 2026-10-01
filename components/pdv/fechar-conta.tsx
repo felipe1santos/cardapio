@@ -7,19 +7,13 @@ import type { ContaPresencial } from '@/lib/servicos/conta-presencial'
 import { chamar, formatBRL, horaCurta, lerValor, novaChave } from './util'
 import { TaxasModal, taxasIniciais } from './taxas-conta'
 import { FotoItem } from './foto-item'
+import { BotaoPdv, ICONES_PDV, TelaPdv } from './tela-pdv'
 import { Selo } from './selos'
 import { calcularTaxas, rotuloTaxa, type TaxaCalculada, type TaxaEntrada } from '@/lib/taxas-conta'
 
 /** Ícones das formas de pagamento (botões grandes, toque). */
-const ICONE_FORMA: Record<string, string> = {
-  dinheiro: 'M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z',
-  pix: 'M5.28 6.4 2.24 9.45a3.6 3.6 0 0 0 0 5.1l3.04 3.05h2.1l3.54-3.54a1.5 1.5 0 0 1 2.12 0l3.54 3.54h2.1l3.04-3.05a3.6 3.6 0 0 0 0-5.1L18.68 6.4h-2.1l-3.54 3.54a1.5 1.5 0 0 1-2.12 0L7.38 6.4z',
-  credito: 'M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z',
-  debito: 'M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z',
-  vale: 'M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2z',
-  fiado: 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
-  outros: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
-}
+import { ICONE_FORMA_PDV as ICONE_FORMA } from './icones-forma'
+
 
 /**
  * "Fechar conta" (0096): uma tela, quatro passos, e UMA ida ao servidor no fim.
@@ -232,11 +226,31 @@ export function FecharContaModal({
   const temPendentes = !!pendentes && pendentes.length > 0
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Fechar conta">
-      <div className="flex max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-menuzia bg-white shadow-xl" data-testid="fechar-modal">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <>
+    <TelaPdv
+      titulo="Fechar conta"
+      onVoltar={onVoltar}
+      testid="fechar-modal"
+      sujo={pags.some((x) => x.recebido.trim() !== '') || Object.keys(decisoes).length > 0}
+      rodape={
+        <div className="flex gap-2">
+          <BotaoPdv icone={ICONES_PDV.voltar} onClick={onVoltar} className="flex-1">Voltar sem fechar</BotaoPdv>
+          <button
+            type="button"
+            disabled={!pronto || enviando}
+            onClick={() => (zero && !confirmarZero ? setConfirmarZero(true) : void fechar())}
+            data-testid="fechar-confirmar"
+            className={['flex min-h-[60px] flex-[2] items-center justify-center gap-2 rounded-menuzia text-[17px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50', zero && confirmarZero ? 'bg-warn' : 'bg-status-ready'].join(' ')}
+          >
+            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden><path d={ICONES_PDV.check} /></svg>
+            {enviando ? 'Fechando…' : zero ? (confirmarZero ? 'Confirmar: fechar com R$ 0,00' : 'Fechar conta (valor zero)') : 'Fechar conta'}
+          </button>
+        </div>
+      }
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="border-b border-border px-4 py-2.5">
           <div>
-            <h2 className="text-[16px] font-bold text-text-main">Fechar conta</h2>
             {/* Etapas obrigatórias, nesta ordem: o pagamento só abre com as pendências decididas. */}
             <ol className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold" data-testid="fechar-etapas">
               {[
@@ -251,11 +265,6 @@ export function FecharContaModal({
               ))}
             </ol>
           </div>
-          <button type="button" onClick={onVoltar} className="flex h-11 w-11 items-center justify-center rounded-menuzia text-text-subtle hover:bg-page hover:text-text-main" aria-label="Voltar">
-            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
@@ -304,10 +313,11 @@ export function FecharContaModal({
                             onClick={() => decidir(p.id, 'entregue')}
                             data-testid={`fechar-pendencia-${p.numero}-entregue`}
                             className={[
-                              'min-h-[48px] flex-1 rounded-menuzia border text-[13px] font-bold disabled:opacity-40',
+                              'flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia border text-[14px] font-bold disabled:opacity-40',
                               d?.acao === 'entregue' ? 'border-status-ready bg-status-ready text-white' : 'border-border bg-white text-text-main',
                             ].join(' ')}
                           >
+                            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.check} /></svg>
                             Marcar como entregue
                           </button>
                           <button
@@ -316,10 +326,11 @@ export function FecharContaModal({
                             onClick={() => decidir(p.id, 'cancelar')}
                             data-testid={`fechar-pendencia-${p.numero}-cancelar`}
                             className={[
-                              'min-h-[48px] flex-1 rounded-menuzia border text-[13px] font-bold disabled:opacity-40',
+                              'flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia border text-[14px] font-bold disabled:opacity-40',
                               d?.acao === 'cancelar' ? 'border-danger bg-danger text-white' : 'border-border bg-white text-text-main',
                             ].join(' ')}
                           >
+                            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.fechar} /></svg>
                             Cancelar
                           </button>
                         </div>
@@ -501,21 +512,8 @@ export function FecharContaModal({
           </div>
         </div>
 
-        <div className="flex gap-2 border-t border-border px-4 py-3">
-          <button type="button" onClick={onVoltar} className="min-h-[60px] flex-1 rounded-menuzia border border-border text-[13px] font-semibold text-text-subtle hover:text-text-main">
-            Voltar sem fechar
-          </button>
-          <button
-            type="button"
-            disabled={!pronto || enviando}
-            onClick={() => (zero && !confirmarZero ? setConfirmarZero(true) : void fechar())}
-            data-testid="fechar-confirmar"
-            className={['min-h-[60px] flex-[2] rounded-menuzia text-[16px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50', zero && confirmarZero ? 'bg-warn' : 'bg-status-ready'].join(' ')}
-          >
-            {enviando ? 'Fechando…' : zero ? (confirmarZero ? 'Confirmar: fechar com R$ 0,00' : 'Fechar conta (valor zero)') : 'Fechar conta'}
-          </button>
-        </div>
       </div>
+    </TelaPdv>
       {taxaAberta && (
         <TaxasModal
           atuais={taxasVistas ? taxasVistas.map(({ nome, tipo, base, quantidade }) => ({ nome, tipo, base, quantidade })) : taxasIniciais(conta)}
@@ -533,7 +531,7 @@ export function FecharContaModal({
           }}
         />
       )}
-    </div>
+    </>
   )
 }
 

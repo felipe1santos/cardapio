@@ -21,6 +21,8 @@ import type { EventoHistorico } from '@/lib/queries/conta'
 import { chamar, formatBRL, horaCurta, lerValor, mascararTelefone, minutosDesde, novaChave, tempoCurto } from './util'
 import { FecharContaModal } from './fechar-conta'
 import { FotoItem } from './foto-item'
+import { BotaoPdv, CaminhoPilha, ICONES_PDV, RaizPilha, TelaPdv, textoEncerramento, toastPdv } from './tela-pdv'
+import { ICONE_FORMA_PDV } from './icones-forma'
 import { SeloAtendimento, SeloCozinha, SeloFinanceiro } from './selos'
 import { TaxasModal, taxasIniciais } from './taxas-conta'
 import { rotuloTaxa, type TaxaEntrada } from '@/lib/taxas-conta'
@@ -222,10 +224,29 @@ export function ContaPresencialModal({
       : `${conta.mesaNome ?? 'Mesa'}${conta.numero ? ` · Comanda ${conta.numero}` : ''}${conta.clienteNome ? ` · ${conta.clienteNome}` : ''}`
     : 'Conta'
 
+  // Navegação em pilha (2026-10-01): a conta é uma tela; Receber, Fechar, Taxas… abrem por
+  // cima COBRINDO-A (ela fica montada e volta igual). Barra de ações fixa no rodapé.
+  const barra = conta && pode && aberta ? (
+    <BarraAcoesConta
+      conta={conta}
+      pode={pode}
+      ocupado={ocupado}
+      onLancar={() => onLancarItens(conta)}
+      onReceber={() => setSub({ tipo: 'receber' })}
+      onFechar={() => void fechar()}
+      onTaxas={() => setSub({ tipo: pode.taxa_extra ? 'taxa_extra' : 'ajustar' })}
+      onAjustar={() => setSub({ tipo: 'ajustar' })}
+      onPendencias={() => void abrirPendencias()}
+      onCliente={() => setSub({ tipo: 'identificar' })}
+      onHistorico={() => setSub({ tipo: 'historico' })}
+      onCancelar={() => setSub({ tipo: 'cancelar_conta' })}
+    />
+  ) : undefined
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={titulo}>
-      <div className="flex max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
-        {/* Cabeçalho */}
+    <RaizPilha fecharTudo={onFechar}>
+    <TelaPdv titulo={titulo} onVoltar={onFechar} rodape={barra} testid="conta-tela">
+      <div className="flex h-full min-h-0 flex-col">
+        {/* Identificação da conta */}
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
@@ -249,11 +270,6 @@ export function ContaPresencialModal({
                 Histórico
               </button>
             )}
-            <button type="button" onClick={onFechar} aria-label="Fechar" className="flex h-10 w-10 items-center justify-center rounded-menuzia bg-page text-text-subtle hover:bg-border hover:text-text-main">
-              <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-              </svg>
-            </button>
           </div>
         </div>
 
@@ -272,7 +288,7 @@ export function ContaPresencialModal({
         {aviso && (
           <p
             role="status"
-            className={['mx-4 mt-3 rounded-menuzia px-3 py-2 text-[12px] font-semibold', aviso.tom === 'ok' ? 'bg-price-bg text-price-text' : 'bg-danger-bg text-danger'].join(' ')}
+            className={['pointer-events-none fixed inset-x-0 bottom-28 z-[70] mx-auto w-fit max-w-[min(520px,calc(100vw-32px))] rounded-[10px] px-4 py-3 text-center text-[14px] font-semibold text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]', aviso.tom === 'ok' ? 'bg-sidebar-bg' : 'bg-danger'].join(' ')}
             data-testid="conta-aviso"
           >
             {aviso.texto}
@@ -420,25 +436,11 @@ export function ContaPresencialModal({
               )}
             </div>
           </div>
-          {aberta && (
-            <BarraAcoesConta
-              conta={conta}
-              pode={pode}
-              ocupado={ocupado}
-              onLancar={() => onLancarItens(conta)}
-              onReceber={() => setSub({ tipo: 'receber' })}
-              onFechar={() => void fechar()}
-              onTaxas={() => setSub({ tipo: pode.taxa_extra ? 'taxa_extra' : 'ajustar' })}
-              onAjustar={() => setSub({ tipo: 'ajustar' })}
-              onPendencias={() => void abrirPendencias()}
-              onCliente={() => setSub({ tipo: 'identificar' })}
-              onHistorico={() => setSub({ tipo: 'historico' })}
-              onCancelar={() => setSub({ tipo: 'cancelar_conta' })}
-            />
-          )}
           </>
         )}
       </div>
+    </TelaPdv>
+    <CaminhoPilha trecho={titulo}>
 
       {conta && dados && sub?.tipo === 'receber' && (
         <ReceberModal
@@ -447,7 +449,7 @@ export function ContaPresencialModal({
           podeFechar={Boolean(pode?.fechar)}
           onCancelar={() => setSub(null)}
           onRegistrar={async (corpo, fecharDepois) => {
-            const r = await agir({ acao: 'pagamento', ...corpo }, 'Pagamento registrado.')
+            const r = await agir({ acao: 'pagamento', ...corpo }, `Pagamento de ${formatBRL(Number(corpo.valor))} registrado`)
             if (!r?.ok) return false
             setSub(null)
             if (fecharDepois) await fechar()
@@ -576,6 +578,7 @@ export function ContaPresencialModal({
           resumo={sub.resumo}
           emLimpeza={sub.emLimpeza}
           onOk={() => {
+            toastPdv(textoEncerramento(sub.resumo.acao, titulo, sub.resumo.pago))
             setSub(null)
             onEncerrada?.()
           }}
@@ -621,7 +624,8 @@ export function ContaPresencialModal({
           }}
         />
       )}
-    </div>
+    </CaminhoPilha>
+    </RaizPilha>
   )
 }
 
@@ -717,21 +721,17 @@ function CartaoPedido({
   )
 }
 
-function Moldura({ titulo, children, onVoltar, largura = 'max-w-lg' }: { titulo: string; children: React.ReactNode; onVoltar: () => void; largura?: string }) {
+/** Ícone de botão das sub-telas (todo botão tem ícone + texto). */
+function Ic({ d }: { d: string }) {
+  return <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 fill-current" aria-hidden><path d={d} /></svg>
+}
+
+/** Sub-tela da conta: uma tela da pilha (cobre a conta; "← Voltar" mostra a conta igual). */
+function Moldura({ titulo, children, onVoltar, sujo }: { titulo: string; children: React.ReactNode; onVoltar: () => void; largura?: string; sujo?: boolean }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-3" role="dialog" aria-modal="true" aria-label={titulo}>
-      <div className={`flex max-h-[94vh] w-full ${largura} flex-col overflow-hidden rounded-menuzia bg-white shadow-xl`}>
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h3 className="text-[15px] font-bold text-text-main">{titulo}</h3>
-          <button type="button" onClick={onVoltar} aria-label="Fechar" className="rounded p-1 text-text-subtle hover:bg-page hover:text-text-main">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <TelaPdv titulo={titulo} onVoltar={onVoltar} livre sujo={sujo}>
+      {children}
+    </TelaPdv>
   )
 }
 
@@ -764,8 +764,8 @@ export function ReceberModal({
   async function registrar(fecharDepois: boolean) {
     if (!forma) return setErro('Escolha a forma de pagamento.')
     if (!Number.isFinite(v) || v <= 0) return setErro('Informe um valor maior que zero.')
-    if (v > conta.totais.restante + 0.001) return setErro(`O valor passa do que falta pagar (${formatBRL(conta.totais.restante)}).`)
-    if (forma === 'dinheiro' && recebido && (!Number.isFinite(rec) || rec < v)) return setErro('O valor recebido é menor que o valor a pagar.')
+    if (v > conta.totais.restante + 0.001) return setErro(`Valor maior que o restante. Máximo: ${formatBRL(conta.totais.restante)}.`)
+    if (forma === 'dinheiro' && recebido && (!Number.isFinite(rec) || rec < v)) return setErro('Valor recebido menor que o valor a receber. Confira o valor entregue pelo cliente.')
     if (forma === 'fiado' && !obs.trim()) return setErro('No fiado, informe de quem é a conta.')
     setEnviando(true)
     setErro(null)
@@ -779,66 +779,116 @@ export function ReceberModal({
     if (ok) chave.current = novaChave()
   }
 
+  // Teclado na tela (toque): edita o campo ativo.
+  const [campo, setCampo] = useState<'valor' | 'recebido'>('valor')
+  const restante = conta.totais.restante
+  const fmt = (n: number) => n.toFixed(2).replace('.', ',')
+  const sujo = valor !== fmt(restante) || recebido.trim() !== '' || obs.trim() !== ''
+  function tecla(t: string) {
+    const atual = campo === 'valor' ? valor : recebido
+    const novoValor = t === '⌫' ? atual.slice(0, -1) : t === ',' ? (atual.includes(',') ? atual : (atual || '0') + ',') : (/,\d{2}$/.test(atual) ? atual : atual + t)
+    if (campo === 'valor') setValor(novoValor)
+    else setRecebido(novoValor)
+  }
+  function atalho(a: number | 'exato') {
+    if (a === 'exato') { setValor(fmt(restante)); if (forma === 'dinheiro') setRecebido(fmt(restante)); return }
+    // No dinheiro o atalho é o que o cliente entregou (o troco aparece); nas outras, o valor.
+    if (forma === 'dinheiro') { setRecebido(fmt(a)); setCampo('recebido') } else setValor(fmt(Math.min(a, restante)))
+  }
+  const ident = conta.tipo === 'balcao' ? `Senha ${conta.senha}` : conta.mesaNome ?? 'Mesa'
+
   return (
-    <Moldura titulo={`Receber · ${conta.tipo === 'balcao' ? `Senha ${conta.senha} · ${conta.clienteNome}` : conta.mesaNome}`} onVoltar={onCancelar}>
-      <div className="space-y-3 overflow-y-auto px-4 py-4">
-        <div className="flex items-center justify-between rounded-menuzia bg-page px-3 py-2">
-          <span className="text-[13px] font-semibold text-text-subtle">Restante</span>
-          <span className="text-[20px] font-extrabold text-text-main">{formatBRL(conta.totais.restante)}</span>
+    <TelaPdv
+      titulo="Receber"
+      onVoltar={onCancelar}
+      sujo={sujo}
+      testid="receber-tela"
+      rodape={
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <BotaoPdv icone={ICONES_PDV.check} tipo={podeFechar ? 'secundario' : 'principal'} disabled={enviando} onClick={() => void registrar(false)} testid="receber-registrar" className="sm:min-w-[240px]">
+            {enviando ? 'Registrando…' : 'Registrar pagamento'}
+          </BotaoPdv>
+          {podeFechar && (
+            <BotaoPdv icone={ICONES_PDV.checkDuplo} tipo="sucesso" disabled={enviando} onClick={() => void registrar(true)} testid="receber-registrar-fechar" className="sm:min-w-[260px]">
+              Registrar e fechar conta
+            </BotaoPdv>
+          )}
         </div>
-        <div>
-          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Forma</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      }
+    >
+      <div className="grid gap-4 p-4 lg:grid-cols-[1fr_420px]">
+        {/* Esquerda: valores */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-menuzia bg-page px-4 py-3">
+            <span className="text-[14px] font-semibold text-text-subtle">Restante a pagar · {ident}</span>
+            <span className="text-[28px] font-extrabold text-text-main" data-testid="receber-restante">{formatBRL(restante)}</span>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Valor a receber</span>
+            <input value={valor} inputMode="decimal" onFocus={() => setCampo('valor')} onChange={(e) => setValor(e.target.value)} data-testid="receber-valor"
+              className={['pdv-campo-valor h-[60px] w-full rounded-menuzia border-2 px-4 text-right text-[26px] font-extrabold text-text-main focus:outline-none', campo === 'valor' ? 'pdv-campo-ativo border-primary' : 'border-border'].join(' ')} />
+          </label>
+          {forma === 'dinheiro' && (
+            <>
+              <label className="block">
+                <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Valor recebido</span>
+                <input value={recebido} inputMode="decimal" onFocus={() => setCampo('recebido')} onChange={(e) => setRecebido(e.target.value)} placeholder="0,00" data-testid="receber-recebido"
+                  className={['pdv-campo-valor h-[60px] w-full rounded-menuzia border-2 px-4 text-right text-[26px] font-extrabold text-text-main placeholder:font-normal focus:outline-none', campo === 'recebido' ? 'pdv-campo-ativo border-primary' : 'border-border'].join(' ')} />
+              </label>
+              <div className="flex items-center justify-between rounded-menuzia bg-price-bg px-4 py-3">
+                <span className="text-[15px] font-bold text-text-main">Troco</span>
+                <strong className="text-[30px] font-extrabold text-price-text" data-testid="receber-troco">{formatBRL(troco)}</strong>
+              </div>
+            </>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Observação {forma === 'fiado' && <span className="text-danger">(obrigatória no fiado)</span>}</span>
+            <input value={obs} maxLength={200} onChange={(e) => setObs(e.target.value)} className="h-[48px] w-full rounded-menuzia border border-border px-3 text-[14px] text-text-main focus:border-primary focus:outline-none" />
+          </label>
+          {conta.pagamentos.filter((p) => !p.estornado).length > 0 && (
+            <p className="text-[13px] text-text-subtle">
+              Já pago: {conta.pagamentos.filter((p) => !p.estornado).map((p) => `${ROTULO_FORMA[p.forma] ?? p.forma} ${formatBRL(p.valor)}`).join(' · ')}
+            </p>
+          )}
+          {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2.5 text-[14px] font-semibold text-danger" data-testid="receber-erro">{erro}</p>}
+        </div>
+
+        {/* Direita: formas e teclado */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
             {formas.map((f) => (
               <button
                 key={f}
                 type="button"
-                onClick={() => setForma(f)}
+                onClick={() => { setForma(f); setCampo('valor') }}
                 data-testid={`forma-${f}`}
-                className={['rounded-menuzia border-2 px-3 py-3 text-[14px] font-bold transition-colors', forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'].join(' ')}
+                aria-pressed={forma === f}
+                className={['relative flex h-[64px] items-center gap-2.5 rounded-menuzia border-2 px-3 text-[15px] font-bold transition-colors', forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'].join(' ')}
               >
+                <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden><path d={ICONE_FORMA_PDV[f] ?? ICONE_FORMA_PDV.outros} /></svg>
                 {ROTULO_FORMA[f as FormaPagamento] ?? f}
+                {forma === f && <svg viewBox="0 0 24 24" className="absolute right-2 top-2 h-4 w-4 fill-current" aria-hidden><path d={ICONES_PDV.check} /></svg>}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {(['exato', 50, 100, 200] as const).map((a) => (
+              <button key={String(a)} type="button" onClick={() => atalho(a)} className="h-[56px] rounded-menuzia border border-border bg-white text-[15px] font-bold text-text-main active:scale-[0.97]" data-testid={`receber-atalho-${a}`}>
+                {a === 'exato' ? 'Valor exato' : `R$ ${a}`}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2" data-testid="receber-teclado">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'].map((t) => (
+              <button key={t} type="button" onClick={() => tecla(t)} aria-label={t === '⌫' ? 'Apagar' : t}
+                className="h-[56px] rounded-menuzia border border-border bg-white text-[22px] font-bold text-text-main active:bg-page">
+                {t}
               </button>
             ))}
           </div>
         </div>
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Valor a pagar (máx. {formatBRL(conta.totais.restante)})</span>
-          <input value={valor} inputMode="decimal" onChange={(e) => setValor(e.target.value)} data-testid="receber-valor" className="w-full rounded-menuzia border border-border px-3 py-2.5 text-[16px] font-bold text-text-main focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-        </label>
-        {forma === 'dinheiro' && (
-          <label className="block">
-            <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Recebido</span>
-            <input value={recebido} inputMode="decimal" onChange={(e) => setRecebido(e.target.value)} placeholder="Ex.: 100,00" data-testid="receber-recebido" className="w-full rounded-menuzia border border-border px-3 py-2.5 text-[16px] font-bold text-text-main placeholder:font-normal focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-            <span className="mt-1 flex justify-between text-[13px]">
-              <span className="text-text-subtle">Troco</span>
-              <strong className="text-price-text" data-testid="receber-troco">{formatBRL(troco)}</strong>
-            </span>
-          </label>
-        )}
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Observação {forma === 'fiado' && <span className="text-danger">*</span>}</span>
-          <input value={obs} maxLength={200} onChange={(e) => setObs(e.target.value)} className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px] text-text-main focus:border-primary focus:outline-none" />
-        </label>
-        {conta.pagamentos.filter((p) => !p.estornado).length > 0 && (
-          <p className="text-[12px] text-text-subtle">
-            Já pago: {conta.pagamentos.filter((p) => !p.estornado).map((p) => `${ROTULO_FORMA[p.forma] ?? p.forma} ${formatBRL(p.valor)}`).join(' · ')}
-          </p>
-        )}
-        <p className="text-[11px] text-text-subtle">Valor, troco e saldo são recalculados no servidor; a tela só antecipa.</p>
-        {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
       </div>
-      <div className="space-y-2 border-t border-border px-4 py-3">
-        <button type="button" disabled={enviando} onClick={() => void registrar(false)} data-testid="receber-registrar" className="w-full rounded-menuzia bg-primary py-3.5 text-[14px] font-bold text-white hover:bg-primary-dark disabled:opacity-50">
-          {enviando ? 'Registrando…' : 'Registrar pagamento'}
-        </button>
-        {podeFechar && (
-          <button type="button" disabled={enviando} onClick={() => void registrar(true)} data-testid="receber-registrar-fechar" className="w-full rounded-menuzia bg-status-ready py-3.5 text-[14px] font-bold text-white hover:brightness-95 disabled:opacity-50">
-            Registrar e fechar conta
-          </button>
-        )}
-      </div>
-    </Moldura>
+    </TelaPdv>
   )
 }
 
@@ -929,15 +979,18 @@ function PendenciasModal({
       </div>
       <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
         <button type="button" onClick={onVoltar} className="rounded-menuzia border border-border px-4 py-2.5 text-[13px] font-semibold text-text-main">
+          <Ic d={ICONES_PDV.voltar} />
           Voltar sem fechar
         </button>
         {Number(dados.financeiro.restante) > 0 && pode.pagamento && (
           <button type="button" onClick={onReceber} className="rounded-menuzia bg-primary px-4 py-2.5 text-[13px] font-bold text-white">
+            <Ic d={ICONES_PDV.receber} />
             Receber restante
           </button>
         )}
         {pode.resolver && dados.pedidos.length > 0 && (
           <button type="button" onClick={onResolver} data-testid="pendencias-resolver" className="ml-auto rounded-menuzia border-2 border-warn px-4 py-2.5 text-[13px] font-bold text-warn hover:bg-warn hover:text-white">
+            <Ic d={ICONES_PDV.alerta} />
             Resolver pendências…
           </button>
         )}
@@ -1038,11 +1091,13 @@ function ResolverModal({
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
       </div>
       <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-        <button type="button" onClick={onVoltar} className="rounded-menuzia border border-border px-4 py-2.5 text-[13px] font-semibold">Voltar</button>
+        <button type="button" onClick={onVoltar} className="rounded-menuzia border border-border px-4 py-2.5 text-[13px] font-semibold"><Ic d={ICONES_PDV.voltar} />Voltar</button>
         <button type="button" disabled={!podeAplicar || ocupado} onClick={() => void aplicar(false)} className="ml-auto rounded-menuzia border-2 border-primary px-4 py-2.5 text-[13px] font-bold text-primary disabled:opacity-40">
+          <Ic d={ICONES_PDV.check} />
           Aplicar
         </button>
         <button type="button" disabled={!podeAplicar || ocupado} onClick={() => void aplicar(true)} data-testid="resolver-aplicar-fechar" className="rounded-menuzia bg-status-ready px-4 py-2.5 text-[13px] font-bold text-white disabled:opacity-40">
+          <Ic d={ICONES_PDV.checkDuplo} />
           Aplicar e fechar conta
         </button>
       </div>
@@ -1101,7 +1156,7 @@ function CancelarModal({
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
       </div>
       <div className="flex gap-2 border-t border-border px-4 py-3">
-        <button type="button" onClick={onVoltar} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold">Voltar</button>
+        <button type="button" onClick={onVoltar} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold"><Ic d={ICONES_PDV.voltar} />Voltar</button>
         <button
           type="button"
           disabled={!motivo.trim() || ocupado || (!direto && !podeSolicitar)}
@@ -1113,6 +1168,7 @@ function CancelarModal({
           }}
           className="flex-[2] rounded-menuzia bg-danger py-2.5 text-[13px] font-bold text-white disabled:opacity-40"
         >
+          <Ic d={ICONES_PDV.fechar} />
           {direto ? 'Cancelar pedido' : 'Pedir à gerência'}
         </button>
       </div>
@@ -1150,7 +1206,7 @@ function MotivoModal({
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
       </div>
       <div className="flex gap-2 border-t border-border px-4 py-3">
-        <button type="button" onClick={onVoltar} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold">Voltar</button>
+        <button type="button" onClick={onVoltar} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold"><Ic d={ICONES_PDV.voltar} />Voltar</button>
         <button
           type="button"
           disabled={motivo.trim().length < 5 || ocupado}
@@ -1162,6 +1218,7 @@ function MotivoModal({
           }}
           className={['flex-[2] rounded-menuzia py-2.5 text-[13px] font-bold text-white disabled:opacity-40', perigo ? 'bg-danger' : 'bg-warn'].join(' ')}
         >
+          <Ic d={ICONES_PDV.alerta} />
           {botao}
         </button>
       </div>
@@ -1216,7 +1273,7 @@ function AjustarModal({
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
       </div>
       <div className="flex gap-2 border-t border-border px-4 py-3">
-        <button type="button" onClick={onVoltar} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold">Voltar</button>
+        <button type="button" onClick={onVoltar} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold"><Ic d={ICONES_PDV.voltar} />Voltar</button>
         <button
           type="button"
           disabled={ocupado}
@@ -1234,6 +1291,7 @@ function AjustarModal({
           }}
           className="flex-[2] rounded-menuzia bg-primary py-2.5 text-[13px] font-bold text-white disabled:opacity-40"
         >
+          <Ic d={ICONES_PDV.salvar} />
           Salvar
         </button>
       </div>
@@ -1450,7 +1508,7 @@ function BotaoAcao({ icone, rotulo, onClick, disabled, testid, title, perigo = f
       data-testid={testid}
       title={title ?? rotulo}
       className={[
-        'flex h-[60px] w-[78px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border bg-white text-[11px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
+        'flex h-[60px] w-[88px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border bg-white text-[11px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
         perigo ? 'border-danger/40 text-danger hover:bg-danger-bg' : 'border-border text-text-main hover:border-primary hover:text-primary',
       ].join(' ')}
     >
@@ -1477,7 +1535,7 @@ function BarraAcoesConta({
   onCancelar: () => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-border bg-white px-3 py-2.5" data-testid="conta-barra-acoes">
+    <div className="flex flex-wrap items-center gap-2 bg-white" data-testid="conta-barra-acoes">
       <div className="flex min-w-0 flex-1 flex-wrap gap-2">
         {pode.lancar && <BotaoAcao icone={ICONE_ACAO.lancar} rotulo="Lançar" onClick={onLancar} disabled={ocupado} testid="conta-lancar" />}
         {pode.pre_conta && !conta.entrega && <PreContaBloco comandaId={conta.id} variante="barra" />}
@@ -1491,13 +1549,17 @@ function BarraAcoesConta({
       <div className="flex w-full gap-2 sm:w-auto">
         {pode.pagamento && conta.totais.restante > 0 && (
           <button type="button" disabled={ocupado} onClick={onReceber} data-testid="conta-receber"
-            className="h-[60px] flex-1 rounded-menuzia bg-primary px-6 text-[15px] font-bold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 sm:flex-none">
+            className="flex h-[60px] flex-1 items-center justify-center gap-2 rounded-menuzia bg-primary px-6 text-[16px] font-bold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 sm:flex-none">
+            <Ic d={ICONES_PDV.receber} />
             Receber
           </button>
         )}
         {pode.fechar && (
           <button type="button" disabled={ocupado} onClick={onFechar} data-testid="conta-fechar"
-            className="h-[60px] flex-1 rounded-menuzia bg-status-ready px-6 text-[15px] font-bold text-white transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none">
+            className={['flex h-[60px] flex-1 items-center justify-center gap-2 rounded-menuzia border-2 border-status-ready px-6 text-[16px] font-bold transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none',
+              // Uma ação forte por vez: com saldo a receber, o destaque é o Receber.
+              pode.pagamento && conta.totais.restante > 0 ? 'bg-white text-status-ready' : 'bg-status-ready text-white'].join(' ')}>
+            <Ic d={ICONES_PDV.check} />
             {ocupado ? 'Aguarde…' : 'Fechar conta'}
           </button>
         )}

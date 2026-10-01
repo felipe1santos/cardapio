@@ -44,7 +44,7 @@ export function PainelChamados({
         const corpo = (await r.json()) as { error?: string }
         if (!r.ok) setErro(corpo.error ?? 'Não foi possível atualizar o chamado.')
       } catch {
-        setErro('Sem conexão com o servidor.')
+        setErro('Sem conexão. Confira a internet e tente de novo.')
       } finally {
         setEmAcao(null)
         // Recarrega nos dois casos: no erro de corrida, para a tela mostrar quem pegou.

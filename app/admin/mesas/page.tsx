@@ -253,7 +253,7 @@ export default function MesasPage() {
         return
       }
     } catch {
-      setAvisoAcao('Sem conexão com o servidor.')
+      setAvisoAcao('Sem conexão. Confira a internet e tente de novo.')
       return
     }
     recarregar()

@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
-import { Check, ChevronDown, ImageOff, Minus, Pencil, Plus, Send, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ImageOff, Minus, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TelaPdv } from '@/components/pdv/tela-pdv'
 import { Badge } from '@/components/ui/badge'
 import type { GrupoCardapio, ItemCardapio } from '@/lib/queries/cardapio'
 import type { BordaPizza, MassaPizza, TamanhoPadraoPizza } from '@/lib/queries/pizza'
@@ -509,23 +510,11 @@ export function ConfiguradorGarcom({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:items-stretch sm:justify-end sm:p-0" onClick={onCancelar}>
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={item.nome}
-        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-2xl sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex min-h-[56px] flex-shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-          <div className="min-w-0">
-            <div className="truncate text-[15px] font-semibold text-text-main">{item.nome}</div>
-            {item.descricao && <div className="line-clamp-1 text-[11px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>}
-          </div>
-          <button onClick={onCancelar} className="-mr-2 grid h-[44px] w-[44px] flex-shrink-0 place-items-center text-text-subtle hover:text-text-main" aria-label="Fechar">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <TelaPdv titulo={item.nome} onVoltar={onCancelar} coluna larguraMax={820} testid="configurador-item">
+      <div className="flex min-h-0 flex-1 flex-col">
+        {item.descricao && (
+          <div className="flex-shrink-0 border-b border-border px-4 py-2 text-[13px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
+        )}
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
           {aviso && <p className="rounded-menuzia bg-warn-bg px-3 py-2 text-[12px] font-semibold text-text-main">{aviso}</p>}
@@ -634,8 +623,8 @@ export function ConfiguradorGarcom({
             </Button>
           </div>
         </div>
-      </aside>
-    </div>
+      </div>
+    </TelaPdv>
   )
 }
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRightLeft, Check, Eye, History, Info, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Check, History, Info, Receipt, Search, ShoppingBag, Utensils, X } from 'lucide-react'
 import { esperaTexto } from '@/lib/chamados'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -41,6 +41,7 @@ import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaO
 import { CardProduto, ConfiguradorGarcom, PainelLancamento, SelecaoDoCliente, SemItens, brl, type DadosPizza } from './lancar'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
+import { TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
 
 /**
@@ -478,6 +479,7 @@ export default function MesaDetalhePage() {
       return
     }
     setAvisoPagina(`Conta ${mesclar ? 'juntada com' : 'transferida para'} a ${destino?.nome ?? 'outra mesa'}.`)
+    saindoDaPilha()
     router.push(`/admin/mesas/${destinoMesaId}`)
   }
 
@@ -560,41 +562,19 @@ export default function MesaDetalhePage() {
         {podeAtenderChamado && <PainelChamados chamados={chamados} agora={agora} onMudou={() => void carregar()} />}
 
         {explicandoVisualizacao && (
-          <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Cardápio da mesa em somente visualização"
-            onClick={() => setExplicandoVisualizacao(false)}
-            data-modal-somente-visualizacao
-          >
-            <div className="w-full max-w-md overflow-hidden rounded-menuzia bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-                <h2 className="flex items-center gap-2 text-[15px] font-bold text-text-main">
-                  <Eye className="h-4 w-4 flex-shrink-0 text-warn" aria-hidden />
-                  Cardápio da mesa em somente visualização
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setExplicandoVisualizacao(false)}
-                  className="rounded p-1 text-text-subtle hover:bg-page hover:text-text-main"
-                  aria-label="Fechar"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <p className="px-4 py-4 text-[13px] leading-relaxed text-text-subtle">
+          <TelaPdv titulo="Cardápio da mesa em somente visualização" onVoltar={() => setExplicandoVisualizacao(false)} livre larguraMax={640} testid="modal-somente-visualizacao">
+              <p className="px-5 py-5 text-[15px] leading-relaxed text-text-subtle" data-modal-somente-visualizacao>
                 O QR desta loja é só para o cliente ver o cardápio. Ele não monta seleção, não chama o garçom e não
                 pede a conta pela tela — não há pedido para tirar aqui. Para voltar a atender pela mesa, desligue o
                 modo em <strong className="text-text-main">Ajustes › Mesas</strong>.
               </p>
               <div className="flex border-t border-border px-4 py-3">
                 <Button className="flex-1" onClick={() => setExplicandoVisualizacao(false)}>
+                  <Check className="h-4 w-4" />
                   Entendi
                 </Button>
               </div>
-            </div>
-          </div>
+          </TelaPdv>
         )}
 
         {avisoPagina && (
@@ -899,28 +879,10 @@ export default function MesaDetalhePage() {
 
       {/* Conferência antes de enviar: janela grande no centro da tela, não folha no rodapé. */}
       {folhaAberta && naAbaLancar && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(env(safe-area-inset-bottom),0.75rem)] xl:hidden"
-          onClick={() => setFolhaAberta(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Lançamento"
-            className="flex max-h-full min-h-[min(60dvh,100%)] w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex min-h-[56px] flex-shrink-0 items-center justify-between gap-2 border-b border-border py-2 pl-4 pr-2">
-              <div className="min-w-0">
-                <h3 className="truncate text-[15px] font-bold text-text-main">Lançamento · {mesa.nome}</h3>
-                <p className="truncate text-[11px] text-text-subtle">Confira antes de enviar para a cozinha.</p>
-              </div>
-              <button onClick={() => setFolhaAberta(false)} className="grid h-[44px] w-[44px] flex-shrink-0 place-items-center text-text-subtle" aria-label="Fechar o lançamento">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            {painel('flex-1')}
-          </div>
+        <div className="xl:hidden">
+          <TelaPdv titulo={`Lançamento · ${mesa.nome}`} onVoltar={() => setFolhaAberta(false)} coluna larguraMax={760} testid="conferencia-lancamento">
+            <div className="flex min-h-0 flex-1 flex-col">{painel('flex-1')}</div>
+          </TelaPdv>
         </div>
       )}
 
@@ -957,8 +919,8 @@ export default function MesaDetalhePage() {
       )}
 
       {enviado && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setEnviado(null)}>
-          <div className="w-full max-w-sm rounded-menuzia bg-main p-6 text-center" onClick={(e) => e.stopPropagation()}>
+        <TelaPdv titulo={`Pedido #${enviado.numero} enviado`} onVoltar={() => setEnviado(null)} livre larguraMax={640} testid="tela-enviado">
+          <div className="p-6 text-center">
             <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full border-2 border-status-ready text-status-ready">
               <Check className="h-6 w-6" />
             </div>
@@ -966,17 +928,18 @@ export default function MesaDetalhePage() {
             <p className="mt-1 text-[13px] text-text-subtle">
               A cozinha recebeu e o pedido entrou na comanda da {mesa.nome}.
             </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Button className="min-h-[44px] w-full" onClick={() => router.push('/admin/mesas')} data-enviado-voltar-mesas>
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Voltar às mesas
-              </Button>
-              <Button variant="outline" className="min-h-[44px] w-full" onClick={() => setEnviado(null)}>
+          </div>
+          <div className="grid grid-cols-1 gap-2 border-t border-border px-4 py-3 sm:grid-cols-2">
+              <Button variant="outline" className="w-full" onClick={() => setEnviado(null)}>
+                <Utensils className="h-4 w-4" />
                 Continuar nesta mesa
               </Button>
-            </div>
+              <Button className="w-full" onClick={() => { saindoDaPilha(); router.push('/admin/mesas') }} data-enviado-voltar-mesas>
+                <ArrowLeft className="h-4 w-4" />
+                Voltar às mesas
+              </Button>
           </div>
-        </div>
+        </TelaPdv>
       )}
     </>
   )

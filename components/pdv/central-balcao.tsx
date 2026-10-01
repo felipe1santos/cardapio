@@ -11,6 +11,7 @@ import type { LinhaCentral } from '@/lib/servicos/conta-presencial'
 import { chamar, formatBRL, horaCurta, mascararTelefone, novaChave, tempoCurto } from './util'
 import { SeloAtendimento, SeloCozinha, SeloFinanceiro } from './selos'
 import { NomeClienteComSugestoes } from './nome-cliente-sugestoes'
+import { ICONES_PDV, TelaPdv } from './tela-pdv'
 
 /**
  * Central de Balcão (spec 13.1): todas as comandas de balcão abertas, com as quatro
@@ -423,16 +424,8 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Novo atendimento de balcão">
-      <form onSubmit={abrir} noValidate className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-menuzia bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-[15px] font-bold text-text-main">Novo atendimento de balcão</h2>
-          <button type="button" onClick={onCancelar} className="rounded p-1 text-text-subtle hover:bg-page hover:text-text-main" aria-label="Fechar">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        </div>
+    <TelaPdv titulo="Novo atendimento de balcão" onVoltar={onCancelar} livre larguraMax={760} sujo={nome.trim() !== '' || telefone.trim() !== ''}>
+      <form onSubmit={abrir} noValidate className="flex min-h-0 flex-1 flex-col !overflow-hidden [&_input]:min-h-[52px] [&_input]:text-[16px] [&>div:first-child]:min-h-0 [&>div:first-child]:flex-1 [&>div:last-child_button]:min-h-[56px] [&>div:last-child_button]:text-[15px]">
         <div className="space-y-3 overflow-y-auto px-4 py-4">
           <div>
             <span className={ROTULO}>
@@ -556,19 +549,21 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
           )}
         </div>
         <div className="flex gap-2 border-t border-border px-4 py-3">
-          <button type="button" onClick={onCancelar} className="flex-1 rounded-menuzia border border-border py-3 text-[13px] font-semibold text-text-subtle hover:text-text-main">
+          <button type="button" onClick={onCancelar} className="flex flex-1 items-center justify-center gap-2 rounded-menuzia border border-border py-3 text-[13px] font-semibold text-text-subtle hover:text-text-main">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.voltar} /></svg>
             Cancelar
           </button>
           <button
             type="submit"
             disabled={enviando || !modalidade}
             data-testid="balcao-abrir"
-            className="flex-[2] rounded-menuzia bg-status-ready py-3 text-[14px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50"
+            className="flex flex-[2] items-center justify-center gap-2 rounded-menuzia bg-status-ready py-3 text-[14px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50"
           >
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.mais} /></svg>
             {enviando ? 'Abrindo…' : 'Abrir e lançar'}
           </button>
         </div>
       </form>
-    </div>
+    </TelaPdv>
   )
 }

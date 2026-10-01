@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { chamar, horaCurta, mascararTelefone, novaChave } from './util'
 import { NomeClienteComSugestoes } from './nome-cliente-sugestoes'
+import { ICONES_PDV, TelaPdv } from './tela-pdv'
 
 /**
  * Identificação do atendimento (0094) e mesa em limpeza (0095): três modais pequenos,
@@ -25,21 +26,12 @@ function Casca({ titulo, rotulo, onFechar, children, rodape, onSubmit }: {
   rodape: React.ReactNode
   onSubmit?: (e: React.FormEvent) => void
 }) {
+  // Tela da pilha do PDV (2026-10-01): cobre a de trás, Voltar/Esc/voltar do navegador.
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label={rotulo}>
-      <form onSubmit={onSubmit ?? ((e) => e.preventDefault())} noValidate className="w-full max-w-md overflow-hidden rounded-menuzia bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-[15px] font-bold text-text-main">{titulo}</h2>
-          <button type="button" onClick={onFechar} className="rounded p-1 text-text-subtle hover:bg-page hover:text-text-main" aria-label="Fechar">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        </div>
-        <div className="space-y-3 px-4 py-4">{children}</div>
-        <div className="flex gap-2 border-t border-border px-4 py-3">{rodape}</div>
-      </form>
-    </div>
+    <TelaPdv titulo={titulo} onVoltar={onFechar} comoFormulario={onSubmit ?? ((e) => e.preventDefault())} larguraMax={720}
+      rodape={<div className="flex gap-2 [&>button]:min-h-[56px] [&>button]:text-[15px]">{rodape}</div>}>
+      <div className="space-y-4 px-5 py-5 [&_input]:min-h-[52px] [&_input]:text-[16px]" aria-label={rotulo}>{children}</div>
+    </TelaPdv>
   )
 }
 
@@ -73,8 +65,8 @@ function CamposCliente({ nome, setNome, telefone, setTelefone, prefixo }: {
   )
 }
 
-const BOTAO_SEC = 'flex-1 rounded-menuzia border border-border py-3 text-[13px] font-semibold text-text-subtle hover:text-text-main'
-const BOTAO_OK = 'flex-[2] rounded-menuzia bg-status-ready py-3 text-[14px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50'
+const BOTAO_SEC = 'flex flex-1 items-center justify-center gap-2 rounded-menuzia border border-border py-3 text-[13px] font-semibold text-text-subtle hover:text-text-main'
+const BOTAO_OK = 'flex flex-[2] items-center justify-center gap-2 rounded-menuzia bg-status-ready py-3 text-[14px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50'
 
 function Erro({ texto, id }: { texto: string | null; id: string }) {
   if (!texto) return null
@@ -123,8 +115,9 @@ export function AbrirMesaModal({ mesa, onFechar, onAberta, onOcupada }: {
       onSubmit={abrir}
       rodape={
         <>
-          <button type="button" onClick={onFechar} className={BOTAO_SEC}>Cancelar</button>
+          <button type="button" onClick={onFechar} className={BOTAO_SEC}><svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.voltar} /></svg>Cancelar</button>
           <button type="submit" disabled={enviando} data-testid="mesa-abrir" className={BOTAO_OK}>
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.mais} /></svg>
             {enviando ? 'Abrindo…' : 'Abrir mesa'}
           </button>
         </>
@@ -176,8 +169,9 @@ export function IdentificarModal({ comandaId, titulo, nomeAtual, telefoneAtual, 
       onSubmit={salvar}
       rodape={
         <>
-          <button type="button" onClick={onFechar} className={BOTAO_SEC}>Cancelar</button>
+          <button type="button" onClick={onFechar} className={BOTAO_SEC}><svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.voltar} /></svg>Cancelar</button>
           <button type="submit" disabled={enviando} data-testid="identificar-salvar" className={BOTAO_OK}>
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.salvar} /></svg>
             {enviando ? 'Salvando…' : 'Salvar'}
           </button>
         </>
@@ -218,9 +212,10 @@ export function LimpezaModal({ mesa, podeLiberar, onFechar, onLiberada }: {
       onFechar={onFechar}
       rodape={
         <>
-          <button type="button" onClick={onFechar} className={BOTAO_SEC}>Voltar</button>
+          <button type="button" onClick={onFechar} className={BOTAO_SEC}><svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.voltar} /></svg>Voltar</button>
           {podeLiberar && (
             <button type="button" onClick={liberar} disabled={enviando} data-testid="mesa-liberar" className={BOTAO_OK}>
+              <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.check} /></svg>
               {enviando ? 'Liberando…' : 'Tornar mesa disponível'}
             </button>
           )}

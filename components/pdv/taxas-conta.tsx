@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ROTULO_TIPO_TAXA, TAXAS_SUGERIDAS, calcularTaxas, rotuloTaxa, type TaxaEntrada, type TipoTaxa } from '@/lib/taxas-conta'
 import { formatBRL } from './util'
+import { BotaoPdv, ICONES_PDV, TelaPdv } from './tela-pdv'
 
 /**
  * Taxas da conta (0124, 2026-10-01): quantas forem precisas — Couvert artístico (por
@@ -57,13 +58,24 @@ export function TaxasModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/40 p-3" onClick={onVoltar}>
-      <div className="flex max-h-[92vh] w-full max-w-xl flex-col rounded-menuzia bg-main" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Taxas da conta" data-testid="taxas-modal">
-        <div className="border-b border-border px-5 py-4">
-          <h2 className="text-[16px] font-bold text-text-main">Taxas da conta</h2>
-          <p className="mt-0.5 text-[12px] text-text-subtle">Valem só para esta conta. Cada uma aparece como uma linha no resumo e no fechamento.</p>
+    <TelaPdv
+      titulo="Taxas da conta"
+      onVoltar={onVoltar}
+      testid="taxas-modal"
+      larguraMax={900}
+      sujo={JSON.stringify(entrada) !== JSON.stringify(atuais.map((t) => ({ nome: t.nome, tipo: t.tipo, base: String(t.base).replace('.', ','), quantidade: t.quantidade ?? 1 })))}
+      rodape={
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-auto text-[15px] text-text-subtle">Total de taxas: <strong className="text-[18px] text-text-main" data-testid="taxas-soma">{soma !== null ? formatBRL(soma) : '—'}</strong></span>
+          <BotaoPdv icone={ICONES_PDV.voltar} onClick={onVoltar}>Voltar</BotaoPdv>
+          <BotaoPdv icone={ICONES_PDV.check} tipo="sucesso" onClick={() => void salvar()} disabled={enviando} testid="taxas-salvar" className="min-w-[200px]">
+            {enviando ? 'Salvando…' : 'Salvar taxas'}
+          </BotaoPdv>
         </div>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+      }
+    >
+        <div className="space-y-3 px-5 py-4">
+          <p className="text-[13px] text-text-subtle">Valem só para esta conta. Cada uma aparece como uma linha no resumo, no fechamento e no recibo.</p>
           <div className="flex flex-wrap gap-2">
             {atalhos.map((t) => (
               <button key={t.nome} type="button" onClick={() => setLinhas((x) => [...x, nova(t)])}
@@ -117,15 +129,7 @@ export function TaxasModal({
           })}
           {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger" data-testid="taxas-erro">{erro}</p>}
         </div>
-        <div className="flex items-center gap-2 border-t border-border px-5 py-3">
-          <span className="mr-auto text-[13px] text-text-subtle">Total de taxas: <strong className="text-text-main" data-testid="taxas-soma">{soma !== null ? formatBRL(soma) : '—'}</strong></span>
-          <button type="button" onClick={onVoltar} className="min-h-[52px] rounded-menuzia border border-border px-4 text-[13px] font-semibold text-text-subtle">Voltar</button>
-          <button type="button" onClick={() => void salvar()} disabled={enviando} className="min-h-[52px] rounded-menuzia bg-status-ready px-5 text-[14px] font-bold text-white disabled:opacity-50" data-testid="taxas-salvar">
-            {enviando ? 'Salvando…' : 'Salvar taxas'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </TelaPdv>
   )
 }
 

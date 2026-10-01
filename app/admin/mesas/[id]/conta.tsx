@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowRightLeft, Ban, Check, ChevronRight, Clock, CreditCard, Minus, Plus, Printer, RotateCcw, Send, Settings2, UserCheck, Users, X } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Ban, Check, ChevronRight, Clock, CreditCard, Minus, Plus, Printer, RotateCcw, Send, Settings2, UserCheck, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { centavos, dividirPorPessoas, ehFormaOferecida, trocoPara, ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
@@ -9,6 +9,7 @@ import type { ContaDaMesa, EventoHistorico, ItemDaConta, LancamentoDaConta } fro
 import type { ContaPresencial } from '@/lib/servicos/conta-presencial'
 import { montarResumoEncerramento, type ContaParaResumo, type ResumoEncerramento } from '@/lib/encerramento-conta'
 import { FecharContaModal } from '@/components/pdv/fechar-conta'
+import { TelaPdv, textoEncerramento, toastPdv } from '@/components/pdv/tela-pdv'
 import { TaxasModal, taxasIniciais } from '@/components/pdv/taxas-conta'
 import { IdentificarModal } from '@/components/pdv/atendimento'
 import { ResumoEncerramentoModal } from '@/components/pdv/resumo-encerramento'
@@ -217,6 +218,7 @@ export function PainelConta({
       resumo={resumo.resumo}
       emLimpeza={resumo.emLimpeza}
       onOk={() => {
+        toastPdv(textoEncerramento(resumo.resumo.acao, resumo.titulo, resumo.resumo.pago))
         setResumo(null)
         onContaFechada()
       }}
@@ -1081,16 +1083,16 @@ export function ModalMotivo({
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onCancelar}>
-      <div className="w-full max-w-sm rounded-menuzia bg-main p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
-        <h2 className="text-[15px] font-bold text-text-main">{titulo}</h2>
-        <label className="mt-3 block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo (obrigatório)</span>
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-motivo">
+        <div className="p-5">
+        <label className="block">
+          <span className="mb-1 block text-[13px] font-bold text-text-subtle">Motivo (obrigatório)</span>
           <input autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} className={INPUT} placeholder="Ex.: cliente desistiu" />
         </label>
-        <p className="mt-2 text-[11px] text-text-subtle">Nada é apagado: fica registrado com o motivo e o seu nome.</p>
-        <div className="mt-4 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}>Voltar</Button>
+        <p className="mt-2 text-[13px] text-text-subtle">Fica registrado com o motivo e o seu nome.</p>
+        </div>
+        <div className="flex gap-2 border-t border-border px-4 py-3">
+          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
           <Button
             className="flex-1"
             disabled={!motivo.trim() || enviando}
@@ -1100,11 +1102,11 @@ export function ModalMotivo({
               setEnviando(false)
             }}
           >
+            <Check className="h-4 w-4" />
             Confirmar
           </Button>
         </div>
-      </div>
-    </div>
+    </TelaPdv>
   )
 }
 
@@ -1124,10 +1126,9 @@ export function ModalDestino({
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onCancelar}>
-      <div className="w-full max-w-sm rounded-menuzia bg-main p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo}>
-        <h2 className="text-[15px] font-bold text-text-main">{titulo}</h2>
-        <select value={destino} onChange={(e) => setDestino(e.target.value)} className={`${INPUT} mt-3`} aria-label="Mesa de destino">
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-destino">
+        <div className="p-5">
+        <select value={destino} onChange={(e) => setDestino(e.target.value)} className={INPUT} aria-label="Mesa de destino">
           {disponiveis.map((m) => (
             <option key={m.id} value={m.id}>{m.nome}</option>
           ))}
@@ -1136,8 +1137,9 @@ export function ModalDestino({
           <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo (obrigatório)</span>
           <input value={motivo} onChange={(e) => setMotivo(e.target.value)} className={INPUT} placeholder="Ex.: cliente mudou para a varanda" />
         </label>
-        <div className="mt-4 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}>Voltar</Button>
+        </div>
+        <div className="flex gap-2 border-t border-border px-4 py-3">
+          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
           <Button
             className="flex-1"
             disabled={!destino || !motivo.trim() || enviando}
@@ -1147,11 +1149,11 @@ export function ModalDestino({
               setEnviando(false)
             }}
           >
+            <ArrowRightLeft className="h-4 w-4" />
             Transferir
           </Button>
         </div>
-      </div>
-    </div>
+    </TelaPdv>
   )
 }
 
@@ -1172,12 +1174,12 @@ export function Confirmacao({
 }) {
   const [enviando, setEnviando] = useState(false)
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onCancelar}>
-      <div className="w-full max-w-sm rounded-menuzia bg-main p-5" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-label={titulo}>
-        <h2 className="text-[15px] font-bold text-text-main">{titulo}</h2>
-        <p className="mt-2 text-[13px] text-text-subtle">{texto}</p>
-        <div className="mt-4 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}>Voltar</Button>
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} testid="tela-confirmacao" papel="alertdialog">
+        <div className="p-5">
+        <p className="text-[15px] leading-relaxed text-text-main">{texto}</p>
+        </div>
+        <div className="flex gap-2 border-t border-border px-4 py-3">
+          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
           <Button
             variant={perigo ? 'primary' : 'success'}
             className="flex-1"
@@ -1188,11 +1190,11 @@ export function Confirmacao({
               setEnviando(false)
             }}
           >
+            <Check className="h-4 w-4" />
             {botao}
           </Button>
         </div>
-      </div>
-    </div>
+    </TelaPdv>
   )
 }
 
@@ -1281,33 +1283,15 @@ export function Historico({ eventos, lancamentos }: { eventos: EventoHistorico[]
 function JanelaDoLancamento({ lanc, onFechar }: { lanc: LancamentoDaConta; onFechar: () => void }) {
   const status = STATUS_LANCAMENTO[lanc.status] ?? { rotulo: lanc.status, tom: 'alert' as const }
   const qtd = lanc.itens.filter((i) => !i.cancelado).reduce((s, i) => s + i.quantidade, 0)
-  useEffect(() => {
-    const esc = (ev: KeyboardEvent) => ev.key === 'Escape' && onFechar()
-    window.addEventListener('keydown', esc)
-    return () => window.removeEventListener('keydown', esc)
-  }, [onFechar])
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(env(safe-area-inset-bottom),0.75rem)]"
-      onClick={onFechar}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Lançamento #${lanc.numero}`}
-        className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-main shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        data-janela-lancamento
-      >
+    <TelaPdv titulo={`Lançamento #${lanc.numero}`} onVoltar={onFechar} coluna larguraMax={760}>
+      <div className="flex min-h-0 flex-1 flex-col" data-janela-lancamento>
         <div className="flex items-start justify-between gap-2 bg-primary px-4 py-3 text-white">
           <div className="min-w-0">
             <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">Enviado à cozinha às {hora(lanc.criadoEm)}</div>
             <div className="text-[18px] font-extrabold leading-tight">Lançamento #{lanc.numero}</div>
             <div className="text-[11px] opacity-85">{lanc.criadoPorNome ? `por ${lanc.criadoPorNome}` : ''}</div>
           </div>
-          <button onClick={onFechar} aria-label="Fechar" className="-mr-1 grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-menuzia hover:bg-white/15">
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-[11px] text-text-subtle">
@@ -1348,6 +1332,6 @@ function JanelaDoLancamento({ lanc, onFechar }: { lanc: LancamentoDaConta; onFec
           <span className="text-[16px] font-extrabold text-price-text">{brl(lanc.total)}</span>
         </div>
       </div>
-    </div>
+    </TelaPdv>
   )
 }

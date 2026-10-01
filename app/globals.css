@@ -732,3 +732,62 @@ html:has(.vitrine-sem-zoom) {
 @media (prefers-reduced-motion: reduce) {
   .efeito-confete { display: none; }
 }
+
+/* Telas do PDV/Mesas em pilha (2026-10-01): entrada leve (~150 ms, transform/opacity). */
+@keyframes tela-pdv-entra {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: none; }
+}
+.tela-pdv-painel {
+  animation: tela-pdv-entra 0.15s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tela-pdv-painel { animation: none; }
+}
+/* Molduras antigas dentro da TelaPdv: corpo rola, a linha de botões fica presa embaixo. */
+.tela-pdv-livre > :first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.tela-pdv-livre > :last-child:not(:first-child) {
+  flex-shrink: 0;
+  gap: 8px;
+}
+.tela-pdv-livre > :last-child:not(:first-child) button {
+  min-height: 56px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+/* !important: vence o campo padrão do painel (36px / 12,8px), que é mais específico. */
+.tela-pdv-livre input:not([type='checkbox']):not([type='radio']),
+.tela-pdv-livre select {
+  min-height: 48px !important;
+  font-size: 15px !important;
+}
+.tela-pdv-livre textarea {
+  font-size: 15px !important;
+}
+.tela-pdv-coluna > :last-child:not(:first-child) button,
+.tela-pdv-coluna > :only-child > :last-child:not(:first-child) button {
+  min-height: 56px;
+  font-size: 15px;
+}
+/* Campo de valor do Receber: número grande para conferir de longe (vence o campo
+   padrão do painel, de 12,8px). */
+.tela-pdv input.pdv-campo-valor {
+  font-size: 26px !important;
+  font-weight: 800;
+  color: var(--text-main, #1F2937) !important;
+  background-color: #fff !important;
+  border-width: 2px !important;
+  min-height: 60px !important;
+}
+.tela-pdv input.pdv-campo-valor.pdv-campo-ativo {
+  border-color: #0688D4 !important;
+}

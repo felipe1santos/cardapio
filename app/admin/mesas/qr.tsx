@@ -147,7 +147,7 @@ export function DrawerQrMesa({
       onTokenRodado(acao === 'revogar_qr')
       setConfirmando(null)
     } catch {
-      setErro('Sem conexão com o servidor.')
+      setErro('Sem conexão. Confira a internet e tente de novo.')
     } finally {
       setRodando(false)
     }
