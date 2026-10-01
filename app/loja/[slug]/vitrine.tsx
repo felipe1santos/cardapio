@@ -16,6 +16,8 @@ import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/li
 import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
 import { EtiquetasPrincipais, EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine } from '@/components/vitrine/etiquetas'
 import { precoDeVitrine } from '@/lib/garcom-catalogo'
+import { useEsconderAoRolar } from '@/components/vitrine/use-esconder-ao-rolar'
+import { ConviteApp } from '@/components/vitrine/convite-app'
 import { getVitrineSupabase } from '@/lib/supabase/vitrine'
 import { criarRastreador, type Rastreador } from '@/lib/vitrine-rastreio'
 import {
@@ -733,8 +735,8 @@ function BairroAutocomplete({ value, onChange, opcoes, estrito, compacto, semMat
   }
 
   const inputCls = compacto
-    ? 'w-full rounded border border-border p-2.5 pr-10 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]'
-    : 'w-full rounded-md border border-border p-3 pr-11 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]'
+    ? 'w-full rounded border border-border p-2.5 pr-10 text-sm outline-none focus:border-[var(--tema-primaria)]'
+    : 'w-full rounded-md border border-border p-3 pr-11 text-[15px] outline-none focus:border-[var(--tema-primaria)]'
 
   return (
     <div className="relative">
@@ -2118,6 +2120,26 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       .catch(() => { if (vivo) setAgDias([]) })
     return () => { vivo = false }
   }, [checkoutOpen, restaurante?.podeAgendar, slug])
+  // Menu inferior some ao rolar para baixo e volta ao subir (só fora do checkout/ficha/conta).
+  const navOculta = useEsconderAoRolar(!checkoutOpen && !productSheet && !contaOpen)
+  // Checkout no documento (celular): abre no topo e, ao fechar, devolve o cliente para onde
+  // ele estava no cardápio.
+  const rolagemAntesDoCheckout = useRef(0)
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches) return
+    if (checkoutOpen) {
+      rolagemAntesDoCheckout.current = window.scrollY
+      window.scrollTo(0, 0)
+    } else if (rolagemAntesDoCheckout.current) {
+      const y = rolagemAntesDoCheckout.current
+      rolagemAntesDoCheckout.current = 0
+      requestAnimationFrame(() => window.scrollTo(0, y))
+    }
+  }, [checkoutOpen])
+  // Cada etapa começa do topo (antes a camada rolava sozinha e já abria no topo).
+  useEffect(() => {
+    if (checkoutOpen && !window.matchMedia('(min-width: 1024px)').matches) window.scrollTo(0, 0)
+  }, [checkoutStep, checkoutOpen])
 
   // ── Analytics da vitrine ──────────────────────────────────────────────────
   // Alimenta o funil do Dashboard (Visitas → Visualizações → Sacola →
@@ -2166,7 +2188,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Lock background scroll while a full-screen overlay is open ────────────
   useEffect(() => {
-    const open = !!productSheet || checkoutOpen || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe || confirmacaoAberta || saidaAberta || !!premioModal || !!repetirModal
+    // No celular o checkout rola no próprio documento (a home some): travar o body ali
+    // travaria o checkout. No desktop ele segue como janela por cima e trava o fundo.
+    const checkoutPorCima = checkoutOpen && window.matchMedia('(min-width: 1024px)').matches
+    const open = !!productSheet || checkoutPorCima || freteOpen || contaOpen || infoOpen || !!pedidoDetalhe || confirmacaoAberta || saidaAberta || !!premioModal || !!repetirModal
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [productSheet, checkoutOpen, freteOpen, contaOpen, infoOpen, pedidoDetalhe, confirmacaoAberta, saidaAberta, premioModal, repetirModal])
@@ -2936,7 +2961,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </div>
       </header>
 
-      <div className="relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-[136px] lg:max-w-[1280px] lg:pb-20">
+      <div className={["relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-[136px] lg:max-w-[1280px] lg:pb-20", checkoutOpen ? "max-lg:hidden" : ""].join(" ")}>
 
         {/* ── HOME header: cover banner + profile + search + category nav ── */}
         {tab === 'home' && (
@@ -3139,7 +3164,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Buscar no cardápio…"
-                    className="w-full border-none bg-transparent font-sans text-sm text-text-main outline-none placeholder:text-text-subtle"
+                    className="w-full border-none bg-transparent text-sm text-text-main outline-none placeholder:text-text-subtle"
                   />
                   <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
                 </div>
@@ -3252,6 +3277,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </button>
               </div>
             )}
+
+            <ConviteApp slug={slug} nomeLoja={restaurante.nome} visivel={tab === 'home' && !checkoutOpen && !productSheet && !search.trim() && catGaveta === null} />
 
             {/* Destaques. Dentro de uma categoria aberta da gaveta não aparece:
                 ali a tela é daquela categoria, e os destaques ficariam por cima
@@ -3525,22 +3552,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   {beneficioBanner}
 
                   {/* Summary */}
-                  <div className="mb-4 overflow-hidden rounded-lg border border-border bg-white">
-                    <div className="flex items-center justify-between px-4 py-3 text-[13px] text-text-subtle">
-                      <span>Subtotal</span><span>{brl(subtotal)}</span>
-                    </div>
+                  {/* Mesmo bloco de valores do Revisar pedido (padrão de todas as etapas). */}
+                  <div className="mb-4 rounded-lg border border-border bg-white p-4">
+                    <div className="flex justify-between py-1 text-[14px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
                     {desconto > 0 && (
-                      <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px] font-semibold text-[#16A34A]">
-                        <span>Desconto</span><span>-{brl(desconto)}</span>
-                      </div>
+                      <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]"><span>Desconto</span><span>-{brl(desconto)}</span></div>
                     )}
-                    <div className="flex items-center justify-between border-t border-border px-4 py-3 text-[13px]">
+                    <div className="flex justify-between py-1 text-[14px]">
                       <span className="text-text-subtle">{rotuloLinhaFrete}</span>
                       {valorLinhaFrete}
                     </div>
-                    <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-[15px] font-bold">
-                      <span>Total</span><span className="text-[#16A34A]">{brl(total)}</span>
-                    </div>
+                    <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
                   </div>
                   {tipoPedido === 'entrega' && freteRotulo !== null && (
                     <button
@@ -3947,7 +3969,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {cartCount > 0 && tab !== 'cart' && (
           <button
             onClick={() => setTab('cart')}
-            className="camada-propria fixed inset-x-0 bottom-[78px] z-30 mx-auto flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg lg:hidden"
+            className="camada-propria fixed inset-x-0 bottom-[calc(78px+var(--nav-safe,0px))] z-30 mx-auto flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg transition-transform duration-200 ease-out lg:hidden"
+            // Acompanha o menu: com ele escondido, desce para perto do fundo (sem sobrepor nada).
+            style={navOculta ? { transform: 'translate3d(0, calc(62px + var(--nav-safe, 0px)), 0)' } : undefined}
+            data-testid="barra-sacola"
           >
             <span className="flex items-center gap-2.5 text-sm font-bold">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{cartCount}</span>
@@ -3973,7 +3998,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         )}
 
         {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
-        <nav className="nav-rodape fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] lg:hidden">
+        <nav
+          className="nav-rodape fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] transition-transform duration-200 ease-out lg:hidden"
+          // Some ao rolar para baixo (o WhatsApp vai junto, está dentro dele); volta ao subir.
+          style={navOculta ? { transform: 'translate3d(0, 110%, 0)' } : undefined}
+          data-testid="nav-rodape"
+          data-oculta={navOculta ? 'sim' : 'nao'}
+        >
           {/* "Tirar dúvidas no WhatsApp" (REF-BANNER / REF-DESTAQUES): no topo da própria
               navegação, então fica sempre colado nela, fixo no rodapé. Some com a barra
               "Ver sacola" na tela, fora da Home, no checkout e sem WhatsApp da loja. */}
@@ -4480,7 +4511,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 <div className="mt-5">
                   <h3 className="mb-2.5 text-[15px] font-bold">Observações</h3>
-                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                  <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
             </div>
@@ -4507,7 +4538,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       </div>
 
       {/* ── Checkout screen ───────────────────────────────────────────── */}
-      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`}>
+      {/* No celular o checkout aberto rola no PRÓPRIO documento (a home fica escondida): é
+          isso que deixa a barra do navegador recolher ao rolar. Fechado, ou no desktop, segue
+          como camada fixa por cima (2026-10-01). */}
+      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 max-lg:relative max-lg:overflow-visible lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`} data-testid="checkout">
         <div className="mx-auto flex min-h-dvh max-w-[600px] flex-col bg-white lg:block lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
             <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded bg-[#F3F4F6] text-lg">←</button>
@@ -4554,19 +4588,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   id: 'Pix',
                   descricao: 'Pagamento instantâneo e seguro',
                   icon: <PixIcon className="h-6 w-6" />,
-                  chip: 'bg-[#E7F7F5]',
+                  chip: 'bg-[#F3F4F6]',
                 },
                 {
                   id: 'Cartão na entrega',
                   descricao: tipoPedido === 'retirada' ? 'Crédito ou débito na maquininha, ao retirar' : 'Crédito ou débito na maquininha',
                   icon: <CreditCard className="h-6 w-6 text-[#1D4ED8]" strokeWidth={1.8} />,
-                  chip: 'bg-[#E0EAFF]',
+                  chip: 'bg-[#F3F4F6]',
                 },
                 {
                   id: 'Dinheiro',
                   descricao: tipoPedido === 'retirada' ? 'Pague em espécie ao retirar' : 'Pague em espécie na entrega',
                   icon: <Banknote className="h-6 w-6 text-[#16A34A]" strokeWidth={1.8} />,
-                  chip: 'bg-[#DCFCE7]',
+                  chip: 'bg-[#F3F4F6]',
                 },
               ].map((opt) => (
                 <button key={opt.id} onClick={() => setPayMethod(opt.id)}
@@ -4586,7 +4620,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Troco para quanto?</label>
                   <p className="mb-2 text-[12px] text-text-subtle">Deixe em branco se não precisar de troco.</p>
                   <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00" inputMode="decimal"
-                    className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                    className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               )}
 
@@ -4623,7 +4657,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         autoCapitalize="characters"
                         autoCorrect="off"
                         spellCheck={false}
-                        className="w-full rounded-md border border-border p-3 font-sans text-[14px] font-bold uppercase tracking-widest outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal focus:border-[var(--tema-primaria)]"
+                        className="w-full rounded-md border border-border p-3 text-[14px] font-bold uppercase tracking-widest outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal focus:border-[var(--tema-primaria)]"
                       />
                       <button
                         onClick={() => validarCupomCheckout()}
@@ -4673,12 +4707,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <div className="flex-1">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Nome *</label>
                     <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                   <div className="flex-1">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Telefone</label>
                     <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: mascararTelefoneBR(e.target.value) }))} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel" maxLength={16}
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                 </div>
               </div>
@@ -4750,7 +4784,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     onChange={(e) => { const v = e.target.value; setEndereco((a) => ({ ...a, cep: v })); setCepSemBairro(false); autofillCep(v) }}
                     placeholder="00000-000"
                     inputMode="numeric"
-                    className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                    className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   <p className="mt-1.5 text-[12px] text-text-subtle">{cepBuscando ? 'Buscando endereço…' : 'Informe o CEP que preenchemos rua e bairro pra você.'}</p>
                 </div>
                 {/* Bairro logo abaixo do CEP: é o que decide o frete/área de entrega */}
@@ -4766,7 +4800,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     />
                   ) : (
                     <input value={endereco.bairro} onChange={(e) => setEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   )}
                   {cepSemBairro && endereco.bairro.trim() === '' && (
                     <p className="mt-1.5 text-[12px] font-medium text-warn">
@@ -4778,19 +4812,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <div className="flex-[2]">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Rua *</label>
                     <input value={endereco.rua} onChange={(e) => setEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                   <div className="flex-1">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Número *</label>
                     <input value={endereco.numero} onChange={(e) => setEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123" inputMode="numeric"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                 </div>
                 <div className="mt-3 flex gap-3">
                   <div className="flex-1">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Complemento</label>
                     <input value={endereco.complemento} onChange={(e) => setEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                   {/* Cidade: já vem com a da loja, mas fica editável pra quem
                       mora na cidade vizinha. Ela é o que impede o cálculo de
@@ -4798,13 +4832,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <div className="flex-1">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Cidade</label>
                     <input value={endereco.cidade} onChange={(e) => setEndereco((a) => ({ ...a, cidade: e.target.value }))} placeholder="Cidade"
-                      className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
                 </div>
                 <div className="mt-3">
                   <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Ponto de referência</label>
                   <input value={endereco.referencia} onChange={(e) => setEndereco((a) => ({ ...a, referencia: e.target.value }))} placeholder="Ex: ao lado da padaria, portão azul"
-                    className="w-full rounded-md border border-border p-3 font-sans text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                    className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   <p className="mt-1.5 text-[12px] text-text-subtle">Opcional — ajuda quem vai entregar a achar você mais rápido.</p>
                 </div>
               </div>
@@ -4995,9 +5029,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           <div className="sticky bottom-0 z-10 mt-auto w-full border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:pb-4">
             {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
             <button onClick={checkoutNext} disabled={submitting}
-              className={['flex w-full items-center justify-between rounded-lg px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]', checkoutStep === 3 ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[var(--tema-primaria)] hover:bg-[var(--tema-dark)]'].join(' ')}>
+              // Padrão do Revisar pedido em todas as etapas: verde, largo, valor à direita (2026-10-01).
+              className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] disabled:opacity-60 active:scale-[0.98]">
               <span>{submitting ? 'Enviando…' : checkoutStep === 0 ? 'Ir para pagamento' : checkoutStep === 1 ? (tipoPedido === 'retirada' ? 'Continuar' : 'Ir para endereço') : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
-              {(checkoutStep === 0 || checkoutStep === 3) && !submitting && <span>{brl(total)}</span>}
+              {!submitting && <span>{brl(total)}</span>}
             </button>
           </div>
         </div>
@@ -5022,7 +5057,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   onChange={(e) => setFreteCep(e.target.value)}
                   placeholder="00000-000"
                   inputMode="numeric"
-                  className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]"
+                  className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]"
                 />
                 <button onClick={calcularFrete} disabled={freteLoading} className="flex-shrink-0 rounded bg-[var(--tema-primaria)] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
                   {freteLoading ? '...' : 'Calcular'}
@@ -5078,7 +5113,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       autoComplete="tel"
                       autoFocus
                       maxLength={16}
-                      className="mt-4 w-full rounded border-2 border-border p-3 text-center font-sans text-[17px] font-bold tracking-wide outline-none focus:border-[var(--tema-primaria)]"
+                      className="mt-4 w-full rounded border-2 border-border p-3 text-center text-[17px] font-bold tracking-wide outline-none focus:border-[var(--tema-primaria)]"
                     />
                     {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
                     <button onClick={enviarCodigoConta} disabled={contaLoading || !telefoneCompleto(contaTelefone)}
@@ -5098,7 +5133,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     <input value={contaCodigo} onChange={(e) => setContaCodigo(e.target.value.replace(/\D/g, ''))}
                       onKeyDown={(e) => { if (e.key === 'Enter' && contaCodigo.length === 6 && !contaLoading) void confirmarCodigoConta() }}
                       placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus
-                      className="mt-4 w-full rounded border-2 border-border p-3 text-center font-sans text-xl font-bold tracking-[0.5em] outline-none focus:border-[var(--tema-primaria)]" />
+                      className="mt-4 w-full rounded border-2 border-border p-3 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-[var(--tema-primaria)]" />
                     {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}
                     <button onClick={confirmarCodigoConta} disabled={contaLoading || contaCodigo.length < 6}
                       className="mt-4 w-full rounded bg-[var(--tema-primaria)] px-4 py-3.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-60">
@@ -5123,7 +5158,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome</label>
                   <input value={contaNome} onChange={(e) => setContaNome(e.target.value)} placeholder="Seu nome"
-                    className="mb-3 w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                    className="mb-3 w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
 
                   <h3 className="mb-2.5 mt-4 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço salvo</h3>
                   {/* CEP primeiro: ao preencher, busca rua/bairro sozinho */}
@@ -5134,19 +5169,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       onChange={(e) => { const v = e.target.value; setContaEndereco((a) => ({ ...a, cep: v })); setCepSemBairro(false); autofillCep(v, 'conta') }}
                       placeholder="00000-000"
                       inputMode="numeric"
-                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     <p className="mt-1.5 text-[12px] text-text-subtle">{cepBuscando ? 'Buscando endereço…' : 'Informe o CEP que preenchemos rua e bairro pra você.'}</p>
                   </div>
                   <div className="mt-3 flex gap-3">
                     <div className="flex-[2]">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Rua</label>
                       <input value={contaEndereco.rua} onChange={(e) => setContaEndereco((a) => ({ ...a, rua: e.target.value }))} placeholder="Nome da rua"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                        className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Número</label>
                       <input value={contaEndereco.numero} onChange={(e) => setContaEndereco((a) => ({ ...a, numero: e.target.value }))} placeholder="123"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                        className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                   </div>
                   <div className="mt-3">
@@ -5162,25 +5197,25 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       />
                     ) : (
                       <input value={contaEndereco.bairro} onChange={(e) => setContaEndereco((a) => ({ ...a, bairro: e.target.value }))} placeholder="Bairro"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                        className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     )}
                   </div>
                   <div className="mt-3 flex gap-3">
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Complemento</label>
                       <input value={contaEndereco.complemento} onChange={(e) => setContaEndereco((a) => ({ ...a, complemento: e.target.value }))} placeholder="Apto, bloco"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                        className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                     <div className="flex-1">
                       <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Cidade</label>
                       <input value={contaEndereco.cidade} onChange={(e) => setContaEndereco((a) => ({ ...a, cidade: e.target.value }))} placeholder="Cidade"
-                        className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                        className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                     </div>
                   </div>
                   <div className="mt-3">
                     <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Ponto de referência</label>
                     <input value={contaEndereco.referencia} onChange={(e) => setContaEndereco((a) => ({ ...a, referencia: e.target.value }))} placeholder="Ex: ao lado da padaria"
-                      className="w-full rounded border border-border p-2.5 font-sans text-sm outline-none focus:border-[var(--tema-primaria)]" />
+                      className="w-full rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
 
                   {contaError && <p className="mt-2.5 text-[13px] font-medium text-danger">{contaError}</p>}

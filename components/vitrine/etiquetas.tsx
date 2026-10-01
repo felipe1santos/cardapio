@@ -58,7 +58,7 @@ export function NomeComEtiquetas({ item, children, className = '' }: { item: Ite
   if (!temTopo) return <div className={className}>{children}</div>
   return (
     <div className="flex flex-wrap items-center gap-x-[8px] gap-y-[6px]" data-nome-com-etiquetas>
-      <div className={`min-w-0 max-w-full ${className}`}>{children}</div>
+      <div className={`w-fit min-w-0 max-w-full ${className}`}>{children}</div>
       <EtiquetasPrincipais item={item} />
     </div>
   )

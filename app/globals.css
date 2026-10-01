@@ -247,6 +247,22 @@ html:has(.vitrine-sem-zoom) {
 }
 
 @media (display-mode: standalone), (display-mode: fullscreen) {
+  .font-loja {
+    --nav-safe: env(safe-area-inset-bottom, 0px);
+  }
+  .nav-rodape {
+    padding-bottom: max(env(safe-area-inset-bottom), 6px);
+  }
+}
+
+/* iPhone (todo navegador do iOS é WebKit) com viewport-fit=cover: quando a barra do
+   navegador recolhe, a página vai até a barrinha de gestos — o menu precisa do respiro
+   da safe-area para não colar nela (2026-10-01). No Android o respiro fica só no app
+   instalado (acima): no navegador ele virava a faixa branca descrita no .nav-rodape. */
+@supports (-webkit-touch-callout: none) {
+  .font-loja {
+    --nav-safe: env(safe-area-inset-bottom, 0px);
+  }
   .nav-rodape {
     padding-bottom: max(env(safe-area-inset-bottom), 6px);
   }

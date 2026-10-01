@@ -58,14 +58,19 @@ const carregarLoja = cache((slug: string) => buscarRestaurantePorSlug(getVitrine
  * painel, o PDV e as mesas seguem com o viewport da raiz (zoom liberado). Com
  * `maximum-scale=1` o iPhone também para de ampliar a tela ao focar um campo.
  */
-const VIEWPORT_SEM_ZOOM: Viewport = { maximumScale: 1, userScalable: false }
+// viewport-fit=cover: com a barra do navegador recolhida, a página vai até a borda e o
+// menu inferior respeita a safe-area (globals.css, .nav-rodape).
+const VIEWPORT_SEM_ZOOM: Viewport = { width: 'device-width', initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: 'cover' }
 
 export async function generateViewport({ params }: { params: Promise<{ slug: string }> }): Promise<Viewport> {
   const { slug } = await params
   try {
     const loja = await carregarLoja(slug)
     if (!loja) return VIEWPORT_SEM_ZOOM
-    return { ...VIEWPORT_SEM_ZOOM, themeColor: resolverPaleta(loja.corTema).primaria }
+    // Mesma cor no tema claro e no escuro: a vitrine não tem modo escuro, e a barra tem que
+    // combinar com a página nos dois.
+    const cor = resolverPaleta(loja.corTema).primaria
+    return { ...VIEWPORT_SEM_ZOOM, themeColor: [{ media: '(prefers-color-scheme: light)', color: cor }, { media: '(prefers-color-scheme: dark)', color: cor }] }
   } catch {
     return VIEWPORT_SEM_ZOOM
   }
@@ -88,6 +93,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       description: descricao,
       openGraph: { type: 'website', title: loja.nome, description: descricao, url: `${base}/loja/${loja.slug}`, siteName: loja.nome, images: [imagem] },
       twitter: { card: 'summary_large_image', title: loja.nome, description: descricao, images: [imagem.url] },
+      // App instalado por loja (abre sem barra do navegador): manifesto e ícones próprios.
+      manifest: `/api/loja/${loja.slug}/manifest`,
+      appleWebApp: { capable: true, title: loja.nome, statusBarStyle: 'default' as const },
+      // O Next 15 emite só "mobile-web-app-capable"; o iOS antigo ainda lê a versão apple.
+      other: { 'apple-mobile-web-app-capable': 'yes' },
+      icons: { apple: [{ url: `/api/loja/${loja.slug}/icone/180?v=${v}`, sizes: '180x180', type: 'image/png' }] },
     }
   } catch {
     return { title: 'Menuzia' }

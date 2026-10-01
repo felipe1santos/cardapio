@@ -86,3 +86,26 @@ export async function gerarPreviaJpeg(d: DadosPrevia): Promise<Buffer> {
   }
   return comoJpeg(sharp(fundo).composite(camadas))
 }
+
+/**
+ * Ícone quadrado da loja para o app instalado (manifesto por loja, apple-touch-icon):
+ * a logo ocupando o quadrado sobre branco; sem logo, a inicial do nome na cor da loja.
+ */
+export async function gerarIconePng(d: DadosPrevia, lado: number): Promise<Buffer> {
+  const logo = d.logoUrl ? await baixar(d.logoUrl) : null
+  if (logo) {
+    try {
+      return await sharp(logo).rotate().resize(lado, lado, { fit: 'cover' }).flatten({ background: '#ffffff' }).png().toBuffer()
+    } catch {
+      /* logo ilegível: cai na inicial */
+    }
+  }
+  const inicial = escaparXml((d.nome.trim()[0] ?? 'M').toUpperCase())
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${lado}" height="${lado}">
+      <rect width="100%" height="100%" fill="${escaparXml(d.cor)}"/>
+      <text x="50%" y="50%" dy="0.35em" font-family="Montserrat, Arial, Helvetica, sans-serif" font-size="${Math.round(lado * 0.5)}" font-weight="700" fill="#ffffff" text-anchor="middle">${inicial}</text>
+    </svg>`,
+  )
+  return sharp(svg).png().toBuffer()
+}

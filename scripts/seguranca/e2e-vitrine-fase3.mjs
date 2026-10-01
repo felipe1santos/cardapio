@@ -66,30 +66,37 @@ try {
     const linha = p.locator(`button[data-item-id="${itemId}"]`).last()
     await linha.scrollIntoViewIfNeeded()
     const principais = await linha.locator('[data-etiquetas-principais] [data-etiqueta]').evaluateAll((els) => els.map((e) => e.getAttribute('data-etiqueta')))
-    ok('3 principais marcadas → mostra só 2, na ordem (Mais pedido, Novidade)', JSON.stringify(principais) === JSON.stringify(['mais_pedido', 'novidade']), principais.join(','))
+    // Regras de 2026-10-01 (scripts/vitrine/e2e-vitrine-tags.mjs cobre todos os casos): Mais vendido >
+    // Combo especial > Oferta limitada > Novidade; "Entrega grátis" saiu das tags.
+    ok('3 de topo marcadas → mostra só 2, na ordem (Mais vendido, Oferta limitada)', JSON.stringify(principais) === JSON.stringify(['mais_vendido', 'oferta_limitada']), principais.join(','))
     const utils = await linha.locator('[data-etiquetas-utilitarias] [data-etiqueta]').evaluateAll((els) => els.map((e) => e.textContent.trim()))
-    ok('utilitárias na ordem, com a regra de frete da loja', utils.join(' | ') === 'Item promocional | Entrega grátis a partir de R$ 45 | Serve 4 pessoas', utils.join(' | '))
+    ok('utilitárias na ordem (Serve até X · Item promocional)', utils.join(' | ') === 'Serve até 4 pessoas | Item promocional', utils.join(' | '))
     const nomeY = (await linha.getByText('TESTE Etiquetas').boundingBox()).y
     const pilY = (await linha.locator('[data-etiquetas-principais]').boundingBox()).y
     const utilY = (await linha.locator('[data-etiquetas-utilitarias]').boundingBox()).y
     const descY = (await linha.getByText('Item de teste com todas').boundingBox()).y
     const precoBox = await linha.locator('[data-preco]').boundingBox()
-    ok('principais acima do nome; utilitárias abaixo da descrição e acima do preço', pilY < nomeY && utilY > descY && utilY < precoBox.y)
+    ok('topo junto do nome (mesma linha ou logo abaixo); utilitárias abaixo da descrição e acima do preço', pilY >= nomeY - 4 && pilY < descY && utilY > descY && utilY < precoBox.y)
     const antigo = await linha.locator('[data-preco-antigo]').boundingBox()
     const desconto = linha.locator('[data-desconto]')
-    ok('preço com desconto: antigo riscado EM CIMA, atual + pílula com ticket', antigo && antigo.y < (await desconto.boundingBox()).y && /-25%/.test(await desconto.innerText()) && (await desconto.locator('img[src*="ticket"]').count()) === 1)
-    const icones = await linha.locator('img[src^="/vitrine/emoji/"]').evaluateAll((els) => els.map((e) => e.getAttribute('src')))
-    ok('ícones locais (Fluent Emoji), nada de CDN', icones.length >= 5 && icones.every((s) => s.startsWith('/vitrine/emoji/')), icones.join(','))
+    ok('preço com desconto: antigo riscado EM CIMA, atual + pílula com ticket', antigo && antigo.y < (await desconto.boundingBox()).y && /-25%/.test(await desconto.innerText()) && (await desconto.locator('svg').count()) === 1)
+    const icones = await linha.locator('[data-etiqueta] svg').count()
+    const externos = await linha.locator('img[src^="http"]').count()
+    ok('ícones SVG embutidos (Phosphor), nada de CDN nem emoji', icones >= 4 && externos === 0, String(icones))
     if (PRINTS) await linha.screenshot({ path: join(PRINTS, `produto-etiquetas-${largura}.png`) })
 
     // Destaque do item de teste: etiqueta principal sobre a foto
     const dest = mp.locator(`button[data-item-id="${itemId}"]`)
-    ok('no destaque, a etiqueta principal (Mais pedido) fica sobre a foto', (await dest.locator('[data-etiqueta="mais_pedido"]').count()) === 1)
+    ok('no destaque, a etiqueta de topo (Mais vendido) fica sobre a foto', (await dest.locator('[data-etiqueta="mais_vendido"]').count()) === 1)
 
     // Botão do WhatsApp fixo
+    // Desde 2026-10-01 o menu (com o WhatsApp dentro) some ao rolar para baixo e volta ao subir:
+    // mede com ele visível (sobe um pouco depois de descer).
     const wa = p.getByTestId('tirar-duvidas-whatsapp')
+    await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(400)
     const y1 = (await wa.boundingBox()).y
     await p.mouse.wheel(0, 1500); await p.waitForTimeout(400)
+    await p.mouse.wheel(0, -200); await p.waitForTimeout(500)
     const y2 = (await wa.boundingBox()).y
     const navTop = await p.locator('nav.nav-rodape').evaluate((n) => n.getBoundingClientRect().top)
     const waBox = await wa.boundingBox()

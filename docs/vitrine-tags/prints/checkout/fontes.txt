@@ -1,0 +1,18 @@
+01 home: Montserrat
+02 aba pedidos: Montserrat
+03 aba cupons: Montserrat
+04 login: Montserrat
+05 ficha do produto: Montserrat
+06 sacola entrega: Montserrat
+07 telefone entrega: Montserrat
+08 pagamento entrega (troco): Montserrat
+09 endereço: Montserrat
+10 revisar entrega: Montserrat
+11 pedido feito entrega: Montserrat
+05 ficha do produto: Montserrat
+06 sacola retirada: Montserrat
+07 telefone retirada: Montserrat
+08 pagamento retirada (troco): Montserrat
+09 seus dados: Montserrat
+10 revisar retirada: Montserrat
+11 pedido feito retirada: Montserrat
