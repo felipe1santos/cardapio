@@ -43,10 +43,10 @@ Legenda: ⬜ a fazer · 🔧 em andamento · ✅ feito e testado · 🚀 no ar �
 - ✅ Prints antes/depois em docs/pdv-navegacao/prints/
 
 ## 7. Publicação
-- ⬜ Deploy 00:00–10:00 + conferência em produção (painel com o dono logado) · TESTE removidos · relatório
+- 🚀 Publicado 2026-10-01 ~13:00 por ordem direta do dono (fora da janela 00:00–10:00); main a8d71fa; conferido em produção na Menuzia (Mesa 04 · Comanda 26: conta, Receber, Esc, voltar do navegador, X sem pergunta) sem gravar nada
 
 ## Registro
 - 11:03 início (fora da janela de deploy).
 - ~12:40 tudo implementado e testado (e2e novo 30/30 + 15 suítes + unitários verdes); prints em
   `prints/antes` e `prints/depois` (5 resoluções); relatório em `relatorio.md`. Branch
-  `feat/pdv-navegacao` commitada; **publicação aguardando a janela 00:00–10:00**.
+  `feat/pdv-navegacao` commitada; publicado em seguida.
