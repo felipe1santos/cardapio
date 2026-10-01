@@ -33,10 +33,11 @@ export const ESTILO_PRINCIPAL: Record<EtiquetaPrincipal, { texto: string; icone:
 }
 
 export function etiquetasPrincipais(item: ItemComEtiquetas, agora: number = Date.now()): EtiquetaPrincipal[] {
-  const novas = item.novidadeAte !== undefined || item.edicaoLimitada !== undefined
-  const mais = item.maisVendido === true || (!novas && (item.tag === 'mais_pedido' || item.tag === 'favorito'))
-  const novidade = item.novidadeAte ? Date.parse(item.novidadeAte) > agora : !novas && item.tag === 'novo'
-  const limitada = item.edicaoLimitada === true || (!novas && item.tag === 'edicao_limitada')
+  // A tag antiga só existe em item que ainda não foi salvo pelo formulário novo (ele zera a
+  // tag): vale junto com as colunas novas, para nada sumir de quem ainda não migrou.
+  const mais = item.maisVendido === true || item.tag === 'mais_pedido' || item.tag === 'favorito'
+  const novidade = (item.novidadeAte ? Date.parse(item.novidadeAte) > agora : false) || item.tag === 'novo'
+  const limitada = item.edicaoLimitada === true || item.tag === 'edicao_limitada'
   const lista: EtiquetaPrincipal[] = []
   if (mais) lista.push('mais_pedido')
   if (novidade) lista.push('novidade')
@@ -51,9 +52,8 @@ function brl(v: number): string {
 }
 
 export function etiquetasUtilitarias(item: ItemComEtiquetas, loja: { freteGratisAcima?: number | null } = {}): EtiquetaUtilVista[] {
-  const novas = item.itemPromocional !== undefined
   const out: EtiquetaUtilVista[] = []
-  if (item.itemPromocional === true || (!novas && item.tag === 'promocao')) out.push({ tipo: 'item_promocional', texto: 'Item promocional' })
+  if (item.itemPromocional === true || item.tag === 'promocao') out.push({ tipo: 'item_promocional', texto: 'Item promocional' })
   if (item.entregaGratis === true) {
     const minimo = Number(loja.freteGratisAcima) || 0
     out.push({ tipo: 'entrega_gratis', texto: minimo > 0 ? `Entrega grátis a partir de ${brl(minimo)}` : 'Entrega grátis' })

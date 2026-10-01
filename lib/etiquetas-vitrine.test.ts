@@ -21,8 +21,8 @@ describe('etiquetas principais (3.3)', () => {
     expect(etiquetasPrincipais({ tag: 'edicao_limitada' }, agora)).toEqual(['edicao_limitada'])
     expect(etiquetasPrincipais({ tag: 'favorito' }, agora)).toEqual(['mais_pedido'])
   })
-  it('com colunas novas, a tag antiga não é somada', () => {
-    expect(etiquetasPrincipais({ tag: 'novo', novidadeAte: null, edicaoLimitada: false }, agora)).toEqual([])
+  it('tag antiga ainda vale mesmo com as colunas novas em falso (item salvo por aba antiga)', () => {
+    expect(etiquetasPrincipais({ tag: 'edicao_limitada', novidadeAte: null, edicaoLimitada: false }, agora)).toEqual(['edicao_limitada'])
   })
 })
 

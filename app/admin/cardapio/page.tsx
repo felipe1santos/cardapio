@@ -134,17 +134,19 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     imagemUrl: item.imagemUrl,
     imagemThumbUrl: item.imagemThumbUrl,
     promocaoPreco: item.promocaoPreco !== null ? item.promocaoPreco.toFixed(2).replace('.', ',') : '',
-    maisVendido: item.maisVendido,
+    // maisVendido: definido abaixo, junto com as etiquetas.
     tag: item.tag,
     tipoItem: item.tipoItem,
     disponivelDelivery: item.disponivelDelivery,
     disponivelSalao: item.disponivelSalao,
     // Item salvo antes da 0117: as etiquetas novas saem da `tag` antiga.
-    novidade: etiquetasPrincipais(item).includes('novidade') || (item.novidadeAte === undefined && item.tag === 'novo'),
+    novidade: etiquetasPrincipais(item).includes('novidade'),
     novidadeAteAtual: item.novidadeAte ?? null,
     novidadeDias: '30',
-    edicaoLimitada: item.edicaoLimitada ?? item.tag === 'edicao_limitada',
-    itemPromocional: item.itemPromocional ?? item.tag === 'promocao',
+    edicaoLimitada: item.edicaoLimitada === true || item.tag === 'edicao_limitada',
+    itemPromocional: item.itemPromocional === true || item.tag === 'promocao',
+    // A estrela segue a mesma regra da vitrine (a tag antiga "Mais pedido"/"Favorito" vale).
+    maisVendido: item.maisVendido || item.tag === 'mais_pedido' || item.tag === 'favorito',
     entregaGratis: item.entregaGratis ?? false,
     servePessoas: item.servePessoas ? String(item.servePessoas) : '',
   }

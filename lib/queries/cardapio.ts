@@ -578,6 +578,9 @@ export async function definirStatusEmLote(supabase: SupabaseClient, itemIds: str
  */
 export async function definirFavorito(supabase: SupabaseClient, itemId: string, favorito: boolean) {
   const { error } = await supabase.from('itens_cardapio').update({ mais_vendido: favorito }).eq('id', itemId)
+  // Tirar a estrela também tira a etiqueta antiga equivalente: senão o item continuava
+  // "Mais pedido" na vitrine pela `tag` de antes da 0117.
+  if (!error && !favorito) await supabase.from('itens_cardapio').update({ tag: null }).eq('id', itemId).in('tag', ['favorito', 'mais_pedido'])
   if (error) throw error
 }
 
