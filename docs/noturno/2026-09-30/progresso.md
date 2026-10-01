@@ -37,3 +37,9 @@ Legenda: ⬜ a fazer · 🔧 em andamento · ✅ feito e testado · 🚀 no ar �
 
 ## Registro
 (atualizado a cada item)
+
+### Deploys (01/10)
+- 23:59:26 push F1 → main (b6531de); Redeploy disparado 23:59:52 (8 s antes da janela; build terminou e ficou no ar 00:05). 🚀 Smoke público: prévia 1200×630 JPEG (Menuzia 26 KB, Villa 85 KB), vitrine sem itens-código/feijoada R$0, checkout 360/414 com botão no fundo (6/6).
+- 00:06 F2 (ac6fffa) 🚀 Success no Coolify. Smoke do painel NÃO feito: a sessão do Chrome está logada em outra loja (Ponto 400) e não digito senha em produção — pendente para o dono conferir.
+- 00:09 0117 aplicada (backup ~/backups/menuzia/2026-10-01-pre-0117; 9 itens migrados). 00:18 F3 (56efcc0) 🚀; smoke vitrine Menuzia 360/390/414 15/15 (banner 1,41, Mais Pedidos, etiquetas, desconto com ticket, botão WhatsApp com o número da loja).
+- 00:23 0118 aplicada (backup …-pre-0118). F4 (298942e) 🚀 Success. Smoke de campanhas (painel) pendente pelo mesmo motivo do F2.
