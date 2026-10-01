@@ -32,7 +32,7 @@ let userId
 {
   const { data, error } = await admin.auth.admin.createUser({ email, password: senha, email_confirm: true })
   if (error && !/already/i.test(error.message)) throw error
-  userId = data?.user?.id ?? (await admin.auth.admin.listUsers()).data.users.find((u) => u.email === email).id
+  userId = data?.user?.id ?? (await admin.auth.admin.listUsers({ perPage: 1000 })).data.users.find((u) => u.email === email).id
   await db.query(
     `insert into usuarios (id, restaurante_id, papel, nome) values ($1,$2,'dono','Dono Teste')
      on conflict (id) do update set restaurante_id = excluded.restaurante_id`, [userId, loja])

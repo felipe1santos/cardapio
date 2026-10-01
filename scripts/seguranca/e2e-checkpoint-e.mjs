@@ -402,7 +402,7 @@ secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
 
   const dono = await logar(USU.dono)
   await dono.page.goto(`${BASE}/admin/equipe`, { waitUntil: 'networkidle' })
-  await dono.page.waitForSelector('text=Novo funcionário', { timeout: 15000 })
+  await dono.page.waitForSelector('text=Adicionar usuário', { timeout: 15000 })
   // O dono vê o aviso de pendências de configuração em tela de gestão — comportamento
   // que já existia. A loja de demonstração tem pendências (telefone, frete…): fecha.
   await dono.page.waitForTimeout(1500)
@@ -410,14 +410,15 @@ secao('6. equipe: cadastrar, desativar, redefinir senha, reativar')
   if (await aviso.count()) await aviso.click()
 
   // Cadastro pela TELA.
-  await dono.page.locator('button', { hasText: 'Novo funcionário' }).click()
-  await dono.page.fill('input[placeholder="Ex.: João Silva"]', 'Maria Garçonete')
-  await dono.page.fill('input[placeholder="joao.silva"]', USU.funcionarioNovo)
-  await dono.page.selectOption('select', 'garcom')
-  await dono.page.fill('input[type="password"]', 'senha-inicial-1')
+  // Tela repaginada (2026-10): modal com cargo; Garçom já é o cargo padrão.
+  await dono.page.getByTestId('adicionar-usuario').click()
+  await dono.page.getByTestId('usuario-nome').fill('Maria Garçonete')
+  await dono.page.getByTestId('usuario-login').fill(USU.funcionarioNovo)
+  await dono.page.getByTestId('usuario-cargo').selectOption('garcom')
+  await dono.page.getByTestId('usuario-senha').fill('senha-inicial-1')
   await dono.page.screenshot({ path: '.shots/checkpoint-10-equipe-cadastro.png' })
-  await dono.page.locator('button', { hasText: /^Cadastrar$/ }).click()
-  await dono.page.waitForSelector('text=foi cadastrado', { timeout: 20000 })
+  await dono.page.getByTestId('usuario-salvar').click()
+  await dono.page.waitForSelector('text=cadastrado', { timeout: 20000 })
   await dono.page.screenshot({ path: '.shots/checkpoint-11-equipe-lista.png' })
 
   const maria = await um(`select id, papel, restaurante_id, desativado_em from usuarios where usuario=$1`, [USU.funcionarioNovo])

@@ -791,3 +791,81 @@ html:has(.vitrine-sem-zoom) {
 .tela-pdv input.pdv-campo-valor.pdv-campo-ativo {
   border-color: #0688D4 !important;
 }
+
+/* ══ Campo com rótulo flutuante (repaginação 2026-10: Equipe e Produto) ══════
+   O rótulo mora dentro do campo e sobe para a borda quando há valor ou foco.
+   Classes próprias com !important porque a regra global de input do painel
+   (36px / 12,8px / fundo cinza) tem especificidade maior que utilitário. */
+.cf { position: relative; display: block; min-width: 0; }
+.cf > .cf-campo {
+  width: 100%;
+  height: 46px !important;
+  min-height: 46px !important;
+  padding: 0 12px !important;
+  font-size: 14px !important;
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d6dae1 !important;
+  border-radius: 5px !important;
+  outline: none;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.cf > textarea.cf-campo { height: auto !important; min-height: 104px !important; padding: 14px 12px 10px !important; line-height: 1.45; resize: vertical; }
+.cf > .cf-campo:hover { border-color: #b8bfca !important; }
+.cf > .cf-campo:focus { border-color: #0688d4 !important; box-shadow: 0 0 0 3px rgba(6, 136, 212, 0.14) !important; }
+.cf > .cf-campo:disabled { background-color: #f9fafb !important; color: #6b7280 !important; }
+.cf > .cf-campo[aria-invalid='true'] { border-color: #dc2626 !important; }
+.cf > .cf-rotulo {
+  position: absolute;
+  left: 9px;
+  top: 23px;
+  transform: translateY(-50%);
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 1;
+  color: #6b7280;
+  background: #ffffff;
+  pointer-events: none;
+  transition: top 150ms, font-size 150ms, color 150ms;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cf > .cf-campo:focus + .cf-rotulo,
+.cf > .cf-campo:not(:placeholder-shown) + .cf-rotulo,
+.cf > select.cf-campo + .cf-rotulo,
+.cf > .cf-campo:disabled + .cf-rotulo {
+  top: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.cf > .cf-campo:focus + .cf-rotulo { color: #0688d4; }
+.cf > .cf-campo::placeholder { color: transparent; }
+.cf > .cf-campo:focus::placeholder { color: #9ca3af; }
+
+/* Equipe (repaginação 2026-10): busca de permissões e cartões com toggle. */
+[data-admin-shell] main input.equipe-busca,
+[data-admin-shell] main input.equipe-busca-permissao {
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 12px 0 36px !important;
+  font-size: 13.5px !important;
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d6dae1 !important;
+  border-radius: 5px !important;
+}
+[data-admin-shell] main input.equipe-busca-permissao { height: 38px !important; min-height: 38px !important; }
+.equipe-cartao-permissao { transition: border-color 150ms, box-shadow 150ms, background-color 150ms; }
+.equipe-cartao-permissao:hover { border-color: #b8bfca; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.06); }
+.equipe-linha { transition: background-color 150ms; }
+.equipe-linha:hover { background-color: #f7f9fb; }
+.equipe-acao {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 5px; color: #5b6472;
+  transition: background-color 150ms, color 150ms;
+}
+.equipe-acao:hover { background-color: #eef6fc; color: #0688d4; }
+.equipe-acao.perigo:hover { background-color: #fee2e2; color: #dc2626; }
+.equipe-acao:disabled { opacity: 0.35; cursor: not-allowed; background: none; color: #5b6472; }

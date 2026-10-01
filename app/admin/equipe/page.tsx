@@ -1,19 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { KeyRound, Plus, UserCheck, UserX, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Ban, KeyRound, PauseCircle, Pencil, PlayCircle, Plus, Search, Trash2, UserRound, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { PilhaToasts, useToasts } from '@/components/admin/toasts'
+import { ModalUsuario, type SalvarUsuario, type UsuarioEquipe } from '@/components/admin/equipe/modal-usuario'
 import type { Papel } from '@/lib/auth/permissoes'
-import { EditorAcessos } from '@/components/admin/editor-acessos'
-import { MODELOS, resumoAcessos, type Acessos } from '@/lib/acessos'
+import type { Acessos } from '@/lib/acessos'
+import {
+  COR_CARGO, ROTULO_CARGO, ROTULO_SITUACAO, cargoDoUsuario, contarPermissoes, modeloDoCargo, situacaoDoUsuario,
+  type Cargo, type Situacao,
+} from '@/lib/equipe-cargos'
 
 /**
- * Equipe do estabelecimento.
+ * Equipe do estabelecimento (repaginação 2026-10).
  *
- * Tudo passa por `/api/admin/equipe`: e-mail, autorização e validade não saem mais para o
+ * Tudo passa por `/api/admin/equipe`: e-mail, autorização e validade não saem para o
  * navegador (grant por coluna na 0062), e criar/desativar conta exige `service_role`.
+ * Pausar, bloquear e excluir cortam o acesso na próxima ação (desativado_em, 0128).
  */
 
 interface Funcionario {
@@ -25,28 +30,31 @@ interface Funcionario {
   ultimoLoginEm: string | null
   criadoEm: string
   acessos: Acessos | null
+  cargo: string | null
+  situacao: string | null
+  telefone: string
 }
 
-const ROTULO_PAPEL: Record<string, string> = {
-  dono: 'Dono',
-  gerente: 'Gerente',
-  garcom: 'Garçom',
-  atendente: 'Atendente',
-  cozinha: 'Cozinha',
-  logistica: 'Logística',
-  entregador: 'Entregador',
+interface Linha extends Funcionario {
+  cargoVisto: Cargo
+  situacaoVista: Situacao
+  /** Acessos efetivos para exibir/copiar (nulo = modelo do cargo). */
+  acessosVistos: Acessos | null
 }
 
-const DESCRICAO_PAPEL: Record<string, string> = {
-  gerente: 'Opera a loja inteira e gerencia garçons e atendentes. Não mexe em Ajustes nem Integrações.',
-  garcom: 'Abre mesas, lança pedidos e envia para a cozinha. Não vê delivery, clientes nem faturamento.',
-  atendente: 'Atende o delivery e o balcão. Não opera mesas.',
+const COR_SITUACAO: Record<Situacao, { fundo: string; cor: string; ponto: string }> = {
+  ativo: { fundo: '#DCFCE7', cor: '#15803D', ponto: '#10B981' },
+  pausado: { fundo: '#FEF3C7', cor: '#B45309', ponto: '#F59E0B' },
+  bloqueado: { fundo: '#FEE2E2', cor: '#B91C1C', ponto: '#EF4444' },
+  excluido: { fundo: '#F1F5F9', cor: '#475569', ponto: '#94A3B8' },
 }
 
 function quando(iso: string | null): string {
-  if (!iso) return 'nunca entrou'
-  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  if (!iso) return 'Nunca entrou'
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
+
+type Confirmacao = { tipo: 'pausado' | 'bloqueado' | 'excluido'; f: Linha }
 
 export default function EquipePage() {
   const [equipe, setEquipe] = useState<Funcionario[]>([])
@@ -54,14 +62,17 @@ export default function EquipePage() {
   const [eu, setEu] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const [novoAberto, setNovoAberto] = useState(false)
-  const [senhaDe, setSenhaDe] = useState<Funcionario | null>(null)
-  const [acessosDe, setAcessosDe] = useState<Funcionario | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
+  const [verExcluidos, setVerExcluidos] = useState(false)
+  const [modal, setModal] = useState<{ usuario: Linha | null } | null>(null)
+  const [senhaDe, setSenhaDe] = useState<Linha | null>(null)
+  const [confirmar, setConfirmar] = useState<Confirmacao | null>(null)
+  const [menuDe, setMenuDe] = useState<string | null>(null)
+  const toasts = useToasts()
 
   const carregar = useCallback(async () => {
     const r = await fetch('/api/admin/equipe', { cache: 'no-store' })
-    const corpo = await r.json()
+    const corpo = await r.json().catch(() => ({}))
     if (!r.ok) {
       setErro(corpo.error ?? 'Não foi possível carregar a equipe.')
     } else {
@@ -77,429 +88,363 @@ export default function EquipePage() {
     void carregar()
   }, [carregar])
 
-  async function alternarAtivo(f: Funcionario) {
-    setAviso(null)
+  const linhas: Linha[] = useMemo(
+    () =>
+      equipe.map((f) => {
+        const cargoVisto = cargoDoUsuario(f.cargo, f.papel, f.acessos)
+        return { ...f, cargoVisto, situacaoVista: situacaoDoUsuario(f.ativo, f.situacao), acessosVistos: f.acessos ?? modeloDoCargo(cargoVisto) }
+      }),
+    [equipe],
+  )
+  const souDono = linhas.find((l) => l.id === eu)?.papel === 'dono'
+  const excluidos = linhas.filter((l) => l.situacaoVista === 'excluido')
+  const termo = busca.trim().toLowerCase()
+  const visiveis = linhas
+    .filter((l) => (verExcluidos ? l.situacaoVista === 'excluido' : l.situacaoVista !== 'excluido'))
+    .filter((l) => !termo || l.nome.toLowerCase().includes(termo) || l.usuario.toLowerCase().includes(termo))
+
+  const administravel = (f: Linha) => f.id !== eu && f.papel !== 'dono' && (papeisOferecidos as string[]).includes(f.papel)
+
+  async function mudarSituacao(f: Linha, situacao: Situacao) {
     const r = await fetch(`/api/admin/equipe/${f.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ativo: !f.ativo }),
+      body: JSON.stringify({ situacao }),
     })
-    const corpo = await r.json()
+    const corpo = await r.json().catch(() => ({}))
     if (!r.ok) {
-      setAviso(corpo.error ?? 'Não foi possível alterar.')
+      toasts.mostrar('erro', corpo.error ?? 'Não foi possível alterar.')
       return
     }
-    setAviso(f.ativo ? `${f.nome} foi desativado e perde o acesso na próxima ação.` : `${f.nome} foi reativado.`)
+    const msg: Record<Situacao, string> = {
+      ativo: `${f.nome} foi reativado.`,
+      pausado: `Acesso de ${f.nome} pausado. Cai na próxima ação.`,
+      bloqueado: `${f.nome} foi bloqueado. O acesso cai na próxima ação.`,
+      excluido: `${f.nome} foi excluído. O histórico continua guardado.`,
+    }
+    toasts.mostrar('ok', msg[situacao])
     await carregar()
   }
+
+  async function salvarUsuario(dados: SalvarUsuario, alvo: Linha | null): Promise<string | null> {
+    const r = alvo
+      ? await fetch(`/api/admin/equipe/${alvo.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nome: dados.nome, telefone: dados.telefone, cargo: dados.cargo, acessos: dados.acessos }),
+        })
+      : await fetch('/api/admin/equipe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados),
+        })
+    const corpo = await r.json().catch(() => ({}))
+    if (!r.ok) return corpo.error ?? 'Não foi possível salvar.'
+    setModal(null)
+    toasts.mostrar('ok', alvo ? `${dados.nome} atualizado. Vale na próxima ação, sem precisar sair.` : `${dados.nome} cadastrado. Já pode entrar com o login e a senha.`)
+    await carregar()
+    return null
+  }
+
+  async function redefinirSenha(f: Linha, senha: string): Promise<string | null> {
+    const r = await fetch(`/api/admin/equipe/${f.id}/senha`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ senha }),
+    })
+    const corpo = await r.json().catch(() => ({}))
+    if (!r.ok) return corpo.error ?? 'Não foi possível redefinir.'
+    return null
+  }
+
+  const outros = (alvo: Linha | null) =>
+    linhas
+      .filter((l) => l.papel !== 'dono' && l.id !== alvo?.id && l.situacaoVista !== 'excluido' && l.acessosVistos)
+      .map((l) => ({ id: l.id, nome: l.nome, acessos: l.acessosVistos! }))
 
   return (
     <>
       <TopBar
         title="Equipe"
-        breadcrumb="Funcionários e acessos"
+        breadcrumb="Usuários e permissões"
         right={
           papeisOferecidos.length > 0 ? (
-            <Button onClick={() => setNovoAberto(true)}>
+            <Button onClick={() => setModal({ usuario: null })} data-testid="adicionar-usuario">
               <Plus className="mr-1.5 inline h-3.5 w-3.5" />
-              Novo funcionário
+              Adicionar usuário
             </Button>
           ) : undefined
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-5">
-        {aviso && (
-          <p className="mb-3 rounded-menuzia border border-border bg-alert-bg px-4 py-2.5 text-[13px] text-alert-text">{aviso}</p>
-        )}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-5" onClick={() => setMenuDe(null)}>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1 sm:max-w-[420px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Pesquisar pelo nome ou login do usuário" className="equipe-busca w-full" data-testid="busca-usuario" />
+          </div>
+          {!carregando && !erro && (
+            <span className="hidden text-[12.5px] text-text-subtle sm:inline">
+              {verExcluidos ? `${excluidos.length} excluído(s)` : `${linhas.length - excluidos.length} usuário(s)`}
+            </span>
+          )}
+        </div>
+
         {carregando && <p className="text-[13px] text-text-subtle">Carregando…</p>}
-        {erro && (
-          <p className="rounded-menuzia border border-danger bg-danger-bg px-4 py-3 text-[13px] text-danger">{erro}</p>
-        )}
+        {erro && <p className="rounded-menuzia border border-danger bg-danger-bg px-4 py-3 text-[13px] text-danger">{erro}</p>}
 
         {!carregando && !erro && (
           <>
-          {/* Celular: cartão por pessoa. A tabela é boa para varrer a equipe inteira no
-              monitor; no telefone ela virava rolagem lateral com o botão de ação escondido
-              fora da tela — que é justamente o que se vem fazer aqui. */}
-          <div className="flex flex-col gap-2 lg:hidden">
-            {equipe.map((f) => {
-              const administravel = f.id !== eu && (papeisOferecidos as string[]).includes(f.papel)
-              return (
-                <div key={f.id} className={`rounded-menuzia border border-border bg-main p-3.5 ${f.ativo ? '' : 'opacity-60'}`}>
+            {visiveis.length === 0 && (
+              <div className="flex flex-col items-center rounded-[6px] border border-[#e5e7eb] bg-white px-6 py-12 text-center">
+                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#E0F2FE] text-[#0688D4]"><UserRound className="h-6 w-6" /></span>
+                <p className="text-[14px] font-semibold text-[#1f2937]">{termo ? 'Nenhum usuário encontrado' : verExcluidos ? 'Nenhum usuário excluído' : 'Nenhum usuário'}</p>
+                {termo && <p className="mt-1 text-[12.5px] text-text-subtle">Confira o nome ou o login digitado.</p>}
+              </div>
+            )}
+
+            {/* Celular e tablet em pé: um cartão por pessoa, ações sempre à vista. */}
+            <div className="flex flex-col gap-2 lg:hidden">
+              {visiveis.map((f) => (
+                <div key={f.id} className="rounded-[6px] border border-[#e5e7eb] bg-white p-3.5" data-testid="usuario-cartao" data-login={f.usuario}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[14px] font-bold text-text-main">
+                      <div className="truncate text-[14px] font-bold text-[#1f2937]">
                         {f.nome || '—'}
                         {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
                       </div>
-                      <div className="font-mono text-[12px] text-text-subtle">{f.usuario || '—'}</div>
+                      <div className="truncate font-mono text-[12px] text-text-subtle">{f.usuario || '—'}</div>
                     </div>
-                    <Badge tone={f.ativo ? 'ok' : 'danger'}>{f.ativo ? 'Ativo' : 'Desativado'}</Badge>
+                    <SeloSituacao s={f.situacaoVista} />
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Badge tone={f.papel === 'dono' ? 'highlight' : f.papel === 'garcom' ? 'preparing' : 'alert'}>
-                      {ROTULO_PAPEL[f.papel] ?? f.papel}
-                    </Badge>
-                    <span className="text-[12px] text-text-subtle">{quando(f.ultimoLoginEm)}</span>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-text-subtle">
+                    <SeloCargo c={f.cargoVisto} />
+                    <Permissoes f={f} />
+                    <span>· {quando(f.ultimoLoginEm)}</span>
                   </div>
-                  <div className="mt-1.5 text-[12px] text-text-main">Acessos: {resumoAcessos(f.papel, f.acessos)}</div>
-                  {administravel && (
-                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
-                      {f.papel !== 'dono' && <Button variant="outline" className="col-span-2" onClick={() => setAcessosDe(f)}>Editar acessos</Button>}
-                      <Button variant="outline" onClick={() => setSenhaDe(f)}>
-                        <KeyRound className="mr-1 inline h-3.5 w-3.5" />
-                        Senha
-                      </Button>
-                      <Button variant="outline" onClick={() => alternarAtivo(f)}>
-                        {f.ativo ? (
-                          <>
-                            <UserX className="mr-1 inline h-3.5 w-3.5" />
-                            Desativar
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck className="mr-1 inline h-3.5 w-3.5" />
-                            Reativar
-                          </>
-                        )}
-                      </Button>
+                  {administravel(f) && (
+                    <div className="mt-3 flex items-center justify-end gap-1 border-t border-[#f0f1f3] pt-2">
+                      <Acoes f={f} menuAberto={menuDe === f.id} onMenu={(v) => setMenuDe(v ? f.id : null)} onEditar={() => setModal({ usuario: f })} onSenha={() => setSenhaDe(f)}
+                        onSituacao={(s) => (s === 'ativo' ? void mudarSituacao(f, 'ativo') : setConfirmar({ tipo: s, f }))} />
                     </div>
                   )}
                 </div>
-              )
-            })}
-          </div>
-          <div className="hidden overflow-x-auto rounded-menuzia border border-border bg-main lg:block">
-            <table className="w-full min-w-[640px] text-left text-[13px]">
-              <thead className="border-b border-border bg-bg-page text-[11px] uppercase tracking-wide text-text-subtle">
-                <tr>
-                  <th className="px-4 py-2.5 font-semibold">Nome</th>
-                  <th className="px-4 py-2.5 font-semibold">Login</th>
-                  <th className="px-4 py-2.5 font-semibold">Papel</th>
-                  <th className="px-4 py-2.5 font-semibold">Acessos</th>
-                  <th className="px-4 py-2.5 font-semibold">Situação</th>
-                  <th className="px-4 py-2.5 font-semibold">Último acesso</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {equipe.map((f) => {
-                  // Só oferece ação sobre quem o próprio usuário pode administrar. O
-                  // servidor confere de novo — isto só evita botão que vai dar erro.
-                  const administravel = f.id !== eu && (papeisOferecidos as string[]).includes(f.papel)
-                  return (
-                    <tr key={f.id} className={`border-b border-border last:border-0 ${f.ativo ? '' : 'opacity-60'}`}>
-                      <td className="px-4 py-3 font-semibold text-text-main">
-                        {f.nome || '—'}
-                        {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[12px] text-text-subtle">{f.usuario || '—'}</td>
-                      <td className="px-4 py-3">
-                        <Badge tone={f.papel === 'dono' ? 'highlight' : f.papel === 'garcom' ? 'preparing' : 'alert'}>
-                          {ROTULO_PAPEL[f.papel] ?? f.papel}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-[12px] text-text-main" data-testid="acessos-resumo">{resumoAcessos(f.papel, f.acessos)}</td>
-                      <td className="px-4 py-3">
-                        <Badge tone={f.ativo ? 'ok' : 'danger'}>{f.ativo ? 'Ativo' : 'Desativado'}</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-[12px] text-text-subtle">{quando(f.ultimoLoginEm)}</td>
-                      <td className="px-4 py-3 text-right">
-                        {administravel && (
-                          <div className="flex justify-end gap-1.5">
-                            {f.papel !== 'dono' && (
-                              <Button variant="outline" className="!px-2.5" onClick={() => setAcessosDe(f)} data-testid="editar-acessos">Editar acessos</Button>
-                            )}
-                            <Button variant="outline" className="!px-2" onClick={() => setSenhaDe(f)} title="Redefinir senha">
-                              <KeyRound className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="outline" className="!px-2.5" onClick={() => alternarAtivo(f)}>
-                              {f.ativo ? (
-                                <>
-                                  <UserX className="mr-1 inline h-3.5 w-3.5" />
-                                  Desativar
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="mr-1 inline h-3.5 w-3.5" />
-                                  Reativar
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        )}
-                      </td>
+              ))}
+            </div>
+
+            {visiveis.length > 0 && (
+              <div className="hidden overflow-x-auto rounded-[6px] border border-[#e5e7eb] bg-white lg:block">
+                <table className="w-full min-w-[860px] text-left text-[13px]">
+                  <thead className="border-b border-[#e5e7eb] bg-[#f9fafb] text-[11.5px] font-semibold text-[#5b6472]">
+                    <tr>
+                      <th className="px-4 py-3">Nome</th>
+                      <th className="px-4 py-3">Login</th>
+                      <th className="px-4 py-3">Cargo</th>
+                      <th className="px-4 py-3">Permissões</th>
+                      <th className="px-4 py-3">Situação</th>
+                      <th className="px-4 py-3">Último acesso</th>
+                      <th className="px-4 py-3 text-right">Ações</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {visiveis.map((f) => (
+                      <tr key={f.id} className="equipe-linha border-b border-[#f0f1f3] last:border-0" data-testid="usuario-linha" data-login={f.usuario}>
+                        <td className="px-4 py-3 font-bold text-[#1f2937]">
+                          {f.nome || '—'}
+                          {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-[12px] text-text-subtle">{f.usuario || '—'}</td>
+                        <td className="px-4 py-3"><SeloCargo c={f.cargoVisto} /></td>
+                        <td className="px-4 py-3 text-[12.5px]" data-testid="acessos-resumo"><Permissoes f={f} /></td>
+                        <td className="px-4 py-3"><SeloSituacao s={f.situacaoVista} /></td>
+                        <td className="px-4 py-3 text-[12px] text-text-subtle">{quando(f.ultimoLoginEm)}</td>
+                        <td className="px-4 py-2 text-right">
+                          {administravel(f) ? (
+                            <div className="flex justify-end gap-0.5">
+                              <Acoes f={f} menuAberto={menuDe === f.id} onMenu={(v) => setMenuDe(v ? f.id : null)} onEditar={() => setModal({ usuario: f })} onSenha={() => setSenhaDe(f)}
+                                onSituacao={(s) => (s === 'ativo' ? void mudarSituacao(f, 'ativo') : setConfirmar({ tipo: s, f }))} />
+                            </div>
+                          ) : (
+                            <span className="text-[12px] text-[#9ca3af]">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-text-subtle">
+              <p>Pausar, bloquear e excluir não apagam nada: o histórico e os pedidos que a pessoa lançou continuam. O acesso cai na ação seguinte.</p>
+              {(excluidos.length > 0 || verExcluidos) && (
+                <button type="button" className="font-semibold text-[#0688d4] hover:underline" onClick={() => setVerExcluidos((v) => !v)} data-testid="ver-excluidos">
+                  {verExcluidos ? 'Voltar para a equipe' : `Ver excluídos (${excluidos.length})`}
+                </button>
+              )}
+            </div>
           </>
         )}
-
-        <p className="mt-3 text-[12px] text-text-subtle">
-          Desativar não apaga: o histórico e os pedidos que a pessoa lançou continuam. O acesso cai na ação seguinte,
-          mesmo que ela esteja com a tela aberta.
-        </p>
       </div>
 
-      {novoAberto && (
-        <NovoFuncionario
-          papeis={papeisOferecidos}
-          onCancelar={() => setNovoAberto(false)}
-          onCriado={async (nome) => {
-            setNovoAberto(false)
-            setAviso(`${nome} foi cadastrado e já pode entrar com o login e a senha definidos.`)
-            await carregar()
-          }}
-        />
-      )}
-
-      {acessosDe && (
-        <EditarAcessos
-          funcionario={acessosDe}
-          podeEquipe={eu !== null && equipe.find((x) => x.id === eu)?.papel === 'dono'}
-          onCancelar={() => setAcessosDe(null)}
-          onFeito={async () => {
-            setAviso(`Acessos de ${acessosDe.nome} atualizados. Valem na próxima ação, sem precisar sair.`)
-            setAcessosDe(null)
-            await carregar()
-          }}
+      {modal && (
+        <ModalUsuario
+          usuario={modal.usuario ? ({ id: modal.usuario.id, nome: modal.usuario.nome, usuario: modal.usuario.usuario, telefone: modal.usuario.telefone, cargo: modal.usuario.cargoVisto, acessos: modal.usuario.acessosVistos } satisfies UsuarioEquipe) : null}
+          outros={outros(modal.usuario)}
+          podeEquipe={souDono}
+          loginsEmUso={modal.usuario ? [] : linhas.map((l) => l.usuario)}
+          onCancelar={() => setModal(null)}
+          onSalvar={(d) => salvarUsuario(d, modal.usuario)}
+          onRedefinirSenha={(s) => redefinirSenha(modal.usuario!, s)}
         />
       )}
 
       {senhaDe && (
-        <RedefinirSenha
-          funcionario={senhaDe}
+        <JanelaSenha
+          f={senhaDe}
           onCancelar={() => setSenhaDe(null)}
-          onFeito={() => {
-            setAviso(`Senha de ${senhaDe.nome} redefinida.`)
-            setSenhaDe(null)
+          onSalvar={async (s) => {
+            const e = await redefinirSenha(senhaDe, s)
+            if (!e) { toasts.mostrar('ok', `Senha de ${senhaDe.nome} redefinida.`); setSenhaDe(null) }
+            return e
           }}
         />
+      )}
+
+      {confirmar && (
+        <JanelaConfirmar
+          c={confirmar}
+          onCancelar={() => setConfirmar(null)}
+          onConfirmar={async () => { const c = confirmar; setConfirmar(null); await mudarSituacao(c.f, c.tipo) }}
+        />
+      )}
+
+      <PilhaToasts itens={toasts.itens} />
+    </>
+  )
+}
+
+function SeloCargo({ c }: { c: Cargo }) {
+  const cor = COR_CARGO[c]
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded-[4px] px-2 py-[3px] text-[11.5px] font-semibold" style={{ backgroundColor: cor.fundo, color: cor.cor }} data-testid="cargo">
+      {ROTULO_CARGO[c]}
+    </span>
+  )
+}
+
+function SeloSituacao({ s }: { s: Situacao }) {
+  const cor = COR_SITUACAO[s]
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-[3px] text-[11.5px] font-semibold" style={{ backgroundColor: cor.fundo, color: cor.cor }} data-testid="situacao" data-situacao={s}>
+      <span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: cor.ponto }} />
+      {ROTULO_SITUACAO[s]}
+    </span>
+  )
+}
+
+function Permissoes({ f }: { f: Linha }) {
+  if (f.papel === 'dono') return <span className="font-semibold text-[#1f2937]">Acesso total</span>
+  if (!f.acessosVistos) return <span>Padrão do papel</span>
+  const n = contarPermissoes(f.acessosVistos)
+  return <span className="text-[#374151]">{n === 1 ? '1 permissão' : `${n} permissões`}</span>
+}
+
+function Acoes({ f, menuAberto, onMenu, onEditar, onSenha, onSituacao }: {
+  f: Linha
+  menuAberto: boolean
+  onMenu: (aberto: boolean) => void
+  onEditar: () => void
+  onSenha: () => void
+  onSituacao: (s: Situacao) => void
+}) {
+  const inativo = f.situacaoVista !== 'ativo'
+  return (
+    <>
+      <button type="button" className="equipe-acao toque-icone" title="Editar" aria-label={`Editar ${f.nome}`} onClick={onEditar} data-testid="acao-editar"><Pencil className="h-4 w-4" /></button>
+      <button type="button" className="equipe-acao toque-icone" title="Redefinir senha" aria-label={`Redefinir senha de ${f.nome}`} onClick={onSenha} data-testid="acao-senha"><KeyRound className="h-4 w-4" /></button>
+      {inativo ? (
+        <button type="button" className="equipe-acao toque-icone" title="Reativar" aria-label={`Reativar ${f.nome}`} onClick={() => onSituacao('ativo')} data-testid="acao-reativar"><PlayCircle className="h-4 w-4" /></button>
+      ) : (
+        <span className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
+          <button type="button" className="equipe-acao toque-icone" title="Pausar ou bloquear" aria-label={`Pausar ou bloquear ${f.nome}`} aria-expanded={menuAberto} onClick={() => onMenu(!menuAberto)} data-testid="acao-pausar-bloquear"><PauseCircle className="h-4 w-4" /></button>
+          {menuAberto && (
+            <span className="absolute right-0 top-[38px] z-20 flex w-[210px] flex-col overflow-hidden rounded-[6px] border border-[#e5e7eb] bg-white py-1 text-left shadow-[0_10px_28px_rgba(15,23,42,0.14)]" role="menu">
+              <button type="button" role="menuitem" className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-[#1f2937] hover:bg-[#f3f4f6]" onClick={() => { onMenu(false); onSituacao('pausado') }} data-testid="menu-pausar">
+                <PauseCircle className="h-4 w-4 text-[#B45309]" /> Pausar acesso
+              </button>
+              <button type="button" role="menuitem" className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-[#1f2937] hover:bg-[#f3f4f6]" onClick={() => { onMenu(false); onSituacao('bloqueado') }} data-testid="menu-bloquear">
+                <Ban className="h-4 w-4 text-[#DC2626]" /> Bloquear acesso
+              </button>
+            </span>
+          )}
+        </span>
+      )}
+      {f.situacaoVista !== 'excluido' && (
+        <button type="button" className="equipe-acao perigo toque-icone" title="Excluir" aria-label={`Excluir ${f.nome}`} onClick={() => onSituacao('excluido')} data-testid="acao-excluir"><Trash2 className="h-4 w-4" /></button>
       )}
     </>
   )
 }
 
-function Gaveta({ titulo, onFechar, children }: { titulo: string; onFechar: () => void; children: React.ReactNode }) {
+function JanelaPequena({ titulo, onFechar, children, rodape }: { titulo: string; onFechar: () => void; children: React.ReactNode; rodape: React.ReactNode }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onFechar])
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onFechar}>
-      <aside className="flex h-full w-full max-w-md flex-col bg-main shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-border px-5">
-          <span className="text-[15px] font-semibold text-text-main">{titulo}</span>
-          <button onClick={onFechar} className="text-text-subtle hover:text-text-main" aria-label="Fechar">
-            <X className="h-5 w-5" />
-          </button>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4" onMouseDown={onFechar}>
+      <div role="dialog" aria-modal="true" className="w-full max-w-[440px] overflow-hidden rounded-[8px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.28)]" onMouseDown={(e) => e.stopPropagation()} data-testid="janela-pequena">
+        <div className="flex h-[54px] items-center justify-between border-b border-[#e5e7eb] px-5">
+          <span className="text-[15px] font-bold text-[#1f2937]">{titulo}</span>
+          <button type="button" onClick={onFechar} aria-label="Fechar" className="text-[#6b7280] hover:text-[#1f2937]"><X className="h-5 w-5" /></button>
         </div>
-        {children}
-      </aside>
+        <div className="p-5">{children}</div>
+        <div className="flex justify-end gap-2 border-t border-[#e5e7eb] px-5 py-3">{rodape}</div>
+      </div>
     </div>
   )
 }
 
-function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">{label}</span>
-      {children}
-      {hint && <span className="mt-1 block text-[11px] text-text-subtle">{hint}</span>}
-    </label>
-  )
-}
+const BTN_SEC = 'h-10 rounded-[5px] border border-[#d6dae1] px-4 text-[13px] font-semibold text-[#374151] hover:bg-[#f3f4f6]'
+const BTN_PRI = 'h-10 rounded-[5px] px-4 text-[13px] font-semibold text-white disabled:opacity-50'
 
-const INPUT = 'h-10 w-full rounded-menuzia border border-border px-3 text-[13px] outline-none focus:border-primary'
-
-function NovoFuncionario({
-  papeis,
-  onCancelar,
-  onCriado,
-}: {
-  papeis: Papel[]
-  onCancelar: () => void
-  onCriado: (nome: string) => void
-}) {
-  const [nome, setNome] = useState('')
-  const [usuario, setUsuario] = useState('')
-  const [papel, setPapel] = useState<Papel>(papeis.includes('garcom') ? 'garcom' : papeis[0])
+function JanelaSenha({ f, onCancelar, onSalvar }: { f: Linha; onCancelar: () => void; onSalvar: (s: string) => Promise<string | null> }) {
   const [senha, setSenha] = useState('')
-  const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  // Acessos começam pelo modelo do papel (Garçom = só Mesas e Comandas).
-  const [acessos, setAcessos] = useState<Acessos>(() => {
-    const m = MODELOS.find((x) => x.papel === (papeis.includes('garcom') ? 'garcom' : papeis[0]))
-    return m ? { areas: [...m.acessos.areas], sensiveis: [...m.acessos.sensiveis] } : { areas: [], sensiveis: [] }
-  })
-
+  const [salvando, setSalvando] = useState(false)
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => ref.current?.focus(), [])
   async function salvar() {
+    if (senha.length < 8) { setErro('Pelo menos 8 caracteres.'); return }
     setSalvando(true)
-    setErro(null)
-    const r = await fetch('/api/admin/equipe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, usuario, papel, senha, acessos }),
-    })
-    const corpo = await r.json()
+    const e = await onSalvar(senha)
     setSalvando(false)
-    if (!r.ok) {
-      setErro(corpo.error ?? 'Não foi possível cadastrar.')
-      return
-    }
-    onCriado(corpo.funcionario.nome)
+    if (e) setErro(e)
   }
-
   return (
-    <Gaveta titulo="Novo funcionário" onFechar={onCancelar}>
-      <div className="flex-1 space-y-4 overflow-y-auto p-5">
-        <Campo label="Nome">
-          <input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} className={INPUT} placeholder="Ex.: João Silva" />
-        </Campo>
-        <Campo label="Login" hint="É com ele que a pessoa entra. Letras minúsculas, números, ponto, hífen ou sublinhado.">
-          <input
-            value={usuario}
-            onChange={(e) => setUsuario(e.target.value.toLowerCase().replace(/\s/g, ''))}
-            className={`${INPUT} font-mono`}
-            placeholder="joao.silva"
-            autoCapitalize="none"
-            autoCorrect="off"
-          />
-        </Campo>
-        <Campo label="Papel">
-          <select value={papel} onChange={(e) => setPapel(e.target.value as Papel)} className={INPUT}>
-            {papeis.map((p) => (
-              <option key={p} value={p}>
-                {ROTULO_PAPEL[p]}
-              </option>
-            ))}
-          </select>
-          {DESCRICAO_PAPEL[papel] && <span className="mt-1 block text-[11px] text-text-subtle">{DESCRICAO_PAPEL[papel]}</span>}
-        </Campo>
-        <Campo label="Senha inicial" hint="Pelo menos 8 caracteres. Passe para a pessoa pessoalmente.">
-          <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className={INPUT} autoComplete="new-password" />
-        </Campo>
-        <EditorAcessos acessos={acessos} onChange={setAcessos} papeisPermitidos={papeis} onModelo={(p) => setPapel(p as Papel)} />
-        {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
-      </div>
-      <div className="flex gap-2 border-t border-border p-5">
-        <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={salvando}>
-          Cancelar
-        </Button>
-        <Button className="flex-1" onClick={salvar} disabled={salvando}>
-          {salvando ? 'Cadastrando…' : 'Cadastrar'}
-        </Button>
-      </div>
-    </Gaveta>
+    <JanelaPequena titulo={`Redefinir senha · ${f.nome}`} onFechar={onCancelar}
+      rodape={<><button type="button" className={BTN_SEC} onClick={onCancelar}>Cancelar</button><button type="button" className={`${BTN_PRI} bg-[#0688d4] hover:bg-[#0570ae]`} disabled={salvando} onClick={() => void salvar()} data-testid="senha-salvar">{salvando ? 'Salvando…' : 'Redefinir senha'}</button></>}>
+      <label className="cf">
+        <input ref={ref} type="password" className="cf-campo" placeholder=" " value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" onKeyDown={(e) => { if (e.key === 'Enter') void salvar() }} data-testid="senha-nova" />
+        <span className="cf-rotulo">Nova senha</span>
+      </label>
+      <p className={`mt-1.5 text-[12px] ${erro ? 'font-semibold text-[#b91c1c]' : 'text-[#6b7280]'}`}>{erro ?? 'Mínimo de 8 caracteres. A pessoa continua logada até a próxima entrada.'}</p>
+    </JanelaPequena>
   )
 }
 
-function RedefinirSenha({
-  funcionario,
-  onCancelar,
-  onFeito,
-}: {
-  funcionario: Funcionario
-  onCancelar: () => void
-  onFeito: () => void
-}) {
-  const [senha, setSenha] = useState('')
-  const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
-
-  async function salvar() {
-    setSalvando(true)
-    setErro(null)
-    const r = await fetch(`/api/admin/equipe/${funcionario.id}/senha`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senha }),
-    })
-    const corpo = await r.json()
-    setSalvando(false)
-    if (!r.ok) {
-      setErro(corpo.error ?? 'Não foi possível redefinir.')
-      return
-    }
-    onFeito()
-  }
-
+function JanelaConfirmar({ c, onCancelar, onConfirmar }: { c: Confirmacao; onCancelar: () => void; onConfirmar: () => void }) {
+  const t = {
+    pausado: { titulo: 'Pausar acesso', texto: `${c.f.nome} não consegue entrar nem usar o painel até ser reativado. Bom para férias ou afastamento.`, botao: 'Pausar', cor: 'bg-[#d97706] hover:bg-[#b45309]' },
+    bloqueado: { titulo: 'Bloquear acesso', texto: `${c.f.nome} perde o acesso na próxima ação. Use quando houver suspeita ou desligamento.`, botao: 'Bloquear', cor: 'bg-[#dc2626] hover:bg-[#b91c1c]' },
+    excluido: { titulo: 'Excluir usuário', texto: `${c.f.nome} sai da lista da equipe e perde o acesso. Nada é apagado: o histórico e os pedidos continuam, e dá para reativar em "Ver excluídos".`, botao: 'Excluir', cor: 'bg-[#dc2626] hover:bg-[#b91c1c]' },
+  }[c.tipo]
   return (
-    <Gaveta titulo={`Nova senha · ${funcionario.nome}`} onFechar={onCancelar}>
-      <div className="flex-1 space-y-4 overflow-y-auto p-5">
-        <Campo label="Nova senha" hint="Pelo menos 8 caracteres.">
-          <input
-            autoFocus
-            type="password"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            className={INPUT}
-            autoComplete="new-password"
-          />
-        </Campo>
-        {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
-      </div>
-      <div className="flex gap-2 border-t border-border p-5">
-        <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={salvando}>
-          Cancelar
-        </Button>
-        <Button className="flex-1" onClick={salvar} disabled={salvando}>
-          {salvando ? 'Salvando…' : 'Redefinir senha'}
-        </Button>
-      </div>
-    </Gaveta>
-  )
-}
-
-function EditarAcessos({
-  funcionario,
-  podeEquipe,
-  onCancelar,
-  onFeito,
-}: {
-  funcionario: Funcionario
-  podeEquipe: boolean
-  onCancelar: () => void
-  onFeito: () => void
-}) {
-  const inicial = funcionario.acessos ?? MODELOS.find((m) => m.papel === funcionario.papel)?.acessos ?? { areas: [], sensiveis: [] }
-  const [acessos, setAcessos] = useState<Acessos>({ areas: [...inicial.areas], sensiveis: [...inicial.sensiveis] })
-  const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
-
-  async function salvar(valor: Acessos | null) {
-    setSalvando(true)
-    setErro(null)
-    const r = await fetch(`/api/admin/equipe/${funcionario.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acessos: valor }),
-    })
-    const corpo = await r.json().catch(() => ({}))
-    setSalvando(false)
-    if (!r.ok) {
-      setErro(corpo.error ?? 'Não foi possível salvar.')
-      return
-    }
-    onFeito()
-  }
-
-  return (
-    <Gaveta titulo={`Acessos de ${funcionario.nome}`} onFechar={onCancelar}>
-      <div className="flex-1 space-y-4 overflow-y-auto p-5">
-        <p className="text-[12px] text-text-subtle">
-          Papel: <strong>{ROTULO_PAPEL[funcionario.papel] ?? funcionario.papel}</strong>. Os acessos limitam o que a pessoa vê e faz; nunca liberam mais do que o papel permite.
-        </p>
-        <EditorAcessos acessos={acessos} onChange={setAcessos} papeisPermitidos={[funcionario.papel]} podeEquipe={podeEquipe} />
-        {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
-      </div>
-      <div className="flex flex-wrap gap-2 border-t border-border p-5">
-        <Button variant="outline" onClick={() => void salvar(null)} disabled={salvando}>Voltar ao padrão do papel</Button>
-        <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={salvando}>Cancelar</Button>
-        <Button className="flex-1" onClick={() => void salvar(acessos)} disabled={salvando} data-testid="salvar-acessos">
-          {salvando ? 'Salvando…' : 'Salvar acessos'}
-        </Button>
-      </div>
-    </Gaveta>
+    <JanelaPequena titulo={t.titulo} onFechar={onCancelar}
+      rodape={<><button type="button" className={BTN_SEC} onClick={onCancelar} data-testid="confirmar-cancelar">Cancelar</button><button type="button" className={`${BTN_PRI} ${t.cor}`} onClick={onConfirmar} data-testid="confirmar-ok">{t.botao}</button></>}>
+      <p className="text-[13.5px] leading-relaxed text-[#374151]">{t.texto}</p>
+    </JanelaPequena>
   )
 }

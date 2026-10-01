@@ -31,6 +31,7 @@ export type Area = (typeof AREAS)[number]['chave']
 export const SENSIVEIS = [
   { chave: 'cancelar_pedido', rotulo: 'Cancelar pedido' },
   { chave: 'desconto', rotulo: 'Dar desconto' },
+  { chave: 'taxa', rotulo: 'Aplicar e remover taxas' },
   { chave: 'fechar_caixa', rotulo: 'Fechar caixa' },
   { chave: 'financeiro', rotulo: 'Ver valores e relatórios financeiros' },
   { chave: 'disparar_campanhas', rotulo: 'Disparar campanhas' },
@@ -91,7 +92,7 @@ export function primeiraTela(acessos: Acessos | null): string | null {
 /** Modelos prontos: papel base + acessos. Ajustáveis depois, caixa por caixa. */
 export const MODELOS: { chave: string; rotulo: string; papel: string; acessos: Acessos }[] = [
   { chave: 'garcom', rotulo: 'Garçom', papel: 'garcom', acessos: { areas: ['mesas'], sensiveis: [] } },
-  { chave: 'caixa', rotulo: 'Caixa', papel: 'atendente', acessos: { areas: ['pedidos', 'pdv', 'mesas', 'clientes'], sensiveis: ['desconto', 'fechar_caixa'] } },
+  { chave: 'caixa', rotulo: 'Caixa', papel: 'atendente', acessos: { areas: ['pedidos', 'pdv', 'mesas', 'clientes'], sensiveis: ['desconto', 'taxa', 'fechar_caixa'] } },
   // A tela de preparo é o link da estação (sem login); no painel, a cozinha acompanha o Kanban.
   { chave: 'cozinha', rotulo: 'Cozinha', papel: 'atendente', acessos: { areas: ['pedidos'], sensiveis: [] } },
   { chave: 'entregador', rotulo: 'Entregador / Logística', papel: 'logistica', acessos: { areas: ['pedidos', 'logistica'], sensiveis: ['fechar_caixa'] } },
@@ -128,6 +129,8 @@ export function sensivelDaRequisicao(metodo: string, pathname: string, corpo: un
     if (acao === 'aplicar_cupom') return 'desconto'
     if (acao === 'ajustar_valores' && (Number(c.descontoValor) > 0 || Number(c.descontoPercentual) > 0)) return 'desconto'
   }
+  // Taxas da conta (serviço, couvert, outras — 0124) e a taxa extra (0106).
+  if (/^\/api\/admin\/(comandas\/[^/]+|mesas\/[^/]+\/conta)\/?$/.test(pathname) && (c.acao === 'taxas' || c.acao === 'taxa_extra')) return 'taxa'
   if (/^\/api\/admin\/caixa\/?$/.test(pathname) && (c.acao === 'fechar' || c.acao === 'acertar')) return 'fechar_caixa'
   if (/^\/api\/admin\/campanhas(\/[^/]+)?\/?$/.test(pathname) && (c.disparar === true || !!c.agendadoEm)) return 'disparar_campanhas'
   // Notificações push do app (0127): enviar avulsa (agora ou agendada) e o teste também disparam.

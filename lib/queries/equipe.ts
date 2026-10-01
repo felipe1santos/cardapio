@@ -23,6 +23,11 @@ export interface Funcionario {
   criadoEm: string
   /** Acessos do funcionário (0120). Null = padrão do papel. */
   acessos: Acessos | null
+  /** Cargo gravado (0128). Null = deduzido do papel (`cargoDoUsuario`). */
+  cargo: string | null
+  /** Motivo do corte de acesso (0128): pausado, bloqueado, excluido. */
+  situacao: string | null
+  telefone: string
 }
 
 export const SENHA_MINIMA = 8
@@ -69,12 +74,15 @@ interface UsuarioRow {
   ultimo_login_em: string | null
   criado_em: string
   acessos?: unknown
+  cargo?: string | null
+  situacao?: string | null
+  telefone?: string | null
 }
 
 export async function listarEquipe(admin: SupabaseClient, restauranteId: string): Promise<Funcionario[]> {
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, nome, usuario, papel, desativado_em, ultimo_login_em, criado_em, acessos')
+    .select('id, nome, usuario, papel, desativado_em, ultimo_login_em, criado_em, acessos, cargo, situacao, telefone')
     .eq('restaurante_id', restauranteId)
     .order('criado_em', { ascending: true })
   if (error) throw error
@@ -87,6 +95,9 @@ export async function listarEquipe(admin: SupabaseClient, restauranteId: string)
     ultimoLoginEm: u.ultimo_login_em,
     criadoEm: u.criado_em,
     acessos: normalizarAcessos(u.acessos),
+    cargo: u.cargo ?? null,
+    situacao: u.desativado_em ? (u.situacao ?? null) : null,
+    telefone: u.telefone ?? '',
   }))
 }
 
@@ -104,7 +115,7 @@ export type Resultado<T = void> = { ok: true; valor: T } | { ok: false; erro: st
 
 export async function criarFuncionario(
   admin: SupabaseClient,
-  entrada: { restauranteId: string; nome: string; usuario: string; papel: Papel; senha: string; criadoPor: string },
+  entrada: { restauranteId: string; nome: string; usuario: string; papel: Papel; senha: string; criadoPor: string; cargo?: string | null; telefone?: string },
 ): Promise<Resultado<Funcionario>> {
   const usuario = normalizarUsuario(entrada.usuario)
   if (!usuario) return { ok: false, erro: 'Login inválido.' }
@@ -130,6 +141,8 @@ export async function criarFuncionario(
       usuario,
       autorizado: true,
       criado_por: entrada.criadoPor,
+      ...(entrada.cargo ? { cargo: entrada.cargo } : {}),
+      ...(entrada.telefone ? { telefone: entrada.telefone } : {}),
     })
     .select('id, nome, usuario, papel, desativado_em, ultimo_login_em, criado_em')
     .single()
@@ -145,7 +158,7 @@ export async function criarFuncionario(
   const u = data as UsuarioRow
   return {
     ok: true,
-    valor: { id: u.id, nome: u.nome, usuario: u.usuario, papel: u.papel, ativo: true, ultimoLoginEm: null, criadoEm: u.criado_em, acessos: null },
+    valor: { id: u.id, nome: u.nome, usuario: u.usuario, papel: u.papel, ativo: true, ultimoLoginEm: null, criadoEm: u.criado_em, acessos: null, cargo: entrada.cargo ?? null, situacao: null, telefone: entrada.telefone ?? '' },
   }
 }
 
@@ -169,10 +182,10 @@ export async function buscarFuncionario(
  * lançou continuam. O acesso cai na requisição seguinte, porque o middleware e a RLS
  * releem `desativado_em` do banco a cada chamada.
  */
-export async function definirAtivo(admin: SupabaseClient, restauranteId: string, id: string, ativo: boolean): Promise<void> {
+export async function definirAtivo(admin: SupabaseClient, restauranteId: string, id: string, ativo: boolean, motivo: 'pausado' | 'bloqueado' | 'excluido' = 'pausado'): Promise<void> {
   const { error } = await admin
     .from('usuarios')
-    .update({ desativado_em: ativo ? null : new Date().toISOString() })
+    .update(ativo ? { desativado_em: null, situacao: null } : { desativado_em: new Date().toISOString(), situacao: motivo })
     .eq('id', id)
     .eq('restaurante_id', restauranteId)
   if (error) throw error
@@ -182,11 +195,13 @@ export async function atualizarNomeEPapel(
   admin: SupabaseClient,
   restauranteId: string,
   id: string,
-  patch: { nome?: string; papel?: Papel },
+  patch: { nome?: string; papel?: Papel; cargo?: string; telefone?: string },
 ): Promise<void> {
   const row: Record<string, string> = {}
   if (patch.nome !== undefined) row.nome = patch.nome.trim()
   if (patch.papel !== undefined) row.papel = patch.papel
+  if (patch.cargo !== undefined) row.cargo = patch.cargo
+  if (patch.telefone !== undefined) row.telefone = patch.telefone
   if (Object.keys(row).length === 0) return
   const { error } = await admin.from('usuarios').update(row).eq('id', id).eq('restaurante_id', restauranteId)
   if (error) throw error

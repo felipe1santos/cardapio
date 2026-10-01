@@ -49,7 +49,7 @@ let userId
   if (error && !/already/i.test(error.message)) throw error
   userId = data?.user?.id
   if (!userId) {
-    const { data: lista } = await admin.auth.admin.listUsers()
+    const { data: lista } = await admin.auth.admin.listUsers({ perPage: 1000 })
     userId = lista.users.find((u) => u.email === EMAIL).id
     await admin.auth.admin.updateUserById(userId, { password: SENHA })
   }
@@ -69,7 +69,7 @@ async function criarFuncionario(email, usuario, papel, nome) {
   if (error && !/already/i.test(error.message)) throw error
   id = data?.user?.id
   if (!id) {
-    const { data: lista } = await admin.auth.admin.listUsers()
+    const { data: lista } = await admin.auth.admin.listUsers({ perPage: 1000 })
     id = lista.users.find((u) => u.email === email).id
     await admin.auth.admin.updateUserById(id, { password: SENHA })
   }
@@ -212,7 +212,7 @@ const lojaVizinha = (await db.query(`
   if (error && !/already/i.test(error.message)) throw error
   id = data?.user?.id
   if (!id) {
-    const { data: lista } = await admin.auth.admin.listUsers()
+    const { data: lista } = await admin.auth.admin.listUsers({ perPage: 1000 })
     id = lista.users.find((u) => u.email === email).id
     await admin.auth.admin.updateUserById(id, { password: SENHA })
   }

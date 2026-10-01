@@ -69,7 +69,7 @@ for (const papel of PAPEIS) {
   let userId = data?.user?.id
   if (error) {
     if (!/already/i.test(error.message)) throw error
-    const { data: lista } = await admin.auth.admin.listUsers()
+    const { data: lista } = await admin.auth.admin.listUsers({ perPage: 1000 })
     userId = lista.users.find((u) => u.email === email).id
   }
   await db.query(
