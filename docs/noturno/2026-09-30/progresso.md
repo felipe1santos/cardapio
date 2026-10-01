@@ -14,24 +14,15 @@ Legenda: ⬜ a fazer · 🔧 em andamento · ✅ feito e testado · 🚀 no ar �
 - 🔧 Ciclo: vitest 1753 ✅, lint ✅, regressão 52/52, vitrine celular 11/11 — falta deploy (após 00:00) e smoke prod · testes + tsc + lint + suítes + e2e local + deploy + smoke prod
 
 ## Fase 2 — Menu lateral (feat/noturno-fase2-menu)
-- ⬜ Remover bloco do logo "menuzia" + ícone de link (função de link movida pro card)
-- ⬜ Sino de notificações no card (estado + mesmas opções)
-- ⬜ Alerta de pendências com badge + modal (o que falta / por quê / Resolver)
-- ⬜ Remover blocos "Notificações ativadas" e "X pendências" de baixo
-- ⬜ Remover badges de pendência dos itens (manter "Novo")
-- ⬜ Recolhido/mobile ok; e2e
+- ✅ Card da loja com sino + alerta (badge) e modal "Resolver"; faixa da marca, blocos do rodapé e badges de pendência removidos; copiar link em "Ver meu cardápio" (6256819; e2e-menu-lateral 16/16; unit 44)
 
 ## Fase 3 — Vitrine (feat/noturno-fase3-vitrine)
-- ⬜ 3.1 Banner com proporção medida; tamanho ideal + prévia no admin; carrossel
-- ⬜ 3.2 Cards "Mais Pedidos" (tamanho, 1:1, 2 linhas, "A partir de", tag, rolagem)
-- ⬜ 3.3 Tags: ícones Fluent (MIT, locais), principais (Mais pedido 🔥, Novidade, Edição limitada) máx 2; utilitárias (Item promocional, Entrega grátis, Serve X); preço com desconto em 2 linhas; admin "Etiquetas do produto" + prévia; migração das antigas
-- ⬜ 3.4 Botão fixo "Tirar dúvidas no WhatsApp" (número da loja; some sem número; não no checkout)
-- ⬜ 3.5 Lado a lado referência × resultado; e2e 360/390/414/desktop
+- ✅ 3.1–3.5 (ad54d48…; migration 0117; e2e-vitrine-fase3 51/51, e2e-admin-etiquetas 7/7; lado a lado em prints/fase3)
 
 ## Fase 4 — Botões nas mensagens (feat/noturno-fase4-botoes)
-- ⬜ 4.1 Pesquisa de viabilidade (Evolution API)
-- ⬜ 4.2 Editor com até N botões + atalho "Ver cardápio" + prévia; envio com botões ou fallback em texto; histórico registra modo; robô
-- ⬜ 4.3 E2E (campanha de TESTE só p/ número de teste; fallback forçado; campanhas antigas)
+- ✅ 4.1 pesquisa (fase4-pesquisa-botoes.md): botões NÃO confiáveis na Evolution 2.3.7/QR → fallback sempre
+- ✅ 4.2 editor + links no texto + histórico (e913e43; migration 0118)
+- ⚠️ 4.3 e2e simulado 9/9 + campanhas 63/63; envio real pendente (WhatsApp da Menuzia desconectado)
 
 ## Fase 5 — Cozinha (feat/noturno-fase5-cozinha)
 - ⬜ 5.1 Item "Cozinha" no menu; estações em cards com QR grande, copiar, tela cheia, imprimir QR, desativar/novo link/excluir; modal "Nova estação" (Preparo/Embalo/Completa); compatibilidade; estado vazio
