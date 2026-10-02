@@ -65,13 +65,34 @@ As seções Caixa, Fluxo, Motoboys, Movimentações, CMV, Contas/DRE e Dashboard
 | 21 | Mesmo login em dois aparelhos | alerta "login simultâneo" ao dono |
 | 22 | Errar a senha no login | fica na auditoria |
 
-### Regressão
+### Regressão (build da Fase 1, banco com a 0132)
 
-(preenchido abaixo ao fim da rodada)
+| Suíte | Resultado |
+|---|---|
+| PDV v2 | 70/70 |
+| Balcão e entrega (delivery) | 84/84 |
+| Garçom (mesas) | 47/47 |
+| Caixa: turnos / regras | 18/18 · 34/34 |
+| Pedido idempotente | 12/12 |
+| Impressão v2 | 40/40 |
+| Cozinha | 26/26 |
+| Robô WhatsApp | 106/106 |
+| Campanhas | 71/71 |
+| Vitrine: checkout em larguras | 72/72 |
+| Equipe repaginada / acessos | 75/75 · 27/27 |
+| Menu lateral / limite de login | 16/16 · 3/3 |
+| Release Mesas | 250/254 — **as mesmas 4 falham sem a Fase 1** (vitrine da loja de teste e eventos antigos de "senha" do balcão; ambiente) |
+| Regressão release | trava no popup de fidelidade da vitrine — **igual sem a Fase 1** (ambiente) |
+| Cardápio ordem/QR | não roda: o Storage local recusa a imagem de semente (`42P10`), antes de qualquer verificação (ambiente) |
+
+Uma rodada anterior da Equipe falhou com a máquina sem memória: o salvar passou do tempo limite. Com memória livre
+passou 75/75, tanto sozinha quanto logo depois da suíte do financeiro.
+
+Rollback da 0132 seguido de reaplicação: ok. Depois disso, o e2e antifraude passou de novo (66/66) e o teste SQL também.
 
 ## Prints
 
-Estão em `scratchpad/prints-fin1`: `01-meu-pin`, `02-tela-travada`, `03-trocar-operador`, `04-financeiro-auditoria`,
+Estão em `docs/financeiro/prints-fase1/`: `01-meu-pin`, `02-tela-travada`, `03-trocar-operador`, `04-financeiro-auditoria`,
 `05-financeiro-celular`.
 
 ## Para publicar (precisa da sua autorização)
