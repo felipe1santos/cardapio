@@ -5,6 +5,8 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { pode } from '@/lib/auth/permissoes'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { abrirTurno, acertarEntregador, fecharTurno, painelCaixa } from '@/lib/queries/caixa'
+import { lancar } from '@/lib/financeiro/ledger'
+import { dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
 
 /**
  * Turno de caixa e acerto do entregador (0114).
@@ -48,6 +50,13 @@ export async function POST(request: Request) {
   const eu = { userId: sessao.userId, nome: sessao.nome ?? null }
   const auditar = (nome: string, dados: Record<string, unknown>, entidadeId?: string) =>
     registrarAuditoria(admin, { restauranteId: sessao.restauranteId, usuarioId: sessao.userId, usuarioNome: sessao.nome, acao: nome, entidade: 'caixa', entidadeId, dados }).catch(() => {})
+  // Financeiro ligado (0133): abrir e fechar o caixa passam pelo Financeiro › Caixa (fundo de troco,
+  // contagem cega); aqui fica só o acerto do motoboy, que também entra no livro-caixa.
+  const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', sessao.restauranteId).maybeSingle()
+  const financeiro = !!loja?.financeiro_ativo
+  if (financeiro && (acao === 'abrir' || acao === 'fechar')) {
+    return NextResponse.json({ error: 'Abra e feche o caixa em Financeiro › Caixa.', codigo: 'usar_financeiro' }, { status: 409 })
+  }
   try {
     if (acao === 'abrir') {
       const r = await abrirTurno(admin, sessao.restauranteId, eu)
@@ -68,6 +77,17 @@ export async function POST(request: Request) {
       if (!Number.isFinite(valor) || valor < 0 || valor > 1_000_000) return NextResponse.json({ error: 'Informe o valor declarado.' }, { status: 400 })
       const r = await acertarEntregador(admin, sessao.restauranteId, eu, entregadorId, valor)
       if (!r.ok) return NextResponse.json({ error: r.erro }, { status: r.status })
+      if (financeiro) {
+        const centavos = Math.round(valor * 100)
+        if (centavos > 0) {
+          const l = await lancar(admin, {
+            restauranteId: sessao.restauranteId, turnoId: r.turnoId, chave: `acerto:${r.id}`, origem: 'motoboy',
+            usuario: { id: sessao.userId, nome: sessao.nome }, motivo: 'Acerto do motoboy', dispositivo: (await dispositivoDaRequisicao()).dispositivo,
+            linhas: [{ carteira: 'gaveta', tipo: 'acerto_motoboy', valorCentavos: centavos, forma: 'dinheiro', entregadorId, dados: { esperado_centavos: Math.round(r.linha.valorEsperado * 100), pedidos: r.linha.pedidos } }],
+          })
+          if (!l.ok) console.error('[caixa] acerto fora do livro-caixa:', l.erro)
+        }
+      }
       await auditar('caixa.acertou_entregador', { entregadorId, esperado: r.linha.valorEsperado, declarado: valor, pedidos: r.linha.pedidos })
       return NextResponse.json({ ok: true })
     }

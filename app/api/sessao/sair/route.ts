@@ -5,6 +5,7 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { encerrarSessoes, travarSessao } from '@/lib/financeiro/sessoes'
 import { dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { criarAlerta } from '@/lib/financeiro/alertas'
 
 /**
  * Sair do painel ou travar a tela (0132).
@@ -12,7 +13,8 @@ import { registrarAuditoria } from '@/lib/auditoria'
  * 'saiu': encerra a sessão deste terminal e audita; o navegador faz o signOut logo depois.
  * 'bloqueio': a sessão CONTINUA (Kanban, tempo real e impressão não param), mas fica marcada
  * como travada — o servidor recusa ações de dinheiro até destravar com PIN (/api/sessao/desbloquear).
- * (Fase 2: sair com caixa aberto exige fechar ou justificar.)
+ * Financeiro ligado (Fase 2): quem abriu o caixa e vai sair com ele aberto precisa justificar
+ * (409 'caixa_aberto' sem justificativa); a saída justificada vai para a auditoria e alerta o dono.
  */
 export async function POST(request: Request) {
   const supabase = await getServerSupabase()
@@ -22,6 +24,19 @@ export async function POST(request: Request) {
   const motivo = corpo?.motivo === 'bloqueio' ? 'bloqueio' : 'saiu'
   const admin = getAdminSupabase()
   const d = await dispositivoDaRequisicao()
+  let justificativa: string | null = null
+  if (motivo === 'saiu') {
+    const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', sessao.restauranteId).maybeSingle()
+    if (loja?.financeiro_ativo) {
+      const { data: t } = await admin.from('caixa_turnos').select('id, aberto_por').eq('restaurante_id', sessao.restauranteId).is('fechado_em', null).maybeSingle()
+      if (t?.aberto_por === sessao.userId) {
+        const j = typeof corpo?.justificativa === 'string' ? corpo.justificativa.trim().slice(0, 500) : ''
+        justificativa = j
+        if (j.length < 5) return NextResponse.json({ error: 'Você abriu o caixa e ele continua aberto. Feche o caixa ou explique por que vai sair.', codigo: 'caixa_aberto' }, { status: 409 })
+        await criarAlerta(admin, { restauranteId: sessao.restauranteId, tipo: 'saiu_com_caixa_aberto', gravidade: 'atencao', mensagem: `${sessao.nome} saiu do painel com o caixa aberto. Motivo: ${justificativa}`, usuario: { id: sessao.userId, nome: sessao.nome }, dados: { turno: t.id } })
+      }
+    }
+  }
   if (motivo === 'bloqueio') {
     await travarSessao(admin, { usuarioId: sessao.userId, usuarioNome: sessao.nome, restauranteId: sessao.restauranteId, ip: d.ip, dispositivo: d.dispositivo, terminal: d.terminal }, true)
   } else {
@@ -29,7 +44,7 @@ export async function POST(request: Request) {
   }
   await registrarAuditoria(admin, {
     restauranteId: sessao.restauranteId, usuarioId: sessao.userId, usuarioNome: sessao.nome,
-    acao: motivo === 'bloqueio' ? 'sessao.bloqueou_tela' : 'sessao.saiu', entidade: 'usuario', entidadeId: sessao.userId, dados: { dispositivo: d.dispositivo },
+    acao: motivo === 'bloqueio' ? 'sessao.bloqueou_tela' : 'sessao.saiu', entidade: 'usuario', entidadeId: sessao.userId, dados: { dispositivo: d.dispositivo, ...(justificativa ? { caixa_aberto: true, justificativa } : {}) },
   })
   return NextResponse.json({ ok: true })
 }

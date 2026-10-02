@@ -55,6 +55,9 @@ export function ehGravacaoDoUsuario(
   // Sessão (0132): ping, travar/destravar e PIN têm retorno próprio na tela travada; o ping
   // roda sozinho a cada 4 min e o "Salvando…" apareceria por cima do teclado do PIN.
   if (caminho.startsWith('/api/sessao/')) return false
+  // Financeiro (Fase 2): divergência, PIN e pendências voltam como 409 de propósito e a própria
+  // janela explica — o "Não foi possível salvar" por cima confundiria o operador.
+  if (caminho.startsWith('/api/admin/financeiro/')) return false
   return caminho.includes('/rest/v1/') || caminho.includes('/storage/v1/object/') || caminho.startsWith('/api/')
 }
 

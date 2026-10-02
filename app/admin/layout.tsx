@@ -19,6 +19,7 @@ import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
 import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { TravaSessao } from '@/components/admin/trava-sessao'
+import { JanelaSairComCaixa } from '@/components/financeiro/aviso-caixa'
 import { sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
 import { acoesFin } from '@/lib/financeiro/permissoes'
 import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
@@ -283,8 +284,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   })
 
   const handleSignOut = async () => {
-    await sairDoPainel(supabase)
-    router.push('/login')
+    if (await sairDoPainel(supabase)) router.push('/login')
   }
 
   const dispensarAlerta = () => {
@@ -310,6 +310,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Aviso fixo do novo sistema de impressão: no fluxo, empurra menu e conteúdo. */}
       {mostrarAvisoNovaImpressao(pathname) && <AvisoNovaImpressao />}
       <TravaSessao />
+      <JanelaSairComCaixa />
       <div className="flex min-h-0 flex-1 overflow-hidden">
       {!focusMode && (
         <Sidebar

@@ -123,13 +123,13 @@ export async function fecharTurno(admin: SupabaseClient, restauranteId: string, 
  * manda o declarado): o valor gravado é o do turno, não o que o navegador calculou.
  */
 export async function acertarEntregador(admin: SupabaseClient, restauranteId: string, eu: Operador, entregadorId: string, valorDeclarado: number):
-  Promise<{ ok: true; linha: LinhaEntregador } | { ok: false; erro: string; status: number }> {
+  Promise<{ ok: true; linha: LinhaEntregador; id: string; turnoId: string } | { ok: false; erro: string; status: number }> {
   const painel = await painelCaixa(admin, restauranteId)
   if (!painel.turnoAberto) return { ok: false, erro: 'Abra o turno de caixa antes de acertar.', status: 409 }
   const linha = painel.acerto.find((l) => l.entregadorId === entregadorId && l.pedidos > 0)
   if (!linha) return { ok: false, erro: 'Nada a acertar para este entregador neste turno.', status: 409 }
   const declarado = Math.round(valorDeclarado * 100) / 100
-  const { error } = await admin.from('fechamentos_caixa').insert({
+  const { data: gravado, error } = await admin.from('fechamentos_caixa').insert({
     restaurante_id: restauranteId,
     entregador_id: entregadorId,
     turno_id: painel.turnoAberto.id,
@@ -140,7 +140,7 @@ export async function acertarEntregador(admin: SupabaseClient, restauranteId: st
     pedidos: linha.pedidos,
     registrado_por_nome: eu.nome,
     fechado_em: new Date().toISOString(),
-  })
+  }).select('id').single()
   if (error) throw error
-  return { ok: true, linha }
+  return { ok: true, linha, id: gravado.id as string, turnoId: painel.turnoAberto.id }
 }

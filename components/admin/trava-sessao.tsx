@@ -104,8 +104,7 @@ export function TravaSessao() {
   }
 
   async function entrarComSenha() {
-    await sairDoPainel(supabase)
-    window.location.href = '/login'
+    if (await sairDoPainel(supabase)) window.location.href = '/login'
   }
 
   if (!travada || !estado?.financeiroAtivo) return null

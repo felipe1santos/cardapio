@@ -1,5 +1,5 @@
 /**
- * E2E — Financeiro Fase 1 (Base, 0132). Stack local, loja cantina-pdv2.
+ * E2E — Financeiro Fase 1 (Base, 0132). Stack local, lojas próprias fin-e2e-a/b (fin-e2e-semente.mjs).
  * Tabela de tentativas de fraude da fase: cada "❌ esperado" é uma tentativa que TEM que falhar.
  *   · flag desligada: módulo some (404, sem menu, sem trava, sem PIN por terminal);
  *   · PIN: exige senha, recusa PIN fraco, guarda só o hash; 5 erros bloqueiam + alerta;
@@ -19,17 +19,20 @@ import { join } from 'node:path'
 import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
+import { semearFin, DONO_FIN, SENHA_DONO_FIN } from './fin-e2e-semente.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const PRINTS = process.argv[2] ?? null
 if (PRINTS) mkdirSync(PRINTS, { recursive: true })
-const { DB_URL } = chavesLocais()
+const CHAVES = chavesLocais()
+const { DB_URL } = CHAVES
 exigirLoopback(DB_URL, BASE)
 const db = new pg.Client({ connectionString: DB_URL })
 await db.connect()
 const um = async (s, p = []) => (await db.query(s, p)).rows[0]
-const loja = await um(`select id from restaurantes where slug='cantina-pdv2'`)
-const outraLoja = await um(`select id from restaurantes where slug<>'cantina-pdv2' order by criado_em limit 1`)
+const SEM = await semearFin(db, CHAVES)
+const loja = { id: SEM.A }
+const outraLoja = { id: SEM.B }
 const SENHA = 'teste-fin-12345'
 const SUF = String(Date.now()).slice(-5)
 const res = []
@@ -69,7 +72,7 @@ const inicio = new Date().toISOString()
 let dono, ger, ate, gar
 try {
   await flag(false)
-  dono = await logar('dono.pdv2@local.test', 'demo-local-123456')
+  dono = await logar(DONO_FIN, SENHA_DONO_FIN)
   const pd = dono.p
 
   console.log('\n── cadastro TESTE (gerente, atendente, garçom) ──')
@@ -118,7 +121,7 @@ try {
   const h = await um(`select pin_hash from usuarios where id=$1`, [G.id])
   ok('banco guarda só o hash bcrypt (nunca o PIN)', /^\$2[aby]\$/.test(h.pin_hash ?? '') && !String(h.pin_hash).includes('482913'))
   ok('atendente cria PIN pela API', (await api(ate.p, '/api/sessao/pin', 'POST', { senha: SENHA, pin: '739164' })).status === 200)
-  ok('dono cria PIN', (await api(pd, '/api/sessao/pin', 'POST', { senha: 'demo-local-123456', pin: '615283' })).status === 200)
+  ok('dono cria PIN', (await api(pd, '/api/sessao/pin', 'POST', { senha: SENHA_DONO_FIN, pin: '615283' })).status === 200)
 
   console.log('\n── tela travada ──')
   await ger.p.reload({ waitUntil: 'networkidle' })
@@ -223,7 +226,7 @@ try {
   ok('restaurado: íntegro de novo', (await api(pd, '/api/admin/financeiro/auditoria', 'POST', { acao: 'verificar' })).json?.ok === true)
 
   console.log('\n── cancelamento autoaprovado (R9) ──')
-  const ped = await um(`select id from pedidos where restaurante_id=$1 order by criado_em desc limit 1`, [loja.id])
+  const ped = await um(`select id from pedidos order by criado_em desc limit 1`)
   const auto = `insert into solicitacoes_cancelamento (restaurante_id, pedido_id, motivo, solicitado_por, solicitado_por_nome) values ($1,$2,'TESTE',$3,'x') returning id`
   // O insert e o update numa só instrução não enxergam a linha nova: dois passos na mesma transação.
   async function autoaprova() {
@@ -249,7 +252,7 @@ try {
   await db.query(`delete from fin_alertas where id=$1`, [alOutra.id])
 
   console.log('\n── tela do Financeiro ──')
-  await pd.goto(`${BASE}/admin/financeiro`, { waitUntil: 'networkidle' })
+  await pd.goto(`${BASE}/admin/financeiro?secao=auditoria`, { waitUntil: 'networkidle' })
   await pd.getByTestId('fin-alertas').waitFor({ timeout: 8000 })
   await pd.getByTestId('fin-verificar').click()
   await pd.getByTestId('fin-integridade-resultado').waitFor({ timeout: 8000 })
@@ -257,7 +260,7 @@ try {
   await foto(pd, '04-financeiro-auditoria')
   ok('acessos recentes listados', (await pd.getByTestId('fin-sessoes').innerText()).includes(`Gerente ${SUF}`))
   const cel = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', storageState: await dono.ctx.storageState() })
-  const pc = await cel.newPage(); await pc.goto(`${BASE}/admin/financeiro`, { waitUntil: 'networkidle' })
+  const pc = await cel.newPage(); await pc.goto(`${BASE}/admin/financeiro?secao=auditoria`, { waitUntil: 'networkidle' })
   await pc.getByTestId('fin-alertas').waitFor({ timeout: 8000 })
   ok('celular: sem rolagem lateral', await pc.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
   await foto(pc, '05-financeiro-celular')

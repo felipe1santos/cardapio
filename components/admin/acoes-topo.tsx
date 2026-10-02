@@ -9,6 +9,7 @@ import { ICONES } from '@/lib/icones-painel'
 import { ROTULO_IMPRESSORA, estadoDaImpressora, type EstadoImpressora } from '@/lib/suporte'
 import { ModalSuporte } from '@/components/admin/modal-suporte'
 import { ModalMeuPin } from '@/components/admin/modal-meu-pin'
+import { AvisoCaixa } from '@/components/financeiro/aviso-caixa'
 import { pedirTrava, sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
 
 /**
@@ -91,6 +92,7 @@ export function AcoesTopo() {
 
   return (
     <div className="flex flex-shrink-0 items-center gap-1.5">
+      {sessao?.financeiroAtivo && <AvisoCaixa />}
       {/* Impressão: atalho para a configuração, com o estado na própria cor. */}
       <button
         type="button"
@@ -186,8 +188,7 @@ export function AcoesTopo() {
               type="button"
               onClick={async () => {
                 setMenuAberto(false)
-                await sairDoPainel(supabase)
-                router.push('/login')
+                if (await sairDoPainel(supabase)) router.push('/login')
               }}
               className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]"
             >

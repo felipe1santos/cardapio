@@ -18,15 +18,25 @@ export interface EstadoSessao {
 
 export const EVENTO_TRAVAR = 'menuzia:travar-tela'
 export const EVENTO_ESTADO = 'menuzia:estado-sessao'
+export const EVENTO_SAIR_CAIXA = 'menuzia:sair-caixa-aberto'
 
-/** Sair do painel: registra no servidor (auditoria + sessão encerrada) e faz o signOut. */
-export async function sairDoPainel(supabase: SupabaseClient): Promise<void> {
+/**
+ * Sair do painel: registra no servidor (auditoria + sessão encerrada) e faz o signOut. Devolve
+ * false quando o servidor pede justificativa (quem abriu o caixa saindo com ele aberto): aí a
+ * janela de justificativa (layout) assume e chama de novo com o texto.
+ */
+export async function sairDoPainel(supabase: SupabaseClient, justificativa?: string): Promise<boolean> {
   try {
-    await fetch('/api/sessao/sair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', keepalive: true })
+    const r = await fetch('/api/sessao/sair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(justificativa ? { justificativa } : {}), keepalive: true })
+    if (r.status === 409) {
+      window.dispatchEvent(new Event(EVENTO_SAIR_CAIXA))
+      return false
+    }
   } catch {
     /* sem rede: sai do mesmo jeito; a sessão expira pela janela de inatividade */
   }
   await supabase.auth.signOut()
+  return true
 }
 
 export function pedirTrava(modo: 'travar' | 'trocar') {

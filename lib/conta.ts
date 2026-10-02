@@ -126,6 +126,7 @@ export function mensagemDeErroConta(bruto: string | null | undefined): string {
     solicitacao_inexistente: 'Pedido de cancelamento não encontrado.',
     solicitacao_decidida: 'Este pedido de cancelamento já foi decidido.',
     autoaprovacao: 'Quem pediu o cancelamento não pode aprovar. Peça a outro gestor.',
+    caixa_fechado: 'O caixa está fechado. Abra o caixa (Financeiro › Caixa) para receber.',
     ja_cancelado: 'Este lançamento já foi cancelado.',
     // Mesa (0071).
     comanda_aberta: 'Esta mesa tem conta aberta. Feche, transfira ou cancele a conta antes.',

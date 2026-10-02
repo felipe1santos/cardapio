@@ -32,7 +32,7 @@ describe('ehGravacaoDoUsuario', () => {
   })
 
   it('sessão (ping, travar, PIN) tem retorno próprio na tela travada', () => {
-    for (const r of ['/api/sessao/ping', '/api/sessao/sair', '/api/sessao/desbloquear', '/api/sessao/pin-entrar']) expect(ehGravacaoDoUsuario('POST', r, 0)).toBe(false)
+    for (const r of ['/api/sessao/ping', '/api/sessao/sair', '/api/sessao/desbloquear', '/api/sessao/pin-entrar', '/api/admin/financeiro/caixa']) expect(ehGravacaoDoUsuario('POST', r, 0)).toBe(false)
   })
 
   it('a central de atendimento do WhatsApp tem retorno próprio (sem "Salvando…" por mensagem)', () => {

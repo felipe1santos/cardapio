@@ -40,3 +40,13 @@ export function acoesFin(papel: string | null | undefined, acessos: Acessos | nu
     'desconto', 'taxa', 'cancelar_pedido']
   return todas.filter((a) => podeFin(papel, acessos, a))
 }
+
+/**
+ * Vê valores do caixa ao vivo (esperado na gaveta, recebimentos)? É a permissão sensível
+ * "Financeiro — ver faturamento", não a área: quem só opera o caixa conta às cegas.
+ */
+export function veValoresFin(papel: string | null | undefined, acessos: Acessos | null): boolean {
+  if (papel === 'dono') return true
+  if (acessos) return acessos.sensiveis.includes('financeiro')
+  return papel === 'gerente'
+}

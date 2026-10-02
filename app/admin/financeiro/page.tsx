@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/topbar'
 import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
 import type { AcaoFin } from '@/lib/financeiro/permissoes'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
+import { SecaoCaixa } from '@/components/financeiro/caixa'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
@@ -14,10 +15,10 @@ import { formatarCentavos } from '@/lib/financeiro/centavos'
 type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'movimentacoes' | 'cmv' | 'contas' | 'dashboard' | 'auditoria'
 
 const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
-  { id: 'caixa', label: 'Caixa', exige: 'caixa_abrir', fase: 'Fase 2' },
+  { id: 'caixa', label: 'Caixa', exige: 'caixa_abrir', fase: '' },
   { id: 'fluxo', label: 'Fluxo de Caixa', exige: 'financeiro', fase: 'Fase 4' },
   { id: 'motoboys', label: 'Acerto de Motoboys', exige: 'acerto_motoboy', fase: 'Fase 3' },
-  { id: 'movimentacoes', label: 'Movimentações', exige: 'financeiro', fase: 'Fase 2' },
+  { id: 'movimentacoes', label: 'Movimentações', exige: 'sangria', fase: '' },
   { id: 'cmv', label: 'Precificação / CMV', exige: 'custos_editar', fase: 'Fase 5' },
   { id: 'contas', label: 'Contas e DRE', exige: 'contas_pagar', fase: 'Fase 5b' },
   { id: 'dashboard', label: 'Dashboard', exige: 'financeiro', fase: 'Fase 6' },
@@ -48,8 +49,10 @@ export default function FinanceiroPage() {
       if (!r?.ok) { setErro(j.error ?? 'Não foi possível abrir o financeiro.'); return }
       const lista = j.acoes as AcaoFin[]
       setAcoes(lista)
-      const primeira = SECOES.find((s) => lista.includes(s.exige))
-      if (primeira && !lista.includes('auditoria_ver')) setSecao(primeira.id)
+      // ?secao=caixa (aviso do topo, "Ir fechar o caixa"); senão o Caixa, se puder; senão a primeira.
+      const pedida = new URLSearchParams(window.location.search).get('secao')
+      const alvo = SECOES.find((s) => s.id === pedida && lista.includes(s.exige)) ?? SECOES.find((s) => lista.includes(s.exige))
+      if (alvo) setSecao(alvo.id)
     })()
   }, [])
 
@@ -68,7 +71,9 @@ export default function FinanceiroPage() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />
           <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-5">
-            {secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
+            {(secao === 'caixa' || secao === 'movimentacoes') ? (
+              <SecaoCaixa key={secao} modo={secao} />
+            ) : secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
               <AuditoriaAlertas />
             ) : (
               <div className="rounded-[3px] border border-border bg-white p-6 text-center">

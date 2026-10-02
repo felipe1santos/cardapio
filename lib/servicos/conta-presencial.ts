@@ -38,7 +38,7 @@ const CONFLITO = new Set([
   'comanda_nao_aberta', 'conflito_status', 'pendencias_abertas', 'cancelamento_pendente', 'saldo_restante',
   'pagamento_excede_total', 'ajuste_financeiro_necessario', 'solicitacao_decidida', 'ja_cancelado',
   'chave_em_outra_comanda', 'mesa_ocupada', 'comanda_nao_fechada', 'pedido_nao_pronto', 'valor_acima_do_restante',
-  'comanda_sem_nome', 'mesa_em_limpeza', 'mesa_indisponivel', 'cupom_esgotado', 'cupom_ja_usado',
+  'comanda_sem_nome', 'mesa_em_limpeza', 'mesa_indisponivel', 'cupom_esgotado', 'cupom_ja_usado', 'caixa_fechado',
 ])
 
 export function traduzirErro(bruto: string | undefined): { codigo: string; detalhe: string; erro: string; status: number } {

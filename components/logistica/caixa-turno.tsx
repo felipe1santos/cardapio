@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { formatarReal } from '@/lib/moeda'
 import { lerValor } from '@/components/pdv/util'
 import type { PainelCaixa } from '@/lib/queries/caixa'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 const hora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -22,6 +23,9 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
   const [erro, setErro] = useState<string | null>(null)
   const [declarado, setDeclarado] = useState<Record<string, string>>({})
   const [enviando, setEnviando] = useState(false)
+  // Financeiro ligado (Fase 2): abrir e fechar são no Financeiro › Caixa (fundo e contagem cega).
+  const financeiro = !!useEstadoSessao()?.financeiroAtivo
+  const linkFin = <a href="/admin/financeiro?secao=caixa" className="text-[12px] font-semibold text-primary underline" data-testid="caixa-no-financeiro">Abrir/fechar em Financeiro › Caixa</a>
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -92,12 +96,12 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
                     <p className="text-[13px] font-semibold text-text-main">Turno aberto</p>
                     <p className="text-xs text-text-subtle">desde {hora(turno.abertoEm)}{turno.abertoPorNome ? ` · ${turno.abertoPorNome}` : ''}</p>
                   </div>
-                  <Button variant="outline" disabled={enviando} onClick={() => void agir({ acao: 'fechar' })} data-testid="fechar-turno">Fechar turno</Button>
+                  {financeiro ? linkFin : <Button variant="outline" disabled={enviando} onClick={() => void agir({ acao: 'fechar' })} data-testid="fechar-turno">Fechar turno</Button>}
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[13px] text-text-subtle">Nenhum turno de caixa aberto. Ele abre sozinho na primeira entrega.</p>
-                  <Button variant="primary" disabled={enviando} onClick={() => void agir({ acao: 'abrir' })} data-testid="abrir-turno">Abrir turno</Button>
+                  {financeiro ? linkFin : <Button variant="primary" disabled={enviando} onClick={() => void agir({ acao: 'abrir' })} data-testid="abrir-turno">Abrir turno</Button>}
                 </div>
               )}
             </div>
