@@ -237,3 +237,15 @@ prints → **sua autorização** → publicação (backup + migration + deploy f
 5. **PIN**: 4 ou 6 dígitos? (proposta: 6, com bloqueio após 5 erros por 15 min)
 6. **Garçom recebendo pagamento** (regra do salão já existe): quando o garçom recebe, o dinheiro entra na gaveta do turno
    na hora (proposta) ou fica "com o garçom" até acertar com o caixa (como o motoboy)?
+
+---
+
+## 9. Decisões (aprovadas em 2026-10-01)
+1. **Um caixa por loja.** Cada lançamento mostra o nome de quem estava logado (da sessão, nunca do formulário).
+2. **Entrega exige registro do pagamento**, tanto pelo motoboy quanto pelo operador do Kanban/Logística: forma, valor
+   recebido e troco dado. A diferença do troco aparece nas pendências antes de fechar o caixa.
+   O link/QR do motoboy continua valendo (passa a ser revogável); login próprio do motoboy na Fase 3.
+3. **Limites padrão** da seção 5 (editáveis por loja).
+4. **Alertas**: painel do dono + WhatsApp da própria loja para o número do dono (Menuzia: 5527992534407, o de teste).
+5. **PIN** de 6 dígitos; 5 erros bloqueiam por 15 minutos.
+6. **Garçom que recebe**: o dinheiro entra na gaveta do turno na hora.

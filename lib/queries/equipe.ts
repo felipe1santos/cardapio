@@ -28,6 +28,8 @@ export interface Funcionario {
   /** Motivo do corte de acesso (0128): pausado, bloqueado, excluido. */
   situacao: string | null
   telefone: string
+  /** Tem PIN de 6 dígitos (0132). O PIN em si nunca sai do banco. */
+  temPin: boolean
 }
 
 export const SENHA_MINIMA = 8
@@ -77,12 +79,13 @@ interface UsuarioRow {
   cargo?: string | null
   situacao?: string | null
   telefone?: string | null
+  pin_definido_em?: string | null
 }
 
 export async function listarEquipe(admin: SupabaseClient, restauranteId: string): Promise<Funcionario[]> {
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, nome, usuario, papel, desativado_em, ultimo_login_em, criado_em, acessos, cargo, situacao, telefone')
+    .select('id, nome, usuario, papel, desativado_em, ultimo_login_em, criado_em, acessos, cargo, situacao, telefone, pin_definido_em')
     .eq('restaurante_id', restauranteId)
     .order('criado_em', { ascending: true })
   if (error) throw error
@@ -98,6 +101,7 @@ export async function listarEquipe(admin: SupabaseClient, restauranteId: string)
     cargo: u.cargo ?? null,
     situacao: u.desativado_em ? (u.situacao ?? null) : null,
     telefone: u.telefone ?? '',
+    temPin: !!u.pin_definido_em,
   }))
 }
 
@@ -158,7 +162,7 @@ export async function criarFuncionario(
   const u = data as UsuarioRow
   return {
     ok: true,
-    valor: { id: u.id, nome: u.nome, usuario: u.usuario, papel: u.papel, ativo: true, ultimoLoginEm: null, criadoEm: u.criado_em, acessos: null, cargo: entrada.cargo ?? null, situacao: null, telefone: entrada.telefone ?? '' },
+    valor: { id: u.id, nome: u.nome, usuario: u.usuario, papel: u.papel, ativo: true, ultimoLoginEm: null, criadoEm: u.criado_em, acessos: null, cargo: entrada.cargo ?? null, situacao: null, telefone: entrada.telefone ?? '', temPin: false },
   }
 }
 

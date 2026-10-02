@@ -125,6 +125,7 @@ export function mensagemDeErroConta(bruto: string | null | undefined): string {
     desconto_invalido: 'Desconto inválido: em reais, maior ou igual a zero; em %, de 0 a 100.',
     solicitacao_inexistente: 'Pedido de cancelamento não encontrado.',
     solicitacao_decidida: 'Este pedido de cancelamento já foi decidido.',
+    autoaprovacao: 'Quem pediu o cancelamento não pode aprovar. Peça a outro gestor.',
     ja_cancelado: 'Este lançamento já foi cancelado.',
     // Mesa (0071).
     comanda_aberta: 'Esta mesa tem conta aberta. Feche, transfira ou cancele a conta antes.',

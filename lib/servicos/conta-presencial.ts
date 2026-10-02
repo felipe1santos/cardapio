@@ -46,7 +46,7 @@ export function traduzirErro(bruto: string | undefined): { codigo: string; detal
   const m = /^([a-z][a-z_]*)(?::(.*))?$/.exec(texto)
   const codigo = m?.[1] ?? ''
   const detalhe = m?.[2] ?? ''
-  const status = codigo === 'cancelamento_requer_gestao' ? 403 : CONFLITO.has(codigo) ? 409 : codigo ? 400 : 500
+  const status = codigo === 'cancelamento_requer_gestao' || codigo === 'autoaprovacao' ? 403 : CONFLITO.has(codigo) ? 409 : codigo ? 400 : 500
   return { codigo, detalhe, erro: mensagemDeErroConta(texto), status }
 }
 
@@ -837,6 +837,7 @@ export async function solicitarCancelamento(admin: SupabaseClient, ator: Ator, p
 }
 
 export async function decidirCancelamento(admin: SupabaseClient, ator: Ator, solicitacaoId: string, aprovar: boolean, observacao: string | null) {
+  // Financeiro ligado (0132): o banco recusa aprovar o próprio pedido ('autoaprovacao', gatilho da 0132).
   return rpc<{ id: string; aprovada: boolean }>(admin, 'cancelamento_decidir', {
     p_restaurante: ator.restauranteId, p_solicitacao: solicitacaoId, p_aprovar: aprovar, p_obs: observacao, p_ator: ator.userId, p_ator_nome: ator.nome,
   })

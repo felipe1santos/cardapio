@@ -57,3 +57,16 @@ describe('menu lateral: limpeza', () => {
     expect(comSelo).toEqual(['/admin/campanhas'])
   })
 })
+
+describe('Financeiro no menu (0132)', () => {
+  const hrefs = (o: Partial<Parameters<typeof itensDoMenu>[0]>) =>
+    itensDoMenu({ papel: 'dono', moduloMesas: false, usaLogistica: true, ...o }).map((i) => i.href)
+  it('some por padrão (flag desligada ou sem dizer nada)', () => {
+    expect(hrefs({})).not.toContain('/admin/financeiro')
+    expect(hrefs({ financeiro: false })).not.toContain('/admin/financeiro')
+  })
+  it('aparece com a flag e permissão, logo depois da Logística', () => {
+    const h = hrefs({ financeiro: true })
+    expect(h.indexOf('/admin/financeiro')).toBe(h.indexOf('/admin/logistica') + 1)
+  })
+})

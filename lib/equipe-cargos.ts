@@ -98,6 +98,9 @@ const PERMISSAO_DA_AREA: Record<Area, Permissao> = {
   equipe: 'equipe.gerenciar',
   impressao: 'impressao.configurar',
   ajustes: 'ajustes.editar',
+  // Financeiro: as rotas são do servidor e conferem as permissões próprias (caixa_abrir,
+  // sangria…). A área sozinha não pode promover um operador de caixa a gerente.
+  financeiro: 'comanda.ver',
 }
 
 /** Papéis em ordem do mais restrito ao mais amplo (o primeiro que cobre vence). */
@@ -153,7 +156,7 @@ export type ItemPermissao = { tipo: 'area'; chave: Area; rotulo: string; descric
 const rotArea = (c: Area) => AREAS.find((a) => a.chave === c)!.rotulo
 const rotSens = (c: Sensivel) => SENSIVEIS.find((s) => s.chave === c)!.rotulo
 
-export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[] }[] = [
+export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[]; soComFinanceiro?: boolean }[] = [
   {
     titulo: 'Operação',
     itens: [
@@ -182,6 +185,28 @@ export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[] }[] = [
       { tipo: 'area', chave: 'equipe', rotulo: rotArea('equipe'), descricao: 'Cadastrar usuários e permissões. Só o dono libera.' },
       { tipo: 'area', chave: 'impressao', rotulo: rotArea('impressao'), descricao: 'Impressoras, computadores e testes.' },
       { tipo: 'area', chave: 'ajustes', rotulo: rotArea('ajustes'), descricao: 'Dados da loja, horários, entrega e pagamento.' },
+    ],
+  },
+  {
+    // Só aparece na Equipe das lojas com o módulo financeiro ligado (0132).
+    titulo: 'Financeiro',
+    soComFinanceiro: true,
+    itens: [
+      { tipo: 'area', chave: 'financeiro', rotulo: rotArea('financeiro'), descricao: 'Abre o módulo financeiro (só nas lojas com ele ligado).' },
+      { tipo: 'sensivel', chave: 'caixa_abrir', rotulo: rotSens('caixa_abrir'), descricao: 'Abrir o turno com o fundo de troco.' },
+      { tipo: 'sensivel', chave: 'caixa_reabrir', rotulo: rotSens('caixa_reabrir'), descricao: 'Mesmo marcado, só o dono reabre.' },
+      { tipo: 'sensivel', chave: 'receber_pagamento', rotulo: rotSens('receber_pagamento'), descricao: 'Registrar pagamentos no caixa.' },
+      { tipo: 'sensivel', chave: 'sangria', rotulo: rotSens('sangria'), descricao: 'Tirar ou pôr dinheiro na gaveta.' },
+      { tipo: 'sensivel', chave: 'despesa', rotulo: rotSens('despesa'), descricao: 'Pagar despesa com dinheiro do caixa.' },
+      { tipo: 'sensivel', chave: 'acerto_motoboy', rotulo: rotSens('acerto_motoboy'), descricao: 'Receber o dinheiro do motoboy na volta.' },
+      { tipo: 'sensivel', chave: 'pix_conferir', rotulo: rotSens('pix_conferir'), descricao: 'Confirmar que o Pix caiu na conta.' },
+      { tipo: 'sensivel', chave: 'estornar', rotulo: rotSens('estornar'), descricao: 'Devolver um pagamento já recebido.' },
+      { tipo: 'sensivel', chave: 'aprovar', rotulo: rotSens('aprovar'), descricao: 'Liberar ações de outros com o próprio PIN.' },
+      { tipo: 'sensivel', chave: 'reimprimir', rotulo: rotSens('reimprimir'), descricao: 'Imprimir de novo pré-conta e recibo.' },
+      { tipo: 'sensivel', chave: 'custos_editar', rotulo: rotSens('custos_editar'), descricao: 'Insumos, fichas de custo e CMV.' },
+      { tipo: 'sensivel', chave: 'contas_pagar', rotulo: rotSens('contas_pagar'), descricao: 'Lançar e pagar contas da empresa.' },
+      { tipo: 'sensivel', chave: 'dre_ver', rotulo: rotSens('dre_ver'), descricao: 'Ver lucro, CMV e DRE.' },
+      { tipo: 'sensivel', chave: 'auditoria_ver', rotulo: rotSens('auditoria_ver'), descricao: 'Ver auditoria, alertas e risco por funcionário.' },
     ],
   },
   {

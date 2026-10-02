@@ -29,6 +29,9 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/integracoes', 'integracoes.gerenciar'],
   ['/admin/ajustes', 'ajustes.editar'],
   ['/admin/impressao', 'impressao.configurar'],
+  // Financeiro (0132): a porta é de quem opera caixa/entregas; cada ação confere a permissão
+  // própria (lib/financeiro/permissoes.ts) e a flag da loja no servidor.
+  ['/admin/financeiro', 'pedidos.delivery.ver'],
 ]
 
 /**
@@ -54,6 +57,7 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/nexta/testar', 'integracoes.gerenciar'],
   ['/api/admin/nexta', 'logistica.operar'],
   ['/api/admin/caixa', 'logistica.operar'],
+  ['/api/admin/financeiro', 'pedidos.delivery.ver'],
   // Conversas em atendimento humano: dono e gerente. Antes do genérico do WhatsApp.
   ['/api/admin/whatsapp/conversas', 'whatsapp.atender'],
   // Central de atendimento (0107): dono e gerente.

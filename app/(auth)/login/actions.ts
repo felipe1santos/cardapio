@@ -8,6 +8,10 @@ import { acessoValido, buscarEmailPorUsuario, buscarStatusAcesso, registrarLogin
 import { telaInicialDoPapel } from '@/lib/auth/rotas'
 import { headers } from 'next/headers'
 import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
+import { cookies } from 'next/headers'
+import { registrarSessao } from '@/lib/financeiro/sessoes'
+import { COOKIE_TERMINAL, dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
+import { registrarAuditoria } from '@/lib/auditoria'
 
 // Força bruta: 10 senhas erradas em 15 min no mesmo usuário, ou 30 no mesmo IP (a loja
 // inteira pode sair pelo mesmo IP), travam novas tentativas até a janela passar (B16).
@@ -43,6 +47,8 @@ export async function signIn(formData: FormData) {
 
   if (error || !data.user) {
     falhou()
+    // Falha de login vai para a auditoria da loja do usuário (quando o login existe).
+    await auditarFalhaDeLogin(email).catch(() => {})
     redirect(`/login?error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
   }
 
@@ -97,7 +103,43 @@ export async function signIn(formData: FormData) {
   }
 
   await registrarLogin(admin, data.user.id)
+  await registrarEntrada(admin, data.user.id).catch((e) => console.error('[login] sessão não registrada:', (e as Error).message))
   redirect(await telaInicialDo(admin, data.user.id))
+}
+
+/**
+ * Sessão (0132): cada aparelho ganha um identificador de terminal (cookie httpOnly, 1 ano) e
+ * cada entrada fica registrada com IP e dispositivo. Mesmo login aberto em dois terminais gera
+ * alerta para o dono (lib/financeiro/sessoes.ts). Só nas lojas com o financeiro ligado; nas
+ * outras, só o cookie do terminal (para a loja já ter os aparelhos conhecidos quando ligar).
+ */
+async function registrarEntrada(admin: ReturnType<typeof getAdminSupabase>, usuarioId: string) {
+  const jar = await cookies()
+  if (!jar.get(COOKIE_TERMINAL)?.value) {
+    jar.set(COOKIE_TERMINAL, crypto.randomUUID(), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 365 * 86400 })
+  }
+  const d = await dispositivoDaRequisicao()
+  const terminal = jar.get(COOKIE_TERMINAL)?.value ?? d.terminal
+  const { data: u } = await admin.from('usuarios').select('nome, restaurante_id').eq('id', usuarioId).maybeSingle()
+  if (!(await financeiroLigado(admin, u?.restaurante_id as string | undefined))) return
+  await registrarSessao(admin, { usuarioId, usuarioNome: (u?.nome as string) ?? '', restauranteId: (u?.restaurante_id as string) ?? null, ip: d.ip, dispositivo: d.dispositivo, terminal })
+  if (u?.restaurante_id) {
+    await registrarAuditoria(admin, { restauranteId: u.restaurante_id as string, usuarioId, usuarioNome: (u.nome as string) ?? '', acao: 'sessao.entrou', entidade: 'usuario', entidadeId: usuarioId, dados: { dispositivo: d.dispositivo } })
+  }
+}
+
+async function financeiroLigado(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string | undefined): Promise<boolean> {
+  if (!restauranteId) return false
+  const { data } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', restauranteId).maybeSingle()
+  return !!data?.financeiro_ativo
+}
+
+async function auditarFalhaDeLogin(email: string) {
+  const admin = getAdminSupabase()
+  const { data: u } = await admin.from('usuarios').select('id, nome, restaurante_id').eq('email', email).maybeSingle()
+  if (!u?.restaurante_id || !(await financeiroLigado(admin, u.restaurante_id as string))) return
+  const d = await dispositivoDaRequisicao()
+  await registrarAuditoria(admin, { restauranteId: u.restaurante_id as string, usuarioId: null, usuarioNome: 'Sistema', acao: 'sessao.login_falhou', entidade: 'usuario', entidadeId: u.id as string, dados: { login: u.nome, dispositivo: d.dispositivo } })
 }
 
 /**

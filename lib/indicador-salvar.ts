@@ -52,6 +52,9 @@ export function ehGravacaoDoUsuario(
   // CSV dos clientes: exportar é download, a conferência não grava nada e a importação
   // tem barra de progresso e resultado próprios.
   if (/^\/api\/admin\/clientes\/(exportar|importar)(\/|$)/.test(caminho)) return false
+  // Sessão (0132): ping, travar/destravar e PIN têm retorno próprio na tela travada; o ping
+  // roda sozinho a cada 4 min e o "Salvando…" apareceria por cima do teclado do PIN.
+  if (caminho.startsWith('/api/sessao/')) return false
   return caminho.includes('/rest/v1/') || caminho.includes('/storage/v1/object/') || caminho.startsWith('/api/')
 }
 

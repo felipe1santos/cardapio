@@ -8,6 +8,8 @@ import { buscarStatusAgente } from '@/lib/queries/impressao'
 import { ICONES } from '@/lib/icones-painel'
 import { ROTULO_IMPRESSORA, estadoDaImpressora, type EstadoImpressora } from '@/lib/suporte'
 import { ModalSuporte } from '@/components/admin/modal-suporte'
+import { ModalMeuPin } from '@/components/admin/modal-meu-pin'
+import { pedirTrava, sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
 
 /**
  * Ações fixas do canto superior direito do painel: estado da impressão, botão
@@ -27,6 +29,9 @@ export function AcoesTopo() {
   const [suporteAberto, setSuporteAberto] = useState(false)
   const [quem, setQuem] = useState<{ loja: string | null; usuario: string | null; papel: string | null }>({ loja: null, usuario: null, papel: null })
   const [menuAberto, setMenuAberto] = useState(false)
+  const [pinAberto, setPinAberto] = useState(false)
+  // Financeiro ligado (0132): PIN pessoal, travar a tela e trocar de operador.
+  const sessao = useEstadoSessao()
   const caixa = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -117,6 +122,7 @@ export function AcoesTopo() {
         </svg>
         <span className="hidden sm:inline">Dúvidas?</span>
       </button>
+      {pinAberto && <ModalMeuPin temPin={!!sessao?.temPin} onFechar={() => setPinAberto(false)} />}
       <ModalSuporte aberto={suporteAberto} onFechar={() => setSuporteAberto(false)} loja={quem.loja} usuario={quem.usuario} papel={quem.papel} />
 
       {/* Conta. */}
@@ -155,11 +161,32 @@ export function AcoesTopo() {
               </svg>
               Ajustes da loja
             </button>
+            {sessao?.financeiroAtivo && (
+              <>
+                <button type="button" data-testid="menu-meu-pin"
+                  onClick={() => { setMenuAberto(false); setPinAberto(true) }}
+                  className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+                  {sessao.temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}
+                </button>
+                {sessao.temPin && (
+                  <button type="button" data-testid="menu-bloquear"
+                    onClick={() => { setMenuAberto(false); pedirTrava('travar') }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+                    Bloquear tela
+                  </button>
+                )}
+                <button type="button" data-testid="menu-trocar-operador"
+                  onClick={() => { setMenuAberto(false); pedirTrava('trocar') }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+                  Trocar operador
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={async () => {
                 setMenuAberto(false)
-                await supabase.auth.signOut()
+                await sairDoPainel(supabase)
                 router.push('/login')
               }}
               className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]"

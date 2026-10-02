@@ -21,6 +21,7 @@ export const NAV_ITEMS = [
   { href: '/admin/mesas', label: 'Mesas e Comandas' },
   { href: '/admin/cozinha', label: 'Cozinha' },
   { href: '/admin/logistica', label: 'Logística' },
+  { href: '/admin/financeiro', label: 'Financeiro' },
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
   { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
@@ -46,6 +47,7 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/mesas': 'comanda.ver',
   '/admin/cozinha': 'cozinha.gerenciar',
   '/admin/logistica': 'logistica.operar',
+  '/admin/financeiro': 'pedidos.delivery.ver',
   '/admin/cardapio': 'cardapio.editar',
   '/admin/clientes': 'clientes.ver',
   '/admin/campanhas': 'campanhas.gerenciar',
@@ -64,10 +66,13 @@ export function itensDoMenu(opcoes: {
   papel: string | null
   moduloMesas: boolean
   usaLogistica: boolean
+  /** Módulo financeiro ligado na loja E alguma ação liberada para a pessoa (0132). Padrão: some. */
+  financeiro?: boolean
 }): ItemMenu[] {
   return NAV_ITEMS.filter((item) => {
     if (item.href === '/admin/logistica' && !opcoes.usaLogistica) return false
     if (item.href === '/admin/mesas' && !opcoes.moduloMesas) return false
+    if (item.href === '/admin/financeiro' && !opcoes.financeiro) return false
     if (opcoes.papel === null) return true
     const exigida = PERMISSAO_DO_MENU[item.href]
     return exigida ? pode(opcoes.papel, exigida) : true

@@ -24,6 +24,8 @@ export const AREAS = [
   { chave: 'equipe', rotulo: 'Equipe', href: '/admin/equipe', prefixos: ['/admin/equipe', '/api/admin/equipe'] },
   { chave: 'impressao', rotulo: 'Impressão', href: '/admin/impressao', prefixos: ['/admin/impressao', '/api/admin/impressao'] },
   { chave: 'ajustes', rotulo: 'Ajustes', href: '/admin/ajustes', prefixos: ['/admin/ajustes', '/api/admin/modulos'] },
+  // Módulo financeiro (0132): só aparece com a flag da loja; as ações têm permissões próprias.
+  { chave: 'financeiro', rotulo: 'Financeiro', href: '/admin/financeiro', prefixos: ['/admin/financeiro', '/api/admin/financeiro'] },
 ] as const
 
 export type Area = (typeof AREAS)[number]['chave']
@@ -37,6 +39,21 @@ export const SENSIVEIS = [
   { chave: 'disparar_campanhas', rotulo: 'Disparar campanhas' },
   { chave: 'editar_precos', rotulo: 'Editar preços' },
   { chave: 'clientes_csv', rotulo: 'Importar/exportar clientes' },
+  // Financeiro (0132). Só valem nas lojas com o módulo ligado.
+  { chave: 'caixa_abrir', rotulo: 'Abrir caixa' },
+  { chave: 'caixa_reabrir', rotulo: 'Reabrir caixa fechado (só o dono)' },
+  { chave: 'sangria', rotulo: 'Fazer sangria, reforço e retirada' },
+  { chave: 'despesa', rotulo: 'Registrar despesa' },
+  { chave: 'acerto_motoboy', rotulo: 'Fazer acerto de motoboy' },
+  { chave: 'pix_conferir', rotulo: 'Conferir Pix' },
+  { chave: 'estornar', rotulo: 'Estornar pagamento' },
+  { chave: 'receber_pagamento', rotulo: 'Receber pagamento' },
+  { chave: 'aprovar', rotulo: 'Aprovar ações sensíveis (com PIN)' },
+  { chave: 'reimprimir', rotulo: 'Reimprimir pré-conta e recibo' },
+  { chave: 'custos_editar', rotulo: 'Editar custos e fichas de custo' },
+  { chave: 'auditoria_ver', rotulo: 'Ver auditoria e alertas' },
+  { chave: 'contas_pagar', rotulo: 'Contas a pagar e a receber' },
+  { chave: 'dre_ver', rotulo: 'Ver DRE e lucro' },
 ] as const
 
 export type Sensivel = (typeof SENSIVEIS)[number]['chave']

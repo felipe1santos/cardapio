@@ -22,6 +22,7 @@ export interface UsuarioEquipe {
   telefone: string
   cargo: Cargo
   acessos: Acessos | null
+  temPin?: boolean
 }
 
 export interface SalvarUsuario {
@@ -51,6 +52,8 @@ export function ModalUsuario({
   onCancelar,
   onSalvar,
   onRedefinirSenha,
+  onApagarPin,
+  financeiroAtivo = false,
 }: {
   /** Null = adicionar. */
   usuario: UsuarioEquipe | null
@@ -63,6 +66,10 @@ export function ModalUsuario({
   /** Devolve a mensagem de erro, ou null quando salvou. */
   onSalvar: (dados: SalvarUsuario) => Promise<string | null>
   onRedefinirSenha: (senha: string) => Promise<string | null>
+  /** Apaga o PIN do funcionário (ele cria outro com a senha). */
+  onApagarPin?: () => Promise<string | null>
+  /** Loja com o módulo financeiro (0132): mostra o grupo Financeiro e o "Apagar PIN". */
+  financeiroAtivo?: boolean
 }) {
   const editando = !!usuario
   const cargoInicial: Cargo = usuario?.cargo ?? 'garcom'
@@ -78,6 +85,7 @@ export function ModalUsuario({
   const [senhaAberta, setSenhaAberta] = useState(false)
   const [novaSenha, setNovaSenha] = useState('')
   const [senhaMsg, setSenhaMsg] = useState<{ ok: boolean; texto: string } | null>(null)
+  const [temPin, setTemPin] = useState(!!usuario?.temPin)
   const [tentou, setTentou] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -144,8 +152,8 @@ export function ModalUsuario({
 
   const termo = busca.trim().toLowerCase()
   const grupos = useMemo(
-    () => GRUPOS_PERMISSOES.map((g) => ({ ...g, itens: g.itens.filter((i) => !termo || `${i.rotulo} ${i.descricao} ${g.titulo}`.toLowerCase().includes(termo)) })).filter((g) => g.itens.length),
-    [termo],
+    () => GRUPOS_PERMISSOES.filter((g) => !g.soComFinanceiro || financeiroAtivo).map((g) => ({ ...g, itens: g.itens.filter((i) => !termo || `${i.rotulo} ${i.descricao} ${g.titulo}`.toLowerCase().includes(termo)) })).filter((g) => g.itens.length),
+    [termo, financeiroAtivo],
   )
 
   const marcarGrupo = (itens: ItemPermissao[], ligar: boolean) => {
@@ -203,6 +211,13 @@ export function ModalUsuario({
                         <button type="button" onClick={() => void redefinir()} className="h-9 flex-1 rounded-[5px] bg-[#0688d4] text-[13px] font-semibold text-white hover:bg-[#0570ae]" data-testid="usuario-confirmar-senha">Redefinir</button>
                       </div>
                     </div>
+                  )}
+                  {financeiroAtivo && temPin && onApagarPin && (
+                    <button type="button" data-testid="usuario-apagar-pin"
+                      onClick={async () => { const e = await onApagarPin(); if (e) setSenhaMsg({ ok: false, texto: e }); else { setTemPin(false); setSenhaMsg({ ok: true, texto: 'PIN apagado. A pessoa cria outro em Minha conta → Meu PIN.' }) } }}
+                      className="ml-2 inline-flex h-10 items-center gap-2 rounded-[5px] border border-[#d6dae1] px-3 text-[13px] font-semibold text-[#374151] transition-colors hover:border-[#ef4444] hover:text-[#ef4444]">
+                      Apagar PIN
+                    </button>
                   )}
                   {senhaMsg && <p className={`mt-1.5 text-[12px] ${senhaMsg.ok ? 'text-[#15803d]' : 'text-[#b91c1c]'}`} data-testid="usuario-senha-msg">{senhaMsg.texto}</p>}
                 </div>

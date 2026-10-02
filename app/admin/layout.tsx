@@ -18,6 +18,9 @@ import { useAvisarPedido, useNotificacoesPedidos } from '@/components/admin/noti
 import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
 import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
+import { TravaSessao } from '@/components/admin/trava-sessao'
+import { sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
+import { acoesFin } from '@/lib/financeiro/permissoes'
 import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
 import { LancadorAtendimento } from '@/components/atendimento/lancador'
 
@@ -78,6 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // módulo de Logística sai do menu. `true` até a config chegar: esconder e
   // reaparecer o item piscaria o menu a cada carregamento.
   const [usaLogistica, setUsaLogistica] = useState(true)
+  const estadoSessao = useEstadoSessao()
   // Entrega sem entregador: pronto não passa pela Logística, então não é pendência dela.
   const [semEntregador, setSemEntregador] = useState(false)
   // Módulo Mesas e Comandas. Começa FALSE ao contrário da logística: a seção é nova, e
@@ -271,7 +275,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Regra do menu (papel × flag de mesas × logística) em lib/menu-lateral.ts, testada.
   // Pendências de configuração ficam só no alerta do card da loja (2026-09-30): os
   // marcadores numéricos nos itens do menu saíram.
-  const items = itensDoMenu({ papel, moduloMesas, usaLogistica }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
+  const items = itensDoMenu({ papel, moduloMesas, usaLogistica, financeiro: !!estadoSessao?.financeiroAtivo && acoesFin(papel, acessos).length > 0 }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
     const base = item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
     if (item.href === '/admin/logistica') return { ...base, badge: semEntregador ? 0 : badges.logisticaPendente }
@@ -279,7 +283,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   })
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    await sairDoPainel(supabase)
     router.push('/login')
   }
 
@@ -305,6 +309,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     >
       {/* Aviso fixo do novo sistema de impressão: no fluxo, empurra menu e conteúdo. */}
       {mostrarAvisoNovaImpressao(pathname) && <AvisoNovaImpressao />}
+      <TravaSessao />
       <div className="flex min-h-0 flex-1 overflow-hidden">
       {!focusMode && (
         <Sidebar

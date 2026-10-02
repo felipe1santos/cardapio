@@ -5,6 +5,7 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { pode, podeAdministrar, papeisQuePodeGerenciar, MENSAGEM_RECUSA, type Papel } from '@/lib/auth/permissoes'
 import { atualizarNomeEPapel, buscarFuncionario, contarOutrosAdminsAtivos, definirAtivo } from '@/lib/queries/equipe'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { encerrarSessoes } from '@/lib/financeiro/sessoes'
 import { normalizarAcessos, resumoAcessos } from '@/lib/acessos'
 import { definirAcessos } from '@/lib/queries/equipe'
 import { AREAS } from '@/lib/acessos'
@@ -82,10 +83,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (s !== atual) {
       if (s === 'ativo') await definirAtivo(admin, sessao.restauranteId, id, true)
       else await definirAtivo(admin, sessao.restauranteId, id, false, s as 'pausado' | 'bloqueado' | 'excluido')
+      await cortarOuDevolverLogin(admin, sessao.restauranteId, id, s === 'ativo', s)
       acoes.push(s === 'ativo' ? 'equipe.reativou' : s === 'pausado' ? 'equipe.pausou' : s === 'bloqueado' ? 'equipe.bloqueou' : 'equipe.excluiu')
     }
   } else if (typeof corpo.ativo === 'boolean' && corpo.ativo !== alvo.ativo) {
     await definirAtivo(admin, sessao.restauranteId, id, corpo.ativo)
+    await cortarOuDevolverLogin(admin, sessao.restauranteId, id, corpo.ativo, 'desativado')
     acoes.push(corpo.ativo ? 'equipe.reativou' : 'equipe.desativou')
   }
   if (patch.telefone !== undefined || patch.cargo !== undefined) {
@@ -137,4 +140,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   return NextResponse.json({ ok: true, funcionario: await buscarFuncionario(admin, sessao.restauranteId, id) })
+}
+
+/**
+ * Pausar/bloquear/excluir derruba o login NA HORA (0132): o RLS já cortava o painel, mas o
+ * token seguia renovando e o terminal ficava "aberto". Ban no Auth + sessões encerradas;
+ * reativar devolve. Falha aqui não desfaz a desativação (ela já vale pelo RLS).
+ * Só nas lojas com o financeiro ligado; nas outras o login segue como sempre foi (a tela de
+ * login explica o acesso pausado). Reativar desbane sempre — inofensivo se não havia ban.
+ */
+async function cortarOuDevolverLogin(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, id: string, ativo: boolean, motivo: string) {
+  if (!ativo) {
+    const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', restauranteId).maybeSingle()
+    if (!loja?.financeiro_ativo) return
+  }
+  const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: ativo ? 'none' : '876000h' })
+  if (error) console.error('[equipe] ban do login falhou:', error.message)
+  if (!ativo) await encerrarSessoes(admin, id, motivo)
 }

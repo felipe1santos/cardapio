@@ -8,6 +8,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { ModalUsuario, type SalvarUsuario, type UsuarioEquipe } from '@/components/admin/equipe/modal-usuario'
 import type { Papel } from '@/lib/auth/permissoes'
 import type { Acessos } from '@/lib/acessos'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 import {
   COR_CARGO, ROTULO_CARGO, ROTULO_SITUACAO, cargoDoUsuario, contarPermissoes, modeloDoCargo, situacaoDoUsuario,
   type Cargo, type Situacao,
@@ -33,6 +34,7 @@ interface Funcionario {
   cargo: string | null
   situacao: string | null
   telefone: string
+  temPin?: boolean
 }
 
 interface Linha extends Funcionario {
@@ -58,6 +60,7 @@ type Confirmacao = { tipo: 'pausado' | 'bloqueado' | 'excluido'; f: Linha }
 
 export default function EquipePage() {
   const [equipe, setEquipe] = useState<Funcionario[]>([])
+  const estadoSessao = useEstadoSessao()
   const [papeisOferecidos, setPapeisOferecidos] = useState<Papel[]>([])
   const [eu, setEu] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -154,6 +157,14 @@ export default function EquipePage() {
     })
     const corpo = await r.json().catch(() => ({}))
     if (!r.ok) return corpo.error ?? 'Não foi possível redefinir.'
+    return null
+  }
+
+  async function apagarPin(f: Linha): Promise<string | null> {
+    const r = await fetch(`/api/admin/equipe/${f.id}/pin`, { method: 'DELETE' })
+    const corpo = await r.json().catch(() => ({}))
+    if (!r.ok) return corpo.error ?? 'Não foi possível apagar o PIN.'
+    await carregar()
     return null
   }
 
@@ -289,13 +300,15 @@ export default function EquipePage() {
 
       {modal && (
         <ModalUsuario
-          usuario={modal.usuario ? ({ id: modal.usuario.id, nome: modal.usuario.nome, usuario: modal.usuario.usuario, telefone: modal.usuario.telefone, cargo: modal.usuario.cargoVisto, acessos: modal.usuario.acessosVistos } satisfies UsuarioEquipe) : null}
+          usuario={modal.usuario ? ({ id: modal.usuario.id, nome: modal.usuario.nome, usuario: modal.usuario.usuario, telefone: modal.usuario.telefone, cargo: modal.usuario.cargoVisto, acessos: modal.usuario.acessosVistos, temPin: modal.usuario.temPin } satisfies UsuarioEquipe) : null}
           outros={outros(modal.usuario)}
           podeEquipe={souDono}
           loginsEmUso={modal.usuario ? [] : linhas.map((l) => l.usuario)}
           onCancelar={() => setModal(null)}
           onSalvar={(d) => salvarUsuario(d, modal.usuario)}
           onRedefinirSenha={(s) => redefinirSenha(modal.usuario!, s)}
+          onApagarPin={() => apagarPin(modal.usuario!)}
+          financeiroAtivo={!!estadoSessao?.financeiroAtivo}
         />
       )}
 
