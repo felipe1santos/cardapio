@@ -107,11 +107,18 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
             </div>
           )}
 
-          {turno && painel && painel.acerto.length === 0 && (
+          {financeiro && (
+            // Com o financeiro o acerto é cego (conta primeiro, depois revela) e fica no Financeiro.
+            <div className="rounded-menuzia border border-border p-3.5 text-[13px]" data-testid="acerto-no-financeiro">
+              O acerto dos motoboys é feito em <a href="/admin/financeiro?secao=motoboys" className="font-semibold text-primary underline">Financeiro › Acerto de Motoboys</a> (contagem cega).
+            </div>
+          )}
+
+          {!financeiro && turno && painel && painel.acerto.length === 0 && (
             <div className="rounded-menuzia border border-dashed border-border p-4 text-center text-xs text-text-subtle">Nenhuma entrega em dinheiro para acertar neste turno.</div>
           )}
 
-          {turno && painel?.acerto.map((r) => {
+          {!financeiro && turno && painel?.acerto.map((r) => {
             const texto = declarado[r.entregadorId] ?? ''
             const valor = lerValor(texto)
             const diff = texto !== '' && Number.isFinite(valor) ? valor - r.valorEsperado : null

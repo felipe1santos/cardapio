@@ -6,18 +6,20 @@ import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-ve
 import type { AcaoFin } from '@/lib/financeiro/permissoes'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { SecaoCaixa } from '@/components/financeiro/caixa'
+import { SecaoMotoboys, SecaoPix } from '@/components/financeiro/motoboys'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
  * Cada seção aparece para quem tem a permissão; o servidor confere de novo em toda ação.
  * Fase 1 entrega Auditoria e Alertas; as demais seções chegam nas fases seguintes.
  */
-type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'movimentacoes' | 'cmv' | 'contas' | 'dashboard' | 'auditoria'
+type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'pix' | 'movimentacoes' | 'cmv' | 'contas' | 'dashboard' | 'auditoria'
 
 const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
   { id: 'caixa', label: 'Caixa', exige: 'caixa_abrir', fase: '' },
   { id: 'fluxo', label: 'Fluxo de Caixa', exige: 'financeiro', fase: 'Fase 4' },
-  { id: 'motoboys', label: 'Acerto de Motoboys', exige: 'acerto_motoboy', fase: 'Fase 3' },
+  { id: 'motoboys', label: 'Acerto de Motoboys', exige: 'acerto_motoboy', fase: '' },
+  { id: 'pix', label: 'Conferir Pix', exige: 'pix_conferir', fase: '' },
   { id: 'movimentacoes', label: 'Movimentações', exige: 'sangria', fase: '' },
   { id: 'cmv', label: 'Precificação / CMV', exige: 'custos_editar', fase: 'Fase 5' },
   { id: 'contas', label: 'Contas e DRE', exige: 'contas_pagar', fase: 'Fase 5b' },
@@ -71,7 +73,7 @@ export default function FinanceiroPage() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />
           <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-5">
-            {(secao === 'caixa' || secao === 'movimentacoes') ? (
+            {secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
               <SecaoCaixa key={secao} modo={secao} />
             ) : secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
               <AuditoriaAlertas />

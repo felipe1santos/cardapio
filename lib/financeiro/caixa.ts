@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { registrarAuditoria } from '@/lib/auditoria'
-import { painelCaixa } from '@/lib/queries/caixa'
 import type { ContextoFin } from './contexto'
 import { lancar, type Carteira } from './ledger'
 import { aprovar } from './aprovacao'
@@ -89,14 +88,15 @@ export async function extratoDoTurno(admin: SupabaseClient, restauranteId: strin
 
 /** O que está pendente para fechar: motoboys sem acerto, contas abertas, Pix a conferir. */
 export async function pendenciasDoFechamento(admin: SupabaseClient, restauranteId: string, turnoId: string) {
-  const [painel, { count: contasAbertas }, saldos] = await Promise.all([
-    painelCaixa(admin, restauranteId),
+  const [motoboysFin, { count: contasAbertas }, saldos] = await Promise.all([
+    import('./motoboy').then((m) => m.situacaoMotoboys(admin, restauranteId)),
     admin.from('comandas').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'aberta'),
     saldosDoTurno(admin, restauranteId, turnoId),
   ])
-  const motoboys = painel.acerto.filter((l) => l.pedidos > 0 || l.emRota > 0).map((l) => ({
-    entregadorId: l.entregadorId, nome: l.nome, pedidos: l.pedidos, emRota: l.emRota,
-    esperadoCentavos: Math.round(l.valorEsperado * 100), trocoLevadoCentavos: Math.round(l.trocoLevado * 100),
+  // Fase 3: o que cada motoboy tem para acertar é o saldo dele no livro-caixa (troco, recebimentos, pendências).
+  const motoboys = motoboysFin.filter((m) => m.saldoCentavos !== 0).map((m) => ({
+    entregadorId: m.entregadorId, nome: m.nome, pedidos: m.pedidos.length, emRota: 0,
+    esperadoCentavos: m.saldoCentavos, trocoLevadoCentavos: m.trocoLevadoCentavos,
   }))
   return {
     motoboys,
@@ -133,6 +133,8 @@ export async function abrirCaixa(ctx: ContextoFin, fundoCentavos: number): Promi
       return falha(r.erro, 500)
     }
   }
+  // Troca do modo de troco do motoboy marcada para o próximo caixa (0136).
+  await import('./motoboy').then((m) => m.aplicarModoPendente(ctx.admin, loja)).catch(() => {})
   await auditar(ctx, 'caixa.abriu_turno', turno.id, { fundo_centavos: fundoCentavos })
   return { ok: true, turno }
 }

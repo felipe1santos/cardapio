@@ -40,6 +40,7 @@ import {
 } from '@/lib/queries/pedidos'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { CaixaTurnoGaveta } from '@/components/logistica/caixa-turno'
+import { AcessoEntregador, DinheiroComMotoboys } from '@/components/logistica/motoboy-financeiro'
 import { atualizarConfigLoja, buscarFluxoLoja } from '@/lib/queries/ajustes'
 import { formatarReal } from '@/lib/moeda'
 import { AlertaTroco } from '@/components/pedidos/info-pagamento'
@@ -385,7 +386,10 @@ function CartaoEntregador({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-[14px] font-bold text-[var(--adm-texto)]">{driver.nome}</p>
+            <p className="truncate text-[14px] font-bold text-[var(--adm-texto)]">
+              {driver.nome}
+              {driver.desativado && <span className="ml-1.5 rounded-[3px] bg-danger-bg px-1.5 py-0.5 text-[10px] font-bold uppercase text-danger" data-testid="entregador-desativado">Desativado</span>}
+            </p>
             <select
               value={driver.status}
               disabled={mudandoStatus}
@@ -633,7 +637,7 @@ export default function LogisticaPage() {
     return () => clearInterval(interval)
   }, [restauranteId, refetch, intervaloMs])
 
-  const available = drivers.filter((d) => d.status === 'online')
+  const available = drivers.filter((d) => d.status === 'online' && !d.desativado)
   /** Prontos sem entregador próprio — inclui os que já foram mandados pro Nexta. */
   const unassignedTodos = useMemo(() => orders.filter((o) => o.status === 'pronto' && !o.entregadorId), [orders])
   const inRoute = orders.filter((o) => o.status === 'em_rota')
@@ -1273,6 +1277,8 @@ export default function LogisticaPage() {
           </div>
         </div>
 
+        {/* Financeiro (0136): dinheiro com cada motoboy e troco a entregar no despacho. Só com o módulo ligado. */}
+        <DinheiroComMotoboys />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* Entregadores */}
           {tab === 'entregadores' && (
@@ -1960,6 +1966,20 @@ export default function LogisticaPage() {
           <Button variant="primary" className="w-full" onClick={copiarLink}>
             {linkCopied ? 'Link copiado!' : 'Copiar link'}
           </Button>
+          {linkDriver && (
+            <AcessoEntregador
+              key={linkDriver.id}
+              id={linkDriver.id}
+              nome={linkDriver.nome}
+              desativado={linkDriver.desativado}
+              temLogin={linkDriver.temLogin}
+              onMudou={() => {
+                // Link novo / desativado: o QR mostrado ficou velho — fecha e recarrega.
+                setLinkDriver(null)
+                if (restauranteId) void refetchAgora(restauranteId)
+              }}
+            />
+          )}
         </div>
       </aside>
 
