@@ -261,7 +261,8 @@ try {
   await q(`update restaurantes set usa_logistica=true, entrega_sem_entregador=false where id=$1`, [loja.id])
   const d2 = await novoDelivery(`E2E Com Moto ${SUF}`)
   await ger.reload({ waitUntil: 'networkidle' }); await dispensar(ger)
-  ok('botão Rotas habilitado', (await ger.locator('[data-rotas-desligado]').count()) === 0 && (await ger.getByRole('button', { name: 'Rotas' }).count()) === 1)
+  // Rotas fica solto a partir de 1536 px; abaixo disso está em "Mais ⋯" (2026-10-03). Habilitado = existe o botão ativo.
+  ok('botão Rotas habilitado', (await ger.locator('[data-rotas-desligado]').count()) === 0 && (await ger.getByTestId('kanban-rotas').count()) === 1)
   ok('saída "sem entregador" recusada pela API (409)', (await api(ger, `/api/admin/pedidos/${d2.id}/saiu-entrega`, 'POST')).s === 409)
 
   secao('C1. Logística: atribuir com o aviso de WhatsApp falhando NÃO mostra "Não foi possível salvar"')

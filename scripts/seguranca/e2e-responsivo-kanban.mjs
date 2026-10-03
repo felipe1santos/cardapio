@@ -48,7 +48,8 @@ try {
         if (![...card.querySelectorAll('span')].some((s) => ['PDV', 'Salão', 'Delivery'].includes(s.textContent.trim()))) problemas.push(`${n}: sem etiqueta de origem`)
         if (!card.querySelector('[title="Tempo desde que o pedido chegou"] svg.lucide-clock')) problemas.push(`${n}: cronômetro sem relógio`)
         if (atend?.getAttribute('data-testid') === 'etiqueta-entrega' && !atend.querySelector('path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]')) problemas.push(`${n}: ENTREGA sem capacete`)
-        if (/não verif|\b(Pix|Dinheiro|Cartão)\b/i.test(card.innerText)) problemas.push(`${n}: pagamento/"não verif." no resumo do card`)
+        // A forma de pagamento aparece no card desde a 0135 (PDV: forma e troco antes de lançar).
+        if (/não verif/i.test(card.innerText)) problemas.push(`${n}: "não verif." no resumo do card`)
         // Preço na MESMA linha do nome/mesa; itens usam a largura toda (sem coluna do preço);
         // sem o texto repetido "PDV · …"/"Salão · …" no corpo.
         const nome = card.querySelector('span.truncate.font-semibold')
@@ -95,7 +96,7 @@ try {
     await ctx.close()
   }
 } catch (e) {
-  ok('execução', false, e.message.split('\n')[0])
+  ok('execução', false, e.message.split('\n').slice(0, 3).join(' | '))
 } finally {
   await browser.close()
 }
