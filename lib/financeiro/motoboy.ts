@@ -220,7 +220,7 @@ export async function pixAConferir(admin: SupabaseClient, loja: string) {
 export async function conferirPix(ctx: ContextoFin, p: { lancamentoId: number; caiu: boolean; motivo?: string | null }) {
   const loja = ctx.sessao.restauranteId
   if (!podeFin(ctx.sessao.papel, ctx.acessos, 'pix_conferir')) return falha('Você não tem permissão para conferir Pix.', 403, 'sem_permissao_acao')
-  const { data: l } = await ctx.admin.from('fin_lancamentos').select('id, valor_centavos, pedido_id, comanda_id, carteira, restaurante_id').eq('id', p.lancamentoId).eq('restaurante_id', loja).maybeSingle()
+  const { data: l } = await ctx.admin.from('fin_lancamentos').select('id, valor_centavos, pedido_id, comanda_id, carteira, restaurante_id, origem').eq('id', p.lancamentoId).eq('restaurante_id', loja).maybeSingle()
   if (!l || l.carteira !== 'pix_conferir' || Number(l.valor_centavos) <= 0) return falha('Pix não encontrado.', 404)
   if (!p.caiu && (p.motivo ?? '').trim().length < 3) return falha('Diga por que o Pix não caiu.', 400, 'motivo')
   const v = Number(l.valor_centavos)
@@ -236,6 +236,11 @@ export async function conferirPix(ctx: ContextoFin, p: { lancamentoId: number; c
   if (!r.ok) return falha(r.erro, 400)
   if (r.repetido) return falha('Este Pix já foi conferido.', 409, 'ja_conferido')
   if (p.caiu && l.pedido_id) await ctx.admin.from('pedidos').update({ pago: true }).eq('id', l.pedido_id).eq('restaurante_id', loja)
+  // Pix pago na entrega de pedido do PDV (0137): quita e fecha a comanda, sem lançar de novo no caixa.
+  if (p.caiu && l.pedido_id && l.comanda_id && l.origem === 'delivery') {
+    const { error } = await ctx.admin.rpc('fin_quitar_comanda_entrega', { p_restaurante: loja, p_pedido: l.pedido_id, p_forma: 'pix', p_ator: ctx.sessao.userId, p_ator_nome: ctx.sessao.nome })
+    if (error) console.error('[pix] quitar comanda da entrega', error.message)
+  }
   await registrarAuditoria(ctx.admin, { restauranteId: loja, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: p.caiu ? 'fin.pix_confirmado' : 'fin.pix_nao_caiu', entidade: 'lancamento', entidadeId: undefined, dados: { lancamento: l.id, valor_centavos: v, pedido: l.pedido_id, motivo: p.motivo ?? null } })
   return { ok: true as const }
 }

@@ -153,7 +153,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
     return (
       <div className="flex min-h-dvh items-center justify-center bg-page p-6">
         <div className="w-full max-w-sm rounded-menuzia border border-border bg-white p-5 text-center" data-testid="motoboy-erro">
-          <h1 className="text-sm font-bold text-danger">{error?.login ? 'Entre com o seu login' : 'Link inválido'}</h1>
+          <h1 className="text-sm font-bold text-danger">{error?.login ? 'Entre com o seu login' : apiBase === '/api/motoboy' ? 'Acesso não liberado' : 'Link inválido'}</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error?.texto ?? 'Não encontramos sua rota.'}</p>
           {error?.login && <a href="/login" className="mt-3 inline-block rounded-menuzia bg-primary px-4 py-2 text-[12px] font-bold uppercase text-white">Entrar</a>}
         </div>

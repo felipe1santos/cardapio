@@ -204,3 +204,19 @@ produção, `/motoboy` com a conta do dono responde "não está ligado a um entr
 2. **Visual:** no extrato do turno, a carteira "motoboy" aparece −R$ 9, porque o recebimento do motoboy não tem turno; o
    saldo real dele é 0.
 3. **Texto:** `/motoboy` sem entregador ligado mostra o título "Link inválido"; o certo seria "Acesso não liberado".
+
+## Correção 0137 — entrega paga quita a comanda do PDV (2026-10-03, tarde)
+- `entrega_registrar` passa a chamar `fin_quitar_comanda_entrega`. Quando o pedido do PDV (balcão → entrega) é pago na
+  entrega em dinheiro ou cartão, ela grava o pagamento na comanda com `origem = 'entrega'` e fecha a comanda se não
+  sobrou nada.
+- O gatilho do caixa (`fin_pagamento_no_caixa`) ignora pagamentos com origem 'entrega', porque o livro-caixa já recebeu
+  pelo motoboy/cartão/Pix. Assim não há lançamento em dobro.
+- Pix: a quitação acontece quando alguém confere o Pix ("caiu"), e só para Pix vindo de entrega.
+- A migration acerta as entregas já registradas com comanda aberta. Em produção, isso fecha a comanda TESTE #145.
+- O título "Link inválido" do `/motoboy` sem entregador ligado virou "Acesso não liberado".
+- **Testes:**
+  - Fase 3: 106/106, com o caso novo de dinheiro e Pix pelo PDV, repetição sem pagar duas vezes, gaveta sem
+    lançamento extra e integridade da cadeia de hash.
+  - Integrado 52/52, PDV-pagamento 57/57, fase 2 55/55, balcão 84/84, PDV v2 70/70.
+  - Rollback da 0137 testado (desfazer e reaplicar).
+- Continua em aberto (só visual): no extrato do turno, a carteira "motoboy" mostra o recebimento sem turno.

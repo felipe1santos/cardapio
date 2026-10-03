@@ -376,6 +376,39 @@ try {
   ok('repasse do Nexta: sai do "a receber", entra na gaveta', rp.s === 200 && !nx2.j?.nexta?.some((n) => n.pedidoId === p13.id), texto(rp.j))
   ok('❌ esperado: registrar a mesma entrega duas vezes', (await api(ate.p, '/api/admin/financeiro/motoboys', 'POST', { acao: 'registrar', pedidoId: p12.id, forma: 'pix', chave: `f3-${uuid()}` })).s === 409)
 
+  secao('11b. Pedido do PDV (balcão → entrega) pago na entrega quita a comanda (0137)')
+  const ENDERECO = { cep: '29050-100', rua: 'Rua Teste', numero: '10', bairro: 'Centro', cidade: 'Vitória', estado: 'ES', complemento: '', referencia: '', taxa: '0' }
+  async function pdvEntrega(nome, pagamento) {
+    const cm = await api(ate.p, '/api/admin/balcao/comandas', 'POST', { nome: `TESTE ${nome}`, chave: uuid(), modalidade: 'entrega', entrega: ENDERECO })
+    const lc = await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { comandaId: cm.j?.id, chave: uuid(), itens: [{ itemId: RISOTO.id, quantidade: 1, complementos: [] }], pagamento })
+    if (cm.s !== 201 || lc.s !== 201) throw new Error(`pdvEntrega ${cm.s} ${lc.s} ${lc.j?.error ?? ''}`)
+    for (const [de, para] of [['recebido', 'preparando'], ['preparando', 'pronto']]) await api(ate.p, `/api/admin/comandas/${cm.j.id}`, 'POST', { acao: 'transicionar', pedidoId: lc.j.id, de, para })
+    await sbGer.from('pedidos').update({ entregador_id: mB.id, status: 'em_rota' }).eq('id', lc.j.id)
+    const p = await um(`select id, numero, total from pedidos where id=$1`, [lc.j.id])
+    return { comandaId: cm.j.id, id: p.id, numero: p.numero, totalC: Math.round(Number(p.total) * 100) }
+  }
+  const comanda = (id) => um(`select c.status, t.restante from comandas c, comanda_totais(c.id) t where c.id=$1`, [id])
+  const gavetaAntes = Number((await um(`select coalesce(sum(valor_centavos),0)::bigint s from fin_lancamentos where restaurante_id=$1 and carteira='gaveta' and turno_id=$2`, [loja.id, turno.id])).s)
+  const pd = await pdvEntrega('PDV Entrega Dinheiro', { escolha: 'dinheiro', trocoPara: 100 })
+  const ed = await api(motoB.p, `/api/motoboy/pedidos/${pd.id}/entregar`, 'POST', { forma: 'dinheiro', recebidoCentavos: 10000, chave: `app:${pd.id}` })
+  const cd = await comanda(pd.comandaId)
+  const pgd = await q(`select forma, valor, origem from pagamentos_comanda where comanda_id=$1`, [pd.comandaId])
+  ok('dinheiro na entrega: comanda do PDV FECHADA, sem saldo', ed.s === 200 && cd.status === 'fechada' && Number(cd.restante) <= 0.004, `${ed.s} ${texto(cd)} ${texto(ed.j?.dados?.comanda)}`)
+  ok('pagamento na comanda com origem "entrega" e o valor do pedido', pgd.length === 1 && pgd[0].origem === 'entrega' && pgd[0].forma === 'dinheiro' && Math.round(Number(pgd[0].valor) * 100) === pd.totalC, texto(pgd))
+  ok('livro-caixa NÃO lança de novo (gaveta igual; dinheiro só com o motoboy)', Number((await um(`select coalesce(sum(valor_centavos),0)::bigint s from fin_lancamentos where restaurante_id=$1 and carteira='gaveta' and turno_id=$2`, [loja.id, turno.id])).s) === gavetaAntes && (await saldoMoto(mB.id)) === pd.totalC, `${await saldoMoto(mB.id)}`)
+  const repd = await api(motoB.p, `/api/motoboy/pedidos/${pd.id}/entregar`, 'POST', { forma: 'dinheiro', recebidoCentavos: 10000, chave: `app:${pd.id}` })
+  ok('repetir a entrega não paga a comanda duas vezes', repd.s === 200 && (await q(`select 1 from pagamentos_comanda where comanda_id=$1`, [pd.comandaId])).length === 1)
+  const pp = await pdvEntrega('PDV Entrega Pix', { escolha: 'pix' })
+  await api(motoB.p, `/api/motoboy/pedidos/${pp.id}/entregar`, 'POST', { forma: 'pix', chave: `app:${pp.id}` })
+  ok('Pix na entrega: comanda segue aberta até conferir', (await comanda(pp.comandaId)).status === 'aberta')
+  const lpp = await um(`select id from fin_lancamentos where pedido_id=$1 and carteira='pix_conferir' and valor_centavos > 0`, [pp.id])
+  const cf = await api(ger.p, '/api/admin/financeiro/pix', 'POST', { lancamentoId: Number(lpp.id), caiu: true })
+  const pgp = await q(`select forma, origem from pagamentos_comanda where comanda_id=$1`, [pp.comandaId])
+  ok('Pix conferido: comanda fecha, pagamento pix origem "entrega", sem lançamento extra', cf.s === 200 && (await comanda(pp.comandaId)).status === 'fechada' && pgp.length === 1 && pgp[0].forma === 'pix' && pgp[0].origem === 'entrega' &&
+    !(await um(`select 1 from fin_lancamentos l join pagamentos_comanda g on g.id=l.pagamento_id where g.comanda_id=$1`, [pp.comandaId])), texto(pgp))
+  ok('livro-caixa íntegro depois da quitação', (await api(dono.p, '/api/admin/financeiro/auditoria', 'POST', { acao: 'verificar' })).j?.ok === true)
+  await api(ate.p, '/api/admin/financeiro/motoboys', 'POST', { acao: 'acertar', entregadorId: mB.id, contadoCentavos: pd.totalC, chave: `f3-${uuid()}` })
+
   secao('12. Entrega com o caixa FECHADO fica "a acertar"; acerto exige caixa aberto')
   const p14 = await delivery('F3 Caixa Fechado', 'dinheiro'); await despachar(p14.id, mB.id)
   const g = await api(dono.p, '/api/admin/financeiro/caixa')
