@@ -50,6 +50,7 @@ import { avisoRepeticao, fotosDoPedido, montarRepeticaoPedido, type ResultadoRep
 import { resolverPaleta } from '@/lib/paletas'
 import { atualizarStatusLocais, pedidoLocal } from '@/lib/vitrine-pedidos-locais'
 import { idsDeMedicaoSeguros } from '@/lib/pixels'
+import { eventIdDoPedido, guardarCliqueDoAnuncio, idsMetaDoNavegador, novoEventId, parametrosDoCarrinho, rastrearConversao } from '@/lib/pixel-eventos'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import { objectPosition, FOCO_PADRAO, type Foco } from '@/lib/foco-imagem'
 import {
@@ -930,33 +931,47 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }, [])
 
   // ── Tracking pixel injection ───────────────────────────────────────────────
+  // Só ID válido entra no script (ver idsDeMedicaoSeguros). Depende só dos IDs: antes dependia do
+  // objeto da loja, que é recriado a cada volta à aba — e cada volta mandava outro PageView.
+  const { pixelId: idPixel, tagId: idTag } = idsDeMedicaoSeguros(restaurante?.facebookPixelId, restaurante?.googleTagId)
   useEffect(() => {
-    if (!restaurante) return
-    // Só ID válido entra no script (ver idsDeMedicaoSeguros).
-    const { pixelId, tagId } = idsDeMedicaoSeguros(restaurante.facebookPixelId, restaurante.googleTagId)
-    const scripts: HTMLScriptElement[] = []
-    if (pixelId) {
+    guardarCliqueDoAnuncio(window.location.href)
+  }, [])
+  useEffect(() => {
+    if (!idPixel && !idTag) return
+    const w = window as Window & { __mzMedicao?: Set<string> }
+    const feitos = (w.__mzMedicao ??= new Set<string>())
+    if (idPixel && !feitos.has(`fb:${idPixel}`)) {
+      feitos.add(`fb:${idPixel}`)
       const s = document.createElement('script')
       s.id = 'fb-pixel'
-      s.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');`
+      s.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${idPixel}');fbq('track','PageView');`
       document.head.appendChild(s)
-      scripts.push(s)
     }
-    if (tagId) {
+    if (idTag && !feitos.has(`g:${idTag}`)) {
+      feitos.add(`g:${idTag}`)
       const s = document.createElement('script')
-      s.id = 'google-tag'
       s.async = true
-      s.src = `https://www.googletagmanager.com/gtag/js?id=${tagId}`
+      if (idTag.startsWith('GTM-')) {
+        // Contêiner do Tag Manager: o snippet é o gtm.js (gtag/js com GTM- não carrega o contêiner).
+        s.id = 'google-tag-manager'
+        s.src = `https://www.googletagmanager.com/gtm.js?id=${idTag}`
+        const s0 = document.createElement('script')
+        s0.id = 'google-tag-init'
+        s0.innerHTML = `window.dataLayer=window.dataLayer||[];window.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});function gtag(){dataLayer.push(arguments)}`
+        document.head.appendChild(s0)
+      } else {
+        s.id = 'google-tag'
+        s.src = `https://www.googletagmanager.com/gtag/js?id=${idTag}`
+        const s2 = document.createElement('script')
+        s2.id = 'google-tag-init'
+        s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${idTag}');`
+        document.head.appendChild(s2)
+      }
       document.head.appendChild(s)
-      scripts.push(s)
-      const s2 = document.createElement('script')
-      s2.id = 'google-tag-init'
-      s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${tagId}');`
-      document.head.appendChild(s2)
-      scripts.push(s2)
     }
-    return () => scripts.forEach((el) => el.parentNode?.removeChild(el))
-  }, [restaurante])
+    // Sem limpeza: o pixel vive a página inteira (tirar o script não desfaz o fbq já carregado).
+  }, [idPixel, idTag])
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const allItems = useMemo(() => groups.flatMap((g) => g.itens), [groups])
@@ -2245,7 +2260,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }, [slug])
 
   useEffect(() => {
-    if (productSheet) rastreio.current?.registrar('visualizacao', { itemId: productSheet.id })
+    if (!productSheet) return
+    rastreio.current?.registrar('visualizacao', { itemId: productSheet.id })
+    const preco = productSheet.promocaoPreco ?? productSheet.preco
+    rastrearConversao('ViewContent', parametrosDoCarrinho([{ itemId: productSheet.id, qty: 1, unit: Number(preco) || 0 }]), novoEventId('vc'))
   }, [productSheet])
 
   // Sacola: só conta quando a quantidade SOBE — restaurar a sacola salva ou
@@ -2256,12 +2274,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     const antes = qtdSacolaAnterior.current
     qtdSacolaAnterior.current = cartCount
     if (antes !== null && cartCount > antes) {
-      rastreio.current?.registrar('sacola', { itemId: cart[cart.length - 1]?.itemId ?? null })
+      const ultima = cart[cart.length - 1]
+      rastreio.current?.registrar('sacola', { itemId: ultima?.itemId ?? null })
+      if (ultima) rastrearConversao('AddToCart', parametrosDoCarrinho([{ itemId: ultima.itemId, qty: cartCount - antes, unit: ultima.unit }]), novoEventId('atc'))
     }
   }, [cartCount, cartRestaurado, cart])
 
+  // Valor e itens do checkout, lidos no momento do evento (sem refazer o efeito a cada tecla).
+  const sacolaPixel = useRef({ cart, total })
+  sacolaPixel.current = { cart, total }
   useEffect(() => {
-    if (checkoutOpen) rastreio.current?.registrar('checkout')
+    if (!checkoutOpen) return
+    rastreio.current?.registrar('checkout')
+    const { cart: c, total: t } = sacolaPixel.current
+    rastrearConversao('InitiateCheckout', parametrosDoCarrinho(c.map((l) => ({ itemId: l.itemId, qty: l.qty, unit: l.unit })), t), novoEventId('ic'))
   }, [checkoutOpen])
 
   // Confirmação pós-pedido + link wa.me para o cliente avisar a loja (conversa
@@ -2457,12 +2483,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       const res = await fetch(`/api/loja/${slug}/pedido`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, chavePedido: tentativaPedido.current.chave }),
+        // meta: _fbp/_fbc (sem dado pessoal) para a API de Conversões casar a compra com o anúncio.
+        body: JSON.stringify({ ...payload, chavePedido: tentativaPedido.current.chave, meta: { ...idsMetaDoNavegador(), url: window.location.href.slice(0, 500) } }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
       tentativaPedido.current = null
       rastreio.current?.registrar('pedido')
+      if (typeof data?.id === 'string') {
+        // Mesmo event_id que o servidor manda pela API de Conversões: o Meta conta uma compra só.
+        rastrearConversao('Purchase', parametrosDoCarrinho(cart.map((l) => ({ itemId: l.itemId, qty: l.qty, unit: l.unit })), total),
+          eventIdDoPedido(data.id), { transactionId: String(data.numero ?? data.id), formaPagamento: payload.pagamento })
+      }
       if (typeof data?.id === 'string') setUltimoPedidoId(data.id)
       limparOrigemPush(slug)
       // Sessão sem código confirmado: o aparelho guarda o pedido para acompanhar o status.
@@ -2580,6 +2612,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       }
     }
     setCheckoutError(null)
+    if (checkoutStep === 1) {
+      rastrearConversao('AddPaymentInfo', parametrosDoCarrinho(cart.map((l) => ({ itemId: l.itemId, qty: l.qty, unit: l.unit })), total), novoEventId('api'),
+        { formaPagamento: PAY_MAP[payMethod] ?? undefined })
+    }
     if (checkoutStep < 3) { setCheckoutStep((s) => (s + 1) as CheckoutStep); return }
     submitOrder()
   }
