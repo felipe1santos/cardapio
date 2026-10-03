@@ -1,5 +1,6 @@
 'use client'
 
+import { BlocoPagamento, type EstadoPagamentoPdv } from '@/components/pdv/bloco-pagamento'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -414,6 +415,9 @@ export default function PdvPage() {
   const [contaFechando, setContaFechando] = useState(false)
   /** Onde o lançamento v2 cai: comanda existente (balcão/mesa) ou mesa livre. */
   const [alvoV2, setAlvoV2] = useState<{ comandaId?: string; mesaId?: string; rotulo: string } | null>(null)
+  // Forma de pagamento e troco do balcão, escolhidos antes de lançar (0135).
+  const [estadoPag, setEstadoPag] = useState<EstadoPagamentoPdv>({ exige: false, pagamento: null, erro: null })
+  const [versaoPag, setVersaoPag] = useState(0)
   // Identificação do atendimento (0094) e limpeza (0095).
   const [abrindoMesa, setAbrindoMesa] = useState<MesaComEstado | null>(null)
   const [mesaLimpeza, setMesaLimpeza] = useState<MesaComEstado | null>(null)
@@ -770,6 +774,7 @@ export default function PdvPage() {
         comandaId: alvoV2.comandaId,
         mesaId: alvoV2.comandaId ? undefined : alvoV2.mesaId,
         chave: chaveLancamento.current,
+        ...(estadoPag.exige && estadoPag.pagamento ? { pagamento: estadoPag.pagamento } : {}),
         itens: comanda.map((linha) => ({
           itemId: linha.item.id,
           quantidade: linha.quantidade,
@@ -793,6 +798,7 @@ export default function PdvPage() {
     }
     chaveLancamento.current = novaChave()
     setComanda([])
+    setVersaoPag((v) => v + 1)
     setToastLancado({ texto: `Pedido #${r.dados.numero} lançado em ${alvoV2.rotulo}!`, comandaId: r.dados.comandaId })
     // A mesa livre ganhou comanda no primeiro lançamento: os próximos caem nela.
     setAlvoV2((a) => (a ? { ...a, comandaId: r.dados!.comandaId } : a))
@@ -1742,6 +1748,9 @@ export default function PdvPage() {
 
             {/* Footer: subtotal + launch */}
             <div className="space-y-2.5 border-t border-border p-4">
+              {pdvV2 && alvoV2?.comandaId && (
+                <BlocoPagamento comandaId={alvoV2.comandaId} subtotalCarrinho={subtotal} versao={versaoPag} onMudar={setEstadoPag} />
+              )}
               {comanda.length > 0 && (
                 <div className="flex items-center justify-between text-[14px]">
                   <span className="text-text-subtle">Subtotal (ref.)</span>
@@ -1778,7 +1787,8 @@ export default function PdvPage() {
                 )}
                 <button
                   type="button"
-                  disabled={(pdvV2 ? !alvoV2 : !mesaEscolhida) || comanda.length === 0 || launching}
+                  disabled={(pdvV2 ? !alvoV2 : !mesaEscolhida) || comanda.length === 0 || launching || (pdvV2 && !!alvoV2?.comandaId && estadoPag.exige && !!estadoPag.erro)}
+                  title={pdvV2 && estadoPag.exige && estadoPag.erro ? estadoPag.erro : undefined}
                   onClick={lancarNaCozinha}
                   data-testid="pdv-lancar"
                   className="flex h-[84px] min-w-0 flex-1 items-center justify-center gap-2 rounded-menuzia bg-status-ready text-[17px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
@@ -1787,6 +1797,9 @@ export default function PdvPage() {
                   {launching ? 'Lançando…' : 'Lançar na cozinha'}
                 </button>
               </div>
+              {pdvV2 && alvoV2?.comandaId && estadoPag.exige && estadoPag.erro && comanda.length > 0 && (
+                <p className="text-center text-[12.5px] font-semibold text-[#B45309]" data-testid="pdv-dica-pagamento">{estadoPag.pagamento ? estadoPag.erro : 'Escolha a forma de pagamento'}</p>
+              )}
             </div>
               </aside>
             </div>

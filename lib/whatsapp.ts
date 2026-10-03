@@ -7,7 +7,7 @@ import { decidirMensagem, etapaDoStatus, normalizarConfig, renderizar, tipoAutom
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
-  cartao: 'Cartão na entrega',
+  cartao: 'Cartão',
   dinheiro: 'Dinheiro',
 }
 
@@ -53,7 +53,12 @@ export function montarResumoPedido(pedido: Pedido, restauranteNome: string): str
   linhas.push('```')
   linhas.push('')
 
-  let pagamento = `💳 *Pagamento:* ${FORMA_PAGAMENTO_LABEL[pedido.formaPagamento]}`
+  // Cartão escolhido no PDV traz o detalhe (0135); o pedido ainda não pago diz onde paga.
+  const forma = pedido.formaPagamento === 'cartao' && pedido.cartaoTipo
+    ? (pedido.cartaoTipo === 'debito' ? 'Cartão de débito' : 'Cartão de crédito')
+    : FORMA_PAGAMENTO_LABEL[pedido.formaPagamento]
+  const onde = pedido.pago ? '' : pedido.tipo === 'entrega' ? ' na entrega' : ' na retirada'
+  let pagamento = `💳 *Pagamento${onde}:* ${forma}`
   if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) pagamento += ` (troco para ${brl(pedido.trocoPara)})`
   linhas.push(pagamento)
 

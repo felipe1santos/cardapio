@@ -272,7 +272,7 @@ export async function listarPedidosParaImprimir(
   const { data, error } = await admin
     .from('pedidos')
     .select(
-      `id, numero, tipo, forma_pagamento, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
+      `id, numero, tipo, forma_pagamento, cartao_tipo, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
        observacao, pago, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
        comandas ( senha ),
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
@@ -288,7 +288,9 @@ export async function listarPedidosParaImprimir(
     id: p.id,
     numero: p.numero,
     tipo: p.tipo,
-    formaPagamento: p.forma_pagamento,
+    // Cartão escolhido no PDV com o detalhe (0135): vai "credito"/"debito" — a comanda Beta já tem o
+    // rótulo ("Cartão de crédito"); o recibo antigo imprime em maiúsculas. Layout intocado.
+    formaPagamento: (p as { cartao_tipo?: string | null }).cartao_tipo ?? p.forma_pagamento,
     trocoPara: p.troco_para === null ? null : Number(p.troco_para),
     clienteNome: p.cliente_nome,
     clienteTelefone: p.cliente_telefone ?? '',

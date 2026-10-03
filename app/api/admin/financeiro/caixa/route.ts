@@ -6,6 +6,9 @@ import {
   saldosDoTurno, turnoAberto, type Aprovacao, type TurnoFin,
 } from '@/lib/financeiro/caixa'
 import { MOVIMENTOS, type Movimento } from '@/lib/financeiro/caixa-regras'
+import { painelCaixa } from '@/lib/queries/caixa'
+import { criarAlerta } from '@/lib/financeiro/alertas'
+import { formatarCentavos } from '@/lib/financeiro/centavos'
 
 /**
  * Financeiro › Caixa (Fase 2). Loja, usuário e aparelho vêm da sessão; valores esperados são
@@ -44,7 +47,28 @@ export async function GET(request: Request) {
   const turno = await turnoAberto(admin, loja)
   if (new URL(request.url).searchParams.get('leve') === '1') {
     if (turno) await conferirCaixaAbertoDemais(admin, loja, turno).catch(() => {})
-    return NextResponse.json({ aberto: !!turno, abertoPorNome: turno?.aberto_por_nome ?? null, abertoEm: turno?.aberto_em ?? null, souEu: turno?.aberto_por === sessao.userId }, { headers: { 'Cache-Control': 'no-store' } })
+    // Caixa fechado com dinheiro de entrega "a acertar" (0135): aviso no topo e alerta depois de X h.
+    let aAcertarCentavos = 0
+    let aAcertarDesde: string | null = null
+    if (!turno) {
+      const p = await painelCaixa(admin, loja).catch(() => null)
+      for (const l of p?.acerto ?? []) {
+        aAcertarCentavos += Math.round(l.valorEsperado * 100)
+        if (l.maisAntigaEm && (!aAcertarDesde || l.maisAntigaEm < aAcertarDesde)) aAcertarDesde = l.maisAntigaEm
+      }
+      if (aAcertarCentavos > 0 && aAcertarDesde) {
+        const { data: cfg } = await admin.from('fin_config').select('horas_motoboy_pendente').eq('restaurante_id', loja).maybeSingle()
+        const horas = Number(cfg?.horas_motoboy_pendente ?? 2)
+        if (Date.now() - Date.parse(aAcertarDesde) >= horas * 3_600_000) {
+          await criarAlerta(admin, {
+            restauranteId: loja, tipo: 'dinheiro_a_acertar', gravidade: 'atencao',
+            mensagem: `Há ${formatarCentavos(aAcertarCentavos)} de entregas em dinheiro a acertar com o caixa fechado há mais de ${horas} h. Abra o caixa e faça o acerto dos motoboys.`,
+            dedupeMin: horas * 60, dedupeChave: 'a-acertar',
+          }).catch(() => {})
+        }
+      }
+    }
+    return NextResponse.json({ aberto: !!turno, abertoPorNome: turno?.aberto_por_nome ?? null, abertoEm: turno?.aberto_em ?? null, souEu: turno?.aberto_por === sessao.userId, aAcertarCentavos, aAcertarDesde }, { headers: { 'Cache-Control': 'no-store' } })
   }
   const veValores = veValoresFin(sessao.papel, acessos)
   const cfg = await configFin(admin, loja)

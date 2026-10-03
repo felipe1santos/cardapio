@@ -42,6 +42,8 @@ import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { CaixaTurnoGaveta } from '@/components/logistica/caixa-turno'
 import { atualizarConfigLoja, buscarFluxoLoja } from '@/lib/queries/ajustes'
 import { formatarReal } from '@/lib/moeda'
+import { AlertaTroco } from '@/components/pedidos/info-pagamento'
+import { rotuloForma } from '@/lib/pdv-pagamento'
 
 type Tab = 'despacho' | 'concluidos' | 'entregadores'
 
@@ -76,7 +78,6 @@ function inicioDoDiaISO() {
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
-const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -308,11 +309,13 @@ function ResumoPedido({ order, selo, extra }: { order: Pedido; selo?: React.Reac
         <span>{endereco(order)}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo)}</Badge>
         {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>}
+        {!order.pago && <Badge tone="paused">{order.tipo === 'entrega' ? 'A receber' : 'A pagar'}</Badge>}
         <span className="text-[13.5px] font-bold tabular-nums text-price-text">{brl(order.total)}</span>
         {extra}
       </div>
+      <div className="mt-1.5"><AlertaTroco p={order} /></div>
     </>
   )
 }
@@ -1816,7 +1819,7 @@ export default function LogisticaPage() {
                       </span>
                       {!entregue && <Badge tone="danger">Cancelado</Badge>}
                       <span className="hidden flex-shrink-0 sm:inline">
-                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[order.formaPagamento]}</Badge>
+                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo)}</Badge>
                       </span>
                       <span className="w-[84px] flex-shrink-0 text-right font-bold tabular-nums text-price-text">{brl(order.total)}</span>
                     </div>

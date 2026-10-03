@@ -50,6 +50,8 @@ import { formatarReal } from '@/lib/moeda'
 import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
+import { AlertaTroco, InfoPagamento } from '@/components/pedidos/info-pagamento'
+import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -104,7 +106,6 @@ const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
-const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
 function tempoDecorrido(iso: string, now: number) {
   const totalSec = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000))
@@ -273,6 +274,8 @@ export default function PedidosPage() {
   const [transit, setTransit] = useState<Pedido[]>([])
   const [concluded, setConcluded] = useState<Pedido[]>([])
   const [detail, setDetail] = useState<Pedido | null>(null)
+  const [editandoPag, setEditandoPag] = useState(false)
+  useEffect(() => { setEditandoPag(false) }, [detail?.id])
   const [cancelando, setCancelando] = useState<Pedido | null>(null)
   const [reimpEstado, setReimpEstado] = useState<'idle' | 'enviando' | 'ok' | 'erro'>('idle')
   const [now, setNow] = useState(() => Date.now())
@@ -1103,6 +1106,7 @@ export default function PedidosPage() {
                               <li key={line}>{line}</li>
                             ))}
                           </ul>
+                          <div className="mt-1.5"><InfoPagamento p={order} compacto /></div>
                           {order.status === 'preparando' && order.preparandoPor && (
                             <div className="mt-1 text-[11px] text-text-subtle">Em preparo por: {order.preparandoPor}</div>
                           )}
@@ -1329,9 +1333,16 @@ export default function PedidosPage() {
                     </span>
                   </div>
                 )}
-                <div className="flex items-center justify-between"><span className="text-text-subtle">Pagamento</span><span className="rounded-menuzia bg-price-bg px-2 py-0.5 font-semibold text-price-text">{PAY_LABEL[detail.formaPagamento]}</span></div>
-                {detail.formaPagamento === 'dinheiro' && detail.trocoPara !== null && (
-                  <div className="flex justify-between"><span className="text-text-subtle">Troco para</span><span className="font-medium">{brl(detail.trocoPara)}</span></div>
+                {detail.canal === 'mesa' ? (
+                  <div className="flex items-center justify-between"><span className="text-text-subtle">Pagamento</span><span className="font-medium">No fechamento da conta</span></div>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-2" data-testid="detalhes-pagamento"><span className="text-text-subtle">Pagamento</span><InfoPagamento p={detail} /></div>
+                    <AlertaTroco p={detail} />
+                    {detail.status !== 'cancelado' && (editandoPag
+                      ? <EditorPagamento pedidoId={detail.id} p={detail} onCancelar={() => setEditandoPag(false)} onFeito={() => { setEditandoPag(false); setDetail(null) }} />
+                      : <button type="button" onClick={() => setEditandoPag(true)} data-testid="detalhes-alterar-pagamento" className="text-[12px] font-semibold text-primary underline">Alterar pagamento</button>)}
+                  </>
                 )}
                 {detail.status === 'preparando' && detail.preparandoPor && (
                   <div className="flex justify-between"><span className="text-text-subtle">Em preparo por</span><span className="font-medium">{detail.preparandoPor}</span></div>

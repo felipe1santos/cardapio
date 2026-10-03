@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { ChefHat, Clock, GripVertical, Map as MapIcon, PackageCheck } from 'lucide-react'
 import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
+import { InfoPagamento } from '@/components/pedidos/info-pagamento'
 import { rotuloOrigemPedido } from '@/lib/pedido-origem'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { ComoFazerModal, Desfazer, ItemKds, corDoTempo, filtrar, usePrefsKds, useItensFeitos, useTelaCheiaEAcesa, type FiltroKds } from '@/components/cozinha/kds'
@@ -353,6 +354,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
+        <InfoPagamento p={pedido} compacto mostrarStatus={false} />
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
@@ -440,6 +442,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
+        <InfoPagamento p={pedido} compacto mostrarStatus={false} />
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
@@ -712,6 +715,7 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
+        <InfoPagamento p={pedido} compacto mostrarStatus={false} />
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">

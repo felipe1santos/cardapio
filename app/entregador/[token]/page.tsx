@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Lock, Bike, MapPin, Check, PackageCheck } from 'lucide-react'
-import { enderecoCompletoPedido, type CaixaEntregador, type FormaPagamento, type Pedido } from '@/lib/queries/pedidos'
+import { enderecoCompletoPedido, type CaixaEntregador, type Pedido } from '@/lib/queries/pedidos'
 import { RouteMap } from '@/components/maps/route-map'
 import { mascararTelefoneBR } from '@/lib/telefone'
 
 const brl = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
-const PAY_LABEL: Record<FormaPagamento, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
+import { rotuloForma } from '@/lib/pdv-pagamento'
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 interface PortalData {
@@ -269,7 +269,7 @@ export default function EntregadorPortalPage() {
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-alert-text">
-                      {PAY_LABEL[order.formaPagamento]}
+                      {rotuloForma(order.formaPagamento, order.cartaoTipo)}
                     </span>
                     {order.formaPagamento === 'dinheiro' && !order.pago && (
                       <span className="rounded-menuzia bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-warn">
@@ -352,7 +352,7 @@ export default function EntregadorPortalPage() {
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-alert-text">
-                        {PAY_LABEL[order.formaPagamento]}
+                        {rotuloForma(order.formaPagamento, order.cartaoTipo)}
                       </span>
                       {order.formaPagamento === 'dinheiro' && (
                         <span className="rounded-menuzia bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-warn">

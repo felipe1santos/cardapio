@@ -73,6 +73,8 @@ export interface Pedido {
   /** Ponto de referência informado pelo cliente ("ao lado da padaria"). Ajuda o entregador. */
   enderecoReferencia: string
   formaPagamento: FormaPagamento
+  /** Cartão escolhido no PDV (0135): 'credito' | 'debito'. Vitrine: nulo. */
+  cartaoTipo?: string | null
   trocoPara: number | null
   pago: boolean
   subtotal: number
@@ -137,6 +139,7 @@ interface PedidoRow {
   endereco_cidade: string | null
   endereco_referencia: string | null
   forma_pagamento: FormaPagamento
+  cartao_tipo?: string | null
   troco_para: number | null
   pago: boolean
   subtotal: number
@@ -181,7 +184,7 @@ interface PedidoRow {
 export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
-  forma_pagamento, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
+  forma_pagamento, cartao_tipo, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
   pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
@@ -203,6 +206,7 @@ export function mapPedido(row: PedidoRow): Pedido {
     enderecoCidade: row.endereco_cidade ?? '',
     enderecoReferencia: row.endereco_referencia ?? '',
     formaPagamento: row.forma_pagamento,
+    cartaoTipo: row.cartao_tipo ?? null,
     trocoPara: row.troco_para === null ? null : Number(row.troco_para),
     pago: row.pago,
     subtotal: Number(row.subtotal),

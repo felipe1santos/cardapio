@@ -3,6 +3,7 @@ import { contextoPresencial } from '@/lib/auth/presencial'
 import { sanearItensLancamento } from '@/lib/lancamento-mesa'
 import { ehUuid } from '@/lib/pdv-v2'
 import { lancar } from '@/lib/servicos/conta-presencial'
+import { lerPagamentoPdv } from '@/lib/pdv-pagamento'
 
 /**
  * Lançar na cozinha pelo PDV v2 — numa comanda aberta (balcão ou mesa) ou numa mesa
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
     saneado.itens,
     corpo.chave,
     'pdv',
+    lerPagamentoPdv(corpo.pagamento),
   )
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
   return NextResponse.json({ ok: true, ...r.valor }, { status: r.valor.idempotente ? 200 : 201 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acertoDosEntregadores, diaSaoPaulo, resumoDoDia, turnoDoInstante, type FechamentoEntregador, type PedidoCaixa, type Turno } from './caixa-turno'
+import { acertoDosEntregadores, acertoPendente, diaSaoPaulo, resumoDoDia, turnoDoInstante, type FechamentoEntregador, type PedidoCaixa, type Turno } from './caixa-turno'
 
 // Horários em São Paulo (UTC−3): "2026-09-29T21:00-03:00".
 const sp = (s: string) => new Date(`${s}-03:00`).toISOString()
@@ -72,5 +72,25 @@ describe('turno de caixa', () => {
   it('turno ainda aberto aceita pedidos até agora', () => {
     const aberto: Turno = { id: 't', abertoEm: sp('2026-09-29T18:00'), fechadoEm: null }
     expect(turnoDoInstante([aberto], sp('2026-09-30T03:00'))?.id).toBe('t')
+  })
+})
+
+describe('acertoPendente (financeiro ligado, 0135)', () => {
+  const ped = (id: string, entregadorId: string, total: number, entregueEm: string | null, status = 'entregue', forma = 'dinheiro', trocoPara: number | null = null) =>
+    ({ id, entregadorId, entregadorNome: entregadorId, total, trocoPara, formaPagamento: forma, status, entregueEm })
+  it('soma entregas em dinheiro depois do último acerto, sem depender de turno', () => {
+    const r = acertoPendente([
+      ped('a', 'm1', 30, '2026-10-02T10:00:00Z'), ped('b', 'm1', 20, '2026-10-02T12:00:00Z', 'entregue', 'dinheiro', 50),
+      ped('c', 'm1', 99, '2026-10-02T13:00:00Z', 'entregue', 'pix'), ped('d', 'm2', 10, null, 'em_rota'),
+    ], [{ entregadorId: 'm1', turnoId: null, fechadoEm: '2026-10-02T11:00:00Z', valorEsperado: 30, valorDeclarado: 30 }])
+    const m1 = r.find((l) => l.entregadorId === 'm1')!
+    expect(m1.valorEsperado).toBe(20)
+    expect(m1.trocoLevado).toBe(30)
+    expect(m1.pedidos).toBe(1)
+    expect(m1.maisAntigaEm).toBe('2026-10-02T12:00:00Z')
+    expect(r.find((l) => l.entregadorId === 'm2')?.emRota).toBe(1)
+  })
+  it('sem acerto nenhum: tudo pendente', () => {
+    expect(acertoPendente([ped('a', 'm1', 30, '2026-10-01T10:00:00Z')], [])[0].valorEsperado).toBe(30)
   })
 })

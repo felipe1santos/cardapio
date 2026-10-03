@@ -2,7 +2,7 @@
  * Turno de caixa (0114): leitura e escrita pelo servidor. Regras em lib/caixa-turno.ts.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { acertoDosEntregadores, diaSaoPaulo, resumoDoDia, type FechamentoEntregador, type LinhaEntregador, type PagamentoCaixa, type PedidoCaixa, type ResumoDiario, type Turno } from '@/lib/caixa-turno'
+import { acertoDosEntregadores, acertoPendente, diaSaoPaulo, resumoDoDia, type FechamentoEntregador, type LinhaEntregador, type PagamentoCaixa, type PedidoCaixa, type ResumoDiario, type Turno } from '@/lib/caixa-turno'
 import { lerTodas } from './ler-todas'
 
 export interface TurnoCaixa extends Turno {
@@ -40,13 +40,16 @@ async function carregar(admin: SupabaseClient, restauranteId: string, dia: strin
 
   const pedidos = (await lerTodas<Record<string, unknown>>((de, a) => admin
     .from('pedidos')
-    .select('id, entregador_id, total, troco_para, forma_pagamento, status, entregue_em, entregadores ( nome )')
+    .select('id, entregador_id, total, troco_para, forma_pagamento, status, entregue_em, pago, comanda_id, entregadores ( nome )')
     .eq('restaurante_id', restauranteId)
     .eq('forma_pagamento', 'dinheiro')
     .not('entregador_id', 'is', null)
     .or(`status.eq.em_rota,and(status.eq.entregue,entregue_em.gte.${inicioJanela},entregue_em.lt.${ate})`)
     .order('id', { ascending: true })
-    .range(de, a))).map((p): PedidoCaixa => ({
+    .range(de, a)))
+    .filter((p) => !(p.pago as boolean))
+    .map((p): PedidoCaixa & { comandaId: string | null } => ({
+    comandaId: (p.comanda_id as string | null) ?? null,
     id: p.id as string,
     entregadorId: p.entregador_id as string,
     entregadorNome: (p.entregadores as { nome?: string } | null)?.nome ?? 'Entregador',
@@ -56,6 +59,7 @@ async function carregar(admin: SupabaseClient, restauranteId: string, dia: strin
     status: p.status as string,
     entregueEm: (p.entregue_em as string | null) ?? null,
   }))
+  const pedidosNaoPagos = await semJaPagosNaConta(admin, pedidos)
 
   const ids = turnos.map((t) => t.id)
   const fechamentos: FechamentoEntregador[] = ids.length
@@ -72,14 +76,71 @@ async function carregar(admin: SupabaseClient, restauranteId: string, dia: strin
     .order('id', { ascending: true })
     .range(de, a))).map((p) => ({ forma: p.forma as string, valor: Number(p.valor), criadoEm: p.criado_em as string, estornado: !!p.estornado_em }))
 
-  return { turnos, turnoAberto, pedidos, fechamentos, pagamentos }
+  return { turnos, turnoAberto, pedidos: pedidosNaoPagos, fechamentos, pagamentos }
+}
+
+/**
+ * Entrega aberta pelo PDV (balcão) que o cliente JÁ pagou no caixa não é dinheiro do motoboy: tirar
+ * do acerto (antes contava duas vezes — no caixa e no motoboy). `pago` só vira true no fechamento da
+ * conta; a conta pode estar paga e ainda aberta, então confere os totais dela.
+ */
+async function semJaPagosNaConta<T extends { comandaId: string | null }>(admin: SupabaseClient, pedidos: T[]): Promise<T[]> {
+  const contas = [...new Set(pedidos.map((p) => p.comandaId).filter((c): c is string => !!c))]
+  if (!contas.length) return pedidos
+  const pagas = new Set<string>()
+  await Promise.all(contas.map(async (c) => {
+    const { data } = await admin.rpc('comanda_totais', { p_comanda: c })
+    const t = ((data as unknown[] | null) ?? [])[0] as { total?: number | string; restante?: number | string } | undefined
+    if (t && Number(t.total) > 0 && Number(t.restante) <= 0.004) pagas.add(c)
+  }))
+  return pedidos.filter((p) => !p.comandaId || !pagas.has(p.comandaId))
+}
+
+/**
+ * Financeiro ligado: entregas em dinheiro desde que o financeiro entrou na loja (primeiro lançamento
+ * do livro-caixa), no máximo 14 dias, e os acertos do mesmo período. Antes disso a loja não fazia
+ * acerto pelo sistema — contar o histórico seria cobrar do motoboy o que já foi resolvido por fora.
+ */
+async function carregarPendencias(admin: SupabaseClient, restauranteId: string) {
+  const { data: primeiro } = await admin.from('fin_lancamentos').select('criado_em').eq('restaurante_id', restauranteId).order('seq', { ascending: true }).limit(1)
+  const limite = Date.now() - 14 * 86_400_000
+  const desde = new Date(Math.max(limite, primeiro?.[0]?.criado_em ? Date.parse(primeiro[0].criado_em as string) : limite)).toISOString()
+  const pedidos = (await lerTodas<Record<string, unknown>>((de, a) => admin
+    .from('pedidos')
+    .select('id, entregador_id, total, troco_para, forma_pagamento, status, entregue_em, pago, comanda_id, entregadores ( nome )')
+    .eq('restaurante_id', restauranteId)
+    .eq('forma_pagamento', 'dinheiro')
+    .eq('pago', false)
+    .not('entregador_id', 'is', null)
+    .or(`status.eq.em_rota,and(status.eq.entregue,entregue_em.gte.${desde})`)
+    .order('id', { ascending: true })
+    .range(de, a))).map((p) => ({
+    comandaId: (p.comanda_id as string | null) ?? null,
+    id: p.id as string,
+    entregadorId: p.entregador_id as string,
+    entregadorNome: (p.entregadores as { nome?: string } | null)?.nome ?? 'Entregador',
+    total: Number(p.total),
+    trocoPara: p.troco_para === null ? null : Number(p.troco_para),
+    formaPagamento: p.forma_pagamento as string,
+    status: p.status as string,
+    entregueEm: (p.entregue_em as string | null) ?? null,
+  }))
+  const { data: f } = await admin.from('fechamentos_caixa').select('entregador_id, turno_id, fechado_em, criado_em, valor_esperado, valor_declarado')
+    .eq('restaurante_id', restauranteId).gte('criado_em', desde)
+  const fechamentos: FechamentoEntregador[] = (f ?? []).map((x) => ({ entregadorId: x.entregador_id, turnoId: x.turno_id, fechadoEm: x.fechado_em ?? x.criado_em, valorEsperado: Number(x.valor_esperado), valorDeclarado: Number(x.valor_declarado) }))
+  return acertoPendente(await semJaPagosNaConta(admin, pedidos), fechamentos)
 }
 
 export async function painelCaixa(admin: SupabaseClient, restauranteId: string, dia = diaSaoPaulo(new Date().toISOString())): Promise<PainelCaixa> {
+  const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', restauranteId).maybeSingle()
+  const financeiro = !!loja?.financeiro_ativo
+  // Sem financeiro (0135): o turno automático é o dia operacional — vira sozinho às 05:00.
+  if (!financeiro) await admin.rpc('caixa_turno_virar_dia', { p_restaurante: restauranteId }).then(() => {}, () => {})
   const d = await carregar(admin, restauranteId, dia)
   return {
     turnoAberto: d.turnoAberto,
-    acerto: d.turnoAberto ? acertoDosEntregadores(d.turnoAberto, d.pedidos, d.fechamentos) : [],
+    // Financeiro: o "a acertar" não depende do caixa aberto (entra no turno de quem acertar).
+    acerto: financeiro ? await carregarPendencias(admin, restauranteId) : d.turnoAberto ? acertoDosEntregadores(d.turnoAberto, d.pedidos, d.fechamentos) : [],
     resumoDia: resumoDoDia(dia, d.turnos, d.pedidos, d.fechamentos, d.pagamentos),
   }
 }

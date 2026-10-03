@@ -78,12 +78,20 @@ export async function POST(request: Request) {
       const r = await acertarEntregador(admin, sessao.restauranteId, eu, entregadorId, valor)
       if (!r.ok) return NextResponse.json({ error: r.erro }, { status: r.status })
       if (financeiro) {
-        const centavos = Math.round(valor * 100)
-        if (centavos > 0) {
+        // Gaveta recebe o que ele entregou; a carteira do motoboy baixa o esperado (a pendência
+        // lançada na entrega, 0135); a diferença vai para o resultado. Entra no turno de quem acertou.
+        const declarado = Math.round(valor * 100)
+        const esperado = Math.round(r.linha.valorEsperado * 100)
+        const dados = { esperado_centavos: esperado, declarado_centavos: declarado, pedidos: r.linha.pedidos }
+        const linhas = [
+          ...(declarado > 0 ? [{ carteira: 'gaveta' as const, tipo: 'acerto_motoboy' as const, valorCentavos: declarado, forma: 'dinheiro', entregadorId, dados }] : []),
+          ...(esperado > 0 ? [{ carteira: 'motoboy' as const, tipo: 'acerto_motoboy' as const, valorCentavos: -esperado, forma: 'dinheiro', entregadorId, dados }] : []),
+          ...(declarado !== esperado ? [{ carteira: 'resultado' as const, tipo: 'acerto_motoboy' as const, valorCentavos: declarado - esperado, forma: 'dinheiro', entregadorId, dados }] : []),
+        ]
+        if (linhas.length) {
           const l = await lancar(admin, {
             restauranteId: sessao.restauranteId, turnoId: r.turnoId, chave: `acerto:${r.id}`, origem: 'motoboy',
-            usuario: { id: sessao.userId, nome: sessao.nome }, motivo: 'Acerto do motoboy', dispositivo: (await dispositivoDaRequisicao()).dispositivo,
-            linhas: [{ carteira: 'gaveta', tipo: 'acerto_motoboy', valorCentavos: centavos, forma: 'dinheiro', entregadorId, dados: { esperado_centavos: Math.round(r.linha.valorEsperado * 100), pedidos: r.linha.pedidos } }],
+            usuario: { id: sessao.userId, nome: sessao.nome }, motivo: 'Acerto do motoboy', dispositivo: (await dispositivoDaRequisicao()).dispositivo, linhas,
           })
           if (!l.ok) console.error('[caixa] acerto fora do livro-caixa:', l.erro)
         }

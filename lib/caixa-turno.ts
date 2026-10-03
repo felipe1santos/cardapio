@@ -64,6 +64,8 @@ export interface LinhaEntregador {
   pedidos: number
   /** Pedidos em dinheiro ainda em rota (o dinheiro ainda não entrou). */
   emRota: number
+  /** Entrega mais antiga ainda sem acerto (para o alerta de "dinheiro a acertar"). */
+  maisAntigaEm?: string | null
 }
 
 /**
@@ -176,4 +178,28 @@ export function resumoDoDia(dia: string, turnos: Turno[], pedidos: PedidoCaixa[]
     pagamentosPorForma,
     foraDeTurno,
   }
+}
+
+/**
+ * Financeiro ligado (0135): o dinheiro "a acertar" de cada motoboy NÃO depende de caixa aberto.
+ * Vale toda entrega em dinheiro dele depois do ÚLTIMO acerto (de qualquer turno). Quem abrir o caixa
+ * vê tudo e o acerto entra no turno de quem acertar.
+ */
+export function acertoPendente(pedidos: PedidoCaixa[], fechamentos: FechamentoEntregador[]): LinhaEntregador[] {
+  const mapa = new Map<string, LinhaEntregador>()
+  const corte = new Map<string, number>()
+  for (const f of fechamentos) corte.set(f.entregadorId, Math.max(corte.get(f.entregadorId) ?? 0, ms(f.fechadoEm)))
+  for (const p of pedidos) {
+    if (!p.entregadorId || p.formaPagamento !== 'dinheiro') continue
+    const l = mapa.get(p.entregadorId) ?? { entregadorId: p.entregadorId, nome: p.entregadorNome ?? 'Entregador', valorEsperado: 0, trocoLevado: 0, pedidos: 0, emRota: 0, maisAntigaEm: null }
+    mapa.set(p.entregadorId, l)
+    if (p.status === 'em_rota') { l.emRota += 1; continue }
+    if (p.status !== 'entregue' || !p.entregueEm) continue
+    if (ms(p.entregueEm) <= (corte.get(p.entregadorId) ?? 0)) continue
+    l.valorEsperado = centavos(l.valorEsperado + Number(p.total))
+    l.trocoLevado = centavos(l.trocoLevado + trocoALevar(Number(p.total), p.trocoPara))
+    l.pedidos += 1
+    if (!l.maisAntigaEm || ms(p.entregueEm) < ms(l.maisAntigaEm)) l.maisAntigaEm = p.entregueEm
+  }
+  return [...mapa.values()].filter((l) => l.pedidos > 0 || l.emRota > 0)
 }

@@ -100,6 +100,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'fin.pin_recusado': 'PIN de aprovação recusado',
   'fin.verificou_integridade': 'Verificou a integridade dos registros',
   'pedido.trocou_entregador': 'Trocou o entregador do pedido',
+  'pedido.pagamento_alterado': 'Alterou a forma de pagamento / troco do pedido',
   'impressao.gerou_token': 'Gerou um token novo para o Assistente de Impressão',
   'caixa.abriu_turno': 'Abriu o turno de caixa',
   'caixa.fechou_turno': 'Fechou o turno de caixa',

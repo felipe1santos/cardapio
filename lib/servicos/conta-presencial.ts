@@ -7,6 +7,7 @@ import { montarHistorico, type EventoHistorico } from '@/lib/queries/conta'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { cidadeComUf, situacaoFinanceira, type TipoComanda, type EntregaManual, type DecisaoFechamento, type PagamentoFechamento } from '@/lib/pdv-v2'
 import { resolverFrete } from '@/lib/frete'
+import { paraPedido, type PagamentoPdv } from '@/lib/pdv-pagamento'
 import { processarFidelidadeComandaFechada } from '@/lib/fidelidade'
 import { validarCupom, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
@@ -587,6 +588,8 @@ export async function lancar(
   itens: NovoPedidoItemInput[],
   chave: string,
   origem: Origem,
+  /** Balcão (entrega/retirada): forma e troco escolhidos antes de lançar (0135). Mesa: não usa. */
+  pagamento?: PagamentoPdv | null,
 ): Promise<Resultado<{ id: string; numero: number; idempotente: boolean; comandaId: string }>> {
   const erroOpcoes = await conferirOpcoes(admin, itens)
   if (erroOpcoes) return falha(erroOpcoes)
@@ -622,6 +625,7 @@ export async function lancar(
     if (!c) return falha('Conta não encontrada.', 404, 'comanda_inexistente')
     if (c.status !== 'aberta') return falha('Esta conta já foi fechada.', 409, 'comanda_nao_aberta')
     tipo = c.tipo as TipoComanda
+    if (tipo === 'balcao' && !pagamento) return falha('Escolha a forma de pagamento. (Se não aparece a opção, atualize a página.)', 400, 'forma_obrigatoria')
     const m = (c as unknown as { mesas: { nome: string } | { nome: string }[] | null }).mesas
     mesaNome = (Array.isArray(m) ? m[0]?.nome : m?.nome) ?? null
   } else {
@@ -652,7 +656,7 @@ export async function lancar(
           r = await rpc<{ id: string; numero: number; idempotente: boolean }>(admin, 'comanda_lancar', {
             p_restaurante: ator.restauranteId,
             p_comanda: comandaId,
-            p_pedido: { subtotal: totais.subtotal, total: totais.total, cliente_nome: mesaNome },
+            p_pedido: { subtotal: totais.subtotal, total: totais.total, cliente_nome: mesaNome, ...(tipo === 'balcao' && pagamento ? paraPedido(pagamento) : {}) },
             p_itens: linhas,
             p_ator: ator.userId,
             p_ator_nome: ator.nome,
@@ -673,6 +677,7 @@ export async function lancar(
   if (!final.valor.idempotente) {
     await auditar(admin, ator, tipo === 'mesa' ? 'mesa.enviou_cozinha' : 'balcao.lancou', 'pedido', final.valor.id, {
       mesa: mesaNome, numero: final.valor.numero, itens: itens.length, origem, comanda_id: comandaId,
+      ...(tipo === 'balcao' && pagamento ? { pagamento: pagamento.escolha, troco_para: pagamento.trocoPara } : {}),
     })
   }
   return { ok: true, valor: { ...final.valor, comandaId: comandaId! } }

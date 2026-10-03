@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { EVENTO_SAIR_CAIXA, sairDoPainel } from '@/lib/sessao-cliente'
 import { tempoAberto } from '@/lib/financeiro/caixa-regras'
+import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { Janela, botao } from './apoio'
 
 /**
@@ -11,7 +12,7 @@ import { Janela, botao } from './apoio'
  * "Caixa aberto · Fulano · há 3 h" ou "Caixa fechado". Clicar leva ao Financeiro › Caixa.
  */
 export function AvisoCaixa() {
-  const [e, setE] = useState<{ aberto: boolean; abertoPorNome: string | null; abertoEm: string | null } | null>(null)
+  const [e, setE] = useState<{ aberto: boolean; abertoPorNome: string | null; abertoEm: string | null; aAcertarCentavos?: number } | null>(null)
   const [, setTick] = useState(0)
   useEffect(() => {
     let vivo = true
@@ -28,7 +29,8 @@ export function AvisoCaixa() {
       title={e.aberto ? `Caixa aberto por ${e.abertoPorNome ?? '—'}` : 'Caixa fechado — clique para abrir'}
       className={`hidden h-[30px] items-center gap-1.5 rounded-[3px] border px-2.5 text-[12px] font-semibold md:flex ${e.aberto ? 'border-[#bbf7d0] bg-[#DCFCE7] text-[#16A34A]' : 'border-[#fecaca] bg-[#FEE2E2] text-[#EF4444]'}`}>
       <span className={`h-[7px] w-[7px] rounded-full ${e.aberto ? 'bg-[#16A34A]' : 'bg-[#EF4444]'}`} />
-      {e.aberto ? <>Caixa aberto · {(e.abertoPorNome ?? '').split(' ')[0]} · {e.abertoEm ? tempoAberto(e.abertoEm) : ''}</> : 'Caixa fechado'}
+      {e.aberto ? <>Caixa aberto · {(e.abertoPorNome ?? '').split(' ')[0]} · {e.abertoEm ? tempoAberto(e.abertoEm) : ''}</>
+        : e.aAcertarCentavos ? <span data-testid="aviso-a-acertar">Caixa fechado · {formatarCentavos(e.aAcertarCentavos)} a acertar</span> : 'Caixa fechado'}
     </a>
   )
 }
