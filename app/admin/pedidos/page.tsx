@@ -5,8 +5,12 @@ import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import {
   type LucideIcon,
+  Bell,
   BellRing,
   BellOff,
+  ChevronDown,
+  MoreHorizontal,
+  Volume2,
   Bike,
   Columns3,
   Maximize2,
@@ -34,7 +38,11 @@ import { notificarPedido } from '@/lib/notificar'
 import { etiquetasDoPedido, referenciaDoLancamento, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
 import { EtiquetaAtendimento, EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
-import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
+import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
+import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
+import { useAlarmePedidos } from '@/components/pedidos/use-alarme'
+import { OPCOES_REPETICAO, TEXTO_SOM_BLOQUEADO } from '@/lib/alarme-pedidos'
+import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
@@ -92,9 +100,6 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
   },
 }
 
-/** Base dos botões sólidos da barra de ações do Kanban (cor forte + ícone). */
-const TOOL_BTN =
-  'inline-flex items-center gap-1.5 rounded-menuzia px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors'
 
 const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
   { label: 'Recebido', status: 'recebido' },
@@ -120,61 +125,9 @@ function timerTone(mins: number) {
   return 'bg-danger-bg text-danger'
 }
 
-/** Intervalo de repetição do alarme de pedido novo (ms). */
-const ALARME_INTERVALO_MS = 10_000
-/** Tempo máximo que o alarme fica repetindo sem ninguém aceitar (ms). */
-const ALARME_LIMITE_MS = 120_000
-/** Arquivo de som do alarme de pedido novo (servido de public/). */
-const ALARME_SOM_SRC = '/sounds/som-telefone-alarme.mp3'
 /** Com o aceite automático ligado, o pedido toca o alarme por esse tempo antes de ir sozinho pra "Preparando". */
 const AUTO_ACEITE_DELAY_MS = 5_000
 
-/**
- * Fallback do alarme de pedido novo quando o mp3 não pode tocar (bloqueio de
- * autoplay, arquivo indisponível): 3 toques curtos alternando dois tons.
- * Reaproveita o AudioContext recebido — nunca cria um novo por toque.
- */
-function playNewOrderSound(ctx: AudioContext) {
-  try {
-    // Navegadores só liberam áudio após interação do usuário. Nesse caso
-    // pedimos o resume mas NÃO esperamos por ele: a promise pode ficar pendente
-    // até a primeira interação e, se aguardássemos, os toques represados
-    // disparariam todos juntos nesse momento (sobrepostos e estourando).
-    // Cada repetição do alarme tenta de novo; assim que o contexto estiver
-    // liberado, o toque seguinte sai normalmente.
-    if (ctx.state !== 'running') {
-      void ctx.resume().catch(() => {})
-      return
-    }
-
-    const PICO = 0.85 // patamar alto, abaixo de 1.0 para não distorcer
-    const DUR = 0.16
-    const GAP = 0.2
-    const beep = (freq: number, start: number) => {
-      const t0 = ctx.currentTime + start
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'square' // mais penetrante que a senoide em cozinha barulhenta
-      osc.frequency.setValueAtTime(freq, t0)
-      gain.gain.setValueAtTime(0.0001, t0)
-      gain.gain.exponentialRampToValueAtTime(PICO, t0 + 0.015) // attack curto, sem clique
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + DUR) // decay suave
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(t0)
-      osc.stop(t0 + DUR + 0.02)
-      osc.onended = () => {
-        osc.disconnect()
-        gain.disconnect()
-      }
-    }
-    beep(880, 0)
-    beep(1175, GAP)
-    beep(880, GAP * 2)
-  } catch {
-    /* navegador sem suporte a Web Audio — silencioso */
-  }
-}
 
 function resumoItens(p: Pedido): string[] {
   const linhas = p.itens.map((i) => `${i.quantidade}x ${i.nome}${i.tamanhoNome ? ` (${i.tamanhoNome})` : ''}${i.saborNome ? ` - ${i.saborNome}` : ''}`)
@@ -227,7 +180,7 @@ const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: st
 function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void; rotulo?: string }) {
   const t = FLUXO_TONE[tone]
   return (
-    <div className={`rounded-menuzia border border-border border-l-[3px] shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`}>
+    <div className={`rounded-menuzia border border-border border-l-[3px] shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`} data-testid={`fluxo-${order.numero}`}>
       <button onClick={onClick} className="w-full p-3 text-left">
         <div className="flex items-center justify-between">
           <span className="text-sm font-bold">#{order.numero}</span>
@@ -281,19 +234,12 @@ export default function PedidosPage() {
   const [now, setNow] = useState(() => Date.now())
   const [showCol4, setShowCol4] = useState(false)
   const [showStats, setShowStats] = useState(true)
-  const recebidosConhecidos = useRef<Set<string> | null>(null)
   // Realtime e o poll de 8s podem disparar refetch() quase ao mesmo tempo; sem
   // isso, a resposta mais lenta pode resolver depois e sobrescrever o estado
   // com dados desatualizados (card sumindo, alarme disparando fora de hora).
   const refetchSeq = useRef(0)
-  const [somAtivo, setSomAtivo] = useState(true)
-  const somRef = useRef(true)
-  const [alarmeTocando, setAlarmeTocando] = useState(false)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const audioElRef = useRef<HTMLAudioElement | null>(null)
-  const alarmeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const alarmeLimiteRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendentesRef = useRef(false)
+  const alarme = useAlarmePedidos()
+  const aoAtualizarAlarme = alarme.aoAtualizarPedidos
   const [autoAceitar, setAutoAceitar] = useState(false)
   const autoAceitarRef = useRef(false)
   const autoAceiteTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -307,101 +253,21 @@ export default function PedidosPage() {
   // no default antigo pra não mostrar botões que a loja não pediu.
   const [fluxo, setFluxo] = useState(FLUXO_LOJA_PADRAO)
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
+  const [maisAberto, setMaisAberto] = useState(false)
+  // Esc fecha os menus do topo (Mais e status da loja).
+  useEffect(() => {
+    if (!maisAberto && !lojaMenuOpen) return
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMaisAberto(false); setLojaMenuOpen(false) } }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [maisAberto, lojaMenuOpen])
 
-  // restaura preferências (4º kanban, som e barra de métricas)
+  // restaura preferências (4º kanban e barra de métricas; o som é restaurado em use-alarme)
   useEffect(() => {
     setShowCol4(localStorage.getItem('menuzia:kanban-col4') === '1')
     setShowStats(localStorage.getItem('menuzia:kanban-stats') !== '0')
-    const som = localStorage.getItem('menuzia:kanban-som') !== '0'
-    setSomAtivo(som)
-    somRef.current = som
   }, [])
 
-  // ── Alarme de pedido novo (repete até alguém aceitar) ─────────────────────
-  /** AudioContext único da página — criado sob demanda, fechado no unmount. */
-  const getAudioCtx = useCallback(() => {
-    if (audioCtxRef.current) return audioCtxRef.current
-    try {
-      const AudioCtx =
-        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      if (!AudioCtx) return null
-      audioCtxRef.current = new AudioCtx()
-      return audioCtxRef.current
-    } catch {
-      return null
-    }
-  }, [])
-
-  /** Elemento de áudio único do alarme (mp3) — criado sob demanda. */
-  const getAlarmeAudio = useCallback(() => {
-    if (audioElRef.current) return audioElRef.current
-    try {
-      const el = new Audio(ALARME_SOM_SRC)
-      el.preload = 'auto'
-      audioElRef.current = el
-      return el
-    } catch {
-      return null
-    }
-  }, [])
-
-  /** Encerra o ciclo de alarme: limpa interval, limite, corta o som e o indicador visual. */
-  const pararAlarme = useCallback(() => {
-    if (alarmeIntervalRef.current) {
-      clearInterval(alarmeIntervalRef.current)
-      alarmeIntervalRef.current = null
-    }
-    if (alarmeLimiteRef.current) {
-      clearTimeout(alarmeLimiteRef.current)
-      alarmeLimiteRef.current = null
-    }
-    if (audioElRef.current && !audioElRef.current.paused) {
-      audioElRef.current.pause()
-      audioElRef.current.currentTime = 0
-    }
-    setAlarmeTocando(false)
-  }, [])
-
-  /**
-   * Inicia (ou reinicia) o ciclo de alarme. Toca na hora e repete a cada 10s
-   * enquanto houver pedido "recebido" pendente, parando em 2 minutos.
-   * Chamar de novo com um ciclo em andamento apenas reinicia a contagem —
-   * nunca cria um segundo timer em paralelo.
-   */
-  const iniciarAlarme = useCallback(() => {
-    if (!somRef.current) return
-    pararAlarme() // garante timer único
-    setAlarmeTocando(true)
-
-    const tocar = () => {
-      // Preferência: o mp3 do alarme (SOM-TELEFONE-ALARME). Se o navegador
-      // bloquear o play (autoplay sem interação) ou o arquivo falhar, cai no
-      // beep sintetizado via Web Audio para não deixar o pedido passar mudo.
-      const el = getAlarmeAudio()
-      const fallback = () => {
-        const ctx = getAudioCtx()
-        if (ctx) playNewOrderSound(ctx)
-      }
-      if (!el) {
-        fallback()
-        return
-      }
-      el.currentTime = 0
-      void el.play().catch(fallback)
-    }
-    tocar()
-
-    alarmeIntervalRef.current = setInterval(() => {
-      // lê sempre o estado ATUAL via refs (evita stale closure)
-      if (!somRef.current || !pendentesRef.current) {
-        pararAlarme()
-        return
-      }
-      tocar()
-    }, ALARME_INTERVALO_MS)
-
-    alarmeLimiteRef.current = setTimeout(pararAlarme, ALARME_LIMITE_MS)
-  }, [getAudioCtx, getAlarmeAudio, pararAlarme])
 
   // ── Aceite automático de pedidos ──────────────────────────────────────────
   /** Cancela o timer de aceite automático de um pedido (ou de todos, sem argumento). */
@@ -452,13 +318,7 @@ export default function PedidosPage() {
   }
 
   function toggleSom() {
-    setSomAtivo((v) => {
-      const next = !v
-      somRef.current = next
-      localStorage.setItem('menuzia:kanban-som', next ? '1' : '0')
-      if (!next) pararAlarme() // desligar o som corta o ciclo na hora
-      return next
-    })
+    alarme.setSomAtivo(!alarme.somAtivo)
   }
 
   // modo tela cheia: esconde a sidebar e entra em fullscreen do navegador
@@ -520,17 +380,6 @@ export default function PedidosPage() {
         setTransit(logistica.filter((p) => p.status === 'em_rota'))
         setConcluded(finalizados)
 
-        // detecta pedidos novos (status "recebido") para tocar o alarme — o card
-        // pisca via CSS enquanto estiver "recebido" (até alguém aceitar).
-        // Ignora pedidos devolvidos pela cozinha (preparandoNotificado=true): voltam
-        // pra fila mas não são "novos", então não disparam som de novo pedido.
-        const recebidosAgora = new Set(kanban.filter((p) => p.status === 'recebido' && !p.preparandoNotificado).map((p) => p.id))
-        const anteriores = recebidosConhecidos.current
-        if (anteriores) {
-          const novos = [...recebidosAgora].filter((pid) => !anteriores.has(pid))
-          if (novos.length > 0 && somRef.current) iniciarAlarme()
-        }
-        recebidosConhecidos.current = recebidosAgora
 
         // com o aceite automático ligado, agenda o avanço dos pedidos pendentes
         agendarAutoAceite(kanban)
@@ -538,62 +387,21 @@ export default function PedidosPage() {
         if (seq === refetchSeq.current) setError('Não foi possível carregar os pedidos.')
       }
     },
-    [supabase, iniciarAlarme, agendarAutoAceite]
+    [supabase, agendarAutoAceite]
   )
 
-  // Espelha em ref se ainda existe pedido "recebido" pendente e corta o alarme
-  // assim que a fila zera (inclusive no update otimista do botão Aceitar).
+  // Toda mudança na lista (tempo real, poll, reconexão, aceite otimista) passa pelo alarme:
+  // ele toca cada pedido "recebido" que ainda não tocou e para quando a fila zera.
+  // Pedido devolvido pela cozinha (preparandoNotificado) não é "novo".
   useEffect(() => {
     ordersRef.current = orders
-    const pendentes = orders.some((p) => p.status === 'recebido' && !p.preparandoNotificado)
-    pendentesRef.current = pendentes
-    if (!pendentes) pararAlarme()
-  }, [orders, pararAlarme])
+    aoAtualizarAlarme(orders.filter((p) => p.status === 'recebido' && !p.preparandoNotificado).map((p) => ({ id: p.id, numero: p.numero })))
+  }, [orders, aoAtualizarAlarme])
 
-  // O navegador só libera áudio depois de alguma interação. Destravamos o
-  // contexto no primeiro clique/tecla da sessão para que o alarme já saia no
-  // primeiro pedido — sem isso, um painel aberto e intocado ficaria mudo.
-  useEffect(() => {
-    const destravar = () => {
-      const ctx = getAudioCtx()
-      if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => {})
-      // destrava também o elemento <audio> do mp3: um play mudo + pause na
-      // primeira interação libera os plays programáticos seguintes.
-      const el = getAlarmeAudio()
-      if (el && el.paused) {
-        el.muted = true
-        void el
-          .play()
-          .then(() => {
-            el.pause()
-            el.currentTime = 0
-            el.muted = false
-          })
-          .catch(() => {
-            el.muted = false
-          })
-      }
-    }
-    window.addEventListener('pointerdown', destravar, { once: true })
-    window.addEventListener('keydown', destravar, { once: true })
-    return () => {
-      window.removeEventListener('pointerdown', destravar)
-      window.removeEventListener('keydown', destravar)
-    }
-  }, [getAudioCtx, getAlarmeAudio])
-
-  // Cleanup geral do alarme no unmount: timers + AudioContext + áudio + aceite automático.
+  // Cleanup no unmount: timers do aceite automático (o alarme cuida de si em use-alarme).
   useEffect(() => {
     const timers = autoAceiteTimersRef.current
     return () => {
-      if (alarmeIntervalRef.current) clearInterval(alarmeIntervalRef.current)
-      if (alarmeLimiteRef.current) clearTimeout(alarmeLimiteRef.current)
-      alarmeIntervalRef.current = null
-      alarmeLimiteRef.current = null
-      audioCtxRef.current?.close().catch(() => {})
-      audioCtxRef.current = null
-      audioElRef.current?.pause()
-      audioElRef.current = null
       for (const t of timers.values()) clearTimeout(t)
       timers.clear()
     }
@@ -676,6 +484,17 @@ export default function PedidosPage() {
     const interval = setInterval(() => refetch(restauranteId), intervaloMs)
     return () => clearInterval(interval)
   }, [restauranteId, refetch, intervaloMs])
+
+  // Internet voltou ou a aba voltou a ficar visível: busca na hora o que entrou nesse meio
+  // tempo (o alarme toca o que chegou), sem esperar o poll nem o tempo real reconectar.
+  useEffect(() => {
+    if (!restauranteId) return
+    const buscar = () => refetch(restauranteId)
+    const vis = () => { if (document.visibilityState === 'visible') buscar() }
+    window.addEventListener('online', buscar)
+    document.addEventListener('visibilitychange', vis)
+    return () => { window.removeEventListener('online', buscar); document.removeEventListener('visibilitychange', vis) }
+  }, [restauranteId, refetch])
 
   // relógio para os tempos decorridos (ticando a cada segundo)
   useEffect(() => {
@@ -838,7 +657,6 @@ export default function PedidosPage() {
   const emEntrega = transit.length
   // Pedido que ninguém fechou continua aqui para sempre (o #95 ficou em rota desde
   // julho). Nada se fecha sozinho — mas a tela cobra, senão ninguém vê (lib/pedido-parado.ts).
-  const avisoParados = avisoDePedidosParados([...orders, ...transit], now)
   const tempoMedioMin = orders.length
     ? Math.round(orders.reduce((s, o) => s + tempoDecorrido(o.criadoEm, now).mins, 0) / orders.length)
     : 0
@@ -846,123 +664,205 @@ export default function PedidosPage() {
     orders.reduce((s, o) => s + o.total, 0) +
     concluded.filter((o) => o.status === 'entregue').reduce((s, o) => s + o.total, 0)
 
-  const topActions = (
+  // ── Barra do topo (2026-10-03) ──────────────────────────────────────────────
+  // Controles logo depois do título (esquerda), separados dos botões do sistema (direita).
+  // 44 px, ícone + texto, estado ligado/desligado visível e no tooltip. Abaixo de xl, os menos
+  // usados (Métricas, Entregas, Tela cheia) vão para "Mais ⋯".
+  const parados = [...orders, ...transit].filter((p) => pedidoParado(p, now))
+  const avisos: Aviso[] = parados.length
+    ? [{
+        id: 'parados',
+        titulo: parados.length === 1 ? '1 pedido aberto há mais de 12 horas' : `${parados.length} pedidos abertos há mais de 12 horas`,
+        texto: 'Marque como entregue, não entregue ou cancele. Enquanto isso, contam como pendentes na taxa de conclusão.',
+        pedidos: parados.map((p) => ({ id: p.id, numero: p.numero, cliente: p.clienteNome, status: p.status, aberto: tempoParado(p.criadoEm, now) })),
+      }]
+    : []
+  const acharPedido = (id: string) => [...orders, ...transit].find((o) => o.id === id)
+  /** "Ver no kanban": abre a coluna certa, rola até o card e pisca a borda. */
+  function verNoKanban(id: string) {
+    const p = acharPedido(id)
+    if (!p) return
+    if (p.status === 'em_rota' && !showCol4) toggleCol4()
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-testid="pedido-${p.numero}"], [data-testid="fluxo-${p.numero}"]`)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+      el.setAttribute('data-destaque', '1')
+      el.animate?.([{ boxShadow: '0 0 0 0 rgba(245,158,11,0)' }, { boxShadow: '0 0 0 4px rgba(245,158,11,0.9)' }, { boxShadow: '0 0 0 0 rgba(245,158,11,0)' }], { duration: 900, iterations: 3 })
+      setTimeout(() => el.removeAttribute('data-destaque'), 3000)
+    }, 150)
+  }
+  async function avisoNaoEntregue(id: string) {
+    try {
+      await cancelarPedidoRequest(id, 'nao_entregue', 'Pedido aberto há mais de 12 horas — marcado como não entregue no aviso do painel.')
+      setOrders((prev) => prev.filter((o) => o.id !== id))
+      setTransit((prev) => prev.filter((o) => o.id !== id))
+      if (restauranteId) refetch(restauranteId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível marcar como não entregue.')
+    }
+  }
+
+  const BTN = 'inline-flex h-[44px] flex-shrink-0 items-center gap-2 rounded-[3px] border px-3 text-[13px] font-semibold transition-colors'
+  const estadoChip = (ligado: boolean) => (
+    <span className={`rounded-full px-1.5 py-[1px] text-[10.5px] font-bold ${ligado ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#F3F4F6] text-[#6B7280]'}`}>{ligado ? 'Ligado' : 'Desligado'}</span>
+  )
+  const statusTexto = lojaStatus && lojaStatus.statusLoja !== 'automatico' ? 'Manual' : 'Automático'
+  const controles = (
     <>
       <div className="relative">
         <button
           onClick={() => setLojaMenuOpen((v) => !v)}
-          title="Clique para abrir/fechar a loja manualmente"
-          className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-            lojaAberta ? 'bg-price-bg text-price-text hover:brightness-95' : 'bg-danger-bg text-danger hover:brightness-95'
-          }`}
+          title={`${lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'} (${statusTexto}). Clique para abrir ou fechar a loja manualmente.`}
+          className={`${BTN} ${lojaAberta ? 'border-[#86EFAC] bg-price-bg text-price-text hover:brightness-95' : 'border-[#FCA5A5] bg-danger-bg text-danger hover:brightness-95'}`}
+          data-testid="kanban-status-loja"
         >
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-2.5 w-2.5">
             {lojaAberta && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-price-text opacity-60" />}
-            <span className={`relative inline-flex h-2 w-2 rounded-full ${lojaAberta ? 'bg-price-text' : 'bg-danger'}`} />
+            <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${lojaAberta ? 'bg-price-text' : 'bg-danger'}`} />
           </span>
           {lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'}
-          {lojaStatus && lojaStatus.statusLoja !== 'automatico' && (
-            <span className="rounded-full bg-white/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide">Manual</span>
-          )}
+          <span className="rounded-full bg-white/70 px-1.5 py-[1px] text-[10.5px] font-bold">{statusTexto}</span>
+          <ChevronDown className="h-4 w-4 opacity-70" />
         </button>
         {lojaMenuOpen && (
           <>
             <button className="fixed inset-0 z-40 cursor-default" onClick={() => setLojaMenuOpen(false)} aria-label="Fechar menu" />
             <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-menuzia border border-border bg-white py-1.5 shadow-lg">
-              <button
-                onClick={() => mudarStatusLoja('aberto_manual')}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-text-main hover:bg-page"
-              >
+              <button onClick={() => mudarStatusLoja('aberto_manual')} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page">
                 <span className="h-2 w-2 rounded-full bg-price-text" /> Forçar aberta agora
               </button>
-              <button
-                onClick={() => mudarStatusLoja('fechado_manual')}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-text-main hover:bg-page"
-              >
+              <button onClick={() => mudarStatusLoja('fechado_manual')} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page">
                 <span className="h-2 w-2 rounded-full bg-danger" /> Fechar agora
               </button>
-              <button
-                onClick={() => mudarStatusLoja('automatico')}
-                className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-[12px] font-medium text-text-main hover:bg-page"
-              >
+              <button onClick={() => mudarStatusLoja('automatico')} className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page">
                 <span className="h-2 w-2 rounded-full bg-text-subtle" /> Voltar ao automático (grade de horário)
               </button>
-              <p className="px-3 pt-1.5 text-[10px] leading-tight text-text-subtle">
+              <p className="px-3 pt-1.5 text-[11px] leading-tight text-text-subtle">
                 Grade de horário semanal se configura em Ajustes. Forçar aberta/fechada aqui vale até você reverter.
               </p>
             </div>
           </>
         )}
       </div>
-      <button
-        onClick={toggleSom}
-        title={alarmeTocando ? 'Alarme de pedido novo tocando — clique para silenciar' : somAtivo ? 'Som ligado' : 'Som desligado'}
-        className={`${TOOL_BTN} ${
-          alarmeTocando
-            ? 'bg-status-pending text-white hover:brightness-95'
-            : somAtivo
-              ? 'bg-primary text-white hover:bg-primary-dark'
-              : 'bg-page text-text-subtle hover:bg-border'
-        }`}
-      >
-        {somAtivo ? <BellRing className={`h-4 w-4 ${alarmeTocando ? 'animate-pulse' : ''}`} /> : <BellOff className="h-4 w-4" />}{' '}
-        {alarmeTocando ? 'Silenciar' : 'Som'}
-      </button>
-      <button
-        onClick={toggleAutoAceite}
-        title={
-          autoAceitar
-            ? 'Aceite automático ligado — pedido novo toca o alarme por alguns segundos e vai sozinho para Preparando'
-            : 'Aceite automático desligado — pedidos novos aguardam aceite manual'
-        }
-        className={`${TOOL_BTN} ${autoAceitar ? 'bg-status-ready text-white hover:brightness-95' : 'bg-page text-text-subtle hover:bg-border'}`}
-      >
-        <Zap className="h-4 w-4" /> Aceite auto
-      </button>
-      {usaDespachoDeRotas(fluxo) ? (
-        <button onClick={() => setRotaOpen(true)} title="Despacho de rotas" className={`${TOOL_BTN} bg-status-pending text-white hover:brightness-95`}>
-          <Bike className="h-4 w-4" /> Rotas
+      {alarme.tocando ? (
+        <button onClick={alarme.silenciar} title="Alarme de pedido novo tocando. Clique para silenciar (o próximo pedido novo toca de novo)." className={`${BTN} border-status-pending bg-status-pending text-white hover:brightness-95`} data-testid="kanban-silenciar">
+          <BellRing className="h-[18px] w-[18px] animate-pulse" /> Silenciar
         </button>
       ) : (
         <button
-          disabled
-          data-rotas-desligado
-          title="Despacho de rotas desligado: esta loja não trabalha com motoboy. A entrega é concluída aqui no Kanban."
-          className={`${TOOL_BTN} cursor-not-allowed bg-page text-text-subtle opacity-60`}
+          onClick={toggleSom}
+          aria-pressed={alarme.somAtivo}
+          title={alarme.somAtivo ? 'Som de pedido novo: LIGADO. Toca a cada pedido novo e repete até alguém aceitar. Clique para desligar.' : 'Som de pedido novo: DESLIGADO. Clique para ligar.'}
+          className={`${BTN} ${alarme.somAtivo ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/15' : 'border-border bg-white text-text-subtle hover:bg-page'}`}
+          data-testid="kanban-som"
         >
-          <Bike className="h-4 w-4" /> Rotas
+          {alarme.somAtivo ? <BellRing className="h-[18px] w-[18px]" /> : <BellOff className="h-[18px] w-[18px]" />} Som {estadoChip(alarme.somAtivo)}
         </button>
       )}
       <button
-        onClick={toggleStats}
-        title={showStats ? 'Ocultar métricas (pedidos abertos, tempo médio…)' : 'Mostrar métricas'}
-        className={`${TOOL_BTN} ${showStats ? 'bg-page text-text-subtle hover:bg-border' : 'bg-text-main text-white hover:opacity-90'}`}
+        onClick={toggleAutoAceite}
+        aria-pressed={autoAceitar}
+        title={autoAceitar
+          ? 'Aceite automático: LIGADO. Pedido novo toca o alarme por alguns segundos e vai sozinho para Preparando. Clique para desligar.'
+          : 'Aceite automático: DESLIGADO. Pedidos novos esperam alguém aceitar. Clique para ligar.'}
+        className={`${BTN} ${autoAceitar ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D] hover:brightness-95' : 'border-border bg-white text-text-subtle hover:bg-page'}`}
+        data-testid="kanban-aceite"
       >
-        {showStats ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} Métricas
+        <Zap className="h-[18px] w-[18px]" /> Aceite auto {estadoChip(autoAceitar)}
       </button>
-      <button
-        onClick={toggleCol4}
-        title="Coluna de entregas e concluídos"
-        className={`${TOOL_BTN} ${showCol4 ? 'bg-purple text-white hover:bg-purple-600' : 'bg-page text-text-subtle hover:bg-border'}`}
-      >
-        <Columns3 className="h-4 w-4" /> Entregas
+      {usaDespachoDeRotas(fluxo) ? (
+        <button onClick={() => setRotaOpen(true)} title="Despacho de rotas: monte as rotas dos motoboys no mapa." className={`${BTN} max-2xl:hidden border-border bg-white text-text-main hover:border-status-pending hover:text-status-pending`} data-testid="kanban-rotas">
+          <Bike className="h-[18px] w-[18px]" /> Rotas
+        </button>
+      ) : (
+        <span title="Rotas desligado: esta loja não trabalha com motoboy (Ajustes › Entrega). A entrega é concluída aqui no Kanban." className="inline-flex max-2xl:hidden" data-testid="kanban-rotas-desligado">
+          <button disabled data-rotas-desligado className={`${BTN} pointer-events-none cursor-not-allowed border-border bg-page text-text-subtle opacity-60`}>
+            <Bike className="h-[18px] w-[18px]" /> Rotas
+          </button>
+        </span>
+      )}
+      <button onClick={toggleStats} aria-pressed={showStats} title={showStats ? 'Métricas: VISÍVEIS (pedidos abertos, tempo médio, em entrega, faturamento). Clique para ocultar.' : 'Métricas: OCULTAS. Clique para mostrar.'}
+        className={`${BTN} max-[1799px]:hidden ${showStats ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-white text-text-subtle hover:bg-page'}`} data-testid="kanban-metricas">
+        {showStats ? <Eye className="h-[18px] w-[18px]" /> : <EyeOff className="h-[18px] w-[18px]" />} Métricas {estadoChip(showStats)}
       </button>
-      {/* "Tela cheia" esconde a sidebar — no celular ela já é gaveta, então o botão não
-          faz nada e ainda empurra a barra de ações para uma terceira linha. */}
-      <button
-        onClick={toggleFocus}
-        title={focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
-        className={`${TOOL_BTN} max-lg:hidden ${focusMode ? 'bg-text-main text-white hover:opacity-90' : 'bg-page text-text-subtle hover:bg-border'}`}
-      >
-        {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} {focusMode ? 'Sair' : 'Tela cheia'}
+      <button onClick={toggleCol4} aria-pressed={showCol4} title={showCol4 ? 'Coluna de entregas e concluídos: VISÍVEL. Clique para ocultar.' : 'Coluna de entregas e concluídos: OCULTA. Clique para mostrar.'}
+        className={`${BTN} max-[1799px]:hidden ${showCol4 ? 'border-[#D8B4FE] bg-[#FAF5FF] text-purple' : 'border-border bg-white text-text-subtle hover:bg-page'}`} data-testid="kanban-entregas">
+        <Columns3 className="h-[18px] w-[18px]" /> Entregas
       </button>
+      <button onClick={toggleFocus} title={focusMode ? 'Sair da tela cheia' : 'Tela cheia: esconde o menu lateral e ocupa a tela toda'}
+        className={`${BTN} max-[1799px]:hidden ${focusMode ? 'border-text-main bg-text-main text-white' : 'border-border bg-white text-text-subtle hover:bg-page'}`} data-testid="kanban-tela-cheia">
+        {focusMode ? <Minimize2 className="h-[18px] w-[18px]" /> : <Maximize2 className="h-[18px] w-[18px]" />} {focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
+      </button>
+      <div className="relative">
+        <button onClick={() => setMaisAberto((v) => !v)} aria-expanded={maisAberto} title="Mais opções: testar som, repetição do alarme, notificações" className={`${BTN} border-border bg-white text-text-main hover:bg-page`} data-testid="kanban-mais">
+          <MoreHorizontal className="h-[18px] w-[18px]" /> Mais
+        </button>
+        {maisAberto && (
+          <>
+            <button className="fixed inset-0 z-40 cursor-default" onClick={() => setMaisAberto(false)} aria-label="Fechar menu" />
+            <div className="absolute left-0 top-full z-50 mt-1.5 w-[min(288px,calc(100vw-24px))] sm:left-auto sm:right-0 rounded-menuzia border border-border bg-white py-1.5 shadow-lg" data-testid="kanban-mais-menu">
+              <button onClick={() => { void alarme.testar(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page" data-testid="kanban-testar-som">
+                <Volume2 className="h-4 w-4" /> Testar som
+              </button>
+              <div className="border-t border-border px-3 py-2">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Repetir o alarme</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {OPCOES_REPETICAO.map((s) => (
+                    <button key={s} onClick={() => alarme.setRepetirSeg(s)} aria-pressed={alarme.repetirSeg === s}
+                      className={`h-[32px] rounded-[3px] border px-2 text-[12px] font-semibold ${alarme.repetirSeg === s ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:bg-page'}`} data-testid={`kanban-repetir-${s}`}>
+                      {s === 0 ? 'Não repetir' : `${s} s`}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-text-subtle">Repete enquanto houver pedido novo sem aceitar.</p>
+              </div>
+              {alarme.permissaoNotif !== 'sem_suporte' && (
+                <button onClick={() => void alarme.pedirNotificacao()} disabled={alarme.permissaoNotif === 'granted'}
+                  className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page disabled:cursor-default disabled:hover:bg-white" data-testid="kanban-notificacoes">
+                  <Bell className="h-4 w-4" />
+                  {alarme.permissaoNotif === 'granted' ? 'Notificações do navegador: ligadas' : alarme.permissaoNotif === 'denied' ? 'Notificações bloqueadas no navegador (libere no cadeado)' : 'Ligar notificações com a aba escondida'}
+                </button>
+              )}
+              <div className="border-t border-border min-[1800px]:hidden">
+                {usaDespachoDeRotas(fluxo) ? (
+                  <button onClick={() => { setRotaOpen(true); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page 2xl:hidden">
+                    <Bike className="h-4 w-4" /> Rotas (despacho)
+                  </button>
+                ) : (
+                  <p className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-subtle 2xl:hidden" title="Esta loja não trabalha com motoboy (Ajustes › Entrega)."><Bike className="h-4 w-4" /> Rotas: desligado (sem motoboy)</p>
+                )}
+                <button onClick={() => { toggleStats(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page">
+                  {showStats ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} {showStats ? 'Ocultar métricas' : 'Mostrar métricas'}
+                </button>
+                <button onClick={() => { toggleCol4(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page">
+                  <Columns3 className="h-4 w-4" /> {showCol4 ? 'Ocultar entregas e concluídos' : 'Mostrar entregas e concluídos'}
+                </button>
+                <button onClick={() => { void toggleFocus(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page max-lg:hidden">
+                  {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} {focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </>
   )
+  const avisosTopo = (
+    <AvisosPedidos
+      avisos={avisos}
+      onEntregue={async (id) => { const p = acharPedido(id); if (p) await moverPara(p, 'entregue') }}
+      onNaoEntregue={avisoNaoEntregue}
+      onCancelar={(id) => { const p = acharPedido(id); if (p) pedirCancelamento(p) }}
+      onVer={verNoKanban}
+    />
+  )
+  const topBar = <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" controles={controles} right={avisosTopo} />
 
   if (loading) {
     return (
       <>
-        <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" right={topActions} />
+        {topBar}
         <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando pedidos…</div>
       </>
     )
@@ -970,7 +870,7 @@ export default function PedidosPage() {
 
   return (
     <>
-      <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" right={topActions} />
+      {topBar}
 
       <div className="flex flex-1 flex-col gap-3 overflow-hidden p-5">
         {error && (
@@ -987,14 +887,15 @@ export default function PedidosPage() {
           </div>
         )}
 
-        {avisoParados && (
-          <div
-            role="status"
-            className="flex items-start gap-2 rounded-menuzia border border-warn bg-warn-bg px-3.5 py-2.5 text-[13px] font-medium text-warn"
+        {alarme.somAtivo && alarme.bloqueado && (
+          <button
+            type="button"
+            onClick={() => void alarme.testar()}
+            className="flex w-full items-center justify-center gap-2 rounded-menuzia border border-[#FCD34D] bg-warn-bg px-3.5 py-2.5 text-[14px] font-bold text-[#B45309] hover:brightness-95"
+            data-testid="som-bloqueado"
           >
-            <Clock className="mt-[1px] h-4 w-4 flex-shrink-0" strokeWidth={2.2} />
-            <span>{avisoParados}</span>
-          </div>
+            {TEXTO_SOM_BLOQUEADO}
+          </button>
         )}
 
         {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia ou pelo botão Métricas) */}

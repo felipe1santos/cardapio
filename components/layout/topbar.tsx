@@ -10,11 +10,16 @@ export interface TopBarProps {
   title: string
   breadcrumb: string
   right?: React.ReactNode
+  /**
+   * Controles da tela (ex.: Painel de Pedidos), logo depois do título, alinhados à esquerda e
+   * separados dos botões do sistema (impressão, Dúvidas, perfil) do canto direito.
+   */
+  controles?: React.ReactNode
   /** Botão de voltar no canto superior esquerdo (telas de detalhe). */
   voltar?: { rotulo: string; onClick: () => void }
 }
 
-export function TopBar({ title, breadcrumb, right, voltar }: TopBarProps) {
+export function TopBar({ title, breadcrumb, right, voltar, controles }: TopBarProps) {
   // Abaixo de `lg` a sidebar é gaveta, e é a barra de topo que a abre. O contexto evita
   // passar a função por todas as telas do painel só para chegar aqui.
   const menu = useContext(MenuLateralContext)
@@ -22,8 +27,8 @@ export function TopBar({ title, breadcrumb, right, voltar }: TopBarProps) {
   // Abaixo de sm a barra cresce em vez de empurrar as ações fora da tela: com título e
   // dois ou três botões, 60px fixos não cabem num aparelho de 360px.
   return (
-    <header className="flex min-h-[var(--adm-topo,56px)] flex-shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-b border-[var(--adm-borda,#e5e7eb)] bg-[var(--adm-superficie,#fff)] px-3 py-2 sm:h-[var(--adm-topo,56px)] sm:flex-nowrap sm:py-0 sm:px-5">
-      <div className="flex min-w-0 items-center gap-2">
+    <header className={`flex min-h-[var(--adm-topo,56px)] flex-shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-b border-[var(--adm-borda,#e5e7eb)] bg-[var(--adm-superficie,#fff)] px-3 py-2 sm:px-5 ${controles ? 'sm:py-1.5' : 'sm:h-[var(--adm-topo,56px)] sm:flex-nowrap sm:py-0'}`}>
+      <div className={`flex min-w-0 items-center gap-2 ${controles ? 'flex-wrap gap-y-1.5' : ''}`}>
         {voltar && (
           <button
             onClick={voltar.onClick}
@@ -50,13 +55,19 @@ export function TopBar({ title, breadcrumb, right, voltar }: TopBarProps) {
             ("Visão geral › Desempenho") saiu da vista e ficou para o leitor de
             tela: com o menu à esquerda dizendo onde a pessoa está, a segunda
             linha era ruído em cima da tela toda. */}
-        <div className="min-w-0">
+        <div className={controles ? 'flex-shrink-0' : 'min-w-0'}>
           <h1 className="truncate text-[19.2px] font-medium leading-tight text-[var(--adm-texto,#1f2937)]">{title}</h1>
           <span className="sr-only">{breadcrumb}</span>
         </div>
+        {controles && (
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-[8px] sm:ml-4 sm:w-auto sm:border-l sm:border-[var(--adm-borda,#e5e7eb)] sm:pl-4" data-testid="topo-controles">
+            {controles}
+          </div>
+        )}
       </div>
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:flex-shrink-0 sm:gap-2">
         {right}
+        {controles && right && <span aria-hidden className="mx-1 hidden h-[28px] w-px bg-[var(--adm-borda,#e5e7eb)] sm:block" />}
         <AcoesTopo />
       </div>
     </header>
