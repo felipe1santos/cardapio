@@ -135,3 +135,23 @@ Duas suítes antigas foram atualizadas para o comportamento atual:
 **Limite conhecido:** com a aba escondida por mais de 5 min, o Chrome reduz os timers a um por minuto, então a
 **repetição** fica mais espaçada. O primeiro toque de cada pedido continua saindo na hora, junto com a notificação do
 navegador. Para não perder nada, o painel visível com o Wake Lock é o ideal.
+
+## Publicação (2026-10-03 ~17:50)
+- Sem migration. main `eae254a`, Redeploy no Coolify, build novo no ar às ~17:49.
+- **Conferência na Menuzia** (loja "Angus Burguer" e usuário "Administrador" confirmados antes de cada ação):
+  - barra nova no topo: Recebendo pedidos (Manual), Som (Ligado), Aceite auto (Ligado), Rotas, Métricas, Entregas,
+    Tela cheia, Mais;
+  - a faixa amarela saiu;
+  - ícone com "1 aviso": o painel lista o #144 (Carlos, pronto há 1 dia) com Entregue / Não entregue / Cancelar / Ver
+    no kanban. Nenhuma ação foi feita nele;
+  - som bloqueado detectado na aba aberta sem clique, com o aviso clicável na tela;
+  - pedido TESTE #147 (PDV, retirada): o card apareceu e a falha `autoplay_bloqueado` foi registrada. A rota de log
+    responde 204;
+  - #147 e a comanda dele cancelados no fim.
+- **Não deu para conferir em produção:** o "destravar pelo clique". A aba controlada pela automação fica em segundo
+  plano e o clique dela não conta como gesto do usuário. Foi provado no teste local em Chrome, Edge e Firefox.
+  - **Validar no balcão:** abrir o Painel de Pedidos, clicar no aviso amarelo (ou em qualquer lugar) e usar "Mais ⋯ ›
+    Testar som".
+- **Acompanhamento pós-deploy** (17:52–17:55, só leitura): nenhum pedido real em nenhuma loja nesse intervalo (horário
+  calmo). As vitrines da Ponto 400, Estância e Villa respondem 200.
+- Rollback não foi necessário.
