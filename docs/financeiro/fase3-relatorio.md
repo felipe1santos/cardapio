@@ -174,3 +174,33 @@ Ficam em `prints-fase3/`:
   - A conferência logada na Menuzia fica para quando houver o perfil do Chrome separado, só com a Menuzia
     (admin/admin).
 - Rollback não foi necessário.
+
+## Conferência logada em produção — Menuzia (2026-10-03 ~13:55)
+Feita no perfil do Chrome "Menuzia teste". Antes de cada ação conferi a loja (`menuzia`, exibida como "Angus Burguer",
+única com o financeiro) e o usuário (Administrador, dono). A impressão foi autorizada: saiu 1 comanda TESTE.
+
+| Passo | Resultado |
+|---|---|
+| Abrir caixa (fundo R$ 100) | ok |
+| Criar "TESTE Motoboy Fase3" pela Logística; "Segurança do acesso" aparece | ok |
+| "Gerar link novo": link antigo 200 → 404 na hora | ok |
+| Pedido TESTE #145 (PDV balcão → entrega, dinheiro, troco p/ R$ 50) → pronto → atribuído | ok |
+| Logística: "Troco para levar R$ 41,00", campo pré-preenchido; "Registrar troco" | ok — motoboy com R$ 41 |
+| App (link): loja certa, "Dinheiro comigo R$ 41,00", troco em destaque, Maps/Waze | ok |
+| Saí → Entregue → dinheiro, recebi R$ 50 → "Dar de troco R$ 41,00" | ok — entregue, pago, troco calculado no servidor |
+| Livro-caixa: gaveta −41 / motoboy +41 / +50 / −41 | ok |
+| Acerto cego R$ 50 (esperado só depois de contar) | **bateu** |
+| Desativar: link 404, app "Link inválido", selo "Desativado" | ok |
+| Fechar caixa contando R$ 109 | ok, diferença 0 |
+
+Não foi criado login com senha em produção (regra de segurança). O app com login foi testado no ambiente local; em
+produção, `/motoboy` com a conta do dono responde "não está ligado a um entregador", como esperado.
+
+**Achados (para corrigir):**
+1. **Comanda do PDV não quita na entrega.** Pedido de balcão → entrega pago ao motoboy fica com o pedido pago e o
+   dinheiro no livro-caixa, mas a comanda segue "aberta" com o total a receber (comanda TESTE #145, R$ 9,00, deixada
+   aberta de propósito). Pedidos da vitrine não têm comanda e não são afetados. Correção: `entrega_registrar` também
+   quitar a comanda, sem lançar de novo no livro-caixa (migration 0137).
+2. **Visual:** no extrato do turno, a carteira "motoboy" aparece −R$ 9, porque o recebimento do motoboy não tem turno; o
+   saldo real dele é 0.
+3. **Texto:** `/motoboy` sem entregador ligado mostra o título "Link inválido"; o certo seria "Acesso não liberado".
