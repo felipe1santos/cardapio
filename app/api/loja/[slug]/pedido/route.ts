@@ -4,6 +4,8 @@ import { criarPedido } from '@/lib/queries/pedidos'
 import { montarPedidoPublico } from '@/lib/queries/pedido-publico'
 import { notificarPedido } from '@/lib/whatsapp'
 import { registrarPedidoDoPush } from '@/lib/push/motor'
+import { enviarPurchaseCapi } from '@/lib/meta-capi'
+import { ipDaRequisicao } from '@/lib/limite-taxa'
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -63,6 +65,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     if (typeof origemPush === 'string' && /^[0-9a-f-]{36}$/i.test(origemPush)) {
       registrarPedidoDoPush(admin, loja.id, origemPush, pedido.id).catch(() => null)
     }
+    // API de Conversões do Meta (só com pixel + token da loja): mesma compra do navegador, mesmo event_id.
+    const meta = (bruto as { meta?: { fbp?: unknown; fbc?: unknown; url?: unknown } }).meta
+    const txt = (v: unknown) => (typeof v === 'string' ? v.slice(0, 500) : null)
+    const ip = ipDaRequisicao(request.headers)
+    enviarPurchaseCapi(admin, loja.id, pedido.id, {
+      ip: ip && ip !== 'desconhecido' ? ip : null, userAgent: request.headers.get('user-agent'),
+      fbp: txt(meta?.fbp), fbc: txt(meta?.fbc), url: txt(meta?.url),
+    }).catch(() => null)
     return NextResponse.json(pedido, { status: 201 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Não foi possível registrar o pedido'

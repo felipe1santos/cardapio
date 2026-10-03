@@ -11,6 +11,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja, atualizarConfigLoja } from '@/lib/queries/ajustes'
 import { validarGoogleTag, validarPixelFacebook, type ResultadoId } from '@/lib/pixels'
+import { MetaCapiCard } from '@/components/admin/meta-capi-card'
 
 /**
  * Integrações (visual novo, 2026-09-28 — mesmo padrão da tela Impressão): cartões brancos
@@ -488,6 +489,7 @@ export default function IntegracoesPage() {
                 onSalvar={(v) => salvarPixel('googleTagId', v)}
                 avisar={toasts.mostrar}
               />
+              <MetaCapiCard temPixel={!!pixels?.facebook} avisar={(m) => toasts.mostrar('ok', m)} />
             </div>
           </section>
 
