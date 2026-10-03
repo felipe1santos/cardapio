@@ -196,3 +196,25 @@ origens) e **8/8** na ordem-qr-e2e (funil 796 / 345 / 325 / 222 / 143).
 6. No Gerenciador de Anúncios, a campanha de vendas deve otimizar para **Compra** (Purchase) no pixel da loja.
 7. Depois de 24–48 h, em **Visão geral** do pixel, a "Qualidade da correspondência de eventos" do Purchase deve
    aparecer. Telefone e fbc ajudam a nota.
+
+## Publicação (2026-10-03, ~16:00, autorizada fora da janela)
+- **0138** aplicada com backup (`~/backups/menuzia/2026-10-03-pre-0138`) e conferida: tabela de segredos sem acesso
+  para anon/authenticated, colunas `navegador`/`sistema` criadas.
+- **main `3fc1023`**, Redeploy no Coolify, no ar às ~16:05.
+- **Conferência na Menuzia** (perfil "Menuzia teste"; loja "Angus Burguer" e usuário "Administrador" confirmados na
+  tela):
+
+| Verificação | Resultado |
+|---|---|
+| Cartão "API de Conversões do Meta" em Integrações; rota responde "não configurada" (só para o dono) | ok |
+| Vitrine com `?fbclid=…&utm_source=ig`: pixel injetado 1 vez, 1 requisição PageView, `_fbc` guardado | ok |
+| Volta à aba depois de 30 s: continua 1 PageView | ok |
+| Rastreio no banco: visita com `origem=ig`, `navegador=chrome`, `sistema=windows` | ok |
+| Dashboard: Faturamento com "Vitrine · PDV/balcão · Mesas"; "Tempo médio na rua" | ok |
+
+- **Não deu para conferir na Menuzia:** a sacola e a compra, porque a vitrine da Menuzia está sem itens visíveis
+  agora (produtos de teste pausados ou fora do horário). Esses eventos e o Purchase foram provados no teste local em 4
+  navegadores (48/48).
+- **Acompanhamento pós-deploy** (16:07–16:10, só leitura): nenhum pedido em nenhuma loja nem antes nem depois (horário
+  calmo). As vitrines da Ponto 400, Estância e Villa respondem 200.
+- Rollback não foi necessário.
