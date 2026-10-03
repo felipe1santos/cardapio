@@ -158,3 +158,19 @@ Ficam em `prints-fase3/`:
 - Ele remove a função, a tabela de registros de entrega e as colunas novas, e restaura o gatilho da 0135.
 - Os lançamentos do livro-caixa ficam: são imutáveis.
 - Se for preciso, reverter o código para o main anterior (5289dc5) e redeploy.
+
+## Publicação (2026-10-03)
+- **01:45** — 0136 aplicada em produção pelo `aplicar-migration-producao.mjs`: dry-run ok, aplicada e conferida.
+  - Backup em `~/backups/menuzia/2026-10-03-pre-0136`.
+  - A migration só adiciona: o código antigo seguia funcionando com ela.
+- **01:47** — main `40c3744` publicado. Redeploy pelo Coolify, no ar às ~01:55.
+- **Conferência em produção:**
+  - Banco (só leitura): financeiro ligado só na Menuzia, `troco_modo = pedido`; nenhuma loja com mudança de dados.
+  - Sem login: `/motoboy` 200, `/api/motoboy` 401, manifest 200, link inválido 404, APIs do acerto e do Pix 401,
+    `sw-motoboy.js` servido.
+  - **No navegador, PAREI:** a sessão aberta no Chrome era de outra loja (5 entregadores, a Ponto 400), não da Menuzia.
+    Só li a tela, sem nenhum clique ou gravação. Ela confirma que uma loja sem financeiro continua sem o bloco novo na
+    Logística.
+  - A conferência logada na Menuzia fica para quando houver o perfil do Chrome separado, só com a Menuzia
+    (admin/admin).
+- Rollback não foi necessário.
