@@ -59,3 +59,18 @@ Código:
 `responsivo-kanban` e `balcao-entrega` procuravam o relógio pelo tooltip exato "Tempo desde que o pedido chegou". Nos
 pedidos parados o tooltip agora explica que o pedido está parado, então elas passaram a procurar pelo identificador do
 contador.
+
+## Publicação (2026-10-03 ~20:00)
+- Sem migration. main `e3d3186`, Redeploy no Coolify, build novo no ar às ~20:03.
+- **Conferência logada na Menuzia: não feita.**
+  - A sessão do perfil "Menuzia teste" tinha caído: o painel redirecionou para `/login?error=acesso` e depois
+    respondeu 401.
+  - A verificação de loja/usuário bloqueou a ação antes de criar qualquer pedido. Nenhum pedido TESTE foi criado em
+    produção.
+  - O usuário admin está ativo no banco e o controle de acesso (`middleware.ts`) não mudou neste deploy. A causa
+    provável é sessão expirada ou encerrada (login do mesmo usuário em outro aparelho).
+- **Acompanhamento pós-deploy** (20:05–20:09, só leitura): as lojas reais seguem recebendo e movendo pedidos no
+  Painel. Ex.: Estância #260–#263, Ponto 400 #321–#322 em preparo, Villa #66 entregue. Vitrines 200.
+- Rollback não foi necessário.
+- **Falta:** entrar de novo na Menuzia no perfil "Menuzia teste" para a conferência logada (criar 1 pedido TESTE,
+  medir o card e cancelar).
