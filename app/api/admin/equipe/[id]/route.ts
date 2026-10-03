@@ -151,6 +151,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
  */
 async function cortarOuDevolverLogin(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, id: string, ativo: boolean, motivo: string) {
   if (!ativo) {
+    // Motoboy com login (0136): o link/QR antigo dele também para de funcionar (com ou sem financeiro).
+    await admin.from('entregadores').update({ token: crypto.randomUUID() }).eq('usuario_id', id).eq('restaurante_id', restauranteId)
     const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', restauranteId).maybeSingle()
     if (!loja?.financeiro_ativo) return
   }

@@ -128,6 +128,7 @@ describe('telaInicialDoPapel', () => {
     expect(telaInicialDoPapel('garcom')).toBe('/admin/mesas')
     expect(telaInicialDoPapel('atendente')).toBe('/admin/pedidos')
     expect(telaInicialDoPapel('logistica')).toBe('/admin/pedidos')
+    expect(telaInicialDoPapel('entregador')).toBe('/motoboy')
     expect(telaInicialDoPapel(null)).toBe('/login')
   })
 })

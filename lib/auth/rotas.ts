@@ -43,6 +43,8 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   // pagamento, QR). Aqui só a porta: ver o salão.
   ['/api/admin/mesas', 'comanda.ver'],
   ['/api/admin/equipe', 'equipe.gerenciar'],
+  // Cadastro do entregador (0136): link novo, desativar, login do app. criar_login confere equipe.gerenciar na rota.
+  ['/api/admin/entregadores', 'logistica.operar'],
   // Ligar e desligar módulo é decisão comercial do dono.
   ['/api/admin/modulos', 'ajustes.editar'],
   ['/api/admin/pdv', 'pedidos.balcao.criar'],
@@ -114,6 +116,8 @@ export function telaInicialDoPapel(papel: string | null | undefined, moduloMesas
   if (moduloMesas && pode(papel, 'mesas.operar')) return '/admin/mesas'
   if (pode(papel, 'pedidos.delivery.ver')) return '/admin/pedidos'
   if (pode(papel, 'logistica.operar')) return '/admin/logistica'
+  // Motoboy com login (0136): o app dele, fora do painel.
+  if (papel === 'entregador') return '/motoboy'
   return '/login'
 }
 

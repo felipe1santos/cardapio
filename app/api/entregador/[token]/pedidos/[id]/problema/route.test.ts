@@ -25,10 +25,10 @@ import { POST } from './route'
 
 describe('"Não entregue" pelo app do entregador', () => {
   it('grava motivo, autor e hora e avisa o cliente do cancelamento', async () => {
-    const r = await POST(new Request('http://x', { method: 'POST' }), { params: Promise.resolve({ token: 't', id: 'p1' }) })
+    const r = await POST(new Request('http://x', { method: 'POST' }), { params: Promise.resolve({ token: 't', id: '11111111-1111-1111-1111-111111111111' }) })
     expect(r.status).toBe(200)
     expect(updates[0]).toMatchObject({ status: 'cancelado', cancelado_motivo: 'nao_entregue', cancelado_por: 'Entregador: Zé', reimprimir: false })
     expect(typeof updates[0].cancelado_em).toBe('string')
-    expect(efeitos).toHaveBeenCalledWith(expect.anything(), 'p1', 'cancelado')
+    expect(efeitos).toHaveBeenCalledWith(expect.anything(), '11111111-1111-1111-1111-111111111111', 'cancelado')
   })
 })

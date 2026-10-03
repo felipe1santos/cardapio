@@ -122,6 +122,10 @@ export interface Entregador {
   fotoUrl: string | null
   veiculo: string
   placa: string
+  /** 0136: desativado não entra (link nem login) e não aparece para atribuir. */
+  desativado?: boolean
+  /** 0136: tem login do app do motoboy. */
+  temLogin?: boolean
 }
 
 interface PedidoRow {
@@ -457,7 +461,7 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
   const { data, error } = await supabase
     .from('entregadores')
     .select(
-      'id, nome, telefone, status, token, ultimo_acesso_em, localizacao_lat, localizacao_lng, localizacao_atualizada_em, foto_url, veiculo, placa'
+      'id, nome, telefone, status, token, ultimo_acesso_em, localizacao_lat, localizacao_lng, localizacao_atualizada_em, foto_url, veiculo, placa, desativado_em, usuario_id'
     )
     .eq('restaurante_id', restauranteId)
     .order('nome', { ascending: true })
@@ -491,6 +495,8 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
     fotoUrl: d.foto_url ?? null,
     veiculo: d.veiculo ?? '',
     placa: d.placa ?? '',
+    desativado: !!(d as { desativado_em?: string | null }).desativado_em,
+    temLogin: !!(d as { usuario_id?: string | null }).usuario_id,
   }))
 }
 
@@ -663,14 +669,18 @@ export interface EntregadorPortal {
   nome: string
   restauranteId: string
   restauranteNome: string
+  /** Login do app (0136); nulo = só o link. */
+  usuarioId?: string | null
 }
 
 /** Localiza o entregador pelo token público (link/QR do portal do motoboy). */
 export async function buscarEntregadorPorToken(admin: SupabaseClient, token: string): Promise<EntregadorPortal | null> {
   const { data, error } = await admin
     .from('entregadores')
-    .select('id, nome, restaurante_id, restaurantes ( nome )')
+    .select('id, nome, restaurante_id, usuario_id, restaurantes ( nome )')
     .eq('token', token)
+    // Desativado (0136): o link para de funcionar na hora.
+    .is('desativado_em', null)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
@@ -683,7 +693,23 @@ export async function buscarEntregadorPorToken(admin: SupabaseClient, token: str
     nome: data.nome,
     restauranteId: data.restaurante_id,
     restauranteNome: restauranteNome ?? '',
+    usuarioId: (data as { usuario_id?: string | null }).usuario_id ?? null,
   }
+}
+
+/** App do motoboy com login (0136): o entregador ligado ao usuário da sessão, se ativo. */
+export async function buscarEntregadorPorUsuario(admin: SupabaseClient, usuarioId: string, restauranteId: string): Promise<EntregadorPortal | null> {
+  const { data, error } = await admin
+    .from('entregadores')
+    .select('id, nome, restaurante_id, usuario_id, restaurantes ( nome )')
+    .eq('usuario_id', usuarioId)
+    .eq('restaurante_id', restauranteId)
+    .is('desativado_em', null)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  const r = data.restaurantes as unknown as { nome: string } | { nome: string }[] | null
+  return { id: data.id, nome: data.nome, restauranteId: data.restaurante_id, restauranteNome: (Array.isArray(r) ? r[0]?.nome : r?.nome) ?? '', usuarioId }
 }
 
 /** Pedidos em rota atribuídos a um entregador — a "rota" do portal do motoboy. */
@@ -749,12 +775,13 @@ export async function marcarEntregaConcluida(admin: SupabaseClient, pedidoId: st
  * Grava motivo, autor e hora como o "Não entregue" da Logística — sem isso o pedido (e o
  * dinheiro dele) sumia do caixa do entregador sem rastro de quem cancelou.
  */
-export async function marcarEntregaComProblema(admin: SupabaseClient, pedidoId: string, entregadorId: string, entregadorNome?: string) {
+export async function marcarEntregaComProblema(admin: SupabaseClient, pedidoId: string, entregadorId: string, entregadorNome?: string, motivo?: string) {
   const { data, error } = await admin
     .from('pedidos')
     .update({
       status: 'cancelado',
       cancelado_motivo: 'nao_entregue',
+      ...(motivo ? { cancelado_observacao: motivo.slice(0, 300) } : {}),
       cancelado_por: entregadorNome ? `Entregador: ${entregadorNome}`.slice(0, 120) : 'Entregador',
       cancelado_em: new Date().toISOString(),
       reimprimir: false,

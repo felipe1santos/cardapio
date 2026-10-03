@@ -1,45 +1,19 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import {
-  buscarDespachoAberto,
-  buscarEntregadorPorToken,
-  calcularCaixaEntregadorHoje,
-  contarEntregasConcluidasHoje,
-  listarPedidosDisponiveisDespacho,
-  listarPedidosEmRotaDoEntregador,
-} from '@/lib/queries/pedidos'
-import { inicioDoDiaSaoPaulo } from '@/lib/servicos/conta-presencial'
+import { buscarEntregadorPorToken } from '@/lib/queries/pedidos'
+import { dadosDoPortal } from '@/lib/motoboy/servico'
 
-// Meia-noite de São Paulo. Com a data local do servidor (UTC), "concluídos hoje" e o
-// caixa do dia zeravam às 21h — no pico das pizzarias.
-const inicioDoDiaISO = () => inicioDoDiaSaoPaulo()
-
-/** Portal do motoboy: dados do entregador + rota atual, por token público. */
+/**
+ * Portal do motoboy pelo link/QR (token). O mesmo serviço do app com login (lib/motoboy/servico).
+ * Entregador desativado ou link trocado (0136): "Link inválido".
+ */
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const admin = getAdminSupabase()
-
   try {
     const entregador = await buscarEntregadorPorToken(admin, token)
     if (!entregador) return NextResponse.json({ error: 'Link inválido' }, { status: 404 })
-
-    const [pedidos, concluidosHoje, caixaHoje, despachoAberto] = await Promise.all([
-      listarPedidosEmRotaDoEntregador(admin, entregador.id),
-      contarEntregasConcluidasHoje(admin, entregador.id, inicioDoDiaISO()),
-      calcularCaixaEntregadorHoje(admin, entregador.id, inicioDoDiaISO()),
-      buscarDespachoAberto(admin, entregador.restauranteId),
-    ])
-
-    const disponiveis = despachoAberto ? await listarPedidosDisponiveisDespacho(admin, entregador.restauranteId) : []
-
-    return NextResponse.json({
-      entregador: { nome: entregador.nome, restauranteNome: entregador.restauranteNome },
-      pedidos,
-      disponiveis,
-      despachoAberto,
-      concluidosHoje,
-      caixaHoje,
-    })
+    return NextResponse.json(await dadosDoPortal(admin, entregador), { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json({ error: 'Erro ao carregar a rota' }, { status: 500 })
   }
