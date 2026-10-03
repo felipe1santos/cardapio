@@ -110,8 +110,14 @@ export async function semear() {
       return c.toDataURL('image/png').split(',')[1]
     }, { w, h, cor, nome })
     const caminho = `${lojaId}/ordem-e2e/${nome}.png`
-    const { error } = await admin.storage.from('cardapio').upload(caminho, Buffer.from(base64, 'base64'), { contentType: 'image/png', upsert: true })
-    if (error) throw error
+    // Sem upsert: o Storage local novo (índices de versionamento) recusa o "substituir" com 42P10.
+    await admin.storage.from('cardapio').remove([caminho]).catch(() => null)
+    const { error } = await admin.storage.from('cardapio').upload(caminho, Buffer.from(base64, 'base64'), { contentType: 'image/png' })
+    if (error) {
+      console.warn(`   (foto ${nome} sem upload: ${error.message} — item segue sem foto)`)
+      fotos[nome] = null
+      continue
+    }
     fotos[nome] = admin.storage.from('cardapio').getPublicUrl(caminho).data.publicUrl
   }
   await browser.close()

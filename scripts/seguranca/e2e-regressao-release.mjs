@@ -88,6 +88,8 @@ const atendente = await logar(USU.atendente)
 // ════════════════════════════════════════════════════════════════════════════
 secao('Delivery: vitrine e checkout intactos')
 {
+  // Rodada anterior interrompida pode ter deixado a loja no modo gaveta: começa sempre do padrão.
+  await q(`update restaurantes set layout_cardapio = 'categoria' where id = $1`, [loja])
   const pagina = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR' })).newPage()
   const resp = await pagina.goto(`${BASE}/loja/${E2E_LOJA}`, { waitUntil: 'networkidle' })
   ok('a vitrine carrega', resp?.status() === 200, `HTTP ${resp?.status()}`)
@@ -185,6 +187,7 @@ secao('Comanda de mesa pelo PDV (a loja que já usava mesas antes do módulo)')
 // ════════════════════════════════════════════════════════════════════════════
 secao('Modo gaveta e banner da vitrine')
 {
+  try {
   for (const layout of ['categoria', 'gaveta']) {
     await q(`update restaurantes set layout_cardapio = $2 where id = $1`, [loja, layout])
     const pagina = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage()
@@ -199,6 +202,8 @@ secao('Modo gaveta e banner da vitrine')
       const textoGaveta = await pagina.locator('body').innerText()
       ok('layout "gaveta" lista as categorias fechadas', /burgers/i.test(textoGaveta) && /bebidas/i.test(textoGaveta),
         textoGaveta.replace(/\s+/g, ' ').slice(0, 140))
+      // Cupom/prêmio de boas-vindas da loja abre um modal por cima: o cliente fecha antes de navegar.
+      await pagina.getByRole('button', { name: /Agora não|Fechar/ }).first().click({ timeout: 2000 }).catch(() => {})
       await pagina.locator('text=Burgers').first().click()
       await pagina.waitForTimeout(700)
       ok('abrir a gaveta revela os itens', (await pagina.locator('body').innerText()).includes('Burger da Casa'))
@@ -207,7 +212,9 @@ secao('Modo gaveta e banner da vitrine')
     }
     await pagina.context().close()
   }
-  await q(`update restaurantes set layout_cardapio = 'categoria' where id = $1`, [loja])
+  } finally {
+    await q(`update restaurantes set layout_cardapio = 'categoria' where id = $1`, [loja])
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
