@@ -247,7 +247,7 @@ try {
   ok('card com ENTREGA em destaque', await card(pEnt.numero).getByTestId('etiqueta-entrega').isVisible())
   const CAPACETE = 'path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]'
   ok('capacete na etiqueta ENTREGA e no "Na logística"', (await card(pEnt.numero).getByTestId('etiqueta-entrega').locator(CAPACETE).count()) === 1 && (await card(pEnt.numero).getByTestId('card-na-logistica').locator(CAPACETE).count()) === 1)
-  ok('relógio no cronômetro do card', (await card(pEnt.numero).locator('[title="Tempo desde que o pedido chegou"] svg.lucide-clock').count()) === 1)
+  ok('relógio no cronômetro do card', (await card(pEnt.numero).locator('[data-testid="card-tempo"] svg.lucide-clock').count()) === 1)
   if (adult.s === 201) {
     // Pedido do delivery (Pix, telefone sem OTP): o card não mostra pagamento nem "não verif.";
     // os dois continuam nos Detalhes.

@@ -46,7 +46,7 @@ try {
         const atend = card.querySelector('[data-testid="etiqueta-entrega"], [data-testid="etiqueta-retirada"], [data-testid="etiqueta-mesa"]')
         if (!atend) problemas.push(`${n}: sem etiqueta RETIRADA/ENTREGA/MESA`)
         if (![...card.querySelectorAll('span')].some((s) => ['PDV', 'Salão', 'Delivery'].includes(s.textContent.trim()))) problemas.push(`${n}: sem etiqueta de origem`)
-        if (!card.querySelector('[title="Tempo desde que o pedido chegou"] svg.lucide-clock')) problemas.push(`${n}: cronômetro sem relógio`)
+        if (!card.querySelector('[data-testid="card-tempo"] svg.lucide-clock')) problemas.push(`${n}: cronômetro sem relógio`)
         if (atend?.getAttribute('data-testid') === 'etiqueta-entrega' && !atend.querySelector('path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]')) problemas.push(`${n}: ENTREGA sem capacete`)
         // A forma de pagamento aparece no card desde a 0135 (PDV: forma e troco antes de lançar).
         if (/não verif/i.test(card.innerText)) problemas.push(`${n}: "não verif." no resumo do card`)
