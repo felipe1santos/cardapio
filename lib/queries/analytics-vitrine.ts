@@ -81,7 +81,7 @@ export async function carregarTemposEntrega(
 ): Promise<TempoEntrega[] | null> {
   const { data, error } = await supabase
     .from('pedidos')
-    .select('criado_em, em_rota_em, entregue_em')
+    .select('criado_em, em_rota_em, entregue_em, cliente_nome')
     .eq('restaurante_id', restauranteId)
     .eq('tipo', 'entrega')
     .not('em_rota_em', 'is', null)
@@ -89,7 +89,9 @@ export async function carregarTemposEntrega(
     .order('entregue_em', { ascending: false })
     .limit(1000)
   if (error) return null
-  return ((data ?? []) as { criado_em: string; em_rota_em: string; entregue_em: string }[]).map((p) => ({
+  // Pedido de teste não é entrega de verdade (2026-10-03).
+  return ((data ?? []) as { criado_em: string; em_rota_em: string; entregue_em: string; cliente_nome: string | null }[])
+    .filter((p) => !/^s*teste/i.test(p.cliente_nome ?? '')).map((p) => ({
     criadoEm: p.criado_em,
     emRotaEm: p.em_rota_em,
     entregueEm: p.entregue_em,

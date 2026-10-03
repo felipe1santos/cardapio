@@ -30,7 +30,7 @@ export function CartaoFunil({ etapa }: { etapa: EtapaFunilVitrine }) {
   const direita = ALTURA_BLOCO - alturaDe(etapa.pctProxima)
 
   return (
-    <div className="flex min-h-[236px] flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+    <div className="flex min-h-[236px] flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid={`funil-${etapa.id}`}>
       <div className="flex-1 px-4 pt-4">
         <p className="text-[12.8px] font-semibold text-[var(--adm-texto-forte)]">{etapa.rotulo}</p>
         <p className="mt-1 text-[26px] font-bold leading-none text-[var(--adm-texto)]">

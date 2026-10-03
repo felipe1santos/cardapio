@@ -26,6 +26,8 @@ import {
   filtrarPorIntervalo,
   formatarDuracao,
   funilDaVitrine,
+  faturamentoPorOrigem,
+  textoPorOrigem,
   intervaloAnterior,
   resumoEntrega,
   intervaloDoPreset,
@@ -100,7 +102,7 @@ function Indicador({
   const bom = inverso ? !subiu : subiu
   const t = TONS[tom]
   return (
-    <div className="flex min-w-[200px] flex-1 items-start gap-3">
+    <div className="flex min-w-[200px] flex-1 items-start gap-3" data-testid={`indicador-${rotulo}`}>
       <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: t.fundo, color: t.cor }}>
         <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
           {icone.map((d) => (
@@ -367,6 +369,7 @@ export default function DashboardPage() {
       pedidos,
       receita,
       ticket,
+      porOrigem: faturamentoPorOrigem(pedidos),
       entrega,
       rankingBairros,
       deltaEntrega: entrega?.rota != null && entregaAnt?.rota != null ? variacao(entrega.rota, entregaAnt.rota) : null,
@@ -522,7 +525,9 @@ export default function DashboardPage() {
               icone={ICONES.dinheiro}
               tom="verde"
               rotulo="Faturamento"
+              ajuda="Todos os canais: cardápio online (vitrine), PDV/balcão e mesas. O funil da vitrine abaixo conta só o cardápio online."
               valor={brl(m.receita)}
+              rodape={textoPorOrigem(m.porOrigem, brl) || undefined}
               delta={m.deltaReceita}
               serie={m.serie.map((p) => p.receita)}
             />
@@ -537,14 +542,14 @@ export default function DashboardPage() {
             <Indicador
               icone={ICONES.entregador}
               tom="roxo"
-              rotulo="Tempo médio de entrega"
-              ajuda="Da saída do motoboy até a entrega confirmada"
+              rotulo="Tempo médio na rua"
+              ajuda="Da saída do motoboy até o pedido ser marcado como entregue. Se a loja marca vários pedidos como entregues de uma vez (em lote), o tempo sobe. Fora da média: testes, rotas de menos de 1 min ou de mais de 4 h e pedidos com mais de 6 h."
               valor={formatarDuracao(m.entrega?.rota ?? null)}
               rodape={
                 m.entrega === null
                   ? 'Medição ainda não ativada'
                   : m.entrega.amostra
-                    ? `${m.entrega.amostra} entrega${m.entrega.amostra > 1 ? 's' : ''} medida${m.entrega.amostra > 1 ? 's' : ''} · pedido → porta ${formatarDuracao(m.entrega.total)}`
+                    ? `${m.entrega.amostra} entrega${m.entrega.amostra > 1 ? 's' : ''} medida${m.entrega.amostra > 1 ? 's' : ''} · do pedido feito à entrega ${formatarDuracao(m.entrega.total)}`
                     : 'Sem entregas rastreadas no período'
               }
               delta={m.deltaEntrega}

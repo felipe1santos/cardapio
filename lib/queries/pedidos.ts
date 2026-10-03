@@ -924,6 +924,16 @@ export interface PedidoDashboard {
   enderecoBairro: string
   enderecoCep: string
   itens: { itemId: string | null; nome: string; quantidade: number; receita: number }[]
+  /** De onde veio a venda (2026-10-03): vitrine (cardápio online), PDV/balcão ou mesa. */
+  origemVenda: OrigemVenda
+}
+
+export type OrigemVenda = 'vitrine' | 'pdv' | 'mesa'
+/** Mesa pelo canal; PDV/balcão pelo canal ou pela origem 'pdv'; o resto é a vitrine (delivery do cardápio). */
+export function origemDaVenda(canal: string | null | undefined, origem: string | null | undefined): OrigemVenda {
+  if (canal === 'mesa') return 'mesa'
+  if (canal === 'balcao' || origem === 'pdv') return 'pdv'
+  return 'vitrine'
 }
 
 export interface DadosDashboard {
@@ -936,7 +946,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
   // perde os de hoje sem aviso.
   const pedidos = await lerTodas<Record<string, unknown>>((de, ate) => supabase
     .from('pedidos')
-    .select('total, tipo, status, forma_pagamento, criado_em, cliente_telefone, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+    .select('total, tipo, status, forma_pagamento, criado_em, cliente_telefone, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
     .order('criado_em', { ascending: true })
@@ -964,6 +974,8 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     endereco_numero: string | null
     endereco_bairro: string | null
     endereco_cep: string | null
+    canal: string | null
+    origem: string | null
     pedido_itens: { item_id: string | null; nome: string; quantidade: number; preco_unitario: number }[]
   }[]).map((p) => ({
     total: Number(p.total),
@@ -976,6 +988,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     enderecoNumero: p.endereco_numero ?? '',
     enderecoBairro: p.endereco_bairro ?? '',
     enderecoCep: p.endereco_cep ?? '',
+    origemVenda: origemDaVenda(p.canal, p.origem),
     itens: (p.pedido_itens ?? []).map((i) => ({
       itemId: i.item_id,
       nome: i.nome,

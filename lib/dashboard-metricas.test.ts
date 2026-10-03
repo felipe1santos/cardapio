@@ -12,7 +12,10 @@ import {
   serieDePedidos,
   textoVariacao,
   variacao,
+  faturamentoPorOrigem,
+  textoPorOrigem,
 } from './dashboard-metricas'
+import { origemDaVenda } from './queries/pedidos'
 
 const DIA = 86_400_000
 /** 23/09/2026, 15h — hora local, como o painel enxerga. */
@@ -24,6 +27,7 @@ function pedido(over: Partial<PedidoDashboard> = {}): PedidoDashboard {
     tipo: 'entrega',
     status: 'entregue',
     formaPagamento: 'pix',
+    origemVenda: 'vitrine',
     criadoEm: new Date(AGORA).toISOString(),
     clienteChave: null,
     enderecoRua: '',
@@ -215,5 +219,27 @@ describe('rótulo do filtro', () => {
   it('mostra o começo e o último minuto do período', () => {
     const texto = rotuloDoIntervalo(intervaloDoPreset('hoje', AGORA), AGORA)
     expect(texto).toBe('23/09/2026 00:00 ~ 23/09/2026 23:59')
+  })
+})
+
+describe('faturamentoPorOrigem', () => {
+  it('separa vitrine, PDV/balcão e mesas', () => {
+    const o = faturamentoPorOrigem([
+      pedido({ total: 72, origemVenda: 'vitrine' }), pedido({ total: 50.99, origemVenda: 'vitrine' }),
+      pedido({ total: 34, origemVenda: 'pdv' }), pedido({ total: 120, origemVenda: 'mesa' }),
+    ])
+    expect(o.vitrine).toEqual({ receita: 122.99, pedidos: 2 })
+    expect(o.pdv).toEqual({ receita: 34, pedidos: 1 })
+    expect(o.mesa).toEqual({ receita: 120, pedidos: 1 })
+    expect(textoPorOrigem(o, (v) => v.toFixed(2))).toBe('Vitrine 122.99 (2) · PDV/balcão 34.00 (1) · Mesas 120.00 (1)')
+  })
+})
+
+describe('origemDaVenda', () => {
+  it('canal e origem do pedido', () => {
+    expect(origemDaVenda('mesa', 'salao')).toBe('mesa')
+    expect(origemDaVenda('balcao', 'pdv')).toBe('pdv')
+    expect(origemDaVenda('delivery', 'pdv')).toBe('pdv')
+    expect(origemDaVenda('delivery', 'cardapio')).toBe('vitrine')
   })
 })

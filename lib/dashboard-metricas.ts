@@ -438,10 +438,35 @@ export function resumoEntrega(
     const tot = (fim - new Date(t.criadoEm).getTime()) / 1000
     // Menos de 1 min não é entrega: é a loja sem entregador (0079), que fecha o
     // pedido no mesmo toque da saída — contaria como entrega de segundos.
-    if (r < 60 || r > 4 * 3600) continue
+    // Pedido feito há mais de 6 h até a entrega também é esquecido aberto (ou teste), não entrega.
+    if (r < 60 || r > 4 * 3600 || tot > 6 * 3600) continue
     rota += r
     total += Math.max(r, tot)
     n++
   }
   return { rota: n ? rota / n : null, total: n ? total / n : null, amostra: n }
+}
+
+/* ── Faturamento por origem (2026-10-03) ─────────────────────────────────── */
+
+export interface PorOrigem { vitrine: { receita: number; pedidos: number }; pdv: { receita: number; pedidos: number }; mesa: { receita: number; pedidos: number } }
+
+/** O resumo soma todos os canais; aqui vem a divisão (vitrine × PDV/balcão × mesas). */
+export function faturamentoPorOrigem(pedidos: Pick<PedidoDashboard, 'total' | 'origemVenda'>[]): PorOrigem {
+  const r: PorOrigem = { vitrine: { receita: 0, pedidos: 0 }, pdv: { receita: 0, pedidos: 0 }, mesa: { receita: 0, pedidos: 0 } }
+  for (const p of pedidos) {
+    const o = r[p.origemVenda ?? 'vitrine']
+    o.receita = Math.round((o.receita + (Number(p.total) || 0)) * 100) / 100
+    o.pedidos++
+  }
+  return r
+}
+
+/** "Vitrine R$ 674,96 (10) · PDV/balcão R$ 34,00 (1)" — só as origens com venda. */
+export function textoPorOrigem(o: PorOrigem, brl: (v: number) => string): string {
+  const partes: string[] = []
+  if (o.vitrine.pedidos) partes.push(`Vitrine ${brl(o.vitrine.receita)} (${o.vitrine.pedidos})`)
+  if (o.pdv.pedidos) partes.push(`PDV/balcão ${brl(o.pdv.receita)} (${o.pdv.pedidos})`)
+  if (o.mesa.pedidos) partes.push(`Mesas ${brl(o.mesa.receita)} (${o.mesa.pedidos})`)
+  return partes.join(' · ')
 }
