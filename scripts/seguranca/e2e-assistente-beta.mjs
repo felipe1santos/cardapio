@@ -157,7 +157,7 @@ try {
   const AGUA = await um('select id from itens_cardapio where restaurante_id=$1 and nome=$2', [loja, 'Água com Gás'])
   const balcao = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente E2E Beta', chave: uuid() })).json.id
   const lancar = async () => {
-    const id = (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: balcao, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })).json.id
+    const id = (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: balcao, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })).json.id
     criados.push(id)
     return id
   }
@@ -218,7 +218,7 @@ try {
   ok('rodapé da pré-conta com o NOME da loja (dados do cadastro, vindos do servidor)', !!lojaRodape && lojaRodape.nome.length > 0, JSON.stringify(lojaRodape))
   const pago = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente Pago Beta', chave: uuid() })).json.id
   // Também é ficha de cozinha: entra na conta de 'impressa exatamente uma vez'.
-  criados.push((await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: pago, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id)
+  criados.push((await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: pago, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id)
   const restante = (await api(pAt, `/api/admin/comandas/${pago}`)).json.conta.totais.restante
   await api(pAt, `/api/admin/comandas/${pago}`, 'POST', { acao: 'pagamento', forma: 'pix', valor: restante, chave: uuid() })
   const rp = await api(pAt, `/api/admin/comandas/${pago}/pre-conta`, 'POST', { chave: uuid() })

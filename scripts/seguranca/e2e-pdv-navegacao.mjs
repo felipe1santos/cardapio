@@ -17,6 +17,15 @@ import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 import { E2E_LOJA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
 
+/** Balcão (0135): forma de pagamento antes de lançar — "Dinheiro, sem troco", o que o sistema gravava antes. */
+async function escolherPagamentoPdv(p) {
+  await p.waitForTimeout(500)
+  const bloco = p.getByTestId('pdv-pagamento')
+  if (!(await bloco.isVisible().catch(() => false))) return
+  await p.getByTestId('pdv-pag-dinheiro').click()
+  await p.getByTestId('pdv-troco-nao').click()
+}
+
 exigirLojaIsolada()
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
@@ -74,7 +83,7 @@ const qtdTelas = (page) => page.locator('[data-tela-pdv]').count()
 async function lancarAgua(page) {
   await page.getByTestId('pdv-lancar').waitFor()
   await page.getByRole('button', { name: new RegExp(AGUA.nome) }).first().click()
-  await page.getByTestId('pdv-lancar').click()
+  await escolherPagamentoPdv(page); await page.getByTestId('pdv-lancar').click()
   await page.getByText(/lançado em/).first().waitFor({ timeout: 15000 })
   await esperar(500)
 }

@@ -182,10 +182,10 @@ const mesa = await um(`select m.id, m.nome from mesas m where restaurante_id=$1 
   and m.limpeza_desde is null and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
 // 0094: mesa abre com o nome do cliente antes do primeiro lançamento.
 await api(pAt, `/api/admin/mesas/${mesa.id}/atendimento`, 'POST', { acao: 'abrir', nome: 'Cliente Demonstração', chave: uuid() })
-const l1 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { mesaId: mesa.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }] })
+const l1 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, mesaId: mesa.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }] })
 const comandaMesa = l1.json.comandaId
 await esperar(2500)
-const l2 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: comandaMesa, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })
+const l2 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: comandaMesa, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })
 const fichas = await aguardar(() => {
   const c = A.impressos().filter((x) => x.tipo === 'ficha_cozinha')
   return c.length >= 2 ? c : null
@@ -238,7 +238,7 @@ await pAt.keyboard.press('Escape').catch(() => {})
 // ════════════════════════════════════════════════════════════════════════════
 secao('18–20. Balcão: taxa 0% e taxa manual do gerente')
 const bal = await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Conceição Demonstração', chave: uuid() })
-await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: bal.json.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: AGUA.id, quantidade: 1, complementos: [] }] })
+await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: bal.json.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: AGUA.id, quantidade: 1, complementos: [] }] })
 await aguardar(() => A.impressos().filter((x) => x.tipo === 'ficha_cozinha').length >= 3, 30000)
 await api(pAt, `/api/admin/comandas/${bal.json.id}/pre-conta`, 'POST', { chave: uuid() })
 const pb1 = await aguardar(() => A.impressos().filter((x) => x.tipo === 'pre_conta')[2], 30000)
@@ -257,7 +257,7 @@ const antesQueda = A.impressos().length
 const pcQueda = await api(pAt, `/api/admin/comandas/${bal.json.id}/pre-conta`, 'POST', { chave: uuid(), reimpressao: true })
 const falhou = await aguardar(async () => (await um('select erro, estado from impressao_trabalhos where id=$1', [pcQueda.json.id]))?.erro, 20000)
 ok('pré-conta com Impressora 02 fora: erro registrado e trabalho pendente', /nao encontrada/.test(falhou ?? ''))
-const k3 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: bal.json.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
+const k3 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: bal.json.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
 const kOk = await aguardar(() => A.impressos().find((x) => x.tipo === 'ficha_cozinha' && x.n > antesQueda), 30000)
 ok('enquanto a 02 está fora, a ficha da cozinha sai na 01', kOk?.impressora === 'Impressora 01', k3.status)
 await pAt.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' })

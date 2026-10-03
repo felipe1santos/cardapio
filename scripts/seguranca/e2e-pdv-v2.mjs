@@ -17,6 +17,15 @@ import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 import { E2E_LOJA, E2E_VIZINHA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
 
+/** Balcão (0135): forma de pagamento antes de lançar — "Dinheiro, sem troco", o que o sistema gravava antes. */
+async function escolherPagamentoPdv(p) {
+  await p.waitForTimeout(500)
+  const bloco = p.getByTestId('pdv-pagamento')
+  if (!(await bloco.isVisible().catch(() => false))) return
+  await p.getByTestId('pdv-pag-dinheiro').click()
+  await p.getByTestId('pdv-troco-nao').click()
+}
+
 // Loja ISOLADA obrigatória: esta suíte escreve na loja (comandas, pedidos, flags). Sem
 // E2E_LOJA/E2E_VIZINHA/E2E_SUFIXO ela aborta aqui, antes de qualquer escrita — nunca roda
 // na cantina-demo.  E2E_LOJA=cantina-e2e E2E_VIZINHA=vizinha-e2e E2E_SUFIXO=e2e node <script>
@@ -152,7 +161,7 @@ for (const [i, c] of clientes.entries()) {
   ok(`${c.nome}: cardápio aberto na comanda certa`, alvo.includes(`Senha ${seqAntes + i + 1}`) && alvo.includes(c.nome), alvo)
   for (const it of c.itens) await pa.getByRole('button', { name: new RegExp(it.nome) }).first().click()
   if (i === 0) await foto(pa, '05-lancamento-balcao')
-  await pa.getByTestId('pdv-lancar').click()
+  await escolherPagamentoPdv(pa); await pa.getByTestId('pdv-lancar').click()
   await pa.getByText(/lançado em Balcão/).waitFor({ timeout: 15000 })
   await pa.getByRole('button', { name: 'Balcão', exact: true }).click()
   await pa.getByTestId('balcao-novo').waitFor()
@@ -316,10 +325,10 @@ await pa.getByTestId('mesa-nome').fill('Cliente da Mesa')
 await pa.getByTestId('mesa-abrir').click()
 await pa.getByTestId('pdv-lancar').waitFor()
 await pa.getByRole('button', { name: new RegExp(FILE.nome) }).first().click()
-await pa.getByTestId('pdv-lancar').click()
+await escolherPagamentoPdv(pa); await pa.getByTestId('pdv-lancar').click()
 await pa.getByText(/lançado em/).waitFor({ timeout: 15000 })
 await pa.getByRole('button', { name: new RegExp(SUCO.nome) }).first().click()
-await pa.getByTestId('pdv-lancar').click()
+await escolherPagamentoPdv(pa); await pa.getByTestId('pdv-lancar').click()
 await pa.waitForFunction(() => document.body.innerText.match(/Pedido #\d+ lançado/g)?.length)
 await esperar(800)
 const cm = await um(`select id, taxa_servico_percentual, tipo from comandas where mesa_id=$1 and status='aberta'`, [mesaLivre.id])
@@ -387,7 +396,7 @@ await db.query('update restaurantes set pdv_v2=false where id=$1', [vizinha])
 const legado = await api(pa, '/api/admin/pdv/pedido', 'POST', { itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
 ok('rota antiga de lançamento responde 410 com a loja no v2', legado.status === 410)
 ok('e a tentativa fica na telemetria', !!(await um(`select 1 from eventos_auditoria where restaurante_id=$1 and acao='pdv_legado.pedido' and dados->>'resultado'='recusado_pdv_v2'`, [loja])))
-const corpoForjado = await api(pa, '/api/admin/pdv/lancamento', 'POST', {
+const corpoForjado = await api(pa, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' },
   comandaId: (await api(pa, '/api/admin/balcao/comandas', 'POST', { nome: 'Forjado', chave: uuid() })).json.id,
   chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [], preco: 0.01 }], total: 0.01, canal: 'delivery', status: 'entregue', restauranteId: vizinha,
 })

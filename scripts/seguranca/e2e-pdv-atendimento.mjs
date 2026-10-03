@@ -93,7 +93,7 @@ const api = (page, url, metodo = 'GET', corpo) =>
     return { status: r.status, json }
   }, { url: `${BASE}${url}`, metodo, corpo })
 const foto = async (page, nome) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${nome}.png`) }) }
-const lancar = (page, alvo, itens) => api(page, '/api/admin/pdv/lancamento', 'POST', { ...alvo, chave: uuid(), itens })
+const lancar = (page, alvo, itens) => api(page, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, ...alvo, chave: uuid(), itens })
 const L = (it, qtd = 1) => ({ itemId: it.id, quantidade: qtd, complementos: [] })
 const irPdv = async (page) => { await page.goto(`${BASE}/admin/pdv`, { waitUntil: 'networkidle' }); await dispensar(page) }
 

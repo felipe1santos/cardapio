@@ -132,7 +132,7 @@ try {
     const conta = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'CONTA CONTROLADA TESTE LOCAL', chave: uuid() })).json.id
     guardar({ conta })
     const pedido = await umTrabalho('3. Ficha de cozinha do pedido controlado', async () =>
-      (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: conta, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id,
+      (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: conta, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id,
     async (id) => (await um('select impresso from pedidos where id=$1', [id]))?.impresso === true)
     await umTrabalho('4. Recibo/Extrato real da conta controlada', async () => (await api(pAt, `/api/admin/comandas/${conta}/pre-conta`, 'POST', { chave: uuid() })).json.id,
       async (id) => (await estado(id))?.estado === 'enviado_spooler')

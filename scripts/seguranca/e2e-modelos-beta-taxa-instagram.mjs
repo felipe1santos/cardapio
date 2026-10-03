@@ -96,7 +96,7 @@ async function abrirBalcao(nome) {
   const r = await api(pd, '/api/admin/balcao/comandas', 'POST', { nome, modalidade: 'retirada', chave: uuid() })
   const id = r.json?.id ?? r.json?.comandaId
   const senha = r.json?.senha
-  const l = await api(pd, '/api/admin/pdv/lancamento', 'POST', { comandaId: id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: AGUA.id, quantidade: 2, complementos: [] }] })
+  const l = await api(pd, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: AGUA.id, quantidade: 2, complementos: [] }] })
   return { id, senha, abertura: r, lancamento: l }
 }
 const conta = async (id) => (await api(pd, `/api/admin/comandas/${id}`)).json?.conta
@@ -213,7 +213,7 @@ try {
   // ════════════════════════════════════════════════════════════════════════════
   secao('Taxa manual em Mesas e Comandas')
   await api(pd, `/api/admin/mesas/${MESA.id}/atendimento`, 'POST', { acao: 'abrir', nome: 'Cliente Mesa', chave: uuid() })
-  const lm = await api(pd, '/api/admin/pdv/lancamento', 'POST', { mesaId: MESA.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }] })
+  const lm = await api(pd, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, mesaId: MESA.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }] })
   const cm = await um(`select id from comandas where mesa_id=$1 and status='aberta'`, [MESA.id])
   ok('conta da mesa aberta pelo lançamento', lm.status < 300 && !!cm, `${lm.status} ${lm.json?.error ?? ''}`)
   await pd.goto(`${BASE}/admin/mesas/${MESA.id}`, { waitUntil: 'networkidle' })
@@ -333,7 +333,7 @@ try {
   ok('depois de impresso pelo Beta, o antigo continua sem recebê-lo', !(antDepois.json?.pedidos ?? []).some((p) => p.id === pK.id))
 
   // Mesa em Cozinha e Caixa: DADOS DA MESA, sem endereço.
-  const lm2 = await api(pd, '/api/admin/pdv/lancamento', 'POST', { mesaId: MESA.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
+  const lm2 = await api(pd, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, mesaId: MESA.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
   const betaM = await fila(credCaixa)
   const pm = (betaM.json?.pedidos ?? []).find((p) => p.canal === 'mesa')
   const rM = pm ? await renderizarCozinhaBeta(pm, { config: betaM.json.config, lojaNome: betaM.json.loja?.nome, extras: betaM.json.cozinhaBeta.extras[pm.id], qr: betaM.json.cozinhaBeta.qr }, { saida: join(SHOTS, 'beta-cozinha-real-mesa.png') }) : null

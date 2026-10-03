@@ -20,6 +20,15 @@ import pg from 'pg'
 import { chromium, devices } from 'playwright'
 import { chavesLocais, exigirLoopback } from '../seguranca/chaves-locais.mjs'
 
+/** Balcão (0135): forma de pagamento antes de lançar — "Dinheiro, sem troco", o que o sistema gravava antes. */
+async function escolherPagamentoPdv(p) {
+  await p.waitForTimeout(500)
+  const bloco = p.getByTestId('pdv-pagamento')
+  if (!(await bloco.isVisible().catch(() => false))) return
+  await p.getByTestId('pdv-pag-dinheiro').click()
+  await p.getByTestId('pdv-troco-nao').click()
+}
+
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const PRINTS = process.argv[2] ?? null
 if (PRINTS) mkdirSync(PRINTS, { recursive: true })
@@ -247,7 +256,7 @@ try {
   await pa.getByTestId('pdv-lancar').waitFor()
   await pa.getByRole('button', { name: /Suco de Laranja/ }).first().click()
   await pa.getByRole('button', { name: /Água com Gás/ }).first().click()
-  await pa.getByTestId('pdv-lancar').click()
+  await escolherPagamentoPdv(pa); await pa.getByTestId('pdv-lancar').click()
   const toast = await pa.getByTestId('pdv-toast-lancado').innerText({ timeout: 10000 }).catch(() => '')
   ok('lançou: toast de sucesso "lançado em" com "Ver conta"', /lançado em/.test(toast) && /Ver conta/.test(toast), toast.replace(/\n/g, ' '))
   ok('barra de baixo: [Mesas/Balcão] [Ver conta] [Lançar na cozinha], sem caixa verde no topo', (await pa.getByTestId('pdv-pos-lancar-mesas').count()) === 1 && (await pa.getByTestId('pdv-ver-conta').count()) === 1)
@@ -323,7 +332,7 @@ try {
   await pa.getByTestId('balcao-abrir').click()
   await pa.getByTestId('pdv-lancar').waitFor()
   await pa.getByRole('button', { name: /Água com Gás/ }).first().click()
-  await pa.getByTestId('pdv-lancar').click()
+  await escolherPagamentoPdv(pa); await pa.getByTestId('pdv-lancar').click()
   await pa.getByTestId('pdv-toast-lancado').waitFor({ timeout: 15000 })
   // Cancela o pedido pela API (aceito → cancelar) para a conta ficar com saldo zero.
   const pz = await um(`select p.id from pedidos p join comandas c on c.id=p.comanda_id where c.restaurante_id=$1 and c.cliente_nome='TESTE Zero' order by p.criado_em desc limit 1`, [CANTINA.id])

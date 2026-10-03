@@ -91,7 +91,7 @@ try {
   secao('1. Caixa fechado barra o recebimento no PDV e na mesa')
   const b1 = await api(ate.p, '/api/admin/balcao/comandas', 'POST', { nome: 'TESTE Cliente Dinheiro', chave: uuid(), modalidade: 'retirada' })
   ok('balcão: atendente abre a comanda', b1.s === 201, `${b1.s} ${b1.j?.error ?? ''}`)
-  const l1 = await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { comandaId: b1.j?.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: AGUA.id, quantidade: 1, complementos: [] }] })
+  const l1 = await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: b1.j?.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: AGUA.id, quantidade: 1, complementos: [] }] })
   ok('balcão: lança Filé + Água (cozinha recebe normalmente)', l1.s === 201, `${l1.s} ${l1.j?.error ?? ''}`)
   const tot1 = await totalDe(b1.j.id)
   const semCaixa = await conta(ate.p, b1.j.id, { acao: 'pagamento', forma: 'dinheiro', valor: tot1, recebido: 100, chave: uuid() })
@@ -134,7 +134,7 @@ try {
 
   secao('4. Balcão dividido: pix + crédito, estorno do pix e troca por débito')
   const b2 = await api(ate.p, '/api/admin/balcao/comandas', 'POST', { nome: 'TESTE Cliente Dividido', chave: uuid(), modalidade: 'retirada' })
-  await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { comandaId: b2.j.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: SUCO.id, quantidade: 3, complementos: [] }] })
+  await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: b2.j.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 1, complementos: [] }, { itemId: SUCO.id, quantidade: 3, complementos: [] }] })
   const tot2 = await totalDe(b2.j.id)
   const meia = Math.round((tot2 / 3) * 100) / 100
   const chavePix = uuid()
@@ -155,7 +155,7 @@ try {
 
   secao('4b. "Fechar e receber" de uma vez (dinheiro com troco + pix)')
   const b4 = await api(ate.p, '/api/admin/balcao/comandas', 'POST', { nome: 'TESTE Cliente Fecha Tudo', chave: uuid(), modalidade: 'retirada' })
-  await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { comandaId: b4.j.id, chave: uuid(), itens: [{ itemId: RISOTO.id, quantidade: 1, complementos: [] }] })
+  await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: b4.j.id, chave: uuid(), itens: [{ itemId: RISOTO.id, quantidade: 1, complementos: [] }] })
   await servir(ate.p, b4.j.id)
   const tot4 = await totalDe(b4.j.id)
   const fc = await conta(ate.p, b4.j.id, { acao: 'fechar_completo', chave: uuid(), acoes: [], pagamentos: [
@@ -199,7 +199,7 @@ try {
     ok('acerto: motoboy deve o total do pedido em dinheiro', !!linha && Math.abs(linha.valorEsperado - pedTot) < 0.001, JSON.stringify(linha))
     const ac = await api(ger.p, '/api/admin/caixa', 'POST', { acao: 'acertar', entregadorId: moto.id, valorDeclarado: pedTot })
     ok('acerto registrado', ac.s === 200, `${ac.s} ${ac.j?.error ?? ''}`)
-    const lvA = await um(`select valor_centavos::bigint v, entregador_id, turno_id from fin_lancamentos where restaurante_id=$1 and tipo='acerto_motoboy' order by id desc limit 1`, [loja.id])
+    const lvA = await um(`select valor_centavos::bigint v, entregador_id, turno_id from fin_lancamentos where restaurante_id=$1 and tipo='acerto_motoboy' and carteira='gaveta' order by id desc limit 1`, [loja.id])
     ok('acerto entra na gaveta do livro-caixa', Number(lvA?.v) === c(pedTot) && lvA?.entregador_id === moto.id && lvA?.turno_id === turno.id, JSON.stringify(lvA))
   }
 
@@ -244,7 +244,7 @@ try {
 
   secao('10. Depois de fechado: nada recebe; delivery e cozinha seguem')
   const b3 = await api(ate.p, '/api/admin/balcao/comandas', 'POST', { nome: 'TESTE Depois do Fechamento', chave: uuid(), modalidade: 'retirada' })
-  const l3 = await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { comandaId: b3.j?.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
+  const l3 = await api(ate.p, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: b3.j?.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
   ok('balcão ainda abre comanda e lança (cozinha não para)', b3.s === 201 && l3.s === 201)
   ok('❌ esperado: receber depois do fechamento', (await conta(ate.p, b3.j.id, { acao: 'pagamento', forma: 'pix', valor: AGUA.preco, chave: uuid() })).s === 409)
   await servir(ate.p, b3.j.id)
@@ -256,8 +256,8 @@ try {
     endereco: { rua: '', numero: '', complemento: '', bairro: '', cep: '' }, itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }],
   }) }).then((r) => r.status)
   ok('pedido online (vitrine) continua entrando com o caixa fechado', pub2 === 201, String(pub2))
-  // Delivery entregue com o caixa fechado: o caixa abre sozinho (dinheiro do motoboy não fica
-  // fora de turno) e o dono recebe o aviso.
+  // Delivery entregue com o caixa fechado (0135): o caixa NÃO abre sozinho; o dinheiro vira
+  // "a acertar" (pendência do motoboy, sem turno) e aparece no acerto mesmo com o caixa fechado.
   const pub3 = await fetch(`${BASE}/api/loja/${SLUG}/pedido`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
     tipo: 'entrega', cliente: { nome: 'TESTE Delivery Fechado', telefone: '27999990012' }, pagamento: 'dinheiro', trocoPara: null,
     endereco: { rua: 'Rua Teste', numero: '20', complemento: '', bairro: 'Centro', cep: '29000000', cidade: 'Vitória' }, itens: [{ itemId: RISOTO.id, quantidade: 1, complementos: [] }],
@@ -267,12 +267,11 @@ try {
   for (const st of ['preparando', 'pronto']) await sb2.from('pedidos').update({ status: st }).eq('id', pub3.j?.id)
   await sb2.from('pedidos').update({ entregador_id: moto.id, status: 'em_rota' }).eq('id', pub3.j?.id)
   await sb2.from('pedidos').update({ status: 'entregue' }).eq('id', pub3.j?.id)
-  const auto = await um(`select id, aberto_por_nome from caixa_turnos where restaurante_id=$1 and fechado_em is null`, [loja.id])
-  ok('entrega com o caixa fechado: caixa abre sozinho ("Automático")', pub3.s === 201 && /Automático/.test(auto?.aberto_por_nome ?? ''), `${pub3.s} ${auto?.aberto_por_nome}`)
-  ok('dono avisado do caixa aberto sozinho', !!(await um(`select 1 from fin_alertas where restaurante_id=$1 and tipo='caixa_aberto_automatico' and dados->>'turno'=$2`, [loja.id, auto?.id ?? ''])))
+  const auto = await um(`select id from caixa_turnos where restaurante_id=$1 and fechado_em is null`, [loja.id])
+  ok('entrega com o caixa fechado: caixa NÃO abre sozinho', pub3.s === 201 && !auto, `${pub3.s} ${auto?.id}`)
+  ok('dinheiro vira pendência do motoboy, sem turno', !!(await um(`select 1 from fin_lancamentos where pedido_id=$1 and tipo='pendencia_motoboy' and turno_id is null`, [pub3.j?.id])))
   const linhaAuto = (await api(ger.p, '/api/admin/caixa')).j?.acerto?.find((l) => l.entregadorId === moto.id)
-  ok('esse dinheiro do motoboy entra no acerto do novo caixa', linhaAuto?.pedidos === 1, JSON.stringify(linhaAuto))
-  await db.query(`update caixa_turnos set fechado_em=now(), fechado_por_nome='e2e (limpeza)' where id=$1`, [auto?.id])
+  ok('aparece "a acertar" mesmo com o caixa fechado', linhaAuto?.pedidos === 1, JSON.stringify(linhaAuto))
   ok('❌ esperado: acerto de motoboy sem caixa aberto', (await api(ger.p, '/api/admin/caixa', 'POST', { acao: 'acertar', entregadorId: moto.id, valorDeclarado: 1 })).s === 409)
   await conta(dono.p, b3.j.id, { acao: 'cancelar_conta', motivo: 'TESTE limpeza' }).catch(() => {})
 

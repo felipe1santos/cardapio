@@ -12,6 +12,15 @@ import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 import { E2E_LOJA, USU, exigirLojaIsolada } from './e2e-ambiente.mjs'
 
+/** Balcão (0135): forma de pagamento antes de lançar — "Dinheiro, sem troco", o que o sistema gravava antes. */
+async function escolherPagamentoPdv(p) {
+  await p.waitForTimeout(500)
+  const bloco = p.getByTestId('pdv-pagamento')
+  if (!(await bloco.isVisible().catch(() => false))) return
+  await p.getByTestId('pdv-pag-dinheiro').click()
+  await p.getByTestId('pdv-troco-nao').click()
+}
+
 exigirLojaIsolada()
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const PRINTS = process.argv[2] ?? null
@@ -182,7 +191,7 @@ try {
   await p.getByTestId('config-adicionar').click()
   await p.getByTestId('configurar-item').waitFor({ state: 'detached' })
 
-  await p.getByTestId('pdv-lancar').click()
+  await escolherPagamentoPdv(p); await p.getByTestId('pdv-lancar').click()
   await p.getByText(/lançado em/).first().waitFor({ timeout: 15000 })
   await esperar(800)
   const itens = await q(`select pi.nome, pi.sabor_nome, pi.tamanho_nome, pi.preco_unitario, pi.quantidade, pi.complementos from pedido_itens pi join pedidos pe on pe.id=pi.pedido_id join comandas c on c.id=pe.comanda_id where c.restaurante_id=$1 and c.cliente_nome='TESTE Janelas' and c.status='aberta' order by pi.nome`, [L])

@@ -168,7 +168,7 @@ async function medirTrabalho(tipo) {
 async function medirComanda() {
   const antes = agente.tempos().length
   const t0 = Date.now()
-  const r = await api('/api/admin/pdv/lancamento', 'POST', { comandaId: balcao, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
+  const r = await api('/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, pagamento: { escolha: 'dinheiro' }, comandaId: balcao, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
   const tApi = Date.now() - t0
   const pedidoId = r.json?.id
   const ok = await aguardar(async () => (await um('select impresso from pedidos where id=$1', [pedidoId]))?.impresso === true, 30000)

@@ -10,6 +10,15 @@ import pg from 'pg'
 import { chromium } from 'playwright'
 import { chavesLocais, exigirLoopback } from '../seguranca/chaves-locais.mjs'
 
+/** Balcão (0135): forma de pagamento antes de lançar — "Dinheiro, sem troco", o que o sistema gravava antes. */
+async function escolherPagamentoPdv(p) {
+  await p.waitForTimeout(500)
+  const bloco = p.getByTestId('pdv-pagamento')
+  if (!(await bloco.isVisible().catch(() => false))) return
+  await p.getByTestId('pdv-pag-dinheiro').click()
+  await p.getByTestId('pdv-troco-nao').click()
+}
+
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
 const FASE = process.argv[2] ?? 'antes'
 const W = Number(process.argv[3] ?? 1280), H = Number(process.argv[4] ?? 800)
@@ -55,7 +64,7 @@ try {
   await p.getByTestId('pdv-lancar').waitFor()
   await p.getByRole('button', { name: /Água com Gás/ }).first().click()
   if (!celular) await foto(p, '03-lancar-itens')
-  await p.getByTestId('pdv-lancar').click()
+  await escolherPagamentoPdv(p); await p.getByTestId('pdv-lancar').click()
   await p.waitForTimeout(1500)
   await p.getByTestId('pdv-ver-conta').click()
   await p.getByTestId('conta-titulo').waitFor()

@@ -153,11 +153,11 @@ try {
     ['sem itens', []],
   ]
   for (const [n, itens] of LANC) {
-    const r = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: forjada.j?.id, chave: uuid(), itens })
+    const r = await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: forjada.j?.id, chave: uuid(), itens })
     ok(`lançamento ${n}: recusado`, r.s >= 400 && r.s < 500, `${r.s} ${r.j?.error ?? ''}`)
   }
   await q(`update item_complementos set pausado = true where item_id = $1 and nome = 'Mal passado'`, [burger.id])
-  const pausada = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: forjada.j?.id, chave: uuid(), itens: [{ itemId: burger.id, quantidade: 1, complementos: ['Mal passado', 'Suco de laranja'] }] })
+  const pausada = await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: forjada.j?.id, chave: uuid(), itens: [{ itemId: burger.id, quantidade: 1, complementos: ['Mal passado', 'Suco de laranja'] }] })
   await q(`update item_complementos set pausado = false where item_id = $1 and nome = 'Mal passado'`, [burger.id])
   ok('lançamento com opção pausada: recusado', pausada.s >= 400 && /não está disponível/.test(pausada.j?.error ?? ''), pausada.j?.error)
   // Delivery público: campos internos forjados são recusados (422); preço do navegador não vale.
@@ -195,7 +195,7 @@ try {
   const n61 = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: NOME60 + 'X', chave: uuid(), modalidade: 'retirada' })
   ok('nome com 61 caracteres recusado', NOME60.length === 60 && n61.s === 400, n61.j?.error)
   const longo = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: NOME60, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, bairro: 'Jardim da Penha Residencial Parque das Flores', taxa: '6' } })
-  const lLongo = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: longo.j?.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 3, complementos: [] }] })
+  const lLongo = await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: longo.j?.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 3, complementos: [] }] })
   ok('pedido de nome e bairro longos lançado', longo.s === 201 && lLongo.s === 201, `${longo.s} ${lLongo.s}`)
 
   secao('Duplo clique, duas abas, dois operadores')
@@ -207,7 +207,7 @@ try {
   const g2 = await logar(USU.gerente)
   const chaveLanc = uuid()
   const linhaAgua = [{ itemId: agua.id, quantidade: 1, complementos: [] }]
-  const [la, lb] = await Promise.all([g, g2].map((p) => api(p, '/api/admin/pdv/lancamento', 'POST', { comandaId: d1.j?.id, chave: chaveLanc, itens: linhaAgua })))
+  const [la, lb] = await Promise.all([g, g2].map((p) => api(p, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: d1.j?.id, chave: chaveLanc, itens: linhaAgua })))
   const nLanc = Number((await um(`select count(*) n from pedidos where comanda_id = $1`, [d1.j?.id])).n)
   ok('dois operadores reenviando o mesmo lançamento: um pedido só', nLanc === 1, `${la.s}/${lb.s} n=${nLanc}`)
   const [o1, o2] = await Promise.all([g, g2].map((p, i) => api(p, '/api/admin/balcao/comandas', 'POST', { nome: `E2E Balcão Op${i + 1} ${SUF}`, chave: uuid(), modalidade: 'retirada' })))
@@ -221,8 +221,8 @@ try {
 
   secao('Pedidos para a cozinha')
   // Campos forjados no corpo (tipo, canal, origem, taxa, destino, status, preço) não valem nada.
-  const lRet = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: cRet.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [], preco: 0.01, precoUnitario: 0.01 }], tipo: 'entrega', canal: 'delivery', origem: 'cardapio', taxaEntrega: 50, destino: 'logistica', status: 'entregue', total: 0.01 })
-  const lEnt = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: cEnt.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 2, complementos: [] }] })
+  const lRet = await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: cRet.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [], preco: 0.01, precoUnitario: 0.01 }], tipo: 'entrega', canal: 'delivery', origem: 'cardapio', taxaEntrega: 50, destino: 'logistica', status: 'entregue', total: 0.01 })
+  const lEnt = await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: cEnt.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 2, complementos: [] }] })
   ok('lança na retirada e na entrega', lRet.s === 201 && lEnt.s === 201, `${lRet.s} ${lEnt.s}`)
   const pRet = await um(`select id, numero, tipo, canal, origem, status, taxa_entrega, total from pedidos where comanda_id = $1`, [cRet.id])
   const pEnt = await um(`select id, numero, tipo, canal, origem, endereco_rua, endereco_cidade, taxa_entrega, total from pedidos where comanda_id = $1`, [cEnt.id])
@@ -242,7 +242,8 @@ try {
   const aud1 = await um(`select dados from eventos_auditoria where entidade_id = $1 and acao = 'pedido.entrega_balcao_destino'`, [pEnt.id])
   ok('auditoria registra caminho "logistica"', aud1?.dados?.caminho === 'logistica')
   const cardTxt = await card(pEnt.numero).innerText()
-  ok('card sem forma de pagamento', !/Dinheiro|Pix|Cartão/i.test(cardTxt))
+  // 0135: o card mostra a forma escolhida no PDV (antes não mostrava nada).
+  ok('card mostra a forma escolhida (Dinheiro) e "A …" (não pago)', /Dinheiro/.test(cardTxt) && /A (pagar|receber)/.test(cardTxt))
   ok('card com ENTREGA em destaque', await card(pEnt.numero).getByTestId('etiqueta-entrega').isVisible())
   const CAPACETE = 'path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]'
   ok('capacete na etiqueta ENTREGA e no "Na logística"', (await card(pEnt.numero).getByTestId('etiqueta-entrega').locator(CAPACETE).count()) === 1 && (await card(pEnt.numero).getByTestId('card-na-logistica').locator(CAPACETE).count()) === 1)
@@ -252,7 +253,7 @@ try {
     // os dois continuam nos Detalhes.
     const nAd = (await um(`select numero from pedidos where id = $1`, [adult.j.id])).numero
     const txtAd = await card(nAd).innerText()
-    ok('card do delivery sem forma de pagamento e sem "não verificado"', !/Pix|Dinheiro|Cartão/i.test(txtAd) && !/não verif/i.test(txtAd), txtAd.replace(/\s+/g, ' ').slice(0, 120))
+    ok('card do delivery com a forma (Pix) e sem "não verificado"', /Pix/.test(txtAd) && !/não verif/i.test(txtAd), txtAd.replace(/\s+/g, ' ').slice(0, 120))
     await card(nAd).getByTestId('card-detalhes').click(); await k.waitForTimeout(600)
     const det = await k.locator("body").innerText()
     ok('Detalhes do delivery mantêm a forma de pagamento e o "não verif."', /Pix/i.test(det) && /não verif/i.test(det), det.replace(/\s+/g, ' ').slice(0, 160))
@@ -285,7 +286,7 @@ try {
     const cancelarLanc = (comanda, pedidoId) => api(k, `/api/admin/comandas/${comanda}`, 'POST', { acao: 'cancelar_pedido', pedidoId, motivo: 'teste da taxa 0099' })
     // Entrega com um único pedido: cancelado, a taxa sai do total.
     const ct = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: `E2E Balcão Taxa Única ${SUF}`, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, taxa: '4' } })
-    const lt = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: ct.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
+    const lt = await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: ct.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
     let conta = await contaDe(ct.j.id)
     ok('entrega com item: taxa cobrada no total', conta?.totais?.taxaEntrega === 4 && conta.totais.total === Number(agua.preco) + 4, JSON.stringify(conta?.totais))
     const cx = await cancelarLanc(ct.j.id, lt.j.id)
@@ -297,8 +298,8 @@ try {
     ok('  pedido cancelado fora da fila de impressão', fila.reimprimir === false && (await um(`select status from pedidos where id = $1`, [lt.j.id])).status === 'cancelado')
     // Dois pedidos: cancelado o 1º (que carregava a taxa), a taxa continua uma vez.
     const c2t = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: `E2E Balcão Taxa Dupla ${SUF}`, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, taxa: '4' } })
-    const la = await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: c2t.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
-    await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: c2t.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 2, complementos: [] }] })
+    const la = await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: c2t.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
+    await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: c2t.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 2, complementos: [] }] })
     await cancelarLanc(c2t.j.id, la.j.id)
     conta = await contaDe(c2t.j.id)
     ok('dois pedidos, 1º cancelado: taxa continua uma vez', conta?.totais?.taxaEntrega === 4 && conta.totais.total === 2 * Number(agua.preco) + 4, JSON.stringify(conta?.totais))
@@ -310,7 +311,7 @@ try {
   await q(`update restaurantes set usa_logistica = false, entrega_sem_entregador = false where id = $1`, [loja.id])
   const nome2 = `E2E Balcão Entrega2 ${SUF}`
   const c2 = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: nome2, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, taxa: '5' } })
-  await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: c2.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
+  await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: c2.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
   const p2 = await um(`select id, numero from pedidos where comanda_id = $1`, [c2.j.id])
   await k.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' }); await k.waitForTimeout(800)
   await card(p2.numero).getByRole('button', { name: 'Aceitar' }).click(); await k.waitForTimeout(900)
@@ -326,7 +327,7 @@ try {
   secao('Logística ligada + "entrega sem entregador": também conclui sozinha')
   await q(`update restaurantes set usa_logistica = true, entrega_sem_entregador = true where id = $1`, [loja.id])
   const c3 = await api(g, '/api/admin/balcao/comandas', 'POST', { nome: `E2E Balcão Entrega3 ${SUF}`, chave: uuid(), modalidade: 'entrega', entrega: { ...ENDERECO, taxa: '5' } })
-  await api(g, '/api/admin/pdv/lancamento', 'POST', { comandaId: c3.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
+  await api(g, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: c3.j.id, chave: uuid(), itens: [{ itemId: agua.id, quantidade: 1, complementos: [] }] })
   const p3 = await um(`select id, numero from pedidos where comanda_id = $1`, [c3.j.id])
   await k.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' }); await k.waitForTimeout(800)
   await card(p3.numero).getByRole('button', { name: 'Aceitar' }).click(); await k.waitForTimeout(900)

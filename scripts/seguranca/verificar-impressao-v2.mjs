@@ -177,10 +177,10 @@ const mesa = await um(`select m.id, m.nome from mesas m where restaurante_id=$1 
   and m.limpeza_desde is null and not exists (select 1 from comandas c where c.mesa_id=m.id and c.status='aberta') order by ordem limit 1`, [loja])
 // 0094: mesa abre com o nome do cliente antes do primeiro lançamento.
 await api(pAt, `/api/admin/mesas/${mesa.id}/atendimento`, 'POST', { acao: 'abrir', nome: 'Cliente Demonstração', chave: uuid() })
-const l1 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { mesaId: mesa.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 2, complementos: [] }] })
+const l1 = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, mesaId: mesa.id, chave: uuid(), itens: [{ itemId: FILE.id, quantidade: 2, complementos: [] }] })
 const comanda = l1.json.comandaId
 await esperar(300)
-await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: comanda, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }, { itemId: SUCO.id, quantidade: 1, complementos: [] }] })
+await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: comanda, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }, { itemId: SUCO.id, quantidade: 1, complementos: [] }] })
 ok('dois lançamentos na mesa em momentos diferentes', Number((await um('select count(*) n from pedidos where comanda_id=$1', [comanda])).n) === 2)
 const contaG = (await api(pGer, `/api/admin/comandas/${comanda}`)).json.conta
 const itemSuco = contaG.pedidos.flatMap((p) => p.itens).find((i) => i.nome === SUCO.nome)
@@ -221,7 +221,7 @@ ok('via e destino imutáveis', /trabalho_imutavel/.test((await erroSql(`update i
 
 // Dois operadores ao mesmo tempo (primeira via de outra comanda): um trabalho só.
 const lb = await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente Impressão', chave: uuid() })
-await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: lb.json.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })
+await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: lb.json.id, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })
 const [o1, o2] = await Promise.all([
   api(pAt, `/api/admin/comandas/${lb.json.id}/pre-conta`, 'POST', { chave: uuid() }),
   api(pGer, `/api/admin/comandas/${lb.json.id}/pre-conta`, 'POST', { chave: uuid() }),
@@ -319,7 +319,7 @@ ok('balcão novo nasce com taxa 0', Number((await um('select taxa_servico_percen
 
 secao('Cozinha: modo de sempre e roteamento por função')
 await db.query(`update impressao_agentes set visto_em=now() where credencial_hash=$1`, [sha(credA)])
-const kped = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: cbal, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
+const kped = await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: cbal, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })
 const legado = await fetch(`${BASE}/api/agente/pedidos`, { headers: { Authorization: `Bearer ${tokenLegado}` } }).then((r) => r.json())
 ok('flag desligada: Assistente antigo (token) lista a ficha como sempre', legado.pedidos.some((p) => p.id === kped.json.id))
 ok('flag desligada: computador pareado (Beta) NÃO recebe a ficha — sem dobra com o antigo', ((await A.get('/api/agente/pedidos')).json?.pedidos ?? []).length === 0)

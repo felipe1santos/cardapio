@@ -64,7 +64,7 @@ const api = (p, url, metodo = 'GET', corpo) => p.evaluate(async ({ url, metodo, 
   return { s: r.status, j }
 }, { url, metodo, corpo })
 const foto = async (p, nome) => { if (SHOTS) await p.screenshot({ path: join(SHOTS, `${nome}.png`) }) }
-const lancar = (p, alvo, qtd = 1) => api(p, '/api/admin/pdv/lancamento', 'POST', { ...alvo, chave: uuid(), itens: [{ itemId: agua.id, quantidade: qtd, complementos: [] }] })
+const lancar = (p, alvo, qtd = 1) => api(p, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, ...alvo, chave: uuid(), itens: [{ itemId: agua.id, quantidade: qtd, complementos: [] }] })
 const totais = async (comandaId) => um(`select total::float, pago::float, restante::float from comanda_totais($1)`, [comandaId])
 const elegiveisImpressao = async () => new Set((await q(`select * from impressao_elegiveis($1)`, [loja.id])).map((r) => Object.values(r)[0]))
 const brl = (v) => v.toFixed(2).replace('.', ',')

@@ -82,7 +82,7 @@ const pGer = await logar('gerente.local')
 const pAt = await logar('atendente.local')
 const AGUA = await um('select id from itens_cardapio where restaurante_id=$1 and nome=$2', [loja, 'Água com Gás'])
 const balcao = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente Virtual', chave: uuid() })).json.id
-const lancar = async () => (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { comandaId: balcao, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })).json.id
+const lancar = async () => (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: balcao, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 1, complementos: [] }] })).json.id
 
 try {
   secao('Pareamento: computador de teste só com impressoras virtuais (e uma física)')

@@ -217,7 +217,7 @@ await foto(pGer, '00-painel-configurado')
 
 // ── ajudantes de cenário ────────────────────────────────────────────────────
 const conta = async (id) => (await api(pAt, `/api/admin/comandas/${id}`)).json.conta
-const lancar = async (alvo, itens) => (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { ...alvo, chave: uuid(), itens })).json
+const lancar = async (alvo, itens) => (await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, ...alvo, chave: uuid(), itens })).json
 const esperarFicha = async (antes) => aguardar(() => K.impressos().filter((x) => x.tipo === 'ficha_cozinha').length > antes && K.impressos().filter((x) => x.tipo === 'ficha_cozinha'), 40000)
 const nK = (tipo) => K.impressos().filter((x) => !tipo || x.tipo === tipo).length
 const nC = (tipo) => C.impressos().filter((x) => !tipo || x.tipo === tipo).length
