@@ -69,7 +69,93 @@ Por que não "horário de fechamento da loja": nem toda loja tem horário cadast
 meia-noite. Com o corte às 05:00 a regra é a mesma para todas e nunca parte um expediente no meio.
 
 ### 2.3 Ponto 400 Hamburgueria e outras lojas
-(preenchido depois da publicação)
+
+**Levantamento (só leitura, antes de mudar).** Backup em `~/backups/menuzia/2026-10-02-caixas-automaticos/`.
+
+Só **duas** lojas tinham caixa aberto sozinho e nunca fechado:
+- **Ponto 400:** aberto em 30/09 23:01. Tinha 16 entregas (4 em dinheiro, R$ 214,99) e **nenhum acerto** feito.
+- **Menuzia:** o caixa 3, aberto em 02/10 07:57, sem nenhum lançamento.
+
+Nenhuma outra loja estava nessa situação.
+
+**Ponto 400 (03/10, ~00:08, depois da 0135).** Script `ajustar-caixas-automaticos-0135.mjs`, primeiro em teste (faz e
+desfaz), depois aplicado:
+- O caixa de 30/09 fechou às **05:00 de 01/10**, o fim do dia operacional dele.
+- Foram criados o turno de **01/10** (05:00 → 05:00 de 02/10), já fechado, e o de **02/10** (desde 05:00), aberto. Esse
+  último fecha sozinho às 05:00 de 03/10 pela regra nova.
+- Nenhuma entrega foi apagada nem alterada. O script conferiu antes e depois a quantidade e a soma dos pedidos (iguais) e
+  a corrente de assinaturas (íntegra).
+- Tudo ficou na auditoria, como "Sistema".
+- A Logística volta a mostrar o dia certo.
+
+**Menuzia.**
+- O caixa 3 foi encerrado como "Sistema (ajuste 0135)", com contagem zero (não tinha nenhum lançamento) e a justificativa
+  registrada.
+- A única entrega em dinheiro dele (#141, R$ 32,00) **não** ficou "a acertar": a conta foi paga no caixa. É exatamente a
+  correção da contagem em dobro.
+- Os 2 alertas de teste (divergência de R$ 30 e caixa aberto sozinho) ficaram como lidos ("Sistema (ajuste de teste
+  0135)"), sem apagar nada.
+
+**⚠️ Erro meu durante a conferência em produção.**
+- Para conferir o PDV, usei a sessão do Chrome achando que era da Menuzia, mas ela estava logada como um usuário da
+  **Ponto 400** ("Guilherme Silva").
+- Abri por engano, nessa loja real, **uma comanda de balcão vazia, "TESTE conferência 0135"**. Ela ficou sem pedido e sem
+  pagamento, e nada foi impresso nem enviado. A tentativa de lançar sem forma foi recusada (é o teste que eu queria) e não
+  gravou nada.
+- Cancelei a comanda na hora, em nome de "Sistema", com o motivo "Aberta por engano numa conferência técnica do suporte
+  Menuzia".
+- **O que ficou:**
+  - o registro de abertura na auditoria da Ponto 400 aparece em nome do Guilherme Silva (imutável);
+  - a numeração de senha do balcão deles pulou um número.
+- A partir de agora confiro a loja da sessão antes de qualquer ação.
 
 ## Testes
-(preenchido depois da publicação)
+
+| Suíte | Resultado |
+|---|---|
+| **e2e-pdv-pagamento** (novo) | **57/57** |
+| Financeiro integrado | 52/52 |
+| Financeiro Fase 1 / Fase 2 | 66/66 · 55/55 |
+| PDV v2 / atendimento / janelas / navegação | 70/70 · 97/97 · 53/53 · 30/30 |
+| Balcão e entrega | 84/84 |
+| Impressão | 40/40 |
+| Caixa turnos / regras | 18/18 · 34/34 |
+| Garçom (mesas) | 47/47 |
+| Cozinha | 26/26 |
+| Equipe | 75/75 |
+| Menu | 16/16 |
+| Robô WhatsApp | 106/106 |
+| Unitários | 1.930 (incluindo as regras novas e a mensagem do WhatsApp) |
+
+O **e2e-pdv-pagamento** cobre:
+- tela do PDV: sem forma bloqueia; dinheiro sem dizer se precisa de troco bloqueia; atalho de troco; troco digitado menor
+  que o total bloqueia; total mudou e o troco é recalculado;
+- matriz pela API: entrega e retirada × Pix, crédito, débito, dinheiro sem troco e com troco;
+- recusas: sem forma, troco igual ao total, forma fora da lista;
+- mesa sem a etapa;
+- a forma vale para a conta inteira, e a tela pré-preenche;
+- alterar: antes de sair (atendente), depois de sair (gerência + PIN de outra pessoa; o próprio PIN é recusado; o dono
+  altera direto); tudo auditado;
+- telas: Kanban, detalhe, cozinha, Logística (alerta de troco) e motoboy;
+- **impressão virtual:** os dados reais da fila do Assistente, desenhados pelo próprio código do recibo e da comanda Beta;
+- caixa com financeiro: não abre sozinho, vira "a acertar" sem turno, aviso no topo, alerta depois de 2 h, acerto no
+  turno de quem acertou e carteira do motoboy zerada; balcão pago no caixa fica fora do acerto;
+- caixa sem financeiro: turno vencido fecha às 05:00 com auditoria, a entrega abre o turno do dia e o acerto fica só do
+  dia;
+- vitrine igual;
+- celular e tablet.
+
+Nas suítes antigas, o lançamento no balcão passou a escolher **"Dinheiro, sem troco"**, que é o que o sistema gravava
+antes, então as verificações delas continuam valendo. Duas verificações da suíte de balcão exigiam o **oposto** do pedido
+novo ("card sem forma de pagamento") e foram atualizadas.
+
+## Publicação
+- 03/10 ~00:02: backup e **0135** aplicada (`~/backups/menuzia/2026-10-03-pre-0135`).
+- main `7691d3f`; deploy no Coolify com sucesso.
+- Ajuste da Ponto 400 e da Menuzia aplicado em seguida.
+- **Rollback:** `docs/rollback/0135_pdv_pagamento_caixa_dia.down.sql` (testado localmente) + redeploy do commit anterior
+  (`bb48c78`).
+
+## Para você decidir
+- Imprimir "(levar R$ 37,00)" na comanda exige mudar o recibo e publicar um Assistente novo.
+- O corte do dia operacional às 05:00. Dá para virar configuração por loja.
