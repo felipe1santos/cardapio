@@ -18,7 +18,18 @@ export function IconeAtendimento({ atendimento, className = 'h-3.5 w-3.5' }: { a
 }
 
 /** Etiqueta forte de RETIRADA / ENTREGA / MESA (card do Kanban e Detalhes). */
-export function EtiquetaAtendimento({ atendimento, compacta = false }: { atendimento: AtendimentoEtiqueta; compacta?: boolean }) {
+/** Só a cor do texto de cada atendimento (selo sem fundo do card do Kanban). */
+const TEXTO_ATENDIMENTO: Record<AtendimentoEtiqueta, string> = { ENTREGA: 'text-alert-text', RETIRADA: 'text-price-text', MESA: 'text-[#7E22CE]' }
+
+export function EtiquetaAtendimento({ atendimento, compacta = false, semFundo = false }: { atendimento: AtendimentoEtiqueta; compacta?: boolean; semFundo?: boolean }) {
+  if (semFundo) {
+    return (
+      <span data-testid={`etiqueta-${atendimento.toLowerCase()}`} className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide ${TEXTO_ATENDIMENTO[atendimento]}`}>
+        <IconeAtendimento atendimento={atendimento} className="h-3.5 w-3.5" />
+        {atendimento}
+      </span>
+    )
+  }
   return (
     <span
       data-testid={`etiqueta-${atendimento.toLowerCase()}`}

@@ -23,7 +23,12 @@ import {
   Eye,
   EyeOff,
   Zap,
+  ArrowRight,
+  Monitor,
+  Smartphone,
+  Store,
 } from 'lucide-react'
+import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -101,6 +106,9 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
 }
 
 
+/** Selo do card sem fundo: ícone + texto (2026-10-03). */
+const SELO = 'inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide'
+
 const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
   { label: 'Recebido', status: 'recebido' },
   { label: 'Preparando', status: 'preparando' },
@@ -117,12 +125,6 @@ function tempoDecorrido(iso: string, now: number) {
   const mins = Math.floor(totalSec / 60)
   const secs = totalSec % 60
   return { mins, label: `${mins}:${secs.toString().padStart(2, '0')}` }
-}
-
-function timerTone(mins: number) {
-  if (mins < 10) return 'bg-price-bg text-price-text'
-  if (mins < 20) return 'bg-warn-bg text-warn'
-  return 'bg-danger-bg text-danger'
 }
 
 /** Com o aceite automático ligado, o pedido toca o alarme por esse tempo antes de ir sozinho pra "Preparando". */
@@ -943,71 +945,71 @@ export default function PedidosPage() {
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible">
                   {colOrders.map((order) => {
-                    const tempo = tempoDecorrido(order.criadoEm, now)
+                    const idadeMs = now - new Date(order.criadoEm).getTime()
+                    const corTempo = { ok: 'text-price-text', atencao: 'text-[#B45309]', atraso: 'text-danger' }[corTempoPedido(idadeMs)]
                     return (
                       <div
                         key={order.id}
                         data-testid={`pedido-${order.numero}`}
                         className={[
-                          'rounded-menuzia border border-border border-l-[4px] bg-white p-3.5 shadow-md transition-shadow hover:shadow-lg',
+                          'rounded-menuzia border border-border border-l-[4px] bg-white px-3 pb-2.5 pt-2 shadow-md transition-shadow hover:shadow-lg',
                           accent[coluna],
                           order.status === 'recebido' && !order.preparandoNotificado ? 'animate-new-order' : '',
                         ].join(' ')}
                       >
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
                             {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
-                            {/* Aberto há mais de 12h: o cronômetro em minutos não dá conta
-                                de mostrar isso (um pedido de julho marca "97000:12"). */}
-                            {pedidoParado(order, now) && (
-                              <Badge tone="danger" title="Ninguém fechou este pedido. Conclua ou cancele.">
-                                Parado há {tempoParado(order.criadoEm, now)}
-                              </Badge>
-                            )}
                             {/* Salão e balcão não são a mesma coisa: quem lê o card precisa
                                 saber se o prato vai para uma mesa ou para o balcão. */}
-                            {origemDoCard(order).posto === 'Salão' && <Badge tone="ready">Salão</Badge>}
-                            {origemDoCard(order).posto === 'PDV' && <Badge tone="alert">PDV</Badge>}
-                            {origemDoCard(order).posto === 'Delivery' && <Badge tone="paused">Delivery</Badge>}
+                            {/* Selos de origem sem fundo (2026-10-03): ícone + texto na cor de sempre. */}
+                            {origemDoCard(order).posto === 'Salão' && <span className={`${SELO} text-[#047857]`} data-testid="selo-origem"><Store className="h-3.5 w-3.5" aria-hidden /> Salão</span>}
+                            {origemDoCard(order).posto === 'PDV' && <span className={`${SELO} text-alert-text`} data-testid="selo-origem"><Monitor className="h-3.5 w-3.5" aria-hidden /> PDV</span>}
+                            {origemDoCard(order).posto === 'Delivery' && <span className={`${SELO} text-purple`} data-testid="selo-origem"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Delivery</span>}
                             {order.agendadoPara && <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge>}
                           </div>
                           <div className="flex flex-shrink-0 items-center gap-1.5">
+                            {/* Um contador só: "13 min" → "2 horas" → "3 dias" (antes "1986:17" + selo "Parado"). */}
                             <span
-                              className={`inline-flex items-center gap-1 whitespace-nowrap rounded-menuzia px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${timerTone(tempo.mins)}`}
-                              title="Tempo desde que o pedido chegou"
+                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] font-bold tabular-nums ${corTempo}`}
+                              title={pedidoParado(order, now) ? `Aberto há ${textoTempoPedido(idadeMs)}: ninguém fechou este pedido. Conclua ou cancele.` : 'Tempo desde que o pedido chegou'}
+                              data-testid="card-tempo"
                             >
-                              <Clock className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
-                              {tempo.label}
+                              <Clock className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+                              {textoTempoPedido(idadeMs)}
                             </span>
-                            <EtiquetaAtendimento atendimento={etiquetasDoPedido(order).atendimento} compacta />
+                            <EtiquetaAtendimento atendimento={etiquetasDoPedido(order).atendimento} semFundo />
                           </div>
                         </div>
                         <div className="mb-2 min-w-0">
                           {/* Nome (ou mesa) à esquerda e preço à direita, na MESMA linha. Origem e
                               atendimento já estão nas etiquetas de cima; senha, comanda e quem lançou
                               ficam nos Detalhes. O nome trunca, o preço nunca quebra. */}
-                          <div className="flex min-w-0 items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-1.5">
+                          <div className="flex min-w-0 items-start justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5 pt-[1px]">
                               <span className="min-w-0 truncate text-[13px] font-semibold" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
                               {/* PDV identificado (0094): telefone discreto; endereço fica no detalhe. */}
                               {order.origem === 'pdv' && order.clienteTelefone && (
                                 <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
                               )}
                             </div>
-                            <div className="flex-shrink-0 whitespace-nowrap rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[12px] font-bold tabular-nums text-price-text" data-testid="card-preco">
-                              {brl(order.total)}
+                            {/* Valor em verde (o mesmo do botão Pronto), sem fundo; forma de pagamento logo abaixo, à direita. */}
+                            <div className="flex flex-shrink-0 flex-col items-end">
+                              <div className="whitespace-nowrap text-[14px] font-bold tabular-nums text-status-ready" data-testid="card-preco">
+                                {brl(order.total)}
+                              </div>
+                              <InfoPagamento p={order} card />
                             </div>
                           </div>
                           {order.tipo === 'entrega' && order.enderecoBairro && (
                             <div className="mt-0.5 truncate text-xs text-text-subtle">{order.enderecoBairro}</div>
                           )}
-                          <ul className="mt-1 space-y-0.5 text-xs text-text-subtle">
+                          <ul className="mt-1 space-y-0.5 text-[13px] leading-snug text-text-subtle">
                             {resumoItens(order).map((line) => (
                               <li key={line}>{line}</li>
                             ))}
                           </ul>
-                          <div className="mt-1.5"><InfoPagamento p={order} compacto /></div>
                           {order.status === 'preparando' && order.preparandoPor && (
                             <div className="mt-1 text-[11px] text-text-subtle">Em preparo por: {order.preparandoPor}</div>
                           )}
@@ -1016,13 +1018,13 @@ export default function PedidosPage() {
                           )}
                         </div>
                         <div className="flex gap-2 [&>*]:whitespace-nowrap">
-                          <Button variant="secondary" className="flex-[0.7] px-2" onClick={() => setDetail(order)} data-testid="card-detalhes">
-                            Detalhes
+                          <Button variant="secondary" className="flex-[0.7] gap-1.5 px-2" onClick={() => setDetail(order)} data-testid="card-detalhes" title="Ver os detalhes do pedido">
+                            <Eye className="h-4 w-4" aria-hidden /> Ver
                           </Button>
                           {order.status === 'recebido' && (
                             <>
-                              <Button variant="primary" className="flex-1" onClick={() => avancar(order)}>
-                                Aceitar
+                              <Button variant="primary" className="flex-1 gap-1.5" onClick={() => avancar(order)}>
+                                Aceitar <ArrowRight className="h-4 w-4" aria-hidden />
                               </Button>
                               <Button
                                 variant="outline"
@@ -1035,23 +1037,23 @@ export default function PedidosPage() {
                             </>
                           )}
                           {order.status === 'preparando' && (
-                            <Button variant="success" className="flex-1" onClick={() => avancar(order)}>
-                              Pronto
+                            <Button variant="success" className="flex-1 gap-1.5" onClick={() => avancar(order)}>
+                              Pronto <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
                           {order.status === 'pronto' && order.tipo === 'retirada' && (
-                            <Button variant="success" className="flex-1" onClick={() => avancar(order)}>
-                              Entregue
+                            <Button variant="success" className="flex-1 gap-1.5" onClick={() => avancar(order)}>
+                              Entregue <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && !usaDespachoDeRotas(fluxo) && (
                             <Button
                               variant="dispatch"
-                              className="flex-1"
+                              className="flex-1 gap-1.5"
                               onClick={() => saiuSemEntregador(order)}
                               title="Avisa o cliente no WhatsApp e conclui o pedido"
                             >
-                              Saiu p/ entrega
+                              Saiu p/ entrega <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && (
