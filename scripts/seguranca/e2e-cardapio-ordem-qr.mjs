@@ -364,7 +364,9 @@ try {
     const avCat = await esperarAviso(page, /categorias salva/)
     ok('categorias: arrastar Bebidas para o topo salva', igual(await ordemCatDb(), ['Bebidas', 'Lanches', 'Sobremesas']), avCat)
     // Botões de subir/descer continuam (alternativa acessível).
-    await page.getByRole('button', { name: 'Descer categoria (ordem na vitrine)' }).first().click()
+    // Desde o redesign (2026-10-01) o desktop usa o menu ⋮ da categoria (por cima de tudo desde 2026-10-03).
+    await page.getByTestId('categoria-menu').first().click({ force: true })
+    await page.getByTestId('categoria-menu-lista').getByRole('menuitem', { name: 'Descer na ordem' }).click()
     await page.waitForTimeout(800)
     ok('categorias: botão descer continua funcionando', igual(await ordemCatDb(), ['Lanches', 'Bebidas', 'Sobremesas']))
   }

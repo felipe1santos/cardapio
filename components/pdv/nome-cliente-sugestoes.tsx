@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { mascararTelefone } from './util'
+import { Flutuante } from '@/components/ui/flutuante'
 
 interface Sugestao { nome: string; telefone: string; ultimaCompraEm: string }
 
@@ -25,6 +26,9 @@ export function NomeClienteComSugestoes({
   const [aberta, setAberta] = useState(false)
   const [ativa, setAtiva] = useState(-1)
   const escolhido = useRef<string | null>(null)
+  // Lista por cima de tudo (portal): a janela do PDV rola e cortava as últimas sugestões.
+  const campo = useRef<HTMLInputElement>(null)
+  const fechar = useCallback(() => setAberta(false), [])
 
   useEffect(() => {
     const q = nome.trim()
@@ -51,6 +55,7 @@ export function NomeClienteComSugestoes({
   return (
     <div className="relative">
       <input
+        ref={campo}
         autoFocus={autoFocus}
         value={nome}
         maxLength={60}
@@ -73,8 +78,8 @@ export function NomeClienteComSugestoes({
         data-testid={testid}
         className={className}
       />
-      {aberta && lista.length > 0 && (
-        <ul role="listbox" id={`${testid}-sugestoes`} className="absolute left-0 right-0 top-full z-20 mt-1 max-h-[264px] overflow-y-auto rounded-menuzia border border-border bg-white shadow-lg" data-testid={`${testid}-sugestoes`}>
+      <Flutuante ancora={campo} aberto={aberta && lista.length > 0} onFechar={fechar} alinhar="inicio" larguraDaAncora alturaMax={264} className="!rounded-menuzia">
+        <ul role="listbox" id={`${testid}-sugestoes`} data-testid={`${testid}-sugestoes`}>
           {lista.map((s, i) => (
             <li key={s.telefone} role="option" aria-selected={i === ativa}>
               <button
@@ -94,7 +99,7 @@ export function NomeClienteComSugestoes({
             </li>
           ))}
         </ul>
-      )}
+      </Flutuante>
     </div>
   )
 }

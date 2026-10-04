@@ -8,7 +8,7 @@ import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { Janela, botao } from './apoio'
 
 /**
- * Aviso no topo do painel (Fase 2, só com o financeiro ligado e para quem mexe no caixa):
+ * Aviso no topo do painel, em cor viva com texto branco (Fase 2, só com o financeiro ligado e para quem mexe no caixa):
  * "Caixa aberto · Fulano · há 3 h" ou "Caixa fechado". Clicar leva ao Financeiro › Caixa.
  */
 export function AvisoCaixa() {
@@ -27,10 +27,14 @@ export function AvisoCaixa() {
   return (
     <a href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa"
       title={e.aberto ? `Caixa aberto por ${e.abertoPorNome ?? '—'}` : 'Caixa fechado — clique para abrir'}
-      className={`hidden h-[30px] items-center gap-1.5 rounded-[3px] border px-2.5 text-[12px] font-semibold md:flex ${e.aberto ? 'border-[#bbf7d0] bg-[#DCFCE7] text-[#16A34A]' : 'border-[#fecaca] bg-[#FEE2E2] text-[#EF4444]'}`}>
-      <span className={`h-[7px] w-[7px] rounded-full ${e.aberto ? 'bg-[#16A34A]' : 'bg-[#EF4444]'}`} />
-      {e.aberto ? <>Caixa aberto · {(e.abertoPorNome ?? '').split(' ')[0]} · {e.abertoEm ? tempoAberto(e.abertoEm) : ''}</>
-        : e.aAcertarCentavos ? <span data-testid="aviso-a-acertar">Caixa fechado · {formatarCentavos(e.aAcertarCentavos)} a acertar</span> : 'Caixa fechado'}
+      className={`hidden h-[44px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-3 text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-110 md:flex ${e.aberto ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}>
+      <span className="h-[8px] w-[8px] rounded-full bg-white" />
+      {/* Telas estreitas: só "Caixa" (a cor diz aberto/fechado; o resto fica na dica). */}
+      <span className="xl:hidden">Caixa</span>
+      <span className="hidden xl:inline">
+        {e.aberto ? <>Caixa aberto · {(e.abertoPorNome ?? '').split(' ')[0]} · {e.abertoEm ? tempoAberto(e.abertoEm) : ''}</>
+          : e.aAcertarCentavos ? <span data-testid="aviso-a-acertar">Caixa fechado · {formatarCentavos(e.aAcertarCentavos)} a acertar</span> : 'Caixa fechado'}
+      </span>
     </a>
   )
 }

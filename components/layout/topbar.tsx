@@ -9,26 +9,38 @@ import { AcoesTopo } from '@/components/admin/acoes-topo'
 export interface TopBarProps {
   title: string
   breadcrumb: string
+  /** Ações da tela. No celular descem para uma segunda linha; os botões do sistema não. */
   right?: React.ReactNode
   /**
-   * Controles da tela (ex.: Painel de Pedidos), logo depois do título, alinhados à esquerda e
-   * separados dos botões do sistema (impressão, Dúvidas, perfil) do canto direito.
+   * Controles da tela (ex.: Painel de Pedidos), alinhados à esquerda, logo depois do título
+   * (ou no lugar dele, com `semTitulo`).
    */
   controles?: React.ReactNode
+  /** Botões do sistema próprios da tela (ex.: avisos do Kanban): ficam no grupo da direita. */
+  sistema?: React.ReactNode
+  /** Título só para leitor de tela: a tela se explica pelos controles. */
+  semTitulo?: boolean
   /** Botão de voltar no canto superior esquerdo (telas de detalhe). */
   voltar?: { rotulo: string; onClick: () => void }
 }
 
-export function TopBar({ title, breadcrumb, right, voltar, controles }: TopBarProps) {
+/**
+ * Barra de topo do painel. Regra permanente (2026-10-03): os botões do sistema (avisos, caixa,
+ * impressora, Dúvidas, perfil) ficam SEMPRE à direita, na primeira linha, sem quebrar. O que
+ * não cabe é a tela que cede: o título encolhe (reticências) e, no celular, as ações da tela
+ * descem para uma segunda linha.
+ */
+export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, semTitulo }: TopBarProps) {
   // Abaixo de `lg` a sidebar é gaveta, e é a barra de topo que a abre. O contexto evita
   // passar a função por todas as telas do painel só para chegar aqui.
   const menu = useContext(MenuLateralContext)
 
-  // Abaixo de sm a barra cresce em vez de empurrar as ações fora da tela: com título e
-  // dois ou três botões, 60px fixos não cabem num aparelho de 360px.
   return (
-    <header className={`flex min-h-[var(--adm-topo,56px)] flex-shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-b border-[var(--adm-borda,#e5e7eb)] bg-[var(--adm-superficie,#fff)] px-3 py-2 sm:px-5 ${controles ? 'sm:py-1.5' : 'sm:h-[var(--adm-topo,56px)] sm:flex-nowrap sm:py-0'}`}>
-      <div className={`flex min-w-0 items-center gap-2 ${controles ? 'flex-wrap gap-y-1.5' : ''}`}>
+    <header
+      className="flex min-h-[var(--adm-topo,56px)] flex-shrink-0 flex-wrap items-center gap-x-[4px] gap-y-1.5 border-b border-[var(--adm-borda,#e5e7eb)] bg-[var(--adm-superficie,#fff)] px-3 py-[6px] sm:gap-x-2 sm:px-5 md:flex-nowrap"
+      data-testid="topo"
+    >
+      <div className="order-1 flex min-w-0 flex-1 items-center gap-[4px] sm:gap-2" data-testid="topo-esquerda">
         {voltar && (
           <button
             onClick={voltar.onClick}
@@ -42,7 +54,7 @@ export function TopBar({ title, breadcrumb, right, voltar, controles }: TopBarPr
         )}
         {menu && (
           <button
-            className="-ml-1 flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-menuzia text-text-subtle hover:bg-page hover:text-text-main lg:hidden"
+            className="-ml-1 flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-menuzia text-text-subtle hover:bg-page hover:text-text-main sm:h-[44px] sm:w-[44px] lg:hidden"
             onClick={menu.abrir}
             aria-label="Abrir o menu"
           >
@@ -52,22 +64,28 @@ export function TopBar({ title, breadcrumb, right, voltar, controles }: TopBarPr
           </button>
         )}
         {/* Título da referência: uma linha só, 19,2px em peso 500. O caminho
-            ("Visão geral › Desempenho") saiu da vista e ficou para o leitor de
-            tela: com o menu à esquerda dizendo onde a pessoa está, a segunda
-            linha era ruído em cima da tela toda. */}
-        <div className={controles ? 'flex-shrink-0' : 'min-w-0'}>
+            ("Visão geral › Desempenho") fica só para o leitor de tela. */}
+        <div className={semTitulo ? 'sr-only' : 'min-w-0'}>
           <h1 className="truncate text-[19.2px] font-medium leading-tight text-[var(--adm-texto,#1f2937)]">{title}</h1>
           <span className="sr-only">{breadcrumb}</span>
         </div>
         {controles && (
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-[8px] sm:ml-4 sm:w-auto sm:border-l sm:border-[var(--adm-borda,#e5e7eb)] sm:pl-4" data-testid="topo-controles">
+          <div
+            className={`flex min-w-0 flex-nowrap items-center gap-[4px] sm:gap-[8px] ${semTitulo ? '' : 'sm:ml-2 sm:border-l sm:border-[var(--adm-borda,#e5e7eb)] sm:pl-4'}`}
+            data-testid="topo-controles"
+          >
             {controles}
           </div>
         )}
       </div>
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:flex-shrink-0 sm:gap-2">
-        {right}
-        {controles && right && <span aria-hidden className="mx-1 hidden h-[28px] w-px bg-[var(--adm-borda,#e5e7eb)] sm:block" />}
+      {right && (
+        <div className="order-3 flex min-w-0 basis-full flex-wrap items-center justify-end gap-1.5 md:order-2 md:basis-auto md:flex-shrink-0 md:flex-nowrap md:gap-2" data-testid="topo-acoes">
+          {right}
+        </div>
+      )}
+      <div className="order-2 flex flex-shrink-0 items-center gap-[4px] md:order-3 sm:gap-2" data-testid="topo-sistema">
+        {right && <span aria-hidden className="mx-1 hidden h-[28px] w-px bg-[var(--adm-borda,#e5e7eb)] md:block" />}
+        {sistema}
         <AcoesTopo />
       </div>
     </header>

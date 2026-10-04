@@ -6,7 +6,7 @@
  * para `false` e publique; ou, sem mexer no código, defina NEXT_PUBLIC_AVISO_NOVA_IMPRESSAO=0
  * no ambiente do build (Coolify) e faça Redeploy.
  */
-const AVISO_NOVA_IMPRESSAO_LIGADO = true
+const AVISO_NOVA_IMPRESSAO_LIGADO = false // desligado a pedido do dono em 2026-10-04
 export const AVISO_NOVA_IMPRESSAO_ATIVO = AVISO_NOVA_IMPRESSAO_LIGADO && process.env.NEXT_PUBLIC_AVISO_NOVA_IMPRESSAO !== '0'
 
 /** Telas onde o aviso NÃO aparece: o Kanban de pedidos (operação) e a própria Impressão. */

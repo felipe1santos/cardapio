@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { ChevronLeft, ChevronRight, HelpCircle, X } from 'lucide-react'
+import { Dica } from '@/components/ui/flutuante'
 
 /** Peças comuns da área de Campanhas (repaginação 2026-10). Só aparência. */
 
@@ -25,19 +26,15 @@ export function SeloStatusCampanha({ status }: { status: string }) {
   )
 }
 
-/** Ícone (?) com explicação no hover/foco/toque. */
+/** Ícone (?) com explicação no hover/foco/toque — por cima de tudo (Dica compartilhada). */
 export function Ajuda({ texto }: { texto: string }) {
-  const [aberto, setAberto] = useState(false)
   return (
-    <span className="relative inline-flex" onMouseEnter={() => setAberto(true)} onMouseLeave={() => setAberto(false)}>
-      <button type="button" aria-label={texto} onClick={() => setAberto((v) => !v)} onBlur={() => setAberto(false)} className="flex h-5 w-5 items-center justify-center rounded-full text-[#9ca3af] hover:text-[#0688d4]" data-toque-livre>
-        <HelpCircle className="h-[15px] w-[15px]" />
-      </button>
-      {aberto && (
-        <span role="tooltip" className="absolute bottom-[calc(100%+6px)] left-1/2 z-30 w-[240px] -translate-x-1/2 rounded-[6px] bg-[#111827] px-3 py-2 text-[12px] font-normal leading-snug text-white shadow-lg">
-          {texto}
-        </span>
-      )}
+    <span className="relative inline-flex">
+      <Dica texto={texto} alternarNoClique largura={240}>
+        <button type="button" aria-label={texto} className="flex h-5 w-5 items-center justify-center rounded-full text-[#9ca3af] hover:text-[#0688d4]" data-toque-livre>
+          <HelpCircle className="h-[15px] w-[15px]" />
+        </button>
+      </Dica>
     </span>
   )
 }

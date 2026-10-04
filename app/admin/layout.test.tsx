@@ -96,17 +96,12 @@ describe('AdminLayout', () => {
     expect(screen.getByText('Conteúdo da página')).toBeInTheDocument()
   })
 
-  it('aviso do novo sistema de impressão: no topo das telas, com link para Impressão; fora do Kanban e da Impressão', () => {
-    const { unmount } = render(<AdminLayout><p>Página</p></AdminLayout>)
-    const aviso = screen.getByRole('region', { name: /novo sistema de impressão/i })
-    expect(aviso).toHaveTextContent('Novo sistema de impressão disponível!')
-    expect(screen.getByRole('link', { name: /Configurar agora/ })).toHaveAttribute('href', '/admin/impressao')
-    expect(aviso.querySelector('button')).toBeNull() // sem fechar
-    unmount()
-    for (const rota of ['/admin/pedidos', '/admin/impressao']) {
+  it('aviso do novo sistema de impressão DESLIGADO (2026-10-04): não aparece em nenhuma tela', () => {
+    for (const rota of ['/admin/dashboard', '/admin/cardapio', '/admin/pedidos', '/admin/impressao']) {
       rotaAtual = rota
       const r = render(<AdminLayout><p>Página</p></AdminLayout>)
       expect(screen.queryByTestId('aviso-nova-impressao')).toBeNull()
+      expect(screen.queryByText(/Novo sistema de impressão disponível/)).toBeNull()
       r.unmount()
     }
     rotaAtual = '/admin/dashboard'

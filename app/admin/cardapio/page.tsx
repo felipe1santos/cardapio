@@ -1,12 +1,13 @@
 'use client'
 
 import { avisosDoCadastro } from '@/lib/avisos-cadastro'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { avisoDoItem, erroDoItem, statusAoCriarItem } from '@/lib/item-cadastro'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Clock, CupSoda, GripVertical, ImagePlus, Images, MoreVertical, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Star, Trash2, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
+import { Flutuante } from '@/components/ui/flutuante'
 import { Badge } from '@/components/ui/badge'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
@@ -824,6 +825,7 @@ export default function CardapioPage() {
   const [drawer, setDrawer] = useState<Drawer>(null)
   const [bulkTarget, setBulkTarget] = useState<BulkUploadTarget | null>(null)
   const [actionsOpen, setActionsOpen] = useState(false)
+  const fecharAcoes = useCallback(() => setActionsOpen(false), [])
   const toasts = useToasts()
   const [saving, setSaving] = useState(false)
   const [statusSavingId, setStatusSavingId] = useState<string | null>(null)
@@ -846,13 +848,11 @@ export default function CardapioPage() {
   const [temTamanhos, setTemTamanhos] = useState(false)
   // Wizard do cadastro de item: 1 O básico · 2 Tamanhos/Sabores · 3 Complementos · 4 Exibição.
   const [abaProduto, setAbaProduto] = useState<AbaProduto>('info')
+  // Menu ⋮ da categoria e "Ação" em lote: por cima de tudo (portal), fora da lista que rola.
   const [menuCategoria, setMenuCategoria] = useState<string | null>(null)
-  useEffect(() => {
-    if (!menuCategoria) return
-    const fechar = () => setMenuCategoria(null)
-    window.addEventListener('mousedown', fechar)
-    return () => window.removeEventListener('mousedown', fechar)
-  }, [menuCategoria])
+  const ancoraCategoria = useRef<HTMLElement | null>(null)
+  const fecharMenuCategoria = useCallback(() => setMenuCategoria(null), [])
+  const ancoraAcoes = useRef<HTMLDivElement>(null)
   /** Foto do formulário como abriu/salvou — "Salvar" só acende quando algo mudou. */
   const [formSalvo, setFormSalvo] = useState('')
   const [confirmarFechar, setConfirmarFechar] = useState(false)
@@ -1770,33 +1770,40 @@ export default function CardapioPage() {
                     </button>
                     {/* ⋮ com as ações da categoria: aparece no hover/foco (sempre na aberta e em tela de toque). */}
                     <span className="cat-acoes flex flex-shrink-0 items-center">
-                      <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setMenuCategoria((m) => (m === group.id ? null : group.id)) }} aria-haspopup="menu" aria-expanded={menuCategoria === group.id}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); ancoraCategoria.current = e.currentTarget; setMenuCategoria((m) => (m === group.id ? null : group.id)) }} aria-haspopup="menu" aria-expanded={menuCategoria === group.id}
                         title="Ações da categoria" aria-label={`Ações da categoria ${group.nome}`} data-testid="categoria-menu"
                         className="toque-icone flex h-7 w-6 items-center justify-center rounded-[4px] text-[var(--adm-texto-suave)] hover:bg-white hover:text-[var(--adm-azul)]">
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     </span>
-                    {menuCategoria === group.id && (
-                      <div role="menu" className="absolute right-1 top-[calc(100%-2px)] z-30 w-[220px] overflow-hidden rounded-[6px] border border-[#e5e7eb] bg-white py-1 text-[13px] shadow-[0_10px_28px_rgba(15,23,42,0.14)]" onMouseDown={(e) => e.stopPropagation()} data-testid="categoria-menu-lista">
-                        {([
-                          { rotulo: 'Subir na ordem', icone: ArrowUp, desab: groups[0]?.id === group.id, acao: () => moveCategoria(group, -1) },
-                          { rotulo: 'Descer na ordem', icone: ArrowDown, desab: groups[groups.length - 1]?.id === group.id, acao: () => moveCategoria(group, 1) },
-                          { rotulo: 'Editar nome e foto', icone: Pencil, acao: () => startEditCategoria(group) },
-                          { rotulo: 'Horário automático', icone: Clock, acao: () => startScheduleCategoria(group) },
-                          { rotulo: 'Subir fotos em massa', icone: Images, acao: () => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome }) },
-                          { rotulo: 'Excluir categoria', icone: Trash2, perigo: true, acao: () => deleteCategoria(group) },
-                        ] as { rotulo: string; icone: typeof Pencil; desab?: boolean; perigo?: boolean; acao: () => void }[]).map((o) => (
-                          <button key={o.rotulo} type="button" role="menuitem" disabled={o.desab} onClick={() => { setMenuCategoria(null); o.acao() }}
-                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[#f3f4f6] disabled:opacity-40 ${o.perigo ? 'text-[#b91c1c]' : 'text-[#1f2937]'}`}>
-                            <o.icone className="h-4 w-4" /> {o.rotulo}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )
               )}
             </div>
+            {(() => {
+              const group = groups.find((g) => g.id === menuCategoria)
+              return (
+                <Flutuante ancora={ancoraCategoria} aberto={!!group} onFechar={fecharMenuCategoria} largura={220} testid="categoria-menu-lista" rotulo="Ações da categoria" className="py-1 text-[13px]">
+                  {group && (
+                    <div role="menu">
+                      {([
+                        { rotulo: 'Subir na ordem', icone: ArrowUp, desab: groups[0]?.id === group.id, acao: () => moveCategoria(group, -1) },
+                        { rotulo: 'Descer na ordem', icone: ArrowDown, desab: groups[groups.length - 1]?.id === group.id, acao: () => moveCategoria(group, 1) },
+                        { rotulo: 'Editar nome e foto', icone: Pencil, acao: () => startEditCategoria(group) },
+                        { rotulo: 'Horário automático', icone: Clock, acao: () => startScheduleCategoria(group) },
+                        { rotulo: 'Subir fotos em massa', icone: Images, acao: () => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome }) },
+                        { rotulo: 'Excluir categoria', icone: Trash2, perigo: true, acao: () => deleteCategoria(group) },
+                      ] as { rotulo: string; icone: typeof Pencil; desab?: boolean; perigo?: boolean; acao: () => void }[]).map((o) => (
+                        <button key={o.rotulo} type="button" role="menuitem" disabled={o.desab} onClick={() => { setMenuCategoria(null); o.acao() }}
+                          className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[#f3f4f6] disabled:opacity-40 ${o.perigo ? 'text-[#b91c1c]' : 'text-[#1f2937]'}`}>
+                          <o.icone className="h-4 w-4" /> {o.rotulo}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </Flutuante>
+              )
+            })()}
           </aside>
 
           {/* Itens */}
@@ -1832,19 +1839,17 @@ export default function CardapioPage() {
                 </button>
               </div>
               {selected.size > 0 && (
-                <div className="relative">
-                  <Button variant="secondary" onClick={() => setActionsOpen((open) => !open)}>
+                <div ref={ancoraAcoes}>
+                  <Button variant="secondary" onClick={() => setActionsOpen((open) => !open)} aria-haspopup="menu" aria-expanded={actionsOpen}>
                     Ação
                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M7 10l5 5 5-5z" /></svg>
                   </Button>
-                  {actionsOpen && (
-                    <div className="absolute right-0 top-[calc(100%+4px)] z-40 min-w-[160px] rounded-menuzia border border-border bg-white p-1 shadow-xl">
-                      <button onClick={() => applyBulkStatus('disponivel')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Deixar disponível</button>
-                      <button onClick={() => applyBulkStatus('pausado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Pausar</button>
-                      <button onClick={() => applyBulkStatus('esgotado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Esgotar</button>
-                      <button onClick={deleteSelected} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-danger hover:bg-page">Excluir</button>
-                    </div>
-                  )}
+                  <Flutuante ancora={ancoraAcoes} aberto={actionsOpen} onFechar={fecharAcoes} largura={180} testid="cardapio-acoes-lote" rotulo="Ações em lote" className="p-1">
+                    <button onClick={() => applyBulkStatus('disponivel')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Deixar disponível</button>
+                    <button onClick={() => applyBulkStatus('pausado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Pausar</button>
+                    <button onClick={() => applyBulkStatus('esgotado')} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-text-main hover:bg-page">Esgotar</button>
+                    <button onClick={deleteSelected} className="flex w-full items-center gap-2.5 rounded-menuzia px-2.5 py-2 text-left text-[13px] font-medium text-danger hover:bg-page">Excluir</button>
+                  </Flutuante>
                 </div>
               )}
               <Button variant="primary" onClick={openNewItem} disabled={!activeGroupId} data-testid="novo-item">

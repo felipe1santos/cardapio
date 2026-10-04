@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
@@ -11,6 +11,7 @@ import { ModalSuporte } from '@/components/admin/modal-suporte'
 import { ModalMeuPin } from '@/components/admin/modal-meu-pin'
 import { AvisoCaixa } from '@/components/financeiro/aviso-caixa'
 import { pedirTrava, sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
+import { Dica, Flutuante } from '@/components/ui/flutuante'
 
 /**
  * Ações fixas do canto superior direito do painel: estado da impressão, botão
@@ -33,7 +34,7 @@ export function AcoesTopo() {
   const [pinAberto, setPinAberto] = useState(false)
   // Financeiro ligado (0132): PIN pessoal, travar a tela e trocar de operador.
   const sessao = useEstadoSessao()
-  const caixa = useRef<HTMLDivElement>(null)
+  const botaoConta = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     let ativo = true
@@ -71,70 +72,66 @@ export function AcoesTopo() {
   }, [supabase])
 
 
-  useEffect(() => {
-    if (!menuAberto) return
-    const aoClicar = (e: MouseEvent) => {
-      if (!caixa.current?.contains(e.target as Node)) setMenuAberto(false)
-    }
-    const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuAberto(false)
-    }
-    window.addEventListener('mousedown', aoClicar)
-    window.addEventListener('keydown', aoTeclar)
-    return () => {
-      window.removeEventListener('mousedown', aoClicar)
-      window.removeEventListener('keydown', aoTeclar)
-    }
-  }, [menuAberto])
+  const fecharMenu = useCallback(() => setMenuAberto(false), [])
 
   const tomImpressora =
     impressora === 'conectada' ? 'text-[var(--adm-alta)]' : impressora === 'desconectada' ? 'text-[var(--adm-vermelho-texto)]' : 'text-[var(--adm-texto-suave)]'
 
+  // Mesma altura de toda a barra (36 px no celular, 44 px no resto).
+  const QUADRADO = 'flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-colors sm:h-[44px] sm:w-[44px]'
+
   return (
-    <div className="flex flex-shrink-0 items-center gap-1.5">
+    <div className="flex flex-shrink-0 items-center gap-[4px] sm:gap-2" data-testid="acoes-topo">
       {sessao?.financeiroAtivo && <AvisoCaixa />}
       {/* Impressão: atalho para a configuração, com o estado na própria cor. */}
-      <button
-        type="button"
-        onClick={() => router.push('/admin/impressao')}
-        title={ROTULO_IMPRESSORA[impressora]}
-        aria-label={ROTULO_IMPRESSORA[impressora]}
-        className={`flex h-[36px] w-[36px] items-center justify-center rounded-[4.8px] transition-colors hover:bg-[var(--adm-hover)] ${tomImpressora}`}
-      >
-        <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current" aria-hidden="true">
-          {(impressora === 'conectada' ? ICONES.impressoraOk : ICONES.impressoraOff).map((d) => (
-            <path key={d} d={d} />
-          ))}
-        </svg>
-      </button>
+      <Dica texto={ROTULO_IMPRESSORA[impressora]}>
+        <button
+          type="button"
+          onClick={() => router.push('/admin/impressao')}
+          aria-label={ROTULO_IMPRESSORA[impressora]}
+          data-testid="topo-impressora"
+          className={`${QUADRADO} hover:bg-[var(--adm-hover)] ${tomImpressora}`}
+        >
+          <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current" aria-hidden="true">
+            {(impressora === 'conectada' ? ICONES.impressoraOk : ICONES.impressoraOff).map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </svg>
+        </button>
+      </Dica>
 
-      {/* Suporte: laranja, o mesmo destaque que a referência dá ao "Dúvidas?". */}
-      <button
-        type="button"
-        onClick={() => setSuporteAberto(true)}
-        aria-haspopup="dialog"
-        aria-label="Dúvidas? Falar com o suporte"
-        title="Dúvidas? Falar com o suporte"
-        className="flex h-[36px] items-center gap-1.5 rounded-[4.8px] border-[0.8px] border-[#f3c38a] bg-[var(--adm-laranja-claro)] px-3 text-[12.8px] font-bold text-[var(--adm-laranja)] transition-colors hover:bg-[#ffedd5]"
-      >
-        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
-          {ICONES.suporte.map((d) => (
-            <path key={d} d={d} />
-          ))}
-        </svg>
-        <span className="hidden sm:inline">Dúvidas?</span>
-      </button>
+      {/* Suporte: laranja vivo com texto branco (regra das cores vivas, contraste ≥ 4,5:1). */}
+      <Dica texto="Dúvidas? Falar com o suporte">
+        <button
+          type="button"
+          onClick={() => setSuporteAberto(true)}
+          aria-haspopup="dialog"
+          aria-label="Dúvidas? Falar com o suporte"
+          data-testid="topo-duvidas"
+          className="flex h-[36px] min-w-[36px] flex-shrink-0 items-center justify-center gap-1.5 rounded-[4px] bg-[#C2410C] px-2 text-[12.8px] font-bold text-white transition-[filter] hover:brightness-110 sm:h-[44px] sm:px-3"
+        >
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
+            {ICONES.suporte.map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </svg>
+          <span className="hidden whitespace-nowrap xl:inline">Dúvidas?</span>
+        </button>
+      </Dica>
       {pinAberto && <ModalMeuPin temPin={!!sessao?.temPin} onFechar={() => setPinAberto(false)} />}
       <ModalSuporte aberto={suporteAberto} onFechar={() => setSuporteAberto(false)} loja={quem.loja} usuario={quem.usuario} papel={quem.papel} />
 
-      {/* Conta. */}
-      <div ref={caixa} className="relative">
+      {/* Conta: o menu abre por cima de tudo (portal), nunca cortado. */}
+      <Dica texto="Minha conta">
         <button
+          ref={botaoConta}
           type="button"
           onClick={() => setMenuAberto((v) => !v)}
           aria-expanded={menuAberto}
+          aria-haspopup="menu"
           aria-label="Minha conta"
-          className="flex h-[36px] w-[36px] items-center justify-center rounded-[4.8px] text-[var(--adm-texto-medio)] transition-colors hover:bg-[var(--adm-hover)]"
+          data-testid="topo-conta"
+          className={`${QUADRADO} text-[var(--adm-texto-medio)] hover:bg-[var(--adm-hover)]`}
         >
           <svg viewBox="0 0 24 24" className="h-[24px] w-[24px] fill-current" aria-hidden="true">
             {ICONES.perfil.map((d) => (
@@ -142,66 +139,63 @@ export function AcoesTopo() {
             ))}
           </svg>
         </button>
-
-        {menuAberto && (
-          <div className="absolute right-0 top-[calc(100%+6px)] z-40 w-[230px] overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white shadow-[0_8px_24px_rgba(16,24,40,0.12)]">
-            <p className="truncate border-b border-[var(--adm-borda)] px-3.5 py-2.5 text-[12px] text-[var(--adm-texto-suave)]">
-              {email ?? 'Sessão ativa'}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuAberto(false)
-                router.push('/admin/ajustes')
-              }}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]"
-            >
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-[var(--adm-texto-suave)]" aria-hidden="true">
-                {ICONES.ajustes.map((d) => (
-                  <path key={d} d={d} />
-                ))}
-              </svg>
-              Ajustes da loja
+      </Dica>
+      <Flutuante ancora={botaoConta} aberto={menuAberto} onFechar={fecharMenu} largura={230} testid="topo-conta-menu" rotulo="Minha conta">
+        <p className="truncate border-b border-[var(--adm-borda)] px-3.5 py-2.5 text-[12px] text-[var(--adm-texto-suave)]">
+          {email ?? 'Sessão ativa'}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setMenuAberto(false)
+            router.push('/admin/ajustes')
+          }}
+          className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]"
+        >
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-[var(--adm-texto-suave)]" aria-hidden="true">
+            {ICONES.ajustes.map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </svg>
+          Ajustes da loja
+        </button>
+        {sessao?.financeiroAtivo && (
+          <>
+            <button type="button" data-testid="menu-meu-pin"
+              onClick={() => { setMenuAberto(false); setPinAberto(true) }}
+              className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+              {sessao.temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}
             </button>
-            {sessao?.financeiroAtivo && (
-              <>
-                <button type="button" data-testid="menu-meu-pin"
-                  onClick={() => { setMenuAberto(false); setPinAberto(true) }}
-                  className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
-                  {sessao.temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}
-                </button>
-                {sessao.temPin && (
-                  <button type="button" data-testid="menu-bloquear"
-                    onClick={() => { setMenuAberto(false); pedirTrava('travar') }}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
-                    Bloquear tela
-                  </button>
-                )}
-                <button type="button" data-testid="menu-trocar-operador"
-                  onClick={() => { setMenuAberto(false); pedirTrava('trocar') }}
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
-                  Trocar operador
-                </button>
-              </>
+            {sessao.temPin && (
+              <button type="button" data-testid="menu-bloquear"
+                onClick={() => { setMenuAberto(false); pedirTrava('travar') }}
+                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+                Bloquear tela
+              </button>
             )}
-            <button
-              type="button"
-              onClick={async () => {
-                setMenuAberto(false)
-                if (await sairDoPainel(supabase)) router.push('/login')
-              }}
-              className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]"
-            >
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-[var(--adm-texto-suave)]" aria-hidden="true">
-                {ICONES.sair.map((d) => (
-                  <path key={d} d={d} />
-                ))}
-              </svg>
-              Sair
+            <button type="button" data-testid="menu-trocar-operador"
+              onClick={() => { setMenuAberto(false); pedirTrava('trocar') }}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+              Trocar operador
             </button>
-          </div>
+          </>
         )}
-      </div>
+        <button
+          type="button"
+          onClick={async () => {
+            setMenuAberto(false)
+            if (await sairDoPainel(supabase)) router.push('/login')
+          }}
+          className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]"
+        >
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-[var(--adm-texto-suave)]" aria-hidden="true">
+            {ICONES.sair.map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </svg>
+          Sair
+        </button>
+      </Flutuante>
     </div>
   )
 }

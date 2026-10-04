@@ -1,5 +1,7 @@
 /**
  * E2E (2026-09-28): barra "Novo sistema de impressão disponível!" no painel admin.
+ * ⚠️ Aviso DESLIGADO em 2026-10-04 (lib/avisos-painel.ts). Só vale rodar se ele for religado;
+ * a ausência dele é conferida em e2e-kanban-topo-v2.mjs.
  * Só leitura (não grava nada): entra como dono da loja isolada e percorre as telas no
  * computador (1366) e no celular (390). Confere: aparece no topo e empurra o conteúdo
  * (não cobre cabeçalho, menu nem o "Sair"), sem rolagem dupla nem horizontal, o botão

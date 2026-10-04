@@ -49,6 +49,9 @@ async function pedidoNovo(nome = 'TESTE Som') {
 }
 const fecharPendentes = () => db.query(`update pedidos set status='cancelado', cancelado_motivo='teste', cancelado_em=now() where restaurante_id=$1 and status in ('recebido','preparando','pronto','em_rota') and cliente_nome like 'TESTE%'`, [loja.id])
 const alarme = (p) => p.evaluate(() => window.__mzAlarme ?? { tocou: 0, falhas: {}, bloqueado: null })
+/** Clique "neutro" (gesto do usuário) no meio da barra de topo, que fica vazio. */
+const gesto = (p) => p.mouse.click(Math.round(p.viewportSize().width / 2), 20)
+const somLigado = async (p) => (await p.getByTestId('kanban-som').getAttribute('aria-pressed').catch(() => null)) === 'true'
 async function ate(fn, ms = 15000) { const fim = Date.now() + ms; while (Date.now() < fim) { if (await fn()) return true; await esperar(400) } return false }
 
 async function logar(nav, opcoes = {}) {
@@ -76,23 +79,16 @@ try {
   const { ctx, p: p0 } = await logar(chrome, { viewport: { width: 1920, height: 1000 } })
   await ctx.grantPermissions(['notifications'])
   await abrirPainel(p0)
-  const ids = ['kanban-status-loja', 'kanban-som', 'kanban-aceite', 'kanban-metricas', 'kanban-entregas', 'kanban-tela-cheia', 'kanban-mais']
-  const geo = await p0.evaluate((ids) => {
-    const c = document.querySelector('[data-testid="topo-controles"]')
-    const titulo = document.querySelector('header h1')
-    const caixas = ids.map((id) => { const el = document.querySelector(`[data-testid="${id}"]`); const r = el?.getBoundingClientRect(); return r ? { id, x: r.x, w: r.width, h: Math.round(r.height), dentro: c.contains(el), texto: el.textContent.trim().slice(0, 40), title: el.getAttribute('title') ?? '' } : { id, faltando: true } })
-    const sistema = [...document.querySelectorAll('header button, header a')].filter((b) => !c.contains(b) && b.getBoundingClientRect().width > 0).map((b) => b.getBoundingClientRect().x)
-    return { caixas, depoisDoTitulo: c.getBoundingClientRect().x > titulo.getBoundingClientRect().right, divisor: getComputedStyle(c).borderLeftWidth, sistemaMaisDireita: Math.min(...sistema) > Math.max(...[...c.children].map((e) => e.getBoundingClientRect().right)) }
-  }, ids)
-  ok('controles logo depois do título, à esquerda, com divisor', geo.depoisDoTitulo && geo.divisor === '1px', texto({ depoisDoTitulo: geo.depoisDoTitulo, divisor: geo.divisor }))
-  ok('botões do sistema (impressão, Dúvidas, perfil) à direita, separados', geo.sistemaMaisDireita)
-  ok('todos os controles com 44–48 px e ícone + texto', geo.caixas.every((c) => !c.faltando && c.dentro && c.h >= 44 && c.h <= 48 && c.texto.length > 2), texto(geo.caixas.map((c) => [c.id, c.h])))
-  const gaps = await p0.evaluate(() => { const f = [...document.querySelector('[data-testid="topo-controles"]').children].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0).sort((a, b) => a.x - b.x); return f.slice(1).map((r, i) => Math.round(r.x - f[i].right)) })
-  ok('estado ligado/desligado no tooltip (Som, Aceite, Métricas)', /LIGADO|DESLIGADO/.test(geo.caixas[1].title) && /LIGADO|DESLIGADO/.test(geo.caixas[2].title) && /VISÍVEIS|OCULTAS/.test(geo.caixas[3].title), geo.caixas[1].title.slice(0, 60))
-  ok('chip "Ligado/Desligado" visível em Som e Aceite automático', /Ligado|Desligado/.test(geo.caixas[1].texto) && /Ligado|Desligado/.test(geo.caixas[2].texto), `${geo.caixas[1].texto} | ${geo.caixas[2].texto}`)
-  ok('sem caixa alta gritante', !(await p0.getByTestId('kanban-aceite').evaluate((b) => getComputedStyle(b).textTransform === 'uppercase')))
-  ok('status da loja como seletor (texto + Manual/Automático)', /Recebendo pedidos|Loja fechada/.test(geo.caixas[0].texto) && /Manual|Automático/.test(geo.caixas[0].texto), geo.caixas[0].texto)
-  ok('8 px entre os botões', gaps.length > 4 && gaps.every((g) => g === 8), texto(gaps))
+  // Layout (uma linha, só ícone, cores) é conferido em e2e-kanban-topo-v2.mjs.
+  const barra = await p0.evaluate(() => ({
+    ids: ['kanban-status-loja', 'kanban-aceite', 'kanban-mais', 'avisos-icone'].every((id) => document.querySelector(`[data-testid="${id}"]`)),
+    som: !!document.querySelector('[data-testid="kanban-som"], [data-testid="kanban-silenciar"]'),
+    foraDaBarra: ['kanban-metricas', 'kanban-entregas', 'kanban-tela-cheia'].every((id) => !document.querySelector(`[data-testid="topo-controles"] [data-testid="${id}"]`)),
+    status: document.querySelector('[data-testid="kanban-status-loja"]').textContent,
+  }))
+  ok('barra com status, Som, Aceite, Mais e avisos', barra.ids && barra.som)
+  ok('Métricas/Entregas/Tela cheia não ficam na barra (moram no Mais)', barra.foraDaBarra)
+  ok('status da loja com texto (Recebendo pedidos/Loja fechada + Manual/Automático)', /Recebendo pedidos|Loja fechada/.test(barra.status) && /Manual|Automático/.test(barra.status), barra.status)
   if (PRINTS) await p0.screenshot({ path: join(PRINTS, 'depois-desktop.png') })
 
   secao('2. Som: painel reaberto sem nenhum clique no site (autoplay bloqueado)')
@@ -124,7 +120,7 @@ try {
   await p.getByTestId('kanban-mais').click()
   await p.getByTestId('kanban-repetir-10').click()
   await p.keyboard.press('Escape')
-  await p.locator('header h1').click()
+  await gesto(p)
   const t1 = (await alarme(p)).tocou
   await Promise.all([pedidoNovo('TESTE Dois A'), pedidoNovo('TESTE Dois B')])
   ok('dois pedidos ao mesmo tempo = dois toques', await ate(async () => (await alarme(p)).tocou >= t1 + 2, 15000), `${t1} → ${(await alarme(p)).tocou}`)
@@ -181,17 +177,17 @@ try {
   secao('5. Som desligado persiste depois de recarregar')
   await fecharPendentes()
   await esperar(9000)
-  await p.reload({ waitUntil: 'networkidle' }); await p.locator('header h1').click(); await esperar(1500)
+  await p.reload({ waitUntil: 'networkidle' }); await gesto(p); await esperar(1500)
   if (await p.getByTestId('kanban-silenciar').isVisible().catch(() => false)) await p.getByTestId('kanban-silenciar').click()
   await p.getByTestId('kanban-som').click()
-  ok('Som desligado', /Desligado/.test(await p.getByTestId('kanban-som').innerText()))
-  await p.reload({ waitUntil: 'networkidle' }); await p.getByTestId('kanban-som').waitFor(); await p.locator('header h1').click()
-  ok('depois de recarregar continua desligado', /Desligado/.test(await p.getByTestId('kanban-som').innerText()))
+  ok('Som desligado', !(await somLigado(p)))
+  await p.reload({ waitUntil: 'networkidle' }); await p.getByTestId('kanban-som').waitFor(); await gesto(p)
+  ok('depois de recarregar continua desligado', !(await somLigado(p)))
   const t8 = (await alarme(p)).tocou
   await pedidoNovo('TESTE Som Desligado'); await esperar(9000)
   ok('com o som desligado, pedido novo não toca', (await alarme(p)).tocou === t8)
   await p.getByTestId('kanban-som').click()
-  ok('liga de novo', /Ligado/.test(await p.getByTestId('kanban-som').innerText().catch(() => '')) || (await p.getByTestId('kanban-silenciar').isVisible().catch(() => false)))
+  ok('liga de novo', (await somLigado(p)) || (await p.getByTestId('kanban-silenciar').isVisible().catch(() => false)))
   await fecharPendentes()
 
   secao('6. Ícone de avisos')
@@ -203,7 +199,7 @@ try {
   ok('a faixa amarela larga saiu', !(await p.locator('text=/abertos? há mais de 12 horas\\. Marque/').isVisible().catch(() => false)))
   const parA = await pedidoNovo('TESTE Parado A'); const parB = await pedidoNovo('TESTE Parado B'); const parC = await pedidoNovo('TESTE Parado C')
   await db.query(`update pedidos set criado_em = now() - interval '13 hours' where id = any($1)`, [[parA.id, parB.id, parC.id]])
-  await p.reload({ waitUntil: 'networkidle' }); await p.locator('header h1').click()
+  await p.reload({ waitUntil: 'networkidle' }); await gesto(p)
   ok('3 pedidos parados: badge âmbar com 3', await ate(async () => (await p.getByTestId('avisos-badge').innerText().catch(() => '')) === '3', 10000))
   const parD = await pedidoNovo('TESTE Parado D')
   await db.query(`update pedidos set criado_em = now() - interval '13 hours' where id=$1`, [parD.id])
@@ -223,7 +219,7 @@ try {
   ok('"Não entregue" (com confirmação) cancela como não entregue', await ate(async () => { const r = await um(`select status::text s, cancelado_motivo m from pedidos where id=$1`, [parB.id]); return r.s === 'cancelado' && r.m === 'nao_entregue' }))
   await p.getByTestId('aviso-pedido').filter({ hasText: `#${parC.numero}` }).getByTestId('aviso-cancelar').click()
   ok('"Cancelar" abre a janela de cancelamento com motivo', await p.locator('text=/Cancelar pedido/i').first().isVisible().catch(() => false))
-  await p.keyboard.press('Escape'); await p.locator('header h1').click()
+  await p.keyboard.press('Escape'); await gesto(p)
   await ctxB.close()
 
   await fecharPendentes()
@@ -233,10 +229,6 @@ try {
     await abrirPainel(q2)
     const larg = await q2.evaluate(() => ({ doc: document.documentElement.scrollWidth, vis: window.innerWidth }))
     ok(`${nome}: sem rolagem horizontal da página`, larg.doc <= larg.vis + 1, texto(larg))
-    if (nome === 'notebook') {
-      const alt = await q2.evaluate(() => { const h = document.querySelector('header'); const t = h.querySelector('h1').getBoundingClientRect(); const s = document.querySelector('[data-testid="topo-controles"]').getBoundingClientRect(); return { h: Math.round(h.getBoundingClientRect().height), mesmaLinha: Math.abs((t.top + t.bottom) / 2 - (s.top + s.bottom) / 2) < 6 } })
-      ok('notebook: título, controles e botões do sistema numa linha só', alt.mesmaLinha && alt.h <= 64, texto(alt))
-    }
     ok(`${nome}: Métricas/Entregas/Tela cheia vão para "Mais ⋯"`, !(await q2.getByTestId('kanban-metricas').isVisible()) && await q2.getByTestId('kanban-mais').isVisible())
     if (nome === 'notebook') await q2.getByTestId('kanban-mais').click(); else await q2.getByTestId('kanban-mais').tap()
     ok(`${nome}: menu "Mais" tem Testar som, repetição e métricas`, await q2.getByTestId('kanban-testar-som').isVisible() && /métricas/i.test(await q2.getByTestId('kanban-mais-menu').innerText()))
@@ -260,7 +252,7 @@ for (const [nome, lancar] of [['Edge', () => chromium.launch({ channel: 'msedge'
     const { p } = await logar(b)
     await abrirPainel(p)
     ok(`${nome}: barra de controles e ícone de avisos`, (await p.getByTestId('kanban-som').isVisible() || await p.getByTestId('kanban-silenciar').isVisible()) && await p.getByTestId('avisos-icone').isVisible())
-    await p.locator('header h1').click()
+    await gesto(p)
     await p.getByTestId('kanban-mais').click(); await p.getByTestId('kanban-testar-som').click()
     ok(`${nome}: Testar som toca`, await ate(async () => (await alarme(p)).tocou >= 1, 4000), texto(await alarme(p)))
     const t = (await alarme(p)).tocou

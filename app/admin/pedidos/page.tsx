@@ -11,7 +11,6 @@ import {
   ChevronDown,
   MoreHorizontal,
   Volume2,
-  Bike,
   Columns3,
   Maximize2,
   Minimize2,
@@ -22,6 +21,7 @@ import {
   Eye,
   EyeOff,
   Zap,
+  ZapOff,
   ArrowRight,
   Banknote,
   CreditCard,
@@ -47,6 +47,7 @@ import { notificarPedido } from '@/lib/notificar'
 import { etiquetasDoPedido, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
 import { EtiquetaAtendimento } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
+import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
 import { useAlarmePedidos } from '@/components/pedidos/use-alarme'
@@ -247,13 +248,11 @@ export default function PedidosPage() {
   const [fluxo, setFluxo] = useState(FLUXO_LOJA_PADRAO)
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
   const [maisAberto, setMaisAberto] = useState(false)
-  // Esc fecha os menus do topo (Mais e status da loja).
-  useEffect(() => {
-    if (!maisAberto && !lojaMenuOpen) return
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMaisAberto(false); setLojaMenuOpen(false) } }
-    window.addEventListener('keydown', esc)
-    return () => window.removeEventListener('keydown', esc)
-  }, [maisAberto, lojaMenuOpen])
+  // Menus do topo (Mais e status da loja): portal por cima de tudo; Esc e clique fora fecham.
+  const botaoStatus = useRef<HTMLButtonElement>(null)
+  const botaoMais = useRef<HTMLButtonElement>(null)
+  const fecharMenuLoja = useCallback(() => setLojaMenuOpen(false), [])
+  const fecharMais = useCallback(() => setMaisAberto(false), [])
 
   // restaura preferências (4º kanban e barra de métricas; o som é restaurado em use-alarme)
   useEffect(() => {
@@ -712,149 +711,151 @@ export default function PedidosPage() {
     }
   }
 
-  const BTN = 'inline-flex h-[44px] flex-shrink-0 items-center gap-2 rounded-[3px] border px-3 text-[13px] font-semibold transition-colors'
+  // Topo do Kanban (v2, 2026-10-03): status com texto; o resto só ícone, quadrado, mesma altura.
+  // Ligado = cor viva sólida com ícone claro; desligado = cinza-escuro com ícone claro (riscado
+  // quando faz sentido). A dica (tooltip por cima de tudo) diz o estado e o que o clique faz.
+  const QUAD = 'relative inline-flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] text-white transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4] sm:h-[44px] sm:w-[44px]'
+  const ICONE = 'h-[20px] w-[20px]'
+  const DESLIGADO = 'bg-[#4B5563]'
+  const ITEM = 'flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page'
   const estadoChip = (ligado: boolean) => (
-    <span className={`rounded-full px-1.5 py-[1px] text-[10.5px] font-bold ${ligado ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#F3F4F6] text-[#6B7280]'}`}>{ligado ? 'Ligado' : 'Desligado'}</span>
+    <span className={`ml-auto rounded-full px-1.5 py-[1px] text-[10.5px] font-bold text-white ${ligado ? 'bg-[#15803D]' : 'bg-[#4B5563]'}`}>{ligado ? 'Ligado' : 'Desligado'}</span>
   )
   const statusTexto = lojaStatus && lojaStatus.statusLoja !== 'automatico' ? 'Manual' : 'Automático'
+  const dicaStatus = `${lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'} (${statusTexto}) – clique para abrir ou fechar a loja`
+  const dicaSom = alarme.somAtivo ? 'Som de pedido novo ligado – clique para desligar' : 'Som de pedido novo desligado – clique para ligar'
+  const dicaAceite = autoAceitar
+    ? 'Aceite automático ligado – pedido novo vai sozinho para Preparando. Clique para desligar'
+    : 'Aceite automático desligado – pedidos novos esperam alguém aceitar. Clique para ligar'
+  const comRotas = usaDespachoDeRotas(fluxo)
   const controles = (
     <>
-      <div className="relative">
+      <Dica texto={dicaStatus}>
         <button
+          ref={botaoStatus}
           onClick={() => setLojaMenuOpen((v) => !v)}
-          title={`${lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'} (${statusTexto}). Clique para abrir ou fechar a loja manualmente.`}
-          className={`${BTN} ${lojaAberta ? 'border-[#86EFAC] bg-price-bg text-price-text hover:brightness-95' : 'border-[#FCA5A5] bg-danger-bg text-danger hover:brightness-95'}`}
+          aria-expanded={lojaMenuOpen}
+          aria-haspopup="menu"
+          aria-label={dicaStatus}
+          className={`inline-flex h-[36px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-2 text-[13px] font-semibold text-white transition-[filter] hover:brightness-110 sm:h-[44px] sm:px-3 ${lojaAberta ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}
           data-testid="kanban-status-loja"
         >
           <span className="relative flex h-2.5 w-2.5">
-            {lojaAberta && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-price-text opacity-60" />}
-            <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${lojaAberta ? 'bg-price-text' : 'bg-danger'}`} />
+            {lojaAberta && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-60" />}
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
           </span>
-          {lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'}
-          <span className="rounded-full bg-white/70 px-1.5 py-[1px] text-[10.5px] font-bold">{statusTexto}</span>
-          <ChevronDown className="h-4 w-4 opacity-70" />
+          <span className="max-[379px]:hidden xl:hidden">{lojaAberta ? 'Aberta' : 'Fechada'}</span>
+          <span className="hidden xl:inline">{lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'}</span>
+          <span className="hidden rounded-full bg-black/25 px-1.5 py-[1px] text-[10.5px] font-bold xl:inline">{statusTexto}</span>
+          <ChevronDown className="hidden h-4 w-4 opacity-90 sm:block" />
         </button>
-        {lojaMenuOpen && (
-          <>
-            <button className="fixed inset-0 z-40 cursor-default" onClick={() => setLojaMenuOpen(false)} aria-label="Fechar menu" />
-            <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-menuzia border border-border bg-white py-1.5 shadow-lg">
-              <button onClick={() => mudarStatusLoja('aberto_manual')} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page">
-                <span className="h-2 w-2 rounded-full bg-price-text" /> Forçar aberta agora
-              </button>
-              <button onClick={() => mudarStatusLoja('fechado_manual')} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page">
-                <span className="h-2 w-2 rounded-full bg-danger" /> Fechar agora
-              </button>
-              <button onClick={() => mudarStatusLoja('automatico')} className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page">
-                <span className="h-2 w-2 rounded-full bg-text-subtle" /> Voltar ao automático (grade de horário)
-              </button>
-              <p className="px-3 pt-1.5 text-[11px] leading-tight text-text-subtle">
-                Grade de horário semanal se configura em Ajustes. Forçar aberta/fechada aqui vale até você reverter.
-              </p>
-            </div>
-          </>
-        )}
-      </div>
+      </Dica>
+      <Flutuante ancora={botaoStatus} aberto={lojaMenuOpen} onFechar={fecharMenuLoja} alinhar="inicio" largura={264} testid="kanban-status-menu" rotulo="Status da loja" className="py-1.5">
+        <button onClick={() => mudarStatusLoja('aberto_manual')} className={ITEM}>
+          <span className="h-2 w-2 rounded-full bg-[#15803D]" /> Forçar aberta agora
+        </button>
+        <button onClick={() => mudarStatusLoja('fechado_manual')} className={ITEM}>
+          <span className="h-2 w-2 rounded-full bg-[#B91C1C]" /> Fechar agora
+        </button>
+        <button onClick={() => mudarStatusLoja('automatico')} className={`${ITEM} border-t border-border`}>
+          <span className="h-2 w-2 rounded-full bg-text-subtle" /> Voltar ao automático (grade de horário)
+        </button>
+        <p className="px-3 pb-1 pt-1.5 text-[11px] leading-tight text-text-subtle">
+          Grade de horário semanal se configura em Ajustes. Forçar aberta/fechada aqui vale até você reverter.
+        </p>
+      </Flutuante>
       {alarme.tocando ? (
-        <button onClick={alarme.silenciar} title="Alarme de pedido novo tocando. Clique para silenciar (o próximo pedido novo toca de novo)." className={`${BTN} border-status-pending bg-status-pending text-white hover:brightness-95`} data-testid="kanban-silenciar">
-          <BellRing className="h-[18px] w-[18px] animate-pulse" /> Silenciar
-        </button>
-      ) : (
-        <button
-          onClick={toggleSom}
-          aria-pressed={alarme.somAtivo}
-          title={alarme.somAtivo ? 'Som de pedido novo: LIGADO. Toca a cada pedido novo e repete até alguém aceitar. Clique para desligar.' : 'Som de pedido novo: DESLIGADO. Clique para ligar.'}
-          className={`${BTN} ${alarme.somAtivo ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/15' : 'border-border bg-white text-text-subtle hover:bg-page'}`}
-          data-testid="kanban-som"
-        >
-          {alarme.somAtivo ? <BellRing className="h-[18px] w-[18px]" /> : <BellOff className="h-[18px] w-[18px]" />} Som {estadoChip(alarme.somAtivo)}
-        </button>
-      )}
-      <button
-        onClick={toggleAutoAceite}
-        aria-pressed={autoAceitar}
-        title={autoAceitar
-          ? 'Aceite automático: LIGADO. Pedido novo toca o alarme por alguns segundos e vai sozinho para Preparando. Clique para desligar.'
-          : 'Aceite automático: DESLIGADO. Pedidos novos esperam alguém aceitar. Clique para ligar.'}
-        className={`${BTN} ${autoAceitar ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D] hover:brightness-95' : 'border-border bg-white text-text-subtle hover:bg-page'}`}
-        data-testid="kanban-aceite"
-      >
-        <Zap className="h-[18px] w-[18px]" /> Aceite auto {estadoChip(autoAceitar)}
-      </button>
-      {usaDespachoDeRotas(fluxo) ? (
-        <button onClick={() => setRotaOpen(true)} title="Despacho de rotas: monte as rotas dos motoboys no mapa." className={`${BTN} max-2xl:hidden border-border bg-white text-text-main hover:border-status-pending hover:text-status-pending`} data-testid="kanban-rotas">
-          <Bike className="h-[18px] w-[18px]" /> Rotas
-        </button>
-      ) : (
-        <span title="Rotas desligado: esta loja não trabalha com motoboy (Ajustes › Entrega). A entrega é concluída aqui no Kanban." className="inline-flex max-2xl:hidden" data-testid="kanban-rotas-desligado">
-          <button disabled data-rotas-desligado className={`${BTN} pointer-events-none cursor-not-allowed border-border bg-page text-text-subtle opacity-60`}>
-            <Bike className="h-[18px] w-[18px]" /> Rotas
+        <Dica texto="Alarme de pedido novo tocando – clique para silenciar (o próximo pedido novo toca de novo)">
+          <button onClick={alarme.silenciar} aria-label="Silenciar o alarme de pedido novo" className={`${QUAD} bg-[#C2410C]`} data-testid="kanban-silenciar">
+            <BellRing className={`${ICONE} animate-pulse`} />
           </button>
-        </span>
+        </Dica>
+      ) : (
+        <Dica texto={dicaSom}>
+          <button onClick={toggleSom} aria-pressed={alarme.somAtivo} aria-label={dicaSom} className={`${QUAD} max-sm:hidden ${alarme.somAtivo ? 'bg-[#0369A1]' : DESLIGADO}`} data-testid="kanban-som">
+            {alarme.somAtivo ? <Bell className={ICONE} /> : <BellOff className={ICONE} />}
+          </button>
+        </Dica>
       )}
-      <button onClick={toggleStats} aria-pressed={showStats} title={showStats ? 'Métricas: VISÍVEIS (pedidos abertos, tempo médio, em entrega, faturamento). Clique para ocultar.' : 'Métricas: OCULTAS. Clique para mostrar.'}
-        className={`${BTN} max-[1799px]:hidden ${showStats ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-white text-text-subtle hover:bg-page'}`} data-testid="kanban-metricas">
-        {showStats ? <Eye className="h-[18px] w-[18px]" /> : <EyeOff className="h-[18px] w-[18px]" />} Métricas {estadoChip(showStats)}
-      </button>
-      <button onClick={toggleCol4} aria-pressed={showCol4} title={showCol4 ? 'Coluna de entregas e concluídos: VISÍVEL. Clique para ocultar.' : 'Coluna de entregas e concluídos: OCULTA. Clique para mostrar.'}
-        className={`${BTN} max-[1799px]:hidden ${showCol4 ? 'border-[#D8B4FE] bg-[#FAF5FF] text-purple' : 'border-border bg-white text-text-subtle hover:bg-page'}`} data-testid="kanban-entregas">
-        <Columns3 className="h-[18px] w-[18px]" /> Entregas
-      </button>
-      <button onClick={toggleFocus} title={focusMode ? 'Sair da tela cheia' : 'Tela cheia: esconde o menu lateral e ocupa a tela toda'}
-        className={`${BTN} max-[1799px]:hidden ${focusMode ? 'border-text-main bg-text-main text-white' : 'border-border bg-white text-text-subtle hover:bg-page'}`} data-testid="kanban-tela-cheia">
-        {focusMode ? <Minimize2 className="h-[18px] w-[18px]" /> : <Maximize2 className="h-[18px] w-[18px]" />} {focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
-      </button>
-      <div className="relative">
-        <button onClick={() => setMaisAberto((v) => !v)} aria-expanded={maisAberto} title="Mais opções: testar som, repetição do alarme, notificações" className={`${BTN} border-border bg-white text-text-main hover:bg-page`} data-testid="kanban-mais">
-          <MoreHorizontal className="h-[18px] w-[18px]" /> Mais
+      <Dica texto={dicaAceite}>
+        <button onClick={toggleAutoAceite} aria-pressed={autoAceitar} aria-label={dicaAceite} className={`${QUAD} max-sm:hidden ${autoAceitar ? 'bg-[#7E22CE]' : DESLIGADO}`} data-testid="kanban-aceite">
+          {autoAceitar ? <Zap className={ICONE} fill="currentColor" /> : <ZapOff className={ICONE} />}
         </button>
-        {maisAberto && (
-          <>
-            <button className="fixed inset-0 z-40 cursor-default" onClick={() => setMaisAberto(false)} aria-label="Fechar menu" />
-            <div className="absolute left-0 top-full z-50 mt-1.5 w-[min(288px,calc(100vw-24px))] sm:left-auto sm:right-0 rounded-menuzia border border-border bg-white py-1.5 shadow-lg" data-testid="kanban-mais-menu">
-              <button onClick={() => { void alarme.testar(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page" data-testid="kanban-testar-som">
-                <Volume2 className="h-4 w-4" /> Testar som
+      </Dica>
+      {comRotas ? (
+        <Dica texto="Rotas – abrir o despacho dos motoboys no mapa">
+          <button onClick={() => setRotaOpen(true)} aria-label="Rotas – abrir o despacho dos motoboys no mapa" className={`${QUAD} max-sm:hidden bg-[#1F2937]`} data-testid="kanban-rotas">
+            <Capacete className={ICONE} strokeWidth={2.2} />
+          </button>
+        </Dica>
+      ) : (
+        <Dica texto="Rotas desligado – esta loja não trabalha com motoboy (Ajustes › Entrega). A entrega é concluída aqui no Kanban">
+          <span tabIndex={0} aria-label="Rotas desligado – esta loja não trabalha com motoboy" className="inline-flex flex-shrink-0 max-sm:hidden" data-testid="kanban-rotas-desligado">
+            <button disabled data-rotas-desligado tabIndex={-1} aria-hidden className={`${QUAD} pointer-events-none cursor-not-allowed ${DESLIGADO}`}>
+              <Capacete className={ICONE} strokeWidth={2.2} />
+              <span aria-hidden className="absolute h-[2px] w-[26px] rotate-45 rounded-full bg-white" />
+            </button>
+          </span>
+        </Dica>
+      )}
+      <Dica texto="Mais opções – testar som, repetição do alarme, métricas, entregas e tela cheia">
+        <button ref={botaoMais} onClick={() => setMaisAberto((v) => !v)} aria-expanded={maisAberto} aria-haspopup="menu" aria-label="Mais opções" className={`${QUAD} bg-[#374151]`} data-testid="kanban-mais">
+          <MoreHorizontal className={ICONE} />
+        </button>
+      </Dica>
+      <Flutuante ancora={botaoMais} aberto={maisAberto} onFechar={fecharMais} alinhar="inicio" largura={300} testid="kanban-mais-menu" rotulo="Mais opções" className="py-1.5">
+        {/* No celular, Som, Aceite automático e Rotas moram aqui. */}
+        <div className="border-b border-border sm:hidden">
+          {!alarme.tocando && (
+            <button onClick={toggleSom} className={ITEM} data-testid="kanban-som-menu">
+              {alarme.somAtivo ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />} Som de pedido novo {estadoChip(alarme.somAtivo)}
+            </button>
+          )}
+          <button onClick={toggleAutoAceite} className={ITEM} data-testid="kanban-aceite-menu">
+            {autoAceitar ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />} Aceite automático {estadoChip(autoAceitar)}
+          </button>
+          {comRotas ? (
+            <button onClick={() => { setRotaOpen(true); setMaisAberto(false) }} className={ITEM} data-testid="kanban-rotas-menu">
+              <Capacete className="h-4 w-4" /> Rotas (despacho)
+            </button>
+          ) : (
+            <p className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-subtle"><Capacete className="h-4 w-4" /> Rotas: desligado (sem motoboy)</p>
+          )}
+        </div>
+        <button onClick={() => { void alarme.testar(); setMaisAberto(false) }} className={ITEM} data-testid="kanban-testar-som">
+          <Volume2 className="h-4 w-4" /> Testar som
+        </button>
+        <div className="border-t border-border px-3 py-2">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Repetir o alarme</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {OPCOES_REPETICAO.map((s) => (
+              <button key={s} onClick={() => alarme.setRepetirSeg(s)} aria-pressed={alarme.repetirSeg === s}
+                className={`h-[32px] rounded-[3px] border px-2 text-[12px] font-semibold ${alarme.repetirSeg === s ? 'border-[#0369A1] bg-[#0369A1] text-white' : 'border-border bg-white text-text-main hover:bg-page'}`} data-testid={`kanban-repetir-${s}`}>
+                {s === 0 ? 'Não repetir' : `${s} s`}
               </button>
-              <div className="border-t border-border px-3 py-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Repetir o alarme</p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {OPCOES_REPETICAO.map((s) => (
-                    <button key={s} onClick={() => alarme.setRepetirSeg(s)} aria-pressed={alarme.repetirSeg === s}
-                      className={`h-[32px] rounded-[3px] border px-2 text-[12px] font-semibold ${alarme.repetirSeg === s ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:bg-page'}`} data-testid={`kanban-repetir-${s}`}>
-                      {s === 0 ? 'Não repetir' : `${s} s`}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1 text-[11px] leading-snug text-text-subtle">Repete enquanto houver pedido novo sem aceitar.</p>
-              </div>
-              {alarme.permissaoNotif !== 'sem_suporte' && (
-                <button onClick={() => void alarme.pedirNotificacao()} disabled={alarme.permissaoNotif === 'granted'}
-                  className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page disabled:cursor-default disabled:hover:bg-white" data-testid="kanban-notificacoes">
-                  <Bell className="h-4 w-4" />
-                  {alarme.permissaoNotif === 'granted' ? 'Notificações do navegador: ligadas' : alarme.permissaoNotif === 'denied' ? 'Notificações bloqueadas no navegador (libere no cadeado)' : 'Ligar notificações com a aba escondida'}
-                </button>
-              )}
-              <div className="border-t border-border min-[1800px]:hidden">
-                {usaDespachoDeRotas(fluxo) ? (
-                  <button onClick={() => { setRotaOpen(true); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page 2xl:hidden">
-                    <Bike className="h-4 w-4" /> Rotas (despacho)
-                  </button>
-                ) : (
-                  <p className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-subtle 2xl:hidden" title="Esta loja não trabalha com motoboy (Ajustes › Entrega)."><Bike className="h-4 w-4" /> Rotas: desligado (sem motoboy)</p>
-                )}
-                <button onClick={() => { toggleStats(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page">
-                  {showStats ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} {showStats ? 'Ocultar métricas' : 'Mostrar métricas'}
-                </button>
-                <button onClick={() => { toggleCol4(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page">
-                  <Columns3 className="h-4 w-4" /> {showCol4 ? 'Ocultar entregas e concluídos' : 'Mostrar entregas e concluídos'}
-                </button>
-                <button onClick={() => { void toggleFocus(); setMaisAberto(false) }} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium hover:bg-page max-lg:hidden">
-                  {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} {focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
-                </button>
-              </div>
-            </div>
-          </>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-text-subtle">Repete enquanto houver pedido novo sem aceitar.</p>
+        </div>
+        {alarme.permissaoNotif !== 'sem_suporte' && (
+          <button onClick={() => void alarme.pedirNotificacao()} disabled={alarme.permissaoNotif === 'granted'}
+            className={`${ITEM} border-t border-border disabled:cursor-default disabled:hover:bg-white`} data-testid="kanban-notificacoes">
+            <Bell className="h-4 w-4" />
+            {alarme.permissaoNotif === 'granted' ? 'Notificações do navegador: ligadas' : alarme.permissaoNotif === 'denied' ? 'Notificações bloqueadas no navegador (libere no cadeado)' : 'Ligar notificações com a aba escondida'}
+          </button>
         )}
-      </div>
+        <div className="border-t border-border">
+          <button onClick={() => { toggleStats(); setMaisAberto(false) }} aria-pressed={showStats} className={ITEM} data-testid="kanban-metricas">
+            {showStats ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />} Métricas no topo {estadoChip(showStats)}
+          </button>
+          <button onClick={() => { toggleCol4(); setMaisAberto(false) }} aria-pressed={showCol4} className={ITEM} data-testid="kanban-entregas">
+            <Columns3 className="h-4 w-4" /> Entregas e concluídos {estadoChip(showCol4)}
+          </button>
+          <button onClick={() => { void toggleFocus(); setMaisAberto(false) }} className={`${ITEM} max-lg:hidden`} data-testid="kanban-tela-cheia">
+            {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} {focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
+          </button>
+        </div>
+      </Flutuante>
     </>
   )
   const avisosTopo = (
@@ -866,7 +867,7 @@ export default function PedidosPage() {
       onVer={verNoKanban}
     />
   )
-  const topBar = <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" controles={controles} right={avisosTopo} />
+  const topBar = <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" semTitulo controles={controles} sistema={avisosTopo} />
 
   if (loading) {
     return (

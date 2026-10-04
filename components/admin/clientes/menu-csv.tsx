@@ -1,21 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, Download, History, Upload } from 'lucide-react'
 import { ModalExportar } from './modal-exportar'
 import { ModalImportar } from './modal-importar'
 import { BTN, ModalCsv } from './csv-comum'
+import { Flutuante } from '@/components/ui/flutuante'
 
 /** Botão "CSV ▾" da Base de Clientes: Importar, Exportar e Histórico de importações. */
 export function MenuCsv({ onToast, onMudou }: { onToast: (tom: 'ok' | 'erro', t: string) => void; onMudou: () => void }) {
   const [aberto, setAberto] = useState(false)
   const [modal, setModal] = useState<'importar' | 'exportar' | 'historico' | null>(null)
-  useEffect(() => {
-    if (!aberto) return
-    const fechar = () => setAberto(false)
-    window.addEventListener('mousedown', fechar)
-    return () => window.removeEventListener('mousedown', fechar)
-  }, [aberto])
+  // Menu por cima de tudo (portal): fecha com clique fora e Esc.
+  const botao = useRef<HTMLButtonElement>(null)
+  const fecharMenu = useCallback(() => setAberto(false), [])
   const fechar = useCallback(() => setModal(null), [])
   const Item = ({ icone: Icone, rotulo, onClick, testid }: { icone: typeof Upload; rotulo: string; onClick: () => void; testid: string }) => (
     <button type="button" role="menuitem" onClick={() => { setAberto(false); onClick() }} data-testid={testid}
@@ -24,19 +22,19 @@ export function MenuCsv({ onToast, onMudou }: { onToast: (tom: 'ok' | 'erro', t:
     </button>
   )
   return (
-    <div className="relative" onMouseDown={(e) => e.stopPropagation()}>
-      <button type="button" onClick={() => setAberto((v) => !v)} aria-haspopup="menu" aria-expanded={aberto} data-testid="botao-csv"
+    <div className="relative">
+      <button ref={botao} type="button" onClick={() => setAberto((v) => !v)} aria-haspopup="menu" aria-expanded={aberto} data-testid="botao-csv"
         className="inline-flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-primary px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-primary-dark sm:w-auto">
         CSV <ChevronDown className="h-3.5 w-3.5" />
       </button>
-      {aberto && (
-        <div role="menu" className="absolute right-0 top-[calc(100%+4px)] z-40 w-[230px] overflow-hidden rounded-[6px] border border-[#e5e7eb] bg-white py-1 shadow-[0_10px_28px_rgba(15,23,42,0.14)]" data-testid="menu-csv">
+      <Flutuante ancora={botao} aberto={aberto} onFechar={fecharMenu} largura={230} testid="menu-csv" rotulo="CSV" className="py-1">
+        <div role="menu">
           <Item icone={Upload} rotulo="Importar clientes" onClick={() => setModal('importar')} testid="menu-importar" />
           <Item icone={Download} rotulo="Exportar clientes" onClick={() => setModal('exportar')} testid="menu-exportar" />
           <div className="my-1 border-t border-[#f0f1f3]" />
           <Item icone={History} rotulo="Histórico de importações" onClick={() => setModal('historico')} testid="menu-historico" />
         </div>
-      )}
+      </Flutuante>
       {modal === 'exportar' && <ModalExportar onFechar={fechar} onToast={onToast} />}
       {modal === 'importar' && <ModalImportar onFechar={fechar} onImportou={onMudou} />}
       {modal === 'historico' && <Historico onFechar={fechar} onToast={onToast} onMudou={onMudou} />}
