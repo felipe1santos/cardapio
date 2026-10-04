@@ -255,7 +255,7 @@ Cenários cobertos:
 | financeiro-cmv (5) | 61/61 | 61/61 | 61/61 |
 | integridade (5) | 7/7 | 7/7 | 7/7 |
 | financeiro-fluxo (4) | 86/86 | 86/86 | **não rodou** |
-| financeiro-fase1 / 2 / 3 | 66 / 55 / 106 ok | 66 / 55 / 106 ok | **não rodou** |
+| financeiro-fase1 / 2 / 3 | 66 / 55 / 106 ok | 66 / 55 / 106 ok | fase1: 16/17 **inconclusivo** (rodou enquanto o servidor era encerrado; um clique deu timeout — pode ser servidor fora ou a abertura rápida cobrindo o botão); fase2/3 não rodaram |
 | financeiro-integrado | 52/52 | 52/52 | **não rodou** |
 | pdv-pagamento, pdv-atendimento, pdv-v2 | 57 / 97 / 70 ok | 57 / 97 / 70 ok | **não rodou** |
 | balcão-entrega, estabilidade, regressão-release | 84 / 53 / 52 ok | 84 / 53 / 52 ok | **não rodou** |
