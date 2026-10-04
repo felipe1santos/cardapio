@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { contextoFinanceiro } from '@/lib/financeiro/contexto'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { verificarAncoras } from '@/lib/financeiro/ancora'
 
 /**
  * Financeiro › Auditoria e Alertas (0132). Tudo da loja da SESSÃO (nunca do corpo).
@@ -37,12 +38,18 @@ export async function POST(request: Request) {
   const { data, error } = await c.admin.rpc('auditoria_verificar_cadeia', { p_restaurante: c.sessao.restauranteId })
   if (error) return NextResponse.json({ error: 'Não foi possível verificar agora.' }, { status: 500 })
   const problemas = (data ?? []) as { tabela: string; registro: string; motivo: string }[]
+  // 0141: compara também com as âncoras gravadas FORA do banco (cadeia reescrita pelo dono do banco).
+  const ancora = await verificarAncoras(c.admin, c.sessao.restauranteId).catch(() => ({ ancoras: 0, ultimaEm: null, problemas: [] }))
+  problemas.push(...ancora.problemas)
   await registrarAuditoria(c.admin, {
     restauranteId: c.sessao.restauranteId, usuarioId: c.sessao.userId, usuarioNome: c.sessao.nome,
     acao: 'fin.verificou_integridade', entidade: 'restaurante', entidadeId: c.sessao.restauranteId,
-    dados: { problemas: problemas.length, dispositivo: c.dispositivo },
+    dados: { problemas: problemas.length, ancoras: ancora.ancoras, dispositivo: c.dispositivo },
   })
-  return NextResponse.json({ ok: problemas.length === 0, problemas: problemas.slice(0, 200), verificadoEm: new Date().toISOString() })
+  return NextResponse.json({
+    ok: problemas.length === 0, problemas: problemas.slice(0, 200), verificadoEm: new Date().toISOString(),
+    ancora: { conferidas: ancora.ancoras, ultimaEm: ancora.ultimaEm },
+  })
 }
 
 export async function PATCH(request: Request) {

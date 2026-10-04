@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { AREAS, SENSIVEIS, sensivelDaRequisicao } from './acessos'
 import {
   alternarPermissao, areasForaDoAlcance, cargoDoUsuario, contarPermissoes, GRUPOS_PERMISSOES, modeloDoCargo,
-  papelParaAcessos, situacaoDoUsuario, temPermissao,
+  papelParaAcessos, situacaoDoUsuario, temPermissao, excedeOCargo, sensiveisSemSerGestor, papelForaDoCargo,
 } from './equipe-cargos'
 
 const DONO_OFERECE = ['gerente', 'garcom', 'atendente', 'logistica'] as const
@@ -17,15 +17,35 @@ describe('cargos da equipe', () => {
     }
   })
 
-  it('garçom com Painel de Pedidos sobe para atendente (garçom não vê delivery)', () => {
-    expect(papelParaAcessos('garcom', { areas: ['mesas', 'pedidos'], sensiveis: [] }, [...DONO_OFERECE])).toBe('atendente')
+  it('o cargo define o papel: garçom com Painel de Pedidos NÃO sobe (precisa do Personalizado)', () => {
+    const a = { areas: ['mesas', 'pedidos'] as never[], sensiveis: [] }
+    expect(papelParaAcessos('garcom', a, [...DONO_OFERECE])).toBeNull()
+    expect(excedeOCargo('garcom', a)).toEqual(['pedidos'])
+    expect(papelParaAcessos('personalizado', a, [...DONO_OFERECE])).toBe('atendente')
   })
 
-  it('caixa com Cardápio vira gerente quando o dono cadastra; gerente não consegue', () => {
+  it('caixa com Cardápio: recusado no cargo Caixa; no Personalizado vira gerente se o dono cadastra', () => {
     const a = { areas: ['pdv', 'cardapio'] as never[], sensiveis: [] }
-    expect(papelParaAcessos('caixa', a, [...DONO_OFERECE])).toBe('gerente')
-    expect(papelParaAcessos('caixa', a, [...GERENTE_OFERECE])).toBeNull()
+    expect(papelParaAcessos('caixa', a, [...DONO_OFERECE])).toBeNull()
+    expect(excedeOCargo('caixa', a)).toEqual(['cardapio'])
+    expect(papelParaAcessos('personalizado', a, [...DONO_OFERECE])).toBe('gerente')
+    expect(papelParaAcessos('personalizado', a, [...GERENTE_OFERECE])).toBeNull()
     expect(areasForaDoAlcance(a, [...GERENTE_OFERECE])).toEqual(['cardapio'])
+  })
+
+  it('aviso: permissões sensíveis de gestor sem ser gerente/dono', () => {
+    const fin = { areas: ['mesas'] as never[], sensiveis: ['financeiro', 'sangria', 'estornar', 'desconto'] as never[] }
+    expect(sensiveisSemSerGestor('garcom', 'gerente', fin)).toEqual(['financeiro', 'sangria', 'estornar']) // caso garcom123
+    expect(sensiveisSemSerGestor('gerente', 'gerente', fin)).toEqual([])
+    expect(sensiveisSemSerGestor('caixa', 'atendente', { areas: [], sensiveis: ['aprovar', 'financeiro_exportar'] as never[] })).toEqual(['aprovar', 'financeiro_exportar'])
+    expect(sensiveisSemSerGestor('dono', 'dono', fin)).toEqual([])
+  })
+
+  it('papel fora do cargo', () => {
+    expect(papelForaDoCargo('garcom', 'gerente')).toBe(true)
+    expect(papelForaDoCargo('garcom', 'garcom')).toBe(false)
+    expect(papelForaDoCargo('motoboy', 'entregador')).toBe(false)
+    expect(papelForaDoCargo('personalizado', 'gerente')).toBe(false)
   })
 
   it('personalizado pega o papel mais restrito que cobre', () => {

@@ -113,15 +113,40 @@ function cobre(papel: Papel, areas: Area[]): boolean {
 }
 
 /**
- * Papel que a conta recebe. Começa pelo papel do cargo; se as áreas marcadas pedirem mais,
- * sobe para o papel mais restrito que cobre todas, dentro do que quem cadastra pode dar.
+ * Papel que a conta recebe (regra de 2026-10-04: o CARGO define o papel).
+ * - Cargo fixo (gerente, caixa, garçom, cozinha, motoboy, atendente): sempre o papel do cargo. Se as áreas
+ *   marcadas pedirem mais, NÃO sobe — o servidor recusa e pede o cargo Personalizado (`excedeOCargo`).
+ * - Personalizado: o papel mais restrito que cobre as áreas, dentro do que quem cadastra pode dar.
  * Null = nenhum papel permitido cobre (ex.: gerente liberando Cardápio — só o dono cria gerente).
  */
 export function papelParaAcessos(cargo: Cargo, acessos: Acessos, oferecidos: Papel[]): Papel | null {
   const base = cargo === 'dono' || cargo === 'personalizado' ? null : PAPEL_DO_CARGO[cargo]
-  if (base && oferecidos.includes(base) && cobre(base, acessos.areas)) return base
+  if (base) return oferecidos.includes(base) && cobre(base, acessos.areas) ? base : null
   for (const p of ORDEM_PAPEIS) if (oferecidos.includes(p) && cobre(p, acessos.areas)) return p
   return null
+}
+
+/** Áreas marcadas que o papel do cargo fixo não alcança (vazio = cabe no cargo). */
+export function excedeOCargo(cargo: Cargo, acessos: Acessos): Area[] {
+  if (cargo === 'dono' || cargo === 'personalizado') return []
+  const base = PAPEL_DO_CARGO[cargo]
+  return acessos.areas.filter((a) => !cobre(base, [a]))
+}
+
+/** Permissões sensíveis "de gestor": a tela da Equipe avisa quando quem não é gerente/dono as tem. */
+export const SENSIVEIS_DE_GESTOR = ['financeiro', 'sangria', 'estornar', 'aprovar', 'financeiro_exportar'] as const
+
+/** Quais sensíveis de gestor alguém tem sem ser gerente/dono (pelo cargo E pelo papel). */
+export function sensiveisSemSerGestor(cargo: Cargo, papel: string, acessos: Acessos | null): string[] {
+  if (cargo === 'dono' || (cargo === 'gerente' && (papel === 'gerente' || papel === 'dono'))) return []
+  const marcadas = acessos?.sensiveis ?? []
+  return SENSIVEIS_DE_GESTOR.filter((s) => (marcadas as string[]).includes(s))
+}
+
+/** Papel diferente do cargo (fora do Personalizado): "Garçom com papel de Gerente". */
+export function papelForaDoCargo(cargo: Cargo, papel: string): boolean {
+  if (cargo === 'dono' || cargo === 'personalizado') return false
+  return PAPEL_DO_CARGO[cargo] !== papel && !(cargo === 'motoboy' && papel === 'entregador')
 }
 
 /** Áreas marcadas que nenhum papel ao alcance de quem cadastra consegue usar (para a mensagem de erro). */
@@ -203,7 +228,9 @@ export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[]; soComF
       { tipo: 'sensivel', chave: 'estornar', rotulo: rotSens('estornar'), descricao: 'Devolver um pagamento já recebido.' },
       { tipo: 'sensivel', chave: 'aprovar', rotulo: rotSens('aprovar'), descricao: 'Liberar ações de outros com o próprio PIN.' },
       { tipo: 'sensivel', chave: 'reimprimir', rotulo: rotSens('reimprimir'), descricao: 'Imprimir de novo pré-conta e recibo.' },
-      { tipo: 'sensivel', chave: 'custos_editar', rotulo: rotSens('custos_editar'), descricao: 'Insumos, fichas de custo e CMV.' },
+      { tipo: 'sensivel', chave: 'custos_ver', rotulo: rotSens('custos_ver'), descricao: 'Ver custo, lucro e margem dos produtos.' },
+      { tipo: 'sensivel', chave: 'custos_editar', rotulo: rotSens('custos_editar'), descricao: 'Cadastrar insumos e montar fichas de custo.' },
+      { tipo: 'sensivel', chave: 'precos_aplicar', rotulo: rotSens('precos_aplicar'), descricao: 'Trocar o preço de venda pela sugestão do CMV.' },
       { tipo: 'sensivel', chave: 'contas_pagar', rotulo: rotSens('contas_pagar'), descricao: 'Lançar e pagar contas da empresa.' },
       { tipo: 'sensivel', chave: 'dre_ver', rotulo: rotSens('dre_ver'), descricao: 'Ver lucro, CMV e DRE.' },
       { tipo: 'sensivel', chave: 'financeiro_exportar', rotulo: rotSens('financeiro_exportar'), descricao: 'Baixar o Fluxo de Caixa e extratos em CSV e PDF.' },

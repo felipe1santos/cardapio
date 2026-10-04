@@ -101,6 +101,16 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'fin.verificou_integridade': 'Verificou a integridade dos registros',
   'fin.exportou_fluxo': 'Exportou o Fluxo de Caixa (CSV/PDF)',
   'fin.reimprimiu_relatorio': 'Reimprimiu o relatório de fechamento do caixa',
+  // Precificação / CMV (Fase 5).
+  'cmv.insumo_criado': 'Cadastrou um insumo',
+  'cmv.insumo_editado': 'Editou um insumo',
+  'cmv.custo_alterado': 'Mudou o custo de um insumo',
+  'cmv.insumo_desativado': 'Desativou um insumo',
+  'cmv.insumo_reativado': 'Reativou um insumo',
+  'cmv.ficha_salva': 'Salvou a ficha de custo de um produto',
+  'cmv.preco_aplicado': 'Aplicou novo preço sugerido pelo CMV',
+  'cmv.config_alterada': 'Mudou a margem-alvo e o arredondamento do CMV',
+  'cmv.exportou': 'Exportou a precificação (CSV)',
   // Motoboy (0136).
   'fin.troco_modo': 'Mudou o modo do troco dos motoboys',
   'fin.troco_motoboy': 'Entregou troco ao motoboy',
@@ -188,6 +198,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'clientes', label: 'Clientes', prefixos: ['clientes.'] },
   { id: 'whatsapp', label: 'WhatsApp', prefixos: ['whatsapp.', 'campanhas.'] },
   { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },
+  { id: 'cmv', label: 'Custos (CMV)', prefixos: ['cmv.'] },
   { id: 'plataforma', label: 'Plataforma (Menuzia)', prefixos: ['plataforma.'] },
 ]
 

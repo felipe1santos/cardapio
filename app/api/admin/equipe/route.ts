@@ -7,7 +7,7 @@ import { criarFuncionario, listarEquipe, validarNovoFuncionario } from '@/lib/qu
 import { registrarAuditoria } from '@/lib/auditoria'
 import { AREAS, normalizarAcessos, resumoAcessos } from '@/lib/acessos'
 import { definirAcessos } from '@/lib/queries/equipe'
-import { areasForaDoAlcance, CARGOS, contarPermissoes, papelParaAcessos, type Cargo } from '@/lib/equipe-cargos'
+import { areasForaDoAlcance, CARGOS, contarPermissoes, excedeOCargo, papelParaAcessos, ROTULO_CARGO, type Cargo } from '@/lib/equipe-cargos'
 
 /**
  * Equipe da loja. O middleware já exige `equipe.gerenciar` nesta rota; a checagem se
@@ -61,6 +61,12 @@ export async function POST(request: Request) {
     const pedidos = normalizarAcessos(corpo.acessos)
     if (!pedidos || contarPermissoes(pedidos) === 0) return NextResponse.json({ error: 'Marque pelo menos uma permissão.' }, { status: 400 })
     const oferecidos = papeisQuePodeGerenciar(sessao.papel)
+    // O cargo define o papel: área além do cargo só com o cargo Personalizado.
+    {
+      const cargoNovo = cargo, NOVOS = pedidos
+      const fora = excedeOCargo(cargoNovo, NOVOS).map((a) => AREAS.find((x) => x.chave === a)!.rotulo)
+      if (fora.length) return NextResponse.json({ error: `O cargo ${ROTULO_CARGO[cargoNovo]} não inclui: ${fora.join(', ')}. Para liberar, escolha o cargo Personalizado.`, codigo: 'excede_cargo' }, { status: 400 })
+    }
     const papel = papelParaAcessos(cargo, pedidos, oferecidos)
     if (!papel) {
       const fora = areasForaDoAlcance(pedidos, oferecidos).map((a) => AREAS.find((x) => x.chave === a)!.rotulo)

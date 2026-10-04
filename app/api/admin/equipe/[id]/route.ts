@@ -9,7 +9,7 @@ import { encerrarSessoes } from '@/lib/financeiro/sessoes'
 import { normalizarAcessos, resumoAcessos } from '@/lib/acessos'
 import { definirAcessos } from '@/lib/queries/equipe'
 import { AREAS } from '@/lib/acessos'
-import { areasForaDoAlcance, CARGOS, contarPermissoes, papelParaAcessos, type Cargo } from '@/lib/equipe-cargos'
+import { areasForaDoAlcance, CARGOS, contarPermissoes, excedeOCargo, papelParaAcessos, ROTULO_CARGO, type Cargo } from '@/lib/equipe-cargos'
 
 /** Editar nome/papel e ativar/desativar um funcionário. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -55,6 +55,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!novos || contarPermissoes(novos) === 0) return NextResponse.json({ error: 'Marque pelo menos uma permissão.' }, { status: 400 })
     // Quem edita pode manter o papel atual do alvo (o dono editando um gerente).
     const oferecidos = [...new Set([...papeisQuePodeGerenciar(sessao.papel), alvo.papel])] as Papel[]
+    // O cargo define o papel: área além do cargo só com o cargo Personalizado.
+    {
+      const cargoNovo = corpo.cargo as Cargo, NOVOS = novos
+      const fora = excedeOCargo(cargoNovo, NOVOS).map((a) => AREAS.find((x) => x.chave === a)!.rotulo)
+      if (fora.length) return NextResponse.json({ error: `O cargo ${ROTULO_CARGO[cargoNovo]} não inclui: ${fora.join(', ')}. Para liberar, escolha o cargo Personalizado.`, codigo: 'excede_cargo' }, { status: 400 })
+    }
     const papel = papelParaAcessos(corpo.cargo as Cargo, novos, oferecidos)
     if (!papel) {
       const fora = areasForaDoAlcance(novos, oferecidos).map((a) => AREAS.find((x) => x.chave === a)!.rotulo)

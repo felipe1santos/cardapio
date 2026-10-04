@@ -9,10 +9,11 @@ import { ModalUsuario, type SalvarUsuario, type UsuarioEquipe } from '@/componen
 import type { Papel } from '@/lib/auth/permissoes'
 import type { Acessos } from '@/lib/acessos'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
-import {
+import { papelForaDoCargo, sensiveisSemSerGestor,
   COR_CARGO, ROTULO_CARGO, ROTULO_SITUACAO, cargoDoUsuario, contarPermissoes, modeloDoCargo, situacaoDoUsuario,
   type Cargo, type Situacao,
 } from '@/lib/equipe-cargos'
+import { Dica } from '@/components/ui/flutuante'
 
 /**
  * Equipe do estabelecimento (repaginação 2026-10).
@@ -230,6 +231,7 @@ export default function EquipePage() {
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-text-subtle">
                     <SeloCargo c={f.cargoVisto} />
+                    <AvisoCargo f={f} />
                     <Permissoes f={f} />
                     <span>· {quando(f.ultimoLoginEm)}</span>
                   </div>
@@ -265,7 +267,7 @@ export default function EquipePage() {
                           {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
                         </td>
                         <td className="px-4 py-3 font-mono text-[12px] text-text-subtle">{f.usuario || '—'}</td>
-                        <td className="px-4 py-3"><SeloCargo c={f.cargoVisto} /></td>
+                        <td className="px-4 py-3"><span className="inline-flex flex-wrap items-center gap-1"><SeloCargo c={f.cargoVisto} /><AvisoCargo f={f} /></span></td>
                         <td className="px-4 py-3 text-[12.5px]" data-testid="acessos-resumo"><Permissoes f={f} /></td>
                         <td className="px-4 py-3"><SeloSituacao s={f.situacaoVista} /></td>
                         <td className="px-4 py-3 text-[12px] text-text-subtle">{quando(f.ultimoLoginEm)}</td>
@@ -343,6 +345,31 @@ function SeloCargo({ c }: { c: Cargo }) {
     <span className="inline-flex items-center whitespace-nowrap rounded-[4px] px-2 py-[3px] text-[11.5px] font-semibold" style={{ backgroundColor: cor.fundo, color: cor.cor }} data-testid="cargo">
       {ROTULO_CARGO[c]}
     </span>
+  )
+}
+
+const ROTULO_SENS: Record<string, string> = { financeiro: 'ver valores do financeiro', sangria: 'sangria', estornar: 'estorno', aprovar: 'aprovar com PIN', financeiro_exportar: 'exportar relatórios' }
+const ROTULO_PAPEL: Record<string, string> = { gerente: 'Gerente', atendente: 'Atendente', garcom: 'Garçom', logistica: 'Logística', cozinha: 'Cozinha', entregador: 'Entregador', dono: 'Dono' }
+
+/**
+ * Aviso (2026-10-04): permissões sensíveis de gestor em quem não é gerente/dono, ou papel diferente do cargo.
+ * Âmbar vivo com texto branco; a explicação fica na dica.
+ */
+function AvisoCargo({ f }: { f: Linha }) {
+  const sens = sensiveisSemSerGestor(f.cargoVisto, f.papel, f.acessosVistos)
+  const fora = papelForaDoCargo(f.cargoVisto, f.papel)
+  if (!sens.length && !fora) return null
+  const texto = [
+    fora ? `Acessa o sistema como ${ROTULO_PAPEL[f.papel] ?? f.papel}, mais do que o cargo ${ROTULO_CARGO[f.cargoVisto]} prevê.` : null,
+    sens.length ? `Tem permissões de gestor: ${sens.map((x) => ROTULO_SENS[x] ?? x).join(', ')}.` : null,
+    'Revise em Editar.',
+  ].filter(Boolean).join(' ')
+  return (
+    <Dica texto={texto} alternarNoClique>
+      <span tabIndex={0} className="inline-flex cursor-help items-center whitespace-nowrap rounded-[4px] bg-[#B45309] px-2 py-[3px] text-[11.5px] font-semibold text-white" data-testid="aviso-cargo" aria-label={texto}>
+        ⚠ {fora ? `Papel de ${ROTULO_PAPEL[f.papel] ?? f.papel}` : 'Permissões de gestor'}
+      </span>
+    </Dica>
   )
 }
 
