@@ -7,7 +7,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { ICONES } from '@/lib/icones-painel'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { FORMAS_CONTA, ROTULO_FORMA_CONTA, type FormaConta } from '@/lib/financeiro/contas-regras'
-import { AprovacaoPin, CampoDinheiro, Janela } from '../apoio'
+import { AprovacaoPin, CampoDinheiro, Janela, type AprovacaoDada, type PedidoRemoto } from '../apoio'
 import { BOTAO, Chip, PainelLateral, Selo } from '../ui/blocos'
 import { SecaoDre } from './dre'
 import { SecaoCompras, type InsumoLeve } from './compras'
@@ -236,10 +236,10 @@ function FormConta({ conta, tipo, categorias, fornecedores, onFechar, onSalvou, 
   const [salvando, setSalvando] = useState(false)
   const [suspeita, setSuspeita] = useState<{ pedidos: { numero: number; total: number }[]; mensagem: string } | null>(null)
   const [justificativa, setJustificativa] = useState('')
-  const [pin, setPin] = useState<{ erro: string | null } | null>(null)
+  const [pin, setPin] = useState<{ erro: string | null; remoto?: PedidoRemoto | null } | null>(null)
   const [ch] = useState(chave)
 
-  async function salvar(aprovacao?: { aprovadorId: string; pin: string }) {
+  async function salvar(aprovacao?: AprovacaoDada) {
     setSalvando(true)
     try {
       const corpo = { tipo, descricao, categoriaId, fornecedorId: fornecedorId || null, valorCentavos: centavos, vencimento, formaPrevista: forma || null, observacao, recorrencia, chave: ch,
@@ -247,7 +247,7 @@ function FormConta({ conta, tipo, categorias, fornecedores, onFechar, onSalvou, 
       const r = conta ? await pedir(`/api/admin/financeiro/contas/${conta.id}`, 'PATCH', { ...corpo, acao: 'editar' }) : await pedir('/api/admin/financeiro/contas', 'POST', corpo)
       if (r.ok) { toast('ok', conta ? 'Conta atualizada.' : 'Conta lançada.'); onSalvou(); return }
       if (r.j.codigo === 'venda_duplicada') { setSuspeita({ pedidos: (r.j.pedidos as { numero: number; total: number }[]) ?? [], mensagem: r.j.error ?? '' }); return }
-      if (r.j.codigo === 'aprovacao_necessaria') { setPin({ erro: aprovacao ? r.j.error ?? null : null }); return }
+      if (r.j.codigo === 'aprovacao_necessaria') { setPin({ erro: aprovacao ? r.j.error ?? null : null, remoto: (r.j.pedidoRemoto as PedidoRemoto) ?? null }); return }
       if (pin) { setPin({ erro: r.j.error ?? 'Não foi possível.' }); return }
       toast('erro', r.j.error ?? 'Não foi possível salvar.')
     } finally { setSalvando(false) }
@@ -294,7 +294,7 @@ function FormConta({ conta, tipo, categorias, fornecedores, onFechar, onSalvou, 
             <button type="button" className={`${BOTAO.neutro} mt-2`} disabled={justificativa.trim().length < 10 || salvando} onClick={() => void salvar()} data-testid="venda-lancar-mesmo-assim">Lançar mesmo assim</button>
           </div>
         )}
-        {pin && <AprovacaoPin titulo="Precisa da aprovação de um gerente" erro={pin.erro} ocupado={salvando} onCancelar={() => setPin(null)} onConfirmar={(a) => void salvar(a)} />}
+        {pin && <AprovacaoPin titulo="Precisa da aprovação de um gerente" erro={pin.erro} remoto={pin.remoto} ocupado={salvando} onCancelar={() => setPin(null)} onConfirmar={(a) => void salvar(a)} />}
       </div>
     </PainelLateral>
   )
@@ -304,14 +304,14 @@ function BaixaConta({ conta, caixaAberto, onFechar, onFeito, toast }: { conta: C
   const [carteira, setCarteira] = useState<'gaveta' | 'empresa'>('empresa')
   const [forma, setForma] = useState<FormaConta>(conta.forma_prevista && conta.forma_prevista !== 'dinheiro' ? conta.forma_prevista : 'pix')
   const [ocupado, setOcupado] = useState(false)
-  const [pin, setPin] = useState<{ erro: string | null } | null>(null)
+  const [pin, setPin] = useState<{ erro: string | null; remoto?: PedidoRemoto | null } | null>(null)
   const pagar = conta.tipo === 'pagar'
-  async function confirmar(aprovacao?: { aprovadorId: string; pin: string }) {
+  async function confirmar(aprovacao?: AprovacaoDada) {
     setOcupado(true)
     try {
       const r = await pedir(`/api/admin/financeiro/contas/${conta.id}`, 'PATCH', { acao: 'baixar', carteira, forma: carteira === 'gaveta' ? 'dinheiro' : forma, aprovacao })
       if (r.ok) { toast('ok', pagar ? 'Conta paga.' : 'Entrada recebida.'); onFeito(); return }
-      if (r.j.codigo === 'aprovacao_necessaria' || (pin && ['pin_errado', 'pin_bloqueado', 'propria', 'sem_permissao', 'sem_pin'].includes(String(r.j.codigo)))) { setPin({ erro: aprovacao ? r.j.error ?? null : null }); return }
+      if (r.j.codigo === 'aprovacao_necessaria' || (pin && ['pin_errado', 'pin_bloqueado', 'propria', 'sem_permissao', 'sem_pin'].includes(String(r.j.codigo)))) { setPin({ erro: aprovacao ? r.j.error ?? null : null, remoto: (r.j.pedidoRemoto as PedidoRemoto) ?? null }); return }
       toast('erro', r.j.error ?? 'Não foi possível.')
     } finally { setOcupado(false) }
   }
@@ -335,7 +335,7 @@ function BaixaConta({ conta, caixaAberto, onFechar, onFeito, toast }: { conta: C
           </select>
         </label>
       )}
-      {pin ? <AprovacaoPin titulo="Valor acima do limite: precisa da aprovação de um gerente" erro={pin.erro} ocupado={ocupado} onCancelar={() => setPin(null)} onConfirmar={(a) => void confirmar(a)} />
+      {pin ? <AprovacaoPin titulo="Valor acima do limite: precisa da aprovação de um gerente" erro={pin.erro} remoto={pin.remoto} ocupado={ocupado} onCancelar={() => setPin(null)} onConfirmar={(a) => void confirmar(a)} />
         : <button type="button" className={`${BOTAO.primario} w-full`} disabled={ocupado} onClick={() => void confirmar()} data-testid="baixa-confirmar">{ocupado ? 'Registrando…' : pagar ? 'Confirmar pagamento' : 'Confirmar recebimento'}</button>}
     </Janela>
   )
@@ -344,13 +344,13 @@ function BaixaConta({ conta, caixaAberto, onFechar, onFeito, toast }: { conta: C
 function EstornoConta({ conta, onFechar, onFeito, toast }: { conta: Conta; onFechar: () => void; onFeito: () => void; toast: Toast }) {
   const [motivo, setMotivo] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const [pin, setPin] = useState<{ erro: string | null } | null>(null)
-  async function confirmar(aprovacao?: { aprovadorId: string; pin: string }) {
+  const [pin, setPin] = useState<{ erro: string | null; remoto?: PedidoRemoto | null } | null>(null)
+  async function confirmar(aprovacao?: AprovacaoDada) {
     setOcupado(true)
     try {
       const r = await pedir(`/api/admin/financeiro/contas/${conta.id}`, 'PATCH', { acao: 'estornar', motivo, aprovacao })
       if (r.ok) { toast('ok', 'Baixa estornada: a conta voltou para em aberto.'); onFeito(); return }
-      if (r.j.codigo === 'aprovacao_necessaria' || (pin && r.status !== 400)) { setPin({ erro: aprovacao ? r.j.error ?? null : null }); return }
+      if (r.j.codigo === 'aprovacao_necessaria' || (pin && r.status !== 400)) { setPin({ erro: aprovacao ? r.j.error ?? null : null, remoto: (r.j.pedidoRemoto as PedidoRemoto) ?? pin?.remoto ?? null }); return }
       toast('erro', r.j.error ?? 'Não foi possível.')
     } finally { setOcupado(false) }
   }
@@ -358,7 +358,7 @@ function EstornoConta({ conta, onFechar, onFeito, toast }: { conta: Conta; onFec
     <Janela titulo="Estornar baixa" onFechar={onFechar} testid="janela-estorno">
       <p className="mb-2 text-[13px]">O dinheiro volta para {conta.pago_carteira === 'gaveta' ? 'a gaveta do caixa aberto' : 'a conta da empresa'} e “{conta.descricao}” ({brl(conta.valor_centavos)}) volta para em aberto. O dono é avisado.</p>
       <textarea className={`${CAMPO} h-[70px] py-2`} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo (mínimo 10 letras)" data-testid="estorno-motivo" />
-      {pin ? <div className="mt-3"><AprovacaoPin titulo="Estorno precisa da aprovação de um gerente" erro={pin.erro} ocupado={ocupado} onCancelar={() => setPin(null)} onConfirmar={(a) => void confirmar(a)} /></div>
+      {pin ? <div className="mt-3"><AprovacaoPin titulo="Estorno precisa da aprovação de um gerente" erro={pin.erro} remoto={pin.remoto} ocupado={ocupado} onCancelar={() => setPin(null)} onConfirmar={(a) => void confirmar(a)} /></div>
         : <button type="button" className={`${BOTAO.primario} mt-3 w-full`} disabled={ocupado || motivo.trim().length < 10} onClick={() => void confirmar()} data-testid="estorno-confirmar">Estornar</button>}
     </Janela>
   )

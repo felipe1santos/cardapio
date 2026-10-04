@@ -21,7 +21,9 @@ import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { TravaSessao } from '@/components/admin/trava-sessao'
 import { JanelaSairComCaixa } from '@/components/financeiro/aviso-caixa'
 import { sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
-import { acoesFin } from '@/lib/financeiro/permissoes'
+import { acoesFin, podeFin } from '@/lib/financeiro/permissoes'
+import { FaixaAprovacoes } from '@/components/financeiro/faixa-aprovacoes'
+import { AberturaRapidaCaixa } from '@/components/financeiro/abertura-rapida'
 import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
 import { LancadorAtendimento } from '@/components/atendimento/lancador'
 
@@ -350,6 +352,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           }}
         />
       )}
+      {/* Financeiro (Fase 6): aprovação pelo celular para quem aprova; abertura rápida do caixa logo após o login. */}
+      {estadoSessao?.financeiroAtivo && papel && podeFin(papel, acessos, 'aprovar') && <FaixaAprovacoes />}
+      {estadoSessao?.financeiroAtivo && papel && podeFin(papel, acessos, 'caixa_abrir') && <AberturaRapidaCaixa />}
       {alertaAberto && (
         <SetupAlerta
           pendencias={pendencias}

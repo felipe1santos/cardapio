@@ -10,13 +10,16 @@ import { SecaoMotoboys, SecaoPix } from '@/components/financeiro/motoboys'
 import { FluxoCaixa } from '@/components/financeiro/fluxo/fluxo-caixa'
 import { SecaoCmv } from '@/components/financeiro/cmv/secao-cmv'
 import { SecaoContas } from '@/components/financeiro/contas/secao-contas'
+import { SecaoDashboard } from '@/components/financeiro/dashboard/secao-dashboard'
+import { SecaoRisco } from '@/components/financeiro/risco/secao-risco'
+import { SecaoRegras } from '@/components/financeiro/regras'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
  * Cada seção aparece para quem tem a permissão; o servidor confere de novo em toda ação.
  * Fase 1 entrega Auditoria e Alertas; as demais seções chegam nas fases seguintes.
  */
-type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'pix' | 'movimentacoes' | 'cmv' | 'contas' | 'dashboard' | 'auditoria'
+type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'pix' | 'movimentacoes' | 'cmv' | 'contas' | 'dashboard' | 'risco' | 'regras' | 'auditoria'
 
 const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
   { id: 'caixa', label: 'Caixa', exige: 'caixa_abrir', fase: '' },
@@ -26,8 +29,10 @@ const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
   { id: 'movimentacoes', label: 'Movimentações', exige: 'sangria', fase: '' },
   { id: 'cmv', label: 'Precificação / CMV', exige: 'custos_ver', fase: '' },
   { id: 'contas', label: 'Contas e DRE', exige: 'contas_pagar', fase: '' },
-  { id: 'dashboard', label: 'Dashboard', exige: 'financeiro', fase: 'Fase 6' },
+  { id: 'dashboard', label: 'Dashboard', exige: 'financeiro', fase: '' },
   { id: 'auditoria', label: 'Auditoria e Alertas', exige: 'auditoria_ver', fase: '' },
+  { id: 'risco', label: 'Risco por funcionário', exige: 'auditoria_ver', fase: '' },
+  { id: 'regras', label: 'Regras e limites', exige: 'financeiro', fase: '' },
 ]
 
 interface Alerta { id: string; tipo: string; gravidade: 'info' | 'atencao' | 'grave'; mensagem: string; usuario_nome: string | null; lido_por_nome: string | null; lido_em: string | null; whatsapp_enviado_em: string | null; criado_em: string }
@@ -47,6 +52,7 @@ export default function FinanceiroPage() {
   const [erro, setErro] = useState<string | null>(null)
   const [secao, setSecao] = useState<Secao>('auditoria')
   const [usuarioId, setUsuarioId] = useState('')
+  const [papel, setPapel] = useState('')
 
   useEffect(() => {
     void (async () => {
@@ -56,6 +62,7 @@ export default function FinanceiroPage() {
       const lista = j.acoes as AcaoFin[]
       setAcoes(lista)
       setUsuarioId(String(j.id ?? ''))
+      setPapel(String(j.papel ?? ''))
       // ?secao=caixa (aviso do topo, "Ir fechar o caixa"); senão o Caixa, se puder; senão a primeira.
       const pedida = new URLSearchParams(window.location.search).get('secao')
       const alvo = SECOES.find((s) => s.id === pedida && lista.includes(s.exige)) ?? SECOES.find((s) => lista.includes(s.exige))
@@ -63,7 +70,8 @@ export default function FinanceiroPage() {
     })()
   }, [])
 
-  const visiveis = SECOES.filter((s) => acoes?.includes(s.exige))
+  // Risco por funcionário: só dono e gerente (o servidor confere de novo).
+  const visiveis = SECOES.filter((s) => acoes?.includes(s.exige) && (s.id !== 'risco' || papel === 'dono' || papel === 'gerente'))
   const itens: ItemSubmenu<Secao>[] = visiveis.map((s) => ({ id: s.id, label: s.label }))
   const atual = SECOES.find((s) => s.id === secao)
 
@@ -80,7 +88,7 @@ export default function FinanceiroPage() {
           <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-5">
             {secao === 'fluxo' && acoes.includes('financeiro') ? (
               <Suspense fallback={<p className="text-[13px] text-text-subtle">Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
-            ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'contas' && acoes.includes('contas_pagar') ? <SecaoContas /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
+            ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'contas' && acoes.includes('contas_pagar') ? <SecaoContas /> : secao === 'dashboard' && acoes.includes('financeiro') ? <SecaoDashboard /> : secao === 'risco' && acoes.includes('auditoria_ver') ? <SecaoRisco /> : secao === 'regras' && acoes.includes('financeiro') ? <SecaoRegras /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
               <SecaoCaixa key={secao} modo={secao} />
             ) : secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
               <AuditoriaAlertas />

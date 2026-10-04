@@ -4,7 +4,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { daPedido, erroPagamentoPdv, lerPagamentoPdv, paraPedido, rotuloForma } from '@/lib/pdv-pagamento'
-import { aprovar } from '@/lib/financeiro/aprovacao'
+import { conferirAprovacao } from '@/lib/financeiro/caixa'
 
 /**
  * Alterar a forma de pagamento / troco de um pedido já lançado (0135).
@@ -50,11 +50,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { data: r } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', loja).maybeSingle()
     if (r?.financeiro_ativo && sessao.papel !== 'dono') {
       const a = corpo?.aprovacao
-      if (!a || typeof a.aprovadorId !== 'string' || typeof a.pin !== 'string') {
-        return NextResponse.json({ error: 'Precisa da aprovação de outra pessoa (PIN).', codigo: 'aprovacao_necessaria' }, { status: 409 })
+      const remotaId = typeof a?.remotaId === 'string' ? a.remotaId : null
+      if (!a || (!remotaId && (typeof a.aprovadorId !== 'string' || typeof a.pin !== 'string'))) {
+        return NextResponse.json({ error: 'Precisa da aprovação de outra pessoa (PIN).', codigo: 'aprovacao_necessaria', pedidoRemoto: { acao: 'alterar_pagamento', valorCentavos: null, motivo: `Pedido #${p.numero}` } }, { status: 409 })
       }
-      const ap = await aprovar(admin, {
-        restauranteId: loja, solicitante: { id: sessao.userId, nome: sessao.nome }, aprovadorId: a.aprovadorId, pin: a.pin,
+      // PIN no terminal ou aprovação pedida pelo celular (Fase 6).
+      const ap = await conferirAprovacao(admin, {
+        restauranteId: loja, solicitante: { id: sessao.userId, nome: sessao.nome }, aprovacao: { aprovadorId: String(a.aprovadorId ?? ''), pin: String(a.pin ?? ''), remotaId },
         acao: 'alterar_pagamento', motivo: `Pedido #${p.numero}`, contexto: { pedido: p.id },
       })
       if (!ap.ok) return NextResponse.json({ error: ap.erro, codigo: ap.codigo }, { status: ap.status })

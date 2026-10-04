@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { formatarCentavos, paraCentavos } from '@/lib/financeiro/centavos'
 import { FORMAS_CONTA, ROTULO_FORMA_CONTA, type FormaConta } from '@/lib/financeiro/contas-regras'
-import { AprovacaoPin, Janela } from '../apoio'
+import { AprovacaoPin, Janela, type AprovacaoDada, type PedidoRemoto } from '../apoio'
 import { BOTAO, PainelLateral, Selo } from '../ui/blocos'
 import type { Fornecedor } from './secao-contas'
 
@@ -107,12 +107,12 @@ function NovaCompra({ insumos, fornecedores, podePagar, caixaAberto, toast, onFe
   const [forma, setForma] = useState<FormaConta>('boleto')
   const [itens, setItens] = useState<{ insumoId: string; quantidade: string; unidade: string; valor: string }[]>([{ insumoId: '', quantidade: '', unidade: '', valor: '' }])
   const [salvando, setSalvando] = useState(false)
-  const [pin, setPin] = useState<{ erro: string | null } | null>(null)
+  const [pin, setPin] = useState<{ erro: string | null; remoto?: PedidoRemoto | null } | null>(null)
   const [ch] = useState(() => `ui-${crypto.randomUUID()}`)
   const mapa = new Map(insumos.map((i) => [i.id, i]))
   const total = itens.reduce((s, i) => s + (paraCentavos(i.valor) ?? 0), 0)
 
-  async function salvar(aprovacao?: { aprovadorId: string; pin: string }) {
+  async function salvar(aprovacao?: AprovacaoDada) {
     setSalvando(true)
     try {
       const corpo = {
@@ -122,7 +122,7 @@ function NovaCompra({ insumos, fornecedores, podePagar, caixaAberto, toast, onFe
       const r = await fetch('/api/admin/financeiro/contas/compras', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
       const j = await r.json().catch(() => ({}))
       if (r.ok) { toast('ok', `Compra registrada. ${j.insumosAtualizados ?? 0} insumo(s) com custo atualizado.`); onSalvou(); return }
-      if (j.codigo === 'aprovacao_necessaria' || (pin && r.status !== 400)) { setPin({ erro: aprovacao ? j.error ?? null : null }); return }
+      if (j.codigo === 'aprovacao_necessaria' || (pin && r.status !== 400)) { setPin({ erro: aprovacao ? j.error ?? null : null, remoto: (j.pedidoRemoto as PedidoRemoto) ?? pin?.remoto ?? null }); return }
       toast('erro', j.error ?? 'Não foi possível registrar.')
     } finally { setSalvando(false) }
   }
@@ -184,7 +184,7 @@ function NovaCompra({ insumos, fornecedores, podePagar, caixaAberto, toast, onFe
             </label>
           </div>
         )}
-        {pin && <AprovacaoPin titulo="Valor acima do limite: precisa da aprovação de um gerente" erro={pin.erro} ocupado={salvando} onCancelar={() => setPin(null)} onConfirmar={(a) => void salvar(a)} />}
+        {pin && <AprovacaoPin titulo="Valor acima do limite: precisa da aprovação de um gerente" erro={pin.erro} remoto={pin.remoto} ocupado={salvando} onCancelar={() => setPin(null)} onConfirmar={(a) => void salvar(a)} />}
       </div>
     </PainelLateral>
   )

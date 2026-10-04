@@ -34,6 +34,8 @@ function semValores(t: TurnoFin): Partial<TurnoFin> {
 function lerAprovacao(v: unknown): Aprovacao | null {
   if (!v || typeof v !== 'object') return null
   const a = v as Record<string, unknown>
+  // Aprovação pelo celular (Fase 6): só o id do pedido aprovado; o servidor confere tudo ao usar.
+  if (typeof a.remotaId === 'string' && /^[0-9a-f-]{36}$/i.test(a.remotaId)) return { aprovadorId: '', pin: '', remotaId: a.remotaId }
   if (typeof a.aprovadorId !== 'string' || typeof a.pin !== 'string') return null
   return { aprovadorId: a.aprovadorId, pin: a.pin }
 }
@@ -68,7 +70,7 @@ export async function GET(request: Request) {
         }
       }
     }
-    return NextResponse.json({ aberto: !!turno, abertoPorNome: turno?.aberto_por_nome ?? null, abertoEm: turno?.aberto_em ?? null, souEu: turno?.aberto_por === sessao.userId, aAcertarCentavos, aAcertarDesde }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ aberto: !!turno, podeAbrir: podeFin(sessao.papel, acessos, 'caixa_abrir'), abertoPorNome: turno?.aberto_por_nome ?? null, abertoEm: turno?.aberto_em ?? null, souEu: turno?.aberto_por === sessao.userId, aAcertarCentavos, aAcertarDesde }, { headers: { 'Cache-Control': 'no-store' } })
   }
   const veValores = veValoresFin(sessao.papel, acessos)
   const cfg = await configFin(admin, loja)

@@ -122,6 +122,8 @@ async function registrarEntrada(admin: ReturnType<typeof getAdminSupabase>, usua
   const terminal = jar.get(COOKIE_TERMINAL)?.value ?? d.terminal
   const { data: u } = await admin.from('usuarios').select('nome, restaurante_id').eq('id', usuarioId).maybeSingle()
   if (!(await financeiroLigado(admin, u?.restaurante_id as string | undefined))) return
+  // Abertura rápida do caixa (Fase 6): a primeira tela depois do login pergunta se abre o caixa (1 min de validade).
+  jar.set('menuzia_recem_entrou', '1', { httpOnly: false, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 })
   await registrarSessao(admin, { usuarioId, usuarioNome: (u?.nome as string) ?? '', restauranteId: (u?.restaurante_id as string) ?? null, ip: d.ip, dispositivo: d.dispositivo, terminal })
   if (u?.restaurante_id) {
     await registrarAuditoria(admin, { restauranteId: u.restaurante_id as string, usuarioId, usuarioNome: (u.nome as string) ?? '', acao: 'sessao.entrou', entidade: 'usuario', entidadeId: usuarioId, dados: { dispositivo: d.dispositivo } })

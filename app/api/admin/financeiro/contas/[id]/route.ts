@@ -41,8 +41,8 @@ export async function PATCH(request: Request, { params }: Ctx) {
   const c = await contextoFinanceiro(PERMISSAO[acao])
   if ('erro' in c) return c.erro
   const id = (await params).id
-  const ap = b?.aprovacao as { aprovadorId?: unknown; pin?: unknown } | undefined
-  const aprovacao = ap ? { aprovadorId: String(ap.aprovadorId ?? ''), pin: String(ap.pin ?? '') } : null
+  const ap = b?.aprovacao as { aprovadorId?: unknown; pin?: unknown; remotaId?: unknown } | undefined
+  const aprovacao = ap ? { aprovadorId: String(ap.aprovadorId ?? ''), pin: String(ap.pin ?? ''), remotaId: typeof ap.remotaId === 'string' ? ap.remotaId : null } : null
   const r = acao === 'editar' ? await editarConta(c, id, lerEntradaConta(b))
     : acao === 'cancelar' ? await cancelarConta(c, id, String(b?.motivo ?? ''), b?.serie === true)
     : acao === 'baixar' ? await baixarConta(c, id, { carteira: String(b?.carteira ?? '') as CarteiraConta, forma: String(b?.forma ?? '') as FormaConta, aprovacao })

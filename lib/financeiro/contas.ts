@@ -2,10 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { registrarAuditoria } from '@/lib/auditoria'
 import type { ContextoFin } from './contexto'
 import { lancar } from './ledger'
-import { aprovar } from './aprovacao'
 import { criarAlerta } from './alertas'
 import { podeFin } from './permissoes'
-import { turnoAberto, type Aprovacao } from './caixa'
+import { conferirAprovacao, turnoAberto, type Aprovacao } from './caixa'
 import { formatarCentavos } from './centavos'
 import { cmvDoPeriodo } from './cmv'
 import {
@@ -276,8 +275,8 @@ export async function criarConta(c: ContextoFin, e: EntradaConta, chave: string,
       return falha(`Parece uma venda que o sistema já registrou: pedido ${lista}. Vendas do sistema entram sozinhas no caixa — não lance de novo.`, 409, 'venda_duplicada', { pedidos: suspeitos })
     }
     if (c.sessao.papel !== 'dono') {
-      if (!lib.aprovacao) return falha('Para lançar mesmo assim, um gerente precisa aprovar com o PIN.', 409, 'aprovacao_necessaria', { pedidos: suspeitos })
-      const a = await aprovar(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovadorId: lib.aprovacao.aprovadorId, pin: lib.aprovacao.pin, acao: 'venda_avulsa_suspeita', valorCentavos: e.valorCentavos, motivo: lib.justificativa, contexto: { pedidos: suspeitos } })
+      if (!lib.aprovacao) return falha('Para lançar mesmo assim, um gerente precisa aprovar com o PIN.', 409, 'aprovacao_necessaria', { pedidos: suspeitos, pedidoRemoto: { acao: 'venda_avulsa_suspeita', valorCentavos: e.valorCentavos, motivo: lib.justificativa } })
+      const a = await conferirAprovacao(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao: lib.aprovacao, acao: 'venda_avulsa_suspeita', valorCentavos: e.valorCentavos, motivo: lib.justificativa, contexto: { pedidos: suspeitos } })
       if (!a.ok) return falha(a.erro, a.status, a.codigo)
       liberadaPor = a.aprovadorNome
     }
@@ -346,8 +345,8 @@ export async function baixarConta(c: ContextoFin, id: string, p: { carteira: Car
   let aprovacao: { id: string; nome: string } | null = null
   if (precisaAprovacaoBaixa({ tipo: k.tipo, carteira: p.carteira, valor: k.valor_centavos, ...lim, papel: c.sessao.papel })) {
     const limite = p.carteira === 'gaveta' ? lim.limiteSaida : lim.limiteConta
-    if (!p.aprovacao) return falha(`Acima de ${formatarCentavos(limite)} precisa da aprovação de um gerente.`, 409, 'aprovacao_necessaria', { limiteCentavos: limite })
-    const a = await aprovar(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovadorId: p.aprovacao.aprovadorId, pin: p.aprovacao.pin, acao: 'conta_paga', valorCentavos: k.valor_centavos, motivo: k.descricao, contexto: { conta: id, carteira: p.carteira } })
+    if (!p.aprovacao) return falha(`Acima de ${formatarCentavos(limite)} precisa da aprovação de um gerente.`, 409, 'aprovacao_necessaria', { limiteCentavos: limite, pedidoRemoto: { acao: 'conta_paga', valorCentavos: k.valor_centavos, motivo: k.descricao } })
+    const a = await conferirAprovacao(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao: p.aprovacao, acao: 'conta_paga', valorCentavos: k.valor_centavos, motivo: k.descricao, contexto: { conta: id, carteira: p.carteira } })
     if (!a.ok) return falha(a.erro, a.status, a.codigo)
     aprovacao = { id: a.id, nome: a.aprovadorNome }
   }
@@ -382,8 +381,8 @@ export async function estornarBaixa(c: ContextoFin, id: string, p: { motivo: str
   if (k.pago_carteira === 'gaveta' && !turno) return falha('O dinheiro volta para a gaveta: abra o caixa primeiro.', 409, 'caixa_fechado')
   let aprovacao: { id: string; nome: string } | null = null
   if (c.sessao.papel !== 'dono') {
-    if (!p.aprovacao) return falha('Estorno precisa da aprovação de um gerente.', 409, 'aprovacao_necessaria')
-    const a = await aprovar(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovadorId: p.aprovacao.aprovadorId, pin: p.aprovacao.pin, acao: 'conta_estorno', valorCentavos: k.valor_centavos, motivo, contexto: { conta: id } })
+    if (!p.aprovacao) return falha('Estorno precisa da aprovação de um gerente.', 409, 'aprovacao_necessaria', { pedidoRemoto: { acao: 'conta_estorno', valorCentavos: k.valor_centavos, motivo } })
+    const a = await conferirAprovacao(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao: p.aprovacao, acao: 'conta_estorno', valorCentavos: k.valor_centavos, motivo, contexto: { conta: id } })
     if (!a.ok) return falha(a.erro, a.status, a.codigo)
     aprovacao = { id: a.id, nome: a.aprovadorNome }
   }
@@ -527,8 +526,8 @@ export async function registrarCompra(c: ContextoFin, e: EntradaCompra, chave: s
   let aprovacao: { id: string; nome: string } | null = null
   if (e.pagamento !== 'a_prazo' && precisaAprovacaoBaixa({ tipo: 'pagar', carteira: e.pagamento === 'caixa' ? 'gaveta' : 'empresa', valor: total, ...lim, papel: c.sessao.papel })) {
     const limite = e.pagamento === 'caixa' ? lim.limiteSaida : lim.limiteConta
-    if (!aprov) return falha(`Acima de ${formatarCentavos(limite)} precisa da aprovação de um gerente.`, 409, 'aprovacao_necessaria', { limiteCentavos: limite, totalCentavos: total })
-    const a = await aprovar(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovadorId: aprov.aprovadorId, pin: aprov.pin, acao: 'compra_paga', valorCentavos: total, motivo: `Compra ${e.numeroNota ?? ''}`.trim(), contexto: { pagamento: e.pagamento } })
+    if (!aprov) return falha(`Acima de ${formatarCentavos(limite)} precisa da aprovação de um gerente.`, 409, 'aprovacao_necessaria', { limiteCentavos: limite, totalCentavos: total, pedidoRemoto: { acao: 'compra_paga', valorCentavos: total } })
+    const a = await conferirAprovacao(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao: aprov, acao: 'compra_paga', valorCentavos: total, motivo: `Compra ${e.numeroNota ?? ''}`.trim(), contexto: { pagamento: e.pagamento } })
     if (!a.ok) return falha(a.erro, a.status, a.codigo)
     aprovacao = { id: a.id, nome: a.aprovadorNome }
   }

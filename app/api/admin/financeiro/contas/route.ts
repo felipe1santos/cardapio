@@ -30,9 +30,9 @@ export async function POST(request: Request) {
   const c = await contextoFinanceiro('contas_lancar')
   if ('erro' in c) return c.erro
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  const lib = b?.liberarVenda as { justificativa?: unknown; aprovacao?: { aprovadorId?: unknown; pin?: unknown } } | undefined
+  const lib = b?.liberarVenda as { justificativa?: unknown; aprovacao?: { aprovadorId?: unknown; pin?: unknown; remotaId?: unknown } } | undefined
   const r = await criarConta(c, lerEntradaConta(b), String(b?.chave ?? ''), lib ? {
-    liberarVenda: { justificativa: String(lib.justificativa ?? ''), aprovacao: lib.aprovacao ? { aprovadorId: String(lib.aprovacao.aprovadorId ?? ''), pin: String(lib.aprovacao.pin ?? '') } : null },
+    liberarVenda: { justificativa: String(lib.justificativa ?? ''), aprovacao: lib.aprovacao ? { aprovadorId: String(lib.aprovacao.aprovadorId ?? ''), pin: String(lib.aprovacao.pin ?? ''), remotaId: typeof lib.aprovacao.remotaId === 'string' ? lib.aprovacao.remotaId : null } : null },
   } : {})
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo, ...r.dados }, { status: r.status })
   return NextResponse.json({ ok: true, ...r.valor }, { status: r.valor.repetido ? 200 : 201 })

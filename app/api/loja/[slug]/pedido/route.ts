@@ -6,6 +6,7 @@ import { notificarPedido } from '@/lib/whatsapp'
 import { registrarPedidoDoPush } from '@/lib/push/motor'
 import { enviarPurchaseCapi } from '@/lib/meta-capi'
 import { ipDaRequisicao } from '@/lib/limite-taxa'
+import { alertarValorManipulado, camposDeValorEnviados } from '@/lib/financeiro/manipulacao'
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -38,6 +39,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   const { data: loja, error: lojaError } = await admin.from('restaurantes').select('id').eq('slug', slug).maybeSingle()
   if (lojaError) return NextResponse.json({ error: 'Erro ao localizar a loja' }, { status: 500 })
   if (!loja) return NextResponse.json({ error: 'Loja não encontrada' }, { status: 404 })
+
+  // Preço, total e desconto são do servidor: se vieram no corpo, alguém mexeu por fora do app (Fase 6).
+  const manipulados = camposDeValorEnviados(bruto)
+  if (manipulados.length) void alertarValorManipulado(admin, loja.id, manipulados, ipDaRequisicao(request.headers) ?? 'desconhecido')
 
   // Mesma tentativa de checkout chegando de novo (resposta perdida, toque duplo): devolve
   // o pedido que já existe. Sem notificar de novo — o cliente já foi avisado na primeira.

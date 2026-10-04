@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AprovacaoPin } from '@/components/financeiro/apoio'
+import { AprovacaoPin, type AprovacaoDada, type PedidoRemoto } from '@/components/financeiro/apoio'
 import { atalhosTroco, daPedido, ESCOLHAS_PDV, ROTULO_ESCOLHA, trocoLevar, type EscolhaPdv } from '@/lib/pdv-pagamento'
 import type { PagamentoDoPedido } from './info-pagamento'
 
@@ -19,11 +19,12 @@ export function EditorPagamento({ pedidoId, p, onFeito, onCancelar }: { pedidoId
   const [reimprimir, setReimprimir] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [pin, setPin] = useState(false)
+  const [remoto, setRemoto] = useState<PedidoRemoto | null>(null)
   const [erroPin, setErroPin] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const troco = escolha === 'dinheiro' && trocoTxt.trim() ? Number(trocoTxt.replace(',', '.')) : null
 
-  async function salvar(aprovacao?: { aprovadorId: string; pin: string }) {
+  async function salvar(aprovacao?: AprovacaoDada) {
     if (!escolha) return setErro('Escolha a forma de pagamento.')
     setOcupado(true); setErro(null); setErroPin(null)
     const r = await fetch(`/api/admin/pedidos/${pedidoId}/pagamento`, {
@@ -33,7 +34,7 @@ export function EditorPagamento({ pedidoId, p, onFeito, onCancelar }: { pedidoId
     const j = await r.json().catch(() => ({}))
     setOcupado(false)
     if (r.ok) return onFeito()
-    if (j.codigo === 'aprovacao_necessaria') { setPin(true); return }
+    if (j.codigo === 'aprovacao_necessaria') { setRemoto(j.pedidoRemoto ?? null); setPin(true); return }
     if (aprovacao) return setErroPin(j.error ?? 'Não aprovado.')
     setErro(j.error ?? 'Não foi possível alterar.')
   }
@@ -60,7 +61,7 @@ export function EditorPagamento({ pedidoId, p, onFeito, onCancelar }: { pedidoId
       <label className="flex items-center gap-2 text-[12.5px] text-text-main">
         <input type="checkbox" checked={reimprimir} onChange={(e) => setReimprimir(e.target.checked)} /> Reimprimir comanda
       </label>
-      {pin && <AprovacaoPin titulo="O pedido já saiu ou foi pago: outra pessoa precisa aprovar" erro={erroPin} ocupado={ocupado} onCancelar={() => setPin(false)} onConfirmar={(a) => void salvar(a)} />}
+      {pin && <AprovacaoPin titulo="O pedido já saiu ou foi pago: outra pessoa precisa aprovar" erro={erroPin} ocupado={ocupado} remoto={remoto} onCancelar={() => setPin(false)} onConfirmar={(a) => void salvar(a)} />}
       {erro && <p className="text-[12.5px] font-medium text-danger" data-testid="editar-pag-erro">{erro}</p>}
       {!pin && (
         <div className="flex justify-end gap-2">

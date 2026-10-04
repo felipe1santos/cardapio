@@ -10,6 +10,8 @@ import {
   avaliarContagem, linhasDaAbertura, linhasDoAjuste, linhasDoMovimento, permissaoDoMovimento, precisaAprovacao,
   ROTULO_MOVIMENTO, type Movimento,
 } from './caixa-regras'
+import { exigenciasDoFechamento, TEXTO_MOTIVO, type Motivo } from './fechamento-regras'
+import { usarAprovacaoRemota } from './aprovacao-remota'
 
 /**
  * Caixa (Fase 2, 0133). Um caixa por loja (o turno de `caixa_turnos`), com fundo de troco,
@@ -44,7 +46,16 @@ export interface TurnoFin {
 }
 const COLS_TURNO = 'id, status, aberto_em, aberto_por, aberto_por_nome, fechado_em, fechado_por_nome, valor_inicial_centavos, contado_dinheiro_centavos, contado_cartao_centavos, esperado_dinheiro_centavos, esperado_cartao_centavos, diferenca_centavos, diferenca_cartao_centavos, justificativa, fechamento_aprovado_por_nome, pendencias, resumo, reaberto_por_nome, reaberto_em, reaberto_motivo'
 
-export interface Aprovacao { aprovadorId: string; pin: string }
+/** PIN do aprovador no terminal, OU uma aprovação pedida e dada pelo celular (remotaId). */
+export interface Aprovacao { aprovadorId: string; pin: string; remotaId?: string | null }
+
+/**
+ * Confere a aprovação: remota (pedida pelo celular, usada uma vez) ou PIN no terminal. Mesmo retorno de aprovar().
+ */
+export async function conferirAprovacao(admin: SupabaseClient, p: { restauranteId: string; solicitante: { id: string; nome: string }; aprovacao: Aprovacao; acao: string; valorCentavos?: number | null; motivo?: string | null; contexto?: Record<string, unknown> }) {
+  if (p.aprovacao.remotaId) return usarAprovacaoRemota(admin, { restauranteId: p.restauranteId, solicitanteId: p.solicitante.id, acao: p.acao, valorCentavos: p.valorCentavos, remotaId: p.aprovacao.remotaId })
+  return aprovar(admin, { restauranteId: p.restauranteId, solicitante: p.solicitante, aprovadorId: p.aprovacao.aprovadorId, pin: p.aprovacao.pin, acao: p.acao, valorCentavos: p.valorCentavos, motivo: p.motivo, contexto: p.contexto })
+}
 
 export async function turnoAberto(admin: SupabaseClient, restauranteId: string): Promise<TurnoFin | null> {
   const { data } = await admin.from('caixa_turnos').select(COLS_TURNO).eq('restaurante_id', restauranteId).is('fechado_em', null).maybeSingle()
@@ -52,11 +63,14 @@ export async function turnoAberto(admin: SupabaseClient, restauranteId: string):
 }
 
 export async function configFin(admin: SupabaseClient, restauranteId: string) {
-  const { data } = await admin.from('fin_config').select('limite_saida_centavos, limite_divergencia_centavos, horas_caixa_aberto').eq('restaurante_id', restauranteId).maybeSingle()
+  const { data } = await admin.from('fin_config').select('limite_saida_centavos, limite_divergencia_centavos, horas_caixa_aberto, tolerancia_fechamento_centavos, limite_comandas_fechamento_centavos').eq('restaurante_id', restauranteId).maybeSingle()
   return {
     limiteSaida: Number(data?.limite_saida_centavos ?? 10000),
     limiteDivergencia: Number(data?.limite_divergencia_centavos ?? 500),
     horasCaixaAberto: Number(data?.horas_caixa_aberto ?? 14),
+    // Regras de PIN no fechamento (Fase 6, provisórias).
+    toleranciaFechamento: Number(data?.tolerancia_fechamento_centavos ?? 200),
+    limiteComandasFechamento: Number(data?.limite_comandas_fechamento_centavos ?? 10000),
   }
 }
 
@@ -88,11 +102,13 @@ export async function extratoDoTurno(admin: SupabaseClient, restauranteId: strin
 
 /** O que está pendente para fechar: motoboys sem acerto, contas abertas, Pix a conferir. */
 export async function pendenciasDoFechamento(admin: SupabaseClient, restauranteId: string, turnoId: string) {
-  const [motoboysFin, { count: contasAbertas }, saldos] = await Promise.all([
+  const { data: t } = await admin.from('caixa_turnos').select('aberto_em').eq('id', turnoId).maybeSingle()
+  const [motoboysFin, { data: pf }, saldos] = await Promise.all([
     import('./motoboy').then((m) => m.situacaoMotoboys(admin, restauranteId)),
-    admin.from('comandas').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'aberta'),
+    admin.rpc('fin_pendencias_fechamento', { p_restaurante: restauranteId, p_desde: (t?.aberto_em as string) ?? new Date(0).toISOString() }),
     saldosDoTurno(admin, restauranteId, turnoId),
   ])
+  const p = (pf ?? {}) as { comandas_abertas?: number; comandas_abertas_centavos?: number; nao_pagos?: number; nao_pagos_centavos?: number }
   // Fase 3: o que cada motoboy tem para acertar é o saldo dele no livro-caixa (troco, recebimentos, pendências).
   const motoboys = motoboysFin.filter((m) => m.saldoCentavos !== 0).map((m) => ({
     entregadorId: m.entregadorId, nome: m.nome, pedidos: m.pedidos.length, emRota: 0,
@@ -100,7 +116,10 @@ export async function pendenciasDoFechamento(admin: SupabaseClient, restauranteI
   }))
   return {
     motoboys,
-    contasAbertas: contasAbertas ?? 0,
+    contasAbertas: Number(p.comandas_abertas ?? 0),
+    contasAbertasCentavos: Number(p.comandas_abertas_centavos ?? 0),
+    naoPagos: Number(p.nao_pagos ?? 0),
+    naoPagosCentavos: Number(p.nao_pagos_centavos ?? 0),
     pixAConferirCentavos: saldos.pix_conferir,
   }
 }
@@ -157,9 +176,9 @@ export async function movimentar(ctx: ContextoFin, p: { movimento: Movimento; va
   const cfg = await configFin(ctx.admin, loja)
   let aprovacao: { id: string; nome: string } | null = null
   if (precisaAprovacao({ movimento: p.movimento, valor: p.valorCentavos, limite: cfg.limiteSaida, papel: ctx.sessao.papel })) {
-    if (!p.aprovacao) return falha(`Acima de ${formatarCentavos(cfg.limiteSaida)} precisa da aprovação de um gerente.`, 409, 'aprovacao_necessaria', { limiteCentavos: cfg.limiteSaida })
-    const a = await aprovar(ctx.admin, {
-      restauranteId: loja, solicitante: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, aprovadorId: p.aprovacao.aprovadorId, pin: p.aprovacao.pin,
+    if (!p.aprovacao) return falha(`Acima de ${formatarCentavos(cfg.limiteSaida)} precisa da aprovação de um gerente.`, 409, 'aprovacao_necessaria', { limiteCentavos: cfg.limiteSaida, pedidoRemoto: { acao: p.movimento, valorCentavos: p.valorCentavos, motivo } })
+    const a = await conferirAprovacao(ctx.admin, {
+      restauranteId: loja, solicitante: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, aprovacao: p.aprovacao,
       acao: p.movimento, valorCentavos: p.valorCentavos, motivo, contexto: { turno: turno.id },
     })
     if (!a.ok) return falha(a.erro, a.status, a.codigo)
@@ -193,24 +212,33 @@ export async function fecharCaixa(ctx: ContextoFin, p: {
     diferenca_centavos: dinheiro.diferenca, diferenca_cartao_centavos: cartao.diferenca,
   })
 
-  const temPendencia = pend.motoboys.length > 0 || pend.contasAbertas > 0
+  const temPendencia = pend.motoboys.length > 0 || pend.contasAbertas > 0 || pend.naoPagos > 0
   if (temPendencia && !p.aceitarPendencias) return falha('Há pendências antes de fechar.', 409, 'pendencias', { pendencias: pend })
 
-  const divergente = dinheiro.acimaDoLimite || cartao.acimaDoLimite
+  // Regras de PIN no fechamento (Fase 6, provisórias, por loja): ver lib/financeiro/fechamento-regras.ts.
+  const ex = exigenciasDoFechamento({
+    diferencaDinheiro: dinheiro.diferenca, diferencaCartao: cartao.diferenca, motoboysSemAcerto: pend.motoboys.length, entreguesNaoPagos: pend.naoPagos,
+    pixAConferirCentavos: pend.pixAConferirCentavos, comandasAbertas: pend.contasAbertas, comandasAbertasCentavos: pend.contasAbertasCentavos,
+  }, { toleranciaCentavos: cfg.toleranciaFechamento, limiteComandasCentavos: cfg.limiteComandasFechamento }, ctx.sessao.papel)
+  const divergente = dinheiro.diferenca !== 0 || cartao.diferenca !== 0
+  const acimaDaTolerancia = ex.motivos.some((m) => m === 'diferenca_dinheiro_acima' || m === 'diferenca_cartao_acima')
   const justificativa = p.justificativa?.trim() || null
+  const dados = {
+    diferencaCentavos: dinheiro.diferenca, diferencaCartaoCentavos: cartao.diferenca, limiteCentavos: cfg.toleranciaFechamento,
+    motivos: ex.motivos, textos: ex.motivos.map((m: Motivo) => TEXTO_MOTIVO[m]),
+  }
+  if (ex.justificativa && (!justificativa || justificativa.length < 10)) {
+    return falha(divergente ? 'A contagem não bateu. Explique a diferença.' : 'Explique as pendências antes de fechar.', 409, divergente ? 'divergencia' : 'justificativa_necessaria', dados)
+  }
   let aprovacao: { id: string; nome: string } | null = null
-  if (divergente) {
-    const dados = { diferencaCentavos: dinheiro.diferenca, diferencaCartaoCentavos: cartao.diferenca, limiteCentavos: cfg.limiteDivergencia }
-    if (!justificativa || justificativa.length < 10) return falha('A contagem não bateu. Explique a diferença.', 409, 'divergencia', dados)
-    if (ctx.sessao.papel !== 'dono') {
-      if (!p.aprovacao) return falha('Diferença acima do limite: precisa da aprovação de um gerente.', 409, 'aprovacao_necessaria', dados)
-      const a = await aprovar(ctx.admin, {
-        restauranteId: loja, solicitante: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, aprovadorId: p.aprovacao.aprovadorId, pin: p.aprovacao.pin,
-        acao: 'fechar_caixa_divergente', valorCentavos: dinheiro.diferenca, motivo: justificativa, contexto: { turno: turno.id, ...dados },
-      })
-      if (!a.ok) return falha(a.erro, a.status, a.codigo)
-      aprovacao = { id: a.id, nome: a.aprovadorNome }
-    }
+  if (ex.pin) {
+    if (!p.aprovacao) return falha('Precisa da aprovação de um gerente para fechar.', 409, 'aprovacao_necessaria', { ...dados, pedidoRemoto: { acao: acimaDaTolerancia ? 'fechar_caixa_divergente' : 'fechar_caixa', valorCentavos: dinheiro.diferenca, motivo: justificativa } })
+    const a = await conferirAprovacao(ctx.admin, {
+      restauranteId: loja, solicitante: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, aprovacao: p.aprovacao,
+      acao: acimaDaTolerancia ? 'fechar_caixa_divergente' : 'fechar_caixa', valorCentavos: dinheiro.diferenca, motivo: justificativa, contexto: { turno: turno.id, ...dados },
+    })
+    if (!a.ok) return falha(a.erro, a.status, a.codigo)
+    aprovacao = { id: a.id, nome: a.aprovadorNome }
   }
 
   const ajuste = linhasDoAjuste(dinheiro.diferenca)
@@ -238,11 +266,25 @@ export async function fecharCaixa(ctx: ContextoFin, p: {
     esperado_centavos: saldos.gaveta, contado_centavos: p.contadoDinheiroCentavos, diferenca_centavos: dinheiro.diferenca,
     diferenca_cartao_centavos: cartao.diferenca, pendencias: temPendencia, aprovado_por: aprovacao?.nome ?? null,
   })
-  if (divergente) {
+  if (acimaDaTolerancia) {
     await criarAlerta(ctx.admin, {
       restauranteId: loja, tipo: 'caixa_divergente', gravidade: 'grave',
       mensagem: `Caixa fechado por ${ctx.sessao.nome} com diferença de ${formatarCentavos(dinheiro.diferenca)} no dinheiro` +
-        (cartao.acimaDoLimite ? ` e ${formatarCentavos(cartao.diferenca)} no cartão` : '') + `. Justificativa: ${justificativa}` + (aprovacao ? ` (aprovado por ${aprovacao.nome})` : ''),
+        (cartao.diferenca ? ` e ${formatarCentavos(cartao.diferenca)} no cartão` : '') + `. Justificativa: ${justificativa}` + (aprovacao ? ` (aprovado por ${aprovacao.nome})` : ''),
+      usuario: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, dados: { turno: turno.id },
+    })
+  }
+  if (ex.pixParaODono) {
+    await criarAlerta(ctx.admin, {
+      restauranteId: loja, tipo: 'pix_a_conferir', gravidade: 'atencao',
+      mensagem: `Caixa fechado por ${ctx.sessao.nome} com ${formatarCentavos(pend.pixAConferirCentavos)} em Pix a conferir. Confira em Financeiro › Conferir Pix.`,
+      usuario: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, dados: { turno: turno.id },
+    })
+  }
+  if (pend.contasAbertas > 0) {
+    await criarAlerta(ctx.admin, {
+      restauranteId: loja, tipo: 'comanda_passou_turno', gravidade: 'atencao',
+      mensagem: `Caixa fechado por ${ctx.sessao.nome} com ${pend.contasAbertas} mesa(s)/comanda(s) aberta(s) (${formatarCentavos(pend.contasAbertasCentavos)}), que passam para o próximo turno. Justificativa: ${justificativa}`,
       usuario: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, dados: { turno: turno.id },
     })
   }

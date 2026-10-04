@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AprovacaoPin, CampoDinheiro, Janela, botao, brl } from './apoio'
+import { AprovacaoPin, CampoDinheiro, Janela, botao, brl, type AprovacaoDada, type PedidoRemoto } from './apoio'
 import { DESCRICAO_MOVIMENTO, MOVIMENTOS, ROTULO_MOVIMENTO, tempoAberto, type Movimento } from '@/lib/financeiro/caixa-regras'
 
 /**
@@ -21,6 +21,7 @@ interface Fechado extends Turno {
 interface Pendencias {
   motoboys: { entregadorId: string; nome: string; pedidos: number; emRota: number; esperadoCentavos: number | null }[]
   contasAbertas: number; pixAConferirCentavos: number | null
+  contasAbertasCentavos?: number; naoPagos?: number; naoPagosCentavos?: number
 }
 interface Linha {
   id: number; criado_em: string; carteira: string; tipo: string; valor_centavos: number; forma: string | null; origem: string
@@ -210,15 +211,16 @@ function JanelaMovimento({ movimento, limite, onFechar }: { movimento: Movimento
   const [txt, setTxt] = useState(''); const [c, setC] = useState<number | null>(null); const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState<string | null>(null); const [ocupado, setOcupado] = useState(false)
   const [pedirPin, setPedirPin] = useState(false); const [erroPin, setErroPin] = useState<string | null>(null)
+  const [remoto, setRemoto] = useState<PedidoRemoto | null>(null)
   const [chave] = useState(() => crypto.randomUUID())
-  async function enviar(aprovacao?: { aprovadorId: string; pin: string }) {
+  async function enviar(aprovacao?: AprovacaoDada) {
     if (!c || c <= 0) return setErro('Informe o valor.')
     if (motivo.trim().length < 3) return setErro('Diga o motivo.')
     setOcupado(true); setErro(null); setErroPin(null)
     const r = await chamar({ acao: 'movimento', movimento, valorCentavos: c, motivo, chave, aprovacao })
     setOcupado(false)
     if (r.status === 200) return onFechar()
-    if (r.j.codigo === 'aprovacao_necessaria') { setPedirPin(true); return }
+    if (r.j.codigo === 'aprovacao_necessaria') { setRemoto((r.j.pedidoRemoto as PedidoRemoto) ?? null); setPedirPin(true); return }
     if (aprovacao) return setErroPin((r.j.error as string) ?? 'Não aprovado.')
     setErro((r.j.error as string) ?? 'Não foi possível lançar.')
   }
@@ -232,7 +234,7 @@ function JanelaMovimento({ movimento, limite, onFechar }: { movimento: Movimento
           <input className="h-[40px] w-full rounded-[3px] border border-border px-[10px] text-[14px] outline-none focus:border-primary" value={motivo} onChange={(ev) => setMotivo(ev.target.value.slice(0, 200))} data-testid="mov-motivo" />
         </label>
         {c !== null && c > limite && movimento !== 'reforco' && !pedirPin && <p className="text-[12px] text-[#B45309]">Acima de {brl(limite)}: vai pedir o PIN de um gerente.</p>}
-        {pedirPin && <AprovacaoPin titulo={`Aprovar ${ROTULO_MOVIMENTO[movimento].toLowerCase()} de ${brl(c)}`} erro={erroPin} ocupado={ocupado} onCancelar={() => setPedirPin(false)} onConfirmar={(a) => void enviar(a)} />}
+        {pedirPin && <AprovacaoPin titulo={`Aprovar ${ROTULO_MOVIMENTO[movimento].toLowerCase()} de ${brl(c)}`} erro={erroPin} ocupado={ocupado} remoto={remoto} onCancelar={() => setPedirPin(false)} onConfirmar={(a) => void enviar(a)} />}
         {erro && <p className="text-[12px] font-medium text-danger" data-testid="mov-erro">{erro}</p>}
       </div>
       {!pedirPin && (
@@ -250,11 +252,12 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
   const [dTxt, setDTxt] = useState(''); const [d, setD] = useState<number | null>(null)
   const [cTxt, setCTxt] = useState(''); const [cc, setCc] = useState<number | null>(null)
   const [pend, setPend] = useState<Pendencias | null>(null); const [aceitar, setAceitar] = useState(false)
-  const [dif, setDif] = useState<{ diferencaCentavos: number; diferencaCartaoCentavos: number; limiteCentavos: number } | null>(null)
+  const [dif, setDif] = useState<{ diferencaCentavos: number; diferencaCartaoCentavos: number; limiteCentavos: number; textos?: string[]; pedidoRemoto?: PedidoRemoto } | null>(null)
+  const [soPendencias, setSoPendencias] = useState(false)
   const [just, setJust] = useState(''); const [erro, setErro] = useState<string | null>(null); const [erroPin, setErroPin] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false); const [fim, setFim] = useState<Fechado | null>(null)
 
-  async function enviar(extra: { aceitarPendencias?: boolean; aprovacao?: { aprovadorId: string; pin: string } } = {}) {
+  async function enviar(extra: { aceitarPendencias?: boolean; aprovacao?: AprovacaoDada } = {}) {
     if (d === null) return setErro('Informe quanto dinheiro você contou.')
     setOcupado(true); setErro(null); setErroPin(null)
     const r = await chamar({ acao: 'fechar', contadoDinheiroCentavos: d, contadoCartaoCentavos: cc ?? 0, justificativa: just || null, aceitarPendencias: extra.aceitarPendencias ?? aceitar, aprovacao: extra.aprovacao })
@@ -262,7 +265,7 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
     if (r.status === 200) { setFim(r.j.turno as Fechado); setEtapa('feito'); return }
     const cod = r.j.codigo
     if (cod === 'pendencias') { setPend(r.j.pendencias as Pendencias); setEtapa('pendencias'); return }
-    if (cod === 'divergencia') { setDif(r.j as never); setEtapa('divergencia'); return }
+    if (cod === 'divergencia' || cod === 'justificativa_necessaria') { setDif(r.j as never); setSoPendencias(cod === 'justificativa_necessaria'); setEtapa('divergencia'); return }
     if (cod === 'aprovacao_necessaria') { setDif(r.j as never); setEtapa('pin'); return }
     if (extra.aprovacao) return setErroPin((r.j.error as string) ?? 'Não aprovado.')
     setErro((r.j.error as string) ?? 'Não foi possível fechar.')
@@ -284,20 +287,25 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
           <p className="mb-[8px] text-[13px] font-semibold text-text-main">Antes de fechar, confira:</p>
           <ul className="mb-[10px] list-disc space-y-1 pl-5 text-[13px] text-text-main">
             {pend.motoboys.map((m) => <li key={m.entregadorId}>{m.nome}: {m.pedidos} entrega(s) em dinheiro sem acerto{m.emRota ? ` e ${m.emRota} em rota` : ''}{m.esperadoCentavos != null ? ` (${brl(m.esperadoCentavos)})` : ''}</li>)}
-            {pend.contasAbertas > 0 && <li>{pend.contasAbertas} conta(s) de mesa/balcão ainda aberta(s)</li>}
+            {pend.contasAbertas > 0 && <li>{pend.contasAbertas} conta(s) de mesa/balcão ainda aberta(s){pend.contasAbertasCentavos ? ` (${brl(pend.contasAbertasCentavos)})` : ''} — passam para o próximo turno</li>}
+            {(pend.naoPagos ?? 0) > 0 && <li>{pend.naoPagos} entrega(s) marcada(s) como não paga(s){pend.naoPagosCentavos ? ` (${brl(pend.naoPagosCentavos)})` : ''}</li>}
+            {(pend.pixAConferirCentavos ?? 0) > 0 && <li>{brl(pend.pixAConferirCentavos)} em Pix a conferir — não trava: vai para a lista do dono</li>}
           </ul>
           <p className="text-[12px] text-text-subtle">O ideal é resolver (acerto do motoboy na Logística, fechar as contas) e voltar. Fechar mesmo assim fica registrado e o dono é avisado.</p>
         </div>
       )}
       {etapa === 'divergencia' && dif && (
         <div data-testid="fechar-divergencia">
-          <p className="text-[14px] font-bold text-[#EF4444]">A contagem não bateu: diferença de {brl(dif.diferencaCentavos)} no dinheiro{dif.diferencaCartaoCentavos ? ` e ${brl(dif.diferencaCartaoCentavos)} no cartão` : ''}.</p>
-          <p className="mb-[10px] mt-[2px] text-[12.5px] text-text-subtle">Conte de novo, ou explique a diferença (o dono recebe o aviso). Cada contagem fica registrada.</p>
+          {soPendencias
+            ? <p className="text-[14px] font-bold text-[#B45309]">Explique as pendências antes de fechar.</p>
+            : <p className="text-[14px] font-bold text-[#EF4444]">A contagem não bateu: diferença de {brl(dif.diferencaCentavos)} no dinheiro{dif.diferencaCartaoCentavos ? ` e ${brl(dif.diferencaCartaoCentavos)} no cartão` : ''}.</p>}
+          {dif.textos?.length ? <ul className="mt-[4px] list-disc pl-5 text-[12.5px] text-text-main" data-testid="fechar-motivos">{dif.textos.map((t) => <li key={t}>{t}</li>)}</ul> : null}
+          <p className="mb-[10px] mt-[2px] text-[12.5px] text-text-subtle">{soPendencias ? 'A justificativa fica no fechamento e o dono recebe o aviso.' : 'Conte de novo, ou explique a diferença (o dono recebe o aviso). Cada contagem fica registrada.'}</p>
           <textarea className="min-h-[80px] w-full rounded-[3px] border border-border p-[10px] text-[13px] outline-none focus:border-primary" placeholder="O que aconteceu?" value={just} onChange={(ev) => setJust(ev.target.value.slice(0, 500))} data-testid="fechar-justificativa" />
         </div>
       )}
       {etapa === 'pin' && dif && (
-        <AprovacaoPin titulo={`Diferença de ${brl(dif.diferencaCentavos)}: o gerente precisa aprovar`} erro={erroPin} ocupado={ocupado} onCancelar={() => setEtapa('divergencia')} onConfirmar={(a) => void enviar({ aprovacao: a })} />
+        <AprovacaoPin titulo={dif.diferencaCentavos ? `Diferença de ${brl(dif.diferencaCentavos)}: o gerente precisa aprovar` : 'Fechar com pendências: o gerente precisa aprovar'} erro={erroPin} ocupado={ocupado} remoto={dif.pedidoRemoto ?? null} onCancelar={() => setEtapa('divergencia')} onConfirmar={(a) => void enviar({ aprovacao: a })} />
       )}
       {etapa === 'feito' && fim && (
         <div data-testid="fechar-feito">
@@ -313,7 +321,7 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
       <div className="mt-[14px] flex flex-wrap justify-end gap-2">
         {etapa === 'contar' && <><button type="button" className={botao.secundario} onClick={onFechar}>Cancelar</button><button type="button" className={botao.primario} disabled={ocupado} onClick={() => void enviar()} data-testid="fechar-conferir">Conferir e fechar</button></>}
         {etapa === 'pendencias' && <><button type="button" className={botao.secundario} onClick={onFechar}>Resolver primeiro</button><button type="button" className={botao.perigo} disabled={ocupado} onClick={() => { setAceitar(true); void enviar({ aceitarPendencias: true }) }} data-testid="fechar-mesmo-assim">Fechar mesmo assim</button></>}
-        {etapa === 'divergencia' && <><button type="button" className={botao.secundario} onClick={() => { setEtapa('contar'); setJust('') }} data-testid="fechar-recontar">Contar de novo</button><button type="button" className={botao.perigo} disabled={ocupado || just.trim().length < 10} onClick={() => void enviar()} data-testid="fechar-com-justificativa">Fechar com a diferença</button></>}
+        {etapa === 'divergencia' && <><button type="button" className={botao.secundario} onClick={() => { setEtapa('contar'); setJust('') }} data-testid="fechar-recontar">Contar de novo</button><button type="button" className={botao.perigo} disabled={ocupado || just.trim().length < 10} onClick={() => void enviar()} data-testid="fechar-com-justificativa">{soPendencias ? 'Fechar com a justificativa' : 'Fechar com a diferença'}</button></>}
         {etapa === 'feito' && <><button type="button" className={botao.secundario} onClick={() => fim && window.open(`/admin/financeiro/caixa/${fim.id}`, '_blank')}>Ver relatório</button><button type="button" className={botao.primario} onClick={onFechar} data-testid="fechar-ok">OK</button></>}
       </div>
     </Janela>
