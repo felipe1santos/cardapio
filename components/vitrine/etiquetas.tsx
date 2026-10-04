@@ -4,6 +4,8 @@ import { createContext, type ReactNode } from 'react'
 import {
   COR_PRECO_ANTIGO,
   ESTILO_DESCONTO,
+  ESTILO_SELO_MAIS_PEDIDOS,
+  ROTULO_MAIS_PEDIDOS,
   ESTILO_TOPO,
   ESTILO_UTIL,
   etiquetasTopo,
@@ -22,6 +24,24 @@ import { IconeTagSvg } from './icones-tags'
  * Todas as tags têm a mesma caixa: 22px de altura, canto de 6px, 7px de respiro lateral,
  * ícone de 14px a 5px do texto de 12px.
  */
+/**
+ * Selo "Mais Pedidos" sobre a foto (P8, 2026-10-04): canto superior esquerdo, colado no topo, com o
+ * canto de cima acompanhando o da foto (`raio`). O pai precisa ser `relative`. O desconto fica no preço,
+ * fora da foto — os dois nunca se cobrem.
+ */
+export function SeloMaisPedidos({ raio = 8 }: { raio?: number }) {
+  return (
+    <span
+      data-selo-mais-pedidos
+      className="pointer-events-none absolute left-0 top-0 z-[1] inline-flex h-[20px] items-center gap-[3px] whitespace-nowrap pl-[6px] pr-[7px] text-[10.5px] font-bold leading-[20px]"
+      style={{ background: ESTILO_SELO_MAIS_PEDIDOS.fundo, color: ESTILO_SELO_MAIS_PEDIDOS.cor, borderRadius: `${raio}px 0 6px 0` }}
+    >
+      <IconeTagSvg nome="fogo" tamanho={12} />
+      {ROTULO_MAIS_PEDIDOS}
+    </span>
+  )
+}
+
 /** Mantido por compatibilidade (a "Entrega grátis" saiu das tags em 2026-10-01). */
 export const LojaEtiquetasContext = createContext<{ freteGratisAcima?: number | null }>({})
 
@@ -126,8 +146,10 @@ export function PrecoVitrine({ price, originalPrice, aPartirDe = false }: { pric
       {off > 0 && originalPrice && (
         <span className="text-[12px] font-medium leading-[15px] line-through" style={{ color: COR_PRECO_ANTIGO }} data-preco-antigo>{brl(originalPrice)}</span>
       )}
-      <span className="inline-flex items-center gap-[6px]">
-        <span className="text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]" data-preco-atual>{brl(price)}</span>
+      {/* Quebra de linha permitida: no cartão estreito (destaque de 120px) a pílula do desconto desce para
+          baixo do preço em vez de passar da borda e ser cortada (P8, 2026-10-04). */}
+      <span className="inline-flex max-w-full flex-wrap items-center gap-x-[6px] gap-y-[4px]">
+        <span className="whitespace-nowrap text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]" data-preco-atual>{brl(price)}</span>
         {off > 0 && <PilulaDesconto percentual={off} />}
       </span>
     </span>

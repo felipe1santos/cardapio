@@ -2,7 +2,7 @@
  * E2E — "tela cheia" no celular por navegador (2026-10-01), em EMULAÇÃO (Chromium do
  * Playwright com o user-agent e a tela de cada um). Confere, para cada perfil:
  *   · a rolagem é a do documento (é ela que faz a barra do navegador recolher);
- *   · o menu da vitrine (com o WhatsApp) some ao descer e volta ao subir;
+ *   · o menu da vitrine (com o WhatsApp) fica SEMPRE visível ao rolar (P8, 2026-10-04);
  *   · o convite de instalar aparece só onde faz sentido (dica no iOS; nunca em navegador
  *     interno do WhatsApp/Instagram);
  *   · no checkout o menu não aparece e o botão principal fica visível.
@@ -61,7 +61,7 @@ try {
     const navSubindo = await nav.boundingBox()
     ok(`${nome}: rolagem do documento`, doc > 0, `scrollTop=${doc}`)
     ok(`${nome}: menu no fundo, fora da barra do sistema (parado)`, navParado && Math.abs(navParado.y + navParado.height - h) <= 1)
-    ok(`${nome}: menu some ao descer e volta ao subir`, navDescendo && navDescendo.y >= h - 1 && navSubindo && Math.abs(navSubindo.y + navSubindo.height - h) <= 1, `${navDescendo?.y}/${navSubindo?.y}`)
+    ok(`${nome}: menu continua no fundo ao descer e ao subir (sempre visível)`, navDescendo && Math.abs(navDescendo.y + navDescendo.height - h) <= 1 && navSubindo && Math.abs(navSubindo.y + navSubindo.height - h) <= 1, `${navDescendo?.y}/${navSubindo?.y}`)
     const convite = await p.getByTestId('convite-app').getAttribute('data-modo').catch(() => null)
     ok(`${nome}: convite de instalar ${conviteEsperado ? `(${conviteEsperado})` : 'não aparece'}`, conviteEsperado ? convite === conviteEsperado : convite === null, String(convite))
 

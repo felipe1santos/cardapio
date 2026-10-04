@@ -1,5 +1,6 @@
 /**
- * E2E — tags repaginadas, preço com desconto e menu que some ao rolar (2026-10-01).
+ * E2E — tags repaginadas, preço com desconto (2026-10-01). Desde a P8 (2026-10-04): "Mais Pedidos" é selo
+ * sobre a foto (não mais a pílula "Mais vendido" na linha do nome) e o menu de baixo fica sempre visível.
  * Stack local, loja ordem-qr-e2e. Semeia produtos "TESTE …" cobrindo todos os casos,
  * confere posição/ordem/limite/cores e tira prints em 360/390/414 e desktop da lista,
  * destaques, busca, ficha e sacola. Apaga os produtos TESTE no fim.
@@ -85,15 +86,16 @@ try {
 
     await linha('TESTE MV').scrollIntoViewIfNeeded()
     if (rotulo === '390') {
-      ok('Mais vendido: vermelho rgb(232 0 2), texto branco negrito, canto 3px', JSON.stringify(await topo('TESTE MV')) === '["mais_vendido"]' &&
-        (await linha('TESTE MV').locator('[data-etiqueta="mais_vendido"]').evaluate((e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.color, s.fontWeight, s.borderTopLeftRadius] })).join('|') === 'rgb(232, 0, 2)|rgb(255, 255, 255)|700|3px')
-      const nomeBox = await linha('TESTE MV').getByText('TESTE MV', { exact: true }).boundingBox()
-      const tagBox = await linha('TESTE MV').locator('[data-etiqueta="mais_vendido"]').boundingBox()
+      const selo = linha('TESTE MV').locator('[data-selo-mais-pedidos]')
+      ok('Mais Pedidos: selo vermelho rgb(232 0 2), texto branco negrito, sobre a foto (nada na linha do nome)', JSON.stringify(await topo('TESTE MV')) === '[]' &&
+        (await selo.evaluate((e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.color, s.fontWeight, e.textContent] })).join('|') === 'rgb(232, 0, 2)|rgb(255, 255, 255)|700|Mais Pedidos')
+      const nomeBox = await linha('TESTE Novidade').getByText('TESTE Novidade', { exact: true }).boundingBox()
+      const tagBox = await linha('TESTE Novidade').locator('[data-etiqueta="novidade"]').boundingBox()
       ok('tag de topo na MESMA linha do nome, à direita', tagBox && nomeBox && tagBox.x > nomeBox.x + nomeBox.width && Math.abs((tagBox.y + tagBox.height / 2) - (nomeBox.y + nomeBox.height / 2)) < 8, `nome y=${nomeBox?.y} tag y=${tagBox?.y}`)
       ok('Combo especial roxo (#9A3AE1 em #F2EAFC)', (await linha('TESTE Combo especial').locator('[data-etiqueta="combo_especial"]').evaluate((e) => getComputedStyle(e).color)) === rgb('#9A3AE1'))
       ok('Oferta limitada rosa (#BE185D em #FCE7F3)', (await linha('TESTE Oferta limitada').locator('[data-etiqueta="oferta_limitada"]').evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).backgroundColor].join('|'))) === `${rgb('#BE185D')}|${rgb('#FCE7F3')}`)
-      ok('4 de topo → só 2, na ordem (Mais vendido, Combo especial)', JSON.stringify(await topo('TESTE Quatro de topo')) === '["mais_vendido","combo_especial"]')
-      ok('topo + utilitárias (Serve até 4 · Item promocional)', JSON.stringify(await topo('TESTE X-Burger')) === '["mais_vendido"]' && (await utils('TESTE X-Burger')).join('|') === 'Serve até 4 pessoas|Item promocional', (await utils('TESTE X-Burger')).join('|'))
+      ok('4 de topo → só 2, na ordem (Combo especial, Oferta limitada) + selo Mais Pedidos na foto', JSON.stringify(await topo('TESTE Quatro de topo')) === '["combo_especial","oferta_limitada"]' && (await linha('TESTE Quatro de topo').locator('[data-selo-mais-pedidos]').count()) === 1)
+      ok('selo + utilitárias (Serve até 4 · Item promocional)', JSON.stringify(await topo('TESTE X-Burger')) === '[]' && (await linha('TESTE X-Burger').locator('[data-selo-mais-pedidos]').count()) === 1 && (await utils('TESTE X-Burger')).join('|') === 'Serve até 4 pessoas|Item promocional', (await utils('TESTE X-Burger')).join('|'))
       ok('Serve 1 pessoa (singular) / Serve até 10 pessoas', (await utils('TESTE Serve 1')).join() === 'Serve 1 pessoa' && (await utils('TESTE Serve 10')).join() === 'Serve até 10 pessoas')
       const nov = linha('TESTE Novidade').locator('[data-etiqueta="novidade"]')
       ok('Novidade: fundo rgb(0 255 142 / 35%), texto rgb(0 45 3), ícone de selo',
@@ -103,10 +105,10 @@ try {
       ok('personalizada preta e azul, 24 caracteres, uma linha', (await preta.textContent()) === 'Receita da casa especial' && (await preta.evaluate((e) => getComputedStyle(e).backgroundColor)) === rgb('#1F1F1F') &&
         (await azul.evaluate((e) => getComputedStyle(e).color)) === rgb('#17618B') && (await preta.boundingBox()).height <= 23)
       const longo = linha('TESTE X-Burger artesanal duplo com cheddar e bacon crocante')
-      const lt = await longo.locator('[data-etiqueta="mais_vendido"]').boundingBox()
-      const ln = await longo.getByText(/artesanal duplo/).boundingBox()
-      const foto = await longo.locator('img, div.flex-shrink-0').last().boundingBox()
-      ok('nome longo: tag desce para a linha de baixo, inteira, sem empurrar a foto', lt && ln && lt.y >= ln.y + ln.height - 2 && lt.x + lt.width <= (foto?.x ?? 999) && (foto?.width ?? 0) >= 119, `tag y=${lt?.y} nome fim=${ln && ln.y + ln.height} foto w=${foto?.width}`)
+      const lt = await longo.locator('[data-selo-mais-pedidos]').boundingBox()
+      // A foto (ou o quadro cinza de quem não tem foto) é o irmão do selo dentro do mesmo quadro.
+      const foto = await longo.locator('[data-selo-mais-pedidos]').evaluate((e) => { const r = e.parentElement.firstElementChild.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width } })
+      ok('nome longo: o selo fica na foto (canto superior esquerdo), que não se mexe', lt && foto && Math.abs(lt.y - foto.y) <= 1 && Math.abs(lt.x - foto.x) <= 1 && foto.width >= 119, `selo ${lt?.x},${lt?.y} foto ${foto?.x},${foto?.y} w=${foto?.width}`)
       const preco = linha('TESTE Desconto').locator('[data-preco]')
       const antigo = await preco.locator('[data-preco-antigo]').evaluate((e) => ({ t: e.textContent, d: getComputedStyle(e).textDecorationLine, c: getComputedStyle(e).color, y: e.getBoundingClientRect().y }))
       const atual = await preco.locator('[data-preco-atual]').evaluate((e) => ({ t: e.textContent, y: e.getBoundingClientRect().y }))
@@ -169,7 +171,7 @@ try {
     if (await busca.count()) {
       await busca.fill('TESTE X-Burger').catch(() => {})
       await p.waitForTimeout(600)
-      if (rotulo === '390') ok('busca: mesmas tags', (await p.locator(`button[data-item-id="${ids['TESTE X-Burger']}"] [data-etiqueta="mais_vendido"]`).count()) >= 1)
+      if (rotulo === '390') ok('busca: mesmas tags', (await p.locator(`button[data-item-id="${ids['TESTE X-Burger']}"] [data-selo-mais-pedidos]`).count()) >= 1)
       if (PRINTS) await p.screenshot({ path: join(PRINTS, `busca-${rotulo}.png`) })
       await busca.fill('').catch(() => {})
       await p.waitForTimeout(400)
@@ -190,7 +192,7 @@ try {
     }
     if (PRINTS) await p.screenshot({ path: join(PRINTS, `sacola-${rotulo}.png`) })
 
-    // Menu que some ao rolar (celular)
+    // Menu de baixo SEMPRE visível (P8, 2026-10-04 — antes sumia ao rolar).
     if (rotulo === '390') {
       await p.getByRole('button', { name: /^Home$/ }).first().click().catch(() => {})
       await p.evaluate(() => window.scrollTo(0, 0))
@@ -203,7 +205,7 @@ try {
       for (let i = 0; i < 3; i++) { await p.mouse.wheel(0, -200); await p.waitForTimeout(120) }
       await p.waitForTimeout(400)
       const subiu = await estado()
-      ok('menu some ao rolar para baixo e volta ao subir', desceu === 'sim' && subiu === 'nao' && navBox && navBox.y >= 844 - 2, `${desceu}/${subiu} y=${navBox?.y}`)
+      ok('menu continua visível ao rolar para baixo e para cima', desceu === 'nao' && subiu === 'nao' && navBox && navBox.y + navBox.height <= 844 + 1 && navBox.y < 844 - 40, `${desceu}/${subiu} y=${navBox?.y}`)
       const rolaDoc = await p.evaluate(() => ({ doc: document.scrollingElement.scrollTop > 0, h: document.documentElement.scrollHeight > innerHeight }))
       ok('a rolagem é a do documento (a barra do navegador pode recolher)', rolaDoc.doc && rolaDoc.h)
     }

@@ -69,9 +69,9 @@ try {
     const linha = p.locator(`button[data-item-id="${itemId}"]`).last()
     await linha.scrollIntoViewIfNeeded()
     const principais = await linha.locator('[data-etiquetas-principais] [data-etiqueta]').evaluateAll((els) => els.map((e) => e.getAttribute('data-etiqueta')))
-    // Regras de 2026-10-01 (scripts/vitrine/e2e-vitrine-tags.mjs cobre todos os casos): Mais vendido >
-    // Combo especial > Oferta limitada > Novidade; "Entrega grátis" saiu das tags.
-    ok('3 de topo marcadas → mostra só 2, na ordem (Mais vendido, Oferta limitada)', JSON.stringify(principais) === JSON.stringify(['mais_vendido', 'oferta_limitada']), principais.join(','))
+    // Regras de 2026-10-01 + P8 (2026-10-04): Combo especial > Oferta limitada > Novidade na linha do nome;
+    // "Mais Pedidos" é selo sobre a foto (scripts/vitrine/e2e-vitrine-p8.mjs).
+    ok('topo: só 2, na ordem (Oferta limitada, Novidade); Mais Pedidos vira selo na foto', JSON.stringify(principais) === JSON.stringify(['oferta_limitada', 'novidade']) && (await linha.locator('[data-selo-mais-pedidos]').count()) === 1, principais.join(','))
     const utils = await linha.locator('[data-etiquetas-utilitarias] [data-etiqueta]').evaluateAll((els) => els.map((e) => e.textContent.trim()))
     ok('utilitárias na ordem (Serve até X · Item promocional)', utils.join(' | ') === 'Serve até 4 pessoas | Item promocional', utils.join(' | '))
     const nomeY = (await linha.getByText('TESTE Etiquetas').boundingBox()).y
@@ -91,11 +91,10 @@ try {
     // Destaque do item de teste: etiqueta principal sobre a foto
     const dest = mp.locator(`button[data-item-id="${itemId}"]`)
     // Regra de 2026-10-01: destaques sem NENHUMA tag.
-    ok('no destaque, nenhuma tag (nem Mais vendido)', (await dest.locator('[data-etiqueta]').count()) === 0)
+    ok('no destaque, nenhuma tag nem selo (o título da seção já diz "Mais Pedidos")', (await dest.locator('[data-etiqueta], [data-selo-mais-pedidos]').count()) === 0)
 
     // Botão do WhatsApp fixo
-    // Desde 2026-10-01 o menu (com o WhatsApp dentro) some ao rolar para baixo e volta ao subir:
-    // mede com ele visível (sobe um pouco depois de descer).
+    // Desde a P8 (2026-10-04) o menu (com o WhatsApp dentro) fica sempre visível.
     const wa = p.getByTestId('tirar-duvidas-whatsapp')
     await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(400)
     const y1 = (await wa.boundingBox()).y
@@ -122,7 +121,10 @@ try {
     await p.locator('button:has-text("R$")', { hasText: 'Coca Lata' }).first().tap()
     await p.getByRole('button', { name: /Adicionar/ }).last().tap()
     await p.waitForTimeout(500)
-    ok('   some enquanto a barra "Ver sacola" está na tela', (await wa.count()) === 0 && await p.getByText('Ver sacola').first().isVisible())
+    // P8: o WhatsApp continua visível com a sacola, sem cobrir a barra "Ver sacola" (ela fica acima).
+    const sacolaBox = await p.getByTestId('barra-sacola').boundingBox()
+    const waComSacola = await wa.boundingBox()
+    ok('   continua visível com a barra "Ver sacola", logo abaixo dela, sem se cobrirem', !!waComSacola && !!sacolaBox && sacolaBox.y + sacolaBox.height <= waComSacola.y + 1, `sacola ${sacolaBox?.y}+${sacolaBox?.height} wa ${waComSacola?.y}`)
 
     // Ficha do produto e busca
     await p.evaluate(() => localStorage.clear()); await p.reload({ waitUntil: 'networkidle' })

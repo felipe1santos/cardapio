@@ -1,22 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decidirOculto } from './use-esconder-ao-rolar'
 import { plataformaConvite, podeMostrarConvite } from './convite-app'
-
-describe('menu some ao rolar', () => {
-  const J = 800, D = 5000
-  it('rolar para baixo esconde; para cima mostra', () => {
-    expect(decidirOculto(false, 400, 300, J, D)).toBe(true)
-    expect(decidirOculto(true, 300, 400, J, D)).toBe(false)
-  })
-  it('movimento pequeno mantém o estado (não treme)', () => {
-    expect(decidirOculto(true, 403, 400, J, D)).toBe(true)
-    expect(decidirOculto(false, 403, 400, J, D)).toBe(false)
-  })
-  it('perto do topo e no fim da página aparece', () => {
-    expect(decidirOculto(true, 50, 10, J, D)).toBe(false)
-    expect(decidirOculto(true, D - J - 10, D - J - 200, J, D)).toBe(false)
-  })
-})
 
 describe('convite do app', () => {
   it('não aparece instalado nem nos navegadores internos; iOS ganha a dica', () => {

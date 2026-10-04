@@ -1,8 +1,8 @@
 'use client'
 
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { EtiquetasUtilitarias, NomeComEtiquetas, PrecoVitrine } from '@/components/vitrine/etiquetas'
-import { etiquetasTopoLigadas, MAX_TOPO, TAG_PERSONALIZADA_MAX, textoServe } from '@/lib/etiquetas-vitrine'
+import { EtiquetasUtilitarias, NomeComEtiquetas, PrecoVitrine, SeloMaisPedidos } from '@/components/vitrine/etiquetas'
+import { etiquetasTopoLigadas, MAX_TOPO, ROTULO_MAIS_PEDIDOS, TAG_PERSONALIZADA_MAX, textoServe } from '@/lib/etiquetas-vitrine'
 
 /** Campos do formulário do item que esta seção usa (ver app/admin/cardapio/page.tsx). */
 export interface FormEtiquetas {
@@ -21,6 +21,9 @@ export interface FormEtiquetas {
   tagPersonalizadaLigada: boolean
   tagPersonalizada: string
   tagPersonalizadaCor: 'preta' | 'azul'
+  /** Foto do item, só para a prévia do cartão. */
+  imagemUrl?: string | null
+  imagemThumbUrl?: string | null
 }
 
 export const SERVE_MIN = 1
@@ -46,8 +49,8 @@ function Interruptor({ checked, onChange, children, dica, testid }: { checked: b
 
 /**
  * "Etiquetas do produto" no cadastro (2026-10-01), com prévia AO VIVO feita com os mesmos
- * componentes da vitrine. "Mais vendido" é automático: é a estrela ★ do item na lista do
- * Cardápio (a mesma regra que monta a seção "Mais Pedidos").
+ * componentes da vitrine. "Mostrar como Mais Pedidos" é a mesma estrela ★ da lista do Cardápio: o item
+ * ganha o selo sobre a foto e entra na seção "Mais Pedidos" (P8, 2026-10-04).
  */
 export function EtiquetasProdutoForm<T extends FormEtiquetas>({ form, setForm }: { form: T; setForm: Dispatch<SetStateAction<T>>; freteGratisAcima?: number | null }) {
   const set = (patch: Partial<FormEtiquetas>) => setForm((prev) => ({ ...prev, ...patch }))
@@ -69,17 +72,18 @@ export function EtiquetasProdutoForm<T extends FormEtiquetas>({ form, setForm }:
   const topoLigadas = etiquetasTopoLigadas(previa).length
   const preco = numero(form.preco)
   const promo = form.promocaoPreco.trim() ? numero(form.promocaoPreco) : null
+  const foto = form.imagemThumbUrl ?? form.imagemUrl ?? null
   const mudarServe = (delta: number) => set({ servePessoas: String(Math.max(SERVE_MIN, Math.min(SERVE_MAX, (serve ?? SERVE_PADRAO) + delta))) })
 
   return (
     <div className="mt-4" data-testid="etiquetas-produto">
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Etiquetas do produto</div>
 
-      <div className="mb-2 rounded-menuzia border border-border bg-page px-2.5 py-2 text-[12.5px] text-text-main" data-testid="etiqueta-mais-vendido-auto">
-        <span className="font-semibold">Mais vendido</span> — automático: aparece nos itens com a estrela ★ na lista do Cardápio (os mesmos da seção &quot;Mais Pedidos&quot;).{' '}
-        <span className={form.maisVendido ? 'font-semibold text-status-ready' : 'text-text-subtle'}>
-          {form.maisVendido ? 'Este produto está com a tag agora.' : 'Este produto está sem a tag agora.'}
-        </span>
+      <div className="mb-2">
+        <Interruptor checked={form.maisVendido} onChange={(v) => set({ maisVendido: v })} testid="etiqueta-mais-pedidos"
+          dica={<>Selo &quot;{ROTULO_MAIS_PEDIDOS}&quot; sobre a foto e o produto entra na seção &quot;{ROTULO_MAIS_PEDIDOS}&quot; da vitrine. É a mesma estrela ★ da lista do Cardápio.</>}>
+          Mostrar como {ROTULO_MAIS_PEDIDOS}
+        </Interruptor>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -156,21 +160,33 @@ export function EtiquetasProdutoForm<T extends FormEtiquetas>({ form, setForm }:
 
       {topoLigadas > MAX_TOPO && (
         <p className="mt-2 rounded-menuzia bg-warn-bg px-2.5 py-1.5 text-[12px] text-text-main" data-testid="aviso-topo">
-          Só as 2 mais importantes aparecem na vitrine (ordem: Mais vendido, Combo especial, Oferta limitada, Novidade).
+          Só as 2 mais importantes aparecem na vitrine (ordem: Combo especial, Oferta limitada, Novidade).
         </p>
       )}
 
       {/* Prévia ao vivo, com os componentes, a fonte e as medidas da vitrine. */}
       <div className="mt-3 rounded-menuzia border border-dashed border-border bg-page p-3" data-testid="etiquetas-previa">
         <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Prévia na vitrine</div>
-        <div className="font-loja max-w-[360px] rounded-[8px] bg-white p-[12px]">
-          <NomeComEtiquetas item={previa} className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">
-            {form.nome || 'Nome do produto'}
-          </NomeComEtiquetas>
-          {form.descricao && <div className="mt-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]">{form.descricao}</div>}
-          <EtiquetasUtilitarias item={previa} className="mt-[8px]" />
-          <div className="mt-[8px]">
-            <PrecoVitrine price={promo ?? preco} originalPrice={promo !== null && promo < preco ? preco : null} />
+        {/* Mesmo cartão da lista da vitrine: texto à esquerda, foto de 120 px à direita com o selo. */}
+        <div className="font-loja flex max-w-[380px] gap-[12px] rounded-[8px] bg-white py-[12px] pl-[12px] pr-[8px]" data-testid="previa-cartao">
+          <div className="min-w-0 flex-1">
+            <NomeComEtiquetas item={previa} className="line-clamp-2 text-[14px] font-semibold leading-[16px] text-[var(--v-texto)]">
+              {form.nome || 'Nome do produto'}
+            </NomeComEtiquetas>
+            {form.descricao && <div className="mt-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]">{form.descricao}</div>}
+            <EtiquetasUtilitarias item={previa} className="mt-[8px]" />
+            <div className="mt-[8px]">
+              <PrecoVitrine price={promo ?? preco} originalPrice={promo !== null && promo < preco ? preco : null} />
+            </div>
+          </div>
+          <div className="relative h-[120px] w-[120px] flex-shrink-0">
+            {foto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={foto} alt="" className="h-[120px] w-[120px] rounded-[8px] object-cover" />
+            ) : (
+              <div className="flex h-[120px] w-[120px] items-center justify-center rounded-[8px] bg-[var(--v-placeholder)] text-center text-[11px] text-[var(--v-secundario)]">Sem foto</div>
+            )}
+            {form.maisVendido && <SeloMaisPedidos raio={8} />}
           </div>
         </div>
       </div>

@@ -346,8 +346,8 @@ const PROPORCOES_FICHA = [{ rotulo: 'Celular', ratio: 1.1 }, { rotulo: 'Computad
 // ─── Item-level sub-components ───────────────────────────────────────────────
 
 /**
- * Estrela do favorito, agora clicável na própria lista (antes só pelo formulário do item).
- * Favorito aparece como "★ Favorito" na vitrine e nos QR; não muda a posição do item.
+ * Estrela "Mais Pedidos", clicável na própria lista (e no cadastro do produto). O item marcado ganha o
+ * selo "Mais Pedidos" sobre a foto e entra na seção "Mais Pedidos" da vitrine (e no QR); não muda a posição.
  */
 function BotaoFavorito({ item, salvando, desabilitado, onAlternar }: { item: ItemCardapio; salvando: boolean; desabilitado: boolean; onAlternar: () => void }) {
   return (
@@ -356,8 +356,8 @@ function BotaoFavorito({ item, salvando, desabilitado, onAlternar }: { item: Ite
       onClick={onAlternar}
       disabled={salvando || desabilitado}
       aria-pressed={item.maisVendido}
-      aria-label={item.maisVendido ? `Remover ${item.nome} dos favoritos` : `Marcar ${item.nome} como favorito`}
-      title={item.maisVendido ? 'Favorito — clique para remover' : 'Marcar como favorito'}
+      aria-label={item.maisVendido ? `Tirar ${item.nome} dos Mais Pedidos` : `Mostrar ${item.nome} como Mais Pedidos`}
+      title={item.maisVendido ? 'Mais Pedidos — clique para tirar' : 'Mostrar como Mais Pedidos'}
       data-testid="favorito-item"
       className="toque-icone flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[4px] hover:bg-[#FEF3C7] disabled:opacity-50"
     >
@@ -1005,7 +1005,7 @@ export default function CardapioPage() {
       await definirFavorito(supabase, item.id, novo)
     } catch {
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, maisVendido: !novo } : i)))
-      setError('Não foi possível salvar o favorito.')
+      setError('Não foi possível salvar o "Mais Pedidos".')
     } finally {
       setFavoritoSalvandoId(null)
     }

@@ -47,7 +47,16 @@ try {
   await sec.waitFor({ timeout: 10000 })
   ok('seção "Etiquetas do produto" no cadastro', await sec.isVisible())
   ok('etiqueta antiga (Edição limitada) virou Oferta limitada', await p.getByTestId('etiqueta-oferta-limitada').isChecked())
-  ok('Mais vendido é automático (estrela), com o estado de agora', /automático/.test(await p.getByTestId('etiqueta-mais-vendido-auto').innerText()))
+  // P8 (2026-10-04): "Mostrar como Mais Pedidos" no cadastro, com prévia do cartão (selo sobre a foto).
+  const mp = p.getByTestId('etiqueta-mais-pedidos')
+  ok('opção "Mostrar como Mais Pedidos" desligada no item sem marcação', await mp.isVisible() && !(await mp.isChecked()))
+  ok('prévia sem selo enquanto desligada', (await p.locator('[data-testid="previa-cartao"] [data-selo-mais-pedidos]').count()) === 0)
+  await mp.check()
+  ok('prévia do cartão: selo "Mais Pedidos" no canto superior esquerdo da foto', await p.locator('[data-testid="previa-cartao"] [data-selo-mais-pedidos]').evaluate((e) => {
+    const a = e.getBoundingClientRect(), b = e.parentElement.firstElementChild.getBoundingClientRect()
+    return e.textContent === 'Mais Pedidos' && Math.abs(a.top - b.top) <= 1 && Math.abs(a.left - b.left) <= 1
+  }))
+  if (PRINTS) await p.getByTestId('etiquetas-previa').screenshot({ path: join(PRINTS, 'admin-previa-mais-pedidos.png') })
   await p.getByTestId('etiqueta-combo').check()
   await p.getByTestId('etiqueta-novidade').check()
   await p.getByTestId('etiqueta-promocional').check()
@@ -69,10 +78,11 @@ try {
   await p.getByTestId('produto-salvar').click()
   await p.waitForTimeout(1500)
   ok('salvar mostra o toast de confirmação', (await p.getByTestId('toast').count()) > 0)
-  const salvo = await um(`select combo_especial, novidade_ate > now() + interval '25 days' novidade30, edicao_limitada, item_promocional, serve_pessoas, tag_personalizada, tag_personalizada_cor, tag from itens_cardapio where id=$1`, [itemId])
+  const salvo = await um(`select mais_vendido, combo_especial, novidade_ate > now() + interval '25 days' novidade30, edicao_limitada, item_promocional, serve_pessoas, tag_personalizada, tag_personalizada_cor, tag from itens_cardapio where id=$1`, [itemId])
   ok('gravado: Combo, Novidade, Oferta limitada, Promocional, Serve 3, personalizada azul (24); tag antiga zerada',
     salvo.combo_especial && salvo.novidade30 && salvo.edicao_limitada && salvo.item_promocional && salvo.serve_pessoas === 3 && salvo.tag_personalizada === 'Receita da casa especial' && salvo.tag_personalizada_cor === 'azul' && salvo.tag === null, JSON.stringify(salvo))
   const banco = await db.query(`update itens_cardapio set tag_personalizada = repeat('x', 25) where id=$1`, [itemId]).then(() => 'passou', (e) => e.message)
+  ok('gravado: "Mais Pedidos" (mais_vendido) ligado', salvo.mais_vendido === true)
   ok('banco recusa personalizada com mais de 24', /check/.test(banco), banco)
 
   // Na vitrine
@@ -81,7 +91,7 @@ try {
   await v.getByRole('button', { name: 'Continuar no cardápio' }).click({ timeout: 2500 }).catch(() => {})
   const linha = v.locator(`button[data-item-id="${itemId}"]`).last()
   await linha.scrollIntoViewIfNeeded().catch(() => {})
-  ok('vitrine mostra o que foi salvo (2 de topo + 3 utilitárias)', (await linha.locator('[data-etiqueta]').count()) === 5, String(await linha.locator('[data-etiqueta]').count()))
+  ok('vitrine mostra o que foi salvo (2 de topo + 3 utilitárias + selo Mais Pedidos)', (await linha.locator('[data-etiqueta]').count()) === 5 && (await linha.locator('[data-selo-mais-pedidos]').count()) === 1, String(await linha.locator('[data-etiqueta]').count()))
 
   // Banner: dica do tamanho ideal
   await p.goto(`${BASE}/admin/ajustes`, { waitUntil: 'networkidle' })

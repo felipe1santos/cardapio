@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MOTIVOS_CHAMADO, type MotivoChamado } from '@/lib/chamados'
 import { descricaoEmTextoPuro, pedacosDaDescricao } from '@/lib/descricao-rica'
-import { SELO_FAVORITO, etiquetaDoItem, mostraSeloFavorito } from '@/lib/etiqueta-item'
+import { SELO_MAIS_PEDIDOS, etiquetaDoItem, mostraSeloMaisPedidos } from '@/lib/etiqueta-item'
 import { adicionarNaSelecao } from '@/lib/selecao-mesa'
 import { precificarLinha, type ItemPrecificavel, type OpcaoDaLinha, type PizzaDaLoja, type TipoOpcao } from '@/lib/selecao-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -64,7 +64,7 @@ export interface ItemDaMesa {
   precoAPartirDe: number
   /** Etiqueta do cadastro ('mais_pedido', 'novo'…). Null = sem etiqueta marcada. */
   tag: string | null
-  /** Favorito do Gestor (estrela) — mostra o selo "★ Favorito". Não muda a ordem. */
+  /** Marcado pela loja como "Mais Pedidos" (estrela do Gestor) — mostra o selo. Não muda a ordem. */
   maisVendido: boolean
 }
 
@@ -618,7 +618,7 @@ function Etiqueta({ item }: { item: ItemDaMesa }) {
 }
 
 /**
- * "★ Favorito" (a estrela do Gestor) ao lado da etiqueta, em linha própria — nunca sobre
+ * "Mais Pedidos" (a estrela do Gestor) ao lado da etiqueta, em linha própria — nunca sobre
  * a foto, o nome, o preço ou o botão. Mesmo selo da vitrine (lib/etiqueta-item.ts).
  */
 /** Foto da ficha aberta: a cheia quando existe; a miniatura só como reserva. */
@@ -627,14 +627,14 @@ function fotoGrande(item: ItemDaMesa): string | null {
 }
 
 function Selos({ item }: { item: ItemDaMesa }) {
-  const favorito = mostraSeloFavorito(item)
+  const favorito = mostraSeloMaisPedidos(item)
   const etiqueta = etiquetaDoItem({ tag: item.tag, promocaoPreco: item.precoOriginal !== null ? item.preco : null })
   if (!favorito && !etiqueta) return null
   return (
     <span className="mesa-selos">
       {favorito && (
-        <span className="mesa-item-etiqueta" data-selo-favorito style={{ background: SELO_FAVORITO.fundo, color: SELO_FAVORITO.texto }}>
-          {SELO_FAVORITO.label}
+        <span className="mesa-item-etiqueta" data-selo-favorito data-selo-mais-pedidos style={{ background: SELO_MAIS_PEDIDOS.fundo, color: SELO_MAIS_PEDIDOS.texto }}>
+          {SELO_MAIS_PEDIDOS.label}
         </span>
       )}
       <Etiqueta item={item} />

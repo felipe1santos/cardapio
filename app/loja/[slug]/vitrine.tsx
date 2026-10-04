@@ -15,9 +15,9 @@ import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
-import { EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine } from '@/components/vitrine/etiquetas'
+import { EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine, SeloMaisPedidos } from '@/components/vitrine/etiquetas'
+import { ehMaisPedidos, ROTULO_MAIS_PEDIDOS } from '@/lib/etiquetas-vitrine'
 import { precoDeVitrine } from '@/lib/garcom-catalogo'
-import { useEsconderAoRolar } from '@/components/vitrine/use-esconder-ao-rolar'
 import { ConviteApp } from '@/components/vitrine/convite-app'
 import { AvisoVitrine } from '@/components/vitrine/aviso-vitrine'
 import { AVISO_PADRAO } from '@/lib/aviso-vitrine'
@@ -232,7 +232,7 @@ function PixIcon({ className = 'h-6 w-6' }: { className?: string }) {
  * "abre amanhã às 18:00" → "Amanhã 18:00", "abre sábado às 11:00" → "Sáb 11:00".
  */
 function numeroWaLojaDe(telefone: string | null | undefined): string {
-  const d = (telefone ?? '').replace(/D/g, '')
+  const d = (telefone ?? '').replace(/\D/g, '')
   if (d.length < 10) return ''
   return d.startsWith('55') ? d : `55${d}`
 }
@@ -583,13 +583,16 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
     <button
       onClick={onClick}
       data-item-id={item.id}
-      className={`group flex flex-col overflow-hidden rounded-[12px] bg-white text-left transition-all duration-150 active:scale-[0.98] ${className}`}
+      // Sem overflow-hidden no cartão (P8): quem corta é só a foto. Antes o cartão cortava a pílula do
+      // desconto que passava da largura do destaque de 120px.
+      className={`group flex flex-col rounded-[12px] bg-white text-left transition-all duration-150 active:scale-[0.98] ${className}`}
     >
       {/* 140px de foto com canto de 12px: a medida da referência para o cartão
           de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
       <div className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
-        {/* Destaques: NENHUMA tag, marcada ou não (pedido do dono, 2026-10-01). */}
+        {/* Seção "Mais Pedidos" (compact): sem selo — o título da seção já diz. Na grade, o selo vai na foto. */}
+        {!compact && ehMaisPedidos(item) && <SeloMaisPedidos raio={12} />}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
         {compact ? (
@@ -657,6 +660,7 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
       </div>
       <div className="relative flex-shrink-0">
         <ProductThumb item={item} size={imagemGrande ? 140 : 120} />
+        {ehMaisPedidos(item) && <SeloMaisPedidos raio={8} />}
       </div>
     </button>
   )
@@ -981,7 +985,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // some — antes ela reaparecia com o primeiro item de cada grupo, o que fazia
   // parecer que desmarcar não tinha efeito nenhum.
   const destaques = useMemo(
-    () => allItems.filter((item) => item.maisVendido).slice(0, 12),
+    () => allItems.filter((item) => ehMaisPedidos(item)).slice(0, 12),
     [allItems],
   )
   /**
@@ -2203,8 +2207,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       .catch(() => { if (vivo) setAgDias([]) })
     return () => { vivo = false }
   }, [checkoutOpen, restaurante?.podeAgendar, slug])
-  // Menu inferior some ao rolar para baixo e volta ao subir (só fora do checkout/ficha/conta).
-  const navOculta = useEsconderAoRolar(!checkoutOpen && !productSheet && !contaOpen)
+  // Menu inferior SEMPRE visível (P8, 2026-10-04 — acabou o "some ao rolar"). A altura do que fica
+  // fixo embaixo (sacola + WhatsApp + menu, já com a área segura do celular) é medida e vira o
+  // espaço abaixo do último item: nem lacuna, nem item escondido atrás da barra.
+  const [alturaRodape, setAlturaRodape] = useState(0)
+  const observadorRodape = useRef<ResizeObserver | null>(null)
+  const rodapeRef = useCallback((el: HTMLDivElement | null) => {
+    observadorRodape.current?.disconnect()
+    observadorRodape.current = null
+    if (!el) return
+    const medir = () => setAlturaRodape(Math.ceil(el.getBoundingClientRect().height))
+    medir()
+    if (typeof ResizeObserver === 'undefined') return
+    observadorRodape.current = new ResizeObserver(medir)
+    observadorRodape.current.observe(el)
+  }, [])
   const fimSucessoResgate = useCallback(() => { setSucessoResgate(null); setTab('cart') }, [])
 
   // Destaque dos disponíveis na aba Cupons por ~2,5 s depois do clique na faixa.
@@ -3090,7 +3107,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </div>
       </header>
 
-      <div className={["relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-[136px] lg:max-w-[1280px] lg:pb-20", checkoutOpen ? "max-lg:hidden" : ""].join(" ")}>
+      {/* Espaço embaixo = altura medida do rodapé fixo (celular) ou do botão do WhatsApp (desktop). */}
+      <div
+        className={["relative mx-auto min-h-dvh max-w-[600px] bg-[#F3F4F6] pb-[var(--rodape-vitrine)] lg:max-w-[1280px]", numeroWaLoja() ? "lg:pb-[64px]" : "lg:pb-6", checkoutOpen ? "max-lg:hidden" : ""].join(" ")}
+        style={{ '--rodape-vitrine': `${alturaRodape}px` } as React.CSSProperties}
+      >
 
         {/* ── HOME header: cover banner + profile + search + category nav ── */}
         {tab === 'home' && (
@@ -3414,7 +3435,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     foto quadrada do MESMO tamanho da foto da lista (120 px; 140 com "imagem
                     grande" — pedido do dono, 2026-10-01), nome em até 2 linhas e "A partir de"
                     quando o preço varia. */}
-                <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">Mais Pedidos</h2>
+                <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">{ROTULO_MAIS_PEDIDOS}</h2>
                 <div className={`flex snap-x snap-mandatory scroll-px-[16px] items-start gap-[10px] overflow-x-auto scroll-smooth px-[16px] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:snap-none lg:gap-4 lg:overflow-visible lg:px-0 ${restaurante.imagemGrande ? 'lg:grid-cols-[repeat(auto-fill,140px)]' : 'lg:grid-cols-[repeat(auto-fill,120px)]'}`}>
                   {destaques.map((item) => (
                     <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className={`${restaurante.imagemGrande ? 'w-[140px]' : 'w-[120px]'} flex-shrink-0 snap-start`} compact />
@@ -3490,27 +3511,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-0">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
             )}
 
-            {/* Fim do cardápio: sinaliza que a lista acabou (senão o cliente
-                fica rolando achando que carrega mais) sem disputar atenção com
-                os produtos — tudo em cinza, sem cor de marca. Dentro de uma
-                categoria da gaveta não aparece: ali acabou aquela categoria,
-                não o cardápio. */}
-            {!loading && !search.trim() && catGaveta === null && (
-              <footer className="mt-6 border-t border-border px-4 py-7 text-center lg:px-0">
-                <p className="text-[12px] font-semibold text-text-subtle">Você chegou ao fim do cardápio</p>
-                <p className="mt-1 text-[11.5px] text-text-subtle/80">
-                  {restaurante.lojaAberta ? 'Bom apetite!' : restaurante.somenteAgendado ? 'Agende seu pedido e receba no horário que escolher.' : 'Volte no horário de funcionamento pra fazer seu pedido.'}
-                </p>
-                <a
-                  href="https://menuzia.com.br"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-block text-[11px] text-text-subtle/70 transition-colors hover:text-text-subtle"
-                >
-                  Cardápio digital feito por <span className="font-semibold">Menuzia</span>
-                </a>
-              </footer>
-            )}
+            {/* Sem bloco de "fim do cardápio" (P8, 2026-10-04): a lista termina no último
+                item e o espaço abaixo é só a altura medida do que fica fixo embaixo
+                (sacola + WhatsApp + menu, com a área segura) — ver `alturaRodape`. */}
             </div>
 
             {/* Sacola fixa à direita (desktop) */}
@@ -4107,24 +4110,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           )
         })()}
 
-        {/* ── Floating cart bar (mobile only) ──────────────────────────── */}
-        {cartCount > 0 && tab !== 'cart' && (
-          <button
-            onClick={() => setTab('cart')}
-            className="camada-propria fixed inset-x-0 bottom-[calc(78px+var(--nav-safe,0px))] z-30 mx-auto flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg transition-transform duration-200 ease-out lg:hidden"
-            // Acompanha o menu: com ele escondido, desce para perto do fundo (sem sobrepor nada).
-            style={navOculta ? { transform: 'translate3d(0, calc(62px + var(--nav-safe, 0px)), 0)' } : undefined}
-            data-testid="barra-sacola"
-          >
-            <span className="flex items-center gap-2.5 text-sm font-bold">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{cartCount}</span>
-              Ver sacola
-            </span>
-            <span className="text-sm font-bold">{brl(total)}</span>
-          </button>
-        )}
-
-        {numeroWaLoja() && tab === 'home' && cartCount === 0 && !checkoutOpen && !productSheet && (
+        {/* Desktop: botão do WhatsApp flutuando embaixo, no centro (o espaço abaixo do último item já o considera). */}
+        {numeroWaLoja() && !checkoutOpen && !productSheet && (
           <a
             href={linkDuvidasWa}
             target="_blank"
@@ -4139,18 +4126,33 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </a>
         )}
 
-        {/* ── Bottom nav (mobile only) ─────────────────────────────────── */}
+        {/* ── Rodapé fixo (celular): sacola, WhatsApp e menu, um em cima do outro ─────
+            Um bloco só, SEMPRE visível (P8, 2026-10-04): nada se esconde ao rolar e nada se
+            sobrepõe — a sacola fica acima do WhatsApp, que fica acima dos botões do menu. A
+            altura do bloco (com a área segura) é medida e vira o espaço abaixo do cardápio. */}
+        <div ref={rodapeRef} data-testid="rodape-fixo" className="camada-propria pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] lg:hidden">
+        {cartCount > 0 && tab !== 'cart' && (
+          <button
+            onClick={() => setTab('cart')}
+            className="pointer-events-auto mx-auto mb-[8px] flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg"
+            data-testid="barra-sacola"
+          >
+            <span className="flex items-center gap-2.5 text-sm font-bold">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{cartCount}</span>
+              Ver sacola
+            </span>
+            <span className="text-sm font-bold">{brl(total)}</span>
+          </button>
+        )}
         <nav
-          className="nav-rodape fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)] transition-transform duration-200 ease-out lg:hidden"
-          // Some ao rolar para baixo (o WhatsApp vai junto, está dentro dele); volta ao subir.
-          style={navOculta ? { transform: 'translate3d(0, 110%, 0)' } : undefined}
+          className="nav-rodape pointer-events-auto w-full border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]"
           data-testid="nav-rodape"
-          data-oculta={navOculta ? 'sim' : 'nao'}
+          data-oculta="nao"
         >
-          {/* "Tirar dúvidas no WhatsApp" (REF-BANNER / REF-DESTAQUES): no topo da própria
-              navegação, então fica sempre colado nela, fixo no rodapé. Some com a barra
-              "Ver sacola" na tela, fora da Home, no checkout e sem WhatsApp da loja. */}
-          {numeroWaLoja() && tab === 'home' && cartCount === 0 && !checkoutOpen && !productSheet && (
+          {/* "Tirar dúvidas no WhatsApp": faixa no topo do próprio menu, sempre visível (inclusive
+              com a sacola) em todas as abas. Só some no checkout, na ficha do produto e na loja
+              sem WhatsApp configurado. */}
+          {numeroWaLoja() && !checkoutOpen && !productSheet && (
             <a
               href={linkDuvidasWa}
               target="_blank"
@@ -4164,7 +4166,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-[#9CA3AF]" aria-hidden><path d="M8.6 5.4 7.2 6.8 12.4 12l-5.2 5.2 1.4 1.4L15.2 12z" /></svg>
             </a>
           )}
-          <div className="flex">
+          <div className="flex" data-testid="nav-botoes">
             {([
               { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M12 3.1 2.5 11.4a1 1 0 0 0 .66 1.75H4.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-4.25h3.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-6.85h1.34a1 1 0 0 0 .66-1.75L12 3.1z" /></svg> },
               { id: 'pedidos' as Tab, label: 'Pedidos', onClick: () => setTab('pedidos'), active: tab === 'pedidos', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M9 2a1 1 0 0 0-1 1v1H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V3a1 1 0 0 0-1-1H9zm1 2h4v1h-4V4zM8 11h8v1.8H8V11zm0 4h8v1.8H8V15z" /></svg> },
@@ -4204,6 +4206,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             ))}
           </div>
         </nav>
+        </div>
       </div>
 
       {/* ── Conferência do "Pedir de novo" ─────────────────────────────── */}

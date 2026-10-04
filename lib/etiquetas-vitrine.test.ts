@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ehMaisPedidos,
   etiquetasTopo,
   etiquetasTopoLigadas,
   etiquetasUtilitarias,
@@ -14,14 +15,14 @@ const AGORA = Date.parse('2026-10-01T12:00:00Z')
 const FUTURO = '2026-10-20T00:00:00Z'
 
 describe('tags de topo: prioridade e limite', () => {
-  it('ordem Mais vendido > Combo especial > Oferta limitada > Novidade, no máximo 2', () => {
+  it('ordem Combo especial > Oferta limitada > Novidade, no máximo 2; "Mais Pedidos" não é tag de topo (é selo na foto)', () => {
     const tudo = { maisVendido: true, comboEspecial: true, edicaoLimitada: true, novidadeAte: FUTURO }
-    expect(etiquetasTopoLigadas(tudo, AGORA)).toEqual(['mais_vendido', 'combo_especial', 'oferta_limitada', 'novidade'])
-    expect(etiquetasTopo(tudo, 2, AGORA)).toEqual(['mais_vendido', 'combo_especial'])
+    expect(etiquetasTopoLigadas(tudo, AGORA)).toEqual(['combo_especial', 'oferta_limitada', 'novidade'])
+    expect(etiquetasTopo(tudo, 2, AGORA)).toEqual(['combo_especial', 'oferta_limitada'])
     expect(etiquetasTopo({ edicaoLimitada: true, novidadeAte: FUTURO, comboEspecial: true }, 2, AGORA)).toEqual(['combo_especial', 'oferta_limitada'])
   })
   it('destaques mostram só a mais importante; nunca passa de 2', () => {
-    expect(etiquetasTopo({ comboEspecial: true, maisVendido: true }, 1, AGORA)).toEqual(['mais_vendido'])
+    expect(etiquetasTopo({ comboEspecial: true, maisVendido: true }, 1, AGORA)).toEqual(['combo_especial'])
     expect(etiquetasTopo({ comboEspecial: true, maisVendido: true, edicaoLimitada: true }, 5, AGORA)).toHaveLength(2)
   })
   it('novidade vencida some', () => {
@@ -34,16 +35,19 @@ describe('tags de topo: prioridade e limite', () => {
 })
 
 describe('migração das tags antigas (sem converter dado)', () => {
-  it('Favorito/Mais pedido → Mais vendido (automático); Edição limitada → Oferta limitada; novo → Novidade; promoção → Item promocional', () => {
-    expect(etiquetasTopo({ tag: 'favorito' }, 2, AGORA)).toEqual(['mais_vendido'])
-    expect(etiquetasTopo({ tag: 'mais_pedido' }, 2, AGORA)).toEqual(['mais_vendido'])
+  it('Favorito/Mais pedido → "Mais Pedidos" (selo); Edição limitada → Oferta limitada; novo → Novidade; promoção → Item promocional', () => {
+    expect(ehMaisPedidos({ tag: 'favorito' })).toBe(true)
+    expect(ehMaisPedidos({ tag: 'mais_pedido' })).toBe(true)
+    expect(ehMaisPedidos({ maisVendido: true })).toBe(true)
+    expect(ehMaisPedidos({ tag: 'novo', maisVendido: false })).toBe(false)
+    expect(etiquetasTopo({ tag: 'favorito' }, 2, AGORA)).toEqual([])
     expect(etiquetasTopo({ tag: 'edicao_limitada' }, 2, AGORA)).toEqual(['oferta_limitada'])
     expect(etiquetasTopo({ edicaoLimitada: true }, 2, AGORA)).toEqual(['oferta_limitada'])
     expect(etiquetasTopo({ tag: 'novo' }, 2, AGORA)).toEqual(['novidade'])
     expect(etiquetasUtilitarias({ tag: 'promocao' })).toEqual([{ tipo: 'item_promocional', texto: 'Item promocional' }])
   })
   it('tag antiga + coluna nova iguais não duplicam', () => {
-    expect(etiquetasTopo({ tag: 'favorito', maisVendido: true }, 2, AGORA)).toEqual(['mais_vendido'])
+    expect(etiquetasTopo({ tag: 'novo', novidadeAte: FUTURO }, 2, AGORA)).toEqual(['novidade'])
     expect(etiquetasUtilitarias({ tag: 'promocao', itemPromocional: true })).toHaveLength(1)
   })
 })

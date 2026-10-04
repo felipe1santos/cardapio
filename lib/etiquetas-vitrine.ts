@@ -1,13 +1,16 @@
 /**
  * Tags do produto na vitrine (2026-10-01, substitui as regras de 2026-09-30). Hierarquia:
  *
+ * MAIS PEDIDOS (P8, 2026-10-04) — UM conceito só, com um nome só: a loja marca à mão (coluna
+ * `mais_vendido`, a estrela do Gestor, ou a `tag` antiga mais_pedido/favorito). Vira o SELO sobre a
+ * foto (canto superior esquerdo) e a seção "Mais Pedidos". Antes eram três nomes: "Mais vendido"
+ * (pílula na linha do nome), "★ Favorito" (QR da mesa) e a seção "Mais Pedidos".
+ *
  * TOPO — na linha do nome, à direita (descem para a linha de baixo se o nome não couber),
  * no máximo 2, nesta ordem:
- *   1. Mais vendido   — automático: a estrela do Gestor (mais_vendido), a mesma regra do
- *                       antigo "★ Favorito"/"Mais pedido";
- *   2. Combo especial — combo_especial (0122);
- *   3. Oferta limitada — a antiga "Edição limitada" (mesma coluna edicao_limitada);
- *   4. Novidade       — até `novidadeAte`.
+ *   1. Combo especial — combo_especial (0122);
+ *   2. Oferta limitada — a antiga "Edição limitada" (mesma coluna edicao_limitada);
+ *   3. Novidade       — até `novidadeAte`.
  * UTILITÁRIAS — abaixo da descrição, logo acima do preço:
  *   Serve até X pessoas · Item promocional · tag personalizada (texto da loja, preta ou azul).
  *
@@ -15,7 +18,17 @@
  * Cores medidas nas referências por scripts/vitrine/medir-cores-tags.mjs
  * (docs/referencias/vitrine-tags/).
  */
-export type EtiquetaTopo = 'mais_vendido' | 'combo_especial' | 'oferta_limitada' | 'novidade'
+export type EtiquetaTopo = 'combo_especial' | 'oferta_limitada' | 'novidade'
+
+/** Nome único do conceito em todo o sistema (vitrine, cadastro, lista do Cardápio e QR da mesa). */
+export const ROTULO_MAIS_PEDIDOS = 'Mais Pedidos'
+/** Selo sobre a foto: vermelho vivo com texto branco (4,7:1), o mesmo vermelho pedido pelo dono em 2026-10-01. */
+export const ESTILO_SELO_MAIS_PEDIDOS = { fundo: '#E80002', cor: '#FFFFFF' } as const
+
+/** A loja marcou o item como "Mais Pedidos" (estrela do Gestor ou a tag antiga de quem ainda não salvou o item). */
+export function ehMaisPedidos(item: { maisVendido?: boolean; tag?: string | null }): boolean {
+  return item.maisVendido === true || item.tag === 'mais_pedido' || item.tag === 'favorito'
+}
 export type EtiquetaUtil = 'serve' | 'item_promocional' | 'personalizada'
 export type CorTagPersonalizada = 'preta' | 'azul'
 
@@ -36,9 +49,6 @@ export type IconeEtiqueta = 'fogo' | 'diamante' | 'ampulheta' | 'brilho' | 'selo
 export interface EstiloTag { texto: string; icone: IconeEtiqueta | null; fundo: string; cor: string; corIcone?: string; peso: 500 | 600 | 700; /** Canto em px (padrão da caixa: 6). */ raio?: number }
 
 export const ESTILO_TOPO: Record<EtiquetaTopo, EstiloTag> = {
-  // "Mais vendido": vermelho rgb(232 0 2) e canto de 3px pedidos pelo dono (2026-10-01);
-  // texto e fogo brancos, negrito.
-  mais_vendido: { texto: 'Mais vendido', icone: 'fogo', fundo: '#E80002', cor: '#FFFFFF', peso: 700, raio: 3 },
   // REF-CORES (roxo do iFood): diamante #A135F4, texto #9A3AE1, fundo lilás da REF-TAGS.
   combo_especial: { texto: 'Combo especial', icone: 'diamante', fundo: '#F2EAFC', cor: '#9A3AE1', corIcone: '#A135F4', peso: 600 },
   // Sem referência em imagem: rosa da mesma família.
@@ -67,7 +77,6 @@ export function etiquetasTopoLigadas(item: ItemComEtiquetas, agora: number = Dat
   // A tag antiga só existe em item que ainda não foi salvo pelo formulário novo (ele zera a
   // tag): vale junto com as colunas novas, para nada sumir de quem ainda não migrou.
   const lista: EtiquetaTopo[] = []
-  if (item.maisVendido === true || item.tag === 'mais_pedido' || item.tag === 'favorito') lista.push('mais_vendido')
   if (item.comboEspecial === true) lista.push('combo_especial')
   if (item.edicaoLimitada === true || item.tag === 'edicao_limitada') lista.push('oferta_limitada')
   if ((item.novidadeAte ? Date.parse(item.novidadeAte) > agora : false) || item.tag === 'novo') lista.push('novidade')

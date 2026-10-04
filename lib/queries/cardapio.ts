@@ -58,10 +58,10 @@ export function colunasEtiquetas(e: EtiquetasProdutoInput | undefined): Record<s
 }
 
 export const TAGS_ITEM: { id: TagItem; label: string }[] = [
-  { id: 'mais_pedido', label: 'Mais pedido' },
+  { id: 'mais_pedido', label: 'Mais Pedidos' },
   { id: 'edicao_limitada', label: 'Edição limitada' },
   { id: 'novo', label: 'Novo' },
-  { id: 'favorito', label: 'Favorito da casa' },
+  { id: 'favorito', label: 'Mais Pedidos' },
   { id: 'promocao', label: 'Promoção' },
 ]
 

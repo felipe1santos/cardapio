@@ -14,6 +14,8 @@
  * silhueta colorida é reconhecida antes da palavra.
  */
 
+import { ESTILO_SELO_MAIS_PEDIDOS, ROTULO_MAIS_PEDIDOS, ehMaisPedidos } from './etiquetas-vitrine'
+
 export interface EstiloEtiqueta {
   label: string
   /** Classes Tailwind (vitrine). */
@@ -24,10 +26,11 @@ export interface EstiloEtiqueta {
 }
 
 export const ETIQUETAS_ITEM: Record<string, EstiloEtiqueta> = {
-  mais_pedido: { label: '🔥 Mais pedido', cls: 'bg-[#FFF1DC] text-[#9A5B00]', fundo: '#FFF1DC', texto: '#9A5B00' },
+  // Tags antigas do mesmo conceito: viram o selo "Mais Pedidos" (abaixo), nunca uma etiqueta à parte.
+  mais_pedido: { label: 'Mais Pedidos', cls: 'bg-[#E80002] text-white', fundo: '#E80002', texto: '#FFFFFF' },
   edicao_limitada: { label: '⏳ Edição limitada', cls: 'bg-[#FCE7F3] text-[#A81B60]', fundo: '#FCE7F3', texto: '#A81B60' },
   novo: { label: '✨ Novo', cls: 'bg-[#E0F2FE] text-[#0369A1]', fundo: '#E0F2FE', texto: '#0369A1' },
-  favorito: { label: '⭐ Favorito da casa', cls: 'bg-[#EDE9FE] text-[#6D28D9]', fundo: '#EDE9FE', texto: '#6D28D9' },
+  favorito: { label: 'Mais Pedidos', cls: 'bg-[#E80002] text-white', fundo: '#E80002', texto: '#FFFFFF' },
   promocao: { label: '🏷️ Promoção', cls: 'bg-[#DCFCE7] text-[#15803D]', fundo: '#DCFCE7', texto: '#15803D' },
 }
 
@@ -50,20 +53,20 @@ export interface ItemEtiquetavel {
  * marcava a estrela e não via nada no cardápio. Agora ele tem o selo próprio abaixo.
  */
 export function tagDoItem(item: ItemEtiquetavel): string | null {
-  if (item.tag) return item.tag
+  if (item.tag && !ehMaisPedidos({ tag: item.tag })) return item.tag
   if (item.promocaoPreco !== null) return 'promocao'
   return null
 }
 
 /**
- * Selo "★ Favorito": o mesmo favorito que o Gestor marca com a estrela, na vitrine e nos
- * dois QR (visualização e ativo). Texto, não só ícone — o leitor de tela diz "Favorito".
- * Convive com a etiqueta (promoção, novo…), mas não repete "Favorito da casa".
+ * Selo "Mais Pedidos" (P8, 2026-10-04 — antes "★ Favorito"): o mesmo conceito e o mesmo nome da
+ * vitrine (lib/etiquetas-vitrine.ts), marcado pela loja com a estrela do Gestor. Convive com a
+ * etiqueta (promoção, novo…).
  */
-export const SELO_FAVORITO = { label: '★ Favorito', fundo: '#FEF3C7', texto: '#92400E' } as const
+export const SELO_MAIS_PEDIDOS = { label: ROTULO_MAIS_PEDIDOS, fundo: ESTILO_SELO_MAIS_PEDIDOS.fundo, texto: ESTILO_SELO_MAIS_PEDIDOS.cor } as const
 
-export function mostraSeloFavorito(item: { maisVendido?: boolean; tag: string | null }): boolean {
-  return item.maisVendido === true && item.tag !== 'favorito'
+export function mostraSeloMaisPedidos(item: { maisVendido?: boolean; tag: string | null }): boolean {
+  return ehMaisPedidos(item)
 }
 
 /** Estilo pronto da etiqueta do item, ou null quando não há etiqueta. */

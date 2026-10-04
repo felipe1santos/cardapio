@@ -164,7 +164,7 @@ try {
 
     await p.goto(`${BASE}/loja/${LOJA}`, { waitUntil: 'networkidle' })
     await p.waitForTimeout(800)
-    await p.getByRole('button', { name: 'Pedidos' }).first().click()
+    await p.getByRole('button', { name: 'Pedidos', exact: true }).first().click()
     await p.waitForTimeout(1500)
     const tHist = await textoVisivel(p)
     await p.screenshot({ path: join(SHOTS, 'pedidos-390.png') })

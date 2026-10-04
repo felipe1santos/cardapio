@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ETIQUETAS_ITEM, SELO_FAVORITO, etiquetaDoItem, mostraSeloFavorito, tagDoItem } from './etiqueta-item'
+import { ETIQUETAS_ITEM, SELO_MAIS_PEDIDOS, etiquetaDoItem, mostraSeloMaisPedidos, tagDoItem } from './etiqueta-item'
 import { TAGS_ITEM } from './queries/cardapio'
 
 describe('tagDoItem', () => {
@@ -16,22 +16,24 @@ describe('tagDoItem', () => {
     expect(tagDoItem({ tag: null, promocaoPreco: 19.9 })).toBe('promocao')
   })
 
-  it('favorito não vira etiqueta: tem selo próprio', () => {
+  it('"Mais Pedidos" não vira etiqueta: tem selo próprio (inclusive a tag antiga)', () => {
     expect(tagDoItem({ tag: null, promocaoPreco: null, maisVendido: true })).toBeNull()
     expect(tagDoItem({ tag: null, promocaoPreco: 5, maisVendido: true })).toBe('promocao')
+    expect(tagDoItem({ tag: 'mais_pedido', promocaoPreco: null })).toBeNull()
+    expect(tagDoItem({ tag: 'favorito', promocaoPreco: 5 })).toBe('promocao')
   })
 })
 
-describe('mostraSeloFavorito', () => {
-  it('aparece para o favorito, junto com promoção ou outra etiqueta', () => {
-    expect(mostraSeloFavorito({ maisVendido: true, tag: null })).toBe(true)
-    expect(mostraSeloFavorito({ maisVendido: true, tag: 'novo' })).toBe(true)
-    expect(SELO_FAVORITO.label).toBe('★ Favorito')
+describe('mostraSeloMaisPedidos', () => {
+  it('aparece para o item marcado (estrela ou tag antiga), junto com promoção ou outra etiqueta', () => {
+    expect(mostraSeloMaisPedidos({ maisVendido: true, tag: null })).toBe(true)
+    expect(mostraSeloMaisPedidos({ maisVendido: true, tag: 'novo' })).toBe(true)
+    expect(mostraSeloMaisPedidos({ tag: 'favorito' })).toBe(true)
+    expect(SELO_MAIS_PEDIDOS).toMatchObject({ label: 'Mais Pedidos', fundo: '#E80002', texto: '#FFFFFF' })
   })
-  it('não aparece sem favorito nem repete "Favorito da casa"', () => {
-    expect(mostraSeloFavorito({ maisVendido: false, tag: null })).toBe(false)
-    expect(mostraSeloFavorito({ tag: null })).toBe(false)
-    expect(mostraSeloFavorito({ maisVendido: true, tag: 'favorito' })).toBe(false)
+  it('não aparece sem marcação', () => {
+    expect(mostraSeloMaisPedidos({ maisVendido: false, tag: null })).toBe(false)
+    expect(mostraSeloMaisPedidos({ tag: null })).toBe(false)
   })
 })
 
