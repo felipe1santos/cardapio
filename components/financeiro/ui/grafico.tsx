@@ -91,9 +91,12 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
   const yMin = ticks[0], yMax = ticks[ticks.length - 1]
   const esq = 56, dir = 12, topo = 10, baixo = 26
   const w = largura - esq - dir, h = altura - topo - baixo
-  const x = (i: number) => esq + (n <= 1 ? w / 2 : (i * w) / (n - 1))
+  // Só barras (como "Origem do evento" da Meta): cada barra no centro da sua faixa — não encosta nas bordas nem
+  // cobre o eixo. Com linhas: pontos de ponta a ponta, como antes.
+  const bandas = series.length > 0 && series.every((s) => s.tipo === 'barra')
+  const x = (i: number) => (bandas ? esq + ((i + 0.5) * w) / Math.max(1, n) : esq + (n <= 1 ? w / 2 : (i * w) / (n - 1)))
   const y = (v: number) => topo + h - ((v - yMin) / (yMax - yMin || 1)) * h
-  const larguraBarra = Math.max(3, Math.min(28, (w / Math.max(1, n)) * 0.55))
+  const larguraBarra = Math.max(3, Math.min(bandas ? 56 : 28, (w / Math.max(1, n)) * (bandas ? 0.72 : 0.55)))
   const passoX = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(w / 70))))
   const fmtEixo = formatarEixo ?? formatar
 
@@ -115,7 +118,7 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
   function aoMover(e: React.PointerEvent<SVGSVGElement>) {
     const r = e.currentTarget.getBoundingClientRect()
     const px = ((e.clientX - r.left) / r.width) * largura
-    const i = n <= 1 ? 0 : Math.round(((px - esq) / w) * (n - 1))
+    const i = n <= 1 ? 0 : bandas ? Math.floor(((px - esq) / w) * n) : Math.round(((px - esq) / w) * (n - 1))
     setFoco(Math.max(0, Math.min(n - 1, i)))
   }
 
@@ -126,7 +129,7 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
   const tipEsquerda = tipX > largura * 0.6
   // Só barras (como "Origem do evento"): período em negrito no TOPO do tooltip. Com linhas: no pé.
   const soBarras = barras.length > 0 && linhas.length === 0
-  const passoColuna = n <= 1 ? w : w / (n - 1)
+  const passoColuna = bandas ? w / Math.max(1, n) : n <= 1 ? w : w / (n - 1)
 
   return (
     <div className="w-full" style={{ color: CORES_GRAFICO.texto }} data-testid={testid}>
@@ -144,7 +147,7 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
             </g>
           ))}
           {rotulos.map((r, i) => (i % passoX === 0 || i === n - 1) && (
-            <text key={i} x={x(i)} y={altura - 8} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize={11} fill={CORES_GRAFICO.eixo}>{r}</text>
+            <text key={i} x={x(i)} y={altura - 8} textAnchor={bandas ? 'middle' : i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize={11} fill={CORES_GRAFICO.eixo}>{r}</text>
           ))}
           {foco !== null && barras.length > 0 && (
             <rect data-coluna-hover x={tipX - Math.max(larguraBarra, passoColuna * 0.8) / 2} y={topo} width={Math.max(larguraBarra, passoColuna * 0.8)} height={h} fill={CORES_GRAFICO.colunaHover} />
