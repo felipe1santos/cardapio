@@ -40,6 +40,21 @@ export function dataCurta(iso: string): string {
   return `${MESES[m - 1]} ${d}`
 }
 
+/**
+ * Quais rótulos do eixo X aparecem: um a cada `passo` e sempre o último. Quando o último cai perto
+ * demais do anterior (menos de `minimoPx` entre os dois), sai o anterior — senão "03/10" e "04/10"
+ * ficavam encostados no fim do gráfico.
+ */
+export function marcasX(n: number, passo: number, posicao: (i: number) => number, minimoPx = 52): number[] {
+  if (n <= 0) return []
+  const out: number[] = []
+  for (let i = 0; i < n - 1; i += Math.max(1, passo)) out.push(i)
+  const ult = n - 1
+  while (out.length && Math.abs(posicao(ult) - posicao(out[out.length - 1])) < minimoPx) out.pop()
+  out.push(ult)
+  return out
+}
+
 /** Até 4 marcas "redondas" no eixo Y, de 0 até cobrir o máximo. */
 export function marcasY(max: number, min = 0): number[] {
   const topo = Math.max(max, 1)
@@ -155,8 +170,8 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
               <text x={esq - 8} y={y(t) + 4} textAnchor="end" fontSize={11} fill={CORES_GRAFICO.eixo}>{fmtEixo(t)}</text>
             </g>
           ))}
-          {rotulos.map((r, i) => (i % passoX === 0 || i === n - 1) && (
-            <text key={i} x={x(i)} y={altura - 8} textAnchor={bandas ? 'middle' : i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize={11} fill={CORES_GRAFICO.eixo}>{r}</text>
+          {marcasX(n, passoX, x).map((i) => (
+            <text key={i} x={x(i)} y={altura - 8} textAnchor={bandas ? 'middle' : i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize={11} fill={CORES_GRAFICO.eixo}>{rotulos[i]}</text>
           ))}
           {foco !== null && barras.length > 0 && (
             <rect data-coluna-hover x={tipX - Math.max(larguraBarra, passoColuna * 0.8) / 2} y={topo} width={Math.max(larguraBarra, passoColuna * 0.8)} height={h} fill={CORES_GRAFICO.colunaHover} />
