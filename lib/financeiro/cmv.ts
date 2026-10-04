@@ -227,34 +227,28 @@ export async function salvarInsumo(c: Ctx, id: string | null, entrada: EntradaIn
     if ((ok ?? []).length !== new Set(comps.map((x) => x.componenteId)).size) return falha('Componente inválido.', 404)
     if (id && comps.some((x) => x.componenteId === id)) return falha('O insumo não pode usar ele mesmo.')
   }
-  let novoId = id
-  if (id) {
-    const { error } = await c.admin.from('cmv_insumos').update(linha).eq('id', id).eq('restaurante_id', loja)
-    if (error) return falha(/cmv_insumos_nome_uidx|duplicate/.test(error.message) ? 'Já existe um insumo com esse nome.' : 'Não foi possível salvar o insumo.', 409)
-  } else {
-    const { data, error } = await c.admin.from('cmv_insumos').insert(linha).select('id').single()
-    if (error || !data) return falha(/cmv_insumos_nome_uidx|duplicate/.test(error?.message ?? '') ? 'Já existe um insumo com esse nome.' : 'Não foi possível criar o insumo.', 409)
-    novoId = data.id as string
-  }
-  if (e.preparado || antigo?.preparado) {
-    await c.admin.from('cmv_insumo_componentes').delete().eq('insumo_id', novoId!)
-    if (comps.length) await c.admin.from('cmv_insumo_componentes').insert(comps.map((x) => ({ insumo_id: novoId, componente_id: x.componenteId, quantidade_base: x.quantidadeBase })))
-  }
   // Histórico append-only: custo (ou o que muda o custo) mudou → registra antigo, novo, quem e motivo.
   const mudouCusto = !antigo || Number(antigo.custo_compra_centavos) !== linha.custo_compra_centavos || Number(antigo.quantidade_compra) !== Number(linha.quantidade_compra)
     || Number(antigo.base_por_unidade) !== Number(linha.base_por_unidade) || Number(antigo.aproveitamento_pct) !== Number(linha.aproveitamento_pct)
-  if (mudouCusto) {
-    await c.admin.from('cmv_custos_historico').insert({
-      restaurante_id: loja, insumo_id: novoId, custo_antigo_centavos: antigo ? Number(antigo.custo_compra_centavos) : null, custo_novo_centavos: linha.custo_compra_centavos,
+  // Tudo numa transação (cmv_insumo_salvar, 0142): insumo + componentes + histórico + auditoria.
+  const { data: novoId, error } = await c.admin.rpc('cmv_insumo_salvar', {
+    p_restaurante: loja, p_id: id, p_linha: linha, p_trocar_componentes: !!(e.preparado || antigo?.preparado), p_componentes: comps,
+    p_historico: mudouCusto ? {
+      custo_antigo_centavos: antigo ? Number(antigo.custo_compra_centavos) : null, custo_novo_centavos: linha.custo_compra_centavos,
       quantidade_compra: linha.quantidade_compra, base_por_unidade: linha.base_por_unidade, aproveitamento_pct: linha.aproveitamento_pct,
       motivo: e.motivo?.trim()?.slice(0, 300) || null, usuario_id: c.sessao.userId, usuario_nome: c.sessao.nome,
-    })
-  }
-  await registrarAuditoria(c.admin, {
-    restauranteId: loja, usuarioId: c.sessao.userId, usuarioNome: c.sessao.nome, acao: id ? (mudouCusto ? 'cmv.custo_alterado' : 'cmv.insumo_editado') : 'cmv.insumo_criado',
-    entidade: 'insumo', entidadeId: novoId, dados: { nome: linha.nome, custoAntigo: antigo ? Number(antigo.custo_compra_centavos) : null, custoNovo: linha.custo_compra_centavos, motivo: e.motivo ?? null, dispositivo: c.dispositivo },
+    } : null,
+    p_auditoria: {
+      usuario_id: c.sessao.userId, usuario_nome: c.sessao.nome, acao: id ? (mudouCusto ? 'cmv.custo_alterado' : 'cmv.insumo_editado') : 'cmv.insumo_criado',
+      dados: { nome: linha.nome, custoAntigo: antigo ? Number(antigo.custo_compra_centavos) : null, custoNovo: linha.custo_compra_centavos, motivo: e.motivo ?? null, dispositivo: c.dispositivo },
+    },
   })
-  return { ok: true, valor: { id: novoId! } }
+  if (error) {
+    if (/cmv_insumos_nome_uidx|duplicate/.test(error.message)) return falha('Já existe um insumo com esse nome.', 409)
+    if (/insumo_nao_encontrado/.test(error.message)) return falha('Insumo não encontrado.', 404)
+    throw error
+  }
+  return { ok: true, valor: { id: novoId as string } }
 }
 
 export async function ativarInsumo(c: Ctx, id: string, ativo: boolean): Promise<Res<null>> {
@@ -341,25 +335,13 @@ export async function salvarFicha(c: Ctx, tipo: AlvoTipo, id: string, tam: strin
     const { data: ok } = await c.admin.from('cmv_insumos').select('id').eq('restaurante_id', loja).in('id', comps.map((x) => x.insumoId))
     if ((ok ?? []).length !== comps.length) return falha('Insumo não encontrado.', 404)
   }
-  let q = c.admin.from('cmv_fichas').select('id').eq('restaurante_id', loja).eq('alvo_tipo', tipo).eq('alvo_id', id)
-  q = tam ? q.eq('tamanho_padrao_id', tam) : q.is('tamanho_padrao_id', null)
-  const achada = (await q.maybeSingle()).data
-  let fichaId: string
-  if (achada) {
-    fichaId = achada.id as string
-    await c.admin.from('cmv_fichas').update({ atualizado_em: new Date().toISOString(), atualizado_por_nome: c.sessao.nome }).eq('id', fichaId)
-  } else {
-    const novo = await c.admin.from('cmv_fichas').insert({ restaurante_id: loja, alvo_tipo: tipo, alvo_id: id, tamanho_padrao_id: tam, item_id: item, atualizado_por_nome: c.sessao.nome }).select('id').single()
-    if (novo.error) return falha('Não foi possível salvar a ficha.', 500)
-    fichaId = novo.data.id as string
-  }
-  await c.admin.from('cmv_ficha_componentes').delete().eq('ficha_id', fichaId)
-  if (comps.length) await c.admin.from('cmv_ficha_componentes').insert(comps.map((x) => ({ ficha_id: fichaId, insumo_id: x.insumoId, quantidade_base: x.quantidadeBase })))
-  await registrarAuditoria(c.admin, {
-    restauranteId: loja, usuarioId: c.sessao.userId, usuarioNome: c.sessao.nome, acao: 'cmv.ficha_salva', entidade: 'ficha', entidadeId: fichaId,
-    dados: { alvo: tipo, alvoId: id, tamanho: tam, componentes: comps.length, dispositivo: c.dispositivo },
+  // Tudo numa transação (cmv_ficha_salvar, 0142): ficha + componentes + auditoria.
+  const { data: fichaId, error } = await c.admin.rpc('cmv_ficha_salvar', {
+    p_restaurante: loja, p_tipo: tipo, p_alvo: id, p_tamanho: tam, p_item: item, p_componentes: comps,
+    p_auditoria: { usuario_id: c.sessao.userId, usuario_nome: c.sessao.nome, dados: { alvo: tipo, alvoId: id, tamanho: tam, componentes: comps.length, dispositivo: c.dispositivo } },
   })
-  return { ok: true, valor: { fichaId } }
+  if (error) return falha('Não foi possível salvar a ficha.', 500)
+  return { ok: true, valor: { fichaId: fichaId as string } }
 }
 
 /** "Importar ingredientes da ficha de preparo": sugestão (nada é gravado). Casa pelo nome do insumo. */

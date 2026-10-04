@@ -297,11 +297,14 @@ declare
   r jsonb;
   v_custo numeric;
 begin
+  -- Loja SEM o financeiro (todas as lojas reais hoje): sai já, sem subtransação e sem gravar nada — o caminho
+  -- do pedido fica igual ao de antes (só esta leitura por chave primária).
+  if new.item_id is null then return null; end if;
+  select p.restaurante_id into v_rest from public.pedidos p
+    join public.restaurantes rr on rr.id = p.restaurante_id and rr.financeiro_ativo
+   where p.id = new.pedido_id;
+  if v_rest is null then return null; end if;
   begin
-    select p.restaurante_id into v_rest from public.pedidos p
-      join public.restaurantes rr on rr.id = p.restaurante_id and rr.financeiro_ativo
-     where p.id = new.pedido_id;
-    if v_rest is null or new.item_id is null then return null; end if;
     r := public.cmv_custo_linha(v_rest, new.item_id, new.tamanho_nome, new.sabor_nome, new.borda_nome, new.massa_nome, new.complementos);
     v_custo := (r->>'custo')::numeric;
     insert into public.pedido_itens_custo (pedido_item_id, restaurante_id, pedido_id, situacao, custo_unitario, custo_unitario_centavos, detalhe)
@@ -338,3 +341,70 @@ update public.usuarios u
    and coalesce(nullif(btrim(u.cargo), ''), 'gerente') = 'gerente'
    and coalesce(u.acessos->'sensiveis', '[]'::jsonb) ?& array['custos_editar', 'editar_precos']
    and not coalesce(u.acessos->'sensiveis', '[]'::jsonb) ? 'precos_aplicar';
+
+-- ── gravações atômicas (tudo ou nada) ──────────────────────────────────────────────────────────
+-- O servidor valida e calcula; estas funções gravam TUDO numa transação só (insumo + componentes +
+-- histórico + auditoria; ficha + componentes + auditoria). Falha em qualquer passo desfaz o resto.
+create or replace function public.fin_auditar(p_restaurante uuid, p_usuario uuid, p_nome text, p_acao text, p_entidade text, p_entidade_id uuid, p_dados jsonb)
+  returns void language sql security definer set search_path = public as $$
+  insert into public.eventos_auditoria (restaurante_id, ator, usuario_id, usuario_nome, acao, entidade, entidade_id, dados)
+  values (p_restaurante, case when p_usuario is null then 'sistema' else 'usuario' end, p_usuario, coalesce(p_nome, '—'), p_acao, p_entidade, p_entidade_id, p_dados)
+$$;
+revoke execute on function public.fin_auditar(uuid, uuid, text, text, text, uuid, jsonb) from public, anon, authenticated;
+
+create or replace function public.cmv_insumo_salvar(p_restaurante uuid, p_id uuid, p_linha jsonb, p_trocar_componentes boolean, p_componentes jsonb,
+  p_historico jsonb, p_auditoria jsonb) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare v_id uuid := p_id;
+begin
+  if v_id is null then
+    insert into public.cmv_insumos (restaurante_id, nome, unidade_compra, quantidade_compra, base_por_unidade, unidade_base, custo_compra_centavos,
+      aproveitamento_pct, preparado, rendimento_base, atualizado_em)
+    values (p_restaurante, p_linha->>'nome', p_linha->>'unidade_compra', (p_linha->>'quantidade_compra')::numeric, (p_linha->>'base_por_unidade')::numeric,
+      p_linha->>'unidade_base', (p_linha->>'custo_compra_centavos')::bigint, (p_linha->>'aproveitamento_pct')::numeric, (p_linha->>'preparado')::boolean,
+      nullif(p_linha->>'rendimento_base', '')::numeric, now())
+    returning id into v_id;
+  else
+    update public.cmv_insumos set nome = p_linha->>'nome', unidade_compra = p_linha->>'unidade_compra', quantidade_compra = (p_linha->>'quantidade_compra')::numeric,
+      base_por_unidade = (p_linha->>'base_por_unidade')::numeric, unidade_base = p_linha->>'unidade_base', custo_compra_centavos = (p_linha->>'custo_compra_centavos')::bigint,
+      aproveitamento_pct = (p_linha->>'aproveitamento_pct')::numeric, preparado = (p_linha->>'preparado')::boolean,
+      rendimento_base = nullif(p_linha->>'rendimento_base', '')::numeric, atualizado_em = now()
+     where id = v_id and restaurante_id = p_restaurante;
+    if not found then raise exception 'insumo_nao_encontrado' using errcode = 'P0002'; end if;
+  end if;
+  if p_trocar_componentes then
+    delete from public.cmv_insumo_componentes where insumo_id = v_id;
+    insert into public.cmv_insumo_componentes (insumo_id, componente_id, quantidade_base)
+    select v_id, (c->>'componenteId')::uuid, (c->>'quantidadeBase')::numeric from jsonb_array_elements(coalesce(p_componentes, '[]'::jsonb)) c;
+  end if;
+  if p_historico is not null then
+    insert into public.cmv_custos_historico (restaurante_id, insumo_id, custo_antigo_centavos, custo_novo_centavos, quantidade_compra, base_por_unidade,
+      aproveitamento_pct, motivo, usuario_id, usuario_nome)
+    values (p_restaurante, v_id, nullif(p_historico->>'custo_antigo_centavos', '')::bigint, (p_historico->>'custo_novo_centavos')::bigint,
+      (p_historico->>'quantidade_compra')::numeric, (p_historico->>'base_por_unidade')::numeric, (p_historico->>'aproveitamento_pct')::numeric,
+      p_historico->>'motivo', nullif(p_historico->>'usuario_id', '')::uuid, p_historico->>'usuario_nome');
+  end if;
+  perform public.fin_auditar(p_restaurante, nullif(p_auditoria->>'usuario_id', '')::uuid, p_auditoria->>'usuario_nome', p_auditoria->>'acao', 'insumo', v_id, p_auditoria->'dados');
+  return v_id;
+end $$;
+revoke execute on function public.cmv_insumo_salvar(uuid, uuid, jsonb, boolean, jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+create or replace function public.cmv_ficha_salvar(p_restaurante uuid, p_tipo text, p_alvo uuid, p_tamanho uuid, p_item uuid, p_componentes jsonb, p_auditoria jsonb)
+  returns uuid language plpgsql security definer set search_path = public as $$
+declare v_id uuid;
+begin
+  select id into v_id from public.cmv_fichas where restaurante_id = p_restaurante and alvo_tipo = p_tipo and alvo_id = p_alvo
+     and tamanho_padrao_id is not distinct from p_tamanho for update;
+  if v_id is null then
+    insert into public.cmv_fichas (restaurante_id, alvo_tipo, alvo_id, tamanho_padrao_id, item_id, atualizado_por_nome)
+    values (p_restaurante, p_tipo, p_alvo, p_tamanho, p_item, p_auditoria->>'usuario_nome') returning id into v_id;
+  else
+    update public.cmv_fichas set atualizado_em = now(), atualizado_por_nome = p_auditoria->>'usuario_nome' where id = v_id;
+  end if;
+  delete from public.cmv_ficha_componentes where ficha_id = v_id;
+  insert into public.cmv_ficha_componentes (ficha_id, insumo_id, quantidade_base)
+  select v_id, (c->>'insumoId')::uuid, (c->>'quantidadeBase')::numeric from jsonb_array_elements(coalesce(p_componentes, '[]'::jsonb)) c;
+  perform public.fin_auditar(p_restaurante, nullif(p_auditoria->>'usuario_id', '')::uuid, p_auditoria->>'usuario_nome', 'cmv.ficha_salva', 'ficha', v_id, p_auditoria->'dados');
+  return v_id;
+end $$;
+revoke execute on function public.cmv_ficha_salvar(uuid, text, uuid, uuid, uuid, jsonb, jsonb) from public, anon, authenticated;
