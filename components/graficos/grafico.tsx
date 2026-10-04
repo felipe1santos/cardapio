@@ -133,7 +133,16 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
 
   return (
     <div className="w-full" style={{ color: CORES_GRAFICO.texto }} data-testid={testid}>
-      <div ref={caixa} className="relative w-full" style={{ background: CORES_GRAFICO.fundo }}>
+      {/* Teclado: Tab chega ao gráfico; ← → percorrem os períodos (abre o tooltip), Home/End, Esc fecha. */}
+      <div ref={caixa} className="relative w-full rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-[#1877F2]" style={{ background: CORES_GRAFICO.fundo }}
+        tabIndex={n ? 0 : -1} aria-label={`Gráfico: ${series.map((s) => s.nome).join(', ')}. Use as setas para ver cada período.`}
+        onKeyDown={(e) => {
+          const ir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+          if (ir) { e.preventDefault(); setFoco((f) => Math.max(0, Math.min(n - 1, f === null ? (ir > 0 ? 0 : n - 1) : f + ir))) }
+          else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); setFoco(e.key === 'Home' ? 0 : n - 1) }
+          else if (e.key === 'Escape') setFoco(null)
+        }}
+        onBlur={() => setFoco(null)}>
         <svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`} preserveAspectRatio="none" role="img" aria-label={series.map((s) => s.nome).join(', ')}
           onPointerMove={aoMover} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setFoco(null) }} onPointerDown={aoMover} style={{ touchAction: 'pan-y', display: 'block' }}>
           <defs>

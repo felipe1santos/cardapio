@@ -978,7 +978,7 @@ html:has(.vitrine-sem-zoom) {
    tirada dos prints do Gerenciador de Eventos / Business Suite (docs/financeiro-redesign/README.md).
    Efeitos (hover, clique, foco) não aparecem nos prints: seguem o padrão da Meta — hover um pouco
    mais escuro, clique mais escuro, anel de foco azul, transição de 150 ms. */
-.fin-meta {
+.fin-meta, .meta-tema {
   --cor-page: 239 241 243;          /* #EFF1F3 trilhos e fundos neutros */
   --cor-border: 203 210 217;        /* #CBD2D9 */
   --cor-text-main: 28 43 51;        /* #1C2B33 */
@@ -1018,27 +1018,28 @@ html:has(.vitrine-sem-zoom) {
   --meta-sucesso: #4dbba6;
   --meta-borda: #cbd2d9;
   --meta-trilho: #eff1f3;
-  font-family: var(--font-meta), var(--font-painel), system-ui, sans-serif;
   color: var(--meta-texto);
 }
+/* Fonte da Meta só no Financeiro; fora dele (ex.: Dashboard geral, item 54) o kit usa a fonte da tela — nada de duas fontes na mesma página. */
+.fin-meta { font-family: var(--font-meta), var(--font-painel), system-ui, sans-serif; }
 /* Fundo da página: gradiente pastel suave — só na raiz do financeiro (janelas e menus que levam o tema não herdam). */
 .fin-meta[data-financeiro-raiz], .fin-meta.fin-fundo { background: linear-gradient(135deg, #e5f0fa 0%, #faf1f1 100%); }
 /* Cantos: os quase-retos do painel viram os arredondados da Meta só aqui dentro. */
-.fin-meta .rounded-\[3px\], .fin-meta .rounded-\[4px\], .fin-meta .rounded-menuzia { border-radius: 6px; }
-.fin-meta .rounded-\[6px\] { border-radius: 8px; }
+:is(.fin-meta, .meta-tema) .rounded-\[3px\], :is(.fin-meta, .meta-tema) .rounded-\[4px\], :is(.fin-meta, .meta-tema) .rounded-menuzia { border-radius: 6px; }
+:is(.fin-meta, .meta-tema) .rounded-\[6px\] { border-radius: 8px; }
 /* Caixa alta com espaçamento (botões, rótulos, cabeçalhos) → frase normal, como na Meta. */
-.fin-meta .uppercase { text-transform: none; }
-.fin-meta .tracking-wide { letter-spacing: normal; }
-.fin-meta :where(button, a, [role="button"], input, select, textarea, summary) {
+:is(.fin-meta, .meta-tema) .uppercase { text-transform: none; }
+:is(.fin-meta, .meta-tema) .tracking-wide { letter-spacing: normal; }
+:is(.fin-meta, .meta-tema) :where(button, a, [role="button"], input, select, textarea, summary) {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
-.fin-meta :where(button, a, [role="button"], summary):focus-visible,
-.fin-meta :where(input, select, textarea):focus-visible {
+:is(.fin-meta, .meta-tema) :where(button, a, [role="button"], summary):focus-visible,
+:is(.fin-meta, .meta-tema) :where(input, select, textarea):focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px var(--meta-azul);
 }
-.fin-meta :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { border-color: var(--meta-borda); }
-.fin-meta :where(input, select, textarea):focus { border-color: var(--meta-azul); }
+:is(.fin-meta, .meta-tema) :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { border-color: var(--meta-borda); }
+:is(.fin-meta, .meta-tema) :where(input, select, textarea):focus { border-color: var(--meta-azul); }
 
 /* Cartão */
 .fin-card {
@@ -1071,26 +1072,26 @@ html:has(.vitrine-sem-zoom) {
 .fin-btn-texto:not(:disabled):hover { background: var(--meta-destaque); }
 .fin-btn-texto:not(:disabled):active { background: var(--meta-ativo-fundo); }
 /* Tabelas leves */
-.fin-meta table thead th { font-size: 12px; font-weight: 600; color: var(--meta-texto-2); background: transparent; }
-.fin-meta table tbody tr { transition: background-color 150ms ease; }
-.fin-meta table tbody tr:hover { background: #f5f7f9; }
+:is(.fin-meta, .meta-tema) table thead th { font-size: 12px; font-weight: 600; color: var(--meta-texto-2); background: transparent; }
+:is(.fin-meta, .meta-tema) table tbody tr { transition: background-color 150ms ease; }
+:is(.fin-meta, .meta-tema) table tbody tr:hover { background: #f5f7f9; }
 /* Abas (como "Pessoas | Ativos conectados") */
 .fin-aba { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 6px; font-size: 14px; font-weight: 600; color: var(--meta-texto-2); white-space: nowrap; }
 .fin-aba:hover { background: #f5f6f7; color: var(--meta-texto); }
 .fin-aba:active { background: #e4e7ea; }
 .fin-aba[aria-pressed="true"], .fin-aba[aria-selected="true"] { background: var(--meta-ativo-fundo); color: var(--meta-azul-hover); }
 /* Cartão de número (components/admin/cartao-numero.tsx) dentro do financeiro: o cartão da Meta. */
-.fin-meta [data-cartao-numero] {
+:is(.fin-meta, .meta-tema) [data-cartao-numero] {
   border: 1px solid rgba(203, 210, 217, 0.7);
   box-shadow: 0 1px 2px rgba(28, 43, 51, 0.08), 0 2px 8px rgba(28, 43, 51, 0.05);
 }
-.fin-meta [data-cartao-numero] p:first-child { font-size: 13px; font-weight: 600; }
+:is(.fin-meta, .meta-tema) [data-cartao-numero] p:first-child { font-size: 13px; font-weight: 600; }
 /* O painel ([data-admin-shell] main …) pinta campos e cabeçalhos de tabela com regras mais específicas; dentro
    do financeiro valem as da Meta (mesma especificidade, declaradas depois). */
 @media screen {
-  [data-admin-shell] main .fin-meta input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
-  [data-admin-shell] main .fin-meta select,
-  [data-admin-shell] main .fin-meta textarea {
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) select,
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) textarea {
     background-color: #ffffff;
     border-width: 1px;
     border-color: #cbd2d9;
@@ -1098,20 +1099,20 @@ html:has(.vitrine-sem-zoom) {
     font-size: 14px;
     color: #1c2b33;
   }
-  [data-admin-shell] main .fin-meta input:not([type='checkbox']):not([type='radio']):hover,
-  [data-admin-shell] main .fin-meta select:hover,
-  [data-admin-shell] main .fin-meta textarea:hover { border-color: #9aa6b1; }
-  [data-admin-shell] main .fin-meta input:focus,
-  [data-admin-shell] main .fin-meta select:focus,
-  [data-admin-shell] main .fin-meta textarea:focus { border-color: #0a78be; box-shadow: 0 0 0 1px #0a78be; }
-  [data-admin-shell] main .fin-meta thead { background-color: #f5f7f9; }
-  [data-admin-shell] main .fin-meta thead th[class] {
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) input:not([type='checkbox']):not([type='radio']):hover,
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) select:hover,
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) textarea:hover { border-color: #9aa6b1; }
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) input:focus,
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) select:focus,
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) textarea:focus { border-color: #0a78be; box-shadow: 0 0 0 1px #0a78be; }
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) thead { background-color: #f5f7f9; }
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) thead th[class] {
     background-color: #f5f7f9;
     font-size: 12.5px;
     font-weight: 600;
     color: #465a69;
     padding: 11px 14px;
   }
-  [data-admin-shell] main .fin-meta tbody td { font-size: 13px; color: #1c2b33; }
+  [data-admin-shell] main :is(.fin-meta, .meta-tema) tbody td { font-size: 13px; color: #1c2b33; }
 }
-.fin-meta { --adm-vermelho-texto: #d93616; --adm-vermelho: #d93616; --adm-superficie-2: #f5f6f7; }
+.fin-meta, .meta-tema { --adm-vermelho-texto: #d93616; --adm-vermelho: #d93616; --adm-superficie-2: #f5f6f7; }

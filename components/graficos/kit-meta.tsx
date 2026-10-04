@@ -134,9 +134,20 @@ export function Destaque({ titulo, subtitulo, children, testid }: { titulo: Reac
 /** Abas (como "Pessoas | Ativos conectados"): a selecionada em azul-claro. */
 export function Abas<T extends string>({ itens, ativo, onSelecionar, testidPrefixo }: { itens: [T, ReactNode][]; ativo: T; onSelecionar: (id: T) => void; testidPrefixo: string }) {
   return (
-    <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="tablist">
+    <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="tablist"
+      onKeyDown={(e) => {
+        // Setas trocam de aba (padrão de tablist); o foco acompanha a aba escolhida.
+        const passo = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (!passo) return
+        e.preventDefault()
+        const lista = e.currentTarget
+        const i = itens.findIndex(([id]) => id === ativo)
+        const prox = itens[(i + passo + itens.length) % itens.length][0]
+        onSelecionar(prox)
+        requestAnimationFrame(() => (lista.querySelector(`[data-testid="${testidPrefixo}-${prox}"]`) as HTMLElement | null)?.focus())
+      }}>
       {itens.map(([id, r]) => (
-        <button key={id} type="button" role="tab" aria-selected={ativo === id} className="fin-aba flex-shrink-0" onClick={() => onSelecionar(id)} data-testid={`${testidPrefixo}-${id}`}>{r}</button>
+        <button key={id} type="button" role="tab" aria-selected={ativo === id} tabIndex={ativo === id ? 0 : -1} className="fin-aba flex-shrink-0" onClick={() => onSelecionar(id)} data-testid={`${testidPrefixo}-${id}`}>{r}</button>
       ))}
     </div>
   )

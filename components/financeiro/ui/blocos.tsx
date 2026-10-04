@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, X } from 'lucide-react'
-import { FIN_BTN, FIN_COR } from './meta'
+import { FIN_BTN, FIN_COR } from '@/components/graficos/kit-meta'
 
 /**
  * Peças reaproveitáveis do Financeiro (Fase 4; visual "estilo Meta" no item 4b, 2026-10-04): selo, chip de

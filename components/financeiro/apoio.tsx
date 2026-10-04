@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { paraCentavos, formatarCentavos } from '@/lib/financeiro/centavos'
 import { TecladoPin } from '@/components/admin/teclado-pin'
-import { FIN_BTN, FIN_COR } from './ui/meta'
+import { FIN_BTN, FIN_COR } from '@/components/graficos/kit-meta'
 
 /** Campo de dinheiro: a pessoa digita "150" ou "150,50"; a tela devolve centavos (ou null). */
 export function CampoDinheiro({ valor, onMudar, rotulo, testid, autoFocus }: {

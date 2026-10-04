@@ -15,8 +15,8 @@ import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { BOTAO, Chip, PainelLateral, RaizImpressao, Selo, imprimirDocumento } from '../ui/blocos'
 import { ExtratoTurno } from './extrato-turno'
 import { DocumentoFluxo, type DadosImpressao } from './documento'
-import { CabecalhoSecao, Card, FIN_COR } from '../ui/meta'
-import { GraficoFinanceiro } from '../ui/grafico'
+import { CabecalhoSecao, Card, FIN_COR } from '@/components/graficos/kit-meta'
+import { GraficoFinanceiro } from '@/components/graficos/grafico'
 
 /**
  * Financeiro › Fluxo de Caixa (Fase 4). Só leitura: tudo vem do livro-caixa pela API.

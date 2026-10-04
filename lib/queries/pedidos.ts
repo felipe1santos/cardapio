@@ -15,6 +15,7 @@ import { resolverPizza, type SaborCatalogo, type TamanhoCatalogo } from './pedid
 import type { RegraPrecoPizza } from '@/lib/pizza-preco'
 import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
 import { lerTodas } from './ler-todas'
+import { ehPedidoDeTeste } from '@/lib/dashboard-limpeza'
 
 const centavos = (v: number) => Math.round(v * 100) / 100
 
@@ -938,6 +939,8 @@ export interface PedidoDashboard {
   itens: { itemId: string | null; nome: string; quantidade: number; receita: number }[]
   /** De onde veio a venda (2026-10-03): vitrine (cardápio online), PDV/balcão ou mesa. */
   origemVenda: OrigemVenda
+  /** Pedido de TESTE (lib/dashboard-limpeza): fica fora das análises das lojas reais (item 54). */
+  teste: boolean
 }
 
 export type OrigemVenda = 'vitrine' | 'pdv' | 'mesa'
@@ -958,7 +961,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
   // perde os de hoje sem aviso.
   const pedidos = await lerTodas<Record<string, unknown>>((de, ate) => supabase
     .from('pedidos')
-    .select('total, tipo, status, forma_pagamento, criado_em, cliente_telefone, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+    .select('total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
     .order('criado_em', { ascending: true })
@@ -981,7 +984,9 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     status: StatusPedido
     forma_pagamento: FormaPagamento
     criado_em: string
+    cliente_nome: string | null
     cliente_telefone: string | null
+    observacao: string | null
     endereco_rua: string | null
     endereco_numero: string | null
     endereco_bairro: string | null
@@ -1001,6 +1006,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     enderecoBairro: p.endereco_bairro ?? '',
     enderecoCep: p.endereco_cep ?? '',
     origemVenda: origemDaVenda(p.canal, p.origem),
+    teste: ehPedidoDeTeste({ clienteNome: p.cliente_nome, observacao: p.observacao, bairro: p.endereco_bairro, telefone: p.cliente_telefone }),
     itens: (p.pedido_itens ?? []).map((i) => ({
       itemId: i.item_id,
       nome: i.nome,

@@ -57,15 +57,16 @@ describe('etiquetas no cardápio da mesa', () => {
     expect(screen.getByText('🏷️ Promoção')).toBeInTheDocument()
   })
 
-  it('favorito do Gestor mostra o selo "★ Favorito" (não vira "Mais pedido")', () => {
+  // P8 (2026-10-04): a estrela do Gestor virou o selo "Mais Pedidos" (antes "★ Favorito").
+  it('favorito do Gestor mostra o selo "Mais Pedidos" (uma vez só)', () => {
     renderizar([item({ maisVendido: true })])
-    expect(screen.getByText('★ Favorito')).toBeInTheDocument()
-    expect(screen.queryByText('🔥 Mais pedido')).toBeNull()
+    expect(screen.getAllByText('Mais Pedidos')).toHaveLength(1)
+    expect(screen.queryByText('★ Favorito')).toBeNull()
   })
 
   it('favorito convive com a promoção, e o preço anterior aparece riscado', () => {
     const { container } = renderizar([item({ maisVendido: true, preco: 9, precoOriginal: 14, precoAPartirDe: 9 })])
-    expect(screen.getByText('★ Favorito')).toBeInTheDocument()
+    expect(screen.getByText('Mais Pedidos')).toBeInTheDocument()
     expect(screen.getByText('🏷️ Promoção')).toBeInTheDocument()
     expect(container.querySelector('.mesa-preco-antigo')?.textContent).toMatch(/14,00/)
   })
@@ -75,11 +76,16 @@ describe('etiquetas no cardápio da mesa', () => {
     expect(container.querySelectorAll('.mesa-item-etiqueta')).toHaveLength(0)
   })
 
-  /** Uma só por item: duas pílulas no mesmo cartão se anulam. */
+  /**
+   * Uma etiqueta só por item, além do selo "Mais Pedidos": a tag antiga "favorito" é o mesmo conceito do
+   * selo (P8) e não vira uma segunda pílula; a promoção convive com ele.
+   */
   it('nunca empilha duas etiquetas no mesmo item', () => {
     const { container } = renderizar([item({ tag: 'favorito', preco: 9, precoOriginal: 14, maisVendido: true })])
-    expect(container.querySelectorAll('.mesa-item-etiqueta')).toHaveLength(1)
-    expect(screen.getByText('⭐ Favorito da casa')).toBeInTheDocument()
+    expect(container.querySelectorAll('.mesa-item-etiqueta[data-selo-mais-pedidos]')).toHaveLength(1)
+    expect(container.querySelectorAll('.mesa-item-etiqueta:not([data-selo-mais-pedidos])')).toHaveLength(1)
+    expect(screen.getAllByText('Mais Pedidos')).toHaveLength(1)
+    expect(screen.queryByText('⭐ Favorito da casa')).toBeNull()
   })
 
   it('a etiqueta também aparece no modo somente visualização', () => {

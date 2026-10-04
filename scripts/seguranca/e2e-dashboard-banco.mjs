@@ -2,7 +2,8 @@
  * E2E — o Dashboard bate com o banco? (2026-10-03)
  * Loja local `fin-int` (tem pedidos da vitrine, do PDV/balcão e de mesa). Abre o Dashboard como
  * o dono (padrão: últimos 30 dias, fuso de São Paulo) e compara cada número com SQL direto:
- *   · Faturamento = soma de TODOS os canais (sem cancelados) + rodapé por origem;
+ *   · Faturamento = soma de TODOS os canais (sem cancelados) + rodapé por origem — fora os pedidos de TESTE
+ *     (item 54: cliente/observação/bairro com "teste" ou o telefone de teste; só a loja `menuzia` os mantém);
  *   · funil da vitrine = visitantes únicos por etapa (só eventos da vitrine);
  *   · rótulos novos do tempo de entrega.
  *
@@ -51,8 +52,14 @@ try {
   await p.waitForTimeout(1500)
   if (PRINTS) await p.screenshot({ path: join(PRINTS, `dashboard-${SLUG}.png`), fullPage: true })
 
-  const vendas = await q(`select case when canal='mesa' then 'mesa' when canal='balcao' or origem='pdv' then 'pdv' else 'vitrine' end o, sum(total) receita, count(*) n
-    from pedidos where restaurante_id=$1 and status <> 'cancelado' and criado_em >= ${JANELA} and criado_em < ${FIM} group by 1`, [loja.id])
+  // Mesma regra de lib/dashboard-limpeza.ts (ehPedidoDeTeste), aplicada aqui por fora para conferir a tela.
+  const PALAVRA_TESTE = /(^|[^a-zà-ú])test(e|es)?([^a-zà-ú]|$)/i
+  const ehTeste = (r) => [r.cliente_nome, r.observacao, r.endereco_bairro].some((t) => !!t && PALAVRA_TESTE.test(t)) || (() => { const t = (r.cliente_telefone ?? '').replace(/D/g, ''); return t.length >= 10 && t.endsWith('27992534407') })()
+  const linhasVenda = await q(`select case when canal='mesa' then 'mesa' when canal='balcao' or origem='pdv' then 'pdv' else 'vitrine' end o, total, cliente_nome, observacao, endereco_bairro, cliente_telefone
+    from pedidos where restaurante_id=$1 and status <> 'cancelado' and criado_em >= ${JANELA} and criado_em < ${FIM}`, [loja.id])
+  const contam = SLUG === 'menuzia' ? linhasVenda : linhasVenda.filter((r) => !ehTeste(r))
+  console.log(`   (pedidos no período: ${linhasVenda.length}; de TESTE fora: ${linhasVenda.length - contam.length})`)
+  const vendas = Object.values(contam.reduce((a, r) => { (a[r.o] ??= { o: r.o, receita: 0, n: 0 }).receita += Number(r.total); a[r.o].n++; return a }, {}))
   const por = Object.fromEntries(vendas.map((v) => [v.o, { receita: Number(v.receita), n: Number(v.n) }]))
   const totalBanco = vendas.reduce((s, v) => s + Number(v.receita), 0)
   const fat = limpa(await p.getByTestId('indicador-Faturamento').innerText())

@@ -58,9 +58,9 @@ export function TabelaAnalitica<T extends { id: string }>({
   }, [linhas, colunas, ordem, busca, termo])
 
   return (
-    <section className="flex-shrink-0 overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+    <section className="fin-card flex-shrink-0 overflow-hidden" data-tabela-analitica>
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
-        <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">{titulo}</h3>
+        <h3 className="text-[16px] font-bold text-[#1C2B33]">{titulo}</h3>
         {busca && (
           <label className="flex h-[36px] min-w-[220px] items-center gap-2 rounded-[4.8px] border-[0.8px] border-[var(--adm-borda)] bg-[var(--adm-superficie-2)] px-2.5">
             <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0 fill-[var(--adm-texto-suave)]" aria-hidden="true">

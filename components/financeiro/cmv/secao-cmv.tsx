@@ -11,8 +11,8 @@ import { ATALHOS, periodoDoAtalho } from '@/lib/financeiro/fluxo-regras'
 import { BOTAO, Chip, PainelLateral, Selo } from '../ui/blocos'
 import { FichaCusto, type AlvoFicha } from './ficha-custo'
 import { SecaoInsumos, type InsumoCompleto } from './insumos'
-import { CabecalhoSecao, Card } from '../ui/meta'
-import { GraficoFinanceiro, Medidor } from '../ui/grafico'
+import { CabecalhoSecao, Card } from '@/components/graficos/kit-meta'
+import { GraficoFinanceiro, Medidor } from '@/components/graficos/grafico'
 
 /**
  * Financeiro › Precificação / CMV (Fase 5). Custos só aparecem para quem tem "Ver custos e margens".

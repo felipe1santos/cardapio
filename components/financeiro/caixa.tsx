@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AprovacaoPin, CampoDinheiro, Janela, botao, brl, type AprovacaoDada, type PedidoRemoto } from './apoio'
 import { DESCRICAO_MOVIMENTO, MOVIMENTOS, ROTULO_MOVIMENTO, tempoAberto, type Movimento } from '@/lib/financeiro/caixa-regras'
-import { BotaoGaveta, Card, FIN_COR, Kpi, SeloMeta, ValorSinal } from './ui/meta'
-import { GraficoFinanceiro } from './ui/grafico'
+import { BotaoGaveta, Card, FIN_COR, Kpi, SeloMeta, ValorSinal } from '@/components/graficos/kit-meta'
+import { GraficoFinanceiro } from '@/components/graficos/grafico'
 
 /**
  * Financeiro › Caixa e Movimentações (Fase 2). A tela só mostra e pede; quem calcula, confere

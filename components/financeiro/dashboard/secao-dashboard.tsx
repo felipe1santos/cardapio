@@ -6,8 +6,8 @@ import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { ATALHOS, periodoDoAtalho, type Atalho } from '@/lib/financeiro/fluxo-regras'
 import { periodoAnterior, variacaoPct } from '@/lib/financeiro/contas-regras'
 import { Chip } from '../ui/blocos'
-import { CORES_GRAFICO, GraficoFinanceiro, Medidor, dataCurta } from '../ui/grafico'
-import { Aviso, CabecalhoSecao, Card, Destaque, FIN_COR, FiltroPeriodo, Kpi } from '../ui/meta'
+import { CORES_GRAFICO, GraficoFinanceiro, Medidor, dataCurta } from '@/components/graficos/grafico'
+import { Aviso, CabecalhoSecao, Card, Destaque, FIN_COR, FiltroPeriodo, Kpi } from '@/components/graficos/kit-meta'
 
 /**
  * Financeiro › Dashboard (Fase 6). Números do livro-caixa e do custo guardado na venda; o gráfico usa o

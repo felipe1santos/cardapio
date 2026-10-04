@@ -6,13 +6,11 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { carregarDashboard, type DadosDashboard, type PedidoDashboard } from '@/lib/queries/pedidos'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
-import { HeatmapCard } from '@/components/dashboard/heatmap-card'
 import { FiltroPeriodo } from '@/components/dashboard/filtro-periodo'
 import { DicaInfo } from '@/components/dashboard/dica-info'
 import { CartaoFunil } from '@/components/dashboard/cartao-funil'
-import { GraficoLinhas } from '@/components/dashboard/grafico-linhas'
-import { GraficoArea } from '@/components/dashboard/grafico-area'
-import { TabelaAnalitica, type ColunaTabela } from '@/components/dashboard/tabela-analitica'
+import { AnalisesAbas, type LinhaBairro, type LinhaProduto } from '@/components/dashboard/analises-abas'
+import { LOJAS_DE_TESTE } from '@/lib/dashboard-limpeza'
 import { MiniGrafico } from '@/components/dashboard/mini-grafico'
 import { ICONES } from '@/lib/icones-painel'
 import {
@@ -42,9 +40,6 @@ import {
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
-const PAY_COR: Record<string, string> = { pix: 'var(--adm-serie-3)', cartao: 'var(--adm-serie-1)', dinheiro: 'var(--adm-serie-2)' }
-// Barras de categoria: uma cor por posição, para o cartão não virar uma coluna azul só.
-const CORES_CATEGORIA = ['var(--adm-serie-1)', 'var(--adm-serie-2)', 'var(--adm-serie-3)', 'var(--adm-serie-4)', 'var(--adm-serie-5)', '#9CA3AF']
 
 /** Cor de cada indicador: fundo claro da bolha + cor do ícone. */
 const TONS = {
@@ -57,8 +52,6 @@ const TONS = {
 type Tom = keyof typeof TONS
 
 const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const brlCurto = (v: number) =>
-  v >= 1000 ? `R$ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k` : `R$ ${Math.round(v)}`
 const dataCurta = (ms: number) => new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 const inteiro = (v: number) => v.toLocaleString('pt-BR')
 
@@ -139,56 +132,6 @@ function Indicador({
   )
 }
 
-/** Rosca de participação — mesma do painel antigo, agora nas cores do tema. */
-function Rosca({ fatias }: { fatias: { cor: string; pct: number; nome: string }[] }) {
-  const R = 52
-  const C = 2 * Math.PI * R
-  let offset = 0
-  const visiveis = fatias.filter((f) => f.pct > 0)
-  return (
-    <svg viewBox="0 0 140 140" className="h-[130px] w-[130px] flex-shrink-0 -rotate-90">
-      <circle cx="70" cy="70" r={R} fill="none" stroke="#eef0f3" strokeWidth="20" />
-      {visiveis.map((f) => {
-        const dash = (f.pct / 100) * C
-        const el = (
-          <circle
-            key={f.nome}
-            cx="70"
-            cy="70"
-            r={R}
-            fill="none"
-            stroke={f.cor}
-            strokeWidth="20"
-            strokeDasharray={`${dash} ${C - dash}`}
-            strokeDashoffset={-offset}
-          >
-            <title>{`${f.nome}: ${f.pct}%`}</title>
-          </circle>
-        )
-        offset += dash
-        return el
-      })}
-    </svg>
-  )
-}
-
-interface LinhaProduto {
-  id: string
-  nome: string
-  pedidos: number
-  quantidade: number
-  receita: number
-}
-
-interface LinhaBairro {
-  id: string
-  bairro: string
-  pedidos: number
-  receita: number
-  ticket: number
-  participacao: number
-}
-
 export default function DashboardPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [agora] = useState(() => Date.now())
@@ -199,6 +142,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {} })
   const [lojaLocal, setLojaLocal] = useState('')
+  const [lojaSlug, setLojaSlug] = useState('')
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // undefined = carregando; null = rastreio ainda não instalado no banco.
   const [vitrine, setVitrine] = useState<AnalyticsVitrine | null | undefined>(undefined)
@@ -223,7 +167,7 @@ export default function DashboardPage() {
         setDados(dash)
         setRestauranteId(id)
         carregarTemposEntrega(supabase, id).then((t) => active && setTemposEntrega(t))
-        if (loja) setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', '))
+        if (loja) { setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', ')); setLojaSlug(loja.slug) }
       } catch {
         setError('Não foi possível carregar o dashboard.')
       } finally {
@@ -248,7 +192,8 @@ export default function DashboardPage() {
   }, [supabase, restauranteId, intervalo])
 
   const m = useMemo(() => {
-    const historico = dados.pedidos
+    // Pedidos de TESTE ficam fora das análises das lojas reais; na loja de teste (Menuzia) continuam (item 54).
+    const historico = LOJAS_DE_TESTE.has(lojaSlug) ? dados.pedidos : dados.pedidos.filter((p) => !p.teste)
     const pedidos = filtrarPorIntervalo(historico, intervalo)
     const anteriorIntervalo = intervaloAnterior(intervalo)
     const anteriores = anteriorIntervalo ? filtrarPorIntervalo(historico, anteriorIntervalo) : []
@@ -322,7 +267,6 @@ export default function DashboardPage() {
     for (const p of pedidos) porPagamento[p.formaPagamento] = (porPagamento[p.formaPagamento] ?? 0) + p.total
     const pagamentos = (['pix', 'cartao', 'dinheiro'] as const).map((k) => ({
       nome: PAY_LABEL[k],
-      cor: PAY_COR[k],
       pct: receita ? Math.round(((porPagamento[k] ?? 0) / receita) * 100) : 0,
       valor: porPagamento[k] ?? 0,
     }))
@@ -390,7 +334,7 @@ export default function DashboardPage() {
       deltaTicket: variacao(ticket, ticketAnterior),
       deltaConclusao: variacao(conclusao, conclusaoAnt),
     }
-  }, [dados, intervalo, agora, temposEntrega])
+  }, [dados, intervalo, agora, temposEntrega, lojaSlug])
 
   const funil = useMemo(() => {
     if (vitrine === undefined) return null
@@ -400,47 +344,24 @@ export default function DashboardPage() {
     return funilDaVitrine(vitrine, diasDoIntervalo(intervalo, agora, maisAntigo))
   }, [vitrine, intervalo, agora])
 
-  const colunasProduto: ColunaTabela<LinhaProduto>[] = [
-    { id: 'nome', titulo: 'Produto', valor: (l) => l.nome, destaque: true },
-    { id: 'pedidos', titulo: 'Pedidos', valor: (l) => l.pedidos, alinhar: 'direita' },
-    { id: 'quantidade', titulo: 'Unidades', valor: (l) => l.quantidade, alinhar: 'direita' },
-    { id: 'receita', titulo: 'Receita', valor: (l) => l.receita, render: (l) => brl(l.receita), alinhar: 'direita' },
-  ]
+  // Nomes do cardápio da loja: o rótulo de um clique em produto começa pelo nome dele.
+  const nomesCardapio = useMemo(() => ({
+    produtos: [...new Set(dados.pedidos.flatMap((p) => p.itens.map((i) => i.nome)))],
+    categorias: [...new Set(Object.values(dados.grupoPorItem))],
+  }), [dados])
 
-  const colunasBairro: ColunaTabela<LinhaBairro>[] = [
-    { id: 'bairro', titulo: 'Bairro', valor: (l) => l.bairro, destaque: true },
-    { id: 'pedidos', titulo: 'Pedidos', valor: (l) => l.pedidos, alinhar: 'direita' },
-    { id: 'receita', titulo: 'Receita', valor: (l) => l.receita, render: (l) => brl(l.receita), alinhar: 'direita' },
-    { id: 'ticket', titulo: 'Ticket médio', valor: (l) => l.ticket, render: (l) => brl(l.ticket), alinhar: 'direita' },
-    {
-      id: 'participacao',
-      titulo: 'Participação',
-      valor: (l) => l.participacao,
-      render: (l) => `${l.participacao.toFixed(1).replace('.', ',')}%`,
-      alinhar: 'direita',
-    },
-  ]
-
-  const colunasClique: ColunaTabela<{ id: string; alvo: string; cliques: number; visitantes: number }>[] = [
-    { id: 'alvo', titulo: 'Onde clicaram', valor: (l) => l.alvo, destaque: true },
-    { id: 'cliques', titulo: 'Cliques', valor: (l) => l.cliques, alinhar: 'direita' },
-    { id: 'visitantes', titulo: 'Visitantes', valor: (l) => l.visitantes, alinhar: 'direita' },
-  ]
-  const colunasOrigem: ColunaTabela<{ id: string; origem: string; visitas: number; pedidos: number; conversao: number }>[] = [
-    { id: 'origem', titulo: 'Origem', valor: (l) => l.origem, destaque: true },
-    { id: 'visitas', titulo: 'Visitas', valor: (l) => l.visitas, alinhar: 'direita' },
-    { id: 'pedidos', titulo: 'Pedidos', valor: (l) => l.pedidos, alinhar: 'direita' },
-    {
-      id: 'conversao',
-      titulo: 'Conversão',
-      valor: (l) => l.conversao,
-      render: (l) => `${l.conversao.toFixed(1).replace('.', ',')}%`,
-      alinhar: 'direita',
-    },
-  ]
-
-  const maiorCategoria = Math.max(1, ...m.categorias.map((c) => c.valor))
-  const maiorBairro = Math.max(1, ...m.rankingBairros.map((b) => b.pedidos))
+  // Filtro de período ÚNICO da página: o mesmo controle no topo e no cabeçalho das análises.
+  const filtroPeriodo = (
+    <FiltroPeriodo
+      intervalo={intervalo}
+      preset={preset}
+      agora={agora}
+      onEscolher={(novo, atalho) => {
+        setIntervalo(novo)
+        setPreset(atalho)
+      }}
+    />
+  )
 
   if (loading) {
     return (
@@ -465,17 +386,7 @@ export default function DashboardPage() {
         )}
 
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 sm:flex-none">
-            <FiltroPeriodo
-              intervalo={intervalo}
-              preset={preset}
-              agora={agora}
-              onEscolher={(novo, atalho) => {
-                setIntervalo(novo)
-                setPreset(atalho)
-              }}
-            />
-          </div>
+          <div className="min-w-0 flex-1 sm:flex-none">{filtroPeriodo}</div>
           {/* O aviso do rastreio da vitrine virou um ⓘ discreto (passar o mouse ou tocar). */}
           {vitrine !== null && (
             <DicaInfo texto="Visitas, visualizações, sacola e checkout são contadas a partir da ativação do rastreio da vitrine (23/09/2026). Cada visitante conta uma vez por etapa." />
@@ -602,220 +513,31 @@ export default function DashboardPage() {
           </Cartao>
         </div>
 
-        {/* Análise de pedidos: o gráfico de três linhas. */}
-        <Cartao className="p-4">
-          <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Análise de pedidos</h3>
-          <div className="mt-3 flex flex-wrap gap-8">
-            <div>
-              <p className="text-[24px] font-bold leading-none text-[var(--adm-texto)]">{inteiro(m.pedidos.length)}</p>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-[var(--adm-texto-medio)]">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--adm-serie-1)]" />
-                Total de pedidos
-              </p>
-            </div>
-            <div>
-              <p className="text-[24px] font-bold leading-none text-[var(--adm-texto)]">
-                {inteiro(m.serie.reduce((s, p) => s + p.novos, 0))}
-              </p>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-[var(--adm-texto-medio)]">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--adm-serie-2)]" />
-                De clientes novos
-              </p>
-            </div>
-            <div>
-              <p className="text-[24px] font-bold leading-none text-[var(--adm-texto)]">
-                {inteiro(m.serie.reduce((s, p) => s + p.recorrentes, 0))}
-              </p>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-[var(--adm-texto-medio)]">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--adm-serie-3)]" />
-                De clientes recorrentes
-              </p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <GraficoLinhas
-              rotulos={m.rotulos}
-              series={[
-                { nome: 'Total de pedidos', cor: '#A855F7', valores: m.serie.map((p) => p.total) },
-                { nome: 'Pedidos de clientes novos', cor: '#F97316', valores: m.serie.map((p) => p.novos) },
-                { nome: 'Pedidos de clientes recorrentes', cor: '#10B981', valores: m.serie.map((p) => p.recorrentes) },
-              ]}
-            />
-          </div>
-        </Cartao>
-
-        {/* Faturamento no tempo. */}
-        <Cartao className="p-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Faturamento no período</h3>
-              <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Receita dos pedidos não cancelados</p>
-            </div>
-            <p className="text-[22px] font-bold text-[var(--adm-texto)]">{brl(m.receita)}</p>
-          </div>
-          <div className="mt-3">
-            <GraficoArea valores={m.serie.map((p) => p.receita)} rotulos={m.rotulos} formatarValor={brlCurto} cor="#10B981" />
-          </div>
-        </Cartao>
-
-        {/* Tabelas analíticas. */}
-        <TabelaAnalitica
-          titulo="Performance dos produtos"
-          colunas={colunasProduto}
-          linhas={m.produtos}
-          ordemInicial="receita"
-          busca={{ placeholder: 'Pesquise por um produto', texto: (l) => l.nome }}
-          vazio="Nenhum produto vendido no período"
+        {/* Tudo de "Análise de pedidos" para baixo: um bloco só, em abas, no visual do kit (item 54). */}
+        <AnalisesAbas
+          dados={{
+            totalPedidos: m.pedidos.length,
+            novos: m.serie.reduce((t, p) => t + p.novos, 0),
+            recorrentes: m.serie.reduce((t, p) => t + p.recorrentes, 0),
+            receita: m.receita,
+            serie: m.serie,
+            rotulos: m.rotulos,
+            periodos: m.serie.map((p) => new Date(p.ms).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })),
+            canais: m.canais,
+            pagamentos: m.pagamentos,
+            entrega: m.entrega,
+            produtos: m.produtos,
+            categorias: m.categorias,
+            bairros: m.bairros,
+            rankingBairros: m.rankingBairros,
+            pontos: m.heatPoints,
+          }}
+          vitrine={vitrine}
+          nomes={nomesCardapio}
+          filtro={filtroPeriodo}
+          mapsKey={MAPS_KEY}
+          centro={lojaLocal}
         />
-
-        <TabelaAnalitica
-          titulo="Análise por bairro"
-          colunas={colunasBairro}
-          linhas={m.bairros}
-          ordemInicial="receita"
-          busca={{ placeholder: 'Pesquise por um bairro', texto: (l) => l.bairro }}
-          vazio="Nenhum pedido com endereço no período"
-        />
-
-        {/* Comportamento na vitrine. */}
-        {vitrine && (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <TabelaAnalitica
-              titulo="Cliques na vitrine"
-              colunas={colunasClique}
-              linhas={vitrine.cliques.map((c) => ({ id: c.alvo, ...c }))}
-              ordemInicial="cliques"
-              busca={{ placeholder: 'Pesquise um botão', texto: (l) => l.alvo }}
-              vazio="Nenhum clique registrado no período"
-            />
-            <TabelaAnalitica
-              titulo="Origem das visitas"
-              colunas={colunasOrigem}
-              linhas={vitrine.origens.map((o) => ({
-                id: o.origem,
-                ...o,
-                conversao: o.visitas ? (o.pedidos / o.visitas) * 100 : 0,
-              }))}
-              ordemInicial="visitas"
-              vazio="Nenhuma visita registrada no período"
-            />
-          </div>
-        )}
-
-        {/* Mapa + categorias. */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Cartao className="p-4 lg:col-span-2">
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <div>
-                <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Onde estão seus pedidos</h3>
-                <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Bolha maior = mais pedidos naquele ponto</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_220px]">
-              <HeatmapCard
-                apiKey={MAPS_KEY}
-                center={lojaLocal}
-                points={m.heatPoints}
-                className="h-[320px] w-full rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)]"
-              />
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--adm-texto-suave)]">
-                  Bairros que mais pedem
-                </p>
-                {m.rankingBairros.length === 0 ? (
-                  <p className="mt-6 text-center text-[12px] text-[var(--adm-texto-suave)]">Sem pedidos com endereço.</p>
-                ) : (
-                  <ol className="mt-3 space-y-3">
-                    {m.rankingBairros.map((b, i) => (
-                      <li key={b.id}>
-                        <div className="flex items-baseline gap-2 text-[12.8px]">
-                          <span className="w-4 flex-shrink-0 text-[11px] font-bold text-[var(--adm-texto-suave)]">{i + 1}</span>
-                          <span className="min-w-0 flex-1 truncate font-semibold text-[var(--adm-texto)]">{b.bairro}</span>
-                          <span className="tabular-nums text-[var(--adm-texto-medio)]">{b.pedidos}</span>
-                        </div>
-                        <div className="ml-6 mt-1 h-1.5 overflow-hidden rounded-full bg-[#f1f2f4]">
-                          <div className="h-full rounded-full bg-[#F97316]" style={{ width: `${(b.pedidos / maiorBairro) * 100}%` }} />
-                        </div>
-                        <p className="ml-6 mt-0.5 text-[11px] text-[var(--adm-texto-suave)]">{brl(b.receita)}</p>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            </div>
-          </Cartao>
-
-          <Cartao className="p-4">
-            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Faturamento por categoria</h3>
-            <div className="mt-4 space-y-3">
-              {m.categorias.length === 0 && (
-                <p className="py-6 text-center text-[12px] text-[var(--adm-texto-suave)]">Sem dados no período.</p>
-              )}
-              {m.categorias.map((cat, i) => (
-                <div key={cat.nome}>
-                  <div className="mb-1 flex items-center justify-between text-[12px]">
-                    <span className="font-semibold text-[var(--adm-texto)]">{cat.nome}</span>
-                    <span className="tabular-nums text-[var(--adm-texto-medio)]">{brl(cat.valor)}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-[#eef0f3]">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${(cat.valor / maiorCategoria) * 100}%`, backgroundColor: CORES_CATEGORIA[i % CORES_CATEGORIA.length] }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Cartao>
-        </div>
-
-        {/* Pagamento e canal. */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Cartao className="p-4">
-            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Formas de pagamento</h3>
-            <div className="mt-4 flex flex-wrap items-center gap-6">
-              <Rosca fatias={m.pagamentos} />
-              <div className="space-y-2.5">
-                {m.pagamentos.map((p) => (
-                  <div key={p.nome} className="flex items-center gap-2 text-[12.8px]">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.cor }} />
-                    <span className="font-semibold text-[var(--adm-texto)]">{p.nome}</span>
-                    <span className="text-[var(--adm-texto-medio)]">
-                      {p.pct}% · {brl(p.valor)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Cartao>
-
-          <Cartao className="p-4">
-            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Entrega e retirada</h3>
-            <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Participação de cada canal nos pedidos</p>
-            <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-[#eef0f3]">
-              <div className="h-full bg-[var(--adm-serie-2)]" style={{ width: `${m.canais.entrega}%` }} />
-              <div className="h-full bg-[var(--adm-serie-1)]" style={{ width: `${m.canais.retirada}%` }} />
-            </div>
-            <div className="mt-3 flex flex-wrap justify-between gap-3 text-[12.8px]">
-              <span className="flex items-center gap-2 font-semibold text-[var(--adm-texto)]">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-serie-2)]" aria-hidden="true">
-                  {ICONES.moto.map((d) => (
-                    <path key={d} d={d} />
-                  ))}
-                </svg>
-                Entrega · {m.canais.entrega}%
-              </span>
-              <span className="flex items-center gap-2 font-semibold text-[var(--adm-texto)]">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-serie-1)]" aria-hidden="true">
-                  {ICONES.loja.map((d) => (
-                    <path key={d} d={d} />
-                  ))}
-                </svg>
-                Retirada · {m.canais.retirada}%
-              </span>
-            </div>
-          </Cartao>
-        </div>
       </div>
     </>
   )

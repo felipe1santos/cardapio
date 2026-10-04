@@ -1,19 +1,34 @@
+import { readFileSync } from 'node:fs'
 import config from './tailwind.config'
+
+/**
+ * Desde o redesign do Financeiro (item 4b), algumas cores-base são variáveis `--cor-*` (formato "R G B")
+ * definidas no :root do globals.css — só a área do Financeiro as troca. Aqui a cor resolvida no :root
+ * tem que continuar sendo a da paleta oficial.
+ */
+const raiz = readFileSync('app/globals.css', 'utf8').match(/:root\s*\{([^}]*)\}/)?.[1] ?? ''
+function resolver(valor: string): string {
+  const v = valor.match(/^rgb\(var\((--cor-[\w-]+)\) \/ <alpha-value>\)$/)
+  if (!v) return valor
+  const rgb = raiz.match(new RegExp(`${v[1]}:\\s*(\\d+) (\\d+) (\\d+);`))
+  if (!rgb) return `(sem ${v[1]} no :root)`
+  return '#' + rgb.slice(1, 4).map((n) => Number(n).toString(16).padStart(2, '0')).join('').toUpperCase()
+}
 
 describe('Menuzia Tailwind theme tokens', () => {
   const colors = (config.theme?.extend?.colors ?? {}) as Record<string, any>
 
   it('defines the core palette from the Menuzia prototypes', () => {
-    expect(colors.page).toBe('#EDEEF1')
-    expect(colors['text-main']).toBe('#1F2937')
-    expect(colors['text-subtle']).toBe('#6B7280')
-    expect(colors.primary).toEqual({ DEFAULT: '#0688D4', dark: '#0570AE' })
+    expect(resolver(colors.page)).toBe('#EDEEF1')
+    expect(resolver(colors['text-main'])).toBe('#1F2937')
+    expect(resolver(colors['text-subtle'])).toBe('#6B7280')
+    expect({ DEFAULT: resolver(colors.primary.DEFAULT), dark: resolver(colors.primary.dark) }).toEqual({ DEFAULT: '#0688D4', dark: '#0570AE' })
     expect(colors['status-pending']).toBe('#F97316')
     expect(colors['status-preparing']).toBe('#3B82F6')
     expect(colors['status-ready']).toBe('#10B981')
     expect(colors.price).toEqual({ bg: '#DCFCE7', text: '#16A34A' })
     expect(colors.alert).toEqual({ bg: '#E0F2FE', text: '#0369A1' })
-    expect(colors.danger).toBe('#EF4444')
+    expect(resolver(colors.danger)).toBe('#EF4444')
     expect(colors.warn).toBe('#F59E0B')
   })
 

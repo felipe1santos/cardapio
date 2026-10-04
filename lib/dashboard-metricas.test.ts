@@ -28,6 +28,7 @@ function pedido(over: Partial<PedidoDashboard> = {}): PedidoDashboard {
     status: 'entregue',
     formaPagamento: 'pix',
     origemVenda: 'vitrine',
+    teste: false,
     criadoEm: new Date(AGORA).toISOString(),
     clienteChave: null,
     enderecoRua: '',

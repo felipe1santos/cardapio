@@ -13,7 +13,7 @@ import { SecaoContas } from '@/components/financeiro/contas/secao-contas'
 import { SecaoDashboard } from '@/components/financeiro/dashboard/secao-dashboard'
 import { SecaoRisco } from '@/components/financeiro/risco/secao-risco'
 import { SecaoRegras } from '@/components/financeiro/regras'
-import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/financeiro/ui/meta'
+import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
