@@ -120,7 +120,7 @@ export function SecaoContas() {
 
       {(aba === 'pagar' || aba === 'receber') && d && (
         <>
-          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" data-testid="contas-resumo">
+          <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="contas-resumo">
             {aba === 'pagar' ? (
               <>
                 <CartaoNumero icone={ICONES.dinheiro} tom="azul" rotulo="A pagar em aberto" valor={<span data-testid="resumo-a-pagar">{brl(d.resumo.aPagarCentavos)}</span>} />

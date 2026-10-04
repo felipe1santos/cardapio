@@ -5,11 +5,14 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { EVENTO_SAIR_CAIXA, sairDoPainel } from '@/lib/sessao-cliente'
 import { tempoAberto } from '@/lib/financeiro/caixa-regras'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
+import { Dica } from '@/components/ui/flutuante'
+import { ICONES } from '@/lib/icones-painel'
 import { Janela, botao } from './apoio'
 
 /**
  * Aviso no topo do painel, em cor viva com texto branco (Fase 2, só com o financeiro ligado e para quem mexe no caixa):
  * "Caixa aberto · Fulano · há 3 h" ou "Caixa fechado". Clicar leva ao Financeiro › Caixa.
+ * No celular vira um quadrado compacto (ícone + cor, 36 px como o resto da barra) com o texto na dica (0145).
  */
 export function AvisoCaixa() {
   const [e, setE] = useState<{ aberto: boolean; abertoPorNome: string | null; abertoEm: string | null; aAcertarCentavos?: number } | null>(null)
@@ -24,7 +27,17 @@ export function AvisoCaixa() {
     return () => { vivo = false; window.clearInterval(i); window.removeEventListener('menuzia:caixa-mudou', ler) }
   }, [])
   if (!e) return null
+  const texto = e.aberto
+    ? `Caixa aberto por ${e.abertoPorNome ?? '—'}${e.abertoEm ? ` · há ${tempoAberto(e.abertoEm)}` : ''}`
+    : e.aAcertarCentavos ? `Caixa fechado · ${formatarCentavos(e.aAcertarCentavos)} a acertar` : 'Caixa fechado — toque para abrir'
   return (
+    <>
+    <Dica texto={texto}>
+      <a href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa-celular" aria-label={texto} data-aberto={e.aberto ? '1' : '0'}
+        className={`flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] text-white md:hidden ${e.aberto ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}>
+        <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] fill-current" aria-hidden="true">{ICONES.dinheiro.map((d) => <path key={d} d={d} />)}</svg>
+      </a>
+    </Dica>
     <a href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa"
       title={e.aberto ? `Caixa aberto por ${e.abertoPorNome ?? '—'}` : 'Caixa fechado — clique para abrir'}
       className={`hidden h-[44px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-3 text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-110 md:flex ${e.aberto ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}>
@@ -36,6 +49,7 @@ export function AvisoCaixa() {
           : e.aAcertarCentavos ? <span data-testid="aviso-a-acertar">Caixa fechado · {formatarCentavos(e.aAcertarCentavos)} a acertar</span> : 'Caixa fechado'}
       </span>
     </a>
+    </>
   )
 }
 

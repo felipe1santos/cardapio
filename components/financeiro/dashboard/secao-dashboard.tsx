@@ -11,16 +11,20 @@ import { CORES_GRAFICO, GraficoFinanceiro, Medidor, dataCurta } from '../ui/graf
 /**
  * Financeiro › Dashboard (Fase 6). Números do livro-caixa e do custo guardado na venda; o gráfico usa o
  * componente único (cores do Gerenciador de Eventos da Meta). O resto da tela segue o padrão atual do painel.
+ * Todos os cards na mesma base (0145): só vendas que estão no livro-caixa do período. Diferenças de caixa
+ * (sobras − faltas) têm card próprio e entram no lucro líquido de forma explícita — não são despesa.
  */
 interface Dados {
   periodo: { de: string; ate: string; grupo: 'dia' | 'semana' | 'mes' }
   cards: {
     faturamentoBrutoCentavos: number; vendas: number; ticketMedioCentavos: number | null; pagosCentavos: number; naoPagosCentavos: number; aConferirCentavos: number
-    despesasCentavos: number; sangriasCentavos: number; divergenciasCentavos: number; turnosDivergentes: number; motoboyAgoraCentavos: number
+    despesasCentavos: number; sangriasCentavos: number; diferencasCaixaCentavos: number; sobrasCentavos: number; faltasCentavos: number; divergenciasCentavos: number; turnosDivergentes: number; motoboyAgoraCentavos: number
     cmvCentavos: number | null; lucroBrutoCentavos: number | null; lucroLiquidoCentavos: number | null; cmvPct: number | null; cmvAlvoPct: number; semCustoRegistrado: number | null
   }
   porOrigem: Record<string, number>; porForma: Record<string, number>
-  itens: { maisVendido: { nome: string; quantidade: number; receitaCentavos: number } | null; maisLucrativo: { nome: string; lucroCentavos: number; margemPct: number } | null; piorMargem: { nome: string; margemPct: number; quantidade: number } | null }
+  diferencasPorTurno: { turnoId: string | null; abertoEm: string | null; fechadoEm: string | null; fechadoPorNome: string | null; diferencaCentavos: number; diferencaCartaoCentavos: number; justificativa: string | null }[]
+  conciliacao: { faturamentoCentavos: number; vendas: number; itensCentavos: number; taxasCentavos: number; descontosCentavos: number; outrosCentavos: number; outroPeriodoCentavos: number; semPedidoCentavos: number }
+  itens: { receitaCentavos: number; maisVendido: { nome: string; quantidade: number; receitaCentavos: number } | null; maisLucrativo: { nome: string; lucroCentavos: number; margemPct: number } | null; piorMargem: { nome: string; margemPct: number; quantidade: number } | null }
   serie: { bucket: string; faturamentoCentavos: number; despesasCentavos: number; vendas: number; lucroBrutoCentavos: number | null; metaCentavos: number | null }[]
 }
 const brl = (c: number | null | undefined) => (c === null || c === undefined ? '—' : formatarCentavos(c))
@@ -67,18 +71,22 @@ export function SecaoDashboard() {
       {erro && <p role="alert" className="rounded-[4px] bg-[#FEE2E2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
       {c && d && (
         <>
-          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" data-testid="dash-cards">
+          <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="dash-cards">
             <CartaoNumero icone={ICONES.dinheiro} tom="azul" rotulo="Faturamento bruto" valor={<span data-testid="dash-faturamento" data-valor={c.faturamentoBrutoCentavos}>{brl(c.faturamentoBrutoCentavos)}</span>} />
             {c.cmvCentavos !== null && <CartaoNumero icone={ICONES.cozinha} tom="laranja" rotulo="CMV (custo vendido)" valor={<span data-testid="dash-cmv" data-valor={c.cmvCentavos}>{brl(c.cmvCentavos)}</span>} />}
             {c.lucroBrutoCentavos !== null && <CartaoNumero icone={ICONES.subindo} tom="verde" rotulo="Lucro bruto" valor={<span data-testid="dash-lucro-bruto" data-valor={c.lucroBrutoCentavos}>{brl(c.lucroBrutoCentavos)}</span>} />}
-            {c.lucroLiquidoCentavos !== null && <CartaoNumero icone={ICONES.concluido} tom={c.lucroLiquidoCentavos < 0 ? 'vermelho' : 'verde'} rotulo="Lucro líquido estimado" valor={<span data-testid="dash-lucro-liquido" data-valor={c.lucroLiquidoCentavos}>{brl(c.lucroLiquidoCentavos)}</span>} />}
+            {c.lucroLiquidoCentavos !== null && <CartaoNumero icone={ICONES.concluido} tom={c.lucroLiquidoCentavos < 0 ? 'vermelho' : 'verde'} rotulo="Lucro líquido estimado" valor={<span data-testid="dash-lucro-liquido" data-valor={c.lucroLiquidoCentavos}>{brl(c.lucroLiquidoCentavos)}</span>}
+              detalhe={c.diferencasCaixaCentavos ? <span data-testid="dash-lucro-inclui-diferencas">{c.diferencasCaixaCentavos > 0 ? 'com sobra de caixa de ' : 'com falta de caixa de '}{brl(Math.abs(c.diferencasCaixaCentavos))}</span> : undefined} />}
             <CartaoNumero icone={ICONES.ticket} tom="roxo" rotulo={`Ticket médio (${c.vendas} vendas)`} valor={<span data-testid="dash-ticket" data-valor={c.ticketMedioCentavos ?? ''}>{brl(c.ticketMedioCentavos)}</span>} />
             <CartaoNumero icone={ICONES.cartao} tom="verde" rotulo="Pagos" valor={<span data-testid="dash-pagos" data-valor={c.pagosCentavos}>{brl(c.pagosCentavos)}</span>} />
             <CartaoNumero icone={ICONES.aviso} tom="vermelho" rotulo="Não pagos (a receber)" valor={<span data-testid="dash-nao-pagos" data-valor={c.naoPagosCentavos}>{brl(c.naoPagosCentavos)}</span>} />
             <CartaoNumero icone={ICONES.relogio} tom="ambar" rotulo="Pix a conferir" valor={<span data-testid="dash-a-conferir" data-valor={c.aConferirCentavos}>{brl(c.aConferirCentavos)}</span>} />
             <CartaoNumero icone={ICONES.caindo} tom="cinza" rotulo="Despesas" valor={<span data-testid="dash-despesas" data-valor={c.despesasCentavos}>{brl(c.despesasCentavos)}</span>} />
             <CartaoNumero icone={ICONES.loja} tom="cinza" rotulo="Sangrias e retiradas" valor={<span data-testid="dash-sangrias" data-valor={c.sangriasCentavos}>{brl(c.sangriasCentavos)}</span>} />
-            <CartaoNumero icone={ICONES.aviso} tom={c.turnosDivergentes ? 'ambar' : 'cinza'} rotulo={`Divergências (${c.turnosDivergentes} caixa${c.turnosDivergentes === 1 ? '' : 's'})`} valor={<span data-testid="dash-divergencias" data-valor={c.divergenciasCentavos}>{brl(c.divergenciasCentavos)}</span>} />
+            <CartaoNumero icone={ICONES.aviso} tom={c.diferencasCaixaCentavos < 0 ? 'vermelho' : c.diferencasCaixaCentavos > 0 ? 'ambar' : 'cinza'}
+              rotulo={`Diferenças de caixa (${d.diferencasPorTurno.length} turno${d.diferencasPorTurno.length === 1 ? '' : 's'})`}
+              valor={<span data-testid="dash-diferencas-caixa" data-valor={c.diferencasCaixaCentavos}>{brl(c.diferencasCaixaCentavos)}</span>}
+              detalhe={c.sobrasCentavos || c.faltasCentavos ? `sobras ${brl(c.sobrasCentavos)} · faltas ${brl(c.faltasCentavos)}` : undefined} />
             <CartaoNumero icone={ICONES.moto} tom={c.motoboyAgoraCentavos ? 'laranja' : 'cinza'} rotulo="Dinheiro com motoboy (agora)" valor={<span data-testid="dash-motoboy" data-valor={c.motoboyAgoraCentavos}>{brl(c.motoboyAgoraCentavos)}</span>} />
           </div>
 
@@ -125,9 +133,68 @@ export function SecaoDashboard() {
               {c.semCustoRegistrado ? <p className="mt-2 text-[11.5px] text-text-subtle">{c.semCustoRegistrado} item(ns) vendido(s) sem custo registrado.</p> : null}
             </section>
           </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Conciliacao c={d.conciliacao} />
+            <DiferencasPorTurno turnos={d.diferencasPorTurno} total={c.diferencasCaixaCentavos} />
+          </div>
         </>
       )}
     </div>
+  )
+}
+
+/** De onde vem o faturamento: itens vendidos + taxas − descontos (+ o que não é de item). Sempre fecha. */
+function Conciliacao({ c }: { c: Dados['conciliacao'] }) {
+  const linhas: [string, number, string][] = [
+    ['Produtos vendidos', c.itensCentavos, 'itens'],
+    ['Taxas (entrega e outras)', c.taxasCentavos, 'taxas'],
+    ['Descontos', -c.descontosCentavos, 'descontos'],
+    ['Serviço, gorjeta e pagamentos parciais', c.outrosCentavos, 'outros'],
+    ['Recebido de vendas de outro período', c.outroPeriodoCentavos, 'outro-periodo'],
+    ['Vendas lançadas sem pedido', c.semPedidoCentavos, 'sem-pedido'],
+  ]
+  return (
+    <section className="rounded-[6px] border border-border bg-white p-4" data-testid="dash-conciliacao">
+      <p className="text-[13px] font-bold">Do que é feito o faturamento</p>
+      <p className="mb-2 text-[12px] text-text-subtle">{c.vendas} venda{c.vendas === 1 ? '' : 's'} do livro-caixa no período</p>
+      {linhas.filter(([, v], i) => v !== 0 || i < 3).map(([rot, v, id]) => (
+        <div key={id} className="flex justify-between gap-3 border-b border-border py-1.5 text-[12.5px] last:border-b-0">
+          <span>{rot}</span><b className="whitespace-nowrap" data-testid={`dash-conc-${id}`} data-valor={v}>{brl(v)}</b>
+        </div>
+      ))}
+      <div className="mt-1 flex justify-between gap-3 pt-1.5 text-[13px] font-bold">
+        <span>Faturamento</span><span className="whitespace-nowrap" data-testid="dash-conc-faturamento" data-valor={c.faturamentoCentavos}>{brl(c.faturamentoCentavos)}</span>
+      </div>
+    </section>
+  )
+}
+
+const dataHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')
+
+/** Sobra (+) ou falta (−) de cada turno fechado no período. É a mesma linha "Diferenças de caixa" do DRE. */
+function DiferencasPorTurno({ turnos, total }: { turnos: Dados['diferencasPorTurno']; total: number }) {
+  return (
+    <section className="rounded-[6px] border border-border bg-white p-4" data-testid="dash-diferencas-turnos">
+      <p className="text-[13px] font-bold">Diferenças de caixa por turno</p>
+      <p className="mb-2 text-[12px] text-text-subtle">Sobras − faltas no fechamento (dinheiro). Não é despesa: entra à parte no lucro líquido.</p>
+      {turnos.length === 0 && <p className="text-[12.5px] text-text-subtle">Nenhuma diferença no período.</p>}
+      {turnos.map((t) => (
+        <div key={t.turnoId ?? 'sem-turno'} className="flex items-start justify-between gap-3 border-b border-border py-1.5 text-[12.5px] last:border-b-0" data-testid="dash-diferenca-turno">
+          <div className="min-w-0">
+            <p className="font-semibold">Fechado {dataHora(t.fechadoEm)}{t.fechadoPorNome ? ` por ${t.fechadoPorNome}` : ''}</p>
+            {t.justificativa && <p className="line-clamp-2 break-words text-[11.5px] text-text-subtle">{t.justificativa}</p>}
+            {t.diferencaCartaoCentavos ? <p className="text-[11.5px] text-text-subtle">Cartão (só informativo): {brl(t.diferencaCartaoCentavos)}</p> : null}
+          </div>
+          <b className="whitespace-nowrap" style={{ color: t.diferencaCentavos < 0 ? '#B91C1C' : '#15803D' }} data-valor={t.diferencaCentavos}>
+            {t.diferencaCentavos > 0 ? 'sobra ' : 'falta '}{brl(Math.abs(t.diferencaCentavos))}
+          </b>
+        </div>
+      ))}
+      {turnos.length > 0 && (
+        <div className="mt-1 flex justify-between gap-3 pt-1.5 text-[13px] font-bold"><span>Total (sobras − faltas)</span><span className="whitespace-nowrap">{brl(total)}</span></div>
+      )}
+    </section>
   )
 }
 

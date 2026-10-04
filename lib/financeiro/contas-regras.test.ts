@@ -97,11 +97,24 @@ describe('DRE', () => {
     })
     expect(d.lucroBrutoCentavos).toBe(70000)
     expect(d.outrasReceitasCentavos).toBe(8000)
-    expect(d.despesasCentavos).toBe(21300)
+    expect(d.despesasCentavos).toBe(21000)
+    expect(d.diferencasCaixaCentavos).toBe(-300)
     expect(d.lucroLiquidoCentavos).toBe(56700)
     expect(d.comprasInsumosCentavos).toBe(15000)
     expect(d.foraDoResultadoCentavos).toBe(50000)
-    expect(d.despesas.map((x) => x.nome)).toEqual(['Aluguel', 'Despesas pagas no caixa', 'Diferenças de caixa (sobras e faltas)'])
+    expect(d.despesas.map((x) => x.nome)).toEqual(['Aluguel', 'Despesas pagas no caixa'])
+  })
+  it('sobra de caixa não vira despesa negativa: linha própria e lucro explícito (0145)', () => {
+    const d = montarDre({
+      faturamento: 900, cmv: 0, categorias,
+      resultado: [{ tipo: 'ajuste', categoriaId: null, valorCentavos: 1100 }, { tipo: 'ajuste', categoriaId: null, valorCentavos: 3000 }, { tipo: 'ajuste', categoriaId: null, valorCentavos: -500 }],
+    })
+    expect(d.despesasCentavos).toBe(0)
+    expect(d.despesas).toEqual([])
+    expect(d.outrasReceitasCentavos).toBe(0)
+    expect(d.diferencasCaixaCentavos).toBe(3600)
+    expect(d.lucroLiquidoCentavos).toBe(d.lucroBrutoCentavos + d.outrasReceitasCentavos - d.despesasCentavos + d.diferencasCaixaCentavos)
+    expect(d.lucroLiquidoCentavos).toBe(4500)
   })
   it('estorno some do DRE (linha oposta)', () => {
     const d = montarDre({ faturamento: 0, cmv: 0, categorias, resultado: [{ tipo: 'conta_pagar', categoriaId: 'alu', valorCentavos: -20000 }, { tipo: 'conta_pagar', categoriaId: 'alu', valorCentavos: 20000 }] })

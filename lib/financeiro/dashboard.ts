@@ -1,46 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { dre } from './contas'
+import { diferencasPorTurno, vendasDoPeriodo, type ItemVendido } from './vendas-base'
 
 /**
- * Dashboard financeiro (Fase 6, 0144). Tudo a partir do livro-caixa (fin_dashboard) e do custo GUARDADO na venda
+ * Dashboard financeiro (Fase 6, 0144; mesma base em 0145). Tudo a partir do livro-caixa (fin_dashboard) e do custo GUARDADO na venda
  * (pedido_itens_custo). Custo e lucro só para quem pode ver (custos_ver / dre_ver) — o servidor nem calcula
- * para quem não pode.
+ * para quem não pode. Produtos e CMV contam só as vendas que estão no livro-caixa do período (vendas-base.ts).
  */
 export type Grupo = 'dia' | 'semana' | 'mes'
 const DATA = /^\d{4}-\d{2}-\d{2}$/
 
-interface ItemAgg { nome: string; qtd: number; receita: number; custo: number; comCusto: number; receitaComCusto: number }
-
-async function itensDoPeriodo(admin: SupabaseClient, loja: string, de: string, ate: string, grupo: Grupo) {
-  const ini = new Date(`${de}T00:00:00-03:00`).toISOString()
-  const fim = new Date(new Date(`${ate}T00:00:00-03:00`).getTime() + 86_400_000).toISOString()
-  const porItem = new Map<string, ItemAgg>()
-  const cmvPorBucket = new Map<string, number>()
-  for (let a = 0; ; a += 1000) {
-    const { data, error } = await admin.from('pedido_itens')
-      .select('item_id, nome, quantidade, preco_unitario, pedidos!inner(restaurante_id, status, criado_em), pedido_itens_custo(situacao, custo_unitario)')
-      .eq('pedidos.restaurante_id', loja).neq('pedidos.status', 'cancelado').gte('pedidos.criado_em', ini).lt('pedidos.criado_em', fim).is('cancelado_em', null).range(a, a + 999)
-    if (error) throw error
-    for (const l of data ?? []) {
-      const qtd = Number(l.quantidade)
-      const receita = Number(l.preco_unitario) * 100 * qtd
-      const k = (l.item_id as string | null) ?? `nome:${l.nome}`
-      const it = porItem.get(k) ?? { nome: String(l.nome ?? '—'), qtd: 0, receita: 0, custo: 0, comCusto: 0, receitaComCusto: 0 }
-      it.qtd += qtd; it.receita += receita
-      const cc = (Array.isArray(l.pedido_itens_custo) ? l.pedido_itens_custo[0] : l.pedido_itens_custo) as { situacao: string; custo_unitario: number | null } | null
-      if (cc && cc.custo_unitario !== null && cc.situacao !== 'sem_ficha') {
-        const custo = Number(cc.custo_unitario) * qtd
-        it.custo += custo; it.comCusto += qtd; it.receitaComCusto += receita
-        const ped = (Array.isArray(l.pedidos) ? l.pedidos[0] : l.pedidos) as { criado_em: string }
-        const b = bucketDe(new Date(ped.criado_em).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }), grupo)
-        cmvPorBucket.set(b, (cmvPorBucket.get(b) ?? 0) + custo)
-      }
-      porItem.set(k, it)
-    }
-    if (!data || data.length < 1000) break
-  }
-  return { porItem: [...porItem.values()], cmvPorBucket }
-}
+type ItemAgg = ItemVendido
 
 /** Mesmo agrupamento do banco (date_trunc: semana começa na segunda). */
 export function bucketDe(dia: string, grupo: Grupo): string {
@@ -56,18 +26,19 @@ export function bucketDe(dia: string, grupo: Grupo): string {
 
 export async function dashboardFinanceiro(admin: SupabaseClient, loja: string, de: string, ate: string, grupo: Grupo, pode: { custos: boolean; dre: boolean }) {
   if (!DATA.test(de) || !DATA.test(ate) || de > ate) throw Object.assign(new Error('Período inválido.'), { status: 400 })
-  const [{ data: d, error }, itens, dreR, { data: cfg }, { data: cmvCfg }] = await Promise.all([
+  const [{ data: d, error }, itens, dreR, { data: cfg }, { data: cmvCfg }, turnos] = await Promise.all([
     admin.rpc('fin_dashboard', { p_restaurante: loja, p_de: de, p_ate: ate, p_grupo: grupo }),
-    itensDoPeriodo(admin, loja, de, ate, grupo),
+    vendasDoPeriodo(admin, loja, de, ate, grupo),
     pode.dre ? dre(admin, loja, de, ate) : Promise.resolve(null),
     admin.from('fin_config').select('meta_faturamento_dia_centavos').eq('restaurante_id', loja).maybeSingle(),
     admin.from('cmv_config').select('margem_alvo_pct').eq('restaurante_id', loja).maybeSingle(),
+    diferencasPorTurno(admin, loja, de, ate),
   ])
   if (error) throw error
   const r = d as {
     faturamento: number; vendas: number; por_origem: Record<string, number>; por_forma: Record<string, number>; a_receber: number; a_conferir: number
-    sangrias: number; despesas: number; divergencias_centavos: number; turnos_divergentes: number; motoboy_agora: number
-    serie: { bucket: string; faturamento: number; despesas: number; vendas: number }[]
+    sangrias: number; despesas: number; diferencas_caixa: number; sobras: number; faltas: number; divergencias_centavos: number; turnos_divergentes: number; motoboy_agora: number
+    serie: { bucket: string; faturamento: number; despesas: number; diferencas: number; vendas: number }[]
   }
   const fat = Number(r.faturamento)
   const vendas = Number(r.vendas)
@@ -91,6 +62,10 @@ export async function dashboardFinanceiro(admin: SupabaseClient, loja: string, d
       aConferirCentavos: Number(r.a_conferir),
       despesasCentavos: Number(r.despesas),
       sangriasCentavos: Number(r.sangrias),
+      // Sobras − faltas dos fechamentos (linha própria, fora de Despesas — 0145).
+      diferencasCaixaCentavos: Number(r.diferencas_caixa),
+      sobrasCentavos: Number(r.sobras),
+      faltasCentavos: Number(r.faltas),
       divergenciasCentavos: Number(r.divergencias_centavos),
       turnosDivergentes: Number(r.turnos_divergentes),
       motoboyAgoraCentavos: Number(r.motoboy_agora),
@@ -102,15 +77,19 @@ export async function dashboardFinanceiro(admin: SupabaseClient, loja: string, d
       cmvAlvoPct,
       semCustoRegistrado: dreR?.cmv.semCustoRegistrado ?? null,
     },
+    diferencasPorTurno: turnos,
+    /** Itens + taxas − descontos + outros + outro período + sem pedido = faturamento (mesma base). */
+    conciliacao: itens.conciliacao,
     porOrigem: r.por_origem ?? {},
     porForma: r.por_forma ?? {},
     itens: {
+      receitaCentavos: Math.round(itens.porItem.reduce((t, i) => t + i.receita, 0)),
       maisVendido: maisVendido ? { nome: maisVendido.nome, quantidade: maisVendido.qtd, receitaCentavos: Math.round(maisVendido.receita) } : null,
       maisLucrativo: maisLucrativo ? { nome: maisLucrativo.nome, lucroCentavos: Math.round(maisLucrativo.receitaComCusto - maisLucrativo.custo), margemPct: margemDe(maisLucrativo) } : null,
       piorMargem: piorMargem ? { nome: piorMargem.nome, margemPct: margemDe(piorMargem), quantidade: piorMargem.comCusto } : null,
     },
     serie: (r.serie ?? []).map((s) => ({
-      bucket: s.bucket, faturamentoCentavos: Number(s.faturamento), despesasCentavos: Number(s.despesas), vendas: Number(s.vendas),
+      bucket: s.bucket, faturamentoCentavos: Number(s.faturamento), despesasCentavos: Number(s.despesas), diferencasCentavos: Number(s.diferencas ?? 0), vendas: Number(s.vendas),
       lucroBrutoCentavos: pode.dre ? Number(s.faturamento) - Math.round(itens.cmvPorBucket.get(s.bucket) ?? 0) : null,
       metaCentavos: metaDia === null ? null : metaDia * diasDoBucket(s.bucket),
     })),

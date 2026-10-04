@@ -231,7 +231,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
       {erro && <p role="alert" className="rounded-[4px] bg-[#FEE2E2] px-3 py-2 text-[13px] font-medium text-[#B91C1C]">{erro}</p>}
 
       {/* Totais do período (todos os turnos, não só a página) */}
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3 2xl:grid-cols-6" data-testid="fluxo-totais">
+      <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6" data-testid="fluxo-totais">
         <CartaoNumero icone={ICONES.subindo} tom="verde" rotulo="Vendido" valor={<span data-testid="total-vendido">{brl(t?.vendido)}</span>} />
         <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Recebido" valor={<span data-testid="total-recebido">{brl(t?.recebido)}</span>} />
         <CartaoNumero icone={ICONES.dinheiro} tom="laranja" rotulo="Dinheiro" valor={<span data-testid="total-dinheiro">{brl(t?.dinheiro)}</span>} />

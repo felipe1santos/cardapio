@@ -8,16 +8,19 @@ import { Chip } from '../ui/blocos'
 
 /**
  * DRE simplificado (Fase 5b): faturamento do livro-caixa − CMV guardado na venda − despesas por categoria
- * = lucro líquido, com o período anterior de mesmo tamanho ao lado.
+ * ± diferenças de caixa (linha própria, 0145) = lucro líquido, com o período anterior de mesmo tamanho ao lado.
+ * CMV na mesma base do faturamento: só as vendas que estão no livro-caixa do período.
  */
 interface Resposta {
   periodo: { de: string; ate: string }; anterior: { de: string; ate: string; dre: Dre }; atual: Dre
-  variacao: Record<'faturamento' | 'cmv' | 'lucroBruto' | 'despesas' | 'lucroLiquido' | 'outrasReceitas', number | null>
+  variacao: Record<'faturamento' | 'cmv' | 'lucroBruto' | 'despesas' | 'lucroLiquido' | 'outrasReceitas' | 'diferencasCaixa', number | null>
   cmv: { semCustoRegistrado: number; comErro: number; linhas: number }
+  diferencasPorTurno: { turnoId: string | null; fechadoEm: string | null; fechadoPorNome: string | null; diferencaCentavos: number }[]
 }
 const brl = (c: number) => formatarCentavos(c)
 const pct = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`)
 const dataBR = (d: string) => d.split('-').reverse().join('/')
+const dataHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')
 
 export function SecaoDre() {
   const [atalho, setAtalho] = useState<Atalho>('mes')
@@ -34,7 +37,7 @@ export function SecaoDre() {
 
   const fat = r?.atual.faturamentoCentavos ?? 0
   const deFat = (v: number) => (fat > 0 ? `${((v / fat) * 100).toFixed(1).replace('.', ',')}%` : '')
-  type L = { rotulo: string; atual: number; anterior: number | null; variacao?: number | null; forte?: boolean; sinal?: '-' | '+' | '='; testid?: string }
+  type L = { rotulo: string; atual: number; anterior: number | null; variacao?: number | null; forte?: boolean; sinal?: '-' | '+' | '=' | '±'; recuo?: boolean; testid?: string }
   const linhas: L[] = !r ? [] : [
     { rotulo: 'Faturamento', atual: r.atual.faturamentoCentavos, anterior: r.anterior.dre.faturamentoCentavos, variacao: r.variacao.faturamento, forte: true, testid: 'dre-faturamento' },
     { rotulo: 'CMV (custo do que foi vendido)', atual: r.atual.cmvCentavos, anterior: r.anterior.dre.cmvCentavos, variacao: r.variacao.cmv, sinal: '-', testid: 'dre-cmv' },
@@ -42,6 +45,8 @@ export function SecaoDre() {
     ...r.atual.outrasReceitas.map((x) => ({ rotulo: x.nome, atual: x.valorCentavos, anterior: r.anterior.dre.outrasReceitas.find((y) => y.nome === x.nome)?.valorCentavos ?? 0, sinal: '+' as const })),
     ...r.atual.despesas.map((x) => ({ rotulo: x.nome, atual: x.valorCentavos, anterior: r.anterior.dre.despesas.find((y) => y.nome === x.nome)?.valorCentavos ?? 0, sinal: '-' as const })),
     { rotulo: 'Total de despesas', atual: r.atual.despesasCentavos, anterior: r.anterior.dre.despesasCentavos, variacao: r.variacao.despesas, sinal: '-', testid: 'dre-despesas' },
+    { rotulo: 'Diferenças de caixa (sobras − faltas)', atual: r.atual.diferencasCaixaCentavos, anterior: r.anterior.dre.diferencasCaixaCentavos, variacao: r.variacao.diferencasCaixa, sinal: '±', testid: 'dre-diferencas-caixa' },
+    ...r.diferencasPorTurno.map((t) => ({ rotulo: `Turno fechado ${dataHora(t.fechadoEm)}${t.fechadoPorNome ? ` por ${t.fechadoPorNome}` : ''}`, atual: t.diferencaCentavos, anterior: null, recuo: true, testid: 'dre-diferenca-turno' })),
     { rotulo: 'Lucro líquido', atual: r.atual.lucroLiquidoCentavos, anterior: r.anterior.dre.lucroLiquidoCentavos, variacao: r.variacao.lucroLiquido, forte: true, sinal: '=', testid: 'dre-lucro-liquido' },
   ]
 
@@ -64,7 +69,7 @@ export function SecaoDre() {
               <tbody>
                 {linhas.map((l, i) => (
                   <tr key={i} className={`[&>td]:border-b [&>td]:border-border ${l.forte ? 'bg-[#F9FAFB] font-bold' : ''}`} data-testid={l.testid}>
-                    <td className={`px-3 py-2 ${l.forte ? '' : 'pl-6 text-text-subtle'}`}>{l.sinal === '-' ? '(−) ' : l.sinal === '+' ? '(+) ' : l.sinal === '=' ? '(=) ' : ''}{l.rotulo}</td>
+                    <td className={`px-3 py-2 ${l.forte ? '' : l.recuo ? 'pl-10 text-[12px] text-text-subtle' : 'pl-6 text-text-subtle'}`}>{l.sinal === '-' ? '(−) ' : l.sinal === '+' ? '(+) ' : l.sinal === '=' ? '(=) ' : l.sinal === '±' ? '(±) ' : ''}{l.rotulo}</td>
                     <td className={`whitespace-nowrap px-3 py-2 text-right ${l.testid === 'dre-lucro-liquido' ? (l.atual < 0 ? 'text-[#B91C1C]' : 'text-[#15803D]') : ''}`} data-valor={l.atual}>{brl(l.atual)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right text-text-subtle">{deFat(l.atual)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right text-text-subtle">{l.anterior === null ? '—' : brl(l.anterior)}</td>
@@ -77,7 +82,7 @@ export function SecaoDre() {
           <div className="grid gap-1 text-[12.5px] text-text-subtle" data-testid="dre-notas">
             {r.cmv.semCustoRegistrado > 0 && <p>⚠ {r.cmv.semCustoRegistrado} item(ns) vendido(s) sem custo registrado (sem ficha ou de antes da Fase 5): o CMV está abaixo do real.</p>}
             <p>Fora do resultado: compras de insumos no período {brl(r.atual.comprasInsumosCentavos)} (o custo delas entra no CMV quando o produto é vendido){r.atual.foraDoResultadoCentavos ? ` · aportes ${brl(r.atual.foraDoResultadoCentavos)}` : ''}.</p>
-            <p>Faturamento = o que entrou no livro-caixa pelas vendas (data do recebimento). Despesas = contas pagas e saídas do caixa no período (regime de caixa).</p>
+            <p>Faturamento = o que entrou no livro-caixa pelas vendas (data do recebimento). Despesas = contas pagas e saídas do caixa no período (regime de caixa). Diferenças de caixa = sobras − faltas dos fechamentos: ficam fora das despesas e entram à parte no lucro líquido.</p>
           </div>
         </>
       )}

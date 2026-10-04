@@ -5,7 +5,7 @@ import { criarAlerta } from './alertas'
 import { podeFin } from './permissoes'
 import { conferirAprovacao, turnoAberto, type Aprovacao } from './caixa'
 import { formatarCentavos } from './centavos'
-import { cmvDoPeriodo } from './cmv'
+import { diferencasPorTurno, vendasDoPeriodo } from './vendas-base'
 import {
   FORMAS_CONTA, custoCompraNovo, hojeSP, linhasDaBaixa, montarDre, numerosDePedidoCitados, ocorrenciasAGerar,
   periodoAnterior, precisaAprovacaoBaixa, quantidadeNaBase, statusExibido, variacaoPct,
@@ -608,7 +608,8 @@ export async function cancelarCompra(c: ContextoFin, id: string, motivo: string)
 
 // ── DRE ─────────────────────────────────────────────────────────────────────────────────────────
 async function drePeriodo(admin: SupabaseClient, loja: string, de: string, ate: string, cats: Categoria[]) {
-  const [{ data, error }, cmv] = await Promise.all([admin.rpc('fin_dre_periodo', { p_restaurante: loja, p_de: de, p_ate: ate }), cmvDoPeriodo(admin, loja, de, ate)])
+  // CMV na mesma base do faturamento: só as vendas que estão no livro-caixa do período (0145).
+  const [{ data, error }, cmv] = await Promise.all([admin.rpc('fin_dre_periodo', { p_restaurante: loja, p_de: de, p_ate: ate }), vendasDoPeriodo(admin, loja, de, ate)])
   if (error) throw error
   const linhas = (data ?? []) as { chave: string; tipo: string | null; categoria_id: string | null; valor_centavos: number }[]
   const fat = Number(linhas.find((l) => l.chave === 'faturamento')?.valor_centavos ?? 0)
@@ -620,13 +621,18 @@ export async function dre(admin: SupabaseClient, loja: string, de: string, ate: 
   if (!DATA.test(de) || !DATA.test(ate) || de > ate) throw Object.assign(new Error('Período inválido.'), { status: 400 })
   const cats = await listarCategorias(admin, loja)
   const ant = periodoAnterior(de, ate)
-  const [atual, anterior] = await Promise.all([drePeriodo(admin, loja, de, ate, cats), drePeriodo(admin, loja, ant.de, ant.ate, cats)])
-  const v = (k: 'faturamentoCentavos' | 'cmvCentavos' | 'lucroBrutoCentavos' | 'despesasCentavos' | 'lucroLiquidoCentavos' | 'outrasReceitasCentavos') => variacaoPct(atual.dre[k], anterior.dre[k])
+  const [atual, anterior, turnos] = await Promise.all([drePeriodo(admin, loja, de, ate, cats), drePeriodo(admin, loja, ant.de, ant.ate, cats), diferencasPorTurno(admin, loja, de, ate)])
+  const v = (k: 'faturamentoCentavos' | 'cmvCentavos' | 'lucroBrutoCentavos' | 'despesasCentavos' | 'lucroLiquidoCentavos' | 'outrasReceitasCentavos' | 'diferencasCaixaCentavos') => variacaoPct(atual.dre[k], anterior.dre[k])
   return {
     periodo: { de, ate }, anterior: { ...ant, dre: anterior.dre },
     atual: atual.dre,
-    variacao: { faturamento: v('faturamentoCentavos'), cmv: v('cmvCentavos'), lucroBruto: v('lucroBrutoCentavos'), despesas: v('despesasCentavos'), lucroLiquido: v('lucroLiquidoCentavos'), outrasReceitas: v('outrasReceitasCentavos') },
+    variacao: {
+      faturamento: v('faturamentoCentavos'), cmv: v('cmvCentavos'), lucroBruto: v('lucroBrutoCentavos'), despesas: v('despesasCentavos'), lucroLiquido: v('lucroLiquidoCentavos'),
+      outrasReceitas: v('outrasReceitasCentavos'), diferencasCaixa: v('diferencasCaixaCentavos'),
+    },
     cmv: { semCustoRegistrado: atual.cmv.semCustoRegistrado, comErro: atual.cmv.comErro, linhas: atual.cmv.linhas },
+    diferencasPorTurno: turnos,
+    conciliacao: atual.cmv.conciliacao,
     conferencia: { resultadoLedgerCentavos: atual.resultadoLedgerCentavos },
   }
 }

@@ -87,7 +87,7 @@ export function SecaoCmv() {
 
       {aba === 'precos' && d && (
         <>
-          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" data-testid="cmv-resumo">
+          <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="cmv-resumo">
             <CartaoNumero icone={ICONES.concluido} tom="verde" rotulo="Com ficha de custo" valor={<span data-testid="cmv-com-ficha">{d.resumo.comFicha}</span>} />
             <CartaoNumero icone={ICONES.aviso} tom="ambar" rotulo="Sem ficha" valor={<span data-testid="cmv-sem-ficha">{d.resumo.semFicha}</span>} />
             <CartaoNumero icone={ICONES.subindo} tom="azul" rotulo="Margem média" valor={<span data-testid="cmv-margem-media">{pct(d.resumo.margemMediaPct)}</span>} />
@@ -215,7 +215,7 @@ function CmvVendas() {
   return (
     <div className="flex flex-col gap-3" data-testid="cmv-vendas">
       <div className="flex flex-wrap gap-1.5">{ATALHOS.map((a) => <Chip key={a.id} ativo={periodoDoAtalho(a.id).de === periodo.de && periodoDoAtalho(a.id).ate === periodo.ate} onClick={() => setPeriodo(periodoDoAtalho(a.id))}>{a.rotulo}</Chip>)}</div>
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4">
         <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Vendido (com custo registrado)" valor={<span data-testid="vendas-vendido">{brl(v?.vendidoComCustoCentavos as number)}</span>} />
         <CartaoNumero icone={ICONES.cartao} tom="laranja" rotulo="CMV (custo guardado)" valor={<span data-testid="vendas-cmv">{brl(v?.cmvCentavos as number)}</span>} />
         <CartaoNumero icone={ICONES.subindo} tom="azul" rotulo="CMV %" valor={<span data-testid="vendas-cmv-pct">{pct((v?.cmvPct as number) ?? null)}</span>} />

@@ -143,6 +143,8 @@ export interface Dre {
   outrasReceitasCentavos: number
   despesas: { nome: string; valorCentavos: number }[]
   despesasCentavos: number
+  /** Sobras (+) − faltas (−) dos fechamentos de caixa (0145). Linha própria: não é despesa nem receita. */
+  diferencasCaixaCentavos: number
   lucroLiquidoCentavos: number
   margemLiquidaPct: number | null
   /** Fora do resultado (só informativo): compras de insumos (já estão no CMV) e aportes. */
@@ -151,12 +153,13 @@ export interface Dre {
 }
 
 const ROTULO_SEM_CATEGORIA: Record<string, string> = {
-  despesa: 'Despesas pagas no caixa', perda: 'Perdas e quebras', ajuste: 'Diferenças de caixa (sobras e faltas)', compra: 'Compras de insumos', conta_pagar: 'Outras contas', conta_receber: 'Outras receitas',
+  despesa: 'Despesas pagas no caixa', perda: 'Perdas e quebras', compra: 'Compras de insumos', conta_pagar: 'Outras contas', conta_receber: 'Outras receitas',
 }
 
 /**
  * Monta o DRE simplificado. Faturamento (livro-caixa) − CMV (custo guardado na venda) = lucro bruto;
- * + outras receitas − despesas por categoria = lucro líquido. Compras de insumos e embalagens NÃO entram como
+ * + outras receitas − despesas por categoria ± diferenças de caixa = lucro líquido. Diferença de caixa (sobra ou falta
+ * do fechamento, tipo 'ajuste') tem linha própria: sobra não é "despesa negativa" (0145). Compras de insumos e embalagens NÃO entram como
  * despesa (o custo delas já está no CMV de quando o produto foi vendido); aporte do sócio é capital.
  * As linhas da carteira resultado vêm com sinal: despesa negativa, receita positiva.
  */
@@ -164,8 +167,9 @@ export function montarDre(p: { faturamento: number; cmv: number; resultado: Linh
   const cat = new Map(p.categorias.map((c) => [c.id, c]))
   const rec = new Map<string, number>()
   const desp = new Map<string, number>()
-  let compras = 0, fora = 0
+  let compras = 0, fora = 0, diferencas = 0
   for (const l of p.resultado) {
+    if (l.tipo === 'ajuste' && !l.categoriaId) { diferencas += l.valorCentavos; continue }
     const c = l.categoriaId ? cat.get(l.categoriaId) : undefined
     const grupo: GrupoCategoria = c?.grupo ?? (l.tipo === 'compra' ? 'insumo' : l.tipo === 'conta_receber' ? 'receita' : 'despesa')
     const nome = c?.nome ?? ROTULO_SEM_CATEGORIA[l.tipo] ?? 'Outros'
@@ -180,11 +184,11 @@ export function montarDre(p: { faturamento: number; cmv: number; resultado: Linh
   const outrasReceitasCentavos = outrasReceitas.reduce((s, x) => s + x.valorCentavos, 0)
   const despesasCentavos = despesas.reduce((s, x) => s + x.valorCentavos, 0)
   const lucroBrutoCentavos = p.faturamento - p.cmv
-  const lucroLiquidoCentavos = lucroBrutoCentavos + outrasReceitasCentavos - despesasCentavos
+  const lucroLiquidoCentavos = lucroBrutoCentavos + outrasReceitasCentavos - despesasCentavos + diferencas
   const receitaTotal = p.faturamento + outrasReceitasCentavos
   return {
     faturamentoCentavos: p.faturamento, cmvCentavos: p.cmv, lucroBrutoCentavos, outrasReceitas, outrasReceitasCentavos, despesas, despesasCentavos,
-    lucroLiquidoCentavos, margemLiquidaPct: receitaTotal > 0 ? (lucroLiquidoCentavos / receitaTotal) * 100 : null,
+    diferencasCaixaCentavos: diferencas, lucroLiquidoCentavos, margemLiquidaPct: receitaTotal > 0 ? (lucroLiquidoCentavos / receitaTotal) * 100 : null,
     comprasInsumosCentavos: compras, foraDoResultadoCentavos: fora,
   }
 }

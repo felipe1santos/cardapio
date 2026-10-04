@@ -238,7 +238,7 @@ try {
   ok('despesas por categoria (Pessoal R$ 150, Manutenção R$ 1.500; aluguel estornado some)', desp('Pessoal') >= 15000 && desp('Manutenção') >= 150000 && !A_.despesas.some((x) => x.nome === 'Aluguel' && x.valorCentavos === 9000), texto(A_.despesas))
   ok('repasse iFood como outra receita; aporte fora do resultado', (A_.outrasReceitas.find((x) => x.nome.startsWith('Repasse'))?.valorCentavos ?? 0) >= 85000 && A_.foraDoResultadoCentavos >= 100000)
   ok('compras de insumos fora das despesas (já estão no CMV)', A_.comprasInsumosCentavos >= 8000 + 2700 && !A_.despesas.some((x) => x.nome === 'Insumos'))
-  ok('lucro líquido = faturamento − CMV + outras receitas − despesas', A_.lucroLiquidoCentavos === A_.faturamentoCentavos - A_.cmvCentavos + A_.outrasReceitasCentavos - A_.despesasCentavos)
+  ok('lucro líquido = faturamento − CMV + outras receitas − despesas ± diferenças de caixa (0145)', A_.lucroLiquidoCentavos === A_.faturamentoCentavos - A_.cmvCentavos + A_.outrasReceitasCentavos - A_.despesasCentavos + A_.diferencasCaixaCentavos)
   ok('comparação com o período anterior (ontem)', dr.j.anterior?.de === dia(-1) && dr.j.anterior?.ate === dia(-1) && typeof dr.j.anterior.dre?.faturamentoCentavos === 'number')
 
   secao('Permissões e antifraude')

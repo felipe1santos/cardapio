@@ -363,7 +363,8 @@ try {
   const lim = `criado_em >= ($2::date::timestamp at time zone 'America/Sao_Paulo') and criado_em < (($2::date + 1)::timestamp at time zone 'America/Sao_Paulo')`
   const sql1 = async (expr, extra = '') => Number((await um(`select ${expr} v from fin_lancamentos where restaurante_id=$1 and ${lim} ${extra}`, [L, hoje])).v ?? 0)
   const fat = await sql1(`coalesce(sum(valor_centavos),0)`, `and tipo in ('recebimento','troco','estorno') and carteira not in ('empresa','resultado')`)
-  const vendas = await sql1(`count(distinct coalesce(comanda_id::text, pedido_id::text))`, `and tipo='recebimento' and carteira not in ('empresa','resultado')`)
+  // Venda = pedido/comanda com saldo positivo no período (pago e estornado inteiro não conta — 0145).
+  const vendas = Number((await um(`select count(*) v from (select coalesce(comanda_id, pedido_id) k from fin_lancamentos where restaurante_id=$1 and ${lim} and tipo in ('recebimento','troco','estorno') and carteira not in ('empresa','resultado') and coalesce(comanda_id, pedido_id) is not null group by 1 having sum(valor_centavos) > 0) q`, [L, hoje])).v)
   ok('faturamento bruto = soma do livro-caixa', dash.s === 200 && C.faturamentoBrutoCentavos === fat, `${C?.faturamentoBrutoCentavos} × ${fat}`)
   ok('ticket médio = faturamento ÷ vendas', C.vendas === vendas && C.ticketMedioCentavos === (vendas ? Math.round(fat / vendas) : null), `${C.ticketMedioCentavos}`)
   const aReceber = await sql1(`coalesce(sum(valor_centavos),0)`, `and tipo in ('recebimento','troco','estorno') and carteira='a_receber'`)
@@ -372,13 +373,15 @@ try {
   ok('pagos × não pagos × a conferir (somam o faturamento)', C.naoPagosCentavos === aReceber && C.aConferirCentavos === aConf && C.pagosCentavos === fat - aReceber - aConf, texto([C.pagosCentavos, C.naoPagosCentavos, C.aConferirCentavos]))
   ok('sangrias = saídas da gaveta por sangria/retirada', C.sangriasCentavos === -(await sql1(`coalesce(sum(valor_centavos),0)`, `and carteira='gaveta' and tipo in ('sangria','retirada')`)), String(C.sangriasCentavos))
   ok('divergências = soma das diferenças de caixa; caixas divergentes contados', C.divergenciasCentavos === await sql1(`coalesce(sum(abs(valor_centavos)),0)`, `and carteira='gaveta' and tipo='ajuste'`) && C.turnosDivergentes >= 2)
+  ok('diferenças de caixa = sobras − faltas do resultado, com o detalhe por turno (0145)', C.diferencasCaixaCentavos === await sql1(`coalesce(sum(valor_centavos),0)`, `and carteira='resultado' and tipo='ajuste'`) && dash.j.diferencasPorTurno.reduce((t, x) => t + x.diferencaCentavos, 0) === C.diferencasCaixaCentavos)
   ok('dinheiro com motoboy agora = saldo da carteira do motoboy', C.motoboyAgoraCentavos === Number((await um(`select coalesce(sum(valor_centavos),0) v from fin_lancamentos where restaurante_id=$1 and carteira='motoboy'`, [L])).v))
-  ok('despesas = resultado (sem compras de insumo)', C.despesasCentavos === -(await sql1(`coalesce(sum(valor_centavos),0)`, `and carteira='resultado' and tipo not in ('conta_receber','compra') and coalesce(dados->>'categoria_grupo','') not in ('insumo','fora')`)))
+  ok('despesas = resultado (sem compras de insumo nem diferenças de caixa — 0145)', C.despesasCentavos === -(await sql1(`coalesce(sum(valor_centavos),0)`, `and carteira='resultado' and tipo not in ('conta_receber','compra','ajuste') and coalesce(dados->>'categoria_grupo','') not in ('insumo','fora')`)))
   const soma = (o) => Object.values(o ?? {}).reduce((s, v) => s + Number(v), 0)
   ok('vendas por origem e por forma somam o faturamento', soma(dash.j.porOrigem) === fat && soma(dash.j.porForma) === fat)
   const dreR = await api(dono.p, `/api/admin/financeiro/contas/dre?de=${de}&ate=${ate}`)
   ok('CMV, lucro bruto e lucro líquido = os do DRE', C.cmvCentavos === dreR.j.atual.cmvCentavos && C.lucroBrutoCentavos === dreR.j.atual.lucroBrutoCentavos && C.lucroLiquidoCentavos === dreR.j.atual.lucroLiquidoCentavos)
-  const top = await um(`select pi.nome, sum(pi.quantidade)::int q from pedido_itens pi join pedidos p on p.id=pi.pedido_id where p.restaurante_id=$1 and p.status<>'cancelado' and pi.cancelado_em is null and ${lim.replace(/criado_em/g, 'p.criado_em')} group by pi.item_id, pi.nome order by 2 desc limit 1`, [L, hoje])
+  // Mesma base do faturamento (0145): itens só das vendas que estão no livro-caixa do período.
+  const top = (await um(`select public.fin_vendas_base($1, $2::date, $2::date, 'dia') b`, [L, hoje])).b.itens.sort((a, b) => b.qtd - a.qtd)[0]
   ok('item mais vendido', dash.j.itens.maisVendido?.nome === top?.nome, `${dash.j.itens.maisVendido?.nome} × ${top?.nome}`)
   ok('série diária com o dia de hoje = faturamento', dash.j.serie.length === 1 && dash.j.serie[0].faturamentoCentavos === fat)
   const semana = await api(dono.p, `/api/admin/financeiro/dashboard?de=${de}&ate=${ate}&grupo=semana`)
