@@ -35,6 +35,11 @@ const uuid = () => crypto.randomUUID()
 const browser = await chromium.launch()
 await db.query(`update restaurantes set financeiro_ativo=true where id=$1`, [loja.id])
 
+async function dispensarSetup(p, ms = 6000) {
+  const b = p.getByRole('button', { name: 'OK, entendi' })
+  try { await b.waitFor({ state: 'visible', timeout: ms }); await b.click(); await b.waitFor({ state: 'detached', timeout: 3000 }) } catch {}
+}
+
 async function logar(login, opcoes = { viewport: { width: 1366, height: 860 } }, senha = SENHA) {
   const ctx = await browser.newContext({ ...opcoes, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' })
   const p = await ctx.newPage()
@@ -106,7 +111,7 @@ try {
   const aviso = dono.p.locator(`[data-testid="usuario-linha"][data-login="${usu}"] [data-testid="aviso-cargo"]`)
   ok('Equipe avisa: "Papel de Gerente" e permissões de gestor sem ser gerente', await aviso.isVisible().catch(() => false) && /Papel de Gerente/.test(await aviso.innerText()) && /financeiro|sangria|estorno/.test((await aviso.getAttribute('aria-label')) ?? ''), await aviso.getAttribute('aria-label').catch(() => ''))
   if (PRINTS) {
-    await dono.p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 4000 }).catch(() => {})
+    await dispensarSetup(dono.p)
     await aviso.scrollIntoViewIfNeeded().catch(() => {}); await aviso.hover().catch(() => {}); await dono.p.waitForTimeout(400)
     await dono.p.screenshot({ path: join(PRINTS, 'depois-equipe-aviso.png') })
   }
@@ -271,7 +276,7 @@ try {
   await dono.p.goto(`${BASE}/admin/financeiro?secao=cmv`, { waitUntil: 'networkidle' })
   await dono.p.getByTestId('cmv-tabela').waitFor({ timeout: 15000 })
   // O checklist de configuração da loja (modal do dono) aparece por cima depois de uns segundos: fecha.
-  await dono.p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 4000 }).catch(() => {})
+  await dispensarSetup(dono.p)
   await dono.p.getByTestId('cmv-busca').fill(`CMV ${SUF}`)
   ok('lista: burger com custo, margem e sugestão; "Sem ficha" destacado', await dono.p.locator(`[data-testid="cmv-linha"][data-chave="item:${BURGER}:"]`).isVisible() && (await dono.p.getByTestId('cmv-sem-ficha-selo').count()) === 0)
   await dono.p.getByTestId('cmv-busca').fill(`Sem Ficha ${SUF}`)
@@ -291,12 +296,13 @@ try {
   const cel = await logar('dono.finint', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
   await cel.p.goto(`${BASE}/admin/financeiro?secao=cmv`, { waitUntil: 'networkidle' })
   await cel.p.getByTestId('cmv-cartao').first().waitFor({ timeout: 15000 })
-  await cel.p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 4000 }).catch(() => {})
+  await dispensarSetup(cel.p)
   ok('celular: lista em cartões, sem rolagem lateral', (await cel.p.getByTestId('cmv-cartao').count()) > 0 && await cel.p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
   await cel.p.getByTestId('cmv-busca').fill(`Burger CMV ${SUF}`)
   if (PRINTS) await cel.p.screenshot({ path: join(PRINTS, 'depois-precificacao-celular.png') })
   await cel.p.getByTestId('cmv-cartao').first().tap()
   await cel.p.getByTestId('ficha-custo').waitFor()
+  await cel.p.getByTestId('ficha-componente').first().waitFor({ timeout: 15000 }).catch(() => {})
   ok('celular: ficha em tela cheia', (await cel.p.getByTestId('ficha-custo').evaluate((e) => Math.round(e.getBoundingClientRect().width))) === 390)
   if (PRINTS) await cel.p.screenshot({ path: join(PRINTS, 'depois-ficha-celular.png') })
   await cel.ctx.close()
