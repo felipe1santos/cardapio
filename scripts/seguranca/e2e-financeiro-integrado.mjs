@@ -238,6 +238,17 @@ try {
   await ate.p.getByTestId('fechar-conferir').click()
   await ate.p.waitForTimeout(1500)
   if (await ate.p.getByTestId('fechar-pendencias').count()) { await foto(ate.p, 'int-pendencias'); await ate.p.getByTestId('fechar-mesmo-assim').click() }
+  // Fase 6 (regras de PIN no fechamento): pendência que passa de turno pede justificativa; acima do limite, PIN.
+  await ate.p.waitForTimeout(1200)
+  if (await ate.p.getByTestId('fechar-justificativa').count()) {
+    await ate.p.getByTestId('fechar-justificativa').fill('TESTE mesa ainda aberta passa para o próximo turno')
+    await ate.p.getByTestId('fechar-com-justificativa').click()
+    await ate.p.waitForTimeout(1200)
+  }
+  if (await ate.p.getByTestId('aprovacao-pin').count()) {
+    await ate.p.getByTestId('aprovador').filter({ hasText: 'Gerente' }).first().click()
+    for (const d of '482913') await ate.p.getByTestId('aprovacao-pin').getByTestId(`pin-${d}`).click()
+  }
   await ate.p.getByTestId('fechar-feito').waitFor({ timeout: 10000 }).catch(() => {})
   await foto(ate.p, 'int-fechado')
   const fz = await um(`select status, diferenca_centavos, diferenca_cartao_centavos, fechado_por_nome from caixa_turnos where id=$1`, [turno.id])
