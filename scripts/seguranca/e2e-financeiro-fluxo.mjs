@@ -230,7 +230,10 @@ try {
       if ((t && noPeriodo.has(t)) || (!t && dia >= ONTEM && dia <= HOJE)) somaLivro += Number(l.v)
     }
     ok('soma do fluxo do período = soma do livro-caixa do período', fx.totais.vendido === somaLivro, `${fx.totais.vendido} × ${somaLivro}`)
-    ok('totais do rodapé = soma das linhas (todas, não só a página)', fx.total === fx.linhas.length && fx.totais.recebido === fx.linhas.reduce((s, l) => s + l.recebido, 0))
+    // Todas as páginas (a loja de teste acumula turnos de várias rodadas no mesmo dia).
+    const todasLinhas = [...fx.linhas]
+    for (let pg = 1; todasLinhas.length < fx.total && pg < 50; pg++) todasLinhas.push(...((await api(dono.p, `/api/admin/financeiro/fluxo?${PERIODO}&porPagina=100&pagina=${pg}`)).j?.linhas ?? []))
+    ok('totais do rodapé = soma das linhas (todas, não só a página)', fx.total === todasLinhas.length && fx.totais.recebido === todasLinhas.reduce((s, l) => s + l.recebido, 0), `${fx.total} × ${todasLinhas.length}`)
     ok('estorno aparece no turno reaberto (R$ do pagamento antigo)', l2 && l2.estornos === v1.totalC, `${l2?.estornos} × ${v1.totalC}`)
     ok('Pix: um confirmado e um a conferir no turno da meia-noite', l3 && l3.pixConfirmado === vp1.totalC && l3.pixAConferir === vp2.totalC, texto({ conf: l3?.pixConfirmado, pend: l3?.pixAConferir }))
     ok('motoboy com pendência aparece em "dinheiro com motoboy"', dv.s !== 201 || (l3 && l3.motoboy !== 0), `${dv.s} ${l3?.motoboy}`)

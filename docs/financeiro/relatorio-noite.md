@@ -9,13 +9,11 @@
   7/7.
 - **Fase 5b (contas, compras, DRE):** concluída. Branch `financeiro-fase5b`. Migration 0143. E2E 80/80.
 - **Fase 6 (dashboard, alertas, PIN, risco):** implementada, com E2E 89/89. Branch `financeiro-fase6`. Migration 0144.
-  - **A regressão do portão ficou INCOMPLETA.** O Claude Code encerrou o servidor local e a regressão por falta de
-    memória na máquina, depois de 4 suítes (todas verdes). Pela regra, não reiniciei sozinho.
-  - **Antes de publicar a Fase 6, falta rodar a regressão completa.**
+  - Regressão completa feita (manhã de 2026-10-04): **verde**. Única falha é a antiga do `release-mesas` (falso positivo).
+  - Três suítes antigas precisaram seguir a regra nova (abertura rápida, fechamento com justificativa, paginação).
 - **Regressão completa** (todas as fases do financeiro, PDV, mesas, delivery, logística, impressão, robô, campanhas,
   cozinha, vitrine, kanban e vitest):
-  - verde nos portões da 5 e da 5b;
-  - incompleta na 6. Detalhe abaixo.
+  - verde nos portões da 5, da 5b e da 6. Detalhe abaixo.
 - **Única falha conhecida:** uma verificação da suíte antiga `release-mesas`, anterior à noite (ver Riscos).
 - **Todas as migrations têm rollback**, testado no banco local: aplicar, desfazer e aplicar de novo.
 - **Decisões provisórias para você confirmar:** estão na lista separada. As principais são as regras de PIN no
@@ -149,7 +147,7 @@ Cenários cobertos:
 ---
 
 ## Fase 6 — Dashboard + alertas + PIN + risco
-**Status:** implementada e testada. **Regressão incompleta** (ver abaixo).
+**Status:** concluída; regressão verde.
 - Branch `financeiro-fase6`, a partir da `financeiro-fase5b`.
 - Regras: [fase6-dashboard-alertas.md](fase6-dashboard-alertas.md).
 - Os itens "1.7, 9 e 10" citados no pedido não existem com esses números no plano. Segui a linha 6 da §6, a §5
@@ -254,19 +252,26 @@ Cenários cobertos:
 | financeiro-contas (5b) | — | 80/80 | 80/80 |
 | financeiro-cmv (5) | 61/61 | 61/61 | 61/61 |
 | integridade (5) | 7/7 | 7/7 | 7/7 |
-| financeiro-fluxo (4) | 86/86 | 86/86 | **não rodou** |
-| financeiro-fase1 / 2 / 3 | 66 / 55 / 106 ok | 66 / 55 / 106 ok | fase1: 16/17 **inconclusivo** (rodou enquanto o servidor era encerrado; um clique deu timeout — pode ser servidor fora ou a abertura rápida cobrindo o botão); fase2/3 não rodaram |
-| financeiro-integrado | 52/52 | 52/52 | **não rodou** |
-| pdv-pagamento, pdv-atendimento, pdv-v2 | 57 / 97 / 70 ok | 57 / 97 / 70 ok | **não rodou** |
-| balcão-entrega, estabilidade, regressão-release | 84 / 53 / 52 ok | 84 / 53 / 52 ok | **não rodou** |
-| equipe (repaginada / acessos) | 75 / 27 ok | 75 / 27 ok | **não rodou** |
-| kanban (card / topo / topo-v2), cozinha, agendamento | 72 / 48 / 121 / 26 / 25 ok | iguais | **não rodou** |
-| cardápio-ordem-QR, impressão-v2, garçom | 111 / 40 / 47 ok | iguais | **não rodou** |
-| release-mesas | 250/254 (cantina-demo) | 253/254 | **não rodou** |
-| robô, central de atendimento, campanhas (2), vitrine-fase3, caixa-turnos, dashboard-banco | 106 / 71 / 71 / 63 / 51 / 18 / 8 ok | iguais | **não rodou** |
-| vitest | 1980 ok | 2012 ok (1 falha era só um rótulo da Fase 6 em andamento; corrigida) | só os de lib: 260 ok |
+| financeiro-fluxo (4) | 86/86 | 86/86 | 86/86* |
+| financeiro-fase1 / 2 / 3 | 66 / 55 / 106 ok | 66 / 55 / 106 ok | 66* / 55 / 106 ok |
+| financeiro-integrado | 52/52 | 52/52 | 52/52* |
+| pdv-pagamento, pdv-atendimento, pdv-v2 | 57 / 97 / 70 ok | 57 / 97 / 70 ok | ok (iguais) |
+| balcão-entrega, estabilidade, regressão-release | 84 / 53 / 52 ok | 84 / 53 / 52 ok | ok (iguais) |
+| equipe (repaginada / acessos) | 75 / 27 ok | 75 / 27 ok | ok (iguais) |
+| kanban (card / topo / topo-v2), cozinha, agendamento | 72 / 48 / 121 / 26 / 25 ok | iguais | ok (iguais) |
+| cardápio-ordem-QR, impressão-v2, garçom | 111 / 40 / 47 ok | iguais | ok (iguais) |
+| release-mesas | 250/254 (cantina-demo) | 253/254 | 253/254 |
+| robô, central de atendimento, campanhas (2), vitrine-fase3, caixa-turnos, dashboard-banco | 106 / 71 / 71 / 63 / 51 / 18 / 8 ok | iguais | ok (iguais) |
+| vitest | 1980 ok | 2012 ok (1 falha era só um rótulo da Fase 6 em andamento; corrigida) | 2013 ok |
 
-**Risco para a regressão da Fase 6** (por isso ela é obrigatória antes de publicar):
+* Na Fase 6, três suítes antigas precisaram de ajuste no **teste** (a regra não mudou):
+- `fase1`: fecha a janela "Abrir o caixa agora?" depois do login;
+- `integrado`: o fechamento com pendência agora justifica e, se pedir, usa o PIN do gerente;
+- `fluxo`: soma todas as páginas, porque a loja de teste acumulou 108 turnos no dia.
+
+O `fluxo` também caiu uma vez por falta de memória da máquina, e a nova rodada passou.
+
+**O que motivou os ajustes** (registro):
 - **Regras novas de fechamento:** as suítes antigas `financeiro-fase2`, `fase3`, `integrado` e `fluxo` fecham caixa
   com diferença pequena sem justificativa, ou com motoboy pendente sem PIN, e podem falhar. Se falharem, isso é
   esperado pela regra nova e as suítes precisam ser atualizadas para ela, nunca afrouxando a regra.

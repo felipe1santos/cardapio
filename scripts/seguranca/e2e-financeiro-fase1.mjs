@@ -52,6 +52,7 @@ async function logar(login, senha, ctx = null) {
   await p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 2500 }).catch(() => {})
   // Fase 6: abertura rápida do caixa logo após o login (quem pode abrir, caixa fechado) — esta suíte não testa isso.
   await p.getByTestId('abertura-rapida-depois').click({ timeout: 3000 }).catch(() => {})
+  await p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 2500 }).catch(() => {})
   return { ctx, p }
 }
 const api = (p, url, metodo = 'GET', corpo) => p.evaluate(async ({ url, metodo, corpo }) => {
