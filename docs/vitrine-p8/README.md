@@ -111,3 +111,16 @@ Ressalvas:
 `antes-*` (código de antes) e `depois-*` (com a P8), mesmos cenários: `*-fim` (fim do cardápio em 360,
 390 e desktop), `*-mais-pedidos-*`, `*-desconto-p8-grade-*`, `*-sacola-390`, `depois-area-segura-*`,
 `admin-previa-mais-pedidos.png`. Produção: `producao-*` (Menuzia).
+
+## Publicação e conferência em produção (2026-10-04)
+
+- Main **cb33332**, deploy Coolify `krccfr8dys3qsna3l8pfcvl7` — finished 15h46. Sem migration.
+- **Menuzia (Angus Burguer):** a vitrine abre sem itens às 15h46 — e isso NÃO é da P8: a única categoria
+  com itens é "Gourmet" (ativa só das 11h40 às 14h); os outros 17 itens estão **sem categoria** (nunca
+  aparecem) e Bebidas/Sobremesa/TESTE Tags estão vazias. Conferido: rodapé fixo, WhatsApp e menu no ar,
+  sem o bloco do fim (`producao-menuzia-*`). Nada foi alterado na loja.
+- **Lojas reais, só olhando** (navegador sem clicar em item, sem sacola, com os eventos da vitrine, o Pixel
+  e a Meta bloqueados no próprio teste para não contar visita): Ponto 400 e Villa Lanches, celular e desktop —
+  seção "Mais Pedidos" com 4 e 5 itens, selo colado no canto da foto (0/0 px), nenhuma pílula "Mais vendido",
+  nenhum desconto cortado, WhatsApp visível, menu visível ao rolar, folga no fim de 4–5 px (celular) e 12 px
+  (desktop) (`producao-ponto-400-*`, `producao-villa-lanches-*`). Demais vitrines respondendo 200 (HTTP).
