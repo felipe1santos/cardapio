@@ -141,3 +141,16 @@ Todas as ações sensíveis pedem confirmação.
 - `antes-desktop.png` e `antes-celular.png`: tela antiga com 293 "cadastros" no local e o bloco de cadastro automático.
 - `depois-desktop.png`, `depois-tablet.png`, `depois-celular.png`.
 - `depois-sublogins-*`, `depois-modal-cadastrar-*`, `cadastro-so-convite-celular.png`.
+
+## 8. Publicação (2026-10-04 ~23:50)
+- **Migration 0139:** dry-run ok; aplicada em produção com backup em `~/backups/menuzia/2026-10-04-pre-0139`.
+  Conferência: tabela com RLS e sem acesso do `authenticated`. Rollback: `docs/rollback/0139_auditoria_plataforma.down.sql`.
+- main `dbd1e12`; Redeploy no Coolify; build novo no ar às 23:58.
+- **Conferência em produção (só leitura):**
+  - `/superadmin` sem sessão → 307 para `/login`;
+  - `verificar-email` com e-mail sem convite → `nao_encontrado` (cadastro fechado);
+  - vitrines 200.
+- **A conferência da tela do superadmin ficou PENDENTE.** O Chrome não tem sessão de superadmin (foi para o login),
+  e eu não digito senhas.
+- Acompanhamento pós-deploy (só leitura): Villa Lanches #70 entrou às 23:53 e foi entregue; Ponto 400 #325 em rota.
+- Rollback não foi necessário.

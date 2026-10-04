@@ -27,4 +27,4 @@ Regras permanentes seguidas: botões do sistema à direita, cores vivas, popups 
     funcionário apagava a loja inteira.
   - "Excluir dados" exige digitar o nome da loja.
 - [x] Testes: unitários (`plataforma.test.ts`, 5) + `e2e-superadmin.mjs` 76/76 + vitest 1958.
-- [ ] Publicação (0139 em produção com backup, deploy, conferência só lendo a tela).
+- [x] Publicação: 0139 em produção (backup), main dbd1e12, build 23:58. Conferência da tela pendente (sem sessão de superadmin no Chrome).
