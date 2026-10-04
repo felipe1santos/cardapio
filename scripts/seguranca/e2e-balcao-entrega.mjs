@@ -241,9 +241,9 @@ try {
   ok('card mostra NA LOGÍSTICA com capacete', await card(pEnt.numero).getByTestId('card-na-logistica').isVisible())
   const aud1 = await um(`select dados from eventos_auditoria where entidade_id = $1 and acao = 'pedido.entrega_balcao_destino'`, [pEnt.id])
   ok('auditoria registra caminho "logistica"', aud1?.dados?.caminho === 'logistica')
-  const cardTxt = await card(pEnt.numero).innerText()
-  // 0135: o card mostra a forma escolhida no PDV (antes não mostrava nada).
-  ok('card mostra a forma escolhida (Dinheiro) e "A …" (não pago)', /Dinheiro/.test(cardTxt) && /A (pagar|receber)/.test(cardTxt))
+  // 0135: o card mostra a forma escolhida no PDV; no card mínimo (2026-10-03) é o ícone + tooltip.
+  const cardTxt = (await card(pEnt.numero).getByTestId('card-pagamento').getAttribute('title')) ?? ''
+  ok('card mostra a forma escolhida (Dinheiro) e "A …" (não pago)', /Dinheiro/.test(cardTxt) && /A (pagar|receber)/.test(cardTxt), cardTxt)
   ok('card com ENTREGA em destaque', await card(pEnt.numero).getByTestId('etiqueta-entrega').isVisible())
   const CAPACETE = 'path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]'
   ok('capacete na etiqueta ENTREGA e no "Na logística"', (await card(pEnt.numero).getByTestId('etiqueta-entrega').locator(CAPACETE).count()) === 1 && (await card(pEnt.numero).getByTestId('card-na-logistica').locator(CAPACETE).count()) === 1)
@@ -253,8 +253,9 @@ try {
     // os dois continuam nos Detalhes.
     const nAd = (await um(`select numero from pedidos where id = $1`, [adult.j.id])).numero
     const txtAd = await card(nAd).innerText()
-    ok('card do delivery com a forma (Pix) e sem "não verificado"', /Pix/.test(txtAd) && !/não verif/i.test(txtAd), txtAd.replace(/\s+/g, ' ').slice(0, 120))
-    await card(nAd).getByTestId('card-detalhes').click(); await k.waitForTimeout(600)
+    const dicaAd = (await card(nAd).getByTestId('card-pagamento').getAttribute('title')) ?? ''
+    ok('card do delivery com a forma (Pix, no ícone) e sem "não verificado"', /Pix/.test(dicaAd) && !/não verif/i.test(txtAd), `${dicaAd} | ${txtAd.replace(/\s+/g, ' ').slice(0, 100)}`)
+    await card(nAd).click({ position: { x: 12, y: 12 } }); await k.waitForTimeout(600)
     const det = await k.locator("body").innerText()
     ok('Detalhes do delivery mantêm a forma de pagamento e o "não verif."', /Pix/i.test(det) && /não verif/i.test(det), det.replace(/\s+/g, ' ').slice(0, 160))
     await foto(k, '03b-detalhes-delivery-pagamento')
@@ -274,7 +275,7 @@ try {
   ok('card com RETIRADA em destaque', await card(pRet.numero).getByTestId('etiqueta-retirada').isVisible())
 
   secao('Detalhes: etiquetas no canto')
-  await card(pRet.numero).getByTestId('card-detalhes').click(); await k.waitForTimeout(500)
+  await card(pRet.numero).click({ position: { x: 12, y: 12 } }); await k.waitForTimeout(500)
   const et = await k.getByTestId('etiquetas-pedido').innerText()
   ok('Detalhes mostram PDV e RETIRADA', /PDV/.test(et) && /RETIRADA/.test(et), et.replace(/\s+/g, ' '))
   await foto(k, '05-detalhes')

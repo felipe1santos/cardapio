@@ -484,11 +484,11 @@ const abertoMaisRecente = (where, p = []) => um(`select p.numero, p.criado_por_n
 async function detalhesDo(numero) {
   const card = pGer.getByTestId(`pedido-${numero}`)
   await card.scrollIntoViewIfNeeded()
-  await card.getByTestId('card-detalhes').click()
+  await card.click({ position: { x: 12, y: 12 } })
   await pGer.getByTestId('etiquetas-pedido').waitFor({ timeout: 10000 })
   const etiquetas = (await pGer.getByTestId('etiquetas-pedido').innerText()).replace(/\s+/g, ' ')
   const lancamento = await pGer.getByTestId('detalhes-lancamento').innerText().catch(() => '')
-  await pGer.getByRole('button', { name: 'Fechar detalhes' }).click()
+  await pGer.keyboard.press('Escape')
   await esperar(300)
   return { etiquetas, lancamento: lancamento.replace(/\s+/g, ' ').replace(/^Lançamento /, '') }
 }

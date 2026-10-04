@@ -26,7 +26,7 @@ async function limpar() {
 }
 
 let seq = 0
-async function pedido({ nome, tipo = 'retirada', pagamento = 'pix', troco = null, qtd = [1], ajuste = {} }) {
+async function pedido({ nome, tipo = 'retirada', pagamento = 'pix', troco = null, qtd = [1], ajuste = {}, obsItem = null }) {
   const corpo = {
     tipo, cliente: { nome, telefone: `279999${String(80000 + seq++).padStart(5, '0')}` }, pagamento, trocoPara: troco,
     endereco: tipo === 'entrega' ? { rua: 'Rua Teste', numero: '10', complemento: '', bairro: 'Centro', cep: '29000000', cidade: 'Vitória' } : { rua: '', numero: '', complemento: '', bairro: '', cep: '' },
@@ -36,6 +36,7 @@ async function pedido({ nome, tipo = 'retirada', pagamento = 'pix', troco = null
   if (r.s !== 201) throw new Error(`${nome}: ${r.s} ${r.j?.error}`)
   const sets = Object.entries(ajuste).map(([k], i) => `${k} = $${i + 2}`)
   if (sets.length) await db.query(`update pedidos set ${sets.join(', ')} where id = $1`, [r.j.id, ...Object.values(ajuste)])
+  if (obsItem) await db.query(`update pedido_itens set observacao=$2 where id = (select id from pedido_itens where pedido_id=$1 order by id limit 1)`, [r.j.id, obsItem])
   return r.j
 }
 
@@ -47,7 +48,7 @@ if (acao === 'limpar') {
   const ha = (min) => new Date(agora - min * 60_000).toISOString()
   // Recebido
   await pedido({ nome: 'TESTE Card Vitrine Pix', pagamento: 'pix', ajuste: { criado_em: ha(4) } })
-  await pedido({ nome: 'TESTE Card Entrega Dinheiro com Troco', tipo: 'entrega', pagamento: 'dinheiro', troco: 200, qtd: [2, 1], ajuste: { criado_em: ha(14) } })
+  await pedido({ nome: 'TESTE Card Entrega Dinheiro com Troco', tipo: 'entrega', pagamento: 'dinheiro', troco: 200, qtd: [2, 1], obsItem: 'Sem cebola, maionese à parte', ajuste: { criado_em: ha(14), observacao: 'Interfone quebrado: ligar ao chegar' } })
   await pedido({ nome: 'TESTE Card Cliente Com Um Nome Muito Comprido Para Testar O Corte', tipo: 'retirada', pagamento: 'cartao', qtd: [3, 2, 1, 1, 2], ajuste: { criado_em: ha(185) } })
   // Preparando (PDV balcão e mesa)
   await pedido({ nome: 'TESTE Card PDV Balcão', pagamento: 'dinheiro', ajuste: { criado_em: ha(25), status: 'preparando', canal: 'balcao', origem: 'pdv', cliente_telefone: '27992534407' } })

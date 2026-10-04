@@ -28,6 +28,14 @@ try {
         if (await card.count()) await card.screenshot({ path: join(pasta, `${prefixo}-card-${n}.png`) })
       }
     }
+    // Painel do pedido (antes: botão "Detalhes"; depois: clique no card).
+    const alvo = p.locator('[data-testid^="pedido-"]').filter({ hasText: 'TESTE Card Entrega Dinheiro' }).first()
+    if (await alvo.count()) {
+      const det = alvo.getByTestId('card-detalhes')
+      if (await det.count()) await det.click(); else await alvo.click({ position: { x: 30, y: 30 } })
+      await p.waitForTimeout(900)
+      await p.screenshot({ path: join(pasta, `${prefixo}-painel-${nome}.png`) })
+    }
     await ctx.close()
   }
 } finally {

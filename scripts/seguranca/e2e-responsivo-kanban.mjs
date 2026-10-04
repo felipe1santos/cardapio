@@ -70,7 +70,7 @@ try {
 
     const primeiro = p.locator('[data-testid^="pedido-"]').first()
     await primeiro.scrollIntoViewIfNeeded()
-    await primeiro.getByTestId('card-detalhes').click()
+    await primeiro.click({ position: { x: 12, y: 12 } })
     await p.waitForTimeout(500)
     const det = await p.evaluate(() => {
       const et = document.querySelector('[data-testid="etiquetas-pedido"]')

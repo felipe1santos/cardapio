@@ -1,102 +1,180 @@
 /**
- * E2E — card do pedido no Kanban, mais limpo (2026-10-03). Loja local ordem-qr-e2e com os pedidos
- * de kanban-cards-semente.mjs (entrega, retirada, mesa, PDV, vitrine; nome longo, muitos itens,
- * valor alto; 4 min, 3 horas, 2 dias). Mede no navegador: fundos, cores, posições e tamanhos.
+ * E2E — card mínimo (3 linhas) + painel lateral do pedido, sem bloquear a tela (2026-10-03).
+ * Loja local ordem-qr-e2e com os pedidos de kanban-cards-semente.mjs (entrega, retirada, mesa,
+ * PDV, vitrine; nome longo, valor alto; cada forma; observações; 4 min, 3 horas e 2 dias).
  *
  *   node scripts/seguranca/kanban-cards-semente.mjs criar
  *   node scripts/seguranca/e2e-kanban-card.mjs
  */
 import { execSync } from 'node:child_process'
+import pg from 'pg'
 import { chromium } from 'playwright'
+import { chavesLocais, exigirLoopback } from './chaves-locais.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:3999'
+const { DB_URL } = chavesLocais()
+exigirLoopback(DB_URL, BASE)
+const db = new pg.Client({ connectionString: DB_URL })
+await db.connect()
+const um = async (s, p = []) => (await db.query(s, p)).rows[0]
+const loja = await um(`select id from restaurantes where slug='ordem-qr-e2e'`)
 const res = []
 const ok = (n, c, d = '') => { res.push(!!c); console.log(`   ${c ? '✅' : '❌'} ${n}${d ? ` — ${d}` : ''}`) }
 const texto = (v) => JSON.stringify(v)
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms))
+async function ate(fn, ms = 12000) { const fim = Date.now() + ms; while (Date.now() < fim) { if (await fn()) return true; await esperar(400) } return false }
+const numeroDe = async (nome) => (await um(`select numero, id from pedidos where restaurante_id=$1 and cliente_nome=$2 and status <> 'cancelado' order by criado_em desc limit 1`, [loja.id, nome]))
+
+async function abrir(b, vp) {
+  const ctx = await b.newContext({ viewport: vp, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo', hasTouch: vp.width < 500, isMobile: vp.width < 500 })
+  const p = await ctx.newPage()
+  await p.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
+  await p.fill('input[name="email"]', 'dono.ordemqr'); await p.fill('input[name="password"]', 'demo-local-123456')
+  await Promise.all([p.waitForURL((u) => u.pathname.startsWith('/admin'), { timeout: 20000 }).catch(() => {}), p.click('button[type="submit"]')])
+  await p.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' })
+  await p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 2000 }).catch(() => {})
+  await p.locator('[data-testid^="pedido-"]').first().waitFor({ timeout: 15000 })
+  await p.waitForTimeout(1000)
+  return { ctx, p }
+}
+const cartao = (p, n) => p.getByTestId(`pedido-${n}`)
+const painelNumero = async (p) => ((await p.getByTestId('painel-pedido').locator('h2').innerText().catch(() => '')).match(/#(\d+)/) ?? [])[1]
 
 const b = await chromium.launch()
 try {
   for (const [nome, vp] of [['desktop', { width: 1600, height: 1000 }], ['tablet', { width: 1024, height: 900 }], ['celular', { width: 390, height: 900 }]]) {
     console.log(`\n── ${nome} (${vp.width}) ──`)
-    const ctx = await b.newContext({ viewport: vp, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' })
-    const p = await ctx.newPage()
-    await p.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
-    await p.fill('input[name="email"]', 'dono.ordemqr'); await p.fill('input[name="password"]', 'demo-local-123456')
-    await Promise.all([p.waitForURL((u) => u.pathname.startsWith('/admin'), { timeout: 20000 }).catch(() => {}), p.click('button[type="submit"]')])
-    await p.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' })
-    await p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 2000 }).catch(() => {})
-    await p.locator('[data-testid^="pedido-"]').first().waitFor({ timeout: 15000 })
-    await p.waitForTimeout(1200)
+    const { ctx, p } = await abrir(b, vp)
     const m = await p.evaluate(() => {
       const transparente = (el) => { const c = getComputedStyle(el).backgroundColor; return c === 'rgba(0, 0, 0, 0)' || c === 'transparent' }
-      const botaoPronto = [...document.querySelectorAll('[data-testid^="pedido-"] button')].find((x) => /Pronto/.test(x.textContent))
-      const verdePronto = botaoPronto ? getComputedStyle(botaoPronto).backgroundColor : null
+      const pronto = [...document.querySelectorAll('[data-testid="card-etapa"]')].find((x) => /Pronto/.test(x.textContent))
+      const verde = pronto ? getComputedStyle(pronto).backgroundColor : null
       return [...document.querySelectorAll('[data-testid^="pedido-"]')].map((card) => {
         const q = (s) => card.querySelector(s)
-        const preco = q('[data-testid="card-preco"]'), pag = q('[data-testid="info-pagamento"]'), ul = q('ul'), tempo = q('[data-testid="card-tempo"]')
-        const r = (el) => el?.getBoundingClientRect()
-        const selos = [...card.querySelectorAll('[data-testid="selo-origem"], [data-testid^="etiqueta-"]')]
-        const botoes = [...card.querySelectorAll('button')].filter((x) => x.getBoundingClientRect().height > 0)
-        const ver = q('[data-testid="card-detalhes"]')
-        const avanco = botoes.find((x) => /Aceitar|Pronto|Entregue|Saiu p\/ entrega/.test(x.textContent))
-        const st = getComputedStyle(card)
+        const filhos = [...card.children].filter((c) => c.getBoundingClientRect().height > 0)
+        const botao = q('[data-testid="card-etapa"], [data-testid="card-na-logistica"]')
+        const rc = card.getBoundingClientRect(), rb = botao?.getBoundingClientRect()
+        const preco = q('[data-testid="card-preco"]'), pag = q('[data-testid="card-pagamento"]')
+        const linhas = [...new Set(filhos.map((f) => Math.round(f.getBoundingClientRect().top)))]
         return {
-          nome: card.querySelector('span.font-semibold')?.textContent?.trim().slice(0, 40),
-          numeroEscuro: getComputedStyle(card.querySelector('span.bg-text-main') ?? card).backgroundColor,
-          selosSemFundo: selos.length > 0 && selos.every(transparente) && selos.every((s) => s.querySelector('svg')),
-          tempo: tempo?.textContent.trim(), tempoSemFundo: tempo ? transparente(tempo) : false, corTempo: tempo ? getComputedStyle(tempo).color : null,
-          parado: /parado h[aá]/i.test(card.innerText),
-          preco: { semFundo: preco ? transparente(preco) : false, cor: preco ? getComputedStyle(preco).color : null, peso: preco ? Number(getComputedStyle(preco).fontWeight) : 0 },
-          verdePronto,
-          pagamento: pag ? { abaixoDoValor: r(pag).top >= r(preco).bottom - 1, alinhadoDireita: Math.abs(r(pag).right - r(preco).right) <= 2, antesDosItens: !ul || r(pag).bottom <= r(ul).top + 40, texto: pag.innerText.replace(/\s+/g, ' ') } : null,
-          itensPx: ul ? parseFloat(getComputedStyle(ul).fontSize) : null,
-          ver: ver ? { texto: ver.textContent.trim(), iconeAntes: ver.firstElementChild?.tagName.toLowerCase() === 'svg' } : null,
-          avanco: avanco ? { texto: avanco.textContent.trim(), setaDepois: avanco.lastElementChild?.tagName.toLowerCase() === 'svg' } : null,
-          alturas: [...new Set(botoes.map((x) => Math.round(x.getBoundingClientRect().height)))],
-          paddingTop: parseFloat(st.paddingTop), paddingBottom: parseFloat(st.paddingBottom),
-          vaza: [...card.querySelectorAll('span, div, li, button')].some((e) => e.getClientRects().length && (e.getBoundingClientRect().right > card.getBoundingClientRect().right + 1 || e.getBoundingClientRect().left < card.getBoundingClientRect().left - 1)),
+          nome: card.querySelector('span.font-semibold')?.textContent.trim().slice(0, 40),
+          filhos: filhos.length, linhas: linhas.length,
+          semItens: !q('ul') && !q('[data-testid="info-pagamento"]') && !q('[data-testid="card-detalhes"]'),
+          pag: pag ? { title: pag.getAttribute('title'), icone: !!pag.querySelector('svg'), antesDoPreco: pag.getBoundingClientRect().right <= preco.getBoundingClientRect().left + 1 } : null,
+          preco: preco ? { cor: getComputedStyle(preco).color, peso: Number(getComputedStyle(preco).fontWeight), semFundo: transparente(preco) } : null,
+          verde,
+          botao: botao ? { larguraTotal: rb.width >= rc.width - 28, seta: botao.dataset.testid === 'card-na-logistica' || botao.lastElementChild?.tagName.toLowerCase() === 'svg', alturaPx: Math.round(rb.height) } : null,
+          altura: Math.round(rc.height), cursor: getComputedStyle(card).cursor,
+          vaza: [...card.querySelectorAll('span, div, button')].some((e) => e.getClientRects().length && e.getBoundingClientRect().right > rc.right + 1),
         }
       })
     })
     const larg = await p.evaluate(() => ({ doc: document.documentElement.scrollWidth, vis: window.innerWidth }))
-    ok('sem rolagem horizontal', larg.doc <= larg.vis + 1, texto(larg))
-    ok(`${m.length} cards: selos (origem e atendimento) sem fundo, com ícone`, m.length >= 8 && m.every((c) => c.selosSemFundo), texto(m.filter((c) => !c.selosSemFundo).map((c) => c.nome)))
-    ok('número do pedido continua no fundo escuro', m.every((c) => c.numeroEscuro !== 'rgba(0, 0, 0, 0)'))
-    ok('nenhum selo "Parado há…" separado', m.every((c) => !c.parado))
-    ok('tempo sem fundo', m.every((c) => c.tempoSemFundo))
-    const t = Object.fromEntries(m.map((c) => [c.nome, c.tempo]))
-    const achar = (prefixo) => Object.entries(t).find(([n]) => n?.startsWith(prefixo))?.[1]
-    ok('tempo em minutos (< 1 h): "4 min"', /^\d+ min$/.test(achar('TESTE Card Vitrine') ?? ''), achar('TESTE Card Vitrine'))
-    ok('tempo em horas: "3 horas"', achar('TESTE Card Cliente') === '3 horas', achar('TESTE Card Cliente'))
-    ok('tempo em dias: "2 dias"', achar('TESTE Card Parado') === '2 dias', achar('TESTE Card Parado'))
-    const corDe = (pref) => m.find((c) => c.nome?.startsWith(pref))?.corTempo
-    ok('alerta de atraso mantido sem fundo: 2 dias em vermelho, 4 min em verde', corDe('TESTE Card Parado') === 'rgb(239, 68, 68)' && corDe('TESTE Card Vitrine') !== corDe('TESTE Card Parado'), `${corDe('TESTE Card Parado')} / ${corDe('TESTE Card Vitrine')}`)
-    ok('valor sem fundo, negrito, no mesmo verde do botão Pronto', m.every((c) => c.preco.semFundo && c.preco.peso >= 700 && c.preco.cor === m[0].verdePronto), `${m[0].preco.cor} × ${m[0].verdePronto}`)
-    const comPag = m.filter((c) => c.pagamento)
-    ok('forma de pagamento logo abaixo do valor, alinhada à direita, antes dos itens', comPag.length >= 6 && comPag.every((c) => c.pagamento.abaixoDoValor && c.pagamento.alinhadoDireita && c.pagamento.antesDosItens), texto(comPag.filter((c) => !(c.pagamento.abaixoDoValor && c.pagamento.alinhadoDireita)).map((c) => c.nome)))
-    ok('formato "Forma · status" (ex.: "Pix · Pago", "Dinheiro · A receber na entrega")', comPag.every((c) => / · /.test(c.pagamento.texto)), comPag[0]?.pagamento.texto)
-    ok('mesa sem forma de pagamento no card', !m.find((c) => c.nome?.startsWith('TESTE Card Mesa'))?.pagamento)
-    ok('itens maiores (13 px)', m.every((c) => !c.itensPx || c.itensPx >= 13), texto([...new Set(m.map((c) => c.itensPx))]))
-    ok('"Detalhes" virou "Ver" com olho antes do texto', m.every((c) => c.ver?.texto === 'Ver' && c.ver.iconeAntes))
-    ok('botões de avanço com seta → depois do texto', m.filter((c) => c.avanco).every((c) => c.avanco.setaDepois), texto(m.filter((c) => c.avanco).map((c) => c.avanco.texto)))
-    ok('botões do card na mesma altura', m.every((c) => c.alturas.length === 1), texto(m.map((c) => c.alturas)))
-    ok('card mais compacto (espaço em cima ≤ 8 px, embaixo ≤ 10 px)', m.every((c) => c.paddingTop <= 8 && c.paddingBottom <= 10), texto([...new Set(m.map((c) => `${c.paddingTop}/${c.paddingBottom}`))]))
-    ok('nome longo, valor alto e muitos itens não vazam do card', m.every((c) => !c.vaza), texto(m.filter((c) => c.vaza).map((c) => c.nome)))
+    ok('sem rolagem horizontal da página', larg.doc <= larg.vis + 1, texto(larg))
+    ok(`${m.length} cards com SÓ 3 linhas (sem itens, sem linha de pagamento, sem "Ver")`, m.length >= 7 && m.every((c) => c.filhos === 3 && c.semItens), texto(m.filter((c) => c.filhos !== 3 || !c.semItens).map((c) => [c.nome, c.filhos])))
+    ok('linha 2: ícone da forma antes do preço, com tooltip (forma · status · troco)', m.filter((c) => c.pag).length >= 6 && m.filter((c) => c.pag).every((c) => c.pag.icone && c.pag.antesDoPreco && / · /.test(c.pag.title)), texto(m.filter((c) => c.pag).map((c) => c.pag.title)))
+    ok('troco no tooltip ("Troco p/ R$ 200,00")', m.some((c) => /Troco p\/ R\$\s?200,00/.test(c.pag?.title ?? '')))
+    ok('mesa sem ícone de pagamento', !m.find((c) => c.nome?.startsWith('TESTE Card Mesa'))?.pag)
+    ok('preço em verde negrito (mesmo verde do botão Pronto), sem fundo', m.every((c) => c.preco.semFundo && c.preco.peso >= 700 && c.preco.cor === m[0].verde), `${m[0].preco.cor} × ${m[0].verde}`)
+    ok('linha 3: só o botão de etapa, largura total, seta à direita', m.every((c) => c.botao?.larguraTotal && c.botao.seta), texto(m.filter((c) => !(c.botao?.larguraTotal && c.botao?.seta)).map((c) => c.nome)))
+    ok('cursor de mão no card', m.every((c) => c.cursor === 'pointer'))
+    ok('nome longo e valor alto não vazam', m.every((c) => !c.vaza), texto(m.filter((c) => c.vaza).map((c) => c.nome)))
+    ok(`card compacto (altura ≤ ${nome === 'celular' ? 130 : 140} px)`, m.every((c) => c.altura <= (nome === 'celular' ? 130 : 140)), texto([...new Set(m.map((c) => c.altura))]))
+
+    // Painel: abrir, trocar, fechar.
+    const ent = await numeroDe('TESTE Card Entrega Dinheiro com Troco')
+    const ret = await numeroDe('TESTE Card Retirada Pronta')
+    await cartao(p, ent.numero).click({ position: { x: 40, y: 40 } })
+    ok('clicar no card abre o painel do pedido', await ate(async () => (await painelNumero(p)) === String(ent.numero), 5000))
+    ok('card selecionado destacado', (await cartao(p, ent.numero).getAttribute('data-selecionado')) === '1')
+    if (nome !== 'celular') {
+      const sobreposto = await p.evaluate(() => {
+        const painel = document.querySelector('[data-testid="painel-pedido"]').getBoundingClientRect()
+        const quadro = document.querySelector('[data-testid="kanban-quadro"]').getBoundingClientRect()
+        return { quadroDireita: Math.round(quadro.right), painelEsquerda: Math.round(painel.left), overlay: [...document.querySelectorAll('div.fixed.inset-0')].some((d) => d.getBoundingClientRect().width > 0) }
+      })
+      ok('sem overlay: o painel fica ao lado, o quadro termina antes dele (nenhum card escondido)', !sobreposto.overlay && sobreposto.quadroDireita <= sobreposto.painelEsquerda + 1, texto(sobreposto))
+      await cartao(p, ret.numero).click({ position: { x: 40, y: 40 } })
+      ok('com o painel aberto, clicar em outro card troca na hora', await ate(async () => (await painelNumero(p)) === String(ret.numero), 3000))
+      await cartao(p, ret.numero).click({ position: { x: 40, y: 40 } })
+      ok('clicar de novo no card selecionado fecha', await ate(async () => (await p.getByTestId('painel-pedido').count()) === 0, 3000))
+      await cartao(p, ent.numero).click({ position: { x: 40, y: 40 } })
+      await p.keyboard.press('Escape')
+      ok('Esc fecha', await ate(async () => (await p.getByTestId('painel-pedido').count()) === 0, 3000))
+      await cartao(p, ent.numero).click({ position: { x: 40, y: 40 } })
+      await p.getByTestId('painel-fechar').click()
+      ok('X fecha', await ate(async () => (await p.getByTestId('painel-pedido').count()) === 0, 3000))
+      await cartao(p, ent.numero).click({ position: { x: 40, y: 40 } })
+    } else {
+      const tela = await p.getByTestId('painel-pedido').boundingBox()
+      ok('celular: painel em tela cheia com "← Voltar"', !!tela && tela.width >= vp.width - 1 && await p.getByTestId('painel-voltar').isVisible(), texto(tela))
+    }
+    const pn = await p.evaluate(() => {
+      const el = (s) => document.querySelector(s)
+      const st = (s) => (el(s) ? getComputedStyle(el(s)) : null)
+      const etapas = [...document.querySelectorAll('[data-testid="painel-linha-do-tempo"] li')].map((li) => [li.dataset.testid, li.dataset.estado])
+      const tl = el('[data-testid="painel-linha-do-tempo"]')
+      return {
+        etapas, horizontal: tl ? new Set([...tl.children].map((c) => Math.round(c.getBoundingClientRect().top))).size === 1 : false,
+        obsItem: st('[data-testid="painel-obs-item"]') ? { fundo: st('[data-testid="painel-obs-item"]').backgroundColor, cor: st('[data-testid="painel-obs-item"]').color, icone: !!el('[data-testid="painel-obs-item"] svg') } : null,
+        obsPedido: !!el('[data-testid="painel-obs-pedido"]'),
+        total: st('[data-testid="painel-total"]') ? { cor: st('[data-testid="painel-total"]').color, px: parseFloat(st('[data-testid="painel-total"]').fontSize), peso: Number(st('[data-testid="painel-total"]').fontWeight) } : null,
+        precosItens: [...document.querySelectorAll('[data-testid="painel-itens"] li span.tabular-nums')].map((s) => getComputedStyle(s).color),
+        itensPx: parseFloat(getComputedStyle(el('[data-testid="painel-itens"] li > div') ?? document.body).fontSize),
+        cancelar: st('[data-testid="painel-cancelar"]') ? { fundo: st('[data-testid="painel-cancelar"]').backgroundColor, cor: st('[data-testid="painel-cancelar"]').color } : null,
+        telefone: el('[data-testid="painel-telefone"]')?.getAttribute('href'),
+        endereco: el('[data-testid="painel-endereco"]')?.textContent.includes('Centro'),
+        troco: el('[data-testid="painel-troco"]')?.textContent,
+        reimprimir: !!el('[data-testid="painel-reimprimir"]'), alterar: !!el('[data-testid="detalhes-alterar-pagamento"]'),
+        horario: el('[data-testid="painel-horario"]')?.textContent,
+      }
+    })
+    ok('linha do tempo horizontal, numa linha: Recebido → Preparando → Pronto → Em rota → Entregue (entrega)', pn.horizontal && pn.etapas.map((e) => e[0]).join(',') === 'etapa-recebido,etapa-preparando,etapa-pronto,etapa-em_rota,etapa-entregue' && pn.etapas[0][1] === 'atual', texto(pn.etapas))
+    ok('observações do item e do pedido em vermelho com fundo vermelho claro e ícone', pn.obsItem && pn.obsItem.fundo === 'rgb(254, 226, 226)' && pn.obsItem.cor === 'rgb(239, 68, 68)' && pn.obsItem.icone && pn.obsPedido, texto(pn.obsItem))
+    ok('preços dos itens, subtotal e total no verde do Pronto; total maior e negrito', pn.total && pn.total.cor === m[0].verde && pn.total.px >= 18 && pn.total.peso >= 700 && pn.precosItens.length >= 2 && pn.precosItens.every((c) => c === m[0].verde), texto(pn.total))
+    ok('letra dos itens maior (15 px)', pn.itensPx >= 15, String(pn.itensPx))
+    ok('cliente/pagamento: telefone clicável, endereço com bairro, "Troco p/ … · levar …", horário e "há quanto tempo"', /^tel:\d+/.test(pn.telefone ?? '') && pn.endereco && /Troco p\/ R\$\s?200,00 · levar R\$/.test(pn.troco ?? '') && /Feito às \d\d:\d\d · há/.test(pn.horario ?? ''), texto({ tel: pn.telefone, troco: pn.troco, horario: pn.horario }))
+    ok('rodapé: Reimprimir e Cancelar (vermelho escuro, texto branco); Alterar pagamento', pn.reimprimir && pn.alterar && pn.cancelar?.fundo === 'rgb(153, 27, 27)' && pn.cancelar?.cor === 'rgb(255, 255, 255)', texto(pn.cancelar))
+    if (nome === 'celular') {
+      await p.getByTestId('painel-voltar').tap()
+      ok('celular: "← Voltar" fecha', await ate(async () => (await p.getByTestId('painel-pedido').count()) === 0, 3000))
+    }
     if (nome === 'desktop') {
-      await p.getByTestId('kanban-tela-cheia').click().catch(async () => { await p.getByTestId('kanban-mais').click(); await p.locator('text=Tela cheia').last().click() })
-      await p.waitForTimeout(800)
-      const cheia = await p.evaluate(() => ({ cards: document.querySelectorAll('[data-testid^="pedido-"]').length, horizontal: document.documentElement.scrollWidth > window.innerWidth + 1 }))
-      ok('tela cheia do Kanban: cards visíveis, sem rolagem lateral', cheia.cards >= 8 && !cheia.horizontal, texto(cheia))
+      // Tempo real (pedido "Valor Alto", em preparo): muda a etapa e cancela no banco; o painel acompanha.
+      await p.keyboard.press('Escape')
+      const alto = await numeroDe('TESTE Card Valor Alto')
+      await cartao(p, alto.numero).click({ position: { x: 40, y: 40 } })
+      await db.query(`update pedidos set status='pronto' where id=$1`, [alto.id])
+      ok('tempo real: a etapa muda no painel (Pronto atual)', await ate(async () => (await p.locator('[data-testid="etapa-pronto"]').getAttribute('data-estado')) === 'atual', 15000))
+      await db.query(`update pedidos set status='cancelado', cancelado_motivo='teste', cancelado_em=now() where id=$1`, [alto.id])
+      ok('tempo real: cancelamento aparece no painel', await ate(async () => (await p.getByTestId('painel-cancelado').count()) === 1, 15000))
+      await p.keyboard.press('Escape')
+      // Linha do tempo de retirada e mesa sem "Em rota".
+      await cartao(p, ret.numero).click({ position: { x: 40, y: 40 } })
+      const etRet = await p.locator('[data-testid="painel-linha-do-tempo"] li').evaluateAll((l) => l.map((x) => x.dataset.testid))
+      ok('retirada: só as etapas que existem (sem "Em rota")', !etRet.includes('etapa-em_rota') && etRet.length === 4, texto(etRet))
+      await p.keyboard.press('Escape')
+      // Botão de etapa avança sem abrir o painel.
+      const vit = await numeroDe('TESTE Card Vitrine Pix')
+      await cartao(p, vit.numero).getByTestId('card-etapa').click()
+      ok('botão de etapa avança (Aceitar → Preparando) e NÃO abre o painel', await ate(async () => (await um(`select status::text s from pedidos where id=$1`, [vit.id])).s === 'preparando', 8000) && (await p.getByTestId('painel-pedido').count()) === 0)
+      // Tela cheia com painel.
+      await p.getByTestId('kanban-mais').click(); await p.getByTestId('kanban-mais-menu').getByText('Tela cheia').click()
+      await p.waitForTimeout(700)
+      await cartao(p, ret.numero).click({ position: { x: 40, y: 40 } })
+      const cheia = await p.evaluate(() => ({ cards: document.querySelectorAll('[data-testid^="pedido-"]').length, painel: !!document.querySelector('[data-testid="painel-pedido"]'), horizontal: document.documentElement.scrollWidth > window.innerWidth + 1 }))
+      ok('tela cheia: cards e painel, sem rolagem lateral', cheia.cards >= 6 && cheia.painel && !cheia.horizontal, texto(cheia))
     }
     await ctx.close()
   }
 } finally {
   await b.close()
+  await db.end()
 }
 
-console.log('\n── Despacho de rotas ──')
-const diff = execSync('git diff --stat origin/main -- components/pedidos/rota-panel.tsx components/pedidos/rota-map.tsx components/maps components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
-ok('tela "Despacho de rotas" sem nenhuma alteração (rota-panel, rota-map, mapas, Badge e Button intactos)', diff === '', diff)
+console.log('\n── Despacho de rotas e Cozinha ──')
+const diff = execSync('git diff --stat origin/main -- components/pedidos/rota-panel.tsx components/pedidos/rota-map.tsx components/maps app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
+ok('"Despacho de rotas" e Cozinha sem nenhuma alteração', diff === '', diff)
 
 const falhas = res.filter((x) => !x).length
 console.log(`\n${res.length - falhas}/${res.length} verificações passaram`)
