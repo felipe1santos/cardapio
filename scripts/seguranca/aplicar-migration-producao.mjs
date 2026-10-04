@@ -46,7 +46,7 @@ if (aplicar) {
 }
 try {
   await c.query('begin')
-  await c.query(`set local lock_timeout = '15s'`)
+  await c.query(`set local lock_timeout = '5s'`)
   await c.query(sql)
   await c.query('insert into schema_migrations (name) values ($1)', [NOME])
   const conf = await um(CONFERE)
