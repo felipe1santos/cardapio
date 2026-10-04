@@ -92,3 +92,19 @@ clicam no card e leem o tooltip do ícone.
 
 A regressão pegou uma perda real, já corrigida: o selo **"não verif."** do telefone tinha ficado de fora do painel
 novo.
+
+## Publicação (2026-10-03 ~21:45)
+- Sem migration. main `9f42a03`, Redeploy no Coolify, build novo no ar às ~21:47.
+- **Conferência na Menuzia**, perfil "Menuzia teste": loja "Angus Burguer" e usuário "Administrador" confirmados na
+  tela antes de cada ação.
+  - Pedido TESTE **#148** (PDV, retirada, dinheiro com troco para R$ 50, item com observação).
+  - **Card:** 3 linhas. Tooltip do ícone "Dinheiro · A pagar na retirada · Troco p/ R$ 50,00". Preço R$ 18,00 em
+    `rgb(16,185,129)`. Botão "Pronto" (o aceite automático da Menuzia já tinha avançado o pedido).
+  - **Painel:** abriu pelo clique no card, sem overlay, com o card destacado. Linha do tempo com Recebido feito e
+    Preparando atual. "Obs.: TESTE sem cebola" em vermelho. "Troco p/ R$ 50,00 · levar R$ 32,00". Cancelar
+    `rgb(153,27,27)`. Esc fechou.
+  - **#148 e a comanda cancelados** no fim.
+- Esta conferência também cobre a etapa anterior (card limpo, `kanban-card`), que tinha ficado sem conferência logada.
+- **Acompanhamento pós-deploy** (21:49–21:52, só leitura): a Villa Lanches recebeu o pedido #69 e ele foi aceito no
+  painel novo (em preparo). Vitrines 200.
+- Rollback não foi necessário.
