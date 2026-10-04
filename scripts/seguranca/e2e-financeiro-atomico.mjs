@@ -168,10 +168,11 @@ try {
 
     secao('Fase 6 — fechamento do caixa (ajuste + turno + aprovação + auditoria)')
     const esp = Number((await um(`select coalesce(sum(valor_centavos),0) s from fin_lancamentos where turno_id=$1 and carteira='gaveta'`, [turno.id])).s)
+    const ajAntes = await contar(`select count(*) n from fin_lancamentos where turno_id=$1 and tipo='ajuste'`, [turno.id])
     await falharEm('caixa_turnos', `new.fechado_em is not null and new.justificativa like 'TESTE FALHA%'`)
     const f0 = await api(dono.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'fechar', contadoDinheiroCentavos: Math.max(0, esp) + 700, contadoCartaoCentavos: 0, aceitarPendencias: true, justificativa: 'TESTE FALHA ao fechar o caixa' })
     ok('falha ao fechar: o caixa continua aberto e o ajuste da contagem não fica no livro-caixa', f0.s >= 500 && !(await um(`select fechado_em from caixa_turnos where id=$1`, [turno.id])).fechado_em
-      && await contar(`select count(*) n from fin_lancamentos where turno_id=$1 and tipo='ajuste' and chave_idempotencia like 'fechamento:%'`, [turno.id]) === 0, `${f0.s} ${texto(f0.j)}`)
+      && await contar(`select count(*) n from fin_lancamentos where turno_id=$1 and tipo='ajuste'`, [turno.id]) === ajAntes, `${f0.s} ${texto(f0.j)}`)
     await limparFalhas()
     const f1 = await api(dono.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'fechar', contadoDinheiroCentavos: Math.max(0, esp), contadoCartaoCentavos: Math.max(0, Number((await um(`select coalesce(sum(valor_centavos),0) s from fin_lancamentos where turno_id=$1 and carteira='cartao'`, [turno.id])).s)), aceitarPendencias: true, justificativa: 'TESTE fechamento do teste de atomicidade' })
     ok('sem a falha: fecha', f1.s === 200, `${f1.s} ${texto(f1.j)}`)

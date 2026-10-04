@@ -211,7 +211,7 @@ begin
     perform public.fin_usar_aprovacao(p_aprovacao);
   end if;
   update public.caixa_turnos set
-    fechado_em = now(), fechado_por = p_usuario, fechado_por_nome = p_usuario_nome,
+    status = 'fechado', fechado_em = now(), fechado_por = p_usuario, fechado_por_nome = p_usuario_nome,
     contado_dinheiro_centavos = (p_campos->>'contado_dinheiro_centavos')::bigint, contado_cartao_centavos = (p_campos->>'contado_cartao_centavos')::bigint,
     esperado_dinheiro_centavos = (p_campos->>'esperado_dinheiro_centavos')::bigint, esperado_cartao_centavos = (p_campos->>'esperado_cartao_centavos')::bigint,
     diferenca_centavos = (p_campos->>'diferenca_centavos')::bigint, diferenca_cartao_centavos = (p_campos->>'diferenca_cartao_centavos')::bigint,
