@@ -19,29 +19,33 @@ import {
   ChefHat,
   HandPlatter,
   Clock,
-  PrinterCheck,
   Eye,
   EyeOff,
   Zap,
   ArrowRight,
+  Banknote,
+  CreditCard,
+  QrCode,
   Monitor,
   Smartphone,
   Store,
 } from 'lucide-react'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
+import { PainelPedido } from '@/components/pedidos/painel-pedido'
+import { PEDIDO_SELECT, mapPedido } from '@/lib/queries/pedidos'
+import { rotuloForma, statusAReceber } from '@/lib/pdv-pagamento'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { CancelarPedidoModal } from '@/components/pedidos/cancelar-modal'
-import { podeCancelar, rotuloMotivo } from '@/lib/cancelamento'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO, usaDespachoDeRotas } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
-import { etiquetasDoPedido, referenciaDoLancamento, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
-import { EtiquetaAtendimento, EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
+import { etiquetasDoPedido, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
+import { EtiquetaAtendimento } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
@@ -63,8 +67,6 @@ import { formatarReal } from '@/lib/moeda'
 import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
-import { AlertaTroco, InfoPagamento } from '@/components/pedidos/info-pagamento'
-import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -109,13 +111,6 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
 /** Selo do card sem fundo: ícone + texto (2026-10-03). */
 const SELO = 'inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide'
 
-const TIMELINE_STEPS: { label: string; status: StatusPedido }[] = [
-  { label: 'Recebido', status: 'recebido' },
-  { label: 'Preparando', status: 'preparando' },
-  { label: 'Pronto', status: 'pronto' },
-  { label: 'Em rota', status: 'em_rota' },
-  { label: 'Entregue', status: 'entregue' },
-]
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
@@ -131,11 +126,6 @@ function tempoDecorrido(iso: string, now: number) {
 const AUTO_ACEITE_DELAY_MS = 5_000
 
 
-function resumoItens(p: Pedido): string[] {
-  const linhas = p.itens.map((i) => `${i.quantidade}x ${i.nome}${i.tamanhoNome ? ` (${i.tamanhoNome})` : ''}${i.saborNome ? ` - ${i.saborNome}` : ''}`)
-  if (linhas.length <= 3) return linhas
-  return [...linhas.slice(0, 2), `+${linhas.length - 2} item(ns)`]
-}
 
 function SubSecao({ titulo, cor, vazio, children }: { titulo: string; cor: string; vazio: string; children: React.ReactNode }) {
   const count = Children.count(children)
@@ -228,7 +218,8 @@ export default function PedidosPage() {
   const liberaMinRef = useRef(30)
   const [transit, setTransit] = useState<Pedido[]>([])
   const [concluded, setConcluded] = useState<Pedido[]>([])
-  const [detail, setDetail] = useState<Pedido | null>(null)
+  // Painel do pedido (2026-10-03): guarda o pedido aberto e acompanha as listas em tempo real.
+  const [detail, setDetailSnap] = useState<Pedido | null>(null)
   const [editandoPag, setEditandoPag] = useState(false)
   useEffect(() => { setEditandoPag(false) }, [detail?.id])
   const [cancelando, setCancelando] = useState<Pedido | null>(null)
@@ -627,6 +618,22 @@ export default function PedidosPage() {
     }
   }
 
+  const setDetail = useCallback((p: Pedido | null) => { setDetailSnap(p); setEditandoPag(false) }, [])
+  const fecharPainel = useCallback(() => setDetail(null), [setDetail])
+  // O painel acompanha o pedido em tempo real: a cada atualização das listas pega a versão
+  // nova; se o pedido saiu delas (cancelado, concluído antigo), relê do banco.
+  const detalheId = detail?.id ?? null
+  useEffect(() => {
+    if (!detalheId) return
+    const atual = [...orders, ...agendados, ...transit, ...concluded].find((o) => o.id === detalheId)
+    if (atual) { setDetailSnap((antes) => (antes && antes.id === atual.id ? atual : antes)); return }
+    let vivo = true
+    supabase.from('pedidos').select(PEDIDO_SELECT).eq('id', detalheId).maybeSingle()
+      .then(({ data }) => { if (vivo && data) setDetailSnap((antes) => (antes && antes.id === detalheId ? mapPedido(data as never) : antes)) })
+    return () => { vivo = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, agendados, transit, concluded])
+
   // Zera o feedback de reimpressão ao abrir/trocar de pedido no drawer.
   useEffect(() => setReimpEstado('idle'), [detail?.id])
 
@@ -874,7 +881,9 @@ export default function PedidosPage() {
     <>
       {topBar}
 
-      <div className="flex flex-1 flex-col gap-3 overflow-hidden p-5">
+      {/* Quadro + painel do pedido lado a lado: o painel não cobre nem bloqueia o quadro. */}
+      <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-5">
         {error && (
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
@@ -929,7 +938,7 @@ export default function PedidosPage() {
         )}
 
         {/* Board */}
-        <div className={`grid flex-1 grid-cols-1 gap-3 overflow-hidden max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        <div className={`grid flex-1 grid-cols-1 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${detail ? `lg:overflow-x-auto lg:overflow-y-hidden ${showCol4 ? 'lg:grid-cols-[repeat(4,minmax(250px,1fr))]' : 'lg:grid-cols-[repeat(3,minmax(250px,1fr))]'}` : `overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}`} data-testid="kanban-quadro">
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             const cfg = COLUNA_CONFIG[coluna]
@@ -947,30 +956,44 @@ export default function PedidosPage() {
                   {colOrders.map((order) => {
                     const idadeMs = now - new Date(order.criadoEm).getTime()
                     const corTempo = { ok: 'text-price-text', atencao: 'text-[#B45309]', atraso: 'text-danger' }[corTempoPedido(idadeMs)]
+                    const selecionado = detail?.id === order.id
+                    const IconePag = order.formaPagamento === 'dinheiro' ? Banknote : order.formaPagamento === 'pix' ? QrCode : CreditCard
+                    const dicaPag = [
+                      rotuloForma(order.formaPagamento, order.cartaoTipo),
+                      order.pago ? 'Pago' : statusAReceber(order.tipo),
+                      order.formaPagamento === 'dinheiro' && order.trocoPara ? `Troco p/ ${brl(order.trocoPara)}` : null,
+                    ].filter(Boolean).join(' · ')
+                    const abrir = () => setDetail(selecionado ? null : order)
                     return (
+                      // Card mínimo (2026-10-03): 3 linhas. Clicar em qualquer parte abre o painel do
+                      // pedido; o botão de etapa só avança (não abre o painel).
                       <div
                         key={order.id}
                         data-testid={`pedido-${order.numero}`}
+                        data-selecionado={selecionado ? '1' : undefined}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={selecionado}
+                        aria-label={`Pedido #${order.numero}: abrir o painel`}
+                        onClick={abrir}
+                        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir() } }}
                         className={[
-                          'rounded-menuzia border border-border border-l-[4px] bg-white px-3 pb-2.5 pt-2 shadow-md transition-shadow hover:shadow-lg',
+                          'cursor-pointer rounded-menuzia border border-l-[4px] px-3 pb-2 pt-2 shadow-md transition-[box-shadow,background-color] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                          selecionado ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/40' : 'border-border bg-white hover:bg-page/60',
                           accent[coluna],
                           order.status === 'recebido' && !order.preparandoNotificado ? 'animate-new-order' : '',
                         ].join(' ')}
                       >
-                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                        {/* Linha 1: número, origem, tempo e atendimento (sem fundo). */}
+                        <div className="flex items-center justify-between gap-2">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
-                            {order.status === 'recebido' && <Badge tone="new">Novo</Badge>}
-                            {/* Salão e balcão não são a mesma coisa: quem lê o card precisa
-                                saber se o prato vai para uma mesa ou para o balcão. */}
-                            {/* Selos de origem sem fundo (2026-10-03): ícone + texto na cor de sempre. */}
                             {origemDoCard(order).posto === 'Salão' && <span className={`${SELO} text-[#047857]`} data-testid="selo-origem"><Store className="h-3.5 w-3.5" aria-hidden /> Salão</span>}
                             {origemDoCard(order).posto === 'PDV' && <span className={`${SELO} text-alert-text`} data-testid="selo-origem"><Monitor className="h-3.5 w-3.5" aria-hidden /> PDV</span>}
                             {origemDoCard(order).posto === 'Delivery' && <span className={`${SELO} text-purple`} data-testid="selo-origem"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Delivery</span>}
                             {order.agendadoPara && <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge>}
                           </div>
                           <div className="flex flex-shrink-0 items-center gap-1.5">
-                            {/* Um contador só: "13 min" → "2 horas" → "3 dias" (antes "1986:17" + selo "Parado"). */}
                             <span
                               className={`inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] font-bold tabular-nums ${corTempo}`}
                               title={pedidoParado(order, now) ? `Aberto há ${textoTempoPedido(idadeMs)}: ninguém fechou este pedido. Conclua ou cancele.` : 'Tempo desde que o pedido chegou'}
@@ -982,83 +1005,48 @@ export default function PedidosPage() {
                             <EtiquetaAtendimento atendimento={etiquetasDoPedido(order).atendimento} semFundo />
                           </div>
                         </div>
-                        <div className="mb-2 min-w-0">
-                          {/* Nome (ou mesa) à esquerda e preço à direita, na MESMA linha. Origem e
-                              atendimento já estão nas etiquetas de cima; senha, comanda e quem lançou
-                              ficam nos Detalhes. O nome trunca, o preço nunca quebra. */}
-                          <div className="flex min-w-0 items-start justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-1.5 pt-[1px]">
-                              <span className="min-w-0 truncate text-[13px] font-semibold" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
-                              {/* PDV identificado (0094): telefone discreto; endereço fica no detalhe. */}
-                              {order.origem === 'pdv' && order.clienteTelefone && (
-                                <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
-                              )}
-                            </div>
-                            {/* Valor em verde (o mesmo do botão Pronto), sem fundo; forma de pagamento logo abaixo, à direita. */}
-                            <div className="flex flex-shrink-0 flex-col items-end">
-                              <div className="whitespace-nowrap text-[14px] font-bold tabular-nums text-status-ready" data-testid="card-preco">
-                                {brl(order.total)}
-                              </div>
-                              <InfoPagamento p={order} card />
-                            </div>
+                        {/* Linha 2: cliente (+ telefone) à esquerda; ícone da forma e valor à direita. */}
+                        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="min-w-0 truncate text-[13.5px] font-semibold" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
+                            {order.origem === 'pdv' && order.clienteTelefone && (
+                              <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
+                            )}
                           </div>
-                          {order.tipo === 'entrega' && order.enderecoBairro && (
-                            <div className="mt-0.5 truncate text-xs text-text-subtle">{order.enderecoBairro}</div>
-                          )}
-                          <ul className="mt-1 space-y-0.5 text-[13px] leading-snug text-text-subtle">
-                            {resumoItens(order).map((line) => (
-                              <li key={line}>{line}</li>
-                            ))}
-                          </ul>
-                          {order.status === 'preparando' && order.preparandoPor && (
-                            <div className="mt-1 text-[11px] text-text-subtle">Em preparo por: {order.preparandoPor}</div>
-                          )}
-                          {order.preparadoPor && (
-                            <div className="mt-1 text-[11px] text-text-subtle">Preparado por: {order.preparadoPor}</div>
-                          )}
+                          <div className="flex flex-shrink-0 items-center gap-1.5">
+                            {order.canal !== 'mesa' && (
+                              <span className="inline-flex text-text-subtle" title={dicaPag} aria-label={dicaPag} data-testid="card-pagamento">
+                                <IconePag className="h-[18px] w-[18px]" aria-hidden />
+                              </span>
+                            )}
+                            <span className="whitespace-nowrap text-[14px] font-bold tabular-nums text-status-ready" data-testid="card-preco">{brl(order.total)}</span>
+                          </div>
                         </div>
-                        <div className="flex gap-2 [&>*]:whitespace-nowrap">
-                          <Button variant="secondary" className="flex-[0.7] gap-1.5 px-2" onClick={() => setDetail(order)} data-testid="card-detalhes" title="Ver os detalhes do pedido">
-                            <Eye className="h-4 w-4" aria-hidden /> Ver
-                          </Button>
+                        {/* Linha 3: só o botão de etapa (não abre o painel). */}
+                        <div className="mt-2 flex [&>*]:whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {order.status === 'recebido' && (
-                            <>
-                              <Button variant="primary" className="flex-1 gap-1.5" onClick={() => avancar(order)}>
-                                Aceitar <ArrowRight className="h-4 w-4" aria-hidden />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                className="border-danger px-2.5 text-danger hover:bg-danger-bg"
-                                onClick={() => pedirCancelamento(order)}
-                                title="Recusar pedido"
-                              >
-                                ✕
-                              </Button>
-                            </>
+                            <Button variant="primary" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
+                              Aceitar <ArrowRight className="h-4 w-4" aria-hidden />
+                            </Button>
                           )}
                           {order.status === 'preparando' && (
-                            <Button variant="success" className="flex-1 gap-1.5" onClick={() => avancar(order)}>
+                            <Button variant="success" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
                               Pronto <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
                           {order.status === 'pronto' && order.tipo === 'retirada' && (
-                            <Button variant="success" className="flex-1 gap-1.5" onClick={() => avancar(order)}>
+                            <Button variant="success" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
                               Entregue <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && !usaDespachoDeRotas(fluxo) && (
-                            <Button
-                              variant="dispatch"
-                              className="flex-1 gap-1.5"
-                              onClick={() => saiuSemEntregador(order)}
-                              title="Avisa o cliente no WhatsApp e conclui o pedido"
-                            >
+                            <Button variant="dispatch" className="w-full gap-1.5" onClick={() => saiuSemEntregador(order)} title="Avisa o cliente no WhatsApp e conclui o pedido" data-testid="card-etapa">
                               Saiu p/ entrega <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && (
                             <span
-                              className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-menuzia border border-[#0369A1]/25 bg-alert-bg px-2 text-[11px] font-bold uppercase tracking-wide text-alert-text lg:min-h-0"
+                              className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-menuzia border border-[#0369A1]/25 bg-alert-bg px-2 text-[11px] font-bold uppercase tracking-wide text-alert-text lg:min-h-0 lg:py-2"
                               data-testid="card-na-logistica"
                               title="Despacho feito no módulo de Logística"
                             >
@@ -1117,203 +1105,28 @@ export default function PedidosPage() {
           )}
         </div>
       </div>
+      {detail && (
+        <PainelPedido
+          pedido={detail}
+          agora={now}
+          onFechar={fecharPainel}
+          editandoPag={editandoPag}
+          setEditandoPag={setEditandoPag}
+          onPagamentoAlterado={() => { if (restauranteId) refetch(restauranteId) }}
+          reimpEstado={reimpEstado}
+          onReimprimir={() => reimprimir(detail)}
+          onCancelar={() => pedirCancelamento(detail)}
+          concluirSemEntregador={fluxo.usaLogistica && !fluxo.entregaSemEntregador && detail.tipo === 'entrega' && (detail.status === 'pronto' || detail.status === 'em_rota')
+            ? () => { const p = detail; setDetail(null); moverPara(p, 'entregue') }
+            : undefined}
+        />
+      )}
+      </div>
 
       {/* Painel de despacho de rotas */}
       {rotaOpen && restauranteId && usaDespachoDeRotas(fluxo) && (
         <RotaPanel supabase={supabase} restauranteId={restauranteId} apiKey={mapsKey} onClose={() => setRotaOpen(false)} />
       )}
-
-      {/* Drawer de detalhes */}
-      {detail && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setDetail(null)} />}
-      <aside
-        className={[
-          'fixed right-0 top-0 z-[60] flex h-screen w-[440px] max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300',
-          detail ? 'translate-x-0' : 'translate-x-full',
-        ].join(' ')}
-      >
-        {detail && (
-          <>
-            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border px-4.5 py-4">
-              <div className="min-w-0 flex-1">
-                <h2 className="whitespace-nowrap text-[15px] font-bold">Pedido #{detail.numero}</h2>
-                <p className="mt-0.5 truncate text-xs text-text-subtle" title={detail.clienteNome || undefined}>{detail.clienteNome || 'Cliente'}</p>
-              </div>
-              {/* Origem, atendimento e mesa no canto — o mesmo vocabulário do card. No
-                  celular descem para a linha de baixo, ainda à direita, sem espremer o título. */}
-              <div className="max-sm:order-3 max-sm:w-full sm:flex-shrink-0">
-                <EtiquetasPedido pedido={detail} />
-                {detail.agendadoPara && <p className="mt-1 text-right text-[12px] font-semibold text-alert-text" data-testid="detalhe-agendado">Agendado para {textoAgendado(detail.agendadoPara)}</p>}
-              </div>
-              <button onClick={() => setDetail(null)} aria-label="Fechar detalhes" className="toque-icone flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
-                ×
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4.5">
-              {detail.status === 'cancelado' && (
-                <div className="mb-5 rounded-menuzia border border-danger bg-danger-bg p-3 text-sm">
-                  <div className="font-semibold text-danger">Pedido cancelado · {rotuloMotivo(detail.canceladoMotivo)}</div>
-                  {detail.canceladoObservacao && <div className="mt-1 text-text-main">{detail.canceladoObservacao}</div>}
-                  {detail.canceladoPor && <div className="mt-1 text-xs text-text-subtle">por {detail.canceladoPor}</div>}
-                </div>
-              )}
-
-              <div className="mb-5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Linha do tempo</div>
-              <div className="mb-6 space-y-0">
-                {TIMELINE_STEPS.map((step, index) => {
-                  const active = TIMELINE_STEPS.findIndex((s) => s.status === detail.status)
-                  const done = index < active || detail.status === 'entregue'
-                  const current = index === active && detail.status !== 'entregue'
-                  return (
-                    <div key={step.label} className="relative flex gap-3 pb-5 last:pb-0">
-                      {index < TIMELINE_STEPS.length - 1 && (
-                        <span className={`absolute left-[11px] top-6 h-full w-0.5 ${done ? 'bg-status-ready' : 'bg-border'}`} />
-                      )}
-                      <span
-                        className={[
-                          'z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2',
-                          done ? 'border-status-ready bg-status-ready text-white' : current ? 'border-primary bg-primary' : 'border-border bg-white',
-                        ].join(' ')}
-                      >
-                        {done && (
-                          <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className={`text-sm font-medium ${done || current ? 'text-text-main' : 'text-text-subtle'}`}>{step.label}</span>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Itens do pedido</div>
-              <ul className="mb-5 space-y-2 rounded-menuzia border border-border p-3 text-sm">
-                {detail.itens.map((linha) => (
-                  <li key={linha.id}>
-                    <div className="flex justify-between text-text-main">
-                      <span>
-                        {linha.quantidade}x {linha.nome}
-                        {linha.tamanhoNome && <span className="text-text-subtle"> · {linha.tamanhoNome}</span>}
-                        {linha.saborNome && <span className="text-text-subtle"> · {linha.saborNome}</span>}
-                      </span>
-                      <span className="font-semibold">{brl(linha.precoUnitario * linha.quantidade)}</span>
-                    </div>
-                    {(linha.bordaNome || linha.massaNome) && (
-                      <div className="mt-0.5 text-xs text-text-subtle">{[linha.bordaNome, linha.massaNome].filter(Boolean).join(', ')}</div>
-                    )}
-                    {linha.complementos.length > 0 && (
-                      <div className="mt-0.5 text-xs text-text-subtle">{linha.complementos.map((c) => c.nome).join(', ')}</div>
-                    )}
-                    {linha.observacao && <div className="mt-1 text-[13px] font-bold uppercase text-danger">obs: {linha.observacao}</div>}
-                  </li>
-                ))}
-                <li className="flex justify-between border-t border-border pt-2 text-text-subtle"><span>Subtotal</span><span>{brl(detail.subtotal)}</span></li>
-                {detail.desconto > 0 && (
-                  <li className="flex justify-between text-text-subtle"><span>Desconto</span><span className="text-price-text">-{brl(detail.desconto)}</span></li>
-                )}
-                {detail.taxaEntrega > 0 && (
-                  <li className="flex justify-between text-text-subtle"><span>Taxa de entrega</span><span>{brl(detail.taxaEntrega)}</span></li>
-                )}
-                <li className="flex justify-between font-bold"><span>Total</span><span className="text-price-text">{brl(detail.total)}</span></li>
-              </ul>
-
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cliente & pagamento</div>
-              <div className="mb-5 space-y-1.5 rounded-menuzia border border-border p-3 text-sm">
-                <div className="flex justify-between"><span className="text-text-subtle">Cliente</span><span className="font-medium">{detail.clienteNome || '—'}</span></div>
-                {/* Senha do balcão / comanda da mesa e quem lançou (saiu do corpo do card). */}
-                {referenciaDoLancamento(detail) && (
-                  <div className="flex justify-between gap-3" data-testid="detalhes-lancamento">
-                    <span className="flex-shrink-0 text-text-subtle">Lançamento</span>
-                    <span className="text-right font-medium">{referenciaDoLancamento(detail)}</span>
-                  </div>
-                )}
-                {detail.clienteTelefone && (
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-text-subtle">Telefone</span>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      {mascararTelefoneBR(detail.clienteTelefone)}
-                      {!detail.telefoneVerificado && detail.origem !== 'pdv' && <Badge tone="danger" title="Telefone não confirmado por WhatsApp">não verif.</Badge>}
-                    </span>
-                  </div>
-                )}
-                {detail.canal === 'mesa' ? (
-                  <div className="flex items-center justify-between"><span className="text-text-subtle">Pagamento</span><span className="font-medium">No fechamento da conta</span></div>
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between gap-2" data-testid="detalhes-pagamento"><span className="text-text-subtle">Pagamento</span><InfoPagamento p={detail} /></div>
-                    <AlertaTroco p={detail} />
-                    {detail.status !== 'cancelado' && (editandoPag
-                      ? <EditorPagamento pedidoId={detail.id} p={detail} onCancelar={() => setEditandoPag(false)} onFeito={() => { setEditandoPag(false); setDetail(null) }} />
-                      : <button type="button" onClick={() => setEditandoPag(true)} data-testid="detalhes-alterar-pagamento" className="text-[12px] font-semibold text-primary underline">Alterar pagamento</button>)}
-                  </>
-                )}
-                {detail.status === 'preparando' && detail.preparandoPor && (
-                  <div className="flex justify-between"><span className="text-text-subtle">Em preparo por</span><span className="font-medium">{detail.preparandoPor}</span></div>
-                )}
-                {detail.preparadoPor && (
-                  <div className="flex justify-between"><span className="text-text-subtle">Preparado por</span><span className="font-medium">{detail.preparadoPor}</span></div>
-                )}
-              </div>
-
-              {detail.tipo === 'entrega' && (
-                <>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</div>
-                  <div className="rounded-menuzia border border-border p-3 text-sm text-text-main">
-                    <span className="font-semibold">{detail.enderecoRua}, {detail.enderecoNumero}</span>
-                    {detail.enderecoComplemento && ` · ${detail.enderecoComplemento}`}
-                    <div className="text-text-subtle">
-                      <span className="font-semibold text-text-main">{detail.enderecoBairro}</span>
-                      {detail.enderecoCidade && ` · ${detail.enderecoCidade}`}
-                      {detail.enderecoCep && ` · ${detail.enderecoCep}`}
-                    </div>
-                    {detail.enderecoReferencia && (
-                      <div className="mt-1.5 text-text-subtle">Referência: <span className="font-medium text-text-main">{detail.enderecoReferencia}</span></div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="border-t border-border p-4.5">
-              <button
-                onClick={() => reimprimir(detail)}
-                disabled={reimpEstado === 'enviando' || reimpEstado === 'ok'}
-                className="flex w-full items-center justify-center gap-2 rounded-menuzia bg-text-main px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-black disabled:opacity-60"
-              >
-                <PrinterCheck className="h-4 w-4" />
-                {reimpEstado === 'enviando' ? 'Enviando…' : reimpEstado === 'ok' ? 'Enviado p/ impressora' : 'Reimprimir pedido'}
-              </button>
-              {reimpEstado === 'ok' && (
-                <p className="mt-2 text-center text-[11px] text-text-subtle">Sai na próxima varredura do Assistente (impressão automática precisa estar ligada).</p>
-              )}
-              {reimpEstado === 'erro' && (
-                <p className="mt-2 text-center text-[11px] text-danger">Não foi possível solicitar a reimpressão. Tente de novo.</p>
-              )}
-              {/* Escape para quem usa a Logística no dia a dia mas entregou este
-                  pedido na mão (o dono levou, o cliente passou pra buscar). Sem
-                  isso o pedido fica preso esperando um entregador que não existe. */}
-              {fluxo.usaLogistica && !fluxo.entregaSemEntregador && detail.tipo === 'entrega' && (detail.status === 'pronto' || detail.status === 'em_rota') && (
-                <button
-                  onClick={() => { const p = detail; setDetail(null); moverPara(p, 'entregue') }}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-menuzia border border-status-ready px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-status-ready transition-colors hover:bg-status-ready/10"
-                >
-                  <span aria-hidden>✓</span>
-                  Concluir sem entregador
-                </button>
-              )}
-              {podeCancelar(detail.status) && (
-                <button
-                  onClick={() => pedirCancelamento(detail)}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-menuzia border border-danger px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-danger transition-colors hover:bg-danger-bg"
-                >
-                  <span aria-hidden>✕</span>
-                  Cancelar pedido
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </aside>
 
       {cancelando && (
         <CancelarPedidoModal
