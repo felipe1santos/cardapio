@@ -118,3 +118,13 @@ que no desktop agora fica no menu ⋮. O teste passou a usar o menu (e assim tes
 
 (**) A falha que sobrou em `cardapio-ordem-qr` ("vitrine mostra ★ Favorito") também é antiga. O selo da vitrine mudou no
 commit `ad54d48` (redesign da vitrine), e esta entrega não mexe na vitrine (diff vazio em `app/loja`).
+
+## Publicação (2026-10-03 ~23:25)
+- Sem migration. main `bb6114a`; Redeploy no Coolify; build novo no ar às 23:28.
+- **Conferência na Menuzia: PENDENTE.** O Chrome conectado estava logado na **Ponto 400** (loja real). Pela regra, parei:
+  - a aba foi fechada na hora, sem nenhum clique, porque o Kanban aberto com aceite automático poderia aceitar pedidos;
+  - o banco confirma que nada mudou na loja (último update do #325 às 22:50, antes da visita).
+  - Só deu para ver, sem interagir, que o topo novo renderizou em produção: status verde com texto, ícones vivos e
+    sistema à direita.
+- Acompanhamento pós-deploy (só leitura): pedidos das lojas seguem normais (Ponto 400 #325 em preparo; Villa e
+  Estância com entregues).
