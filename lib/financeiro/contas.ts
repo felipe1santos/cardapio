@@ -295,6 +295,9 @@ export async function criarConta(c: ContextoFin, e: EntradaConta, chave: string,
       if (!lib.aprovacao) return falha('Para lançar mesmo assim, um gerente precisa aprovar com o PIN.', 409, 'aprovacao_necessaria', { pedidos: suspeitos, pedidoRemoto: { acao: 'venda_avulsa_suspeita', valorCentavos: e.valorCentavos, motivo: lib.justificativa } })
       const a = await conferirAprovacao(c.admin, { restauranteId: loja, solicitante: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao: lib.aprovacao, acao: 'venda_avulsa_suspeita', valorCentavos: e.valorCentavos, motivo: lib.justificativa, contexto: { pedidos: suspeitos } })
       if (!a.ok) return falha(a.erro, a.status, a.codigo)
+      // Aprovação pelo celular: usada aqui (uma vez só; o banco recusa a segunda).
+      const { error: eU } = await c.admin.rpc('fin_usar_aprovacao', { p_aprovacao: a.id })
+      if (eU) return falha('Esta aprovação já foi usada. Peça de novo.', 409, 'usada')
       liberadaPor = a.aprovadorNome
     }
   }

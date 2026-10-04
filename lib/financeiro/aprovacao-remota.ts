@@ -90,33 +90,27 @@ export async function decidirPedido(c: ContextoFin, id: string, p: { decisao: 'a
   // PIN DO APROVADOR (a sessão diz quem é; o PIN prova que é ele mesmo, no celular dele).
   const v = await verificarAprovador(c.admin, { restauranteId: loja, solicitante: { id: ped.solicitante_id, nome: ped.solicitante_nome }, aprovadorId: c.sessao.userId, pin: p.pin })
   if (!v.ok) return { ok: false, erro: v.erro, status: v.status, codigo: v.codigo }
-  if (p.decisao === 'recusar') {
-    const { error } = await c.admin.from('fin_aprovacao_pedidos').update({ status: 'recusado', aprovador_id: c.sessao.userId, aprovador_nome: v.nome, decidido_em: new Date().toISOString(), recusa_motivo: p.motivo?.trim().slice(0, 300) || null })
-      .eq('id', id).eq('status', 'pendente')
-    if (error) throw error
-    await registrarAuditoria(c.admin, { restauranteId: loja, usuarioId: c.sessao.userId, usuarioNome: v.nome, acao: 'fin.recusou_aprovacao', entidade: 'aprovacao_pedido', entidadeId: id,
-      dados: { acao: ped.acao, solicitante: ped.solicitante_nome, valor_centavos: ped.valor_centavos, motivo: p.motivo ?? null, dispositivo: c.dispositivo } })
-    return { ok: true }
+  // Tudo numa transação (fin_aprovacao_remota_decidir, 0144): aprovação gravada + pedido decidido + auditoria.
+  const { error } = await c.admin.rpc('fin_aprovacao_remota_decidir', {
+    p_restaurante: loja, p_pedido: id, p_decisao: p.decisao, p_aprovador: c.sessao.userId, p_aprovador_nome: v.nome, p_motivo: p.motivo ?? null, p_dispositivo: c.dispositivo,
+  })
+  if (error) {
+    const m = error.message ?? ''
+    if (/aprovacao_propria/.test(m)) return { ok: false, erro: 'Você não pode aprovar o seu próprio pedido.', status: 403, codigo: 'propria' }
+    if (/pedido_decidido/.test(m)) return { ok: false, erro: 'Este pedido já foi decidido.', status: 409, codigo: 'decidido' }
+    if (/pedido_expirado/.test(m)) return { ok: false, erro: 'O pedido expirou (10 minutos). Peça de novo.', status: 409, codigo: 'expirado' }
+    if (/pedido_nao_encontrado/.test(m)) return { ok: false, erro: 'Pedido não encontrado.', status: 404 }
+    throw error
   }
-  const { data: apr, error: e1 } = await c.admin.from('fin_aprovacoes').insert({
-    restaurante_id: loja, acao: ped.acao, solicitante_id: ped.solicitante_id, solicitante_nome: ped.solicitante_nome, aprovador_id: c.sessao.userId, aprovador_nome: v.nome,
-    valor_centavos: ped.valor_centavos, motivo: ped.motivo, contexto: { ...(ped.contexto ?? {}), remota: true, pedido: id, dispositivo_aprovador: c.dispositivo },
-  }).select('id').single()
-  if (e1) throw e1
-  const { data: upd, error: e2 } = await c.admin.from('fin_aprovacao_pedidos').update({ status: 'aprovado', aprovador_id: c.sessao.userId, aprovador_nome: v.nome, aprovacao_id: apr.id, decidido_em: new Date().toISOString() })
-    .eq('id', id).eq('status', 'pendente').select('id')
-  if (e2) throw e2
-  if (!upd?.length) return { ok: false, erro: 'Este pedido já foi decidido.', status: 409, codigo: 'decidido' }
-  await registrarAuditoria(c.admin, { restauranteId: loja, usuarioId: c.sessao.userId, usuarioNome: v.nome, acao: 'fin.aprovou', entidade: 'aprovacao', entidadeId: apr.id as string,
-    dados: { acao: ped.acao, solicitante: ped.solicitante_nome, valor_centavos: ped.valor_centavos, motivo: ped.motivo, remota: true, dispositivo: c.dispositivo } })
   return { ok: true }
 }
 
 /**
- * Usa (uma vez) a aprovação remota dentro da ação. Confere loja, quem pediu, ação, valor e validade, e marca
- * como usada na mesma operação (corrida: só uma requisição consegue).
+ * Confere a aprovação remota para ESTA ação: loja, quem pediu, ação, valor, validade e se o aprovador ainda pode
+ * aprovar. NÃO marca como usada: quem marca é o banco, na MESMA transação da gravação que ela libera
+ * (fin_usar_aprovacao, 0144) — se a gravação falhar, a aprovação continua valendo; duas abas não usam a mesma.
  */
-export async function usarAprovacaoRemota(admin: SupabaseClient, p: { restauranteId: string; solicitanteId: string; acao: string; valorCentavos?: number | null; remotaId: string }):
+export async function conferirAprovacaoRemota(admin: SupabaseClient, p: { restauranteId: string; solicitanteId: string; acao: string; valorCentavos?: number | null; remotaId: string }):
   Promise<{ ok: true; id: string; aprovadorNome: string } | Falha> {
   if (!UUID.test(p.remotaId)) return { ok: false, erro: 'Aprovação inválida.', status: 400, codigo: 'invalido' }
   const { data: ped } = await admin.from('fin_aprovacao_pedidos').select('*').eq('id', p.remotaId).eq('restaurante_id', p.restauranteId).maybeSingle()
@@ -127,9 +121,6 @@ export async function usarAprovacaoRemota(admin: SupabaseClient, p: { restaurant
   if (ped.acao !== p.acao) return { ok: false, erro: 'A aprovação foi para outra ação.', status: 409, codigo: 'outra_acao' }
   const valor = p.valorCentavos === null || p.valorCentavos === undefined ? null : Number(p.valorCentavos)
   if (ped.valor_centavos !== null && valor !== null && Number(ped.valor_centavos) !== valor) return { ok: false, erro: 'O valor mudou depois da aprovação. Peça de novo.', status: 409, codigo: 'outro_valor' }
-  const { data: upd, error } = await admin.from('fin_aprovacao_pedidos').update({ status: 'usado', usado_em: new Date().toISOString() }).eq('id', p.remotaId).eq('status', 'aprovado').select('id')
-  if (error) throw error
-  if (!upd?.length) return { ok: false, erro: 'Esta aprovação já foi usada. Peça de novo.', status: 409, codigo: 'usada' }
   // Aprovador ainda ativo e com permissão no momento do uso.
   const { data: apr } = await admin.from('usuarios').select('papel, acessos, desativado_em').eq('id', ped.aprovador_id).maybeSingle()
   if (!apr || apr.desativado_em || !podeFin(apr.papel as string, normalizarAcessos((apr as { acessos?: unknown }).acessos), 'aprovar')) {

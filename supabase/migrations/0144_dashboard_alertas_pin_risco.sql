@@ -159,3 +159,111 @@ create or replace function public.fin_risco_funcionarios(p_restaurante uuid, p_d
    group by t.fechado_por
 $$;
 revoke execute on function public.fin_risco_funcionarios(uuid, date, date) from public, anon, authenticated;
+
+-- ── aprovação pelo celular consumida NA MESMA transação do dinheiro ────────────────────────────
+-- Aprovação dada pelo celular (fin_aprovacao_pedidos.aprovacao_id) só vira "usada" junto com a gravação que ela
+-- liberou; se a gravação falhar, ela continua valendo. Usar duas vezes é recusado aqui (corrida entre abas).
+create or replace function public.fin_usar_aprovacao(p_aprovacao uuid) returns void
+  language plpgsql security definer set search_path = public as $$
+declare v record;
+begin
+  if p_aprovacao is null then return; end if;
+  select id, status into v from public.fin_aprovacao_pedidos where aprovacao_id = p_aprovacao for update;
+  if not found then return; end if; -- PIN digitado no terminal: não há pedido remoto
+  if v.status <> 'aprovado' then raise exception 'aprovacao_usada'; end if;
+  update public.fin_aprovacao_pedidos set status = 'usado', usado_em = now() where id = v.id;
+end $$;
+revoke execute on function public.fin_usar_aprovacao(uuid) from public, anon, authenticated;
+
+-- Mesmo grupo do livro-caixa da 0143, agora consumindo a aprovação remota na mesma transação.
+create or replace function public.fin_lancar_grupo(p_restaurante uuid, p_turno uuid, p_chave text, p_origem text, p_usuario uuid, p_usuario_nome text,
+  p_motivo text, p_aprovacao uuid, p_aprovado_por text, p_dispositivo text, p_linhas jsonb) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare v_grupo uuid; v_i int := 0; l jsonb;
+begin
+  select grupo_id into v_grupo from public.fin_lancamentos where restaurante_id = p_restaurante and chave_idempotencia = p_chave limit 1;
+  if v_grupo is not null then return v_grupo; end if;
+  perform public.fin_usar_aprovacao(p_aprovacao);
+  v_grupo := gen_random_uuid();
+  for l in select * from jsonb_array_elements(p_linhas) loop
+    v_i := v_i + 1;
+    insert into public.fin_lancamentos (restaurante_id, grupo_id, linha, turno_id, carteira, entregador_id, tipo, valor_centavos, forma, origem, pedido_id,
+      comanda_id, pagamento_id, referencia_id, motivo, usuario_id, usuario_nome, aprovacao_id, aprovado_por_nome, chave_idempotencia, dispositivo, dados)
+    values (p_restaurante, v_grupo, v_i, case when l->>'carteira' = 'gaveta' then p_turno else nullif(l->>'turno_id', '')::uuid end,
+      l->>'carteira', nullif(l->>'entregador_id', '')::uuid, l->>'tipo', (l->>'valor_centavos')::bigint, nullif(l->>'forma', ''), p_origem,
+      nullif(l->>'pedido_id', '')::uuid, nullif(l->>'comanda_id', '')::uuid, nullif(l->>'pagamento_id', '')::uuid, nullif(l->>'referencia_id', '')::bigint,
+      left(p_motivo, 500), p_usuario, left(p_usuario_nome, 120), p_aprovacao, p_aprovado_por, p_chave, left(p_dispositivo, 200), l->'dados');
+  end loop;
+  return v_grupo;
+end $$;
+
+-- Fechamento do caixa: ajuste da contagem + turno fechado + aprovação usada + auditoria, tudo junto.
+create or replace function public.fin_caixa_fechar(p_restaurante uuid, p_turno uuid, p_chave text, p_linhas jsonb, p_campos jsonb, p_usuario uuid,
+  p_usuario_nome text, p_aprovacao uuid, p_aprovado_por text, p_dispositivo text, p_motivo text, p_auditoria jsonb) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare t record;
+begin
+  select * into t from public.caixa_turnos where id = p_turno and restaurante_id = p_restaurante for update;
+  if not found or t.fechado_em is not null then raise exception 'ja_fechado'; end if;
+  if jsonb_array_length(coalesce(p_linhas, '[]'::jsonb)) > 0 then
+    perform public.fin_lancar_grupo(p_restaurante, p_turno, p_chave, 'manual', p_usuario, p_usuario_nome, p_motivo, p_aprovacao, p_aprovado_por, p_dispositivo, p_linhas);
+  else
+    perform public.fin_usar_aprovacao(p_aprovacao);
+  end if;
+  update public.caixa_turnos set
+    fechado_em = now(), fechado_por = p_usuario, fechado_por_nome = p_usuario_nome,
+    contado_dinheiro_centavos = (p_campos->>'contado_dinheiro_centavos')::bigint, contado_cartao_centavos = (p_campos->>'contado_cartao_centavos')::bigint,
+    esperado_dinheiro_centavos = (p_campos->>'esperado_dinheiro_centavos')::bigint, esperado_cartao_centavos = (p_campos->>'esperado_cartao_centavos')::bigint,
+    diferenca_centavos = (p_campos->>'diferenca_centavos')::bigint, diferenca_cartao_centavos = (p_campos->>'diferenca_cartao_centavos')::bigint,
+    pendencias = p_campos->'pendencias', resumo = p_campos->'resumo', justificativa = nullif(p_campos->>'justificativa', ''),
+    fechamento_aprovacao_id = p_aprovacao, fechamento_aprovado_por_nome = p_aprovado_por, dispositivo_fechamento = left(p_dispositivo, 200)
+   where id = p_turno;
+  perform public.fin_auditar(p_restaurante, p_usuario, p_usuario_nome, 'caixa.fechou_turno', 'caixa', p_turno, p_auditoria);
+  return p_turno;
+end $$;
+revoke execute on function public.fin_caixa_fechar(uuid, uuid, text, jsonb, jsonb, uuid, text, uuid, text, text, text, jsonb) from public, anon, authenticated;
+
+-- Decisão do aprovador no celular: aprovação gravada + pedido decidido + auditoria, tudo junto.
+create or replace function public.fin_aprovacao_remota_decidir(p_restaurante uuid, p_pedido uuid, p_decisao text, p_aprovador uuid, p_aprovador_nome text,
+  p_motivo text, p_dispositivo text) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare ped record; v_apr uuid;
+begin
+  select * into ped from public.fin_aprovacao_pedidos where id = p_pedido and restaurante_id = p_restaurante for update;
+  if not found then raise exception 'pedido_nao_encontrado' using errcode = 'P0002'; end if;
+  if ped.solicitante_id = p_aprovador then raise exception 'aprovacao_propria'; end if;
+  if ped.status <> 'pendente' then raise exception 'pedido_decidido'; end if;
+  if ped.expira_em < now() then raise exception 'pedido_expirado'; end if;
+  if p_decisao = 'recusar' then
+    update public.fin_aprovacao_pedidos set status = 'recusado', aprovador_id = p_aprovador, aprovador_nome = p_aprovador_nome, decidido_em = now(),
+      recusa_motivo = left(nullif(btrim(p_motivo), ''), 300) where id = p_pedido;
+    perform public.fin_auditar(p_restaurante, p_aprovador, p_aprovador_nome, 'fin.recusou_aprovacao', 'aprovacao_pedido', p_pedido,
+      jsonb_build_object('acao', ped.acao, 'solicitante', ped.solicitante_nome, 'valor_centavos', ped.valor_centavos, 'motivo', p_motivo, 'dispositivo', p_dispositivo));
+    return null;
+  end if;
+  insert into public.fin_aprovacoes (restaurante_id, acao, solicitante_id, solicitante_nome, aprovador_id, aprovador_nome, valor_centavos, motivo, contexto)
+  values (p_restaurante, ped.acao, ped.solicitante_id, ped.solicitante_nome, p_aprovador, p_aprovador_nome, ped.valor_centavos, ped.motivo,
+    coalesce(ped.contexto, '{}'::jsonb) || jsonb_build_object('remota', true, 'pedido', p_pedido, 'dispositivo_aprovador', p_dispositivo))
+  returning id into v_apr;
+  update public.fin_aprovacao_pedidos set status = 'aprovado', aprovador_id = p_aprovador, aprovador_nome = p_aprovador_nome, aprovacao_id = v_apr, decidido_em = now()
+   where id = p_pedido;
+  perform public.fin_auditar(p_restaurante, p_aprovador, p_aprovador_nome, 'fin.aprovou', 'aprovacao', v_apr,
+    jsonb_build_object('acao', ped.acao, 'solicitante', ped.solicitante_nome, 'valor_centavos', ped.valor_centavos, 'motivo', ped.motivo, 'remota', true, 'dispositivo', p_dispositivo));
+  return v_apr;
+end $$;
+revoke execute on function public.fin_aprovacao_remota_decidir(uuid, uuid, text, uuid, text, text, text) from public, anon, authenticated;
+
+-- ── auditoria: "senha" do balcão vira "codigo_retirada" ────────────────────────────────────────
+-- A "senha" das comandas de balcão é o NÚMERO DE CHAMADA da retirada (mostrado e chamado em público), não uma
+-- credencial. Para a trilha nunca guardar nada chamado "senha", os eventos novos gravam o campo como
+-- "codigo_retirada" (normaliza antes do hash da cadeia; eventos antigos são imutáveis e ficam como estão).
+create or replace function public.eventos_auditoria_sem_senha() returns trigger language plpgsql as $$
+begin
+  if new.dados ? 'senha' and jsonb_typeof(new.dados->'senha') = 'number' then
+    new.dados := (new.dados - 'senha') || jsonb_build_object('codigo_retirada', new.dados->'senha');
+  end if;
+  return new;
+end $$;
+drop trigger if exists a_eventos_auditoria_sem_senha on public.eventos_auditoria;
+create trigger a_eventos_auditoria_sem_senha before insert on public.eventos_auditoria
+  for each row execute function public.eventos_auditoria_sem_senha();

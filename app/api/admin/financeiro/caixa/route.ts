@@ -70,7 +70,10 @@ export async function GET(request: Request) {
         }
       }
     }
-    return NextResponse.json({ aberto: !!turno, podeAbrir: podeFin(sessao.papel, acessos, 'caixa_abrir'), abertoPorNome: turno?.aberto_por_nome ?? null, abertoEm: turno?.aberto_em ?? null, souEu: turno?.aberto_por === sessao.userId, aAcertarCentavos, aAcertarDesde }, { headers: { 'Cache-Control': 'no-store' } })
+    // Abertura rápida (Fase 6): só quem pode abrir o caixa — nunca garçom, cozinha ou motoboy, mesmo com permissão marcada.
+    const { data: eu } = await admin.from('usuarios').select('cargo').eq('id', sessao.userId).maybeSingle()
+    const podeAbrir = podeFin(sessao.papel, acessos, 'caixa_abrir') && !['garcom', 'entregador', 'logistica'].includes(sessao.papel) && !['garcom', 'cozinha', 'motoboy'].includes(String(eu?.cargo ?? ''))
+    return NextResponse.json({ aberto: !!turno, podeAbrir, abertoPorNome: turno?.aberto_por_nome ?? null, abertoEm: turno?.aberto_em ?? null, souEu: turno?.aberto_por === sessao.userId, aAcertarCentavos, aAcertarDesde }, { headers: { 'Cache-Control': 'no-store' } })
   }
   const veValores = veValoresFin(sessao.papel, acessos)
   const cfg = await configFin(admin, loja)

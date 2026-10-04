@@ -727,7 +727,9 @@ passo(30, 'histórico e auditoria continuam completos')
   const transf = await um(`select dados from eventos_auditoria where restaurante_id=$1 and acao='mesa.transferiu_itens' and criado_em >= $2 order by criado_em limit 1`, [loja, INICIO])
   ok('transferência auditada com o motivo e o nome da mesa', transf?.dados?.motivo === 'amigo sentou na Mesa 03' && transf?.dados?.para === 'Mesa 03', JSON.stringify(transf?.dados))
   const comSenha = await q(
-    `select id from eventos_auditoria where restaurante_id=$1 and dados::text ~* '(senha|password|token|@equipe\\.menuzia)'`, [loja])
+    // Eventos DESTA rodada: os antigos (imutáveis) têm a "senha" de chamada do balcão; desde a 0144 ela é gravada
+    // como "codigo_retirada". A verificação continua pegando senha, password, token e e-mail técnico.
+    `select id from eventos_auditoria where restaurante_id=$1 and criado_em >= $2 and dados::text ~* '(senha|password|token|@equipe\\.menuzia)'`, [loja, INICIO])
   ok('nenhum evento guarda senha, token ou e-mail técnico', comSenha.length === 0, `${comSenha.length} suspeito(s)`)
 
   await dono.page.goto(`${BASE}/admin/auditoria`, { waitUntil: 'networkidle' })

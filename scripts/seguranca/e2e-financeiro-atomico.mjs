@@ -137,6 +137,47 @@ try {
       && (await um(`select status from fin_contas where id=$1`, [c1.j.contaId])).status === 'cancelado')
   }
   await db.query(`update cmv_insumos set ativo=false where id=$1`, [id])
+
+  if ((await um(`select to_regclass('public.fin_aprovacao_pedidos') t`)).t) {
+    const ger = await logar('gerente.finint')
+    const D = (await um(`select id from usuarios where restaurante_id=$1 and papel='dono' and desativado_em is null order by criado_em limit 1`, [loja.id])).id
+    await api(dono.p, '/api/sessao/pin', 'POST', { senha: SENHA, pin: '615283' })
+    if (!(await um(`select id from caixa_turnos where restaurante_id=$1 and fechado_em is null`, [loja.id]))) await api(dono.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'abrir', fundoCentavos: 0 })
+    const turno = await um(`select id from caixa_turnos where restaurante_id=$1 and fechado_em is null`, [loja.id])
+
+    secao('Fase 6 — decisão do aprovador (aprovação + pedido + auditoria)')
+    const p1 = await api(ger.p, '/api/admin/financeiro/aprovacoes-remotas', 'POST', { acao: 'sangria', valorCentavos: 12000, motivo: 'TESTE FALHA na decisão' })
+    await falharEm('eventos_auditoria', `new.acao = 'fin.aprovou' and new.dados->>'motivo' like 'TESTE FALHA%'`)
+    const d0 = await api(dono.p, '/api/admin/financeiro/aprovacoes-remotas', 'PATCH', { id: p1.j.id, decisao: 'aprovar', pin: '615283' })
+    ok('falha na auditoria da decisão: o pedido segue pendente e nenhuma aprovação fica gravada', d0.s >= 500 && (await um(`select status from fin_aprovacao_pedidos where id=$1`, [p1.j.id])).status === 'pendente'
+      && await contar(`select count(*) n from fin_aprovacoes where contexto->>'pedido'=$1`, [p1.j.id]) === 0, `${d0.s}`)
+    await limparFalhas()
+
+    secao('Fase 6 — aprovação pelo celular só é gasta junto com o dinheiro')
+    const p2 = await api(ger.p, '/api/admin/financeiro/aprovacoes-remotas', 'POST', { acao: 'sangria', valorCentavos: 12000, motivo: 'TESTE aprovação remota atômica' })
+    ok('aprovada pelo dono no celular', (await api(dono.p, '/api/admin/financeiro/aprovacoes-remotas', 'PATCH', { id: p2.j.id, decisao: 'aprovar', pin: '615283' })).s === 200)
+    await falharEm('fin_lancamentos', `new.motivo like 'TESTE FALHA%'`)
+    const s0 = await api(ger.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'movimento', movimento: 'sangria', valorCentavos: 12000, motivo: 'TESTE FALHA na sangria', chave: `atom-${SUF}-s0`, aprovacao: { remotaId: p2.j.id } })
+    ok('falha ao gravar a sangria: nada no livro-caixa e a aprovação CONTINUA valendo', s0.s >= 500 && (await um(`select status from fin_aprovacao_pedidos where id=$1`, [p2.j.id])).status === 'aprovado'
+      && await contar(`select count(*) n from fin_lancamentos where restaurante_id=$1 and chave_idempotencia=$2`, [loja.id, `mov:atom-${SUF}-s0`]) === 0, `${s0.s}`)
+    await limparFalhas()
+    const s1 = await api(ger.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'movimento', movimento: 'sangria', valorCentavos: 12000, motivo: 'TESTE sangria aprovada', chave: `atom-${SUF}-s1`, aprovacao: { remotaId: p2.j.id } })
+    ok('sem a falha: a sangria entra e a aprovação vira "usada" junto', s1.s === 200 && (await um(`select status from fin_aprovacao_pedidos where id=$1`, [p2.j.id])).status === 'usado')
+    const s2 = await api(ger.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'movimento', movimento: 'sangria', valorCentavos: 12000, motivo: 'TESTE de novo', chave: `atom-${SUF}-s2`, aprovacao: { remotaId: p2.j.id } })
+    ok('usar a mesma aprovação de novo → recusado', s2.s === 409 && await contar(`select count(*) n from fin_lancamentos where restaurante_id=$1 and chave_idempotencia=$2`, [loja.id, `mov:atom-${SUF}-s2`]) === 0, `${s2.s} ${s2.j?.codigo}`)
+
+    secao('Fase 6 — fechamento do caixa (ajuste + turno + aprovação + auditoria)')
+    const esp = Number((await um(`select coalesce(sum(valor_centavos),0) s from fin_lancamentos where turno_id=$1 and carteira='gaveta'`, [turno.id])).s)
+    await falharEm('caixa_turnos', `new.fechado_em is not null and new.justificativa like 'TESTE FALHA%'`)
+    const f0 = await api(dono.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'fechar', contadoDinheiroCentavos: Math.max(0, esp) + 700, contadoCartaoCentavos: 0, aceitarPendencias: true, justificativa: 'TESTE FALHA ao fechar o caixa' })
+    ok('falha ao fechar: o caixa continua aberto e o ajuste da contagem não fica no livro-caixa', f0.s >= 500 && !(await um(`select fechado_em from caixa_turnos where id=$1`, [turno.id])).fechado_em
+      && await contar(`select count(*) n from fin_lancamentos where turno_id=$1 and tipo='ajuste' and chave_idempotencia like 'fechamento:%'`, [turno.id]) === 0, `${f0.s} ${texto(f0.j)}`)
+    await limparFalhas()
+    const f1 = await api(dono.p, '/api/admin/financeiro/caixa', 'POST', { acao: 'fechar', contadoDinheiroCentavos: Math.max(0, esp), contadoCartaoCentavos: Math.max(0, Number((await um(`select coalesce(sum(valor_centavos),0) s from fin_lancamentos where turno_id=$1 and carteira='cartao'`, [turno.id])).s)), aceitarPendencias: true, justificativa: 'TESTE fechamento do teste de atomicidade' })
+    ok('sem a falha: fecha', f1.s === 200, `${f1.s} ${texto(f1.j)}`)
+    void D
+    await ger.ctx.close()
+  }
 } catch (e) {
   ok('fluxo sem erro', false, String(e?.stack ?? e).slice(0, 500))
 } finally {

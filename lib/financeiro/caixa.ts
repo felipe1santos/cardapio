@@ -11,7 +11,7 @@ import {
   ROTULO_MOVIMENTO, type Movimento,
 } from './caixa-regras'
 import { exigenciasDoFechamento, TEXTO_MOTIVO, type Motivo } from './fechamento-regras'
-import { usarAprovacaoRemota } from './aprovacao-remota'
+import { conferirAprovacaoRemota } from './aprovacao-remota'
 
 /**
  * Caixa (Fase 2, 0133). Um caixa por loja (o turno de `caixa_turnos`), com fundo de troco,
@@ -53,7 +53,7 @@ export interface Aprovacao { aprovadorId: string; pin: string; remotaId?: string
  * Confere a aprovação: remota (pedida pelo celular, usada uma vez) ou PIN no terminal. Mesmo retorno de aprovar().
  */
 export async function conferirAprovacao(admin: SupabaseClient, p: { restauranteId: string; solicitante: { id: string; nome: string }; aprovacao: Aprovacao; acao: string; valorCentavos?: number | null; motivo?: string | null; contexto?: Record<string, unknown> }) {
-  if (p.aprovacao.remotaId) return usarAprovacaoRemota(admin, { restauranteId: p.restauranteId, solicitanteId: p.solicitante.id, acao: p.acao, valorCentavos: p.valorCentavos, remotaId: p.aprovacao.remotaId })
+  if (p.aprovacao.remotaId) return conferirAprovacaoRemota(admin, { restauranteId: p.restauranteId, solicitanteId: p.solicitante.id, acao: p.acao, valorCentavos: p.valorCentavos, remotaId: p.aprovacao.remotaId })
   return aprovar(admin, { restauranteId: p.restauranteId, solicitante: p.solicitante, aprovadorId: p.aprovacao.aprovadorId, pin: p.aprovacao.pin, acao: p.acao, valorCentavos: p.valorCentavos, motivo: p.motivo, contexto: p.contexto })
 }
 
@@ -184,11 +184,18 @@ export async function movimentar(ctx: ContextoFin, p: { movimento: Movimento; va
     if (!a.ok) return falha(a.erro, a.status, a.codigo)
     aprovacao = { id: a.id, nome: a.aprovadorNome }
   }
-  const r = await lancar(ctx.admin, {
-    restauranteId: loja, turnoId: turno.id, chave: `mov:${p.chave}`, origem: 'manual', usuario: { id: ctx.sessao.userId, nome: ctx.sessao.nome },
-    motivo, aprovacao, dispositivo: ctx.dispositivo, linhas: linhasDoMovimento(p.movimento, p.valorCentavos),
+  // Linhas + aprovação usada numa transação (fin_lancar_grupo, 0143/0144).
+  const { error: eL } = await ctx.admin.rpc('fin_lancar_grupo', {
+    p_restaurante: loja, p_turno: turno.id, p_chave: `mov:${p.chave}`, p_origem: 'manual', p_usuario: ctx.sessao.userId, p_usuario_nome: ctx.sessao.nome,
+    p_motivo: motivo, p_aprovacao: aprovacao?.id ?? null, p_aprovado_por: aprovacao?.nome ?? null, p_dispositivo: ctx.dispositivo,
+    p_linhas: linhasDoMovimento(p.movimento, p.valorCentavos).map((l) => ({ carteira: l.carteira, tipo: l.tipo, valor_centavos: l.valorCentavos, forma: l.forma ?? null, dados: l.dados ?? null })),
   })
-  if (!r.ok) return falha(r.erro, 400)
+  if (eL) {
+    if (/aprovacao_usada/.test(eL.message)) return falha('Esta aprovação já foi usada. Peça de novo.', 409, 'usada')
+    if (/caixa_fechado|turno_imutavel/.test(eL.message)) return falha('O caixa está fechado.', 409, 'caixa_fechado')
+    throw eL
+  }
+  const r = { repetido: false }
   await auditar(ctx, `caixa.${p.movimento}`, turno.id, { valor_centavos: p.valorCentavos, motivo, aprovado_por: aprovacao?.nome ?? null })
   return { ok: true, repetido: r.repetido, aprovadoPor: aprovacao?.nome ?? null }
 }
@@ -242,30 +249,31 @@ export async function fecharCaixa(ctx: ContextoFin, p: {
   }
 
   const ajuste = linhasDoAjuste(dinheiro.diferenca)
-  if (ajuste.length) {
-    const r = await lancar(ctx.admin, {
-      restauranteId: loja, turnoId: turno.id, chave: `fechamento:${turno.id}:${turno.reaberto_em ?? 'x'}`, origem: 'manual',
-      usuario: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, motivo: justificativa ?? 'Diferença na contagem do fechamento', aprovacao, dispositivo: ctx.dispositivo, linhas: ajuste,
-    })
-    if (!r.ok) return falha(r.erro, 400)
-  }
   const resumo = { saldos, fechado_por: ctx.sessao.nome, ...(turno.resumo && typeof turno.resumo === 'object' && 'fechamento_anterior' in (turno.resumo as object) ? { fechamento_anterior: (turno.resumo as Record<string, unknown>).fechamento_anterior } : {}) }
-  const { data, error } = await ctx.admin.from('caixa_turnos').update({
-    fechado_em: new Date().toISOString(), fechado_por: ctx.sessao.userId, fechado_por_nome: ctx.sessao.nome,
-    contado_dinheiro_centavos: p.contadoDinheiroCentavos, contado_cartao_centavos: p.contadoCartaoCentavos,
-    esperado_dinheiro_centavos: saldos.gaveta, esperado_cartao_centavos: saldos.cartao,
-    diferenca_centavos: dinheiro.diferenca, diferenca_cartao_centavos: cartao.diferenca,
-    pendencias: temPendencia ? pend : null, resumo, justificativa,
-    fechamento_aprovacao_id: aprovacao?.id ?? null, fechamento_aprovado_por_nome: aprovacao?.nome ?? null,
-    dispositivo_fechamento: ctx.dispositivo.slice(0, 200),
-  }).eq('id', turno.id).is('fechado_em', null).select(COLS_TURNO)
-  if (error) throw error
-  if (!data?.length) return falha('O caixa já foi fechado.', 409, 'ja_fechado')
-
-  await auditar(ctx, 'caixa.fechou_turno', turno.id, {
-    esperado_centavos: saldos.gaveta, contado_centavos: p.contadoDinheiroCentavos, diferenca_centavos: dinheiro.diferenca,
-    diferenca_cartao_centavos: cartao.diferenca, pendencias: temPendencia, aprovado_por: aprovacao?.nome ?? null,
+  // Tudo numa transação (fin_caixa_fechar, 0144): ajuste da contagem + turno fechado + aprovação usada + auditoria.
+  const { error: eF } = await ctx.admin.rpc('fin_caixa_fechar', {
+    p_restaurante: loja, p_turno: turno.id, p_chave: `fechamento:${turno.id}:${turno.reaberto_em ?? 'x'}`.slice(0, 120),
+    p_linhas: ajuste.map((l) => ({ carteira: l.carteira, tipo: l.tipo, valor_centavos: l.valorCentavos, forma: l.forma ?? null, dados: l.dados ?? null })),
+    p_campos: {
+      contado_dinheiro_centavos: p.contadoDinheiroCentavos, contado_cartao_centavos: p.contadoCartaoCentavos, esperado_dinheiro_centavos: saldos.gaveta,
+      esperado_cartao_centavos: saldos.cartao, diferenca_centavos: dinheiro.diferenca, diferenca_cartao_centavos: cartao.diferenca,
+      pendencias: temPendencia ? pend : null, resumo, justificativa,
+    },
+    p_usuario: ctx.sessao.userId, p_usuario_nome: ctx.sessao.nome, p_aprovacao: aprovacao?.id ?? null, p_aprovado_por: aprovacao?.nome ?? null,
+    p_dispositivo: ctx.dispositivo, p_motivo: justificativa ?? 'Diferença na contagem do fechamento',
+    p_auditoria: {
+      esperado_centavos: saldos.gaveta, contado_centavos: p.contadoDinheiroCentavos, diferenca_centavos: dinheiro.diferenca,
+      diferenca_cartao_centavos: cartao.diferenca, pendencias: temPendencia, aprovado_por: aprovacao?.nome ?? null, dispositivo: ctx.dispositivo,
+    },
   })
+  if (eF) {
+    if (/ja_fechado/.test(eF.message)) return falha('O caixa já foi fechado.', 409, 'ja_fechado')
+    if (/aprovacao_usada/.test(eF.message)) return falha('Esta aprovação já foi usada. Peça de novo.', 409, 'usada')
+    throw eF
+  }
+  const { data: fechado } = await ctx.admin.from('caixa_turnos').select(COLS_TURNO).eq('id', turno.id).single()
+  const data = [fechado]
+
   if (acimaDaTolerancia) {
     await criarAlerta(ctx.admin, {
       restauranteId: loja, tipo: 'caixa_divergente', gravidade: 'grave',

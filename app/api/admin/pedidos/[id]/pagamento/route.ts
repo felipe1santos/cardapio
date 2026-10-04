@@ -60,6 +60,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         acao: 'alterar_pagamento', motivo: `Pedido #${p.numero}`, contexto: { pedido: p.id },
       })
       if (!ap.ok) return NextResponse.json({ error: ap.erro, codigo: ap.codigo }, { status: ap.status })
+      // Aprovação pelo celular: usada aqui (uma vez só; o banco recusa a segunda).
+      if (remotaId && (await admin.rpc('fin_usar_aprovacao', { p_aprovacao: ap.id })).error) {
+        return NextResponse.json({ error: 'Esta aprovação já foi usada. Peça de novo.', codigo: 'usada' }, { status: 409 })
+      }
       aprovadoPor = ap.aprovadorNome
     }
   }
