@@ -2,6 +2,12 @@
 -- feitos por elas ficam — o livro-caixa é imutável; a conta "some" mas o dinheiro registrado continua).
 begin; -- rode como postgres (dono das tabelas): as travas de imutabilidade deixam passar
 drop function if exists public.fin_dre_periodo(uuid, date, date);
+drop function if exists public.fin_compra_cancelar(uuid, uuid, uuid, text, text, text);
+drop function if exists public.fin_compra_registrar(uuid, jsonb);
+drop function if exists public.fin_conta_cancelar(uuid, uuid, boolean, uuid, text, text, jsonb);
+drop function if exists public.fin_conta_estornar(uuid, uuid, uuid, uuid, text, uuid, text, text, text, jsonb);
+drop function if exists public.fin_conta_baixar(uuid, uuid, text, text, uuid, text, jsonb, uuid, text, uuid, text, text, text, jsonb);
+drop function if exists public.fin_lancar_grupo(uuid, uuid, text, text, uuid, text, text, uuid, text, text, jsonb);
 drop table if exists public.fin_compra_itens;
 alter table if exists public.fin_contas drop constraint if exists fin_contas_compra_fk;
 drop table if exists public.fin_compras;

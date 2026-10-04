@@ -203,7 +203,7 @@ drop trigger if exists fin_compra_itens_sem_truncate on public.fin_compra_itens;
 create trigger fin_compra_itens_sem_truncate before truncate on public.fin_compra_itens for each statement execute function public.fin_imutavel();
 
 -- ── configuração: limite de pagamento pela conta da empresa (acima: PIN de outra pessoa) ─────────
-alter table public.fin_config add column if not exists limite_conta_centavos bigint not null default 100000
+alter table public.fin_config add column if not exists limite_conta_centavos bigint not null default 30000
   check (limite_conta_centavos >= 0);
 
 -- ── segurança ──────────────────────────────────────────────────────────────────────────────────
@@ -250,3 +250,173 @@ update public.usuarios u
  where r.id = u.restaurante_id and r.financeiro_ativo and u.papel = 'gerente' and u.cargo = 'gerente' and u.acessos is not null
    and coalesce(u.acessos->'sensiveis', '[]'::jsonb) ? 'contas_pagar'
    and not coalesce(u.acessos->'sensiveis', '[]'::jsonb) ?| array['contas_lancar', 'contas_marcar_pago'];
+
+-- ── gravações atômicas (tudo ou nada) ──────────────────────────────────────────────────────────
+-- O servidor valida, confere permissão/aprovação e CALCULA (linhas do livro-caixa, custo novo); estas funções
+-- gravam tudo numa transação só. Falha em qualquer passo desfaz o resto. Repetir a mesma chave não duplica.
+
+-- Um grupo de linhas do livro-caixa (idempotente pela chave da loja).
+create or replace function public.fin_lancar_grupo(p_restaurante uuid, p_turno uuid, p_chave text, p_origem text, p_usuario uuid, p_usuario_nome text,
+  p_motivo text, p_aprovacao uuid, p_aprovado_por text, p_dispositivo text, p_linhas jsonb) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare v_grupo uuid; v_i int := 0; l jsonb;
+begin
+  select grupo_id into v_grupo from public.fin_lancamentos where restaurante_id = p_restaurante and chave_idempotencia = p_chave limit 1;
+  if v_grupo is not null then return v_grupo; end if;
+  v_grupo := gen_random_uuid();
+  for l in select * from jsonb_array_elements(p_linhas) loop
+    v_i := v_i + 1;
+    insert into public.fin_lancamentos (restaurante_id, grupo_id, linha, turno_id, carteira, entregador_id, tipo, valor_centavos, forma, origem, pedido_id,
+      comanda_id, pagamento_id, referencia_id, motivo, usuario_id, usuario_nome, aprovacao_id, aprovado_por_nome, chave_idempotencia, dispositivo, dados)
+    values (p_restaurante, v_grupo, v_i, case when l->>'carteira' = 'gaveta' then p_turno else nullif(l->>'turno_id', '')::uuid end,
+      l->>'carteira', nullif(l->>'entregador_id', '')::uuid, l->>'tipo', (l->>'valor_centavos')::bigint, nullif(l->>'forma', ''), p_origem,
+      nullif(l->>'pedido_id', '')::uuid, nullif(l->>'comanda_id', '')::uuid, nullif(l->>'pagamento_id', '')::uuid, nullif(l->>'referencia_id', '')::bigint,
+      left(p_motivo, 500), p_usuario, left(p_usuario_nome, 120), p_aprovacao, p_aprovado_por, p_chave, left(p_dispositivo, 200), l->'dados');
+  end loop;
+  return v_grupo;
+end $$;
+revoke execute on function public.fin_lancar_grupo(uuid, uuid, text, text, uuid, text, text, uuid, text, text, jsonb) from public, anon, authenticated;
+
+-- Baixa (pagar/receber): livro-caixa + status da conta + auditoria.
+create or replace function public.fin_conta_baixar(p_restaurante uuid, p_conta uuid, p_carteira text, p_forma text, p_turno uuid, p_chave text, p_linhas jsonb,
+  p_usuario uuid, p_usuario_nome text, p_aprovacao uuid, p_aprovado_por text, p_dispositivo text, p_motivo text, p_auditoria jsonb) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare k record; v_grupo uuid;
+begin
+  select * into k from public.fin_contas where id = p_conta and restaurante_id = p_restaurante for update;
+  if not found then raise exception 'conta_nao_encontrada' using errcode = 'P0002'; end if;
+  if k.status = 'pago' then return jsonb_build_object('grupo', k.pago_grupo_id, 'repetido', true, 'aprovado_por', k.pago_aprovado_por_nome); end if;
+  if k.status <> 'a_pagar' then raise exception 'conta_fechada'; end if;
+  if p_carteira = 'gaveta' and not exists (select 1 from public.caixa_turnos t where t.id = p_turno and t.restaurante_id = p_restaurante and t.fechado_em is null) then
+    raise exception 'caixa_fechado';
+  end if;
+  v_grupo := public.fin_lancar_grupo(p_restaurante, p_turno, p_chave, 'manual', p_usuario, p_usuario_nome, p_motivo, p_aprovacao, p_aprovado_por, p_dispositivo, p_linhas);
+  update public.fin_contas set status = 'pago', pago_em = now(), pago_carteira = p_carteira, pago_forma = p_forma, pago_por_nome = p_usuario_nome,
+    pago_grupo_id = v_grupo, pago_aprovado_por_nome = p_aprovado_por where id = p_conta;
+  perform public.fin_auditar(p_restaurante, p_usuario, p_usuario_nome, p_auditoria->>'acao', 'conta', p_conta, p_auditoria->'dados');
+  return jsonb_build_object('grupo', v_grupo, 'repetido', false, 'aprovado_por', p_aprovado_por);
+end $$;
+revoke execute on function public.fin_conta_baixar(uuid, uuid, text, text, uuid, text, jsonb, uuid, text, uuid, text, text, text, jsonb) from public, anon, authenticated;
+
+-- Estorno da baixa: linhas opostas (ligadas às originais) + conta volta para "a pagar" + auditoria.
+create or replace function public.fin_conta_estornar(p_restaurante uuid, p_conta uuid, p_turno uuid, p_usuario uuid, p_usuario_nome text, p_aprovacao uuid,
+  p_aprovado_por text, p_dispositivo text, p_motivo text, p_auditoria jsonb) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare k record; v_grupo uuid; v_linhas jsonb;
+begin
+  select * into k from public.fin_contas where id = p_conta and restaurante_id = p_restaurante for update;
+  if not found then raise exception 'conta_nao_encontrada' using errcode = 'P0002'; end if;
+  if k.status <> 'pago' or k.pago_grupo_id is null then raise exception 'conta_nao_paga'; end if;
+  if k.pago_carteira = 'gaveta' and not exists (select 1 from public.caixa_turnos t where t.id = p_turno and t.restaurante_id = p_restaurante and t.fechado_em is null) then
+    raise exception 'caixa_fechado';
+  end if;
+  select jsonb_agg(jsonb_build_object('carteira', l.carteira, 'tipo', l.tipo, 'valor_centavos', -l.valor_centavos, 'forma', l.forma, 'entregador_id', l.entregador_id,
+           'referencia_id', l.id, 'dados', coalesce(l.dados, '{}'::jsonb) || '{"estorno": true}'::jsonb) order by l.linha)
+    into v_linhas from public.fin_lancamentos l where l.restaurante_id = p_restaurante and l.grupo_id = k.pago_grupo_id;
+  if v_linhas is null then raise exception 'baixa_sem_lancamento'; end if;
+  v_grupo := public.fin_lancar_grupo(p_restaurante, p_turno, left('conta:' || p_conta || ':estorno:' || k.pago_grupo_id, 120), 'manual', p_usuario, p_usuario_nome,
+    p_motivo, p_aprovacao, p_aprovado_por, p_dispositivo, v_linhas);
+  update public.fin_contas set status = 'a_pagar', pago_em = null, pago_carteira = null, pago_forma = null, pago_por_nome = null, pago_grupo_id = null,
+    pago_aprovado_por_nome = null where id = p_conta;
+  perform public.fin_auditar(p_restaurante, p_usuario, p_usuario_nome, 'contas.estornou_baixa', 'conta', p_conta, p_auditoria);
+  return v_grupo;
+end $$;
+revoke execute on function public.fin_conta_estornar(uuid, uuid, uuid, uuid, text, uuid, text, text, text, jsonb) from public, anon, authenticated;
+
+-- Cancelar conta (e, se pedido, as próximas da série) + auditoria.
+create or replace function public.fin_conta_cancelar(p_restaurante uuid, p_conta uuid, p_serie boolean, p_usuario uuid, p_usuario_nome text, p_motivo text, p_auditoria jsonb)
+  returns integer language plpgsql security definer set search_path = public as $$
+declare k record; n integer := 0; m integer;
+begin
+  select * into k from public.fin_contas where id = p_conta and restaurante_id = p_restaurante for update;
+  if not found then raise exception 'conta_nao_encontrada' using errcode = 'P0002'; end if;
+  if k.status = 'pago' then raise exception 'conta_paga'; end if;
+  if k.status = 'a_pagar' then
+    update public.fin_contas set status = 'cancelado', cancelado_em = now(), cancelado_por_nome = p_usuario_nome, cancelado_motivo = left(p_motivo, 300) where id = p_conta;
+    n := 1;
+  end if;
+  if p_serie and k.serie_id is not null then
+    update public.fin_contas set recorrencia_encerrada_em = now() where id = k.serie_id and restaurante_id = p_restaurante;
+    update public.fin_contas set status = 'cancelado', cancelado_em = now(), cancelado_por_nome = p_usuario_nome, cancelado_motivo = left(p_motivo, 300)
+     where serie_id = k.serie_id and restaurante_id = p_restaurante and status = 'a_pagar' and vencimento >= k.vencimento;
+    get diagnostics m = row_count; n := n + m;
+  end if;
+  perform public.fin_auditar(p_restaurante, p_usuario, p_usuario_nome, 'contas.cancelou', 'conta', p_conta, p_auditoria || jsonb_build_object('canceladas', n));
+  return n;
+end $$;
+revoke execute on function public.fin_conta_cancelar(uuid, uuid, boolean, uuid, text, text, jsonb) from public, anon, authenticated;
+
+-- Compra de insumos: nota + itens + (conta a pagar [+ baixa pela empresa] | saída do caixa) + custo dos insumos (com
+-- histórico) + auditoria. Idempotente pela chave da nota.
+create or replace function public.fin_compra_registrar(p_restaurante uuid, p jsonb) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_id uuid := (p->>'id')::uuid; v_conta uuid; v_grupo uuid; v_existe record; c jsonb; n integer := 0;
+  v_usuario uuid := nullif(p->>'usuario_id', '')::uuid; v_nome text := p->>'usuario_nome';
+begin
+  select id, conta_id into v_existe from public.fin_compras where restaurante_id = p_restaurante and chave_idempotencia = p->>'chave';
+  if found then return jsonb_build_object('id', v_existe.id, 'conta_id', v_existe.conta_id, 'repetido', true, 'atualizados', 0); end if;
+  insert into public.fin_compras (id, restaurante_id, fornecedor_id, numero_nota, data_compra, total_centavos, pagamento, observacao, criado_por, criado_por_nome, chave_idempotencia)
+  values (v_id, p_restaurante, nullif(p->>'fornecedor_id', '')::uuid, nullif(p->>'numero_nota', ''), (p->>'data_compra')::date, (p->>'total_centavos')::bigint,
+    p->>'pagamento', nullif(p->>'observacao', ''), v_usuario, v_nome, p->>'chave');
+  insert into public.fin_compra_itens (compra_id, restaurante_id, insumo_id, quantidade, unidade, quantidade_base, valor_centavos, custo_anterior_centavos, custo_novo_centavos)
+  select v_id, p_restaurante, (i->>'insumo_id')::uuid, (i->>'quantidade')::numeric, i->>'unidade', (i->>'quantidade_base')::numeric, (i->>'valor_centavos')::bigint,
+         nullif(i->>'custo_anterior_centavos', '')::bigint, (i->>'custo_novo_centavos')::bigint
+    from jsonb_array_elements(p->'itens') i;
+  if p->>'pagamento' = 'caixa' then
+    if not exists (select 1 from public.caixa_turnos t where t.id = (p->>'turno_id')::uuid and t.restaurante_id = p_restaurante and t.fechado_em is null) then
+      raise exception 'caixa_fechado';
+    end if;
+    v_grupo := public.fin_lancar_grupo(p_restaurante, (p->>'turno_id')::uuid, 'compra:' || v_id, 'manual', v_usuario, v_nome, p->>'motivo',
+      nullif(p->>'aprovacao_id', '')::uuid, nullif(p->>'aprovado_por', ''), p->>'dispositivo', p->'linhas');
+    update public.fin_compras set grupo_id = v_grupo where id = v_id;
+  else
+    v_conta := (p->'conta'->>'id')::uuid;
+    insert into public.fin_contas (id, restaurante_id, tipo, descricao, fornecedor_id, categoria_id, valor_centavos, vencimento, forma_prevista, observacao, origem,
+      compra_id, criado_por, criado_por_nome, chave_idempotencia)
+    values (v_conta, p_restaurante, 'pagar', p->'conta'->>'descricao', nullif(p->>'fornecedor_id', '')::uuid, (p->'conta'->>'categoria_id')::uuid,
+      (p->>'total_centavos')::bigint, (p->'conta'->>'vencimento')::date, nullif(p->'conta'->>'forma', ''), nullif(p->>'observacao', ''), 'compra', v_id, v_usuario, v_nome,
+      'compra-conta:' || v_id);
+    update public.fin_compras set conta_id = v_conta where id = v_id;
+    if p->>'pagamento' = 'empresa' then
+      v_grupo := public.fin_lancar_grupo(p_restaurante, null, 'conta:' || v_conta || ':baixa:compra', 'manual', v_usuario, v_nome, p->>'motivo',
+        nullif(p->>'aprovacao_id', '')::uuid, nullif(p->>'aprovado_por', ''), p->>'dispositivo', p->'linhas');
+      update public.fin_contas set status = 'pago', pago_em = now(), pago_carteira = 'empresa', pago_forma = nullif(p->'conta'->>'forma', ''), pago_por_nome = v_nome,
+        pago_grupo_id = v_grupo, pago_aprovado_por_nome = nullif(p->>'aprovado_por', '') where id = v_conta;
+    end if;
+  end if;
+  for c in select * from jsonb_array_elements(coalesce(p->'custos', '[]'::jsonb)) loop
+    update public.cmv_insumos set custo_compra_centavos = (c->>'custo_novo_centavos')::bigint, atualizado_em = now()
+     where id = (c->>'insumo_id')::uuid and restaurante_id = p_restaurante;
+    insert into public.cmv_custos_historico (restaurante_id, insumo_id, custo_antigo_centavos, custo_novo_centavos, quantidade_compra, base_por_unidade, aproveitamento_pct,
+      motivo, usuario_id, usuario_nome)
+    values (p_restaurante, (c->>'insumo_id')::uuid, (c->>'custo_antigo_centavos')::bigint, (c->>'custo_novo_centavos')::bigint, (c->>'quantidade_compra')::numeric,
+      (c->>'base_por_unidade')::numeric, (c->>'aproveitamento_pct')::numeric, left(p->>'motivo_historico', 300), v_usuario, v_nome);
+    n := n + 1;
+  end loop;
+  perform public.fin_auditar(p_restaurante, v_usuario, v_nome, 'compras.registrou', 'compra', v_id, p->'auditoria' || jsonb_build_object('insumos_atualizados', n));
+  return jsonb_build_object('id', v_id, 'conta_id', v_conta, 'repetido', false, 'atualizados', n);
+end $$;
+revoke execute on function public.fin_compra_registrar(uuid, jsonb) from public, anon, authenticated;
+
+-- Cancelar compra a prazo ainda não paga: compra + conta juntas + auditoria.
+create or replace function public.fin_compra_cancelar(p_restaurante uuid, p_compra uuid, p_usuario uuid, p_usuario_nome text, p_motivo text, p_dispositivo text)
+  returns void language plpgsql security definer set search_path = public as $$
+declare co record; k record;
+begin
+  select * into co from public.fin_compras where id = p_compra and restaurante_id = p_restaurante for update;
+  if not found then raise exception 'compra_nao_encontrada' using errcode = 'P0002'; end if;
+  if co.status = 'cancelada' then return; end if;
+  if co.pagamento = 'caixa' then raise exception 'compra_paga'; end if;
+  if co.conta_id is not null then
+    select * into k from public.fin_contas where id = co.conta_id for update;
+    if k.status = 'pago' then raise exception 'conta_paga'; end if;
+    if k.status = 'a_pagar' then
+      update public.fin_contas set status = 'cancelado', cancelado_em = now(), cancelado_por_nome = p_usuario_nome, cancelado_motivo = left('Compra cancelada: ' || p_motivo, 300)
+       where id = co.conta_id;
+    end if;
+  end if;
+  update public.fin_compras set status = 'cancelada', cancelado_em = now(), cancelado_por_nome = p_usuario_nome, cancelado_motivo = left(p_motivo, 300) where id = p_compra;
+  perform public.fin_auditar(p_restaurante, p_usuario, p_usuario_nome, 'compras.cancelou', 'compra', p_compra,
+    jsonb_build_object('motivo', p_motivo, 'total_centavos', co.total_centavos, 'dispositivo', p_dispositivo));
+end $$;
+revoke execute on function public.fin_compra_cancelar(uuid, uuid, uuid, text, text, text) from public, anon, authenticated;

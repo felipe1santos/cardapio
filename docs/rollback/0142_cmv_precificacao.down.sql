@@ -1,6 +1,9 @@
 -- Rollback da 0142 (CMV). ATENÇÃO: apaga insumos, fichas, histórico de custos e o custo guardado das vendas.
 -- Faça backup das tabelas cmv_* e pedido_itens_custo antes.
 drop trigger if exists cmv_guardar_custo_linha on public.pedido_itens;
+drop function if exists public.cmv_ficha_salvar(uuid, text, uuid, uuid, uuid, jsonb, jsonb);
+drop function if exists public.cmv_insumo_salvar(uuid, uuid, jsonb, boolean, jsonb, jsonb, jsonb);
+drop function if exists public.fin_auditar(uuid, uuid, text, text, text, uuid, jsonb);
 drop function if exists public.cmv_guardar_custo_linha();
 drop function if exists public.cmv_custo_linha(uuid, uuid, text, text, text, text, jsonb);
 drop function if exists public.cmv_custo_ficha(uuid);

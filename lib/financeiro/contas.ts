@@ -1,14 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { registrarAuditoria } from '@/lib/auditoria'
 import type { ContextoFin } from './contexto'
-import { lancar } from './ledger'
 import { criarAlerta } from './alertas'
 import { podeFin } from './permissoes'
 import { conferirAprovacao, turnoAberto, type Aprovacao } from './caixa'
 import { formatarCentavos } from './centavos'
 import { cmvDoPeriodo } from './cmv'
 import {
-  FORMAS_CONTA, custoCompraNovo, hojeSP, linhasDaBaixa, linhasDoEstorno, montarDre, numerosDePedidoCitados, ocorrenciasAGerar,
+  FORMAS_CONTA, custoCompraNovo, hojeSP, linhasDaBaixa, montarDre, numerosDePedidoCitados, ocorrenciasAGerar,
   periodoAnterior, precisaAprovacaoBaixa, quantidadeNaBase, statusExibido, variacaoPct,
   type CarteiraConta, type FormaConta, type GrupoCategoria, type Recorrencia, type StatusConta, type TipoConta,
 } from './contas-regras'
@@ -31,9 +30,25 @@ async function auditar(c: ContextoFin, acao: string, entidade: string, id: strin
   })
 }
 
+/** Linhas do livro-caixa no formato das funções do banco (0143). */
+function linhasParaBanco(linhas: ReturnType<typeof linhasDaBaixa>) {
+  return linhas.map((l) => ({ carteira: l.carteira, tipo: l.tipo, valor_centavos: l.valorCentavos, forma: l.forma ?? null, entregador_id: l.entregadorId ?? null, referencia_id: l.referenciaId ?? null, dados: l.dados ?? null }))
+}
+
+/** Erro conhecido das funções do banco → resposta. */
+function erroDoBanco(e: { message?: string } | null): Falha | null {
+  const m = e?.message ?? ''
+  if (/conta_nao_encontrada|compra_nao_encontrada/.test(m)) return falha('Não encontrada.', 404)
+  if (/caixa_fechado/.test(m)) return falha('O caixa está fechado: abra o caixa primeiro.', 409, 'caixa_fechado')
+  if (/conta_paga/.test(m)) return falha('Conta paga: estorne a baixa antes.', 409, 'conta_paga')
+  if (/conta_fechada|conta_nao_paga/.test(m)) return falha('A conta mudou: abra de novo.', 409, 'conta_fechada')
+  if (/compra_paga/.test(m)) return falha('Compra paga com dinheiro do caixa: registre a devolução como reforço no caixa.', 409, 'compra_paga')
+  return null
+}
+
 async function limites(admin: SupabaseClient, loja: string) {
   const { data } = await admin.from('fin_config').select('limite_saida_centavos, limite_conta_centavos').eq('restaurante_id', loja).maybeSingle()
-  return { limiteSaida: Number(data?.limite_saida_centavos ?? 10000), limiteConta: Number(data?.limite_conta_centavos ?? 100000) }
+  return { limiteSaida: Number(data?.limite_saida_centavos ?? 10000), limiteConta: Number(data?.limite_conta_centavos ?? 30000) }
 }
 
 // ── plano de contas ─────────────────────────────────────────────────────────────────────────────
@@ -242,23 +257,23 @@ async function validarConta(admin: SupabaseClient, loja: string, e: EntradaConta
  * que tem o mesmo valor de um pedido não cancelado do mesmo dia. Devolve os pedidos suspeitos.
  */
 async function vendaJaNoSistema(admin: SupabaseClient, loja: string, e: EntradaConta, categoria: Categoria) {
-  const chave = categoria.nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-  if (e.tipo !== 'receber' || !chave.startsWith('venda')) return []
-  const citados = numerosDePedidoCitados(`${e.descricao} ${e.observacao ?? ''}`)
-  const achados: { numero: number; total: number }[] = []
-  if (citados.length) {
-    const { data } = await admin.from('pedidos').select('numero, total').eq('restaurante_id', loja).in('numero', citados).neq('status', 'cancelado')
-    for (const p of data ?? []) achados.push({ numero: Number(p.numero), total: Math.round(Number(p.total) * 100) })
+  const chave = categoria.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const vazio = { citados: [] as { numero: number; total: number }[], mesmoValor: [] as { numero: number; total: number }[] }
+  if (e.tipo !== 'receber' || !chave.startsWith('venda')) return vazio
+  const numeros = numerosDePedidoCitados(`${e.descricao} ${e.observacao ?? ''}`)
+  if (numeros.length) {
+    const { data } = await admin.from('pedidos').select('numero, total').eq('restaurante_id', loja).in('numero', numeros).neq('status', 'cancelado')
+    for (const p of data ?? []) vazio.citados.push({ numero: Number(p.numero), total: Math.round(Number(p.total) * 100) })
   }
   const ini = new Date(`${e.vencimento}T00:00:00-03:00`).toISOString()
   const fim = new Date(new Date(`${e.vencimento}T00:00:00-03:00`).getTime() + 86_400_000).toISOString()
   const { data: mesmos } = await admin.from('pedidos').select('numero, total').eq('restaurante_id', loja).neq('status', 'cancelado')
     .gte('criado_em', ini).lt('criado_em', fim).eq('total', e.valorCentavos / 100).limit(5)
-  for (const p of mesmos ?? []) if (!achados.some((a) => a.numero === Number(p.numero))) achados.push({ numero: Number(p.numero), total: Math.round(Number(p.total) * 100) })
-  return achados
+  for (const p of mesmos ?? []) if (!vazio.citados.some((a) => a.numero === Number(p.numero))) vazio.mesmoValor.push({ numero: Number(p.numero), total: Math.round(Number(p.total) * 100) })
+  return vazio
 }
 
-export async function criarConta(c: ContextoFin, e: EntradaConta, chave: string, extra: { liberarVenda?: { justificativa: string; aprovacao?: Aprovacao | null } } = {}): Promise<Res<{ id: string; repetido: boolean }>> {
+export async function criarConta(c: ContextoFin, e: EntradaConta, chave: string, extra: { liberarVenda?: { justificativa: string; aprovacao?: Aprovacao | null } } = {}): Promise<Res<{ id: string; repetido: boolean; aviso?: string | null }>> {
   const loja = c.sessao.restauranteId
   if (!/^[\w:.-]{8,120}$/.test(chave)) return falha('Chave inválida.')
   const { data: ja } = await c.admin.from('fin_contas').select('id').eq('restaurante_id', loja).eq('chave_idempotencia', `conta:${chave}`).maybeSingle()
@@ -266,13 +281,15 @@ export async function criarConta(c: ContextoFin, e: EntradaConta, chave: string,
   const v = await validarConta(c.admin, loja, e)
   if (!v.ok) return v
   // Vendas do sistema já estão no livro-caixa: lançar de novo à mão duplicaria o faturamento.
-  const suspeitos = await vendaJaNoSistema(c.admin, loja, e, v.categoria)
+  // Cita o número de um pedido do sistema → BLOQUEIA (liberar só com justificativa + PIN). Só o mesmo valor de um pedido do
+  // dia → APENAS AVISA (a conta entra; o aviso volta na resposta e fica na auditoria).
+  const { citados: suspeitos, mesmoValor } = await vendaJaNoSistema(c.admin, loja, e, v.categoria)
   let liberadaPor: string | null = null
   if (suspeitos.length) {
     const lista = suspeitos.map((p) => `#${p.numero} (${formatarCentavos(p.total)})`).join(', ')
     const lib = extra.liberarVenda
     if (!lib || (lib.justificativa ?? '').trim().length < 10) {
-      return falha(`Parece uma venda que o sistema já registrou: pedido ${lista}. Vendas do sistema entram sozinhas no caixa — não lance de novo.`, 409, 'venda_duplicada', { pedidos: suspeitos })
+      return falha(`Esta venda já foi registrada pelo sistema: pedido ${lista}. Vendas do sistema entram sozinhas no caixa — não lance de novo.`, 409, 'venda_duplicada', { pedidos: suspeitos })
     }
     if (c.sessao.papel !== 'dono') {
       if (!lib.aprovacao) return falha('Para lançar mesmo assim, um gerente precisa aprovar com o PIN.', 409, 'aprovacao_necessaria', { pedidos: suspeitos, pedidoRemoto: { acao: 'venda_avulsa_suspeita', valorCentavos: e.valorCentavos, motivo: lib.justificativa } })
@@ -296,13 +313,19 @@ export async function criarConta(c: ContextoFin, e: EntradaConta, chave: string,
     throw error
   }
   await auditar(c, 'contas.criou', 'conta', id, { tipo: e.tipo, descricao: e.descricao, valor_centavos: e.valorCentavos, vencimento: e.vencimento, categoria: v.categoria.nome, recorrencia: e.recorrencia })
+  if (mesmoValor.length) {
+    await auditar(c, 'contas.venda_parecida', 'conta', id, { pedidos: mesmoValor, descricao: e.descricao, valor_centavos: e.valorCentavos })
+  }
   if (suspeitos.length) {
     await auditar(c, 'contas.venda_avulsa_liberada', 'conta', id, { pedidos: suspeitos, justificativa: extra.liberarVenda?.justificativa, aprovado_por: liberadaPor })
     await criarAlerta(c.admin, { restauranteId: loja, tipo: 'venda_manual_suspeita', gravidade: 'atencao', usuario: { id: c.sessao.userId, nome: c.sessao.nome },
       mensagem: `${c.sessao.nome} lançou à mão uma venda parecida com pedido(s) do sistema (${suspeitos.map((p) => `#${p.numero}`).join(', ')}): ${e.descricao} — ${formatarCentavos(e.valorCentavos)}.`, dados: { conta: id } })
   }
   if (e.recorrencia !== 'nenhuma') await gerarRecorrencias(c.admin, loja)
-  return { ok: true, valor: { id, repetido: false } }
+  const aviso = mesmoValor.length
+    ? `Atenção: o pedido ${mesmoValor.map((p) => `#${p.numero}`).join(', ')} do mesmo dia tem o mesmo valor. Se for venda do sistema, cancele esta entrada — ela já está no caixa.`
+    : null
+  return { ok: true, valor: { id, repetido: false, aviso } }
 }
 
 async function lerConta(admin: SupabaseClient, loja: string, id: string) {
@@ -352,21 +375,17 @@ export async function baixarConta(c: ContextoFin, id: string, p: { carteira: Car
   }
   // Cada baixa tem chave própria (n.º de estornos até aqui): clique duplo repete a mesma; depois de um estorno, a nova baixa é outra.
   const { count: estornos } = await c.admin.from('fin_lancamentos').select('id', { count: 'exact', head: true }).eq('restaurante_id', loja).like('chave_idempotencia', `conta:${id}:estorno:%`).eq('linha', 1)
-  const r = await lancar(c.admin, {
-    restauranteId: loja, turnoId: turno?.id ?? null, chave: `conta:${id}:baixa:${estornos ?? 0}`,
-    origem: 'manual', usuario: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao, dispositivo: c.dispositivo,
-    motivo: `${k.tipo === 'pagar' ? 'Conta paga' : 'Conta recebida'}: ${k.descricao} [${cat.nome}]`,
-    linhas: linhasDaBaixa({ tipo: k.tipo, carteira: p.carteira, valor: k.valor_centavos, forma: p.forma, grupo: cat.grupo as GrupoCategoria, categoriaId: cat.id as string, contaId: id, compraId: (k.compra_id as string | null) ?? null }),
+  // Tudo numa transação (fin_conta_baixar, 0143): livro-caixa + status da conta + auditoria.
+  const { data, error } = await c.admin.rpc('fin_conta_baixar', {
+    p_restaurante: loja, p_conta: id, p_carteira: p.carteira, p_forma: p.forma, p_turno: turno?.id ?? null, p_chave: `conta:${id}:baixa:${estornos ?? 0}`,
+    p_linhas: linhasParaBanco(linhasDaBaixa({ tipo: k.tipo, carteira: p.carteira, valor: k.valor_centavos, forma: p.forma, grupo: cat.grupo as GrupoCategoria, categoriaId: cat.id as string, contaId: id, compraId: (k.compra_id as string | null) ?? null })),
+    p_usuario: c.sessao.userId, p_usuario_nome: c.sessao.nome, p_aprovacao: aprovacao?.id ?? null, p_aprovado_por: aprovacao?.nome ?? null, p_dispositivo: c.dispositivo,
+    p_motivo: `${k.tipo === 'pagar' ? 'Conta paga' : 'Conta recebida'}: ${k.descricao} [${cat.nome}]`,
+    p_auditoria: { acao: k.tipo === 'pagar' ? 'contas.pagou' : 'contas.recebeu', dados: { descricao: k.descricao, valor_centavos: k.valor_centavos, carteira: p.carteira, forma: p.forma, categoria: cat.nome, aprovado_por: aprovacao?.nome ?? null, dispositivo: c.dispositivo } },
   })
-  if (!r.ok) return falha(r.erro, 400)
-  const grupo = r.linhas[0]?.grupo_id ?? null
-  const { data: upd, error } = await c.admin.from('fin_contas').update({
-    status: 'pago', pago_em: new Date().toISOString(), pago_carteira: p.carteira, pago_forma: p.forma, pago_por_nome: c.sessao.nome, pago_grupo_id: grupo, pago_aprovado_por_nome: aprovacao?.nome ?? null,
-  }).eq('id', id).eq('restaurante_id', loja).eq('status', 'a_pagar').select('id')
-  if (error) throw error
-  if (!upd?.length && !r.repetido) console.error('[contas] baixa lançada mas a conta já tinha mudado', id)
-  await auditar(c, k.tipo === 'pagar' ? 'contas.pagou' : 'contas.recebeu', 'conta', id, { descricao: k.descricao, valor_centavos: k.valor_centavos, carteira: p.carteira, forma: p.forma, categoria: cat.nome, aprovado_por: aprovacao?.nome ?? null })
-  return { ok: true, valor: { aprovadoPor: aprovacao?.nome ?? null, repetido: r.repetido } }
+  if (error) { const f = erroDoBanco(error); if (f) return f; throw error }
+  const r = data as { repetido: boolean; aprovado_por: string | null }
+  return { ok: true, valor: { aprovadoPor: r.aprovado_por ?? null, repetido: !!r.repetido } }
 }
 
 /** Estorno da baixa: lançamento oposto (gaveta exige caixa aberto) e a conta volta para "a pagar". PIN sempre (menos o dono). */
@@ -386,18 +405,13 @@ export async function estornarBaixa(c: ContextoFin, id: string, p: { motivo: str
     if (!a.ok) return falha(a.erro, a.status, a.codigo)
     aprovacao = { id: a.id, nome: a.aprovadorNome }
   }
-  const { data: orig } = await c.admin.from('fin_lancamentos').select('id, carteira, tipo, valor_centavos, forma, dados').eq('restaurante_id', loja).eq('grupo_id', k.pago_grupo_id).order('linha')
-  if (!orig?.length) return falha('Lançamento da baixa não encontrado.', 409)
-  const r = await lancar(c.admin, {
-    restauranteId: loja, turnoId: turno?.id ?? null, chave: `conta:${id}:estorno:${k.pago_grupo_id}`.slice(0, 120), origem: 'manual',
-    usuario: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao, dispositivo: c.dispositivo, motivo: `Estorno da baixa: ${k.descricao} — ${motivo}`,
-    linhas: linhasDoEstorno(orig as never),
+  // Tudo numa transação (fin_conta_estornar, 0143): linhas opostas + conta volta para "a pagar" + auditoria.
+  const { error } = await c.admin.rpc('fin_conta_estornar', {
+    p_restaurante: loja, p_conta: id, p_turno: turno?.id ?? null, p_usuario: c.sessao.userId, p_usuario_nome: c.sessao.nome,
+    p_aprovacao: aprovacao?.id ?? null, p_aprovado_por: aprovacao?.nome ?? null, p_dispositivo: c.dispositivo, p_motivo: `Estorno da baixa: ${k.descricao} — ${motivo}`,
+    p_auditoria: { descricao: k.descricao, valor_centavos: k.valor_centavos, motivo, aprovado_por: aprovacao?.nome ?? null, dispositivo: c.dispositivo },
   })
-  if (!r.ok) return falha(r.erro, 400)
-  const { error } = await c.admin.from('fin_contas').update({ status: 'a_pagar', pago_em: null, pago_carteira: null, pago_forma: null, pago_por_nome: null, pago_grupo_id: null, pago_aprovado_por_nome: null })
-    .eq('id', id).eq('restaurante_id', loja).eq('status', 'pago')
-  if (error) throw error
-  await auditar(c, 'contas.estornou_baixa', 'conta', id, { descricao: k.descricao, valor_centavos: k.valor_centavos, motivo, aprovado_por: aprovacao?.nome ?? null })
+  if (error) { const f = erroDoBanco(error); if (f) return f; throw error }
   await criarAlerta(c.admin, { restauranteId: loja, tipo: 'conta_estornada', gravidade: 'atencao', usuario: { id: c.sessao.userId, nome: c.sessao.nome },
     mensagem: `${c.sessao.nome} estornou a baixa de "${k.descricao}" (${formatarCentavos(k.valor_centavos)}). Motivo: ${motivo}` + (aprovacao ? ` (aprovado por ${aprovacao.nome})` : ''), dados: { conta: id } })
   return { ok: true, valor: { aprovadoPor: aprovacao?.nome ?? null } }
@@ -412,19 +426,13 @@ export async function cancelarConta(c: ContextoFin, id: string, motivo: string, 
   if (!k) return falha('Conta não encontrada.', 404)
   if (k.status === 'pago') return falha('Conta paga: estorne a baixa antes de cancelar.', 409, 'conta_paga')
   if (k.status === 'cancelado' && !serie) return { ok: true, valor: { canceladas: 0 } }
-  const marca = { status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_por_nome: c.sessao.nome, cancelado_motivo: m.slice(0, 300) }
-  let n = 0
-  if (k.status === 'a_pagar') {
-    const { data } = await c.admin.from('fin_contas').update(marca).eq('id', id).eq('restaurante_id', loja).eq('status', 'a_pagar').select('id')
-    n += data?.length ?? 0
-  }
-  if (serie && k.serie_id) {
-    await c.admin.from('fin_contas').update({ recorrencia_encerrada_em: new Date().toISOString() }).eq('id', k.serie_id).eq('restaurante_id', loja)
-    const { data } = await c.admin.from('fin_contas').update(marca).eq('serie_id', k.serie_id).eq('restaurante_id', loja).eq('status', 'a_pagar').gte('vencimento', k.vencimento as string).select('id')
-    n += data?.length ?? 0
-  }
-  await auditar(c, 'contas.cancelou', 'conta', id, { descricao: k.descricao, valor_centavos: k.valor_centavos, motivo: m, serie, canceladas: n })
-  return { ok: true, valor: { canceladas: n } }
+  // Tudo numa transação (fin_conta_cancelar, 0143): conta (+ as próximas da série) + auditoria.
+  const { data: n, error } = await c.admin.rpc('fin_conta_cancelar', {
+    p_restaurante: loja, p_conta: id, p_serie: serie, p_usuario: c.sessao.userId, p_usuario_nome: c.sessao.nome, p_motivo: m,
+    p_auditoria: { descricao: k.descricao, valor_centavos: k.valor_centavos, motivo: m, serie, dispositivo: c.dispositivo },
+  })
+  if (error) { const f = erroDoBanco(error); if (f) return f; throw error }
+  return { ok: true, valor: { canceladas: Number(n ?? 0) } }
 }
 
 // ── anexos (bucket privado) ─────────────────────────────────────────────────────────────────────
@@ -536,17 +544,6 @@ export async function registrarCompra(c: ContextoFin, e: EntradaCompra, chave: s
   if (!catIns) return falha('Crie uma categoria de insumos no plano de contas.', 409)
 
   const compraId = crypto.randomUUID()
-  const { error: eC } = await c.admin.from('fin_compras').insert({
-    id: compraId, restaurante_id: loja, fornecedor_id: e.fornecedorId, numero_nota: e.numeroNota, data_compra: e.dataCompra, total_centavos: total,
-    pagamento: e.pagamento, observacao: e.observacao, criado_por: c.sessao.userId, criado_por_nome: c.sessao.nome, chave_idempotencia: `compra:${chave}`,
-  })
-  if (eC) {
-    if (eC.code === '23505') {
-      const { data: j2 } = await c.admin.from('fin_compras').select('id, conta_id').eq('restaurante_id', loja).eq('chave_idempotencia', `compra:${chave}`).maybeSingle()
-      if (j2) return { ok: true, valor: { id: j2.id as string, contaId: (j2.conta_id as string | null) ?? null, repetido: true, insumosAtualizados: 0 } }
-    }
-    throw eC
-  }
   // Custo novo por insumo (itens do mesmo insumo somam).
   const porInsumo = new Map<string, { base: number; valor: number }>()
   for (const i of itens) {
@@ -559,64 +556,32 @@ export async function registrarCompra(c: ContextoFin, e: EntradaCompra, chave: s
     const x = mapa.get(id)!
     custoNovo.set(id, custoCompraNovo({ unidadeCompra: x.unidade_compra as string, quantidadeCompra: Number(x.quantidade_compra), basePorUnidade: Number(x.base_por_unidade), unidadeBase: x.unidade_base as string, custoCompraCentavos: Number(x.custo_compra_centavos), preparado: false }, t.base, t.valor))
   }
-  const { error: eI } = await c.admin.from('fin_compra_itens').insert(itens.map((i) => ({
-    compra_id: compraId, restaurante_id: loja, insumo_id: i.insumoId, quantidade: i.quantidade, unidade: i.unidade, quantidade_base: i.quantidadeBase,
-    valor_centavos: i.valorCentavos, custo_anterior_centavos: Number(mapa.get(i.insumoId)!.custo_compra_centavos), custo_novo_centavos: custoNovo.get(i.insumoId)!,
-  })))
-  if (eI) throw eI
-
-  // Pagamento.
-  let contaId: string | null = null
   const fornNome = e.fornecedorId ? ((await c.admin.from('fin_fornecedores').select('nome').eq('id', e.fornecedorId).maybeSingle()).data?.nome as string | undefined) : undefined
   const descricao = `Compra de insumos${e.numeroNota ? ` — nota ${e.numeroNota}` : ''}${fornNome ? ` (${fornNome})` : ''}`.slice(0, 200)
-  if (e.pagamento === 'caixa') {
-    const r = await lancar(c.admin, {
-      restauranteId: loja, turnoId: turno!.id, chave: `compra:${compraId}`, origem: 'manual', usuario: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao, dispositivo: c.dispositivo,
-      motivo: `${descricao} [${catIns.nome}]`, linhas: linhasDaBaixa({ tipo: 'pagar', carteira: 'gaveta', valor: total, forma: 'dinheiro', grupo: 'insumo', categoriaId: catIns.id as string, compraId }),
-    })
-    if (!r.ok) return falha(r.erro, 400)
-    await c.admin.from('fin_compras').update({ grupo_id: r.linhas[0]?.grupo_id ?? null }).eq('id', compraId)
-  } else {
-    contaId = crypto.randomUUID()
-    const { error: eK } = await c.admin.from('fin_contas').insert({
-      id: contaId, restaurante_id: loja, tipo: 'pagar', descricao, fornecedor_id: e.fornecedorId, categoria_id: catIns.id, valor_centavos: total,
-      vencimento: e.pagamento === 'a_prazo' ? e.vencimento : e.dataCompra, forma_prevista: e.forma, observacao: e.observacao, origem: 'compra', compra_id: compraId,
-      criado_por: c.sessao.userId, criado_por_nome: c.sessao.nome, chave_idempotencia: `compra-conta:${compraId}`,
-    })
-    if (eK) throw eK
-    await c.admin.from('fin_compras').update({ conta_id: contaId }).eq('id', compraId)
-    if (e.pagamento === 'empresa') {
-      // Já aprovada acima (mesmo limite); a baixa não pede PIN de novo.
-      const k = await lerConta(c.admin, loja, contaId)
-      const r = await lancar(c.admin, {
-        restauranteId: loja, turnoId: null, chave: `conta:${contaId}:baixa:compra`, origem: 'manual', usuario: { id: c.sessao.userId, nome: c.sessao.nome }, aprovacao, dispositivo: c.dispositivo,
-        motivo: `Conta paga: ${descricao} [${catIns.nome}]`, linhas: linhasDaBaixa({ tipo: 'pagar', carteira: 'empresa', valor: total, forma: e.forma, grupo: 'insumo', categoriaId: catIns.id as string, contaId, compraId }),
-      })
-      if (!r.ok) return falha(r.erro, 400)
-      await c.admin.from('fin_contas').update({ status: 'pago', pago_em: new Date().toISOString(), pago_carteira: 'empresa', pago_forma: e.forma, pago_por_nome: c.sessao.nome, pago_grupo_id: r.linhas[0]?.grupo_id ?? null, pago_aprovado_por_nome: aprovacao?.nome ?? null })
-        .eq('id', contaId).eq('status', 'a_pagar')
-      void k
-    }
-  }
-  // Custo dos insumos (histórico append-only) → as fichas recalculam sozinhas.
-  let atualizados = 0
-  for (const [id, novo] of custoNovo) {
-    const x = mapa.get(id)!
-    const antigo = Number(x.custo_compra_centavos)
-    if (novo === antigo) continue
-    const { error } = await c.admin.from('cmv_insumos').update({ custo_compra_centavos: novo, atualizado_em: new Date().toISOString() }).eq('id', id).eq('restaurante_id', loja)
-    if (error) throw error
-    await c.admin.from('cmv_custos_historico').insert({
-      restaurante_id: loja, insumo_id: id, custo_antigo_centavos: antigo, custo_novo_centavos: novo, quantidade_compra: x.quantidade_compra,
-      base_por_unidade: x.base_por_unidade, aproveitamento_pct: x.aproveitamento_pct, motivo: `Compra${e.numeroNota ? ` nota ${e.numeroNota}` : ''}${fornNome ? ` — ${fornNome}` : ''}`.slice(0, 300),
-      usuario_id: c.sessao.userId, usuario_nome: c.sessao.nome,
-    })
-    atualizados++
-  }
-  await auditar(c, 'compras.registrou', 'compra', compraId, {
-    nota: e.numeroNota, fornecedor: fornNome ?? null, total_centavos: total, pagamento: e.pagamento, itens: itens.length, insumos_atualizados: atualizados, aprovado_por: aprovacao?.nome ?? null,
-  })
-  return { ok: true, valor: { id: compraId, contaId, repetido: false, insumosAtualizados: atualizados } }
+  const contaId = e.pagamento === 'caixa' ? null : crypto.randomUUID()
+  const linhas = e.pagamento === 'caixa'
+    ? linhasDaBaixa({ tipo: 'pagar', carteira: 'gaveta', valor: total, forma: 'dinheiro', grupo: 'insumo', categoriaId: catIns.id as string, compraId })
+    : e.pagamento === 'empresa' ? linhasDaBaixa({ tipo: 'pagar', carteira: 'empresa', valor: total, forma: e.forma, grupo: 'insumo', categoriaId: catIns.id as string, contaId, compraId }) : []
+  // Tudo numa transação (fin_compra_registrar, 0143): nota + itens + conta/baixa ou saída do caixa + custo e histórico + auditoria.
+  const { data, error } = await c.admin.rpc('fin_compra_registrar', { p_restaurante: loja, p: {
+    id: compraId, chave: `compra:${chave}`, fornecedor_id: e.fornecedorId, numero_nota: e.numeroNota, data_compra: e.dataCompra, total_centavos: total, pagamento: e.pagamento,
+    observacao: e.observacao, usuario_id: c.sessao.userId, usuario_nome: c.sessao.nome, dispositivo: c.dispositivo,
+    aprovacao_id: aprovacao?.id ?? null, aprovado_por: aprovacao?.nome ?? null, turno_id: turno?.id ?? null,
+    motivo: e.pagamento === 'empresa' ? `Conta paga: ${descricao} [${catIns.nome}]` : `${descricao} [${catIns.nome}]`,
+    linhas: linhasParaBanco(linhas),
+    conta: contaId ? { id: contaId, descricao, categoria_id: catIns.id, vencimento: e.pagamento === 'a_prazo' ? e.vencimento : e.dataCompra, forma: e.forma } : null,
+    itens: itens.map((i) => ({ insumo_id: i.insumoId, quantidade: i.quantidade, unidade: i.unidade, quantidade_base: i.quantidadeBase, valor_centavos: i.valorCentavos,
+      custo_anterior_centavos: Number(mapa.get(i.insumoId)!.custo_compra_centavos), custo_novo_centavos: custoNovo.get(i.insumoId)! })),
+    custos: [...custoNovo].filter(([id, novo]) => novo !== Number(mapa.get(id)!.custo_compra_centavos)).map(([id, novo]) => {
+      const x = mapa.get(id)!
+      return { insumo_id: id, custo_antigo_centavos: Number(x.custo_compra_centavos), custo_novo_centavos: novo, quantidade_compra: x.quantidade_compra, base_por_unidade: x.base_por_unidade, aproveitamento_pct: x.aproveitamento_pct }
+    }),
+    motivo_historico: `Compra${e.numeroNota ? ` nota ${e.numeroNota}` : ''}${fornNome ? ` — ${fornNome}` : ''}`,
+    auditoria: { nota: e.numeroNota, fornecedor: fornNome ?? null, total_centavos: total, pagamento: e.pagamento, itens: itens.length, aprovado_por: aprovacao?.nome ?? null, dispositivo: c.dispositivo },
+  } })
+  if (error) { const f = erroDoBanco(error); if (f) return f; throw error }
+  const r = data as { id: string; conta_id: string | null; repetido: boolean; atualizados: number }
+  return { ok: true, valor: { id: r.id, contaId: r.conta_id ?? null, repetido: !!r.repetido, insumosAtualizados: Number(r.atualizados ?? 0) } }
 }
 
 export async function listarCompras(admin: SupabaseClient, loja: string) {
@@ -632,18 +597,9 @@ export async function cancelarCompra(c: ContextoFin, id: string, motivo: string)
   const m = (motivo ?? '').trim()
   if (m.length < 5) return falha('Diga o motivo.', 400, 'motivo')
   if (!UUID.test(id)) return falha('Compra não encontrada.', 404)
-  const { data: co } = await c.admin.from('fin_compras').select('id, status, pagamento, conta_id, total_centavos').eq('id', id).eq('restaurante_id', loja).maybeSingle()
-  if (!co) return falha('Compra não encontrada.', 404)
-  if (co.status === 'cancelada') return { ok: true, valor: null }
-  if (co.pagamento === 'caixa') return falha('Compra paga com dinheiro do caixa: registre a devolução como reforço no caixa.', 409, 'compra_paga')
-  if (co.conta_id) {
-    const k = await lerConta(c.admin, loja, co.conta_id as string)
-    if (k?.status === 'pago') return falha('A conta desta compra já foi paga: estorne a baixa antes.', 409, 'conta_paga')
-    if (k?.status === 'a_pagar') await c.admin.from('fin_contas').update({ status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_por_nome: c.sessao.nome, cancelado_motivo: `Compra cancelada: ${m}`.slice(0, 300) }).eq('id', co.conta_id).eq('status', 'a_pagar')
-  }
-  const { error } = await c.admin.from('fin_compras').update({ status: 'cancelada', cancelado_em: new Date().toISOString(), cancelado_por_nome: c.sessao.nome, cancelado_motivo: m.slice(0, 300) }).eq('id', id).eq('restaurante_id', loja).eq('status', 'ativa')
-  if (error) throw error
-  await auditar(c, 'compras.cancelou', 'compra', id, { motivo: m, total_centavos: co.total_centavos })
+  // Tudo numa transação (fin_compra_cancelar, 0143): compra + conta + auditoria.
+  const { error } = await c.admin.rpc('fin_compra_cancelar', { p_restaurante: loja, p_compra: id, p_usuario: c.sessao.userId, p_usuario_nome: c.sessao.nome, p_motivo: m, p_dispositivo: c.dispositivo })
+  if (error) { const f = erroDoBanco(error); if (f) return f; throw error }
   return { ok: true, valor: null }
 }
 
