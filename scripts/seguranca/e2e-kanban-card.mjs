@@ -18,6 +18,8 @@ const db = new pg.Client({ connectionString: DB_URL })
 await db.connect()
 const um = async (s, p = []) => (await db.query(s, p)).rows[0]
 const loja = await um(`select id from restaurantes where slug='ordem-qr-e2e'`)
+// A semente é recriada aqui: outras suítes do Kanban limpam pedidos TESTE da mesma loja.
+execSync('node scripts/seguranca/kanban-cards-semente.mjs criar', { stdio: 'inherit', env: process.env })
 const res = []
 const ok = (n, c, d = '') => { res.push(!!c); console.log(`   ${c ? '✅' : '❌'} ${n}${d ? ` — ${d}` : ''}`) }
 const texto = (v) => JSON.stringify(v)

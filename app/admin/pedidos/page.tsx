@@ -633,6 +633,19 @@ export default function PedidosPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, agendados, transit, concluded])
 
+  // Link direto para um pedido (ex.: extrato do Fluxo de Caixa): /admin/pedidos?pedido=<id> abre o painel.
+  // A RLS da loja manda: pedido de outra loja simplesmente não vem.
+  useEffect(() => {
+    if (!restauranteId) return
+    const id = new URLSearchParams(window.location.search).get('pedido')
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return
+    let vivo = true
+    supabase.from('pedidos').select(PEDIDO_SELECT).eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
+      .then(({ data }) => { if (vivo && data) setDetail(mapPedido(data as never)) })
+    return () => { vivo = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restauranteId])
+
   // Zera o feedback de reimpressão ao abrir/trocar de pedido no drawer.
   useEffect(() => setReimpEstado('idle'), [detail?.id])
 

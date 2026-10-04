@@ -40,7 +40,7 @@ describe('rótulos da auditoria', () => {
   it('toda ação gravada no código tem rótulo legível', () => {
     const semRotulo = acoesGravadas().filter((a) => !(a in ROTULO_EVENTO))
     expect(semRotulo, `sem rótulo em ROTULO_EVENTO: ${semRotulo.join(', ')}`).toEqual([])
-  })
+  }, 30_000) // varre o código inteiro: com a máquina carregada passava dos 5 s padrão
 
   it('todo rótulo cai em algum grupo do filtro — nada fica invisível na tela', () => {
     const prefixos = GRUPOS_EVENTO.flatMap((g) => g.prefixos)

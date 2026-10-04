@@ -47,7 +47,7 @@ async function pedidoNovo(nome = 'TESTE Som') {
   criados.push(r.j.id)
   return r.j
 }
-const fecharPendentes = () => db.query(`update pedidos set status='cancelado', cancelado_motivo='teste', cancelado_em=now() where restaurante_id=$1 and status in ('recebido','preparando','pronto','em_rota') and cliente_nome like 'TESTE%'`, [loja.id])
+const fecharPendentes = () => db.query(`update pedidos set status='cancelado', cancelado_motivo='teste', cancelado_em=now() where restaurante_id=$1 and status in ('recebido','preparando','pronto','em_rota') and cliente_nome like 'TESTE%' and cliente_nome not like 'TESTE Card%'`, [loja.id]) // a semente do kanban-card fica
 const alarme = (p) => p.evaluate(() => window.__mzAlarme ?? { tocou: 0, falhas: {}, bloqueado: null })
 /** Clique "neutro" (gesto do usuário) no meio da barra de topo, que fica vazio. */
 const gesto = (p) => p.mouse.click(Math.round(p.viewportSize().width / 2), 20)
@@ -192,21 +192,26 @@ try {
 
   secao('6. Ícone de avisos')
   await esperar(9000)
-  ok('sem avisos: ícone neutro e sem badge', (await p.getByTestId('avisos-badge').count()) === 0)
+  // A semente do kanban-card (mesma loja) tem pedidos parados de propósito: a conta parte deles.
+  const BASE_AVISOS = Number(await p.getByTestId('avisos-badge').innerText().catch(() => '0')) || 0
+  const parados = Number((await um(`select count(*) n from pedidos where restaurante_id=$1 and status in ('recebido','preparando','pronto','em_rota') and criado_em < now() - interval '12 hours'`, [loja.id])).n)
+  if (BASE_AVISOS === 0) ok('sem avisos: ícone neutro e sem badge', (await p.getByTestId('avisos-badge').count()) === 0)
+  else ok('badge mostra os pedidos parados que já existiam (semente)', BASE_AVISOS === parados, `${BASE_AVISOS} × ${parados}`)
   await p.getByTestId('avisos-icone').click()
-  ok('painel sem avisos diz que está tudo em dia', await p.getByTestId('avisos-vazio').isVisible())
+  if (BASE_AVISOS === 0) ok('painel sem avisos diz que está tudo em dia', await p.getByTestId('avisos-vazio').isVisible())
+  else ok('painel lista os pedidos parados que já existiam', (await p.getByTestId('aviso-pedido').count()) === BASE_AVISOS)
   await p.keyboard.press('Escape')
   ok('a faixa amarela larga saiu', !(await p.locator('text=/abertos? há mais de 12 horas\\. Marque/').isVisible().catch(() => false)))
   const parA = await pedidoNovo('TESTE Parado A'); const parB = await pedidoNovo('TESTE Parado B'); const parC = await pedidoNovo('TESTE Parado C')
   await db.query(`update pedidos set criado_em = now() - interval '13 hours' where id = any($1)`, [[parA.id, parB.id, parC.id]])
   await p.reload({ waitUntil: 'networkidle' }); await gesto(p)
-  ok('3 pedidos parados: badge âmbar com 3', await ate(async () => (await p.getByTestId('avisos-badge').innerText().catch(() => '')) === '3', 10000))
+  ok('+3 pedidos parados: badge sobe 3', await ate(async () => (await p.getByTestId('avisos-badge').innerText().catch(() => '')) === String(BASE_AVISOS + 3), 10000))
   const parD = await pedidoNovo('TESTE Parado D')
   await db.query(`update pedidos set criado_em = now() - interval '13 hours' where id=$1`, [parD.id])
-  ok('aviso novo: badge sobe e o ícone pulsa', await ate(async () => (await p.getByTestId('avisos-badge').innerText().catch(() => '')) === '4', 15000) && /animate-pulse/.test(await p.getByTestId('avisos-icone').getAttribute('class')))
+  ok('aviso novo: badge sobe e o ícone pulsa', await ate(async () => (await p.getByTestId('avisos-badge').innerText().catch(() => '')) === String(BASE_AVISOS + 4), 15000) && /animate-pulse/.test(await p.getByTestId('avisos-icone').getAttribute('class')))
   if (PRINTS) await p.screenshot({ path: join(PRINTS, 'avisos-icone.png'), clip: { x: 900, y: 0, width: 540, height: 80 } })
   await p.getByTestId('avisos-icone').click()
-  ok('painel lista cada pedido parado com Entregue / Não entregue / Cancelar / Ver no kanban', (await p.getByTestId('aviso-pedido').count()) === 4 && (await p.getByTestId('aviso-entregue').count()) === 4)
+  ok('painel lista cada pedido parado com Entregue / Não entregue / Cancelar / Ver no kanban', (await p.getByTestId('aviso-pedido').count()) === BASE_AVISOS + 4 && (await p.getByTestId('aviso-entregue').count()) === BASE_AVISOS + 4)
   if (PRINTS) await p.screenshot({ path: join(PRINTS, 'avisos-painel.png') })
   const cardA = p.getByTestId('aviso-pedido').filter({ hasText: `#${parA.numero}` })
   await cardA.getByTestId('aviso-ver').click()

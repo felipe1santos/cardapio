@@ -489,11 +489,11 @@ try {
       await cp.goto(url, { waitUntil: 'networkidle' })
       if (url.includes('/mesa/')) await cp.locator('.mesa-categoria', { hasText: 'Bebidas' }).click()
       await cp.waitForTimeout(300)
-      // Na vitrine, o cartão da categoria (o carrossel "Destaques" já é a vitrine dos favoritos).
-      const cartao = url.includes('/mesa/') ? `.mesa-card[data-item-id="${I.lata}"]` : `[id^="sec-"] [data-item-id="${I.lata}"]`
-      return cp.locator(cartao).first().locator('[data-selo-favorito]').count()
+      // Vitrine (desde ad54d48/79fbfc4): o favorito aparece no carrossel "Mais Pedidos", sem selo no cartão.
+      if (!url.includes('/mesa/')) return cp.locator(`[data-testid="mais-pedidos"] [data-item-id="${I.lata}"]`).count()
+      return cp.locator(`.mesa-card[data-item-id="${I.lata}"]`).first().locator('[data-selo-favorito]').count()
     }
-    ok('vitrine mostra ★ Favorito (recarregando, sem republicar)', (await selo(`${BASE}/loja/${LOJA}`)) === 1)
+    ok('vitrine mostra o favorito em "Mais Pedidos" (recarregando, sem republicar)', (await selo(`${BASE}/loja/${LOJA}`)) === 1)
     await cp.screenshot({ path: join(SHOTS, 'vitrine-favorito-390.png') })
     await modoQr(true)
     ok('QR visualização mostra ★ Favorito', (await selo(`${BASE}/mesa/${mesa.token}`)) === 1)
@@ -510,7 +510,7 @@ try {
     await page.locator(`[data-item-ordem="${I.lata}"]`).locator('visible=true').first().getByTestId('favorito-item').click()
     await page.waitForTimeout(700)
     ok('desmarcar grava', (await um(`select mais_vendido from itens_cardapio where id=$1`, [I.lata])).mais_vendido === false)
-    ok('vitrine sem selo depois de desmarcar', (await selo(`${BASE}/loja/${LOJA}`)) === 0)
+    ok('vitrine: sai de "Mais Pedidos" depois de desmarcar', (await selo(`${BASE}/loja/${LOJA}`)) === 0)
     ok('QR sem selo depois de desmarcar', (await selo(`${BASE}/mesa/${mesa.token}`)) === 0)
   }
 

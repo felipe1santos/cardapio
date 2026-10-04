@@ -272,10 +272,29 @@ html:has(.vitrine-sem-zoom) {
    A folha real é montada em um portal no <body> (#qr-print-root) porque o
    layout do painel usa overflow hidden e cortaria a impressão. Enquanto a
    classe `imprimindo-qr` estiver no <body>, o print mostra só a folha. */
+#fluxo-print-root {
+  display: none;
+}
+
 @media print {
   @page {
     size: A4;
     margin: 0;
+  }
+
+  /* Fluxo de Caixa (Fase 4): relatório em A4 paisagem, só o documento (sem o painel). */
+  @page fluxo {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  body.imprimindo-fluxo > *:not(#fluxo-print-root) {
+    display: none !important;
+  }
+
+  body.imprimindo-fluxo #fluxo-print-root {
+    display: block !important;
+    page: fluxo;
   }
 
   body.imprimindo-qr {

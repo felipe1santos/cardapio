@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
 import type { AcaoFin } from '@/lib/financeiro/permissoes'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { SecaoCaixa } from '@/components/financeiro/caixa'
 import { SecaoMotoboys, SecaoPix } from '@/components/financeiro/motoboys'
+import { FluxoCaixa } from '@/components/financeiro/fluxo/fluxo-caixa'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
@@ -17,7 +18,7 @@ type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'pix' | 'movimentacoes' | 'cmv' | 
 
 const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
   { id: 'caixa', label: 'Caixa', exige: 'caixa_abrir', fase: '' },
-  { id: 'fluxo', label: 'Fluxo de Caixa', exige: 'financeiro', fase: 'Fase 4' },
+  { id: 'fluxo', label: 'Fluxo de Caixa', exige: 'financeiro', fase: '' },
   { id: 'motoboys', label: 'Acerto de Motoboys', exige: 'acerto_motoboy', fase: '' },
   { id: 'pix', label: 'Conferir Pix', exige: 'pix_conferir', fase: '' },
   { id: 'movimentacoes', label: 'Movimentações', exige: 'sangria', fase: '' },
@@ -43,6 +44,7 @@ export default function FinanceiroPage() {
   const [acoes, setAcoes] = useState<AcaoFin[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [secao, setSecao] = useState<Secao>('auditoria')
+  const [usuarioId, setUsuarioId] = useState('')
 
   useEffect(() => {
     void (async () => {
@@ -51,6 +53,7 @@ export default function FinanceiroPage() {
       if (!r?.ok) { setErro(j.error ?? 'Não foi possível abrir o financeiro.'); return }
       const lista = j.acoes as AcaoFin[]
       setAcoes(lista)
+      setUsuarioId(String(j.id ?? ''))
       // ?secao=caixa (aviso do topo, "Ir fechar o caixa"); senão o Caixa, se puder; senão a primeira.
       const pedida = new URLSearchParams(window.location.search).get('secao')
       const alvo = SECOES.find((s) => s.id === pedida && lista.includes(s.exige)) ?? SECOES.find((s) => lista.includes(s.exige))
@@ -73,7 +76,9 @@ export default function FinanceiroPage() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />
           <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-5">
-            {secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
+            {secao === 'fluxo' && acoes.includes('financeiro') ? (
+              <Suspense fallback={<p className="text-[13px] text-text-subtle">Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
+            ) : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
               <SecaoCaixa key={secao} modo={secao} />
             ) : secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
               <AuditoriaAlertas />

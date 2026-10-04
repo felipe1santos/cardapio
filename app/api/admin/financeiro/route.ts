@@ -6,5 +6,5 @@ import { acoesFin } from '@/lib/financeiro/permissoes'
 export async function GET() {
   const c = await contextoFinanceiro()
   if ('erro' in c) return c.erro
-  return NextResponse.json({ nome: c.sessao.nome, papel: c.sessao.papel, acoes: acoesFin(c.sessao.papel, c.acessos) }, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json({ id: c.sessao.userId, nome: c.sessao.nome, papel: c.sessao.papel, acoes: acoesFin(c.sessao.papel, c.acessos) }, { headers: { 'Cache-Control': 'no-store' } })
 }

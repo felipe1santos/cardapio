@@ -206,6 +206,7 @@ export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[]; soComF
       { tipo: 'sensivel', chave: 'custos_editar', rotulo: rotSens('custos_editar'), descricao: 'Insumos, fichas de custo e CMV.' },
       { tipo: 'sensivel', chave: 'contas_pagar', rotulo: rotSens('contas_pagar'), descricao: 'Lançar e pagar contas da empresa.' },
       { tipo: 'sensivel', chave: 'dre_ver', rotulo: rotSens('dre_ver'), descricao: 'Ver lucro, CMV e DRE.' },
+      { tipo: 'sensivel', chave: 'financeiro_exportar', rotulo: rotSens('financeiro_exportar'), descricao: 'Baixar o Fluxo de Caixa e extratos em CSV e PDF.' },
       { tipo: 'sensivel', chave: 'auditoria_ver', rotulo: rotSens('auditoria_ver'), descricao: 'Ver auditoria, alertas e risco por funcionário.' },
     ],
   },

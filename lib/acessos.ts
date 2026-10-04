@@ -54,6 +54,7 @@ export const SENSIVEIS = [
   { chave: 'auditoria_ver', rotulo: 'Ver auditoria e alertas' },
   { chave: 'contas_pagar', rotulo: 'Contas a pagar e a receber' },
   { chave: 'dre_ver', rotulo: 'Ver DRE e lucro' },
+  { chave: 'financeiro_exportar', rotulo: 'Exportar relatórios financeiros (CSV e PDF)' },
 ] as const
 
 export type Sensivel = (typeof SENSIVEIS)[number]['chave']

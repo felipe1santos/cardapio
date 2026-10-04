@@ -99,6 +99,8 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'fin.aprovou': 'Aprovou uma ação com o PIN',
   'fin.pin_recusado': 'PIN de aprovação recusado',
   'fin.verificou_integridade': 'Verificou a integridade dos registros',
+  'fin.exportou_fluxo': 'Exportou o Fluxo de Caixa (CSV/PDF)',
+  'fin.reimprimiu_relatorio': 'Reimprimiu o relatório de fechamento do caixa',
   // Motoboy (0136).
   'fin.troco_modo': 'Mudou o modo do troco dos motoboys',
   'fin.troco_motoboy': 'Entregou troco ao motoboy',

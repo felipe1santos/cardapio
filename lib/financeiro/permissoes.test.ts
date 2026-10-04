@@ -27,3 +27,15 @@ describe('permissões do financeiro', () => {
     expect(acoesFin('atendente', a)).toEqual(['financeiro', 'sangria'])
   })
 })
+
+describe('Exportar relatórios financeiros (Fase 4)', () => {
+  it('por padrão: só dono e gerente', () => {
+    for (const papel of ['dono', 'gerente']) expect(podeFin(papel, null, 'financeiro_exportar'), papel).toBe(true)
+    for (const papel of ['atendente', 'logistica', 'garcom', 'cozinha', 'entregador']) expect(podeFin(papel, null, 'financeiro_exportar'), papel).toBe(false)
+  })
+  it('com acessos próprios: só se marcado (ver o financeiro não basta)', () => {
+    expect(podeFin('gerente', { areas: ['financeiro'], sensiveis: ['financeiro'] }, 'financeiro_exportar')).toBe(false)
+    expect(podeFin('gerente', { areas: ['financeiro'], sensiveis: ['financeiro', 'financeiro_exportar'] }, 'financeiro_exportar')).toBe(true)
+    expect(podeFin('dono', { areas: [], sensiveis: [] }, 'financeiro_exportar')).toBe(true)
+  })
+})

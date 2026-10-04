@@ -53,7 +53,9 @@ if (acao === 'limpar') {
   // Preparando (PDV balcão e mesa)
   await pedido({ nome: 'TESTE Card PDV Balcão', pagamento: 'dinheiro', ajuste: { criado_em: ha(25), status: 'preparando', canal: 'balcao', origem: 'pdv', cliente_telefone: '27992534407' } })
   // Mesa exige comanda: uma comanda de mesa TESTE na Mesa 1 (cancelada no limpar).
-  const mesa = await um(`select id from mesas where restaurante_id=$1 order by nome limit 1`, [loja.id])
+  // Mesa própria da semente (outras suítes deixam conta aberta na Mesa 1 — índice de uma conta aberta por mesa).
+  const mesa = (await um(`select id from mesas where restaurante_id=$1 and nome='Mesa TESTE Card'`, [loja.id]))
+    ?? (await um(`insert into mesas (restaurante_id, nome, ordem) values ($1, 'Mesa TESTE Card', 99) returning id`, [loja.id]))
   const com = await um(`insert into comandas (restaurante_id, tipo, mesa_id, cliente_nome, status) values ($1, 'mesa', $2, 'TESTE Card Mesa', 'aberta') returning id`, [loja.id, mesa.id])
   await pedido({ nome: 'TESTE Card Mesa 4', ajuste: { criado_em: ha(9), status: 'preparando', canal: 'mesa', origem: 'salao', tipo: 'retirada', comanda_id: com.id } })
   await pedido({ nome: 'TESTE Card Valor Alto', pagamento: 'pix', qtd: [40, 30], ajuste: { criado_em: ha(55), status: 'preparando' } })

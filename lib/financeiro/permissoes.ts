@@ -13,11 +13,12 @@ import type { Acessos, Sensivel } from '@/lib/acessos'
 export type AcaoFin = Extract<Sensivel,
   'financeiro' | 'caixa_abrir' | 'fechar_caixa' | 'caixa_reabrir' | 'sangria' | 'despesa' | 'acerto_motoboy' | 'pix_conferir'
   | 'estornar' | 'receber_pagamento' | 'aprovar' | 'reimprimir' | 'custos_editar' | 'auditoria_ver' | 'contas_pagar' | 'dre_ver'
-  | 'desconto' | 'taxa' | 'cancelar_pedido'>
+  | 'desconto' | 'taxa' | 'cancelar_pedido' | 'financeiro_exportar'>
 
 const PADRAO_DO_PAPEL: Record<string, AcaoFin[]> = {
   gerente: ['financeiro', 'caixa_abrir', 'fechar_caixa', 'sangria', 'despesa', 'acerto_motoboy', 'pix_conferir', 'estornar',
-    'receber_pagamento', 'aprovar', 'reimprimir', 'custos_editar', 'auditoria_ver', 'contas_pagar', 'dre_ver', 'desconto', 'taxa', 'cancelar_pedido'],
+    'receber_pagamento', 'aprovar', 'reimprimir', 'custos_editar', 'auditoria_ver', 'contas_pagar', 'dre_ver', 'desconto', 'taxa', 'cancelar_pedido',
+    'financeiro_exportar'],
   atendente: ['caixa_abrir', 'fechar_caixa', 'receber_pagamento', 'acerto_motoboy', 'reimprimir'],
   logistica: ['acerto_motoboy'],
 }
@@ -37,7 +38,7 @@ export function podeFin(papel: string | null | undefined, acessos: Acessos | nul
 export function acoesFin(papel: string | null | undefined, acessos: Acessos | null): AcaoFin[] {
   const todas: AcaoFin[] = ['financeiro', 'caixa_abrir', 'fechar_caixa', 'caixa_reabrir', 'sangria', 'despesa', 'acerto_motoboy',
     'pix_conferir', 'estornar', 'receber_pagamento', 'aprovar', 'reimprimir', 'custos_editar', 'auditoria_ver', 'contas_pagar', 'dre_ver',
-    'desconto', 'taxa', 'cancelar_pedido']
+    'desconto', 'taxa', 'cancelar_pedido', 'financeiro_exportar']
   return todas.filter((a) => podeFin(papel, acessos, a))
 }
 
