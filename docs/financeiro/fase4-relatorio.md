@@ -208,3 +208,22 @@ em sequência (topo → card): os dois passam.
 **Prints:** `fase4-prints/`:
 - `depois-desktop.png`, `depois-extrato-desktop.png`;
 - `depois-celular.png`, `depois-extrato-celular.png`.
+
+## Publicação (2026-10-04 ~01:20)
+- **0140:** ensaio sem gravar ok; aplicada com backup em `~/backups/menuzia/2026-10-04-pre-0140`. A parte da
+  permissão marcou 0 usuários.
+- main `d6884b4`; Redeploy no Coolify; build novo no ar às 01:18. A API do fluxo sem sessão responde 401.
+- **Conferência na Menuzia** (Chrome "Menuzia teste"): loja **Angus Burguer** e usuário **Administrador**
+  confirmados antes de qualquer ação, primeiro pela rota de sessão e depois na tela. O Kanban não foi aberto.
+  - **Fluxo de Caixa em produção:** turnos dos últimos 7 dias, turno aberto no topo, totais. O extrato do turno da
+    conferência da Fase 3 mostra a entrega do motoboy entrando pelo horário.
+  - **Contas antigas, pelas ações normais do PDV** (mesma rota e mesma auditoria da tela; nada direto no banco):
+    - **#27 fechada:** era a entrega paga no PDV, o caso que a 0140 cobre daqui para frente;
+    - **#26 fechada:** mesa paga; ficou "em limpeza", como sempre;
+    - **#20, #30 e #31 canceladas**, com motivo "TESTE conta antiga de teste (conferência Fase 4)".
+  - **Depois:** o livro-caixa da Menuzia continua com 16 lançamentos (fechar não lança nada) e a cadeia está íntegra.
+- **Acompanhamento (só leitura):**
+  - Villa Lanches #70 entregue;
+  - Ponto 400 #325 em rota, e #326 criado e cancelado pela própria loja às 01:10, antes do deploy;
+  - vitrines 200.
+- Rollback não foi necessário.
