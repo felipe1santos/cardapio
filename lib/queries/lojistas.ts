@@ -33,13 +33,32 @@ async function gerarSlugUnico(admin: SupabaseClient, nomeLoja: string): Promise<
   return `${base}-${i}`
 }
 
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+export interface PreCadastroInput {
+  email: string
+  /** Opcionais: pré-preenchem o /cadastro do cliente. */
+  nomeLoja?: string
+  nome?: string
+  telefone?: string
+  /** Validade do acesso (ISO). null/ausente = sem validade. */
+  acessoExpiraEm?: string | null
+}
+
 /**
  * Pré-cadastra um cliente pelo e-mail — cria a conta de autenticação (senha temporária,
  * trocada no primeiro acesso) e a linha pendente em `usuarios`. O cliente completa o
- * restante (senha, nome da loja etc.) em `/cadastro` usando este mesmo e-mail.
+ * restante (senha, nome da loja etc.) em `/cadastro` usando este mesmo e-mail. Desde
+ * 2026-10-04 é o ÚNICO jeito de criar conta de loja (o cadastro automático saiu).
  */
-export async function convidarLojista(admin: SupabaseClient, email: string): Promise<Resultado> {
-  const emailNormalizado = email.trim().toLowerCase()
+export async function convidarLojista(admin: SupabaseClient, entrada: PreCadastroInput): Promise<Resultado & { usuarioId?: string }> {
+  const emailNormalizado = entrada.email.trim().toLowerCase()
+  if (!EMAIL_REGEX.test(emailNormalizado) || emailNormalizado.length > 254) return { ok: false, error: 'E-mail inválido.' }
+  const { data: existente, error: erroBusca } = await admin.from('usuarios').select('id').eq('email', emailNormalizado).limit(1)
+  if (erroBusca) return { ok: false, error: 'Não foi possível conferir o e-mail. Tente novamente.' }
+  if ((existente ?? []).length > 0) return { ok: false, error: 'Este e-mail já está cadastrado.' }
+  const expira = entrada.acessoExpiraEm ? new Date(entrada.acessoExpiraEm) : null
+  if (expira && (Number.isNaN(expira.getTime()) || expira.getTime() <= Date.now())) return { ok: false, error: 'A validade precisa ser uma data futura.' }
 
   const { data, error } = await admin.auth.admin.createUser({
     email: emailNormalizado,
@@ -47,7 +66,7 @@ export async function convidarLojista(admin: SupabaseClient, email: string): Pro
     email_confirm: true,
   })
   if (error || !data.user) {
-    if (error?.message?.toLowerCase().includes('already')) return { ok: false, error: 'Já existe uma conta com este e-mail.' }
+    if (error?.message?.toLowerCase().includes('already')) return { ok: false, error: 'Este e-mail já está cadastrado.' }
     return { ok: false, error: 'Não foi possível pré-cadastrar o e-mail. Tente novamente.' }
   }
 
@@ -55,18 +74,19 @@ export async function convidarLojista(admin: SupabaseClient, email: string): Pro
     id: data.user.id,
     restaurante_id: null,
     papel: 'dono',
-    nome: '',
+    nome: (entrada.nome ?? '').trim().slice(0, 80),
     email: emailNormalizado,
-    telefone: '',
-    nome_loja: '',
+    telefone: (entrada.telefone ?? '').trim().slice(0, 30),
+    nome_loja: (entrada.nomeLoja ?? '').trim().slice(0, 80),
     autorizado: false,
+    acesso_expira_em: expira ? expira.toISOString() : null,
   })
   if (insertError) {
     await admin.auth.admin.deleteUser(data.user.id)
     return { ok: false, error: 'Não foi possível salvar o pré-cadastro. Tente novamente.' }
   }
 
-  return { ok: true }
+  return { ok: true, usuarioId: data.user.id }
 }
 
 /** Remove um pré-cadastro que ainda não completou o primeiro acesso (corrige e-mail digitado errado). */
@@ -82,33 +102,8 @@ export async function removerConvitePendente(admin: SupabaseClient, usuarioId: s
   return { ok: true }
 }
 
-export interface ConfigPlataforma {
-  /** Quando ligado, qualquer pessoa cria a conta em /cadastro sem autorização manual do e-mail. */
-  cadastroAutomatico: boolean
-  /** Validade (em dias) do acesso criado pelo cadastro automático. 0 = sem validade. */
-  cadastroAutomaticoDias: number
-}
-
-export async function buscarConfigPlataforma(admin: SupabaseClient): Promise<ConfigPlataforma> {
-  const { data, error } = await admin
-    .from('config_plataforma')
-    .select('cadastro_automatico, cadastro_automatico_dias')
-    .eq('id', 1)
-    .maybeSingle()
-  if (error) throw error
-  return {
-    cadastroAutomatico: data?.cadastro_automatico ?? false,
-    cadastroAutomaticoDias: data?.cadastro_automatico_dias ?? 30,
-  }
-}
-
-export async function salvarConfigPlataforma(admin: SupabaseClient, config: ConfigPlataforma): Promise<Resultado> {
-  const { error } = await admin
-    .from('config_plataforma')
-    .upsert({ id: 1, cadastro_automatico: config.cadastroAutomatico, cadastro_automatico_dias: Math.max(0, Math.floor(config.cadastroAutomaticoDias)) })
-  if (error) return { ok: false, error: 'Não foi possível salvar a configuração.' }
-  return { ok: true }
-}
+/** Mensagem do /cadastro para e-mail sem convite. */
+export const MSG_SO_CONVITE = 'Cadastro disponível só por convite. Fale com o suporte.'
 
 export type StatusEmailCadastro = 'autorizado' | 'nao_encontrado' | 'ja_cadastrado'
 
@@ -125,6 +120,17 @@ export async function verificarEmailAutorizado(admin: SupabaseClient, email: str
   if (error) throw error
   if (!data) return 'nao_encontrado'
   return data.restaurante_id ? 'ja_cadastrado' : 'autorizado'
+}
+
+/** Dados que o superadmin deixou no pré-cadastro (só para convite PENDENTE). */
+export async function dadosDoPreCadastro(admin: SupabaseClient, email: string): Promise<{ nome: string; nomeLoja: string; telefone: string } | null> {
+  const { data, error } = await admin
+    .from('usuarios')
+    .select('nome, nome_loja, telefone, restaurante_id')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle()
+  if (error || !data || data.restaurante_id) return null
+  return { nome: data.nome ?? '', nomeLoja: data.nome_loja ?? '', telefone: data.telefone ?? '' }
 }
 
 const USUARIO_REGEX = /^[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])$/
@@ -173,7 +179,8 @@ export interface PrimeiroAcessoInput {
 /**
  * Conclui o primeiro acesso de um cliente pré-cadastrado pelo /superadmin: confere que o
  * e-mail foi pré-cadastrado, define a senha, cria a loja (slug gerado a partir do nome) e
- * libera o acesso.
+ * libera o acesso com a validade escolhida no pré-cadastro. Sem pré-cadastro, ninguém
+ * cria conta (o cadastro automático saiu em 2026-10-04).
  */
 export async function completarPrimeiroAcesso(admin: SupabaseClient, input: PrimeiroAcessoInput): Promise<Resultado> {
   const email = input.email.trim().toLowerCase()
@@ -188,70 +195,20 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
 
   const { data: conta, error: contaError } = await admin
     .from('usuarios')
-    .select('id, restaurante_id')
+    .select('id, restaurante_id, acesso_expira_em')
     .eq('email', email)
     .maybeSingle()
   if (contaError) throw contaError
-  if (conta?.restaurante_id) {
+  if (!conta) return { ok: false, error: MSG_SO_CONVITE }
+  if (conta.restaurante_id) {
     return { ok: false, error: 'Este e-mail já tem cadastro concluído. Faça login.' }
   }
 
-  let usuarioId: string
-  let acessoExpiraEm: string | null = null
-  // Conta criada agora pelo cadastro automático — se algo falhar depois, desfaz tudo.
-  let criadoAutomaticamente = false
-
-  if (conta) {
-    // Fluxo com pré-autorização manual: a conta de auth já existe (senha temporária).
-    usuarioId = conta.id
-    const { error: passwordError } = await admin.auth.admin.updateUserById(usuarioId, { password: input.senha })
-    if (passwordError) {
-      return { ok: false, error: 'Não foi possível definir a senha. Tente novamente.' }
-    }
-  } else {
-    // Cadastro automático: sem pré-autorização, cria a conta na hora com a
-    // validade configurada no /superadmin.
-    const config = await buscarConfigPlataforma(admin)
-    if (!config.cadastroAutomatico) {
-      return { ok: false, error: 'E-mail não encontrado. Confirme o e-mail com o administrador da plataforma.' }
-    }
-
-    const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email,
-      password: input.senha,
-      email_confirm: true,
-    })
-    if (createError || !created.user) {
-      if (createError?.message?.toLowerCase().includes('already')) return { ok: false, error: 'Já existe uma conta com este e-mail. Faça login.' }
-      return { ok: false, error: 'Não foi possível criar a conta. Tente novamente.' }
-    }
-
-    const { error: insertError } = await admin.from('usuarios').insert({
-      id: created.user.id,
-      restaurante_id: null,
-      papel: 'dono',
-      nome: '',
-      email,
-      telefone: '',
-      nome_loja: '',
-      autorizado: false,
-    })
-    if (insertError) {
-      await admin.auth.admin.deleteUser(created.user.id)
-      return { ok: false, error: 'Não foi possível criar a conta. Tente novamente.' }
-    }
-
-    usuarioId = created.user.id
-    criadoAutomaticamente = true
-    acessoExpiraEm = config.cadastroAutomaticoDias > 0
-      ? new Date(Date.now() + config.cadastroAutomaticoDias * 86_400_000).toISOString()
-      : null
-  }
-
-  async function desfazerContaAutomatica() {
-    if (!criadoAutomaticamente) return
-    await admin.from('usuarios').delete().eq('id', usuarioId)
-    await admin.auth.admin.deleteUser(usuarioId)
+  const usuarioId: string = conta.id
+  const acessoExpiraEm: string | null = conta.acesso_expira_em ?? null
+  const { error: passwordError } = await admin.auth.admin.updateUserById(usuarioId, { password: input.senha })
+  if (passwordError) {
+    return { ok: false, error: 'Não foi possível definir a senha. Tente novamente.' }
   }
 
   const slug = await gerarSlugUnico(admin, input.nomeLoja)
@@ -262,7 +219,6 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
     .select('id')
     .single()
   if (restauranteError || !restaurante) {
-    await desfazerContaAutomatica()
     return { ok: false, error: 'Não foi possível criar a loja. Tente novamente.' }
   }
 
@@ -281,7 +237,6 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
     .eq('id', usuarioId)
   if (updateError) {
     await admin.from('restaurantes').delete().eq('id', restaurante.id)
-    await desfazerContaAutomatica()
     return { ok: false, error: 'Não foi possível concluir o cadastro. Tente novamente.' }
   }
 
@@ -339,6 +294,25 @@ export async function concederAcessoLojista(admin: SupabaseClient, usuarioId: st
 }
 
 /**
+ * Altera a validade do acesso sem precisar revogar antes: `expiraEm` null = sem validade.
+ * Vale para a conta ativa (renovar/encurtar) e para o convite pendente (vale a partir do 1º acesso).
+ */
+export async function alterarValidadeLojista(admin: SupabaseClient, usuarioId: string, expiraEm: string | null): Promise<Resultado> {
+  const { data: usuario, error: usuarioError } = await admin.from('usuarios').select('email, papel').eq('id', usuarioId).maybeSingle()
+  if (usuarioError) throw usuarioError
+  if (!usuario) return { ok: false, error: 'Conta não encontrada.' }
+  if (usuario.papel !== 'dono') return { ok: false, error: 'Só a conta principal da loja tem validade.' }
+  if (isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível alterar o administrador da plataforma.' }
+  if (expiraEm) {
+    const t = new Date(expiraEm).getTime()
+    if (Number.isNaN(t) || t <= Date.now()) return { ok: false, error: 'A validade precisa ser uma data futura.' }
+  }
+  const { error } = await admin.from('usuarios').update({ acesso_expira_em: expiraEm }).eq('id', usuarioId)
+  if (error) return { ok: false, error: 'Não foi possível alterar a validade.' }
+  return { ok: true }
+}
+
+/**
  * Exclui DE VEZ um lojista sem acesso: a loja (com cardápio, pedidos etc., via
  * cascade), a linha em `usuarios` e a conta de autenticação. Irreversível — só
  * permitido quando o acesso já está revogado/expirado (ou cadastro pendente).
@@ -346,12 +320,13 @@ export async function concederAcessoLojista(admin: SupabaseClient, usuarioId: st
 export async function excluirLojistaCompleto(admin: SupabaseClient, usuarioId: string): Promise<Resultado> {
   const { data: usuario, error: usuarioError } = await admin
     .from('usuarios')
-    .select('email, restaurante_id, autorizado, acesso_expira_em')
+    .select('email, restaurante_id, autorizado, acesso_expira_em, papel')
     .eq('id', usuarioId)
     .maybeSingle()
   if (usuarioError) throw usuarioError
   if (!usuario) return { ok: false, error: 'Conta não encontrada.' }
   if (isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível excluir o administrador da plataforma.' }
+  if (usuario.papel !== 'dono') return { ok: false, error: 'Só a conta principal da loja pode ser excluída por aqui.' }
 
   const temAcesso = usuario.autorizado && (!usuario.acesso_expira_em || new Date(usuario.acesso_expira_em).getTime() > Date.now())
   if (temAcesso) return { ok: false, error: 'Revogue o acesso antes de excluir os dados.' }
@@ -365,121 +340,13 @@ export async function excluirLojistaCompleto(admin: SupabaseClient, usuarioId: s
   return { ok: true }
 }
 
-export interface LojistaRow {
-  id: string
-  email: string
-  usuario: string
-  nome: string
-  nomeLoja: string
-  telefone: string
-  papel: PapelUsuario
-  autorizado: boolean
-  restauranteId: string | null
-  restauranteNome: string | null
-  restauranteSlug: string | null
-  ultimoLoginEm: string | null
-  criadoEm: string
-  acessoExpiraEm: string | null
-  loginsTotal: number
-}
-
-interface LojistaRowRaw {
-  id: string
-  email: string
-  usuario: string
-  nome: string
-  nome_loja: string
-  telefone: string
-  papel: PapelUsuario
-  autorizado: boolean
-  restaurante_id: string | null
-  ultimo_login_em: string | null
-  criado_em: string
-  acesso_expira_em: string | null
-  logins_total: number | null
-  restaurantes: { nome: string; slug: string } | null
-}
-
-/** Lista todas as contas (pré-cadastradas ou ativas), com a loja vinculada, para o painel /superadmin. */
-export async function listarLojistas(admin: SupabaseClient): Promise<LojistaRow[]> {
-  const { data, error } = await admin
-    .from('usuarios')
-    .select('id, email, usuario, nome, nome_loja, telefone, papel, autorizado, restaurante_id, ultimo_login_em, criado_em, acesso_expira_em, logins_total, restaurantes(nome, slug)')
-    // Mais acessados primeiro; empate resolve pelo login mais recente.
-    .order('logins_total', { ascending: false })
-    .order('ultimo_login_em', { ascending: false, nullsFirst: false })
-    .order('criado_em', { ascending: false })
-  if (error) throw error
-
-  return (data as unknown as LojistaRowRaw[]).map((row) => ({
-    id: row.id,
-    email: row.email,
-    usuario: row.usuario ?? '',
-    nome: row.nome,
-    nomeLoja: row.nome_loja,
-    telefone: row.telefone,
-    papel: row.papel,
-    autorizado: row.autorizado,
-    restauranteId: row.restaurante_id,
-    restauranteNome: row.restaurantes?.nome ?? null,
-    restauranteSlug: row.restaurantes?.slug ?? null,
-    ultimoLoginEm: row.ultimo_login_em,
-    criadoEm: row.criado_em,
-    acessoExpiraEm: row.acesso_expira_em,
-    loginsTotal: row.logins_total ?? 0,
-  }))
-}
-
-export interface MetricasLoja {
-  faturamento: number
-  qtdPedidos: number
-  ticketMedio: number
-  pedidosPorDia: number
-  ultimoPedidoEm: string | null
-}
-
-/**
- * Métricas por loja a partir dos pedidos ENTREGUES (faturamento realizado), para o
- * painel /superadmin. Agrega em memória (poucas lojas no nível da plataforma).
- */
-export async function metricasPorRestaurante(admin: SupabaseClient): Promise<Map<string, MetricasLoja>> {
-  const { data, error } = await admin
-    .from('pedidos')
-    .select('restaurante_id, total, criado_em')
-    .eq('status', 'entregue')
-  if (error) throw error
-
-  const acc = new Map<string, { tot: number; qtd: number; min: number; max: number }>()
-  for (const p of (data ?? []) as { restaurante_id: string | null; total: number; criado_em: string }[]) {
-    if (!p.restaurante_id) continue
-    const t = new Date(p.criado_em).getTime()
-    const cur = acc.get(p.restaurante_id) ?? { tot: 0, qtd: 0, min: t, max: t }
-    cur.tot += Number(p.total)
-    cur.qtd += 1
-    cur.min = Math.min(cur.min, t)
-    cur.max = Math.max(cur.max, t)
-    acc.set(p.restaurante_id, cur)
-  }
-
-  const out = new Map<string, MetricasLoja>()
-  for (const [id, a] of acc) {
-    const dias = Math.max(1, Math.ceil((a.max - a.min) / 86_400_000) + 1)
-    out.set(id, {
-      faturamento: a.tot,
-      qtdPedidos: a.qtd,
-      ticketMedio: a.qtd > 0 ? a.tot / a.qtd : 0,
-      pedidosPorDia: a.qtd / dias,
-      ultimoPedidoEm: new Date(a.max).toISOString(),
-    })
-  }
-  return out
-}
-
 /** Revoga o acesso (mantém o vínculo com a loja e o papel, para facilitar reativar depois). */
 export async function revogarAcessoLojista(admin: SupabaseClient, usuarioId: string): Promise<Resultado> {
-  const { data: usuario, error: usuarioError } = await admin.from('usuarios').select('email').eq('id', usuarioId).maybeSingle()
+  const { data: usuario, error: usuarioError } = await admin.from('usuarios').select('email, papel').eq('id', usuarioId).maybeSingle()
   if (usuarioError) throw usuarioError
-  if (usuario && isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível revogar o acesso do administrador da plataforma.' }
+  if (!usuario) return { ok: false, error: 'Conta não encontrada.' }
+  if (isSuperAdminEmail(usuario.email)) return { ok: false, error: 'Não é possível revogar o acesso do administrador da plataforma.' }
+  if (usuario.papel !== 'dono') return { ok: false, error: 'Funcionários são bloqueados na tela Equipe da própria loja.' }
 
   const { error } = await admin.from('usuarios').update({ autorizado: false, acesso_expira_em: null }).eq('id', usuarioId)
   if (error) return { ok: false, error: 'Não foi possível revogar o acesso.' }

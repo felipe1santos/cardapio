@@ -32,6 +32,8 @@ export function CadastroForm({ error }: { error?: string }) {
   const [statusUsuario, setStatusUsuario] = useState<StatusUsuario>('vazio')
   const [senha, setSenha] = useState('')
   const [confirmarSenha, setConfirmarSenha] = useState('')
+  // O que o superadmin deixou no pré-cadastro (nome da loja, responsável, telefone).
+  const [preenchido, setPreenchido] = useState<{ nome: string; nomeLoja: string; telefone: string } | null>(null)
   const emailTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const usuarioTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -49,6 +51,7 @@ export function CadastroForm({ error }: { error?: string }) {
         const res = await fetch(`/api/cadastro/verificar-email?email=${encodeURIComponent(valor)}`)
         const data = await res.json()
         setStatusEmail(data.status === 'autorizado' ? 'autorizado' : data.status === 'ja_cadastrado' ? 'ja_cadastrado' : 'nao_encontrado')
+        setPreenchido(data.status === 'autorizado' ? data.preenchido ?? null : null)
       } catch {
         setStatusEmail('nao_encontrado')
       }
@@ -84,7 +87,7 @@ export function CadastroForm({ error }: { error?: string }) {
   return (
     <form action={cadastrar}>
       <p className="mb-5 rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-center text-xs font-medium leading-relaxed text-[#1e3a8a]">
-        Digite o e-mail autorizado pela Menuzia. Quando ele for confirmado, o restante do cadastro é liberado.
+        Cadastro só por convite: digite o e-mail que a Menuzia cadastrou pra você. Quando ele for confirmado, o restante do cadastro é liberado.
       </p>
 
       {error && (
@@ -118,7 +121,7 @@ export function CadastroForm({ error }: { error?: string }) {
       </label>
       <p className="mb-4 min-h-[16px] text-[11px] font-medium">
         {statusEmail === 'autorizado' && <span className="text-[#16A34A]">E-mail confirmado! Preencha os dados abaixo.</span>}
-        {statusEmail === 'nao_encontrado' && <span className="text-danger">E-mail não autorizado. Confirme com a Menuzia o e-mail cadastrado pra você.</span>}
+        {statusEmail === 'nao_encontrado' && <span className="text-danger" data-testid="cadastro-so-convite">Cadastro disponível só por convite. Fale com o suporte.</span>}
         {statusEmail === 'ja_cadastrado' && (
           <span className="text-danger">
             Este e-mail já concluiu o cadastro.{' '}
@@ -128,20 +131,21 @@ export function CadastroForm({ error }: { error?: string }) {
       </p>
 
       {/* Restante do cadastro — liberado só com e-mail confirmado */}
-      <fieldset disabled={!liberado} className={liberado ? '' : 'pointer-events-none select-none opacity-40'}>
+      {/* key: quando o pré-cadastro chega, os campos nascem já preenchidos (e continuam editáveis). */}
+      <fieldset key={preenchido ? `p-${preenchido.nomeLoja}-${preenchido.nome}` : 'vazio'} disabled={!liberado} className={liberado ? '' : 'pointer-events-none select-none opacity-40'}>
         <label className="mb-3 block">
           <span className={labelClass}>Nome completo</span>
-          <input name="nome" type="text" required className={authInput} />
+          <input name="nome" type="text" required defaultValue={preenchido?.nome ?? ''} className={authInput} />
         </label>
 
         <label className="mb-3 block">
           <span className={labelClass}>Nome do delivery</span>
-          <input name="nomeLoja" type="text" required placeholder="Ex: Burger do João" className={authInput} />
+          <input name="nomeLoja" type="text" required defaultValue={preenchido?.nomeLoja ?? ''} placeholder="Ex: Burger do João" className={authInput} />
         </label>
 
         <label className="mb-3 block">
           <span className={labelClass}>Telefone / WhatsApp</span>
-          <input name="telefone" type="tel" required placeholder="(00) 00000-0000" className={authInput} />
+          <input name="telefone" type="tel" required defaultValue={preenchido?.telefone ?? ''} placeholder="(00) 00000-0000" className={authInput} />
         </label>
 
         <label className="mb-1 block">

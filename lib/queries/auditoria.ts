@@ -141,6 +141,15 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'impressao.modo_alterado': 'Mudou o modo do Assistente Beta (teste, caixa ou cozinha e caixa)',
   'impressao.beta_liberado': 'Plataforma liberou o Assistente Beta para a loja',
   'impressao.beta_retirado': 'Plataforma retirou a loja do piloto do Assistente Beta',
+  // Painel da plataforma (superadmin), 2026-10-04 — também na auditoria da plataforma (0139).
+  'plataforma.pre_cadastrou': 'Plataforma pré-cadastrou o cliente',
+  'plataforma.removeu_pre_cadastro': 'Plataforma removeu o pré-cadastro',
+  'plataforma.bloqueou': 'Plataforma bloqueou o acesso da loja',
+  'plataforma.desbloqueou': 'Plataforma desbloqueou o acesso da loja',
+  'plataforma.alterou_validade': 'Plataforma alterou a validade do acesso da loja',
+  'plataforma.excluiu_dados': 'Plataforma excluiu os dados da loja',
+  'plataforma.beta_liberou': 'Plataforma liberou o Assistente Beta para a loja',
+  'plataforma.beta_retirou': 'Plataforma retirou a loja do piloto do Assistente Beta',
   'impressao.cozinha_por_funcao_ligada': 'Passou a cozinha para o Assistente Beta',
   'impressao.cozinha_por_funcao_desligada': 'Devolveu a cozinha ao Assistente antigo',
   // PDV v2 (balcão e conta presencial).
@@ -177,6 +186,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'clientes', label: 'Clientes', prefixos: ['clientes.'] },
   { id: 'whatsapp', label: 'WhatsApp', prefixos: ['whatsapp.', 'campanhas.'] },
   { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },
+  { id: 'plataforma', label: 'Plataforma (Menuzia)', prefixos: ['plataforma.'] },
 ]
 
 export function rotuloEvento(acao: string): string {

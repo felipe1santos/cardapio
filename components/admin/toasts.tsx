@@ -24,7 +24,7 @@ export function useToasts() {
 export function PilhaToasts({ itens }: { itens: Toast[] }) {
   if (!itens.length) return null
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[70] flex flex-col items-center gap-2 px-4" aria-live="polite">
+    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[9998] flex flex-col items-center gap-2 px-4" aria-live="polite">
       {itens.map((t) => (
         <p
           key={t.id}

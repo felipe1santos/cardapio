@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarConfigPlataforma, verificarEmailAutorizado } from '@/lib/queries/lojistas'
+import { dadosDoPreCadastro, verificarEmailAutorizado } from '@/lib/queries/lojistas'
 import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
 
 // A resposta diz se o e-mail é de lojista pré-autorizado: sem freio, dava para varrer uma
@@ -8,9 +8,10 @@ import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
 const consultasPorIp = criarLimitador({ max: 20, janelaMs: 60_000 })
 
 /**
- * Checagem ao vivo do campo de e-mail em /cadastro: informa se o e-mail digitado
- * pode seguir com o cadastro — pré-autorizado pelo /superadmin ou, com o cadastro
- * automático ligado, qualquer e-mail ainda não usado.
+ * Checagem ao vivo do campo de e-mail em /cadastro: informa se o e-mail digitado foi
+ * pré-cadastrado pelo /superadmin. Desde 2026-10-04 só entra quem tem convite (o cadastro
+ * automático saiu). Com convite pendente, devolve o que o superadmin já preencheu (nome da
+ * loja, responsável e telefone) para adiantar o formulário.
  */
 export async function GET(request: Request) {
   const ip = ipDaRequisicao(request.headers)
@@ -25,12 +26,9 @@ export async function GET(request: Request) {
 
   try {
     const admin = getAdminSupabase()
-    let status = await verificarEmailAutorizado(admin, email)
-    if (status === 'nao_encontrado') {
-      const config = await buscarConfigPlataforma(admin)
-      if (config.cadastroAutomatico) status = 'autorizado'
-    }
-    return NextResponse.json({ status })
+    const status = await verificarEmailAutorizado(admin, email)
+    if (status !== 'autorizado') return NextResponse.json({ status })
+    return NextResponse.json({ status, preenchido: await dadosDoPreCadastro(admin, email) })
   } catch {
     return NextResponse.json({ status: 'nao_encontrado' })
   }
