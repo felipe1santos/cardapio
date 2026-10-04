@@ -20,8 +20,8 @@ interface Compra {
   fin_compra_itens: { quantidade: number; unidade: string; valor_centavos: number; custo_anterior_centavos: number | null; custo_novo_centavos: number; cmv_insumos: { nome: string } | null }[]
 }
 type Toast = (tom: 'ok' | 'erro', t: string) => void
-const CAMPO = 'h-[40px] w-full rounded-[3px] border border-border bg-white px-2.5 text-[14px] outline-none focus:border-primary'
-const ROT = 'mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-text-subtle'
+const CAMPO = 'h-[40px] w-full fin-card px-2.5 text-[14px] outline-none focus:border-primary'
+const ROT = 'mb-[4px] block text-[12.5px] font-semibold text-text-subtle'
 const ROT_PAG: Record<Compra['pagamento'], string> = { a_prazo: 'A prazo (conta a pagar)', caixa: 'Dinheiro do caixa', empresa: 'Paga pela empresa' }
 const brl = (c: number | null | undefined) => (c == null ? '—' : formatarCentavos(c))
 
@@ -54,18 +54,18 @@ export function SecaoCompras({ insumos, fornecedores, podeLancar, podePagar, pod
         {podeLancar && <button type="button" className={`${BOTAO.primario} ml-auto`} onClick={() => setNova(true)} data-testid="compra-nova"><Plus className="h-4 w-4" /> Nova compra</button>}
       </div>
       {compras === null ? <p className="text-[13px] text-text-subtle">Carregando…</p> : compras.length === 0 ? (
-        <p className="rounded-[6px] border border-border bg-white px-4 py-8 text-center text-[13px] text-text-subtle">Nenhuma compra lançada.</p>
+        <p className="fin-card px-4 py-8 text-center text-[13px] text-text-subtle">Nenhuma compra lançada.</p>
       ) : (
         <div className="flex flex-col gap-2" data-testid="compras-lista">
           {compras.map((c) => (
-            <div key={c.id} className="rounded-[6px] border border-border bg-white p-3" data-testid="compra-linha" data-nota={c.numero_nota ?? ''}>
+            <div key={c.id} className="fin-card p-3" data-testid="compra-linha" data-nota={c.numero_nota ?? ''}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <span className="min-w-0">
                   <b className="block text-[14px]">{c.numero_nota ? `Nota ${c.numero_nota}` : 'Compra sem nota'}{c.fin_fornecedores?.nome ? ` · ${c.fin_fornecedores.nome}` : ''}</b>
                   <span className="block text-[12px] text-text-subtle">{c.data_compra.split('-').reverse().join('/')} · {ROT_PAG[c.pagamento]} · por {c.criado_por_nome}</span>
                 </span>
                 <span className="flex items-center gap-2">
-                  {c.status === 'cancelada' ? <Selo cor="#4B5563">Cancelada</Selo> : null}
+                  {c.status === 'cancelada' ? <Selo cor="#465A69">Cancelada</Selo> : null}
                   <b className="text-[15px]">{brl(c.total_centavos)}</b>
                 </span>
               </div>
@@ -76,7 +76,7 @@ export function SecaoCompras({ insumos, fornecedores, podeLancar, podePagar, pod
                 ))}
               </ul>
               {c.status === 'ativa' && c.pagamento !== 'caixa' && podeLancar && (
-                <button type="button" className="mt-2 text-[11.5px] font-semibold uppercase tracking-wide text-[#B91C1C]" onClick={() => setCancelando(c)} data-testid="compra-cancelar">Cancelar compra</button>
+                <button type="button" className="mt-2 text-[13px] font-semibold text-[#D93616]" onClick={() => setCancelando(c)} data-testid="compra-cancelar">Cancelar compra</button>
               )}
             </div>
           ))}
@@ -86,7 +86,7 @@ export function SecaoCompras({ insumos, fornecedores, podeLancar, podePagar, pod
         <Janela titulo="Cancelar compra" onFechar={() => setCancelando(null)} testid="janela-cancelar-compra">
           <p className="mb-2 text-[13px]">A conta a pagar desta compra é cancelada junto. O custo dos insumos NÃO volta sozinho.</p>
           <textarea className={`${CAMPO} h-[60px] py-2`} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo" data-testid="compra-cancelar-motivo" />
-          <button type="button" className="mt-3 h-[38px] w-full rounded-[4px] bg-[#B91C1C] text-[12px] font-semibold uppercase tracking-wide text-white disabled:opacity-50" disabled={motivo.trim().length < 5} onClick={() => void cancelar(cancelando)} data-testid="compra-cancelar-confirmar">Cancelar compra</button>
+          <button type="button" className="mt-3 h-[38px] w-full rounded-[4px] bg-[#D93616] text-[13px] font-semibold text-white disabled:opacity-50" disabled={motivo.trim().length < 5} onClick={() => void cancelar(cancelando)} data-testid="compra-cancelar-confirmar">Cancelar compra</button>
         </Janela>
       )}
       {nova && <NovaCompra insumos={insumos} fornecedores={fornecedores.filter((f) => f.ativo)} podePagar={podePagar} caixaAberto={caixaAberto} toast={toast}
@@ -154,7 +154,7 @@ function NovaCompra({ insumos, fornecedores, podePagar, caixaAberto, toast, onFe
                     {ins ? [...new Set([ins.unidade_compra, ins.unidade_base])].map((u) => <option key={u} value={u}>{u}</option>) : <option value="">—</option>}
                   </select>
                   <input className={`${CAMPO} text-right`} inputMode="decimal" placeholder="Valor R$" value={i.valor} onChange={(e) => mudar({ valor: e.target.value.replace(/[^\d.,]/g, '') })} data-testid="compra-valor" />
-                  <button type="button" aria-label="Tirar item" className="grid h-[32px] w-[32px] place-items-center rounded-[4px] text-[#B91C1C] hover:bg-[#FEE2E2]" onClick={() => setItens(itens.filter((_, n) => n !== k))}><Trash2 className="h-4 w-4" /></button>
+                  <button type="button" aria-label="Tirar item" className="grid h-[32px] w-[32px] place-items-center rounded-[4px] text-[#D93616] hover:bg-[#FCEBE7]" onClick={() => setItens(itens.filter((_, n) => n !== k))}><Trash2 className="h-4 w-4" /></button>
                 </div>
               )
             })}
@@ -169,7 +169,7 @@ function NovaCompra({ insumos, fornecedores, podePagar, caixaAberto, toast, onFe
               const bloqueado = (p !== 'a_prazo' && !podePagar) || (p === 'caixa' && !caixaAberto)
               return (
                 <button key={p} type="button" disabled={bloqueado} aria-pressed={pagamento === p} onClick={() => setPagamento(p)} data-testid={`compra-pag-${p}`}
-                  className={`rounded-[4px] border px-3 py-2 text-left text-[13px] font-semibold disabled:opacity-50 ${pagamento === p ? 'border-[#0369A1] bg-[#E0F2FE]' : 'border-border bg-white'}`}>
+                  className={`rounded-[4px] border px-3 py-2 text-left text-[13px] font-semibold disabled:opacity-50 ${pagamento === p ? 'border-[#0A78BE] bg-[#E7F5FF]' : 'border-border bg-white'}`}>
                   {ROT_PAG[p]}{p === 'caixa' && !caixaAberto ? <span className="block text-[11.5px] font-normal text-text-subtle">Caixa fechado</span> : null}
                 </button>
               )

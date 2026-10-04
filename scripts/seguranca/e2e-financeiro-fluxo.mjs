@@ -353,7 +353,7 @@ try {
     await tela.getByTestId('fluxo-tabela').waitFor({ timeout: 15000 })
     ok('tabela com uma linha por turno e rodapé de totais', (await tela.getByTestId('fluxo-linha').count()) === Math.min(fx.total, 30) && await tela.getByTestId('fluxo-rodape').isVisible())
     const corDif = await tela.locator(`[data-testid="fluxo-linha"][data-turno="${T1}"] [data-testid="fluxo-diferenca"]`).evaluate((e) => getComputedStyle(e).backgroundColor)
-    ok('diferença negativa em vermelho', corDif === 'rgb(185, 28, 28)', corDif)
+    ok('diferença negativa em vermelho (#D93616, paleta Meta)', corDif === 'rgb(217, 54, 22)', corDif)
     await tela.getByTestId('fluxo-colunas').click()
     const menuCol = await tela.evaluate(() => { const el = document.querySelector('[data-testid="fluxo-colunas-menu"]'); return el && el.parentElement === document.body && getComputedStyle(el).zIndex })
     ok('seletor "Colunas" por cima (portal, z 9999)', menuCol === '9999')

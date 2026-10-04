@@ -46,18 +46,18 @@ export function SecaoMotoboys() {
 
   if (erro) return <p className="text-[13px] text-danger">{erro}</p>
   if (!e) return <p className="text-[13px] text-text-subtle">Carregando…</p>
-  const cartao = 'rounded-[3px] border border-border bg-white'
+  const cartao = 'fin-card'
   const gestor = e.papel === 'dono' || e.papel === 'gerente'
 
   return (
     <>
-      {aviso && <p className="rounded-[3px] bg-[#DCFCE7] px-3 py-2 text-[13px] font-semibold text-[#16A34A]" data-testid="motoboys-aviso">{aviso}</p>}
+      {aviso && <p className="fin-card border-l-[3px] !border-l-[#4DBBA6] px-4 py-2.5 text-[14px] font-semibold text-[#006B4E]" data-testid="motoboys-aviso">{aviso}</p>}
       <section className={cartao} data-testid="motoboys-modo">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
             <p className="text-[13px] font-bold text-text-main">Troco do motoboy: {e.modo.modo === 'pedido' ? 'por pedido' : `fundo fixo (${brl(e.modo.fundoPadraoCentavos)})`}</p>
             <p className="text-[12px] text-text-subtle">{e.modo.modo === 'pedido' ? 'No despacho de um pedido em dinheiro, o troco sai da gaveta para o motoboy (valor editável).' : 'No início do turno, o motoboy recebe o fundo; complemente quando faltar.'}
-              {e.modo.proximo && <b className="text-[#B45309]"> Muda para {e.modo.proximo === 'pedido' ? '"por pedido"' : '"fundo fixo"'} no próximo caixa.</b>}</p>
+              {e.modo.proximo && <b className="text-[#8A4B00]"> Muda para {e.modo.proximo === 'pedido' ? '"por pedido"' : '"fundo fixo"'} no próximo caixa.</b>}</p>
           </div>
           {gestor && (
             <div className="flex gap-2">
@@ -152,7 +152,7 @@ function JanelaAcerto({ m, dono, onFechar, onPronto }: { m: Moto; dono: boolean;
           <p className="mb-[10px] text-[13px] text-text-subtle">Conte o dinheiro que o motoboy entregou. O sistema só mostra quanto era esperado <b>depois</b>.</p>
           {m.pedidos.length > 1 && (
             <div className="mb-[10px]">
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Acertar só algumas entregas (opcional)</p>
+              <p className="mb-1 text-[12.5px] font-semibold text-text-subtle">Acertar só algumas entregas (opcional)</p>
               <div className="flex flex-wrap gap-1.5">
                 {m.pedidos.map((p) => (
                   <button key={p.pedidoId} type="button" onClick={() => setSel((s) => s.includes(p.pedidoId) ? s.filter((x) => x !== p.pedidoId) : [...s, p.pedidoId])}
@@ -170,7 +170,7 @@ function JanelaAcerto({ m, dono, onFechar, onPronto }: { m: Moto; dono: boolean;
         </>
       ) : (
         <div data-testid="acerto-resultado">
-          <p className={`text-[15px] font-bold ${res.diferenca_centavos === 0 ? 'text-[#16A34A]' : 'text-[#EF4444]'}`}>
+          <p className={`text-[15px] font-bold ${res.diferenca_centavos === 0 ? 'text-[#006B4E]' : 'text-[#D93616]'}`}>
             {res.diferenca_centavos === 0 ? 'Acerto concluído: bateu.' : `${res.diferenca_centavos < 0 ? 'Faltou' : 'Sobrou'} ${brl(Math.abs(res.diferenca_centavos))} — ficou como pendência do motoboy.`}
           </p>
           <p className="mt-1 text-[13px] text-text-subtle">Esperado {brl(res.esperado_centavos)} · contado {brl(res.contado_centavos)}</p>
@@ -247,7 +247,7 @@ export function SecaoPix() {
   if (erro) return <p className="text-[13px] text-danger">{erro}</p>
   if (!lista) return <p className="text-[13px] text-text-subtle">Carregando…</p>
   return (
-    <section className="rounded-[3px] border border-border bg-white" data-testid="pix-lista">
+    <section className="fin-card" data-testid="pix-lista">
       <h2 className="border-b border-border px-4 py-3 text-[13px] font-bold text-text-main">Pix a conferir — confira no banco antes de confirmar</h2>
       {lista.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhum Pix esperando conferência.</p> : (
         <ul className="divide-y divide-border">

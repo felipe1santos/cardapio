@@ -61,15 +61,15 @@ export function ExtratoTurno({ turnoId, podeExportar, onFechar, onAbrirTurno, on
         {podeExportar && <button type="button" className={BOTAO.neutro} onClick={() => onExportar('csv')} data-testid="extrato-csv"><Download className="h-4 w-4" /> CSV</button>}
         {podeExportar && <button type="button" className={BOTAO.neutro} onClick={() => onExportar('pdf')} data-testid="extrato-pdf"><FileText className="h-4 w-4" /> PDF</button>}
       </> : null}>
-      {erro && <p role="alert" className="text-[13px] font-medium text-[#B91C1C]" data-testid="extrato-erro">{erro}</p>}
+      {erro && <p role="alert" className="text-[13px] font-medium text-[#D93616]" data-testid="extrato-erro">{erro}</p>}
       {!d && !erro && <p className="text-[13px] text-text-subtle">Carregando…</p>}
       {d && t && (
         <>
           {/* Reaberturas em destaque */}
           {d.reaberturas.length > 0 && (
-            <div className="mb-4 rounded-[6px] border border-[#F59E0B] bg-[#FFFBEB] p-3" data-testid="extrato-reaberturas">
+            <div className="mb-4 rounded-[6px] border border-[#D47B04] bg-[#FFFBEB] p-3" data-testid="extrato-reaberturas">
               {d.reaberturas.map((r, i) => (
-                <p key={i} className="flex items-start gap-2 text-[13px] text-[#92400E]">
+                <p key={i} className="flex items-start gap-2 text-[13px] text-[#8A4B00]">
                   <RotateCcw className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   <span><b>Reaberto</b> por {r.por} em {hora(r.em)}{r.motivo ? ` — motivo: ${r.motivo}` : ''}</span>
                 </p>
@@ -79,7 +79,7 @@ export function ExtratoTurno({ turnoId, podeExportar, onFechar, onAbrirTurno, on
           {/* Resumo do fechamento */}
           <div className="mb-4 grid gap-x-6 sm:grid-cols-2" data-testid="extrato-resumo">
             <div>
-              <p className="mb-1 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Dinheiro</p>
+              <p className="mb-1 text-[13px] font-semibold text-text-subtle">Dinheiro</p>
               <div className={linha}><span>Aberto por</span><b>{String(t.aberto_por_nome ?? '—')}</b></div>
               <div className={linha}><span>Fundo de troco</span><b>{brl(t.valor_inicial_centavos)}</b></div>
               <div className={linha}><span>Esperado</span><b data-testid="extrato-esperado">{t.fechado_em ? brl(t.esperado_dinheiro_centavos) : 'em andamento'}</b></div>
@@ -87,7 +87,7 @@ export function ExtratoTurno({ turnoId, podeExportar, onFechar, onAbrirTurno, on
               <div className={linha}><span>Diferença</span><b style={{ color: corDiferenca(t.diferenca_centavos === null || t.diferenca_centavos === undefined ? null : Number(t.diferenca_centavos)) ?? undefined }} data-testid="extrato-diferenca">{brl(t.diferenca_centavos)}</b></div>
             </div>
             <div>
-              <p className="mb-1 text-[12px] font-bold uppercase tracking-wide text-text-subtle">Maquininha (cartão)</p>
+              <p className="mb-1 text-[13px] font-semibold text-text-subtle">Maquininha (cartão)</p>
               <div className={linha}><span>Fechado por</span><b>{String(t.fechado_por_nome ?? '—')}</b></div>
               <div className={linha}><span>Esperado</span><b>{brl(t.esperado_cartao_centavos)}</b></div>
               <div className={linha}><span>Contado</span><b>{brl(t.contado_cartao_centavos)}</b></div>
@@ -97,7 +97,7 @@ export function ExtratoTurno({ turnoId, podeExportar, onFechar, onAbrirTurno, on
           {(t.justificativa || t.observacao) && <p className="mb-4 rounded-[4px] bg-page px-3 py-2 text-[12.5px]"><b>Observações:</b> {[t.observacao, t.justificativa].filter(Boolean).join(' · ')}</p>}
 
           {/* Lançamentos */}
-          <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-text-subtle">{d.lancamentos.length} lançamento{d.lancamentos.length === 1 ? '' : 's'}</p>
+          <p className="mb-2 text-[13px] font-semibold text-text-subtle">{d.lancamentos.length} lançamento{d.lancamentos.length === 1 ? '' : 's'}</p>
           <div className="flex flex-col divide-y divide-border rounded-[6px] border border-border" data-testid="extrato-lancamentos">
             {d.lancamentos.length === 0 && <p className="px-3 py-6 text-center text-[13px] text-text-subtle">Nenhum lançamento neste turno.</p>}
             {d.lancamentos.map((l) => {
@@ -118,14 +118,14 @@ export function ExtratoTurno({ turnoId, podeExportar, onFechar, onAbrirTurno, on
                     </p>
                     {l.pedidoId && <Link href={`/admin/pedidos?pedido=${l.pedidoId}`} className="text-[12px] font-semibold text-primary hover:underline" data-testid="extrato-pedido">Pedido #{l.pedidoNumero ?? '—'}</Link>}
                     {l.referencia && (
-                      <p className="text-[12px] text-[#92400E]" data-testid="extrato-referencia">
+                      <p className="text-[12px] text-[#8A4B00]" data-testid="extrato-referencia">
                         <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
                         Corrige o lançamento #{l.referencia.id} ({ROTULO_TIPO[l.referencia.tipo] ?? l.referencia.tipo}, {formatarCentavos(l.referencia.valor)}, {hora(l.referencia.criadoEm)})
                         {refOutro && <> — <button type="button" className="font-semibold text-primary hover:underline" onClick={() => onAbrirTurno(l.referencia!.turnoId!)} data-testid="extrato-turno-antigo">ver turno de {dataBR(diaDe(l.referencia.criadoEm))}</button></>}
                       </p>
                     )}
                   </div>
-                  <span className="whitespace-nowrap font-bold" style={{ color: contra ? '#6B7280' : l.valor >= 0 ? '#15803D' : '#B91C1C' }} data-testid="extrato-valor">{l.valor >= 0 ? '+' : '−'}{formatarCentavos(Math.abs(l.valor))}</span>
+                  <span className="whitespace-nowrap font-bold" style={{ color: contra ? '#465A69' : l.valor >= 0 ? '#006B4E' : '#D93616' }} data-testid="extrato-valor">{l.valor >= 0 ? '+' : '−'}{formatarCentavos(Math.abs(l.valor))}</span>
                 </div>
               )
             })}

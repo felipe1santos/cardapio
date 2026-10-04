@@ -40,7 +40,7 @@ const brl = (c: number | null | undefined) => (c === null || c === undefined ? '
 const dataBR = (d: string | null) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '—')
 const chave = () => `ui-${crypto.randomUUID()}`
 const SELO: Record<Conta['statusExibido'], [string, string]> = {
-  a_pagar: ['#0369A1', 'Em aberto'], vencido: ['#B91C1C', 'Vencida'], pago: ['#15803D', 'Paga'], cancelado: ['#4B5563', 'Cancelada'],
+  a_pagar: ['#0A78BE', 'Em aberto'], vencido: ['#D93616', 'Vencida'], pago: ['#006B4E', 'Paga'], cancelado: ['#465A69', 'Cancelada'],
 }
 const rotuloStatus = (k: Conta) => (k.statusExibido === 'pago' ? (k.tipo === 'pagar' ? 'Paga' : 'Recebida') : SELO[k.statusExibido][1])
 
@@ -97,11 +97,11 @@ export function SecaoContas() {
   const abas: [Aba, string][] = [['pagar', 'A pagar'], ['receber', 'A receber'], ['compras', 'Compras de insumos'], ...(d?.pode.dre ? [['dre', 'DRE'] as [Aba, string]] : []), ['cadastros', 'Categorias e fornecedores']]
   const acoes = (k: Conta) => (
     <span className="flex flex-wrap items-center justify-end gap-1.5">
-      {k.status === 'a_pagar' && d?.pode.pagar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] bg-[#15803D] px-2.5 text-[11.5px] font-semibold uppercase tracking-wide text-white hover:brightness-110" onClick={() => setBaixa(k)} data-testid="conta-baixar">{k.tipo === 'pagar' ? 'Pagar' : 'Receber'}</button>}
-      {k.status === 'pago' && d?.pode.pagar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] border border-border bg-white px-2.5 text-[11.5px] font-semibold uppercase tracking-wide hover:bg-page" onClick={() => setEstorno(k)} data-testid="conta-estornar">Estornar</button>}
-      {k.status === 'a_pagar' && d?.pode.lancar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] border border-border bg-white px-2.5 text-[11.5px] font-semibold uppercase tracking-wide hover:bg-page" onClick={() => setForm({ conta: k, tipo: k.tipo })} data-testid="conta-editar">Editar</button>}
-      {k.status === 'a_pagar' && d?.pode.lancar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] px-2 text-[11.5px] font-semibold uppercase tracking-wide text-[#B91C1C] hover:bg-[#FEE2E2]" onClick={() => setCancelar(k)} data-testid="conta-cancelar">Cancelar</button>}
-      {k.anexo_path ? <button type="button" aria-label="Ver anexo" title={k.anexo_nome ?? 'Anexo'} className="grid h-[32px] w-[32px] place-items-center rounded-[4px] text-[#0369A1] hover:bg-page" onClick={() => void verAnexo(k)} data-testid="conta-anexo"><Paperclip className="h-4 w-4" /></button>
+      {k.status === 'a_pagar' && d?.pode.pagar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] bg-[#006B4E] px-2.5 text-[13px] font-semibold text-white hover:brightness-110" onClick={() => setBaixa(k)} data-testid="conta-baixar">{k.tipo === 'pagar' ? 'Pagar' : 'Receber'}</button>}
+      {k.status === 'pago' && d?.pode.pagar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] border border-border bg-white px-2.5 text-[13px] font-semibold hover:bg-page" onClick={() => setEstorno(k)} data-testid="conta-estornar">Estornar</button>}
+      {k.status === 'a_pagar' && d?.pode.lancar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] border border-border bg-white px-2.5 text-[13px] font-semibold hover:bg-page" onClick={() => setForm({ conta: k, tipo: k.tipo })} data-testid="conta-editar">Editar</button>}
+      {k.status === 'a_pagar' && d?.pode.lancar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] px-2 text-[13px] font-semibold text-[#D93616] hover:bg-[#FCEBE7]" onClick={() => setCancelar(k)} data-testid="conta-cancelar">Cancelar</button>}
+      {k.anexo_path ? <button type="button" aria-label="Ver anexo" title={k.anexo_nome ?? 'Anexo'} className="grid h-[32px] w-[32px] place-items-center rounded-[4px] text-[#0868A6] hover:bg-page" onClick={() => void verAnexo(k)} data-testid="conta-anexo"><Paperclip className="h-4 w-4" /></button>
         : d?.pode.lancar && k.status !== 'cancelado' && (
           <label className="grid h-[32px] w-[32px] cursor-pointer place-items-center rounded-[4px] text-text-subtle hover:bg-page" title="Anexar boleto ou nota">
             <Paperclip className="h-4 w-4" />
@@ -116,7 +116,7 @@ export function SecaoContas() {
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
         {abas.map(([id, r]) => <Chip key={id} ativo={aba === id} onClick={() => setAba(id)} testid={`contas-aba-${id}`}>{r}</Chip>)}
       </div>
-      {erro && <p role="alert" className="rounded-[4px] bg-[#FEE2E2] px-3 py-2 text-[13px] font-medium text-[#B91C1C]" data-testid="contas-erro">{erro}</p>}
+      {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]" data-testid="contas-erro">{erro}</p>}
 
       {(aba === 'pagar' || aba === 'receber') && d && (
         <>
@@ -137,7 +137,7 @@ export function SecaoContas() {
             <CartaoNumero icone={ICONES.cartao} tom="roxo" rotulo="Conta da empresa (movimento)" valor={<span data-testid="resumo-empresa" title="Soma do que entrou e saiu pela conta da empresa DENTRO do sistema (sangrias, contas pagas e recebidas, fundo de troco). Não é o saldo do banco.">{brl(d.saldos.empresaCentavos)}</span>} />
           </div>
           {aba === 'receber' && (
-            <p className="rounded-[4px] bg-[#E0F2FE] px-3 py-2 text-[12.5px] text-[#0369A1]" data-testid="aviso-vendas">
+            <p className="fin-card border-l-[3px] !border-l-[#CBD2D9] px-4 py-2.5 text-[13px] text-[#1C2B33]" data-testid="aviso-vendas">
               As vendas do sistema (vitrine, PDV, mesas, entregas) já entram sozinhas no caixa. Aqui vão só entradas de fora: repasse do iFood, aporte do sócio, venda avulsa feita fora do sistema.
             </p>
           )}
@@ -152,10 +152,10 @@ export function SecaoContas() {
             </span>
           </div>
 
-          <div className="hidden overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white md:block">
+          <div className="hidden overflow-hidden fin-card md:block">
             <div className="max-h-[calc(100dvh-380px)] min-h-[180px] overflow-auto">
               <table className="w-full border-separate border-spacing-0 text-[13px]" data-testid="contas-tabela">
-                <thead className="sticky top-0 z-[2] bg-[#F6F7F9] text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                <thead className="sticky top-0 z-[2] bg-[#F5F7F9] text-left text-[12.5px] font-semibold text-text-subtle">
                   <tr className="[&>th]:border-b [&>th]:border-border">
                     <th className="px-3 py-2.5">Descrição</th><th className="px-3 py-2.5">Categoria</th><th className="px-3 py-2.5">Vencimento</th>
                     <th className="px-3 py-2.5 text-right">Valor</th><th className="px-3 py-2.5">Situação</th><th className="px-3 py-2.5" />
@@ -164,7 +164,7 @@ export function SecaoContas() {
                 <tbody>
                   {lista.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-text-subtle">Nenhuma conta aqui.</td></tr>}
                   {lista.map((k) => (
-                    <tr key={k.id} className="align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F9FAFB]" data-testid="conta-linha" data-descricao={k.descricao} data-status={k.statusExibido}>
+                    <tr key={k.id} className="align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F5F7F9]" data-testid="conta-linha" data-descricao={k.descricao} data-status={k.statusExibido}>
                       <td className="px-3 py-2">
                         <b className="block">{k.descricao}</b>
                         <span className="block text-[12px] text-text-subtle">
@@ -187,9 +187,9 @@ export function SecaoContas() {
             </div>
           </div>
           <div className="flex flex-col gap-2 md:hidden" data-testid="contas-cartoes">
-            {lista.length === 0 && <p className="rounded-[6px] border border-border bg-white px-4 py-8 text-center text-[13px] text-text-subtle">Nenhuma conta aqui.</p>}
+            {lista.length === 0 && <p className="fin-card px-4 py-8 text-center text-[13px] text-text-subtle">Nenhuma conta aqui.</p>}
             {lista.map((k) => (
-              <div key={k.id} className="rounded-[6px] border border-border bg-white p-3" data-testid="conta-cartao" data-descricao={k.descricao}>
+              <div key={k.id} className="fin-card p-3" data-testid="conta-cartao" data-descricao={k.descricao}>
                 <div className="flex items-start justify-between gap-2">
                   <span className="min-w-0"><b className="block text-[14px]">{k.descricao}</b><span className="block text-[12px] text-text-subtle">{k.categoria}{k.fornecedor ? ` · ${k.fornecedor}` : ''}</span></span>
                   <b className="whitespace-nowrap text-[15px]">{brl(k.valor_centavos)}</b>
@@ -218,8 +218,8 @@ export function SecaoContas() {
 }
 
 type Toast = (tom: 'ok' | 'erro', t: string) => void
-const CAMPO = 'h-[40px] w-full rounded-[3px] border border-border bg-white px-2.5 text-[14px] outline-none focus:border-primary'
-const ROT = 'mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-text-subtle'
+const CAMPO = 'h-[40px] w-full fin-card px-2.5 text-[14px] outline-none focus:border-primary'
+const ROT = 'mb-[4px] block text-[12.5px] font-semibold text-text-subtle'
 
 function FormConta({ conta, tipo, categorias, fornecedores, onFechar, onSalvou, toast }: {
   conta: Conta | null; tipo: 'pagar' | 'receber'; categorias: Categoria[]; fornecedores: Fornecedor[]; onFechar: () => void; onSalvou: () => void; toast: Toast
@@ -287,9 +287,9 @@ function FormConta({ conta, tipo, categorias, fornecedores, onFechar, onSalvou, 
         <label><span className={ROT}>Observação</span><textarea className={`${CAMPO} h-[70px] py-2`} value={observacao} onChange={(e) => setObservacao(e.target.value)} maxLength={500} /></label>
         {recorrencia !== 'nenhuma' && !conta && <p className="text-[12.5px] text-text-subtle">A próxima conta aparece sozinha com antecedência ({recorrencia === 'mensal' ? 'um mês' : 'uma semana'}). Para parar, cancele com “e as próximas”.</p>}
         {suspeita && (
-          <div className="rounded-[4px] border border-[#B45309] bg-[#FEF3C7] p-3" data-testid="venda-duplicada">
-            <p className="text-[13px] font-semibold text-[#92400E]">{suspeita.mensagem}</p>
-            <p className="mt-1 text-[12.5px] text-[#92400E]">Se for mesmo uma venda feita FORA do sistema, explique abaixo. O lançamento fica registrado e o dono é avisado.</p>
+          <div className="fin-card border-l-[3px] !border-l-[#D47B04] p-3" data-testid="venda-duplicada">
+            <p className="text-[13px] font-semibold text-[#8A4B00]">{suspeita.mensagem}</p>
+            <p className="mt-1 text-[12.5px] text-[#8A4B00]">Se for mesmo uma venda feita FORA do sistema, explique abaixo. O lançamento fica registrado e o dono é avisado.</p>
             <textarea className={`${CAMPO} mt-2 h-[60px] py-2`} value={justificativa} onChange={(e) => setJustificativa(e.target.value)} placeholder="Ex.: venda no evento da praça, pago em dinheiro" data-testid="venda-justificativa" />
             <button type="button" className={`${BOTAO.neutro} mt-2`} disabled={justificativa.trim().length < 10 || salvando} onClick={() => void salvar()} data-testid="venda-lancar-mesmo-assim">Lançar mesmo assim</button>
           </div>
@@ -323,7 +323,7 @@ function BaixaConta({ conta, caixaAberto, onFechar, onFeito, toast }: { conta: C
       <div className="mb-3 grid grid-cols-2 gap-2">
         {([['empresa', 'Conta da empresa', 'Pix, boleto, cartão da empresa'], ['gaveta', 'Dinheiro do caixa', caixaAberto ? 'Vira movimentação do turno' : 'Caixa fechado']] as const).map(([id, t, s]) => (
           <button key={id} type="button" disabled={id === 'gaveta' && !caixaAberto} onClick={() => setCarteira(id)} aria-pressed={carteira === id} data-testid={`baixa-${id}`}
-            className={`rounded-[4px] border px-3 py-2 text-left disabled:opacity-50 ${carteira === id ? 'border-[#0369A1] bg-[#E0F2FE]' : 'border-border bg-white'}`}>
+            className={`rounded-[4px] border px-3 py-2 text-left disabled:opacity-50 ${carteira === id ? 'border-[#0A78BE] bg-[#E7F5FF]' : 'border-border bg-white'}`}>
             <b className="block text-[13px]">{t}</b><span className="block text-[11.5px] text-text-subtle">{s}</span>
           </button>
         ))}
@@ -383,7 +383,7 @@ function CancelarConta({ conta, onFechar, onFeito, toast }: { conta: Conta; onFe
       {conta.serie_id && (
         <label className="mt-2 flex items-center gap-2 text-[13px]"><input type="checkbox" checked={serie} onChange={(e) => setSerie(e.target.checked)} data-testid="cancelar-serie" /> e as próximas (parar de repetir)</label>
       )}
-      <button type="button" className="mt-3 h-[38px] w-full rounded-[4px] bg-[#B91C1C] text-[12px] font-semibold uppercase tracking-wide text-white hover:brightness-110 disabled:opacity-50" disabled={ocupado || motivo.trim().length < 5} onClick={() => void confirmar()} data-testid="cancelar-confirmar">Cancelar conta</button>
+      <button type="button" className="mt-3 h-[38px] w-full rounded-[4px] bg-[#D93616] text-[13px] font-semibold text-white hover:brightness-110 disabled:opacity-50" disabled={ocupado || motivo.trim().length < 5} onClick={() => void confirmar()} data-testid="cancelar-confirmar">Cancelar conta</button>
     </Janela>
   )
 }

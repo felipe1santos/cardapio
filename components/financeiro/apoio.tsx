@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { paraCentavos, formatarCentavos } from '@/lib/financeiro/centavos'
 import { TecladoPin } from '@/components/admin/teclado-pin'
+import { FIN_BTN, FIN_COR } from './ui/meta'
 
 /** Campo de dinheiro: a pessoa digita "150" ou "150,50"; a tela devolve centavos (ou null). */
 export function CampoDinheiro({ valor, onMudar, rotulo, testid, autoFocus }: {
@@ -11,10 +12,10 @@ export function CampoDinheiro({ valor, onMudar, rotulo, testid, autoFocus }: {
   const c = valor.trim() ? paraCentavos(valor) : null
   return (
     <label className="block">
-      <span className="mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-text-subtle">{rotulo}</span>
-      <div className="flex h-[40px] items-center rounded-[3px] border border-border bg-white px-[10px] focus-within:border-primary">
-        <span className="mr-[6px] text-[13px] text-text-subtle">R$</span>
-        <input inputMode="decimal" autoFocus={autoFocus} className="h-full w-full bg-transparent text-[15px] font-semibold text-text-main outline-none" placeholder="0,00"
+      <span className="mb-[6px] block text-[13px] font-semibold" style={{ color: FIN_COR.texto }}>{rotulo}</span>
+      <div className="flex h-[40px] items-center rounded-[6px] border border-[#CBD2D9] bg-white px-[12px] transition-[border-color,box-shadow] duration-150 hover:border-[#9AA6B1] focus-within:border-[#0A78BE] focus-within:shadow-[0_0_0_1px_#0A78BE]">
+        <span className="mr-[6px] text-[14px]" style={{ color: FIN_COR.texto2 }}>R$</span>
+        <input inputMode="decimal" autoFocus={autoFocus} className="h-full w-full bg-transparent text-[15px] font-semibold text-text-main outline-none focus-visible:!shadow-none" placeholder="0,00"
           value={valor} data-testid={testid}
           onChange={(e) => { const t = e.target.value.replace(/[^\d.,]/g, '').slice(0, 12); onMudar(t, t.trim() ? paraCentavos(t) : null) }} />
       </div>
@@ -68,21 +69,23 @@ export function AprovacaoPin({ titulo, onConfirmar, onCancelar, erro, ocupado, r
   }
   if (esperando) {
     return (
-      <div className="rounded-[3px] border border-[#F59E0B] bg-[#FEF3C7] p-[12px]" data-testid="aprovacao-remota">
-        <p className="text-[13px] font-semibold text-text-main">{titulo}</p>
+      <div className="fin-card border-l-[3px] p-[14px]" style={{ borderLeftColor: '#D47B04' }} data-testid="aprovacao-remota">
+        <p className="text-[14px] font-bold" style={{ color: FIN_COR.texto }}>{titulo}</p>
         {esperando.status === 'pendente' && <p className="mt-[4px] text-[13px] text-text-main" data-testid="aprovacao-remota-esperando">Pedido enviado. Aguardando o gerente ou o dono aprovar no celular… (vale 10 minutos)</p>}
-        {esperando.status === 'aprovado' && <p className="mt-[4px] text-[13px] font-semibold text-[#15803D]">Aprovado por {esperando.aprovador}.</p>}
+        {esperando.status === 'aprovado' && <p className="mt-[4px] text-[13px] font-semibold" style={{ color: FIN_COR.verde }}>Aprovado por {esperando.aprovador}.</p>}
         {esperando.status === 'recusado' && <p className="mt-[4px] text-[13px] font-semibold text-danger" data-testid="aprovacao-remota-recusada">Recusado por {esperando.aprovador}{esperando.motivo ? `: ${esperando.motivo}` : '.'}</p>}
         {['expirado', 'usado', 'cancelado'].includes(esperando.status) && <p className="mt-[4px] text-[13px] text-danger">O pedido expirou. Peça de novo.</p>}
         {erro && <p className="mt-[4px] text-[12px] text-danger">{erro}</p>}
-        <button type="button" onClick={() => setEsperando(null)} className="mt-[8px] text-[11px] font-semibold uppercase tracking-wide text-primary">Aprovar aqui com PIN</button>
-        <button type="button" onClick={onCancelar} className="ml-[12px] mt-[8px] text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cancelar</button>
+        <div className="mt-[10px] flex flex-wrap gap-2">
+          <button type="button" onClick={() => setEsperando(null)} className={FIN_BTN.contorno}>Aprovar aqui com PIN</button>
+          <button type="button" onClick={onCancelar} className={FIN_BTN.texto}>Cancelar</button>
+        </div>
       </div>
     )
   }
   return (
-    <div className="rounded-[3px] border border-[#F59E0B] bg-[#FEF3C7] p-[12px]" data-testid="aprovacao-pin">
-      <p className="text-[13px] font-semibold text-text-main">{titulo}</p>
+    <div className="fin-card border-l-[3px] p-[14px]" style={{ borderLeftColor: '#D47B04' }} data-testid="aprovacao-pin">
+      <p className="text-[14px] font-bold" style={{ color: FIN_COR.texto }}>{titulo}</p>
       {!quem ? (
         <>
           <p className="mb-[8px] mt-[2px] text-[12px] text-text-subtle">Chame quem vai aprovar e escolha o nome dele.</p>
@@ -92,29 +95,29 @@ export function AprovacaoPin({ titulo, onConfirmar, onCancelar, erro, ocupado, r
               <div className="grid gap-[6px]">
                 {lista.map((a) => (
                   <button key={a.id} type="button" data-testid="aprovador" onClick={() => setQuem(a)}
-                    className="h-[40px] rounded-[3px] border border-border bg-white px-[10px] text-left text-[13px] font-semibold text-text-main hover:border-primary">{a.nome}</button>
+                    className="h-[40px] rounded-[6px] border border-[#CBD2D9] bg-white px-[12px] text-left text-[14px] font-semibold text-text-main hover:bg-[#F5F6F7] active:bg-[#E4E7EA]">{a.nome}</button>
                 ))}
               </div>
             )}
         </>
       ) : (
-        <div className="mt-[8px] rounded-[3px] bg-white p-[10px]">
+        <div className="mt-[8px] rounded-[6px] bg-[#F5F7F9] p-[12px]">
           <p className="mb-[8px] text-center text-[13px] text-text-subtle">PIN de <b className="text-text-main">{quem.nome}</b></p>
           <TecladoPin valor={pin} onMudar={setPin} onCompleto={(p) => onConfirmar({ aprovadorId: quem.id, pin: p })} ocupado={ocupado} erro={erro} />
-          <button type="button" onClick={() => { setQuem(null); setPin('') }} className="mt-[8px] w-full text-[11px] font-semibold uppercase tracking-wide text-primary">Trocar aprovador</button>
+          <button type="button" onClick={() => { setQuem(null); setPin('') }} className={`${FIN_BTN.texto} mt-[8px] w-full`}>Trocar aprovador</button>
         </div>
       )}
       {remoto && !quem && (
         <button type="button" onClick={() => void pedirRemoto()} data-testid="aprovacao-pedir-celular"
-          className="mt-[8px] h-[38px] w-full rounded-[3px] bg-[#0369A1] px-[10px] text-[11px] font-semibold uppercase tracking-wide text-white hover:brightness-110">Pedir pelo celular do gerente/dono</button>
+          className={`${FIN_BTN.primario} mt-[10px] w-full`}>Pedir pelo celular do gerente/dono</button>
       )}
       {erroRemoto && <p className="mt-[4px] text-[12px] text-danger">{erroRemoto}</p>}
-      <button type="button" onClick={onCancelar} className="mt-[8px] text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cancelar</button>
+      <button type="button" onClick={onCancelar} className={`${FIN_BTN.texto} mt-[8px]`}>Cancelar</button>
     </div>
   )
 }
 
-/** Janela central padrão do painel (cantos de 3px). */
+/** Janela central do Financeiro no estilo Meta (cantos de 8px, sombra, título forte). Leva o tema .fin-meta junto. */
 export function Janela({ titulo, onFechar, children, testid, largura = 440 }: { titulo: string; onFechar: () => void; children: React.ReactNode; testid?: string; largura?: number }) {
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
@@ -122,21 +125,23 @@ export function Janela({ titulo, onFechar, children, testid, largura = 440 }: { 
     return () => window.removeEventListener('keydown', esc)
   }, [onFechar])
   return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/60 p-4" data-testid={testid}>
-      <div className="max-h-[92vh] w-full overflow-y-auto rounded-[3px] border border-border bg-white shadow-xl" style={{ maxWidth: largura }}>
-        <div className="flex items-center justify-between border-b border-border px-[16px] py-[12px]">
-          <h2 className="text-[15px] font-bold text-text-main">{titulo}</h2>
-          <button type="button" onClick={onFechar} aria-label="Fechar" className="grid h-[32px] w-[32px] place-items-center text-[18px] text-text-subtle hover:text-text-main">×</button>
+    <div className="fin-meta fixed inset-0 z-[95] flex items-center justify-center !bg-[rgba(28,43,51,0.55)] p-4" data-testid={testid}>
+      <div role="dialog" aria-modal="true" aria-label={titulo} className="max-h-[92vh] w-full overflow-y-auto rounded-[8px] bg-white shadow-[0_8px_28px_rgba(28,43,51,0.28)]" style={{ maxWidth: largura }}>
+        <div className="flex items-center justify-between gap-3 border-b border-[#E4E7EA] px-[20px] py-[14px]">
+          <h2 className="text-[18px] font-bold" style={{ color: FIN_COR.texto }}>{titulo}</h2>
+          <button type="button" onClick={onFechar} aria-label="Fechar" className="grid h-[32px] w-[32px] place-items-center rounded-[6px] text-[20px] hover:bg-[#F5F6F7] active:bg-[#E4E7EA]" style={{ color: FIN_COR.texto2 }}>×</button>
         </div>
-        <div className="px-[16px] py-[14px]">{children}</div>
+        <div className="px-[20px] py-[16px]">{children}</div>
       </div>
     </div>
   )
 }
 
+/** Botões do Financeiro = os do kit Meta (components/financeiro/ui/meta.tsx). */
 export const botao = {
-  primario: 'h-[38px] rounded-[3px] bg-primary px-[14px] text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-60',
-  secundario: 'h-[38px] rounded-[3px] border border-border bg-white px-[14px] text-[11px] font-semibold uppercase tracking-wide text-text-main hover:border-primary hover:text-primary disabled:opacity-60',
-  perigo: 'h-[38px] rounded-[3px] bg-[#EF4444] px-[14px] text-[11px] font-semibold uppercase tracking-wide text-white hover:opacity-90 disabled:opacity-60',
-  sucesso: 'h-[38px] rounded-[3px] bg-[#10B981] px-[14px] text-[11px] font-semibold uppercase tracking-wide text-white hover:opacity-90 disabled:opacity-60',
+  primario: FIN_BTN.primario,
+  secundario: FIN_BTN.contorno,
+  perigo: FIN_BTN.perigo,
+  /** "Abrir caixa", "Confirmar": o verde de ação da Meta (#006B4E). */
+  sucesso: FIN_BTN.acao,
 }

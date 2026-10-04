@@ -13,11 +13,13 @@ import { SecaoContas } from '@/components/financeiro/contas/secao-contas'
 import { SecaoDashboard } from '@/components/financeiro/dashboard/secao-dashboard'
 import { SecaoRisco } from '@/components/financeiro/risco/secao-risco'
 import { SecaoRegras } from '@/components/financeiro/regras'
+import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/financeiro/ui/meta'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
  * Cada seção aparece para quem tem a permissão; o servidor confere de novo em toda ação.
  * Fase 1 entrega Auditoria e Alertas; as demais seções chegam nas fases seguintes.
+ * Visual "estilo Meta" (item 4b, 2026-10-04): o tema .fin-meta vale do menu lateral para dentro; o topo não muda.
  */
 type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'pix' | 'movimentacoes' | 'cmv' | 'contas' | 'dashboard' | 'risco' | 'regras' | 'auditoria'
 
@@ -40,11 +42,8 @@ interface Sessao { id: string; usuario_nome: string; ip: string | null; disposit
 interface Aprovacao { id: string; acao: string; solicitante_nome: string; aprovador_nome: string; valor_centavos: number | null; motivo: string | null; criado_em: string }
 
 const dataHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')
-const TOM: Record<Alerta['gravidade'], string> = {
-  grave: 'bg-[#FEE2E2] text-[#EF4444]',
-  atencao: 'bg-[#FEF3C7] text-[#B45309]',
-  info: 'bg-[#E0F2FE] text-[#0369A1]',
-}
+const TOM: Record<Alerta['gravidade'], 'vermelho' | 'laranja' | 'azul'> = { grave: 'vermelho', atencao: 'laranja', info: 'azul' }
+const FAIXA: Record<Alerta['gravidade'], string> = { grave: '#D93616', atencao: '#D47B04', info: '#CBD2D9' }
 const ROTULO_GRAVIDADE: Record<Alerta['gravidade'], string> = { grave: 'Grave', atencao: 'Atenção', info: 'Info' }
 
 export default function FinanceiroPage() {
@@ -70,6 +69,12 @@ export default function FinanceiroPage() {
     })()
   }, [])
 
+  // Celular: o menu de seções é um trilho horizontal — traz a seção ativa para a vista.
+  useEffect(() => {
+    const ativo = document.querySelector<HTMLElement>('nav[aria-label="Seções do financeiro"] [aria-current="page"]')
+    if (ativo && window.matchMedia('(max-width: 1023px)').matches) ativo.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [secao, acoes])
+
   // Risco por funcionário: só dono e gerente (o servidor confere de novo).
   const visiveis = SECOES.filter((s) => acoes?.includes(s.exige) && (s.id !== 'risco' || papel === 'dono' || papel === 'gerente'))
   const itens: ItemSubmenu<Secao>[] = visiveis.map((s) => ({ id: s.id, label: s.label }))
@@ -79,24 +84,21 @@ export default function FinanceiroPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar title="Financeiro" breadcrumb="Caixa, acertos, custos e auditoria" />
       {erro ? (
-        <div className="p-5"><p className="text-[13px] text-text-subtle" data-testid="fin-erro">{erro}</p></div>
+        <div className="fin-meta fin-fundo flex-1 p-5"><p className="text-[14px]" style={{ color: FIN_COR.texto2 }} data-testid="fin-erro">{erro}</p></div>
       ) : !acoes ? (
-        <div className="p-5"><p className="text-[13px] text-text-subtle">Carregando…</p></div>
+        <div className="fin-meta fin-fundo flex-1 p-5"><p className="text-[14px]" style={{ color: FIN_COR.texto2 }}>Carregando…</p></div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        <div className="fin-meta flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row" data-financeiro-raiz>
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />
-          <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-5">
+          <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 sm:p-5 lg:p-6" data-financeiro-area>
             {secao === 'fluxo' && acoes.includes('financeiro') ? (
-              <Suspense fallback={<p className="text-[13px] text-text-subtle">Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
+              <Suspense fallback={<p className="text-[14px]" style={{ color: FIN_COR.texto2 }}>Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
             ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'contas' && acoes.includes('contas_pagar') ? <SecaoContas /> : secao === 'dashboard' && acoes.includes('financeiro') ? <SecaoDashboard /> : secao === 'risco' && acoes.includes('auditoria_ver') ? <SecaoRisco /> : secao === 'regras' && acoes.includes('financeiro') ? <SecaoRegras /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
               <SecaoCaixa key={secao} modo={secao} />
             ) : secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
               <AuditoriaAlertas />
             ) : (
-              <div className="rounded-[3px] border border-border bg-white p-6 text-center">
-                <p className="text-[14px] font-semibold text-text-main">{atual?.label}</p>
-                <p className="mt-1 text-[13px] text-text-subtle">Em construção — chega na {atual?.fase}.</p>
-              </div>
+              <Card titulo={atual?.label} subtitulo={`Em construção — chega na ${atual?.fase}.`} />
             )}
           </div>
         </div>
@@ -137,26 +139,17 @@ function AuditoriaAlertas() {
   }
 
   const naoLidos = dados?.alertas.filter((a) => !a.lido_em).length ?? 0
-  const cartao = 'rounded-[3px] border border-border bg-white'
-  const titulo = 'border-b border-border px-4 py-3 text-[13px] font-bold text-text-main'
+  const vazio = (t: string) => <p className="px-5 pb-4 text-[14px]" style={{ color: FIN_COR.texto2 }}>{t}</p>
 
   return (
     <>
-      {erro && <p role="alert" className="text-[13px] font-medium text-danger">{erro}</p>}
+      {erro && <p role="alert" className="text-[14px] font-medium" style={{ color: FIN_COR.vermelho }}>{erro}</p>}
 
-      <section className={cartao} data-testid="fin-integridade">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold text-text-main">Integridade dos registros</p>
-            <p className="text-[12px] text-text-subtle">Confere a corrente de assinaturas do caixa e da auditoria. Qualquer registro alterado ou apagado aparece aqui.</p>
-          </div>
-          <button type="button" onClick={() => void verificar()} disabled={verificando} data-testid="fin-verificar"
-            className="h-[34px] rounded-[3px] bg-primary px-4 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark disabled:opacity-60">
-            {verificando ? 'Verificando…' : 'Verificar integridade'}
-          </button>
-        </div>
-        {resultado && (
-          <div className={`border-t border-border px-4 py-3 text-[13px] ${resultado.ok ? 'text-[#16A34A]' : 'text-[#EF4444]'}`} data-testid="fin-integridade-resultado">
+      <Card testid="fin-integridade" titulo="Integridade dos registros"
+        subtitulo="Confere a corrente de assinaturas do caixa e da auditoria. Qualquer registro alterado ou apagado aparece aqui."
+        acoes={<button type="button" onClick={() => void verificar()} disabled={verificando} data-testid="fin-verificar" className={FIN_BTN.primario}>{verificando ? 'Verificando…' : 'Verificar integridade'}</button>}>
+        {resultado ? (
+          <div className="border-l-[3px] pl-3 text-[14px]" style={{ borderLeftColor: resultado.ok ? '#4DBBA6' : '#D93616', color: resultado.ok ? FIN_COR.verde : FIN_COR.vermelho }} data-testid="fin-integridade-resultado">
             {resultado.ok ? `Tudo íntegro (verificado em ${dataHora(resultado.verificadoEm)}).` : (
               <>
                 <p className="font-semibold">{resultado.problemas.length} problema(s) encontrado(s):</p>
@@ -166,26 +159,28 @@ function AuditoriaAlertas() {
               </>
             )}
           </div>
-        )}
-      </section>
+        ) : undefined}
+      </Card>
 
-      <section className={cartao} data-testid="fin-alertas">
-        <h2 className={titulo}>Alertas {naoLidos > 0 && <span className="ml-1 rounded-[3px] bg-[#FEE2E2] px-1.5 py-0.5 text-[11px] text-[#EF4444]">{naoLidos} novo(s)</span>}</h2>
-        {!dados ? <p className="px-4 py-3 text-[13px] text-text-subtle">Carregando…</p>
-          : dados.alertas.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhum alerta.</p>
+      <Card testid="fin-alertas" semPadding
+        titulo={<>Alertas {naoLidos > 0 && <span className="ml-1 align-middle"><SeloMeta tom="vermelho">{naoLidos} novo(s)</SeloMeta></span>}</>}
+        subtitulo="O que o sistema vigia no caixa, nos motoboys e nas ações sensíveis. Os graves também vão para o WhatsApp do dono.">
+        {!dados ? vazio('Carregando…')
+          : dados.alertas.length === 0 ? vazio('Nenhum alerta.')
           : (
-            <ul className="divide-y divide-border">
+            <ul className="mt-2 divide-y divide-border border-t border-border">
               {dados.alertas.map((a) => (
-                <li key={a.id} className={`flex flex-wrap items-start gap-3 px-4 py-3 ${a.lido_em ? 'opacity-60' : ''}`} data-testid="fin-alerta">
-                  <span className={`rounded-[3px] px-1.5 py-0.5 text-[11px] font-semibold ${TOM[a.gravidade]}`}>{ROTULO_GRAVIDADE[a.gravidade]}</span>
+                <li key={a.id} className={`flex flex-wrap items-start gap-3 border-l-[3px] px-5 py-3 transition-colors hover:bg-[#F5F7F9] ${a.lido_em ? 'opacity-70' : ''}`}
+                  style={{ borderLeftColor: a.lido_em ? 'transparent' : FAIXA[a.gravidade] }} data-testid="fin-alerta">
+                  <SeloMeta tom={TOM[a.gravidade]}>{ROTULO_GRAVIDADE[a.gravidade]}</SeloMeta>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] text-text-main">{a.mensagem}</p>
-                    <p className="mt-0.5 text-[11.5px] text-text-subtle">
+                    <p className="text-[14px]" style={{ color: FIN_COR.texto }}>{a.mensagem}</p>
+                    <p className="mt-0.5 text-[12.5px]" style={{ color: FIN_COR.texto2 }}>
                       {dataHora(a.criado_em)}{a.whatsapp_enviado_em ? ' · enviado no WhatsApp' : ''}{a.lido_em ? ` · lido por ${a.lido_por_nome ?? '—'}` : ''}
                     </p>
                   </div>
                   {!a.lido_em && (
-                    <button type="button" onClick={() => void marcarLido(a.id)} className="h-[30px] rounded-[3px] border border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-text-main hover:border-primary hover:text-primary">
+                    <button type="button" onClick={() => void marcarLido(a.id)} className={FIN_BTN.contorno}>
                       Marcar lido
                     </button>
                   )}
@@ -193,38 +188,36 @@ function AuditoriaAlertas() {
               ))}
             </ul>
           )}
-      </section>
+      </Card>
 
-      <section className={cartao} data-testid="fin-sessoes">
-        <h2 className={titulo}>Acessos recentes</h2>
-        {!dados ? null : dados.sessoes.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhum acesso registrado ainda.</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[12.5px]">
-              <thead className="text-[11px] uppercase tracking-wide text-text-subtle">
-                <tr><th className="px-4 py-2">Quem</th><th className="px-4 py-2">Aparelho</th><th className="px-4 py-2">Entrou</th><th className="px-4 py-2">Visto</th><th className="px-4 py-2">Situação</th></tr>
+      <Card testid="fin-sessoes" semPadding titulo="Acessos recentes" subtitulo="Quem entrou no painel, de qual aparelho e quando foi visto pela última vez.">
+        {!dados ? null : dados.sessoes.length === 0 ? vazio('Nenhum acesso registrado ainda.') : (
+          <div className="mt-2 overflow-x-auto border-t border-border">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr><th className="px-5 py-2.5">Quem</th><th className="px-4 py-2.5">Aparelho</th><th className="px-4 py-2.5">Entrou</th><th className="px-4 py-2.5">Visto</th><th className="px-4 py-2.5">Situação</th></tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {dados.sessoes.map((s) => (
                   <tr key={s.id}>
-                    <td className="px-4 py-2 font-semibold text-text-main">{s.usuario_nome}</td>
-                    <td className="px-4 py-2 text-text-subtle">{s.dispositivo ?? '—'}</td>
-                    <td className="whitespace-nowrap px-4 py-2">{dataHora(s.criado_em)}</td>
-                    <td className="whitespace-nowrap px-4 py-2">{dataHora(s.visto_em)}</td>
-                    <td className="px-4 py-2">{s.encerrada_em ? `Encerrada (${s.motivo_encerramento ?? '—'})` : s.bloqueada_em ? 'Tela bloqueada' : 'Aberta'}</td>
+                    <td className="px-5 py-2.5 font-semibold text-text-main">{s.usuario_nome}</td>
+                    <td className="px-4 py-2.5 text-text-subtle">{s.dispositivo ?? '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5">{dataHora(s.criado_em)}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5">{dataHora(s.visto_em)}</td>
+                    <td className="px-4 py-2.5">{s.encerrada_em ? `Encerrada (${s.motivo_encerramento ?? '—'})` : s.bloqueada_em ? 'Tela bloqueada' : 'Aberta'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className={cartao} data-testid="fin-aprovacoes">
-        <h2 className={titulo}>Aprovações por PIN</h2>
-        {!dados ? null : dados.aprovacoes.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhuma aprovação ainda.</p> : (
-          <ul className="divide-y divide-border">
+      <Card testid="fin-aprovacoes" semPadding titulo="Aprovações por PIN" subtitulo="Ações acima do limite que um gerente ou o dono liberou com o próprio PIN.">
+        {!dados ? null : dados.aprovacoes.length === 0 ? vazio('Nenhuma aprovação ainda.') : (
+          <ul className="mt-2 divide-y divide-border border-t border-border">
             {dados.aprovacoes.map((a) => (
-              <li key={a.id} className="px-4 py-2 text-[12.5px]">
+              <li key={a.id} className="px-5 py-2.5 text-[13px] transition-colors hover:bg-[#F5F7F9]">
                 <b className="text-text-main">{a.aprovador_nome}</b> aprovou <b>{a.acao}</b> pedido por {a.solicitante_nome}
                 {a.valor_centavos != null ? ` · ${formatarCentavos(a.valor_centavos)}` : ''}{a.motivo ? ` · ${a.motivo}` : ''}
                 <span className="ml-1 text-text-subtle">· {dataHora(a.criado_em)}</span>
@@ -232,7 +225,7 @@ function AuditoriaAlertas() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
     </>
   )
 }

@@ -64,10 +64,10 @@ export function SecaoRegras() {
   }
   if (!cfg) return <p className="text-[13px] text-text-subtle">Carregando…</p>
   const campo = (k: string, rot: string, ajuda: string, dinheiro: boolean) => (
-    <label key={k} className="block rounded-[6px] border border-border bg-white p-3">
+    <label key={k} className="block fin-card p-3">
       <span className="block text-[12.5px] font-bold text-text-main">{rot}</span>
       <span className="mb-2 block text-[12px] text-text-subtle">{ajuda}</span>
-      <span className="flex h-[38px] items-center rounded-[3px] border border-border bg-white px-2.5 focus-within:border-primary">
+      <span className="flex h-[38px] items-center fin-card px-2.5 focus-within:border-primary">
         {dinheiro && <span className="mr-1.5 text-[13px] text-text-subtle">R$</span>}
         <input className="h-full w-full bg-transparent text-[14px] font-semibold outline-none disabled:text-text-subtle" inputMode="decimal" disabled={!podeEditar}
           value={texto[k] ?? ''} onChange={(e) => setTexto({ ...texto, [k]: e.target.value.replace(/[^\d.,]/g, '') })} data-testid={`regra-${k}`} placeholder={k === 'metaFaturamentoDiaCentavos' ? 'sem meta' : ''} />
@@ -76,7 +76,7 @@ export function SecaoRegras() {
   )
   return (
     <div className="flex flex-col gap-3" data-testid="secao-regras">
-      <div className="rounded-[4px] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]">
+      <div className="fin-card border-l-[3px] !border-l-[#D47B04] px-4 py-2.5 text-[13px] text-[#1C2B33]">
         <b>Regras de PIN no fechamento (provisórias):</b> diferença até a tolerância → justificativa; acima → PIN · motoboy sem acerto → PIN ·
         entregue e não pago → PIN · Pix a conferir → fecha e vai para a lista do dono · mesa/comanda aberta → passa para o próximo turno com justificativa (PIN acima do limite) ·
         maquininha com diferença → justificativa (PIN acima da tolerância). O dono não precisa de PIN.
@@ -89,7 +89,7 @@ export function SecaoRegras() {
       {podeEditar && (
         <div className="flex items-center gap-3">
           <button type="button" className={BOTAO.primario} onClick={() => void salvar()} data-testid="regras-salvar">Salvar regras</button>
-          {msg && <span className={`text-[13px] font-semibold ${msg.tom === 'ok' ? 'text-[#15803D]' : 'text-[#B91C1C]'}`} data-testid="regras-msg">{msg.t}</span>}
+          {msg && <span className={`text-[13px] font-semibold ${msg.tom === 'ok' ? 'text-[#006B4E]' : 'text-[#D93616]'}`} data-testid="regras-msg">{msg.t}</span>}
         </div>
       )}
       <p className="text-[12px] text-text-subtle">Tolerância atual: {formatarCentavos(Number(cfg.toleranciaFechamentoCentavos ?? 200))}.</p>

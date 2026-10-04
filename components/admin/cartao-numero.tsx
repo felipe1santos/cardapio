@@ -34,7 +34,7 @@ export function CartaoNumero({
 }) {
   const t = TONS_PAINEL[tom]
   return (
-    <div className={`flex items-center gap-3 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white px-4 py-3 ${className}`}>
+    <div data-cartao-numero className={`flex items-center gap-3 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white px-4 py-3 ${className}`}>
       <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: t.fundo, color: t.cor }}>
         <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
           {icone.map((d) => (

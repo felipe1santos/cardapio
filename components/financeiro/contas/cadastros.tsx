@@ -8,8 +8,8 @@ import type { Categoria, Fornecedor } from './secao-contas'
 
 /** Plano de contas e fornecedores (Fase 5b). Nada se apaga: desativa. */
 type Toast = (tom: 'ok' | 'erro', t: string) => void
-const CAMPO = 'h-[40px] w-full rounded-[3px] border border-border bg-white px-2.5 text-[14px] outline-none focus:border-primary'
-const ROT = 'mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-text-subtle'
+const CAMPO = 'h-[40px] w-full fin-card px-2.5 text-[14px] outline-none focus:border-primary'
+const ROT = 'mb-[4px] block text-[12.5px] font-semibold text-text-subtle'
 const ROT_GRUPO: Record<Categoria['grupo'], string> = {
   despesa: 'Despesa (entra no DRE)', insumo: 'Insumo/embalagem (já está no CMV)', receita: 'Receita (entra no DRE)', fora: 'Capital (fora do DRE)',
 }
@@ -33,7 +33,7 @@ export function SecaoCadastros({ categorias, fornecedores, podeEditar, toast, on
     if (!r.ok) toast('erro', r.erro ?? 'Não foi possível.'); else onMudou()
   }
 
-  const bloco = 'rounded-[6px] border border-border bg-white'
+  const bloco = 'fin-card'
   const linha = 'flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13px] last:border-b-0'
   return (
     <div className="grid gap-3 lg:grid-cols-2" data-testid="secao-cadastros">
@@ -44,13 +44,13 @@ export function SecaoCadastros({ categorias, fornecedores, podeEditar, toast, on
         </div>
         {(['pagar', 'receber'] as const).map((t) => (
           <div key={t}>
-            <p className="bg-[#F6F7F9] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">{t === 'pagar' ? 'Saídas' : 'Entradas'}</p>
+            <p className="bg-[#F5F7F9] px-3 py-1.5 text-[12.5px] font-semibold text-text-subtle">{t === 'pagar' ? 'Saídas' : 'Entradas'}</p>
             {categorias.filter((c) => c.tipo === t).map((c) => (
               <div key={c.id} className={linha} data-testid="categoria-linha" data-nome={c.nome}>
                 <span className="min-w-0"><b className={c.ativo ? '' : 'text-text-subtle line-through'}>{c.nome}</b><span className="block text-[11.5px] text-text-subtle">{ROT_GRUPO[c.grupo]}</span></span>
                 {podeEditar && (
                   <span className="flex gap-1.5">
-                    <button type="button" className="text-[11.5px] font-semibold uppercase text-[#0369A1]" onClick={() => setCat(c)}>Editar</button>
+                    <button type="button" className="text-[11.5px] font-semibold uppercase text-[#0868A6]" onClick={() => setCat(c)}>Editar</button>
                     <button type="button" className="text-[11.5px] font-semibold uppercase text-text-subtle" onClick={() => void alternarCat(c)}>{c.ativo ? 'Desativar' : 'Reativar'}</button>
                   </span>
                 )}
@@ -69,8 +69,8 @@ export function SecaoCadastros({ categorias, fornecedores, podeEditar, toast, on
           <div key={f.id} className={linha} data-testid="fornecedor-linha" data-nome={f.nome}>
             <span className="min-w-0"><b className={f.ativo ? '' : 'text-text-subtle line-through'}>{f.nome}</b>{(f.documento || f.telefone) && <span className="block text-[11.5px] text-text-subtle">{[f.documento, f.telefone].filter(Boolean).join(' · ')}</span>}</span>
             <span className="flex items-center gap-1.5">
-              {!f.ativo && <Selo cor="#4B5563">Inativo</Selo>}
-              {podeEditar && <button type="button" className="text-[11.5px] font-semibold uppercase text-[#0369A1]" onClick={() => setForn(f)}>Editar</button>}
+              {!f.ativo && <Selo cor="#465A69">Inativo</Selo>}
+              {podeEditar && <button type="button" className="text-[11.5px] font-semibold uppercase text-[#0868A6]" onClick={() => setForn(f)}>Editar</button>}
               {podeEditar && <button type="button" className="text-[11.5px] font-semibold uppercase text-text-subtle" onClick={() => void alternarForn(f)}>{f.ativo ? 'Desativar' : 'Reativar'}</button>}
             </span>
           </div>

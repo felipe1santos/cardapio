@@ -55,22 +55,22 @@ export function SecaoDre() {
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]">
         {ATALHOS.map((a) => <Chip key={a.id} ativo={atalho === a.id} onClick={() => setAtalho(a.id)} testid={`dre-atalho-${a.id}`}>{a.rotulo}</Chip>)}
       </div>
-      {erro && <p role="alert" className="rounded-[4px] bg-[#FEE2E2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
+      {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]">{erro}</p>}
       {r && (
         <>
           <p className="text-[12.5px] text-text-subtle">
             {dataBR(r.periodo.de)} a {dataBR(r.periodo.ate)} · comparado com {dataBR(r.anterior.de)} a {dataBR(r.anterior.ate)}
           </p>
-          <div className="overflow-x-auto rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
+          <div className="overflow-x-auto fin-card">
             <table className="w-full min-w-[520px] border-separate border-spacing-0 text-[13px]" data-testid="dre-tabela">
-              <thead className="bg-[#F6F7F9] text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+              <thead className="bg-[#F5F7F9] text-left text-[12.5px] font-semibold text-text-subtle">
                 <tr className="[&>th]:border-b [&>th]:border-border"><th className="px-3 py-2.5" /><th className="px-3 py-2.5 text-right">Período</th><th className="px-3 py-2.5 text-right">% do fat.</th><th className="px-3 py-2.5 text-right">Anterior</th><th className="px-3 py-2.5 text-right">Variação</th></tr>
               </thead>
               <tbody>
                 {linhas.map((l, i) => (
                   <tr key={i} className={`[&>td]:border-b [&>td]:border-border ${l.forte ? 'bg-[#F9FAFB] font-bold' : ''}`} data-testid={l.testid}>
                     <td className={`px-3 py-2 ${l.forte ? '' : l.recuo ? 'pl-10 text-[12px] text-text-subtle' : 'pl-6 text-text-subtle'}`}>{l.sinal === '-' ? '(−) ' : l.sinal === '+' ? '(+) ' : l.sinal === '=' ? '(=) ' : l.sinal === '±' ? '(±) ' : ''}{l.rotulo}</td>
-                    <td className={`whitespace-nowrap px-3 py-2 text-right ${l.testid === 'dre-lucro-liquido' ? (l.atual < 0 ? 'text-[#B91C1C]' : 'text-[#15803D]') : ''}`} data-valor={l.atual}>{brl(l.atual)}</td>
+                    <td className={`whitespace-nowrap px-3 py-2 text-right ${l.testid === 'dre-lucro-liquido' ? (l.atual < 0 ? 'text-[#D93616]' : 'text-[#006B4E]') : ''}`} data-valor={l.atual}>{brl(l.atual)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right text-text-subtle">{deFat(l.atual)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right text-text-subtle">{l.anterior === null ? '—' : brl(l.anterior)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right text-text-subtle">{l.variacao === undefined ? '' : pct(l.variacao)}</td>

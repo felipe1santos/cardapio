@@ -48,13 +48,13 @@ export function AberturaRapidaCaixa() {
     <>
       {/* Âncora invisível: canto direito, logo abaixo da barra do topo. */}
       <span ref={ancora} aria-hidden className="pointer-events-none fixed right-[12px] top-[56px] h-px w-px md:top-[60px]" />
-      <Flutuante ancora={ancora} aberto={mostrar} onFechar={() => setMostrar(false)} alinhar="fim" largura={300} testid="abertura-rapida" rotulo="Abrir o caixa agora?">
-        <div className="p-3">
-          <p className="text-[14px] font-bold text-text-main">Abrir o caixa agora?</p>
-          <p className="mb-2 mt-0.5 text-[12.5px] text-text-subtle">O caixa está fechado. Conte o fundo de troco da gaveta — fica no seu nome.</p>
+      <Flutuante ancora={ancora} aberto={mostrar} onFechar={() => setMostrar(false)} alinhar="fim" largura={320} testid="abertura-rapida" rotulo="Abrir o caixa agora?" className="fin-meta border-l-[3px] !border-l-[#4DBBA6]">
+        <div className="p-4">
+          <p className="text-[16px] font-bold text-text-main">Abrir o caixa agora?</p>
+          <p className="mb-3 mt-0.5 text-[13px] text-text-subtle">O caixa está fechado. Conte o fundo de troco da gaveta — fica no seu nome.</p>
           <CampoDinheiro rotulo="Fundo de troco" valor={txt} onMudar={(t, v) => { setTxt(t); setC(v) }} testid="abertura-rapida-fundo" />
           {erro && <p className="mt-1 text-[12px] font-medium text-danger">{erro}</p>}
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="mt-3 flex justify-end gap-2">
             <button type="button" className={botao.secundario} onClick={() => setMostrar(false)} data-testid="abertura-rapida-depois">Agora não</button>
             <button type="button" className={botao.sucesso} disabled={ocupado} onClick={() => void abrir()} data-testid="abertura-rapida-abrir">Abrir caixa</button>
           </div>

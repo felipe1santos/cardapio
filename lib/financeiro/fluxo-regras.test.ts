@@ -62,9 +62,9 @@ describe('fluxo de caixa: CSV para o Excel em português', () => {
 
 describe('fluxo de caixa: cor da diferença', () => {
   it('verde zero, vermelho falta, âmbar sobra', () => {
-    expect(corDiferenca(0)).toBe('#15803D')
-    expect(corDiferenca(-100)).toBe('#B91C1C')
-    expect(corDiferenca(100)).toBe('#B45309')
+    expect(corDiferenca(0)).toBe('#006B4E')
+    expect(corDiferenca(-100)).toBe('#D93616')
+    expect(corDiferenca(100)).toBe('#8A4B00')
     expect(corDiferenca(null)).toBeNull()
   })
 })

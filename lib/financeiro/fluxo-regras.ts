@@ -230,13 +230,14 @@ export const ROTULO_SITUACAO: Record<Situacao, string> = {
   aberto: 'Em andamento', fechado: 'Fechado', divergente: 'Divergente', reaberto: 'Reaberto', sem_turno: 'Fora de turno',
 }
 /** Cor viva com texto branco (contraste ≥ 4,5:1). */
+/** Paleta "estilo Meta" (item 4b, 2026-10-04); todas com texto branco ≥ 4,5:1. */
 export const COR_SITUACAO: Record<Situacao, string> = {
-  aberto: '#0369A1', fechado: '#15803D', divergente: '#B91C1C', reaberto: '#B45309', sem_turno: '#4B5563',
+  aberto: '#0A78BE', fechado: '#006B4E', divergente: '#D93616', reaberto: '#8A4B00', sem_turno: '#465A69',
 }
-/** Diferença: verde se zero, vermelho se falta, âmbar se sobra. */
+/** Diferença: verde se zero, vermelho se falta, âmbar escuro se sobra. */
 export function corDiferenca(d: number | null): string | null {
   if (d === null || d === undefined) return null
-  return d === 0 ? '#15803D' : d < 0 ? '#B91C1C' : '#B45309'
+  return d === 0 ? '#006B4E' : d < 0 ? '#D93616' : '#8A4B00'
 }
 
 // ── Formatos pt-BR (CSV e telas) ─────────────────────────────────────────────────────────────

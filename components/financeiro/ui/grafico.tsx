@@ -8,7 +8,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
  *   série 1: linha #1877F2, área #EDF5FE → #DFF2FB      série 2: linha #32CDCD, área #EFFBFB → #CCF2F2
  *   barras #83C8C0 · meta sólida #007A80 · meta tracejada #83C8C0 · medidor alerta #D93616, trilho #EFF1F3
  *   hover: linha vertical #BABDC2 · grade #EEEEEE · texto #1C2B33 · eixos #465A69 · borda do tooltip #CBD2D9
- *   fundo #FFFFFF
+ *   fundo #FFFFFF · coluna do hover nas barras #F2F2F2 (medida no print "Origem do evento", 2026-10-04)
  * Linhas finas, poucos valores no eixo Y, datas curtas no X ("set 5"). No hover: linha vertical cinza, pontos
  * viram bolinhas brancas com a borda da cor da série, tooltip branco com sombra (seções em negrito, quadradinho
  * da cor, valor à direita e o período no rodapé). Legenda abaixo, com quadradinho e texto em negrito.
@@ -19,6 +19,7 @@ export const CORES_GRAFICO = {
   barra: '#83C8C0', metaSolida: '#007A80', metaTracejada: '#83C8C0',
   medidorAlerta: '#D93616', trilho: '#EFF1F3',
   hover: '#BABDC2', grade: '#EEEEEE', texto: '#1C2B33', eixo: '#465A69', bordaTooltip: '#CBD2D9', fundo: '#FFFFFF',
+  colunaHover: '#F2F2F2',
 } as const
 
 export interface SerieGrafico {
@@ -52,7 +53,7 @@ export function marcasY(max: number, min = 0): number[] {
   return out
 }
 
-export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], formatar, formatarEixo, altura = 240, testid }: {
+export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], formatar, formatarEixo, altura = 240, testid, rodapeTooltip }: {
   rotulos: string[]
   /** Texto do rodapé do tooltip para cada ponto (ex.: "5 a 11 de set."). Padrão: o rótulo. */
   periodos?: string[]
@@ -62,6 +63,8 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
   formatarEixo?: (n: number) => string
   altura?: number
   testid?: string
+  /** Linha pequena no pé do tooltip (como "Fuso horário — America/Sao_Paulo" na Meta). */
+  rodapeTooltip?: string
 }) {
   const id = useId().replace(/:/g, '')
   const caixa = useRef<HTMLDivElement>(null)
@@ -74,6 +77,13 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+  // Toque: o tooltip fica aberto depois de soltar o dedo e fecha ao tocar fora do gráfico.
+  useEffect(() => {
+    if (foco === null) return
+    const fora = (e: PointerEvent) => { if (!caixa.current?.contains(e.target as Node)) setFoco(null) }
+    window.addEventListener('pointerdown', fora, true)
+    return () => window.removeEventListener('pointerdown', fora, true)
+  }, [foco])
 
   const n = rotulos.length
   const todos = [...series.flatMap((s) => s.valores.filter((v): v is number => v !== null)), ...metas.map((m) => m.valor)]
@@ -114,12 +124,15 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
   const secoes = [...new Set(series.map((s) => s.secao ?? ''))]
   const tipX = foco === null ? 0 : x(foco)
   const tipEsquerda = tipX > largura * 0.6
+  // Só barras (como "Origem do evento"): período em negrito no TOPO do tooltip. Com linhas: no pé.
+  const soBarras = barras.length > 0 && linhas.length === 0
+  const passoColuna = n <= 1 ? w : w / (n - 1)
 
   return (
     <div className="w-full" style={{ color: CORES_GRAFICO.texto }} data-testid={testid}>
       <div ref={caixa} className="relative w-full" style={{ background: CORES_GRAFICO.fundo }}>
         <svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`} preserveAspectRatio="none" role="img" aria-label={series.map((s) => s.nome).join(', ')}
-          onPointerMove={aoMover} onPointerLeave={() => setFoco(null)} onPointerDown={aoMover} style={{ touchAction: 'pan-y', display: 'block' }}>
+          onPointerMove={aoMover} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setFoco(null) }} onPointerDown={aoMover} style={{ touchAction: 'pan-y', display: 'block' }}>
           <defs>
             <linearGradient id={`${id}-a1`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CORES_GRAFICO.area1[0]} /><stop offset="100%" stopColor={CORES_GRAFICO.area1[1]} /></linearGradient>
             <linearGradient id={`${id}-a2`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CORES_GRAFICO.area2[0]} /><stop offset="100%" stopColor={CORES_GRAFICO.area2[1]} /></linearGradient>
@@ -133,6 +146,9 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
           {rotulos.map((r, i) => (i % passoX === 0 || i === n - 1) && (
             <text key={i} x={x(i)} y={altura - 8} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} fontSize={11} fill={CORES_GRAFICO.eixo}>{r}</text>
           ))}
+          {foco !== null && barras.length > 0 && (
+            <rect data-coluna-hover x={tipX - Math.max(larguraBarra, passoColuna * 0.8) / 2} y={topo} width={Math.max(larguraBarra, passoColuna * 0.8)} height={h} fill={CORES_GRAFICO.colunaHover} />
+          )}
           {barras.map((s) => s.valores.map((v, i) => v === null ? null : (
             <rect key={`${s.nome}-${i}`} x={x(i) - larguraBarra / 2} y={Math.min(y(v), y(Math.max(yMin, 0)))} width={larguraBarra} height={Math.abs(y(Math.max(yMin, 0)) - y(v))} fill={CORES_GRAFICO.barra} />
           )))}
@@ -148,12 +164,16 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
               {linhas.map((s) => s.valores[foco] === null ? null : (
                 <circle key={s.nome} cx={tipX} cy={y(s.valores[foco] as number)} r={4} fill="#FFFFFF" stroke={(s.cor ?? 1) === 1 ? CORES_GRAFICO.serie1 : CORES_GRAFICO.serie2} strokeWidth={2} />
               ))}
+              {metas.map((m) => (
+                <circle key={`m-${m.rotulo}`} cx={tipX} cy={y(m.valor)} r={4} fill="#FFFFFF" stroke={m.estilo === 'solida' ? CORES_GRAFICO.metaSolida : CORES_GRAFICO.metaTracejada} strokeWidth={2} />
+              ))}
             </g>
           )}
         </svg>
         {foco !== null && (
-          <div className="pointer-events-none absolute top-2 z-[5] min-w-[180px] max-w-[260px] rounded-[4px] bg-white px-3 py-2 text-[12px] shadow-[0_4px_14px_rgba(28,43,51,0.18)]"
+          <div className="pointer-events-none absolute top-2 z-[5] min-w-[200px] max-w-[300px] rounded-[8px] bg-white px-4 py-3 text-[13px] shadow-[0_4px_14px_rgba(28,43,51,0.18)]"
             style={{ border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto, ...(tipEsquerda ? { right: largura - tipX + 12 } : { left: tipX + 12 }) }} data-testid={testid ? `${testid}-tooltip` : undefined}>
+            {soBarras && <p className="mb-2 text-[15px] font-bold leading-snug">{periodos?.[foco] ?? rotulos[foco]}</p>}
             {secoes.map((sec) => (
               <div key={sec} className="mb-1 last:mb-0">
                 {sec && <p className="mb-0.5 font-bold">{sec}</p>}
@@ -166,7 +186,8 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
               </div>
             ))}
             {metas.map((m) => <p key={m.rotulo} className="flex items-center justify-between gap-3"><span className="flex items-center gap-1.5"><span className="inline-block h-[2px] w-[10px]" style={{ background: m.estilo === 'solida' ? CORES_GRAFICO.metaSolida : CORES_GRAFICO.metaTracejada }} />{m.rotulo}</span><b>{formatar(m.valor)}</b></p>)}
-            <p className="mt-1 border-t pt-1" style={{ borderColor: CORES_GRAFICO.grade, color: CORES_GRAFICO.eixo }}>{periodos?.[foco] ?? rotulos[foco]}</p>
+            {!soBarras && <p className="mt-2 border-t pt-2 text-[12px]" style={{ borderColor: CORES_GRAFICO.grade, color: CORES_GRAFICO.eixo }}>{periodos?.[foco] ?? rotulos[foco]}</p>}
+            {rodapeTooltip && <p className="mt-2 text-[11.5px]" style={{ color: CORES_GRAFICO.eixo }}>{rodapeTooltip}</p>}
           </div>
         )}
       </div>
@@ -183,20 +204,26 @@ function Quadradinho({ s }: { s: SerieGrafico }) {
   return <span className="inline-block h-[10px] w-[10px] rounded-[2px]" style={{ background: cor }} />
 }
 
-/** Medidor semicircular (0–100). Em alerta usa #D93616; o trilho é #EFF1F3. */
-export function Medidor({ valor, alerta, rotulo, texto, testid }: { valor: number; alerta: boolean; rotulo: string; texto: string; testid?: string }) {
+/**
+ * Medidor circular (cópia do "19%" da Meta): anel #EFF1F3, arco a partir do topo no sentido horário —
+ * #D93616 em alerta, #1877F2 quando está bem —, % grande no centro e a meta embaixo ("Meta >= 75%").
+ */
+export function Medidor({ valor, alerta, rotulo, texto, testid, tamanho = 132 }: { valor: number; alerta: boolean; rotulo: string; texto: string; testid?: string; tamanho?: number }) {
   const v = Math.max(0, Math.min(100, valor))
-  const r = 52, cx = 64, cy = 62
-  const ponto = (p: number) => { const a = Math.PI * (1 - p / 100); return [cx + r * Math.cos(a), cy - r * Math.sin(a)] }
-  const [x1, y1] = ponto(0), [x2, y2] = ponto(v), [x3, y3] = ponto(100)
+  const esp = Math.round(tamanho * 0.078)
+  const r = (tamanho - esp) / 2, c = tamanho / 2
+  const circ = 2 * Math.PI * r
   return (
     <div className="flex flex-col items-center" style={{ color: CORES_GRAFICO.texto }} data-testid={testid}>
-      <svg width={128} height={72} viewBox="0 0 128 72" aria-label={`${rotulo}: ${texto}`}>
-        <path d={`M${x1},${y1} A${r},${r} 0 0 1 ${x3},${y3}`} fill="none" stroke={CORES_GRAFICO.trilho} strokeWidth={10} strokeLinecap="round" />
-        {v > 0 && <path d={`M${x1},${y1} A${r},${r} 0 0 1 ${x2.toFixed(2)},${y2.toFixed(2)}`} fill="none" stroke={alerta ? CORES_GRAFICO.medidorAlerta : CORES_GRAFICO.serie1} strokeWidth={10} strokeLinecap="round" />}
-      </svg>
-      <b className="-mt-6 text-[18px]" style={{ color: alerta ? CORES_GRAFICO.medidorAlerta : CORES_GRAFICO.texto }}>{texto}</b>
-      <span className="mt-1 text-[12px] font-bold">{rotulo}</span>
+      <div className="relative" style={{ width: tamanho, height: tamanho }}>
+        <svg width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`} aria-label={`${rotulo}: ${texto}`} role="img">
+          <circle cx={c} cy={c} r={r} fill="none" stroke={CORES_GRAFICO.trilho} strokeWidth={esp} />
+          {v > 0 && <circle cx={c} cy={c} r={r} fill="none" stroke={alerta ? CORES_GRAFICO.medidorAlerta : CORES_GRAFICO.serie1} strokeWidth={esp}
+            strokeDasharray={`${(v / 100) * circ} ${circ}`} transform={`rotate(-90 ${c} ${c})`} />}
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center font-normal" style={{ fontSize: Math.round(tamanho * 0.24), color: CORES_GRAFICO.texto }} data-medidor-texto>{texto}</span>
+      </div>
+      <span className="mt-2 text-[13px] font-semibold">{rotulo}</span>
     </div>
   )
 }

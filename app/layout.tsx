@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Mulish } from "next/font/google";
+import { Figtree, Inter, Mulish } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
@@ -42,6 +42,19 @@ const mulish = Mulish({
   variable: "--font-painel",
 });
 
+/**
+ * Figtree: a fonte da área do Financeiro no redesign "estilo Meta" (item 4b, 2026-10-04). A da Meta
+ * (Optimistic) é proprietária; a Figtree é a gratuita (SIL OFL) mais parecida no desenho e nos pesos.
+ * Vale SÓ dentro de .fin-meta (app/globals.css). Sem preload: só baixa quando o financeiro abre.
+ */
+const figtree = Figtree({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-meta",
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: "Menuzia",
   description: "Cardápio digital e gestão de delivery",
@@ -63,7 +76,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${mulish.variable}`}>
+    <html lang="pt-BR" className={`${inter.variable} ${mulish.variable} ${figtree.variable}`}>
       <body className="antialiased">
         {children}
         <PwaRegister />

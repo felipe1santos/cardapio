@@ -83,12 +83,12 @@ export function FichaCusto({ alvo, insumos, podeEditar, onFechar, onSalvou, toas
         <>
           <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="ficha-resumo">
             {[['CMV (custo)', brl(custo), 'ficha-cmv'], ['Preço', brl(atual.precoCentavos), ''], ['Lucro bruto', custo === null ? '—' : brl(atual.precoCentavos - custo), 'ficha-lucro'], ['Margem', margem === null ? '—' : `${margem.toFixed(1).replace('.', ',')}%`, 'ficha-margem']].map(([r, v, t]) => (
-              <div key={r} className="rounded-[6px] border border-border bg-white px-3 py-2"><p className="text-[11.5px] text-text-subtle">{r}</p><p className="text-[17px] font-bold" data-testid={t || undefined}>{v}</p></div>
+              <div key={r} className="fin-card px-3 py-2"><p className="text-[11.5px] text-text-subtle">{r}</p><p className="text-[17px] font-bold" data-testid={t || undefined}>{v}</p></div>
             ))}
           </div>
-          {aviso && <p className="mb-3 rounded-[4px] bg-[#E0F2FE] px-3 py-2 text-[12.5px] text-[#0369A1]" data-testid="ficha-aviso">{aviso}</p>}
+          {aviso && <p className="mb-3 fin-card border-l-[3px] !border-l-[#CBD2D9] px-4 py-2.5 text-[13px] text-[#1C2B33]" data-testid="ficha-aviso">{aviso}</p>}
           <table className="w-full text-[13px]" data-testid="ficha-componentes">
-            <thead><tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle"><th className="py-2 pr-2">Insumo</th><th className="w-[120px] py-2 pr-2">Quantidade</th><th className="w-[90px] py-2 pr-2 text-right">Custo</th><th className="w-[36px]" /></tr></thead>
+            <thead><tr className="border-b border-border text-left text-[12.5px] font-semibold text-text-subtle"><th className="py-2 pr-2">Insumo</th><th className="w-[120px] py-2 pr-2">Quantidade</th><th className="w-[90px] py-2 pr-2 text-right">Custo</th><th className="w-[36px]" /></tr></thead>
             <tbody>
               {linhas.map((l, i) => {
                 const it = ins.get(l.insumoId)
@@ -109,7 +109,7 @@ export function FichaCusto({ alvo, insumos, podeEditar, onFechar, onSalvou, toas
                       </span>
                     </td>
                     <td className="py-1.5 pr-2 text-right font-semibold" data-testid="ficha-custo-linha">{it ? brl(centavos((l.quantidadeBase || 0) * it.custoPorBase)) : '—'}</td>
-                    <td className="py-1.5">{podeEditar && <button type="button" aria-label="Tirar" onClick={() => setLinhas(linhas.filter((_, k) => k !== i))} className="flex h-[32px] w-[32px] items-center justify-center rounded-[4px] text-[#B91C1C] hover:bg-[#FEE2E2]"><Trash2 className="h-4 w-4" /></button>}</td>
+                    <td className="py-1.5">{podeEditar && <button type="button" aria-label="Tirar" onClick={() => setLinhas(linhas.filter((_, k) => k !== i))} className="flex h-[32px] w-[32px] items-center justify-center rounded-[4px] text-[#D93616] hover:bg-[#FCEBE7]"><Trash2 className="h-4 w-4" /></button>}</td>
                   </tr>
                 )
               })}
@@ -120,13 +120,13 @@ export function FichaCusto({ alvo, insumos, podeEditar, onFechar, onSalvou, toas
 
           {extras.length > 0 && (
             <div className="mt-6">
-              <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-text-subtle">{atual.tipo === 'sabor' ? 'Adicionais, bordas e massas' : 'Adicionais deste produto'} (ficha própria)</p>
+              <p className="mb-2 text-[13px] font-semibold text-text-subtle">{atual.tipo === 'sabor' ? 'Adicionais, bordas e massas' : 'Adicionais deste produto'} (ficha própria)</p>
               <div className="flex flex-col divide-y divide-border rounded-[6px] border border-border" data-testid="ficha-extras">
                 {extras.map((x) => (
                   <button key={`${x.tipo}:${x.id}`} type="button" onClick={() => setAtual({ tipo: x.tipo, id: x.id, tamanhoId: null, titulo: x.nome, precoCentavos: x.precoCentavos })}
                     className="flex items-center justify-between gap-3 px-3 py-2 text-left text-[13px] hover:bg-page" data-testid="ficha-extra">
                     <span className="min-w-0 truncate">{x.nome}</span>
-                    <span className="flex-shrink-0 text-text-subtle">preço {brl(x.precoCentavos)} · custo {x.custoCentavos === null ? <b className="text-[#B45309]">sem ficha</b> : <b className="text-text-main">{brl(x.custoCentavos)}</b>}</span>
+                    <span className="flex-shrink-0 text-text-subtle">preço {brl(x.precoCentavos)} · custo {x.custoCentavos === null ? <b className="text-[#8A4B00]">sem ficha</b> : <b className="text-text-main">{brl(x.custoCentavos)}</b>}</span>
                   </button>
                 ))}
               </div>

@@ -48,15 +48,15 @@ export function FaixaAprovacoes() {
     <>
       {!aberto && (
         <button type="button" onClick={() => setAberto(pedidos[0])} data-testid="faixa-aprovacoes"
-          className="fixed left-1/2 top-[64px] z-[9990] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#B45309] px-4 py-2 text-[13px] font-semibold text-white shadow-lg hover:brightness-110">
-          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-[#B45309]">{pedidos.length}</span>
+          className="fin-meta fixed left-1/2 top-[64px] z-[9990] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#8A4B00] px-4 py-2 text-[14px] font-semibold text-white shadow-lg hover:bg-[#764000] active:bg-[#633600]">
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-[#8A4B00]">{pedidos.length}</span>
           {pedidos.length === 1 ? `${pedidos[0].solicitante_nome} pede aprovação` : 'pedidos de aprovação'}
         </button>
       )}
       {aberto && (
-        <div className="fixed inset-0 z-[9995] flex items-end justify-center bg-[#111827]/60 sm:items-center" data-testid="janela-aprovar-remoto">
-          <div className="max-h-[92vh] w-full max-w-[420px] overflow-y-auto rounded-t-[12px] bg-white p-4 sm:rounded-[6px]">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Pedido de aprovação</p>
+        <div className="fin-meta fixed inset-0 z-[9995] flex items-end justify-center !bg-[rgba(28,43,51,0.55)] sm:items-center" data-testid="janela-aprovar-remoto">
+          <div className="max-h-[92vh] w-full max-w-[420px] overflow-y-auto rounded-t-[12px] bg-white p-5 shadow-[0_8px_28px_rgba(28,43,51,0.28)] sm:rounded-[8px]">
+            <p className="text-[12.5px] font-semibold text-text-subtle">Pedido de aprovação</p>
             <p className="mt-1 text-[16px] font-bold text-text-main" data-testid="aprovar-remoto-acao">{aberto.rotulo}{aberto.valor_centavos !== null ? ` — ${formatarCentavos(Math.abs(aberto.valor_centavos))}` : ''}</p>
             <p className="mt-1 text-[13px] text-text-main">Quem pede: <b>{aberto.solicitante_nome}</b></p>
             {aberto.motivo && <p className="mt-1 text-[13px] text-text-main">Motivo: {aberto.motivo}</p>}
@@ -64,8 +64,8 @@ export function FaixaAprovacoes() {
             <p className="mb-2 mt-3 text-center text-[13px] text-text-subtle">Digite o SEU PIN para aprovar</p>
             <TecladoPin valor={pin} onMudar={setPin} onCompleto={(p) => void decidir('aprovar', p)} ocupado={ocupado} erro={erro} />
             <div className="mt-3 flex gap-2">
-              <button type="button" className="h-[38px] flex-1 rounded-[4px] border border-border bg-white text-[12px] font-semibold uppercase tracking-wide" onClick={() => { setAberto(null); setPin(''); setErro(null) }}>Depois</button>
-              <button type="button" className="h-[38px] flex-1 rounded-[4px] bg-[#B91C1C] text-[12px] font-semibold uppercase tracking-wide text-white disabled:opacity-50" disabled={pin.length !== 6 || ocupado}
+              <button type="button" className="fin-btn fin-btn-contorno flex-1" onClick={() => { setAberto(null); setPin(''); setErro(null) }}>Depois</button>
+              <button type="button" className="fin-btn fin-btn-perigo flex-1" disabled={pin.length !== 6 || ocupado}
                 onClick={() => void decidir('recusar', pin)} data-testid="aprovar-remoto-recusar">Recusar</button>
             </div>
             {pedidos.length > 1 && <p className="mt-2 text-center text-[12px] text-text-subtle">+{pedidos.length - 1} pedido(s) na fila</p>}

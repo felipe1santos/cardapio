@@ -394,12 +394,14 @@ try {
   await dono.p.goto(`${BASE}/admin/financeiro?secao=dashboard`, { waitUntil: 'networkidle' })
   await dispensarSetup(dono.p, 2500)
   await dono.p.getByTestId('dash-cards').waitFor({ timeout: 15000 })
+  // Redesign 4b: o período fica num filtro no padrão Meta (calendário + lista).
+  await dono.p.getByTestId('dash-atalho-filtro').click()
   await dono.p.getByTestId('dash-atalho-7d').click()
   await dono.p.getByTestId('dash-grafico').waitFor()
   const cores = await dono.p.evaluate(() => {
     const svg = document.querySelector('[data-testid="dash-grafico"] svg')
     const tr = (sel, a) => [...svg.querySelectorAll(sel)].map((e) => e.getAttribute(a))
-    return { linhas: tr('path[fill="none"]', 'stroke'), barras: tr('rect', 'fill'), grade: tr('line', 'stroke'), stops: [...svg.querySelectorAll('stop')].map((s) => s.getAttribute('stop-color')), texto: tr('text', 'fill') }
+    return { linhas: tr('path[fill="none"]', 'stroke'), barras: tr('rect:not([data-coluna-hover])', 'fill'), grade: tr('line', 'stroke'), stops: [...svg.querySelectorAll('stop')].map((s) => s.getAttribute('stop-color')), texto: tr('text', 'fill') }
   })
   ok('cores do gráfico: série 1 #1877F2, série 2 #32CDCD, barras #83C8C0, grade #EEEEEE, eixos #465A69',
     cores.linhas.includes('#1877F2') && cores.linhas.includes('#32CDCD') && cores.barras.every((c) => c === '#83C8C0') && cores.grade.includes('#EEEEEE') && cores.texto.every((c) => c === '#465A69'), texto(cores.linhas))
@@ -415,7 +417,7 @@ try {
   })
   ok('hover: linha vertical #BABDC2, bolinhas brancas com a borda da série, tooltip com seções e período', hover.vertical && hover.bolinhas.length >= 1 && hover.bolinhas.every(([f]) => f === '#FFFFFF') && /Vendas/.test(tipTxt) && /de out\.|de set\.|de nov\.|de \w+\. de 20/.test(tipTxt), tipTxt.replace(/\n/g, ' | '))
   ok('legenda abaixo, em negrito, com quadradinho', /Faturamento/.test(await dono.p.getByTestId('dash-grafico-legenda').innerText()))
-  ok('medidor do CMV (trilho #EFF1F3)', await dono.p.evaluate(() => [...document.querySelectorAll('[data-testid="dash-medidor-cmv"] path')].some((p) => p.getAttribute('stroke') === '#EFF1F3')) || !(await dono.p.getByTestId('dash-medidor-cmv').count()))
+  ok('medidor do CMV (trilho #EFF1F3)', await dono.p.evaluate(() => [...document.querySelectorAll('[data-testid="dash-medidor-cmv"] circle')].some((p) => p.getAttribute('stroke') === '#EFF1F3')) || !(await dono.p.getByTestId('dash-medidor-cmv').count()))
   if (PRINTS) await dono.p.screenshot({ path: join(PRINTS, 'dashboard-desktop.png'), fullPage: true })
 
   secao('Relatório de risco por funcionário')

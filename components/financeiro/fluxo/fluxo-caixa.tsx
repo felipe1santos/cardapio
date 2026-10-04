@@ -15,6 +15,8 @@ import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { BOTAO, Chip, PainelLateral, RaizImpressao, Selo, imprimirDocumento } from '../ui/blocos'
 import { ExtratoTurno } from './extrato-turno'
 import { DocumentoFluxo, type DadosImpressao } from './documento'
+import { CabecalhoSecao, Card, FIN_COR } from '../ui/meta'
+import { GraficoFinanceiro } from '../ui/grafico'
 
 /**
  * Financeiro › Fluxo de Caixa (Fase 4). Só leitura: tudo vem do livro-caixa pela API.
@@ -36,7 +38,7 @@ function Valor({ col, l }: { col: ColunaFluxo; l: LinhaFluxo }) {
       return (
         <span className="inline-flex flex-wrap items-center gap-1">
           <Selo cor={COR_SITUACAO[l.situacao]} testid="fluxo-situacao">{ROTULO_SITUACAO[l.situacao]}</Selo>
-          {l.reabertoEm && l.situacao !== 'reaberto' && <Selo cor="#B45309">Reaberto</Selo>}
+          {l.reabertoEm && l.situacao !== 'reaberto' && <Selo cor="#8A4B00">Reaberto</Selo>}
         </span>
       )
     case 'abertura': return l.abertoEm ? <span className="whitespace-nowrap">{l.abertoPor ?? '—'}<br /><span className="text-[11.5px] text-text-subtle">{hora(l.abertoEm)}</span></span> : <span className="text-text-subtle">—</span>
@@ -142,32 +144,32 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
   const t = dados?.totais
   const totalPaginas = dados ? Math.max(1, Math.ceil(dados.total / dados.porPagina)) : 1
   const op = dados?.opcoes
-  const selectCls = 'h-[38px] w-full rounded-[4px] border border-border bg-white px-2.5 text-[13px] outline-none focus:border-primary'
+  const selectCls = 'h-[38px] w-full fin-card px-2.5 text-[14px] outline-none hover:border-[#9AA6B1] focus:border-primary'
 
   const painelFiltros = (
     <div className="flex flex-col gap-4" data-testid="fluxo-filtros">
       <div>
-        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Origem</p>
+        <p className="mb-1.5 text-[12.5px] font-semibold text-text-subtle">Origem</p>
         <div className="flex flex-wrap gap-1.5">{ORIGENS.map((o) => <Chip key={o.id} ativo={filtros.origens.includes(o.id)} onClick={() => alternar('origens', o.id)} testid={`filtro-origem-${o.id}`}>{o.rotulo}</Chip>)}</div>
       </div>
       <div>
-        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Forma de pagamento</p>
+        <p className="mb-1.5 text-[12.5px] font-semibold text-text-subtle">Forma de pagamento</p>
         <div className="flex flex-wrap gap-1.5">{FORMAS.map((o) => <Chip key={o.id} ativo={filtros.formas.includes(o.id)} onClick={() => alternar('formas', o.id)} testid={`filtro-forma-${o.id}`}>{o.rotulo}</Chip>)}</div>
       </div>
       <div>
-        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Status do caixa</p>
+        <p className="mb-1.5 text-[12.5px] font-semibold text-text-subtle">Status do caixa</p>
         <div className="flex flex-wrap gap-1.5">{SITUACOES.map((o) => <Chip key={o.id} ativo={filtros.situacoes.includes(o.id)} onClick={() => alternar('situacoes', o.id)} testid={`filtro-status-${o.id}`}>{o.rotulo}</Chip>)}</div>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <label><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Operador</span>
+        <label><span className="mb-1 block text-[12.5px] font-semibold text-text-subtle">Operador</span>
           <select className={selectCls} value={filtros.operador ?? ''} onChange={(e) => aplicar({ operador: e.target.value || null })} data-testid="filtro-operador">
             <option value="">Todos</option>{op?.operadores.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
           </select></label>
-        <label><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motoboy</span>
+        <label><span className="mb-1 block text-[12.5px] font-semibold text-text-subtle">Motoboy</span>
           <select className={selectCls} value={filtros.motoboy ?? ''} onChange={(e) => aplicar({ motoboy: e.target.value || null })} data-testid="filtro-motoboy">
             <option value="">Todos</option>{op?.motoboys.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
           </select></label>
-        <label><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Produto</span>
+        <label><span className="mb-1 block text-[12.5px] font-semibold text-text-subtle">Produto</span>
           <select className={selectCls} value={filtros.produto ?? ''} onChange={(e) => aplicar({ produto: e.target.value || null })} data-testid="filtro-produto">
             <option value="">Todos</option>{op?.produtos.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
           </select></label>
@@ -176,7 +178,8 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
   )
 
   return (
-    <div className="flex flex-col gap-3" data-testid="fluxo-caixa">
+    <div className="flex flex-col gap-4" data-testid="fluxo-caixa">
+      <CabecalhoSecao grande titulo="Fluxo de caixa" subtitulo="Cada turno do caixa: o que foi vendido, recebido e a diferença no fechamento. Toque num turno para ver o extrato." />
       {/* Período + ações */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="-mx-1 flex min-w-0 max-w-full gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Período">
@@ -185,9 +188,9 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
           ))}
         </div>
         <div className="flex items-center gap-1.5 text-[13px]">
-          <input type="date" value={filtros.de} max={filtros.ate} onChange={(e) => e.target.value && aplicar({ de: e.target.value })} aria-label="De" className="h-[34px] rounded-[4px] border border-border px-2" data-testid="periodo-de" />
+          <input type="date" value={filtros.de} max={filtros.ate} onChange={(e) => e.target.value && aplicar({ de: e.target.value })} aria-label="De" className="h-[34px] fin-card px-2" data-testid="periodo-de" />
           <span className="text-text-subtle">a</span>
-          <input type="date" value={filtros.ate} min={filtros.de} onChange={(e) => e.target.value && aplicar({ ate: e.target.value })} aria-label="Até" className="h-[34px] rounded-[4px] border border-border px-2" data-testid="periodo-ate" />
+          <input type="date" value={filtros.ate} min={filtros.de} onChange={(e) => e.target.value && aplicar({ ate: e.target.value })} aria-label="Até" className="h-[34px] fin-card px-2" data-testid="periodo-ate" />
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <button type="button" className={`${BOTAO.neutro} lg:hidden`} onClick={() => setFiltrosAbertos(true)} data-testid="abrir-filtros">
@@ -206,9 +209,9 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
       </div>
 
       {/* Filtros: na tela no computador; tela cheia no celular */}
-      <div className="hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-4 lg:block">
+      <div className="fin-card hidden p-5 lg:block">
         {painelFiltros}
-        {temFiltroAlemDoPeriodo(filtros) && <button type="button" onClick={limpar} className="mt-3 text-[12.5px] font-semibold text-[#B91C1C] hover:underline" data-testid="limpar-filtros"><X className="mr-1 inline h-3.5 w-3.5" />Limpar filtros</button>}
+        {temFiltroAlemDoPeriodo(filtros) && <button type="button" onClick={limpar} className="mt-3 rounded-[6px] px-2 py-1 text-[13px] font-semibold text-[#D93616] hover:bg-[#FCEBE7]" data-testid="limpar-filtros"><X className="mr-1 inline h-3.5 w-3.5" />Limpar filtros</button>}
       </div>
       {filtrosAbertos && (
         <PainelLateral titulo="Filtros" onFechar={() => setFiltrosAbertos(false)} largura={520} testid="painel-filtros"
@@ -220,7 +223,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
         </PainelLateral>
       )}
       <Flutuante ancora={botaoColunas} aberto={colunasAbertas} onFechar={fecharColunas} largura={260} alinhar="fim" testid="fluxo-colunas-menu" rotulo="Colunas" className="py-1.5">
-        <p className="px-3 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Colunas da tabela</p>
+        <p className="px-3 pb-1 pt-1 text-[12.5px] font-semibold text-text-subtle">Colunas da tabela</p>
         {COLUNAS.map((c) => (
           <label key={c.id} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[13px] hover:bg-page">
             <input type="checkbox" checked={colunas.includes(c.id as string)} onChange={() => alternarColuna(c.id as string)} data-testid={`coluna-${c.id}`} /> {c.rotulo}
@@ -228,7 +231,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
         ))}
       </Flutuante>
 
-      {erro && <p role="alert" className="rounded-[4px] bg-[#FEE2E2] px-3 py-2 text-[13px] font-medium text-[#B91C1C]">{erro}</p>}
+      {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]">{erro}</p>}
 
       {/* Totais do período (todos os turnos, não só a página) */}
       <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6" data-testid="fluxo-totais">
@@ -240,11 +243,28 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
         <CartaoNumero icone={ICONES.aviso} tom={(t?.diferenca ?? 0) === 0 ? 'cinza' : 'vermelho'} rotulo="Diferenças de caixa" valor={<span data-testid="total-diferenca">{brl(t?.diferenca)}</span>} />
       </div>
 
+      {/* Barras por turno (recebido) + linha da diferença — o gráfico único da Meta. */}
+      {dados && dados.linhas.some((l) => l.turnoId) && (() => {
+        const turnos = dados.linhas.filter((l) => l.turnoId).slice().reverse()
+        return (
+          <Card testid="fluxo-grafico-turnos" titulo="Recebido por turno" subtitulo="Barras: quanto cada turno recebeu. Linha: a diferença no fechamento (zero é o ideal).">
+            <GraficoFinanceiro testid="fluxo-grafico" altura={220}
+              rotulos={turnos.map((l) => (l.data ? dataBR(l.data).slice(0, 5) : '—'))}
+              periodos={turnos.map((l) => `Turno de ${l.data ? dataBR(l.data) : '—'}${l.abertoPor ? ` · ${l.abertoPor}` : ''}`)}
+              formatar={brl} formatarEixo={(c) => brl(c).replace(',00', '')}
+              series={[
+                { nome: 'Recebido', tipo: 'barra', secao: 'Turno', valores: turnos.map((l) => l.recebido ?? 0) },
+                { nome: 'Diferença no fechamento', tipo: 'linha', cor: 2, secao: 'Turno', valores: turnos.map((l) => l.diferenca) },
+              ]} />
+          </Card>
+        )
+      })()}
+
       {/* Computador: tabela */}
-      <div className="hidden overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white md:block">
+      <div className="fin-card hidden overflow-hidden md:block">
         <div className="max-h-[calc(100dvh-380px)] min-h-[200px] overflow-auto">
           <table className="w-full border-separate border-spacing-0 text-[13px]" data-testid="fluxo-tabela">
-            <thead className="sticky top-0 z-[2] bg-[#F6F7F9] text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+            <thead className="sticky top-0 z-[2] bg-[#F5F7F9] text-left text-[12px] font-semibold text-text-subtle">
               <tr className="[&>th]:border-b [&>th]:border-border">
                 {visiveis.map((c) => <th key={c.id} className={`whitespace-nowrap px-3 py-2.5 ${c.tipo === 'centavos' || c.tipo === 'diferenca' ? 'text-right' : ''}`}>{c.rotulo}</th>)}
                 {comProduto && <><th className="whitespace-nowrap px-3 py-2.5 text-right">Produto (qtd.)</th><th className="whitespace-nowrap px-3 py-2.5 text-right">Produto (R$)</th></>}
@@ -255,7 +275,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
               {dados?.linhas.map((l) => (
                 <tr key={l.turnoId ?? 'sem-turno'} onClick={() => l.turnoId && abrirTurno(l.turnoId)} tabIndex={l.turnoId ? 0 : -1}
                   onKeyDown={(e) => { if (e.key === 'Enter' && l.turnoId) abrirTurno(l.turnoId) }}
-                  className={`align-middle [&>td]:border-b [&>td]:border-border ${l.turnoId ? 'cursor-pointer hover:[&>td]:bg-[#F0F9FF]' : ''} ${l.situacao === 'aberto' || l.situacao === 'reaberto' ? '[&>td]:bg-[#F0F9FF]' : ''}`}
+                  className={`align-middle [&>td]:border-b [&>td]:border-[#E4E7EA] ${l.turnoId ? 'cursor-pointer hover:[&>td]:bg-[#F5F7F9] active:[&>td]:bg-[#E4E7EA]' : ''} ${l.situacao === 'aberto' || l.situacao === 'reaberto' ? '[&>td]:bg-[#E7F5FF]' : ''}`}
                   data-testid="fluxo-linha" data-turno={l.turnoId ?? ''}>
                   {visiveis.map((c) => <td key={c.id} className={`px-3 py-2 ${c.tipo === 'centavos' || c.tipo === 'diferenca' ? 'whitespace-nowrap text-right' : ''}`}><Valor col={c} l={l} /></td>)}
                   {comProduto && <><td className="px-3 py-2 text-right" data-testid="produto-qtd">{l.produtoQtd ?? 0}</td><td className="px-3 py-2 text-right">{brl(l.produtoValor)}</td></>}
@@ -263,8 +283,8 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
               ))}
             </tbody>
             {dados && dados.linhas.length > 0 && t && (
-              <tfoot className="sticky bottom-0 bg-[#F6F7F9] font-bold">
-                <tr className="[&>td]:border-t-2 [&>td]:border-[#D1D5DB]" data-testid="fluxo-rodape">
+              <tfoot className="sticky bottom-0 bg-[#E7F5FF] font-bold">
+                <tr className="[&>td]:border-t [&>td]:border-[#CBD2D9]" data-testid="fluxo-rodape">
                   {visiveis.map((c, i) => (
                     <td key={c.id} className={`whitespace-nowrap px-3 py-2.5 ${c.tipo === 'centavos' || c.tipo === 'diferenca' ? 'text-right' : ''}`}>
                       {i === 0 ? `Totais (${dados.total} turno${dados.total === 1 ? '' : 's'})` : (c.tipo === 'centavos' || c.tipo === 'diferenca') && (c.id as string) in t ? brl(t[c.id as Somavel]) : ''}
@@ -282,13 +302,13 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
       <div className="flex flex-col gap-2 md:hidden" data-testid="fluxo-cartoes">
         {dados?.linhas.map((l) => (
           <button type="button" key={l.turnoId ?? 'sem-turno'} onClick={() => l.turnoId && abrirTurno(l.turnoId)} disabled={!l.turnoId}
-            className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-3 text-left" data-testid="fluxo-cartao" data-turno={l.turnoId ?? ''}>
+            className="fin-card p-4 text-left transition-colors hover:bg-[#F5F7F9] active:bg-[#E4E7EA]" data-testid="fluxo-cartao" data-turno={l.turnoId ?? ''}>
             <div className="flex items-center justify-between gap-2">
               <p className="text-[15px] font-semibold">{l.data ? dataBR(l.data) : 'Fora de turno'}</p>
               <Selo cor={COR_SITUACAO[l.situacao]}>{ROTULO_SITUACAO[l.situacao]}</Selo>
             </div>
             <div className="mt-2 flex items-end justify-between gap-3 text-[13px]">
-              <div><p className="text-[11px] text-text-subtle">Recebido</p><p className="font-semibold text-[#15803D]">{brl(l.recebido)}</p></div>
+              <div><p className="text-[11px] text-text-subtle">Recebido</p><p className="font-semibold text-[#006B4E]">{brl(l.recebido)}</p></div>
               <div className="text-right"><p className="text-[11px] text-text-subtle">Diferença</p>
                 {l.diferenca === null ? <p className="text-text-subtle">—</p> : <p className="font-semibold" style={{ color: corDiferenca(l.diferenca) ?? undefined }}>{brl(l.diferenca)}</p>}
               </div>
@@ -296,7 +316,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
           </button>
         ))}
         {dados && dados.linhas.length > 0 && t && (
-          <div className="rounded-[6px] bg-[#1F2937] p-3 text-[13px] text-white" data-testid="fluxo-rodape-celular">
+          <div className="rounded-[6px] p-4 text-[14px]" style={{ background: FIN_COR.destaque, color: FIN_COR.texto }} data-testid="fluxo-rodape-celular">
             <p className="font-bold">Totais ({dados.total} turnos)</p>
             <p>Recebido {brl(t.recebido)} · Diferença {brl(t.diferenca)}</p>
           </div>

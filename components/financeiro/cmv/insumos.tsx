@@ -21,7 +21,7 @@ export function custoUnitarioTexto(i: Pick<InsumoCompleto, 'custoPorBase' | 'uni
   return `${brl(por1000)}/${i.unidadeBase === 'g' ? 'kg' : 'L'}`
 }
 const CAMPO = 'h-[40px] w-full rounded-[4px] border border-border bg-white px-2.5 text-[14px] outline-none focus:border-primary'
-const ROTULO = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle'
+const ROTULO = 'mb-1 block text-[12.5px] font-semibold text-text-subtle'
 
 export function SecaoInsumos({ insumos, podeEditar, onMudou, toast }: { insumos: InsumoCompleto[]; podeEditar: boolean; onMudou: () => void; toast: (tom: 'ok' | 'erro', t: string) => void }) {
   const [editando, setEditando] = useState<InsumoCompleto | 'novo' | null>(null)
@@ -47,12 +47,12 @@ export function SecaoInsumos({ insumos, podeEditar, onMudou, toast }: { insumos:
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar insumo" className={`${CAMPO} max-w-[300px]`} data-testid="insumos-busca" />
         {podeEditar && <button type="button" className={`${BOTAO.primario} ml-auto`} onClick={() => setEditando('novo')} data-testid="insumo-novo"><Plus className="h-4 w-4" /> Novo insumo</button>}
       </div>
-      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid="insumos-lista">
+      <div className="flex flex-col divide-y divide-border overflow-hidden fin-card" data-testid="insumos-lista">
         {lista.length === 0 && <p className="px-4 py-8 text-center text-[13px] text-text-subtle">Nenhum insumo. Cadastre o que você compra (carne, pão, embalagem…).</p>}
         {lista.map((i) => (
           <div key={i.id} className={`flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-[13px] ${i.ativo ? '' : 'opacity-60'}`} data-testid="insumo-linha" data-nome={i.nome}>
             <div className="min-w-[180px] flex-1">
-              <p className="font-semibold text-text-main">{i.nome} {i.preparado && <Selo cor="#7E22CE">Preparado</Selo>} {!i.ativo && <Selo cor="#4B5563">Desativado</Selo>}</p>
+              <p className="font-semibold text-text-main">{i.nome} {i.preparado && <Selo cor="#7E22CE">Preparado</Selo>} {!i.ativo && <Selo cor="#465A69">Desativado</Selo>}</p>
               <p className="text-[12px] text-text-subtle">
                 {i.preparado ? `Receita rende ${i.rendimentoBase} ${i.unidadeBase}` : `${brl(i.custoCompraCentavos)} por ${i.quantidadeCompra} ${UNIDADES_COMPRA.find((u) => u.id === i.unidadeCompra)?.rotulo.toLowerCase()}${conversaoPadrao(i.unidadeCompra) ? '' : ` (${i.basePorUnidade} ${i.unidadeBase} cada)`}`}
                 {i.aproveitamentoPct < 100 ? ` · aproveitamento ${i.aproveitamentoPct}%` : ''} · usado em {i.usos}
@@ -158,14 +158,14 @@ function FormInsumo({ inicial, insumos, onFechar, onSalvou, toast }: { inicial: 
                   <option value="g">gramas (g)</option><option value="ml">mililitros (ml)</option><option value="un">unidades</option>
                 </select></label>
             </div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Ingredientes da receita</p>
+            <p className="text-[12.5px] font-semibold text-text-subtle">Ingredientes da receita</p>
             {componentes.map((c, k) => (
               <div key={k} className="flex items-center gap-2">
                 <select value={c.componenteId} onChange={(e) => setComponentes(componentes.map((x, i) => (i === k ? { ...x, componenteId: e.target.value } : x)))} className={CAMPO}>
                   <option value="">Escolha…</option>{outros.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
                 </select>
                 <input type="number" min="0" step="any" value={c.quantidadeBase || ''} onChange={(e) => setComponentes(componentes.map((x, i) => (i === k ? { ...x, quantidadeBase: Number(e.target.value) } : x)))} className={`${CAMPO} w-[120px]`} />
-                <button type="button" aria-label="Tirar" onClick={() => setComponentes(componentes.filter((_, i) => i !== k))} className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] text-[#B91C1C] hover:bg-[#FEE2E2]"><Trash2 className="h-4 w-4" /></button>
+                <button type="button" aria-label="Tirar" onClick={() => setComponentes(componentes.filter((_, i) => i !== k))} className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] text-[#D93616] hover:bg-[#FCEBE7]"><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
             <button type="button" className={BOTAO.neutro} onClick={() => setComponentes([...componentes, { componenteId: '', quantidadeBase: 0 }])}><Plus className="h-4 w-4" /> Ingrediente</button>

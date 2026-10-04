@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AprovacaoPin, CampoDinheiro, Janela, botao, brl, type AprovacaoDada, type PedidoRemoto } from './apoio'
 import { DESCRICAO_MOVIMENTO, MOVIMENTOS, ROTULO_MOVIMENTO, tempoAberto, type Movimento } from '@/lib/financeiro/caixa-regras'
+import { BotaoGaveta, Card, FIN_COR, Kpi, SeloMeta, ValorSinal } from './ui/meta'
+import { GraficoFinanceiro } from './ui/grafico'
 
 /**
  * Financeiro › Caixa e Movimentações (Fase 2). A tela só mostra e pede; quem calcula, confere
  * permissão, limite e PIN é o servidor (/api/admin/financeiro/caixa). Quem só opera o caixa NÃO
  * vê o esperado antes de contar (contagem cega).
+ * Visual "estilo Meta" (item 4b): cards, saldos como indicadores, botões da gaveta com ícone e o gráfico de
+ * entradas por hora do turno (só para quem vê valores — a contagem cega continua cega).
  */
 interface Turno {
   id: string; status: string; aberto_em: string; aberto_por_nome: string | null; valor_inicial_centavos: number
@@ -62,28 +66,27 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
   if (!e) return <p className="text-[13px] text-text-subtle">Carregando…</p>
   const pode = (a: string) => e.acoes.includes(a)
   const t = e.turno
-  const cartao = 'rounded-[3px] border border-border bg-white'
 
   return (
     <>
       {/* Situação do caixa */}
-      <section className={cartao} data-testid="caixa-situacao">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <section className="fin-card border-l-[3px]" style={{ borderLeftColor: t ? '#4DBBA6' : '#D93616' }} data-testid="caixa-situacao">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           {t ? (
             <div className="min-w-0">
-              <p className="flex items-center gap-2 text-[14px] font-bold text-text-main">
-                <span className="h-[8px] w-[8px] rounded-full bg-[#10B981]" /> Caixa aberto
-                {t.status === 'reaberto' && <span className="rounded-[3px] bg-[#FEF3C7] px-1.5 py-0.5 text-[11px] font-semibold text-[#B45309]">Reaberto</span>}
+              <p className="flex items-center gap-2 text-[18px] font-bold text-text-main">
+                <span className="h-[9px] w-[9px] rounded-full bg-[#006B4E]" /> Caixa aberto
+                {t.status === 'reaberto' && <SeloMeta tom="laranja">Reaberto</SeloMeta>}
               </p>
-              <p className="text-[12.5px] text-text-subtle">
+              <p className="mt-0.5 text-[13px] text-text-subtle">
                 Aberto por <b className="text-text-main">{t.aberto_por_nome ?? '—'}</b> em {hora(t.aberto_em)} · há {tempoAberto(t.aberto_em)} · fundo de troco {brl(t.valor_inicial_centavos)}
               </p>
-              {t.status === 'reaberto' && <p className="text-[12px] text-[#B45309]">Reaberto por {t.reaberto_por_nome}: {t.reaberto_motivo}</p>}
+              {t.status === 'reaberto' && <p className="text-[12px] text-[#8A4B00]">Reaberto por {t.reaberto_por_nome}: {t.reaberto_motivo}</p>}
             </div>
           ) : (
             <div>
-              <p className="flex items-center gap-2 text-[14px] font-bold text-text-main"><span className="h-[8px] w-[8px] rounded-full bg-[#EF4444]" /> Caixa fechado</p>
-              <p className="text-[12.5px] text-text-subtle">Sem caixa aberto a loja não recebe pagamentos no PDV, no balcão e nas mesas.</p>
+              <p className="flex items-center gap-2 text-[18px] font-bold text-text-main"><span className="h-[9px] w-[9px] rounded-full bg-[#D93616]" /> Caixa fechado</p>
+              <p className="mt-0.5 text-[13px] text-text-subtle">Sem caixa aberto a loja não recebe pagamentos no PDV, no balcão e nas mesas.</p>
             </div>
           )}
           <div className="flex flex-wrap gap-2">
@@ -92,50 +95,47 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
           </div>
         </div>
         {t && e.veValores && e.saldos && (
-          <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-4" data-testid="caixa-saldos">
+          <div className="grid grid-cols-1 gap-3 px-5 pb-5 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="caixa-saldos">
             {(['gaveta', 'cartao', 'pix_conferir', 'a_receber'] as const).map((k) => (
-              <div key={k} className="bg-white px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">{k === 'gaveta' ? 'Dinheiro na gaveta' : ROTULO_CARTEIRA[k]}</p>
-                <p className="text-[17px] font-bold text-text-main">{brl(e.saldos![k] ?? 0)}</p>
-              </div>
+              <Kpi key={k} rotulo={k === 'gaveta' ? 'Dinheiro na gaveta' : ROTULO_CARTEIRA[k]} valor={brl(e.saldos![k] ?? 0)} />
             ))}
           </div>
         )}
         {t && !e.veValores && (
-          <p className="border-t border-border px-4 py-2 text-[12px] text-text-subtle">O valor esperado fica escondido até a contagem do fechamento (conferência cega).</p>
+          <p className="border-t border-[#E4E7EA] px-5 py-2.5 text-[13px] text-text-subtle">O valor esperado fica escondido até a contagem do fechamento (conferência cega).</p>
         )}
       </section>
 
       {/* Movimentos manuais */}
       {t && (pode('sangria') || pode('despesa')) && (
-        <section className={cartao}>
-          <h2 className="border-b border-border px-4 py-3 text-[13px] font-bold text-text-main">Movimentar a gaveta</h2>
-          <div className="flex flex-wrap gap-2 px-4 py-3">
+        <Card titulo="Movimentar a gaveta" subtitulo={`Saídas acima de ${brl(e.limiteSaidaCentavos)} precisam do PIN de um gerente (não do seu).`}>
+          <div className="flex flex-wrap gap-2.5">
             {MOVIMENTOS.filter((m) => pode(m === 'despesa' ? 'despesa' : 'sangria')).map((m) => (
-              <button key={m} type="button" className={botao.secundario} onClick={() => setJanela(m)} data-testid={`mov-${m}`}>{ROTULO_MOVIMENTO[m]}</button>
+              <BotaoGaveta key={m} tipo={m} rotulo={ROTULO_MOVIMENTO[m]} onClick={() => setJanela(m)} testid={`mov-${m}`} />
             ))}
           </div>
-          <p className="px-4 pb-3 text-[12px] text-text-subtle">Saídas acima de {brl(e.limiteSaidaCentavos)} precisam do PIN de um gerente (não do seu).</p>
-        </section>
+        </Card>
       )}
+
+      {/* Entradas por hora do turno (gráfico de barras da Meta) — só para quem vê valores. */}
+      {t && e.veValores && e.extrato?.length ? <EntradasPorHora abertoEm={t.aberto_em} linhas={e.extrato} /> : null}
 
       {/* Extrato do turno */}
       {t && (
-        <section className={cartao} data-testid="caixa-extrato">
-          <h2 className="border-b border-border px-4 py-3 text-[13px] font-bold text-text-main">{e.veValores ? 'Lançamentos do caixa' : 'Movimentos do caixa'}</h2>
-          {!e.extrato?.length ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nada lançado ainda.</p> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[12.5px]">
-                <thead className="text-[11px] uppercase tracking-wide text-text-subtle">
-                  <tr><th className="px-4 py-2">Quando</th><th className="px-4 py-2">O quê</th><th className="px-4 py-2">Onde</th><th className="px-4 py-2 text-right">Valor</th><th className="px-4 py-2">Quem</th></tr>
+        <Card testid="caixa-extrato" semPadding titulo={e.veValores ? 'Lançamentos do caixa' : 'Movimentos do caixa'} subtitulo="Tudo o que entrou e saiu neste turno, com quem fez.">
+          {!e.extrato?.length ? <p className="px-5 pb-4 text-[14px] text-text-subtle">Nada lançado ainda.</p> : (
+            <div className="mt-2 overflow-x-auto border-t border-[#E4E7EA]">
+              <table className="w-full text-left text-[13px]">
+                <thead>
+                  <tr><th className="px-5 py-2.5">Quando</th><th className="px-4 py-2.5">O quê</th><th className="px-4 py-2.5">Onde</th><th className="px-4 py-2.5 text-right">Valor</th><th className="px-4 py-2.5">Quem</th></tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {e.extrato.map((l) => (
                     <tr key={l.id} data-testid="caixa-linha">
-                      <td className="whitespace-nowrap px-4 py-2">{hora(l.criado_em)}</td>
+                      <td className="whitespace-nowrap px-5 py-2.5">{hora(l.criado_em)}</td>
                       <td className="px-4 py-2"><b className="text-text-main">{ROTULO_TIPO[l.tipo] ?? l.tipo}</b>{l.motivo ? <span className="text-text-subtle"> · {l.motivo}</span> : null}</td>
                       <td className="px-4 py-2 text-text-subtle">{ROTULO_CARTEIRA[l.carteira] ?? l.carteira}</td>
-                      <td className={`whitespace-nowrap px-4 py-2 text-right font-semibold ${l.valor_centavos < 0 ? 'text-[#EF4444]' : 'text-[#16A34A]'}`}>{brl(l.valor_centavos)}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right"><ValorSinal centavos={l.valor_centavos}>{brl(l.valor_centavos)}</ValorSinal></td>
                       <td className="px-4 py-2">{l.usuario_nome}{l.aprovado_por_nome ? <span className="text-text-subtle"> · aprovado por {l.aprovado_por_nome}</span> : null}</td>
                     </tr>
                   ))}
@@ -143,7 +143,7 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
               </table>
             </div>
           )}
-        </section>
+        </Card>
       )}
 
       {/* Último fechamento */}
@@ -160,26 +160,45 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
 function UltimoFechado({ f, podeReabrir, onReabrir }: { f: Fechado; podeReabrir: boolean; onReabrir: () => void }) {
   const dif = f.diferenca_centavos ?? 0
   return (
-    <section className="rounded-[3px] border border-border bg-white" data-testid="caixa-ultimo">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-        <h2 className="text-[13px] font-bold text-text-main">Último fechamento · {hora(f.fechado_em)} por {f.fechado_por_nome ?? '—'}</h2>
+    <section className="fin-card" data-testid="caixa-ultimo">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
+        <h2 className="text-[16px] font-bold text-text-main">Último fechamento · {hora(f.fechado_em)} por {f.fechado_por_nome ?? '—'}</h2>
         <div className="flex gap-2">
           <button type="button" className={botao.secundario} onClick={() => window.open(`/admin/financeiro/caixa/${f.id}`, '_blank')} data-testid="caixa-relatorio">Relatório</button>
           {podeReabrir && <button type="button" className={botao.secundario} onClick={onReabrir} data-testid="caixa-reabrir">Reabrir</button>}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 px-5 pb-5 pt-3 min-[400px]:grid-cols-2 lg:grid-cols-4">
         {[['Esperado (dinheiro)', brl(f.esperado_dinheiro_centavos)], ['Contado (dinheiro)', brl(f.contado_dinheiro_centavos)], ['Diferença', brl(dif)], ['Cartão (contado)', brl(f.contado_cartao_centavos)]].map(([r, v], i) => (
-          <div key={r} className="bg-white px-4 py-3">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">{r}</p>
-            <p className={`text-[16px] font-bold ${i === 2 && dif !== 0 ? (dif < 0 ? 'text-[#EF4444]' : 'text-[#B45309]') : 'text-text-main'}`}>{v}</p>
-          </div>
+          <Kpi key={r} rotulo={r} valor={<span style={{ color: i === 2 && dif !== 0 ? (dif < 0 ? FIN_COR.vermelho : FIN_COR.atencaoTexto) : undefined }}>{v}</span>} />
         ))}
       </div>
       {(f.justificativa || f.fechamento_aprovado_por_nome) && (
-        <p className="border-t border-border px-4 py-2 text-[12.5px] text-text-subtle">{f.justificativa}{f.fechamento_aprovado_por_nome ? ` · aprovado por ${f.fechamento_aprovado_por_nome}` : ''}</p>
+        <p className="border-t border-[#E4E7EA] px-5 py-2.5 text-[13px] text-text-subtle">{f.justificativa}{f.fechamento_aprovado_por_nome ? ` · aprovado por ${f.fechamento_aprovado_por_nome}` : ''}</p>
       )}
     </section>
+  )
+}
+
+/**
+ * Entradas por hora do turno: soma dos recebimentos (o que entrou) em cada hora, desde a abertura. É só uma
+ * leitura do extrato que a tela já tem — nada é recalculado no servidor.
+ */
+function EntradasPorHora({ abertoEm, linhas }: { abertoEm: string; linhas: Linha[] }) {
+  const inicio = new Date(abertoEm); inicio.setMinutes(0, 0, 0)
+  const ultimo = Math.max(Date.now(), ...linhas.map((l) => new Date(l.criado_em).getTime()))
+  const horas: number[] = []
+  for (let h = inicio.getTime(); h <= ultimo && horas.length < 48; h += 3_600_000) horas.push(h)
+  const valores = horas.map((h) => linhas.filter((l) => l.tipo === 'recebimento' && l.valor_centavos > 0 && new Date(l.criado_em).getTime() >= h && new Date(l.criado_em).getTime() < h + 3_600_000).reduce((s, l) => s + l.valor_centavos, 0))
+  const hh = (ms: number) => new Date(ms).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+  const dia = (ms: number) => new Date(ms).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short' }).replace('.', '')
+  return (
+    <Card testid="caixa-grafico-horas" titulo="Entradas por hora do turno" subtitulo="O que entrou em cada hora desde a abertura (recebimentos de todas as formas).">
+      <GraficoFinanceiro testid="caixa-grafico" altura={200} rotulos={horas.map((h) => hh(h).slice(0, 2) + 'h')}
+        periodos={horas.map((h) => `${dia(h)} ${hh(h)} a ${hh(h + 3_600_000)}`)} rodapeTooltip="Fuso horário — America/Sao_Paulo"
+        formatar={brl} formatarEixo={(c) => brl(c).replace(',00', '')}
+        series={[{ nome: 'Entradas', tipo: 'barra', valores }]} />
+    </Card>
   )
 }
 
@@ -230,10 +249,10 @@ function JanelaMovimento({ movimento, limite, onFechar }: { movimento: Movimento
       <div className="space-y-[10px]">
         <CampoDinheiro rotulo="Valor" valor={txt} onMudar={(t, v) => { setTxt(t); setC(v) }} testid="mov-valor" autoFocus />
         <label className="block">
-          <span className="mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo</span>
-          <input className="h-[40px] w-full rounded-[3px] border border-border px-[10px] text-[14px] outline-none focus:border-primary" value={motivo} onChange={(ev) => setMotivo(ev.target.value.slice(0, 200))} data-testid="mov-motivo" />
+          <span className="mb-[6px] block text-[13px] font-semibold text-text-main">Motivo</span>
+          <input className="h-[40px] w-full rounded-[6px] border border-border px-[12px] text-[14px] outline-none hover:border-[#9AA6B1] focus:border-primary" value={motivo} onChange={(ev) => setMotivo(ev.target.value.slice(0, 200))} data-testid="mov-motivo" />
         </label>
-        {c !== null && c > limite && movimento !== 'reforco' && !pedirPin && <p className="text-[12px] text-[#B45309]">Acima de {brl(limite)}: vai pedir o PIN de um gerente.</p>}
+        {c !== null && c > limite && movimento !== 'reforco' && !pedirPin && <p className="text-[12px] text-[#8A4B00]">Acima de {brl(limite)}: vai pedir o PIN de um gerente.</p>}
         {pedirPin && <AprovacaoPin titulo={`Aprovar ${ROTULO_MOVIMENTO[movimento].toLowerCase()} de ${brl(c)}`} erro={erroPin} ocupado={ocupado} remoto={remoto} onCancelar={() => setPedirPin(false)} onConfirmar={(a) => void enviar(a)} />}
         {erro && <p className="text-[12px] font-medium text-danger" data-testid="mov-erro">{erro}</p>}
       </div>
@@ -297,8 +316,8 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
       {etapa === 'divergencia' && dif && (
         <div data-testid="fechar-divergencia">
           {soPendencias
-            ? <p className="text-[14px] font-bold text-[#B45309]">Explique as pendências antes de fechar.</p>
-            : <p className="text-[14px] font-bold text-[#EF4444]">A contagem não bateu: diferença de {brl(dif.diferencaCentavos)} no dinheiro{dif.diferencaCartaoCentavos ? ` e ${brl(dif.diferencaCartaoCentavos)} no cartão` : ''}.</p>}
+            ? <p className="text-[14px] font-bold text-[#8A4B00]">Explique as pendências antes de fechar.</p>
+            : <p className="text-[14px] font-bold text-[#D93616]">A contagem não bateu: diferença de {brl(dif.diferencaCentavos)} no dinheiro{dif.diferencaCartaoCentavos ? ` e ${brl(dif.diferencaCartaoCentavos)} no cartão` : ''}.</p>}
           {dif.textos?.length ? <ul className="mt-[4px] list-disc pl-5 text-[12.5px] text-text-main" data-testid="fechar-motivos">{dif.textos.map((t) => <li key={t}>{t}</li>)}</ul> : null}
           <p className="mb-[10px] mt-[2px] text-[12.5px] text-text-subtle">{soPendencias ? 'A justificativa fica no fechamento e o dono recebe o aviso.' : 'Conte de novo, ou explique a diferença (o dono recebe o aviso). Cada contagem fica registrada.'}</p>
           <textarea className="min-h-[80px] w-full rounded-[3px] border border-border p-[10px] text-[13px] outline-none focus:border-primary" placeholder="O que aconteceu?" value={just} onChange={(ev) => setJust(ev.target.value.slice(0, 500))} data-testid="fechar-justificativa" />
@@ -309,7 +328,7 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
       )}
       {etapa === 'feito' && fim && (
         <div data-testid="fechar-feito">
-          <p className="text-[14px] font-bold text-[#16A34A]">Caixa fechado.</p>
+          <p className="text-[14px] font-bold text-[#006B4E]">Caixa fechado.</p>
           <div className="mt-[8px] grid grid-cols-3 gap-[8px] text-[12.5px]">
             <div><p className="text-text-subtle">Esperado</p><p className="font-bold">{brl(fim.esperado_dinheiro_centavos)}</p></div>
             <div><p className="text-text-subtle">Contado</p><p className="font-bold">{brl(fim.contado_dinheiro_centavos)}</p></div>

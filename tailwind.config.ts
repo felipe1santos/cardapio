@@ -14,18 +14,20 @@ const config: Config = {
     extend: {
       colors: {
         main: "#FFFFFF",
-        page: "#EDEEF1",
-        border: "#E5E7EB",
-        "text-main": "#1F2937",
-        "text-subtle": "#6B7280",
+        // Cores-base como variáveis (mesmos valores em :root, app/globals.css): a área do Financeiro
+        // (.fin-meta) troca só estas variáveis para o tema "estilo Meta" (2026-10-04) sem tocar o resto.
+        page: "rgb(var(--cor-page) / <alpha-value>)",
+        border: "rgb(var(--cor-border) / <alpha-value>)",
+        "text-main": "rgb(var(--cor-text-main) / <alpha-value>)",
+        "text-subtle": "rgb(var(--cor-text-subtle) / <alpha-value>)",
         sidebar: {
           bg: "#111827",
           hover: "#1F2937",
           text: "#9CA3AF",
         },
         primary: {
-          DEFAULT: "#0688D4",
-          dark: "#0570AE",
+          DEFAULT: "rgb(var(--cor-primary) / <alpha-value>)",
+          dark: "rgb(var(--cor-primary-dark) / <alpha-value>)",
         },
         "tab-active": "#B91C1C",
         "status-pending": "#F97316",
@@ -55,7 +57,7 @@ const config: Config = {
           bg: "#E0F2FE",
           text: "#0369A1",
         },
-        danger: "#EF4444",
+        danger: "rgb(var(--cor-danger) / <alpha-value>)",
         "danger-bg": "#FEE2E2",
         warn: "#F59E0B",
         "warn-bg": "#FEF3C7",

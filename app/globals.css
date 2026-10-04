@@ -6,6 +6,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Cores-base do Tailwind como variáveis (tailwind.config.ts). Valores de sempre; só a área do
+   Financeiro (.fin-meta, abaixo) os troca. Formato "R G B" para aceitar /opacidade. */
+:root {
+  --cor-page: 237 238 241;        /* #EDEEF1 */
+  --cor-border: 229 231 235;      /* #E5E7EB */
+  --cor-text-main: 31 41 55;      /* #1F2937 */
+  --cor-text-subtle: 107 114 128; /* #6B7280 */
+  --cor-primary: 6 136 212;       /* #0688D4 */
+  --cor-primary-dark: 5 112 174;  /* #0570AE */
+  --cor-danger: 239 68 68;        /* #EF4444 */
+}
+
 html,
 body {
   /* Mata o "puxar pra baixo = recarregar" do Chrome/Android.
@@ -960,3 +972,146 @@ html:has(.vitrine-sem-zoom) {
 @media (prefers-reduced-motion: reduce) {
   .cardapio-produto-cartao:hover { transform: none; }
 }
+
+/* ── Financeiro "estilo Meta" (item 4b, 2026-10-04) ──────────────────────────────────────────
+   Vale da área do financeiro para dentro (o topo do sistema e as outras telas não mudam). Paleta
+   tirada dos prints do Gerenciador de Eventos / Business Suite (docs/financeiro-redesign/README.md).
+   Efeitos (hover, clique, foco) não aparecem nos prints: seguem o padrão da Meta — hover um pouco
+   mais escuro, clique mais escuro, anel de foco azul, transição de 150 ms. */
+.fin-meta {
+  --cor-page: 239 241 243;          /* #EFF1F3 trilhos e fundos neutros */
+  --cor-border: 203 210 217;        /* #CBD2D9 */
+  --cor-text-main: 28 43 51;        /* #1C2B33 */
+  --cor-text-subtle: 70 90 105;     /* #465A69 */
+  --cor-primary: 10 120 190;        /* #0A78BE */
+  --cor-primary-dark: 8 104 166;    /* #0868A6 (hover/texto sobre fundo claro) */
+  --cor-danger: 217 54 22;          /* #D93616 */
+  /* Variáveis do painel (menu lateral, cartões) dentro do financeiro. */
+  --adm-superficie: #ffffff;
+  --adm-superficie-2: #eff1f3;
+  --adm-borda: #cbd2d9;
+  --adm-borda-cartao: rgba(203, 210, 217, 0.7);
+  --adm-texto: #1c2b33;
+  --adm-texto-forte: #1c2b33;
+  --adm-texto-medio: #465a69;
+  --adm-texto-suave: #465a69;
+  --adm-azul: #0a78be;
+  --adm-azul-escuro: #0868a6;       /* texto azul sobre #E1EDF7: 4,96:1 (o #0A78BE da Meta dá 3,96) */
+  --adm-azul-claro: #e1edf7;
+  --adm-raio: 8px;
+  --adm-raio-sm: 6px;
+  --meta-texto: #1c2b33;
+  --meta-texto-2: #465a69;
+  --meta-azul: #0a78be;
+  --meta-azul-hover: #0868a6;
+  --meta-azul-ativo: #075890;
+  --meta-verde: #006b4e;
+  --meta-verde-hover: #005c43;
+  --meta-verde-ativo: #004d38;
+  --meta-vermelho: #d93616;
+  --meta-vermelho-hover: #c02f12;
+  --meta-vermelho-ativo: #a6280f;
+  --meta-ativo-fundo: #e1edf7;
+  --meta-destaque: #e7f5ff;
+  --meta-atencao: #d47b04;
+  --meta-info: #cbd2d9;
+  --meta-sucesso: #4dbba6;
+  --meta-borda: #cbd2d9;
+  --meta-trilho: #eff1f3;
+  font-family: var(--font-meta), var(--font-painel), system-ui, sans-serif;
+  color: var(--meta-texto);
+}
+/* Fundo da página: gradiente pastel suave — só na raiz do financeiro (janelas e menus que levam o tema não herdam). */
+.fin-meta[data-financeiro-raiz], .fin-meta.fin-fundo { background: linear-gradient(135deg, #e5f0fa 0%, #faf1f1 100%); }
+/* Cantos: os quase-retos do painel viram os arredondados da Meta só aqui dentro. */
+.fin-meta .rounded-\[3px\], .fin-meta .rounded-\[4px\], .fin-meta .rounded-menuzia { border-radius: 6px; }
+.fin-meta .rounded-\[6px\] { border-radius: 8px; }
+/* Caixa alta com espaçamento (botões, rótulos, cabeçalhos) → frase normal, como na Meta. */
+.fin-meta .uppercase { text-transform: none; }
+.fin-meta .tracking-wide { letter-spacing: normal; }
+.fin-meta :where(button, a, [role="button"], input, select, textarea, summary) {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+.fin-meta :where(button, a, [role="button"], summary):focus-visible,
+.fin-meta :where(input, select, textarea):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px var(--meta-azul);
+}
+.fin-meta :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { border-color: var(--meta-borda); }
+.fin-meta :where(input, select, textarea):focus { border-color: var(--meta-azul); }
+
+/* Cartão */
+.fin-card {
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid rgba(203, 210, 217, 0.7);
+  box-shadow: 0 1px 2px rgba(28, 43, 51, 0.08), 0 2px 8px rgba(28, 43, 51, 0.05);
+}
+/* Botões */
+.fin-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent;
+  font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap; cursor: pointer;
+  text-transform: none; letter-spacing: normal;
+}
+.fin-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.fin-btn-primario { background: var(--meta-azul); color: #ffffff; }
+.fin-btn-primario:not(:disabled):hover { background: var(--meta-azul-hover); }
+.fin-btn-primario:not(:disabled):active { background: var(--meta-azul-ativo); }
+.fin-btn-acao { background: var(--meta-verde); color: #ffffff; }
+.fin-btn-acao:not(:disabled):hover { background: var(--meta-verde-hover); }
+.fin-btn-acao:not(:disabled):active { background: var(--meta-verde-ativo); }
+.fin-btn-perigo { background: var(--meta-vermelho); color: #ffffff; }
+.fin-btn-perigo:not(:disabled):hover { background: var(--meta-vermelho-hover); }
+.fin-btn-perigo:not(:disabled):active { background: var(--meta-vermelho-ativo); }
+.fin-btn-contorno { background: #ffffff; color: var(--meta-texto); border-color: var(--meta-borda); }
+.fin-btn-contorno:not(:disabled):hover { background: #f5f6f7; }
+.fin-btn-contorno:not(:disabled):active { background: #e4e7ea; }
+.fin-btn-texto { min-height: 32px; padding: 0 8px; background: transparent; color: var(--meta-azul-hover); }
+.fin-btn-texto:not(:disabled):hover { background: var(--meta-destaque); }
+.fin-btn-texto:not(:disabled):active { background: var(--meta-ativo-fundo); }
+/* Tabelas leves */
+.fin-meta table thead th { font-size: 12px; font-weight: 600; color: var(--meta-texto-2); background: transparent; }
+.fin-meta table tbody tr { transition: background-color 150ms ease; }
+.fin-meta table tbody tr:hover { background: #f5f7f9; }
+/* Abas (como "Pessoas | Ativos conectados") */
+.fin-aba { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 6px; font-size: 14px; font-weight: 600; color: var(--meta-texto-2); white-space: nowrap; }
+.fin-aba:hover { background: #f5f6f7; color: var(--meta-texto); }
+.fin-aba:active { background: #e4e7ea; }
+.fin-aba[aria-pressed="true"], .fin-aba[aria-selected="true"] { background: var(--meta-ativo-fundo); color: var(--meta-azul-hover); }
+/* Cartão de número (components/admin/cartao-numero.tsx) dentro do financeiro: o cartão da Meta. */
+.fin-meta [data-cartao-numero] {
+  border: 1px solid rgba(203, 210, 217, 0.7);
+  box-shadow: 0 1px 2px rgba(28, 43, 51, 0.08), 0 2px 8px rgba(28, 43, 51, 0.05);
+}
+.fin-meta [data-cartao-numero] p:first-child { font-size: 13px; font-weight: 600; }
+/* O painel ([data-admin-shell] main …) pinta campos e cabeçalhos de tabela com regras mais específicas; dentro
+   do financeiro valem as da Meta (mesma especificidade, declaradas depois). */
+@media screen {
+  [data-admin-shell] main .fin-meta input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  [data-admin-shell] main .fin-meta select,
+  [data-admin-shell] main .fin-meta textarea {
+    background-color: #ffffff;
+    border-width: 1px;
+    border-color: #cbd2d9;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1c2b33;
+  }
+  [data-admin-shell] main .fin-meta input:not([type='checkbox']):not([type='radio']):hover,
+  [data-admin-shell] main .fin-meta select:hover,
+  [data-admin-shell] main .fin-meta textarea:hover { border-color: #9aa6b1; }
+  [data-admin-shell] main .fin-meta input:focus,
+  [data-admin-shell] main .fin-meta select:focus,
+  [data-admin-shell] main .fin-meta textarea:focus { border-color: #0a78be; box-shadow: 0 0 0 1px #0a78be; }
+  [data-admin-shell] main .fin-meta thead { background-color: #f5f7f9; }
+  [data-admin-shell] main .fin-meta thead th[class] {
+    background-color: #f5f7f9;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #465a69;
+    padding: 11px 14px;
+  }
+  [data-admin-shell] main .fin-meta tbody td { font-size: 13px; color: #1c2b33; }
+}
+.fin-meta { --adm-vermelho-texto: #d93616; --adm-vermelho: #d93616; --adm-superficie-2: #f5f6f7; }

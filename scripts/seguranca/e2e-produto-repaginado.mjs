@@ -241,13 +241,18 @@ try {
     const pi = j.pedidoId || j.id ? await um(`select preco_unitario from pedido_itens where pedido_id=$1`, [j.pedidoId ?? j.id]) : null
     return { st: r.status, j, preco: pi ? Number(pi.preco_unitario) : null }
   }
+  // O item de teste vende só de segunda a sexta ({1..5}); o pedido é feito HOJE. Como no e2e do agendamento,
+  // a data é relativa a hoje: inclui o dia de hoje na disponibilidade durante os pedidos (e devolve depois),
+  // senão a suíte falhava aos sábados e domingos ("não está disponível hoje").
+  const diasOriginais = (await um(`select dias_disponiveis from itens_cardapio where id=$1`, [simples.id])).dias_disponiveis
+  await db.query(`update itens_cardapio set dias_disponiveis=$2 where id=$1`, [simples.id, [...new Set([...diasOriginais, hojeDia])].sort()])
   let ped = await pedido()
   if (ped.preco !== null) ok('servidor cobra o preço cheio fora da agenda (R$ 20)', ped.preco === 20, JSON.stringify(ped.j).slice(0, 120))
   else ok('pedido de teste pela vitrine (servidor) — resposta', false, `${ped.st} ${JSON.stringify(ped.j).slice(0, 160)}`)
   await db.query(`update itens_cardapio set promocao_dias=$2 where id=$1`, [simples.id, [hojeDia]])
   ped = await pedido()
   if (ped.preco !== null) ok('dentro da agenda o servidor cobra a promoção (R$ 18)', ped.preco === 18, String(ped.preco))
-  await db.query(`update itens_cardapio set promocao_dias=null where id=$1`, [simples.id])
+  await db.query(`update itens_cardapio set promocao_dias=null, dias_disponiveis=$2 where id=$1`, [simples.id, diasOriginais])
   await db.query(`delete from pedido_itens where pedido_id in (select id from pedidos where restaurante_id=$1 and cliente_nome='TESTE Repag')`, [loja.id])
   await db.query(`delete from pedidos where restaurante_id=$1 and cliente_nome='TESTE Repag'`, [loja.id])
   // Interruptor Promocional desligado = sem promoção.
