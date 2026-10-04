@@ -245,7 +245,7 @@ function FormConta({ conta, tipo, categorias, fornecedores, onFechar, onSalvou, 
       const corpo = { tipo, descricao, categoriaId, fornecedorId: fornecedorId || null, valorCentavos: centavos, vencimento, formaPrevista: forma || null, observacao, recorrencia, chave: ch,
         ...(suspeita && justificativa ? { liberarVenda: { justificativa, aprovacao } } : {}) }
       const r = conta ? await pedir(`/api/admin/financeiro/contas/${conta.id}`, 'PATCH', { ...corpo, acao: 'editar' }) : await pedir('/api/admin/financeiro/contas', 'POST', corpo)
-      if (r.ok) { toast('ok', conta ? 'Conta atualizada.' : 'Conta lançada.'); onSalvou(); return }
+      if (r.ok) { if (r.j.aviso) toast('erro', String(r.j.aviso)); else toast('ok', conta ? 'Conta atualizada.' : 'Conta lançada.'); onSalvou(); return }
       if (r.j.codigo === 'venda_duplicada') { setSuspeita({ pedidos: (r.j.pedidos as { numero: number; total: number }[]) ?? [], mensagem: r.j.error ?? '' }); return }
       if (r.j.codigo === 'aprovacao_necessaria') { setPin({ erro: aprovacao ? r.j.error ?? null : null }); return }
       if (pin) { setPin({ erro: r.j.error ?? 'Não foi possível.' }); return }

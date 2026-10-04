@@ -55,6 +55,8 @@ async function limparFalhas() {
   }
 }
 const contar = async (sql, p) => Number((await um(sql, p)).n)
+const hoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+const contas = (p) => api(p, '/api/admin/financeiro/contas?tipo=pagar&situacao=todas')
 
 const dono = await logar('dono.finint')
 try {
@@ -84,6 +86,56 @@ try {
   ok('falha nos componentes: a ficha antiga continua inteira (100 g)', f2.s >= 500 && comps.length === 1 && comps[0].qb === 100, `${f2.s} ${texto(comps)}`)
   await limparFalhas()
   await db.query(`delete from cmv_fichas where alvo_id=$1`, [item]); await db.query(`delete from itens_cardapio where id=$1`, [item])
+
+  if ((await um(`select to_regclass('public.fin_contas') t`)).t) {
+    secao('Fase 5b — compra de insumos (nota + itens + conta + custo + histórico + auditoria)')
+    const contas0 = await contas(dono.p)
+    const catOutros = contas0.j.categorias.find((c) => c.nome === 'Outros')
+    const custoAntes = (await um(`select custo_compra_centavos::int c from cmv_insumos where id=$1`, [id])).c
+    await falharEm('cmv_custos_historico', `new.motivo like 'Compra nota TF${SUF}%'`)
+    const nota = `TF${SUF}`
+    const cf = await api(dono.p, '/api/admin/financeiro/contas/compras', 'POST', { chave: `atom-${SUF}-c1`, numeroNota: nota, dataCompra: hoje(), pagamento: 'a_prazo', vencimento: hoje(), forma: 'boleto', itens: [{ insumoId: id, quantidade: 2, unidade: 'kg', valorCentavos: 9000 }] })
+    ok('falha no histórico do custo: a compra inteira é desfeita', cf.s >= 500 && await contar(`select count(*) n from fin_compras where restaurante_id=$1 and numero_nota=$2`, [loja.id, nota]) === 0
+      && await contar(`select count(*) n from fin_contas where restaurante_id=$1 and descricao like $2`, [loja.id, `%nota ${nota}%`]) === 0
+      && (await um(`select custo_compra_centavos::int c from cmv_insumos where id=$1`, [id])).c === custoAntes, `${cf.s}`)
+    await limparFalhas()
+    const c1 = await api(dono.p, '/api/admin/financeiro/contas/compras', 'POST', { chave: `atom-${SUF}-c1`, numeroNota: nota, dataCompra: hoje(), pagamento: 'a_prazo', vencimento: hoje(), forma: 'boleto', itens: [{ insumoId: id, quantidade: 2, unidade: 'kg', valorCentavos: 9000 }] })
+    const c1b = await api(dono.p, '/api/admin/financeiro/contas/compras', 'POST', { chave: `atom-${SUF}-c1`, numeroNota: nota, dataCompra: hoje(), pagamento: 'a_prazo', vencimento: hoje(), forma: 'boleto', itens: [{ insumoId: id, quantidade: 2, unidade: 'kg', valorCentavos: 9000 }] })
+    ok('sem a falha: nota, conta e custo juntos; repetir não duplica', c1.s === 201 && c1b.s === 200 && c1b.j.repetido === true && c1b.j.id === c1.j.id
+      && await contar(`select count(*) n from fin_compras where restaurante_id=$1 and numero_nota=$2`, [loja.id, nota]) === 1
+      && (await um(`select custo_compra_centavos::int c from cmv_insumos where id=$1`, [id])).c === 4500, texto([c1.s, c1b.s]))
+
+    secao('Fase 5b — baixa e estorno (livro-caixa + status + auditoria)')
+    const k = await api(dono.p, '/api/admin/financeiro/contas', 'POST', { chave: `atom-${SUF}-k1`, tipo: 'pagar', descricao: `TESTE FALHA baixa ${SUF}`, categoriaId: catOutros.id, valorCentavos: 1500, vencimento: hoje() })
+    await falharEm('fin_contas', `new.status = 'pago' and new.descricao like 'TESTE FALHA%'`)
+    const b0 = await api(dono.p, `/api/admin/financeiro/contas/${k.j.id}`, 'PATCH', { acao: 'baixar', carteira: 'empresa', forma: 'pix' })
+    ok('falha ao marcar paga: nenhuma linha no livro-caixa e a conta segue em aberto', b0.s >= 500 && await contar(`select count(*) n from fin_lancamentos where restaurante_id=$1 and dados->>'conta_id'=$2`, [loja.id, k.j.id]) === 0
+      && (await um(`select status from fin_contas where id=$1`, [k.j.id])).status === 'a_pagar', `${b0.s}`)
+    await limparFalhas()
+    const b1 = await api(dono.p, `/api/admin/financeiro/contas/${k.j.id}`, 'PATCH', { acao: 'baixar', carteira: 'empresa', forma: 'pix' })
+    const b2 = await api(dono.p, `/api/admin/financeiro/contas/${k.j.id}`, 'PATCH', { acao: 'baixar', carteira: 'empresa', forma: 'pix' })
+    ok('baixa sem a falha; repetir não lança de novo', b1.s === 200 && b2.s === 200 && b2.j.repetido === true && await contar(`select count(*) n from fin_lancamentos where restaurante_id=$1 and dados->>'conta_id'=$2`, [loja.id, k.j.id]) === 2)
+    await falharEm('fin_contas', `new.status = 'a_pagar' and old.status = 'pago' and new.descricao like 'TESTE FALHA%'`)
+    const e0 = await api(dono.p, `/api/admin/financeiro/contas/${k.j.id}`, 'PATCH', { acao: 'estornar', motivo: 'TESTE estorno com falha injetada' })
+    ok('falha no estorno: nenhuma linha oposta e a conta segue paga', e0.s >= 500 && await contar(`select count(*) n from fin_lancamentos where restaurante_id=$1 and dados->>'conta_id'=$2`, [loja.id, k.j.id]) === 2
+      && (await um(`select status from fin_contas where id=$1`, [k.j.id])).status === 'pago', `${e0.s}`)
+    await limparFalhas()
+    const e1 = await api(dono.p, `/api/admin/financeiro/contas/${k.j.id}`, 'PATCH', { acao: 'estornar', motivo: 'TESTE estorno sem falha' })
+    ok('estorno sem a falha: linhas opostas e conta em aberto', e1.s === 200 && await contar(`select count(*) n from fin_lancamentos where restaurante_id=$1 and dados->>'conta_id'=$2`, [loja.id, k.j.id]) === 4
+      && (await um(`select status from fin_contas where id=$1`, [k.j.id])).status === 'a_pagar')
+    await falharEm('eventos_auditoria', `new.acao = 'contas.cancelou' and new.dados->>'motivo' like 'TESTE FALHA%'`)
+    const x0 = await api(dono.p, `/api/admin/financeiro/contas/${k.j.id}`, 'PATCH', { acao: 'cancelar', motivo: 'TESTE FALHA na auditoria' })
+    ok('falha na auditoria do cancelamento: a conta NÃO fica cancelada sem registro', x0.s >= 500 && (await um(`select status from fin_contas where id=$1`, [k.j.id])).status === 'a_pagar', `${x0.s}`)
+    await limparFalhas()
+    ok('cancelar sem a falha', (await api(dono.p, `/api/admin/financeiro/contas/${k.j.id}`, 'PATCH', { acao: 'cancelar', motivo: 'TESTE limpeza' })).s === 200)
+    await falharEm('eventos_auditoria', `new.acao = 'compras.cancelou' and new.dados->>'motivo' like 'TESTE FALHA%'`)
+    const cc0 = await api(dono.p, '/api/admin/financeiro/contas/compras', 'PATCH', { id: c1.j.id, motivo: 'TESTE FALHA cancelar compra' })
+    ok('falha ao cancelar compra: compra e conta continuam ativas', cc0.s >= 500 && (await um(`select status from fin_compras where id=$1`, [c1.j.id])).status === 'ativa'
+      && (await um(`select status from fin_contas where id=$1`, [c1.j.contaId])).status === 'a_pagar', `${cc0.s}`)
+    await limparFalhas()
+    ok('cancelar compra sem a falha: compra e conta juntas', (await api(dono.p, '/api/admin/financeiro/contas/compras', 'PATCH', { id: c1.j.id, motivo: 'TESTE limpeza' })).s === 200
+      && (await um(`select status from fin_contas where id=$1`, [c1.j.contaId])).status === 'cancelado')
+  }
   await db.query(`update cmv_insumos set ativo=false where id=$1`, [id])
 } catch (e) {
   ok('fluxo sem erro', false, String(e?.stack ?? e).slice(0, 500))

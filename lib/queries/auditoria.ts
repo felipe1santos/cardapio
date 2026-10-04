@@ -119,6 +119,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'contas.cancelou': 'Cancelou uma conta',
   'contas.anexou': 'Anexou um arquivo a uma conta',
   'contas.venda_avulsa_liberada': 'Lançou venda avulsa parecida com pedido do sistema',
+  'contas.venda_parecida': 'Lançou entrada com o mesmo valor de um pedido do dia (aviso)',
   'contas.categoria_criada': 'Criou uma categoria do plano de contas',
   'contas.categoria_editada': 'Editou uma categoria do plano de contas',
   'contas.fornecedor_criado': 'Cadastrou um fornecedor',

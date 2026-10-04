@@ -155,7 +155,7 @@ try {
   ok('aparece no caixa do turno (esperado na gaveta caiu R$ 150,00)', JSON.stringify(ext.j ?? {}).includes('TESTE Entregador extra'), String(ext.s))
   const big = await nova(ger.p, { tipo: 'pagar', descricao: `TESTE Reforma ${SUF}`, categoriaId: cat('Manutenção').id, valorCentavos: 150000, vencimento: hoje })
   criados.contas.push(big.j?.id)
-  ok('pela empresa acima de R$ 1.000,00 pede PIN', (await acao(ger.p, big.j.id, { acao: 'baixar', carteira: 'empresa', forma: 'transferencia' })).j?.codigo === 'aprovacao_necessaria')
+  ok('pela empresa acima de R$ 300,00 pede PIN', (await acao(ger.p, big.j.id, { acao: 'baixar', carteira: 'empresa', forma: 'transferencia' })).j?.codigo === 'aprovacao_necessaria')
   ok('o dono paga sem PIN (é ele quem aprovaria)', (await acao(dono.p, big.j.id, { acao: 'baixar', carteira: 'empresa', forma: 'transferencia' })).s === 200)
 
   secao('Contas a receber: repasse iFood, aporte e venda manual duplicada')
@@ -174,11 +174,14 @@ try {
   ok('pedido de hoje criado pela vitrine', ped.s === 201 && !!pe, `${ped.s}`)
   const vd1 = await nova(ger.p, { tipo: 'receber', descricao: `TESTE venda do pedido #${pe.numero}`, categoriaId: cat('Venda avulsa (fora do sistema)').id, valorCentavos: 4321, vencimento: hoje })
   af('venda do sistema lançada à mão (cita o #pedido) → bloqueada e avisa', vd1.s === 409 && vd1.j.codigo === 'venda_duplicada' && vd1.j.pedidos?.some((p) => p.numero === pe.numero), texto(vd1.j))
+  // Regra ajustada (2026-10-05): só o MESMO VALOR de um pedido do dia apenas AVISA (a conta entra).
   const vd2 = await nova(ger.p, { tipo: 'receber', descricao: `TESTE venda balcão ${SUF}`, categoriaId: cat('Venda avulsa (fora do sistema)').id, valorCentavos: Math.round(Number(pe.total) * 100), vencimento: hoje })
-  af('mesmo valor de um pedido do mesmo dia → bloqueada', vd2.s === 409 && vd2.j.codigo === 'venda_duplicada', texto(vd2.j))
-  const vd3 = await nova(ger.p, { tipo: 'receber', descricao: `TESTE venda balcão ${SUF}`, categoriaId: cat('Venda avulsa (fora do sistema)').id, valorCentavos: Math.round(Number(pe.total) * 100), vencimento: hoje, liberarVenda: { justificativa: 'TESTE venda no evento da praça' } })
+  criados.contas.push(vd2.j?.id)
+  af('mesmo valor de um pedido do mesmo dia → entra, mas AVISA (e fica na auditoria)', vd2.s === 201 && /mesmo valor/.test(vd2.j?.aviso ?? '') && !!(await um(`select 1 from eventos_auditoria where restaurante_id=$1 and acao='contas.venda_parecida' and entidade_id=$2`, [loja.id, vd2.j?.id])), texto(vd2.j))
+  // Citar o pedido continua BLOQUEANDO; liberar exige justificativa + PIN.
+  const vd3 = await nova(ger.p, { tipo: 'receber', descricao: `TESTE venda do pedido #${pe.numero}`, categoriaId: cat('Venda avulsa (fora do sistema)').id, valorCentavos: 4321, vencimento: hoje, liberarVenda: { justificativa: 'TESTE venda no evento da praça' } })
   ok('lançar mesmo assim exige justificativa + PIN de gerente', vd3.s === 409 && vd3.j.codigo === 'aprovacao_necessaria')
-  const vd4 = await nova(ger.p, { tipo: 'receber', descricao: `TESTE venda balcão ${SUF}`, categoriaId: cat('Venda avulsa (fora do sistema)').id, valorCentavos: Math.round(Number(pe.total) * 100), vencimento: hoje, liberarVenda: { justificativa: 'TESTE venda no evento da praça', aprovacao: PDONO } })
+  const vd4 = await nova(ger.p, { tipo: 'receber', descricao: `TESTE venda do pedido #${pe.numero}`, categoriaId: cat('Venda avulsa (fora do sistema)').id, valorCentavos: 4321, vencimento: hoje, liberarVenda: { justificativa: 'TESTE venda no evento da praça', aprovacao: PDONO } })
   criados.contas.push(vd4.j?.id)
   ok('com justificativa e PIN: entra, fica auditado e o dono é avisado', vd4.s === 201 && !!(await um(`select 1 from eventos_auditoria where restaurante_id=$1 and acao='contas.venda_avulsa_liberada' and entidade_id=$2`, [loja.id, vd4.j.id]))
     && !!(await um(`select 1 from fin_alertas where restaurante_id=$1 and tipo='venda_manual_suspeita' and dados->>'conta'=$2`, [loja.id, vd4.j.id])))
