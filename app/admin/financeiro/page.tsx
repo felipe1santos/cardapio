@@ -9,6 +9,7 @@ import { SecaoCaixa } from '@/components/financeiro/caixa'
 import { SecaoMotoboys, SecaoPix } from '@/components/financeiro/motoboys'
 import { FluxoCaixa } from '@/components/financeiro/fluxo/fluxo-caixa'
 import { SecaoCmv } from '@/components/financeiro/cmv/secao-cmv'
+import { SecaoContas } from '@/components/financeiro/contas/secao-contas'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
@@ -24,7 +25,7 @@ const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
   { id: 'pix', label: 'Conferir Pix', exige: 'pix_conferir', fase: '' },
   { id: 'movimentacoes', label: 'Movimentações', exige: 'sangria', fase: '' },
   { id: 'cmv', label: 'Precificação / CMV', exige: 'custos_ver', fase: '' },
-  { id: 'contas', label: 'Contas e DRE', exige: 'contas_pagar', fase: 'Fase 5b' },
+  { id: 'contas', label: 'Contas e DRE', exige: 'contas_pagar', fase: '' },
   { id: 'dashboard', label: 'Dashboard', exige: 'financeiro', fase: 'Fase 6' },
   { id: 'auditoria', label: 'Auditoria e Alertas', exige: 'auditoria_ver', fase: '' },
 ]
@@ -79,7 +80,7 @@ export default function FinanceiroPage() {
           <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-5">
             {secao === 'fluxo' && acoes.includes('financeiro') ? (
               <Suspense fallback={<p className="text-[13px] text-text-subtle">Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
-            ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
+            ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'contas' && acoes.includes('contas_pagar') ? <SecaoContas /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
               <SecaoCaixa key={secao} modo={secao} />
             ) : secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
               <AuditoriaAlertas />

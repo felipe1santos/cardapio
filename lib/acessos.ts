@@ -54,7 +54,9 @@ export const SENSIVEIS = [
   { chave: 'custos_editar', rotulo: 'Editar insumos e fichas de custo' },
   { chave: 'precos_aplicar', rotulo: 'Aplicar novo preço sugerido (CMV)' },
   { chave: 'auditoria_ver', rotulo: 'Ver auditoria e alertas' },
-  { chave: 'contas_pagar', rotulo: 'Contas a pagar e a receber' },
+  { chave: 'contas_pagar', rotulo: 'Ver contas a pagar e a receber' },
+  { chave: 'contas_lancar', rotulo: 'Lançar contas, despesas e compras' },
+  { chave: 'contas_marcar_pago', rotulo: 'Marcar conta como paga ou recebida' },
   { chave: 'dre_ver', rotulo: 'Ver DRE e lucro' },
   { chave: 'financeiro_exportar', rotulo: 'Exportar relatórios financeiros (CSV e PDF)' },
 ] as const
