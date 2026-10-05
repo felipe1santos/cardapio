@@ -2,7 +2,7 @@
 
 ## Resumo
 
-1. **Nada publicado.** Sem merge, sem deploy, sem migration em produção e sem instalador publicado. Produção foi só lida (lojas e versões). Tudo está na branch **`impressao-v3`** (8 commits verdes sobre o `main` ef34a80).
+1. **Nada publicado.** Sem merge, sem deploy, sem migration em produção e sem instalador publicado. Produção foi só lida (lojas e versões). Tudo está na branch **`impressao-v3`** (9 commits verdes sobre o `main` ef34a80).
 2. **Impressão v3 idêntica aos modelos** na comanda e na pré-conta, em 576, 512 e 384 pontos: modelo × antes × v3 em `docs/impressao-final/comparacao/lado-a-lado-*.png`.
 3. **Regras novas:**
    - nome do item quebra antes do preço;
