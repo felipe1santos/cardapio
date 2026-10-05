@@ -1117,22 +1117,6 @@ html:has(.vitrine-sem-zoom) {
 }
 .fin-meta, .meta-tema { --adm-vermelho-texto: #d93616; --adm-vermelho: #d93616; --adm-superficie-2: #f5f6f7; }
 
-/* ── Card do Kanban (item 56): encolhe por LARGURA DO CARD (container query), não da tela ──────────────
-   Coluna estreita (menu aberto + 4ª coluna + 1280 px, ou celular): some primeiro o telefone, depois os
-   nomes (origem, pagamento, atendimento) — fica o ícone, com a dica. Nada se sobrepõe. */
-.kanban-card { container-type: inline-size; }
-.kanban-card .kc-linha { container-type: normal; }
-@container (max-width: 330px) {
-  .kanban-card .kc-tel { display: none; }
-}
-@container (max-width: 285px) {
-  .kanban-card .kc-origem-nome { display: none; }
-  .kanban-card .kc-pag-nome { display: none; }
-}
-@container (max-width: 245px) {
-  .kanban-card .kc-atend-nome { display: none; }
-}
-
 /* ─── Tela de Impressão (2026-10-06) — protótipo aprovado docs/impressao-tela-nova/prototipo/ ───────
    Mesmas cores, medidas e efeitos do protótipo. Fonte Figtree, PESO MÁXIMO 600 (regra 6). Classes com
    prefixo ti- e escopo .tela-impressao (inclusive nas janelas, que levam a classe junto). */

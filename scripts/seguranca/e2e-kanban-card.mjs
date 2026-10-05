@@ -50,8 +50,8 @@ try {
     const { ctx, p } = await abrir(b, vp)
     const m = await p.evaluate(() => {
       const transparente = (el) => { const c = getComputedStyle(el).backgroundColor; return c === 'rgba(0, 0, 0, 0)' || c === 'transparent' }
-      const pronto = [...document.querySelectorAll('[data-testid="card-etapa"]')].find((x) => /pronto/i.test(x.getAttribute('aria-label') ?? x.textContent))
-      const verde = pronto ? getComputedStyle(pronto).color : null
+      const pronto = [...document.querySelectorAll('[data-testid="card-etapa"]')].find((x) => /Pronto/.test(x.textContent))
+      const verde = pronto ? getComputedStyle(pronto).backgroundColor : null
       return [...document.querySelectorAll('[data-testid^="pedido-"]')].map((card) => {
         const q = (s) => card.querySelector(s)
         const filhos = [...card.children].filter((c) => c.getBoundingClientRect().height > 0)
@@ -64,9 +64,9 @@ try {
           filhos: filhos.length, linhas: linhas.length,
           semItens: !q('ul') && !q('[data-testid="info-pagamento"]') && !q('[data-testid="card-detalhes"]'),
           pag: pag ? { title: pag.getAttribute('title'), icone: !!pag.querySelector('svg'), antesDoPreco: pag.getBoundingClientRect().right <= preco.getBoundingClientRect().left + 1 } : null,
-          preco: preco ? { cor: getComputedStyle(preco).color, fundo: getComputedStyle(preco).backgroundColor, peso: Number(getComputedStyle(preco).fontWeight), semFundo: transparente(preco) } : null,
+          preco: preco ? { cor: getComputedStyle(preco).color, peso: Number(getComputedStyle(preco).fontWeight), semFundo: transparente(preco) } : null,
           verde,
-          botao: botao ? { larguraTotal: rb.width >= rc.width - 28, direita: rc.right - rb.right <= 16 && (botao.dataset.testid === 'card-na-logistica' || rb.width < rc.width / 2), seta: botao.dataset.testid === 'card-na-logistica' || botao.lastElementChild?.tagName.toLowerCase() === 'svg', alturaPx: Math.round(rb.height) } : null,
+          botao: botao ? { larguraTotal: rb.width >= rc.width - 28, seta: botao.dataset.testid === 'card-na-logistica' || botao.lastElementChild?.tagName.toLowerCase() === 'svg', alturaPx: Math.round(rb.height) } : null,
           altura: Math.round(rc.height), cursor: getComputedStyle(card).cursor,
           vaza: [...card.querySelectorAll('span, div, button')].some((e) => e.getClientRects().length && e.getBoundingClientRect().right > rc.right + 1),
         }
@@ -78,10 +78,8 @@ try {
     ok('linha 2: ícone da forma antes do preço, com tooltip (forma · status · troco)', m.filter((c) => c.pag).length >= 6 && m.filter((c) => c.pag).every((c) => c.pag.icone && c.pag.antesDoPreco && / · /.test(c.pag.title)), texto(m.filter((c) => c.pag).map((c) => c.pag.title)))
     ok('troco no tooltip ("Troco p/ R$ 200,00")', m.some((c) => /Troco p\/ R\$\s?200,00/.test(c.pag?.title ?? '')))
     ok('mesa sem ícone de pagamento', !m.find((c) => c.nome?.startsWith('TESTE Card Mesa'))?.pag)
-    // Item 56: valor em selo verde-claro, como no modelo.
-    ok('preço em selo verde-claro do modelo (#E3FAED), texto verde negrito', m.every((c) => c.preco.fundo === 'rgb(227, 250, 237)' && c.preco.cor === 'rgb(22, 101, 52)' && c.preco.peso >= 700), `${m[0].preco.fundo} / ${m[0].preco.cor}`)
-    // Item 56: só a seta, alinhada à direita, sem ocupar a largura toda.
-    ok('linha 3: só o botão da seta, à direita (não ocupa a largura toda)', m.every((c) => c.botao?.direita && c.botao.seta), texto(m.filter((c) => !(c.botao?.direita && c.botao?.seta)).map((c) => c.nome)))
+    ok('preço em verde negrito (mesmo verde do botão Pronto), sem fundo', m.every((c) => c.preco.semFundo && c.preco.peso >= 700 && c.preco.cor === m[0].verde), `${m[0].preco.cor} × ${m[0].verde}`)
+    ok('linha 3: só o botão de etapa, largura total, seta à direita', m.every((c) => c.botao?.larguraTotal && c.botao.seta), texto(m.filter((c) => !(c.botao?.larguraTotal && c.botao?.seta)).map((c) => c.nome)))
     ok('cursor de mão no card', m.every((c) => c.cursor === 'pointer'))
     ok('nome longo e valor alto não vazam', m.every((c) => !c.vaza), texto(m.filter((c) => c.vaza).map((c) => c.nome)))
     ok(`card compacto (altura ≤ ${nome === 'celular' ? 130 : 140} px)`, m.every((c) => c.altura <= (nome === 'celular' ? 130 : 140)), texto([...new Set(m.map((c) => c.altura))]))
