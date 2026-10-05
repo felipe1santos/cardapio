@@ -212,10 +212,10 @@ try {
   ok('Recibo/Extrato pendente pedido', pend.status === 201, pend.json?.error)
   const rPend = await aguardar(() => BETA.impressos().find((i) => i.tipo === 'pre_conta'))
   ok('Recibo/Extrato pendente sai no Beta, POS-8370 em 512 pontos', !!rPend && rPend.impressora === 'POS-8370' && rPend.larguraPontos === 512 && readFileSync(rPend.png).readUInt32BE(16) === 512)
-  // Modelo oficial da pré-conta (docs/referencias/impressao/v3/PRE-CONTA.png).
-  ok('conta real no modelo da pré-conta (v3): PRE-CONTA, ITENS CONSUMIDOS, TOTAL (R$), VALORES, TOTAL; sem frases de teste', !!rPend && rPend.tipo === 'pre_conta' && rPend.versao === 4 && ['PRE-CONTA', 'ITENS CONSUMIDOS', 'VALORES', 'QTD  DESCRICAO  TOTAL (R$)', 'TOTAL  R$'].every((t) => rPend.texto.includes(t)) && !rPend.texto.includes('TESTE DE IMPRESSAO'))
-  const lojaRodape = rPend?.doc?.blocos?.find((b) => b.t === 'loja')
-  ok('rodapé da pré-conta com o NOME da loja (dados do cadastro, vindos do servidor)', !!lojaRodape && lojaRodape.nome.length > 0, JSON.stringify(lojaRodape))
+  // Modelo oficial v3 da pré-conta (docs/impressao-final/referencias/preconta_v3.png), 0.2.0-beta.9.
+  ok('conta real no modelo v3: PRÉ-CONTA, ITENS, VALORES, TOTAL, nota fiscal; sem frases de teste', !!rPend && rPend.tipo === 'pre_conta' && rPend.versao === 1 && rPend.doc?.modelo === 'v3' && ['PRÉ-CONTA', 'ITENS', 'VALORES', 'TOTAL  R$', 'Conferência de conta - não é documento fiscal'].every((t) => rPend.texto.includes(t)) && !rPend.texto.includes('TESTE DE IMPRESS'))
+  const lojaTopo = rPend?.doc?.blocos?.find((b) => b.t === 'loja_nome')
+  ok('topo da pré-conta com o NOME da loja (dados do cadastro, vindos do servidor)', !!lojaTopo && lojaTopo.s.length > 0, JSON.stringify(lojaTopo))
   const pago = (await api(pAt, '/api/admin/balcao/comandas', 'POST', { nome: 'Cliente Pago Beta', chave: uuid() })).json.id
   // Também é ficha de cozinha: entra na conta de 'impressa exatamente uma vez'.
   criados.push((await api(pAt, '/api/admin/pdv/lancamento', 'POST', { pagamento: { escolha: 'dinheiro' }, comandaId: pago, chave: uuid(), itens: [{ itemId: AGUA.id, quantidade: 2, complementos: [] }] })).json.id)
@@ -251,8 +251,8 @@ try {
   await esperar(4000)
   ok('sai uma vez só, no Beta, na POS-8370, com o perfil de 512 pontos', BETA.impressos().filter((i) => i.tipo === 'recibo_teste').length === 1 &&
     !!rt80 && rt80.impressora === 'POS-8370' && rt80.larguraPontos === 512)
-  ok('marcado como teste, com os dados do modelo (A PAGAR R$ 148,70)', !!rt80 && ['TESTE DE IMPRESSAO', 'SEM VALOR FISCAL', 'Total da conta  R$ 248,70', 'A PAGAR  R$ 148,70', 'Taxa de entrega', 'TOTAL (R$)', '+ Borda recheada de catupiry  12,00'].every((x) => rt80.texto.includes(x)))
-  ok('desenhado pelo ticket-canvas (documento v4), letra grande por padrão', !!rt80 && rt80.versao === 4 && rt80.tamanhoFonte === 'grande' && rt80.largura === 512, JSON.stringify({ v: rt80?.versao, f: rt80?.tamanhoFonte, l: rt80?.largura }))
+  ok('marcado como teste, com os dados do modelo (A PAGAR R$ 148,70)', !!rt80 && ['TESTE DE IMPRESSÃO', 'SEM VALOR FISCAL', 'Total da conta  R$ 248,70', 'A PAGAR  R$ 148,70', 'Taxa de entrega', '(+ Borda recheada de catupiry, + Bacon extra)'].every((x) => rt80.texto.includes(x)))
+  ok('desenhado pelo ticket-canvas (modelo v3), letra grande por padrão', !!rt80 && rt80.versao === 1 && rt80.tamanhoFonte === 'grande' && rt80.largura === 512, JSON.stringify({ v: rt80?.versao, f: rt80?.tamanhoFonte, l: rt80?.largura }))
   ok('logo da LOJA no topo: o Beta baixa a logo pela rota segura e manda ao desenho', !!rt80 && rt80.imprimirLogo === true && /^data:image\/(png|jpeg|webp|gif|bmp);/.test(rt80.logo ?? ''), String(rt80?.logo))
   const salvouFonte = await api(pGer, `/api/admin/impressao/dispositivos/${disp['Cozinha Beta'].id}`, 'PATCH', { larguraMm: 58, tamanhoFonte: 'pequena' })
   ok('tamanho da letra salvo na predefinição da impressora (pequena)', salvouFonte.status === 200 && (await um('select tamanho_fonte from impressao_dispositivos where id=$1', [disp['Cozinha Beta'].id]))?.tamanho_fonte === 'pequena', salvouFonte.json?.error)

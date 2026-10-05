@@ -1,7 +1,7 @@
 /**
  * E2E (2026-09-28): barra "Novo sistema de impressão disponível!" no painel admin.
- * ⚠️ Aviso DESLIGADO em 2026-10-04 (lib/avisos-painel.ts). Só vale rodar se ele for religado;
- * a ausência dele é conferida em e2e-kanban-topo-v2.mjs.
+ * Aviso religado na impressão v3 (2026-10-05) só para loja que imprime sem o Assistente 0.2.0-beta.9;
+ * a regra por versão é conferida em scripts/impressao/e2e-impressao-v3.mjs.
  * Só leitura (não grava nada): entra como dono da loja isolada e percorre as telas no
  * computador (1366) e no celular (390). Confere: aparece no topo e empurra o conteúdo
  * (não cobre cabeçalho, menu nem o "Sair"), sem rolagem dupla nem horizontal, o botão
@@ -60,7 +60,7 @@ try {
           sairVisivel: sair ? sair.bottom <= window.innerHeight + 0.5 : true,
           rolagemDoc: document.documentElement.scrollHeight <= window.innerHeight + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1,
           cor: getComputedStyle(a).backgroundColor,
-          segundaFrase: [...a.querySelectorAll('span')].some((s) => s.offsetParent && /Mais fácil/.test(s.textContent)),
+          segundaFrase: [...a.querySelectorAll('span')].some((s) => s.offsetParent && /Atualize o Assistente/.test(s.textContent)),
         }
       })
       const alturaOk = largura > 500 ? m && m.altura >= 44 && m.altura <= 52 : m && m.altura >= 44 && m.altura <= 72

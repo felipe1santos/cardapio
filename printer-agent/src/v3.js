@@ -365,7 +365,8 @@ function textoDoV3(doc) {
       default: if (k.s) out.push(k.s)
     }
   }
-  return out.join('\n')
+  // Espaço que não quebra (só serve ao desenho) vira espaço comum no texto.
+  return out.join('\n').replace(/\u00A0/g, ' ')
 }
 
 module.exports = { montarComandaV3, montarPreContaV3, textoDoV3, telefone, lojaDoTopo, linhaDoPagamento, rotuloDaTaxa, brl, numero }

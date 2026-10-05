@@ -361,7 +361,8 @@ try {
   // Mesmos dados de demonstração da prévia (lib/impressao/previa-beta.ts → snapshotCozinhaTeste).
   const { snapshotCozinhaTeste } = await import('../../lib/impressao/recibo-teste.ts')
   const pedidoDemonstracao = (agora) => { const s = snapshotCozinhaTeste({ loja: '', impressora: '', nomeSistema: '', computador: '', larguraMm: 80, larguraPontos: null, deslocamentoPontos: 0 }, '', null, agora); return { pedido: { ...s.pedido, id: 'previa' }, extras: s.extras } }
-  const { montarCozinhaBeta } = require('../../printer-agent/src/cozinha-beta.js')
+  // Impressão v3 (0.2.0-beta.9): a prévia usa o montador do modelo oficial v3.
+  const { montarComandaV3 } = require('../../printer-agent/src/v3.js')
   // Mesmas entradas da tela: dados da loja e QR (rota da prévia), opções da loja (banco) e a logo.
   const pv = (await api(pd, '/api/admin/impressao/previa')).json
   const cfgRow = await um(`select impressao_mostrar_numero_item a, impressao_mostrar_preco_complementos b, impressao_mostrar_nome_complementos c, impressao_fonte_maior_producao d, impressao_multiplicar_opcoes_qtd e, impressao_logo f from restaurantes where id=$1`, [L])
@@ -370,7 +371,7 @@ try {
   if (pv.logoUrl) { const r = await fetch(pv.logoUrl); logoRef = `data:${r.headers.get('content-type')};base64,${Buffer.from(await r.arrayBuffer()).toString('base64')}` }
   ok('rota da prévia traz nome/telefone/endereço da loja e o QR', typeof pv.loja?.nome === 'string' && pv.loja.nome.length > 0 && Array.isArray(pv.qr?.linhas), JSON.stringify(pv.loja))
   const dm = pedidoDemonstracao(new Date())
-  const ref = await renderizarTicket(montarCozinhaBeta(dm.pedido, { config: cfgLoja, lojaNome: pv.loja.nome, loja: pv.loja, extras: dm.extras, qr: pv.qr }), { larguraMm: 80, logo: logoRef, imprimirLogo: cfgLoja.imprimirLogo !== false, saida: join(SHOTS, 'previa-ref-cozinha.png') })
+  const ref = await renderizarTicket(montarComandaV3(dm.pedido, { config: cfgLoja, lojaNome: pv.loja.nome, loja: pv.loja, extras: dm.extras, qr: pv.qr }), { larguraMm: 80, logo: logoRef, imprimirLogo: cfgLoja.imprimirLogo !== false, saida: join(SHOTS, 'previa-ref-cozinha.png') })
   ok('pré-visualização = impressão (mesma largura e altura do PNG do Beta)', ref.largura === pv1.w && ref.altura === pv1.h, `${ref.largura}x${ref.altura} vs ${pv1.w}x${pv1.h}`)
   // Opções da impressão embaixo da prévia: mudam o desenho na hora e gravam na chave de sempre.
   const antesFonte = cfgRow.d
@@ -384,7 +385,8 @@ try {
   ok('"Fonte maior na via de produção": prévia muda na hora e grava impressao_fonte_maior_producao', !!pvF && gravou, `${pv1.h} → ${pvF}`)
   await pd.getByTestId('opcao-fonteMaiorProducao').click()
   await pd.waitForFunction((h0) => document.querySelector('[data-testid="previa-canvas"]')?.height === h0, pv1.h, { timeout: 10000 }).catch(() => {})
-  ok('aba Comanda mostra as 6 opções da ficha', (await pd.getByTestId('opcoes-impressao').getByRole('switch').count()) === 6)
+  // v3: "Mostrar preço dos complementos" não muda o desenho (o adicional vai no nome) — 5 opções.
+  ok('aba Comanda mostra as 5 opções da comanda v3', (await pd.getByTestId('opcoes-impressao').getByRole('switch').count()) === 5)
   await foto(pd, 'previa-comanda-grande')
   await pd.getByTestId('previa-letra-pequena').click()
   const pv2 = await pd.waitForFunction((h0) => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height < h0 ? c.height : null }, pv1.h, { timeout: 10000 }).then((h) => h.jsonValue()).catch(() => null)
