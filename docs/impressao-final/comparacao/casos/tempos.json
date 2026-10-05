@@ -1,0 +1,20 @@
+{
+  "comanda-entrega": {
+    "desenhoMs": 23,
+    "escposMs": 0,
+    "envioMs": 1,
+    "bytes": 146472
+  },
+  "comanda-muitos-itens": {
+    "desenhoMs": 38,
+    "escposMs": 0,
+    "envioMs": 1,
+    "bytes": 270168
+  },
+  "pre-conta-mesa": {
+    "desenhoMs": 26,
+    "escposMs": 0,
+    "envioMs": 1,
+    "bytes": 158576
+  }
+}

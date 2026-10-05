@@ -770,7 +770,13 @@
         if (cur) out.push(cur)
         const lim2 = out.length ? maxW : primeiraMax
         if (larg(parte) <= lim2) cur = parte
-        else { const q = quebrar(parte, lim2); out.push(...q.slice(0, -1)); cur = q[q.length - 1] }
+        else {
+          // Só a primeira linha desconta o rótulo; o resto da parte usa a largura toda.
+          const q1 = quebrar(parte, lim2)
+          const resto = lim2 === maxW ? q1.slice(1) : quebrar(q1.slice(1).join(' '), maxW)
+          const q = [q1[0], ...resto.filter(Boolean)]
+          out.push(...q.slice(0, -1)); cur = q[q.length - 1]
+        }
       }
       if (cur) out.push(cur)
       return out
