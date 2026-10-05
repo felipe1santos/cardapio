@@ -83,6 +83,15 @@ try {
   await db.query(`delete from pagamentos_contas where restaurante_id=$1`, [loja.id])
   gravarSim({ contas: {}, codigos: {}, pagamentos: {} })
   const gerente = await um(`select id from usuarios where restaurante_id=$1 and usuario='gerente.finint'`, [loja.id])
+  // Estado próprio (outras suítes mexem na mesma loja): PIN do gerente cadastrado e caixa fechado.
+  {
+    const g = await sessao('gerente.finint')
+    const rp = await g.ctx.request.post(`${BASE}/api/sessao/pin`, { data: { senha: SENHA, pin: PIN.gerente } })
+    ok('preparo: PIN do gerente cadastrado', rp.status() === 200, String(rp.status()))
+    await g.ctx.close()
+    await db.query(`update usuarios set pin_falhas=0, pin_bloqueado_ate=null where id=$1`, [gerente.id])
+    await db.query(`update caixa_turnos set fechado_em = now(), status = 'fechado' where restaurante_id=$1 and fechado_em is null`, [loja.id]).catch((e) => console.log('   (preparo turno)', e.message))
+  }
   const dono = await um(`select id from usuarios where restaurante_id=$1 and usuario='dono.finint'`, [loja.id])
 
   secao('conexão da conta (OAuth simulado)')

@@ -1,6 +1,7 @@
 'use client'
 
-import { limparRotulo, origemDoReferrer, type EventoCliente, type TipoEvento } from '@/lib/vitrine-eventos'
+import { limparRotulo, type EventoCliente, type TipoEvento } from '@/lib/vitrine-eventos'
+import { atribuirOrigem, capturarOrigem, textoDaVisita, type OrigemAtribuida, type OrigemBruta } from '@/lib/origem-visita'
 
 /**
  * Rastreador da vitrine: junta os eventos em fila e manda em lote para
@@ -57,12 +58,29 @@ function sessaoAtual(): { id: string; nova: boolean } {
 export interface Rastreador {
   registrar(tipo: TipoEvento, extra?: { itemId?: string | null; alvo?: string | null }): void
   encerrar(): void
+  /** Origem ATRIBUÍDA ao pedido (item 55): última não-direta do aparelho em 7 dias, senão Direto. */
+  origem(): OrigemAtribuida
+}
+
+/** Origem guardada no aparelho, por loja (item 55). */
+const chaveOrigem = (slug: string) => `mz-origem-${slug}`
+function lerOrigemGuardada(slug: string): OrigemAtribuida | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(chaveOrigem(slug)) ?? 'null') as OrigemAtribuida | null
+    return v && typeof v.em === 'number' && typeof v.canal === 'string' ? v : null
+  } catch { return null }
 }
 
 export function criarRastreador(slug: string): Rastreador {
   const url = `/api/loja/${encodeURIComponent(slug)}/eventos`
   const visitanteId = lerOuCriar(() => localStorage, CHAVE_VISITANTE)
   let sessao = sessaoAtual()
+  // Origem desta abertura (utm, clique de anúncio, referrer) e a atribuída ao pedido.
+  let origemAqui: OrigemBruta = { fonte: null, meio: null, campanha: null, clique: null }
+  try { origemAqui = capturarOrigem({ busca: window.location.search, referrer: document.referrer, hostAtual: window.location.hostname }) } catch { /* sem URL: direto */ }
+  const { atribuida, guardar } = atribuirOrigem(origemAqui, lerOrigemGuardada(slug), Date.now())
+  if (guardar) { try { localStorage.setItem(chaveOrigem(slug), JSON.stringify(guardar)) } catch { /* privado: vale só nesta aba */ } }
+  const origemAtribuida = atribuida
   const fila: (EventoCliente & { em: number })[] = []
 
   const montarCorpo = () => {
@@ -86,22 +104,14 @@ export function criarRastreador(slug: string): Rastreador {
     // Voltou depois de 30 min parado: é outra visita, como o dono esperaria.
     const antes = sessao.id
     sessao = sessaoAtual()
-    if (sessao.id !== antes && tipo !== 'visita') fila.push({ tipo: 'visita', origem: 'Direto', em: Date.now() })
+    // A mesma página aberta: a origem é a desta abertura (antes saía sempre "Direto").
+    if (sessao.id !== antes && tipo !== 'visita') fila.push({ tipo: 'visita', origem: textoDaVisita(origemAqui), em: Date.now() })
     fila.push({ tipo, itemId: extra?.itemId ?? null, alvo: extra?.alvo ?? null, em: Date.now() })
     if (fila.length >= 40) enviar(false)
   }
 
-  // A visita desta abertura. A origem vem do referrer ou do utm_source do link.
-  try {
-    const params = new URLSearchParams(window.location.search)
-    fila.push({
-      tipo: 'visita',
-      origem: origemDoReferrer(document.referrer, window.location.hostname, params.get('utm_source')),
-      em: Date.now(),
-    })
-  } catch {
-    fila.push({ tipo: 'visita', origem: 'Direto', em: Date.now() })
-  }
+  // A visita desta abertura: a origem é a DELA (utm, clique de anúncio ou referrer), não a atribuída.
+  fila.push({ tipo: 'visita', origem: textoDaVisita(origemAqui), em: Date.now() })
 
   const timer = window.setInterval(() => enviar(false), INTERVALO_ENVIO_MS)
   const aoEsconder = () => {
@@ -126,6 +136,7 @@ export function criarRastreador(slug: string): Rastreador {
 
   return {
     registrar,
+    origem: () => origemAtribuida,
     encerrar() {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', aoEsconder)

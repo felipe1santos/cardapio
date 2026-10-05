@@ -10,7 +10,7 @@ import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { urlPublicaDaMesa } from '@/lib/queries/mesas'
 import { ListaQrMesas, type MesaComQr } from '@/components/admin/qr-mesas-lista'
 import { ModalImpressaoQr, type PecaQr } from '@/components/admin/qr-modal-impressao'
-import { nomeArquivoQr, rotuloMesa, urlCardapio } from '@/lib/qr-cardapio'
+import { nomeArquivoQr, rotuloMesa, urlCardapioQr } from '@/lib/qr-cardapio'
 
 /**
  * Aba QR Code — dois blocos, e a folha só aparece quando alguém pede.
@@ -134,7 +134,8 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
     }
   }, [active, moduloMesas, origem])
 
-  const urlDelivery = slug ? urlCardapio(origem, slug) : ''
+  // QR do delivery leva a origem marcada (item 55): as visitas e os pedidos contam como QR Code.
+  const urlDelivery = slug ? urlCardapioQr(origem, slug) : ''
 
   useEffect(() => {
     if (!urlDelivery) return

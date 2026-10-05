@@ -11,6 +11,8 @@ import { DicaInfo } from '@/components/dashboard/dica-info'
 import { CartaoFunil } from '@/components/dashboard/cartao-funil'
 import { AnalisesAbas, type LinhaBairro, type LinhaProduto } from '@/components/dashboard/analises-abas'
 import { LOJAS_DE_TESTE } from '@/lib/dashboard-limpeza'
+import { resumoPorOrigem } from '@/lib/dashboard-origem'
+import { OrigemVisitas } from '@/components/dashboard/origem-visitas'
 import { MiniGrafico } from '@/components/dashboard/mini-grafico'
 import { ICONES } from '@/lib/icones-painel'
 import {
@@ -344,6 +346,9 @@ export default function DashboardPage() {
     return funilDaVitrine(vitrine, diasDoIntervalo(intervalo, agora, maisAntigo))
   }, [vitrine, intervalo, agora])
 
+  // Origem das visitas e dos pedidos por canal (item 55): visitas da vitrine + pedidos com origem (0149).
+  const origem = useMemo(() => resumoPorOrigem(vitrine?.origens ?? [], m.pedidos), [vitrine, m.pedidos])
+
   // Nomes do cardápio da loja: o rótulo de um clique em produto começa pelo nome dele.
   const nomesCardapio = useMemo(() => ({
     produtos: [...new Set(dados.pedidos.flatMap((p) => p.itens.map((i) => i.nome)))],
@@ -512,6 +517,9 @@ export default function DashboardPage() {
             </p>
           </Cartao>
         </div>
+
+        {/* Origem das visitas (item 55): área própria, logo acima das análises. */}
+        <OrigemVisitas linhas={origem.linhas} totais={origem.totais} semOrigem={origem.semOrigem} />
 
         {/* Tudo de "Análise de pedidos" para baixo: um bloco só, em abas, no visual do kit (item 54). */}
         <AnalisesAbas

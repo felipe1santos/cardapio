@@ -221,12 +221,6 @@ const colunasClique: ColunaTabela<CliqueClassificado & { id: string }>[] = [
   { id: 'cliques', titulo: 'Cliques', valor: (l) => l.cliques, alinhar: 'direita' },
   { id: 'visitantes', titulo: 'Visitantes', valor: (l) => l.visitantes, alinhar: 'direita' },
 ]
-const colunasOrigem: ColunaTabela<{ id: string; origem: string; visitas: number; pedidos: number; conversao: number }>[] = [
-  { id: 'origem', titulo: 'Origem', valor: (l) => l.origem, destaque: true },
-  { id: 'visitas', titulo: 'Visitas', valor: (l) => l.visitas, alinhar: 'direita' },
-  { id: 'pedidos', titulo: 'Pedidos', valor: (l) => l.pedidos, alinhar: 'direita' },
-  { id: 'conversao', titulo: 'Conversão', valor: (l) => l.conversao, render: (l) => `${l.conversao.toFixed(1).replace('.', ',')}%`, alinhar: 'direita' },
-]
 const TOM_TIPO: Record<string, 'verde' | 'azul' | 'laranja' | 'cinza' | 'vermelho'> = { produto: 'verde', categoria: 'azul', promocao: 'laranja', cupom: 'laranja', sacola: 'azul', pagamento: 'verde' }
 
 function AbaCliques({ vitrine, nomes }: { vitrine: DadosVitrine | null | undefined; nomes: { produtos: string[]; categorias: string[] } }) {
@@ -255,8 +249,7 @@ function AbaCliques({ vitrine, nomes }: { vitrine: DadosVitrine | null | undefin
         <TabelaAnalitica titulo="Todos os cliques" colunas={colunasClique} linhas={o.todos.map((c) => ({ id: c.alvo, ...c }))} ordemInicial="cliques"
           busca={{ placeholder: 'Pesquise um botão', texto: (l) => l.alvo }} vazio="Nenhum clique registrado no período" />
       )}
-      <TabelaAnalitica titulo="Origem das visitas" colunas={colunasOrigem}
-        linhas={vitrine.origens.map((x) => ({ id: x.origem, ...x, conversao: x.visitas ? (x.pedidos / x.visitas) * 100 : 0 }))} ordemInicial="visitas" vazio="Nenhuma visita registrada no período" />
+      {/* "Origem das visitas" virou área própria acima das análises (item 55: components/dashboard/origem-visitas.tsx). */}
     </div>
   )
 }

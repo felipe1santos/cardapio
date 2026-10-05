@@ -61,6 +61,14 @@ export function linkDaLoja(slug: string): string {
   return `${BASE_PUBLICA()}/loja/${slug}`
 }
 
+/**
+ * Link do cardápio nas mensagens do robô (item 55): marca a origem (WhatsApp › robô) para a visita e o
+ * pedido contarem no canal certo. O QR impresso na comanda continua com linkDaLoja (recibo intocado).
+ */
+export function linkDoRobo(slug: string): string {
+  return `${linkDaLoja(slug)}?utm_source=whatsapp&utm_medium=robo`
+}
+
 export const MENU_OPCOES = [
   'Responda com o número:',
   '*1* Status do meu último pedido',
@@ -84,19 +92,19 @@ const saudar = (loja: DadosLoja, sim: boolean) => (sim ? `${BOAS_VINDAS_PADRAO(l
 const rodape = '\n\nDigite *0* para ver as opções ou *2* para falar com um atendente.'
 
 export function textoBoasVindas(loja: DadosLoja): string {
-  const link = linkDaLoja(loja.slug)
+  const link = linkDoRobo(loja.slug)
   const abertura = (loja.boasVindas ?? '').trim() || BOAS_VINDAS_PADRAO(loja.nome)
   const comLink = abertura.includes(link) ? abertura : `${abertura}\n\nFaça seu pedido pelo cardápio: ${link}`
   return `${comLink}\n\n${MENU_OPCOES}`
 }
 
 export function textoCardapio(loja: DadosLoja, comSaudacao = false): string {
-  return `${saudar(loja, comSaudacao)}Nosso cardápio, com preços e o pedido online: ${linkDaLoja(loja.slug)}${rodape}`
+  return `${saudar(loja, comSaudacao)}Nosso cardápio, com preços e o pedido online: ${linkDoRobo(loja.slug)}${rodape}`
 }
 
 /** Resposta para o que não foi entendido, variando pelo tipo do que chegou. */
 export function textoPadrao(loja: DadosLoja, tipo: TipoMensagem = 'texto', comSaudacao = false): string {
-  const link = linkDaLoja(loja.slug)
+  const link = linkDoRobo(loja.slug)
   const aviso: Partial<Record<TipoMensagem, string>> = {
     audio: 'Ainda não consigo ouvir áudios por aqui 🙏',
     imagem: 'Ainda não consigo ver imagens por aqui 🙏',
@@ -149,7 +157,7 @@ export interface PedidoParaStatus {
 export function textoStatus(loja: DadosLoja, pedido: PedidoParaStatus | null, comSaudacao: boolean): string {
   const saudacao = saudar(loja, comSaudacao)
   if (!pedido) {
-    return `${saudacao}Não encontrei pedido feito com este número na *${loja.nome}*.\n\nPara pedir: ${linkDaLoja(loja.slug)}\n\nDigite *2* para falar com um atendente.`
+    return `${saudacao}Não encontrei pedido feito com este número na *${loja.nome}*.\n\nPara pedir: ${linkDoRobo(loja.slug)}\n\nDigite *2* para falar com um atendente.`
   }
   const quando = new Date(pedido.criadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })
   return `${saudacao}Seu pedido *#${pedido.numero}* (${quando}) está: *${pedido.rotulo}*.\n\nDigite *2* se precisar falar com um atendente.`
@@ -177,7 +185,7 @@ export function textoHorario(loja: DadosLoja, h: HorarioLoja, comSaudacao = fals
   }
   const grade = linhas.length ? `\n\n${linhas.join('\n')}` : ''
   const prox = proxima ? ` A loja ${proxima}.` : ''
-  return `${saudar(loja, comSaudacao)}${agora}${prox}${grade}\n\nCardápio: ${linkDaLoja(loja.slug)}${rodape}`
+  return `${saudar(loja, comSaudacao)}${agora}${prox}${grade}\n\nCardápio: ${linkDoRobo(loja.slug)}${rodape}`
 }
 
 // ─── taxa por bairro ──────────────────────────────────────────────────────────
@@ -198,7 +206,7 @@ const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', curren
  * padrão quando a loja aceita. O valor final é o do cardápio, ao informar o endereço.
  */
 export function textoTaxa(loja: DadosLoja, bairro: string | null, frete: FreteLoja, comSaudacao = false): string {
-  const link = linkDaLoja(loja.slug)
+  const link = linkDoRobo(loja.slug)
   const inicio = saudar(loja, comSaudacao)
   if (!bairro) {
     return `${inicio}Me diga o bairro junto: por exemplo *taxa Centro*.\n\nOu veja no cardápio, ao informar o endereço: ${link}${rodape}`

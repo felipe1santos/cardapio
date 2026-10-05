@@ -135,6 +135,11 @@ export function urlCardapio(origem: string, slug: string): string {
   return `${base}/loja/${slug}`
 }
 
+/** Destino do QR Code IMPRESSO do cardápio: com a origem marcada (item 55), para contar como QR Code. */
+export function urlCardapioQr(origem: string, slug: string): string {
+  return `${urlCardapio(origem, slug)}?utm_source=qrcode&utm_medium=qr`
+}
+
 /** Nome de arquivo do PNG baixado (sem caracteres que o Windows recusa). */
 export function nomeArquivoQr(slug: string): string {
   const limpo = slug.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()

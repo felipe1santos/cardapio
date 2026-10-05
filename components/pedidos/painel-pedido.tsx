@@ -5,7 +5,9 @@ import { AlertTriangle, ArrowLeft, Banknote, Bike, CreditCard, Phone, PrinterChe
 import type { Pedido } from '@/lib/queries/pedidos'
 import { EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
 import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
-import { referenciaDoLancamento } from '@/lib/pedido-origem'
+import { origemVisivelNoCard, referenciaDoLancamento } from '@/lib/pedido-origem'
+import { IconeOrigem } from '@/components/icones/origens'
+import { descreverOrigem } from '@/lib/origem-visita'
 import { rotuloMotivo, podeCancelar } from '@/lib/cancelamento'
 import { textoAgendado } from '@/lib/agendamento'
 import { mascararTelefoneBR } from '@/lib/telefone'
@@ -21,7 +23,8 @@ import { textoTempoPedido } from '@/lib/tempo-pedido'
  */
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const hora = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null)
-const VERDE = 'text-status-ready'
+// Mesmo verde do botão de próxima etapa do card (item 56): mais escuro, contraste ≥ 4,5:1 no branco.
+const VERDE = 'text-[#047857]'
 const TITULO = 'mb-2 text-[12px] font-bold uppercase tracking-wide text-text-subtle'
 
 type Etapa = { id: string; rotulo: string; quando: string | null }
@@ -121,6 +124,18 @@ export function PainelPedido({
               Feito às {hora(p.criadoEm)} · há {idade}
               {p.agendadoPara && <span className="ml-1 font-semibold text-alert-text">· agendado para {textoAgendado(p.agendadoPara)}</span>}
             </p>
+            {/* Origem do pedido (item 55/56): canal da vitrine (Instagram, WhatsApp…), "Direto" ou o posto (PDV/Salão). */}
+            {(() => {
+              const o = origemVisivelNoCard(p)
+              const texto = o ? o.dica.replace(/^Origem: /, '') : p.origemCanal ? descreverOrigem(p.origemCanal) : null
+              return texto ? (
+                <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-text-main" data-testid="painel-origem">
+                  <span className="text-text-subtle">Origem:</span>
+                  <IconeOrigem canal={o?.icone ?? p.origemCanal ?? 'direto'} className="h-[15px] w-[15px]" />
+                  <span className="font-semibold">{texto}</span>
+                </p>
+              ) : null
+            })()}
           </div>
           <button type="button" onClick={onFechar} aria-label="Fechar o painel" className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[3px] text-text-subtle hover:bg-page max-lg:hidden" data-testid="painel-fechar">
             <X className="h-5 w-5" />

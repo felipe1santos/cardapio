@@ -1116,3 +1116,19 @@ html:has(.vitrine-sem-zoom) {
   [data-admin-shell] main :is(.fin-meta, .meta-tema) tbody td { font-size: 13px; color: #1c2b33; }
 }
 .fin-meta, .meta-tema { --adm-vermelho-texto: #d93616; --adm-vermelho: #d93616; --adm-superficie-2: #f5f6f7; }
+
+/* ── Card do Kanban (item 56): encolhe por LARGURA DO CARD (container query), não da tela ──────────────
+   Coluna estreita (menu aberto + 4ª coluna + 1280 px, ou celular): some primeiro o telefone, depois os
+   nomes (origem, pagamento, atendimento) — fica o ícone, com a dica. Nada se sobrepõe. */
+.kanban-card { container-type: inline-size; }
+.kanban-card .kc-linha { container-type: normal; }
+@container (max-width: 330px) {
+  .kanban-card .kc-tel { display: none; }
+}
+@container (max-width: 285px) {
+  .kanban-card .kc-origem-nome { display: none; }
+  .kanban-card .kc-pag-nome { display: none; }
+}
+@container (max-width: 245px) {
+  .kanban-card .kc-atend-nome { display: none; }
+}

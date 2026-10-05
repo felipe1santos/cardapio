@@ -113,3 +113,33 @@ export function etiquetasDoPedido(pedido: PedidoParaRotulo): EtiquetasPedido {
   const atendimento: AtendimentoEtiqueta = pedido.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA'
   return { origem: canal === 'balcao' ? 'PDV' : 'CARDÁPIO', atendimento, mesa: null }
 }
+
+/**
+ * O que o card do Kanban mostra na linha 1 (item 56): a ORIGEM do pedido.
+ *   · PDV/balcão → "PDV"; mesa → "PDV" (caixa) ou "Salão" (garçom) — o canal presencial.
+ *   · Vitrine → o canal da origem atribuída (item 55: Instagram, WhatsApp, Google…); DIRETO ou sem origem
+ *     gravada → nada (sem ícone nem nome).
+ * `icone` é a chave de components/icones/origens.tsx.
+ */
+export function origemVisivelNoCard(pedido: PedidoParaRotulo & { origemCanal?: string | null; origemCampanha?: string | null }): { icone: string; rotulo: string; dica: string } | null {
+  const r = rotuloOrigemPedido(pedido)
+  if (r.posto === 'PDV') return { icone: 'pdv', rotulo: 'PDV', dica: `Origem: ${r.texto ?? 'PDV'}` }
+  if (r.posto === 'Salão') return { icone: 'mesa', rotulo: 'Salão', dica: `Origem: ${r.texto ?? 'Salão'}` }
+  const canal = pedido.origemCanal
+  if (!canal || canal === 'direto' || !(canal in ROTULOS_CANAL_CARD)) return null
+  const rotulo = ROTULOS_CANAL_CARD[canal]
+  return { icone: canal, rotulo, dica: `Origem: ${rotulo}${pedido.origemCampanha ? ` (${pedido.origemCampanha === 'robô' ? 'robô de atendimento' : `campanha ${pedido.origemCampanha}`})` : ''}` }
+}
+/** Nomes curtos do card (o modelo do item 56 mostra "Google", "Meta", "WhatsApp"). */
+const ROTULOS_CANAL_CARD: Record<string, string> = {
+  instagram: 'Instagram', facebook: 'Facebook', meta: 'Meta', google_anuncio: 'Google', google_busca: 'Google',
+  whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros',
+}
+
+/** Atendimento do card: ENTREGA / RETIRADA / MESA, e BALCÃO para a retirada lançada no balcão (item 56). */
+export type AtendimentoCard = AtendimentoEtiqueta | 'BALCÃO'
+export function atendimentoNoCard(pedido: PedidoParaRotulo): AtendimentoCard {
+  const e = etiquetasDoPedido(pedido)
+  const canal = pedido.canal ?? (pedido.origem === 'pdv' ? (pedido.mesa ? 'mesa' : 'balcao') : 'delivery')
+  return e.atendimento === 'RETIRADA' && canal === 'balcao' ? 'BALCÃO' : e.atendimento
+}

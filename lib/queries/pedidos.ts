@@ -101,6 +101,11 @@ export interface Pedido {
   comandaSenha: number | null
   /** De onde saiu o lançamento de mesa (0094): 'pdv' | 'salao'. Null em pedido antigo. */
   lancadoVia: 'pdv' | 'salao' | null
+  /** Origem do pedido da vitrine (item 55, 0149): canal e detalhe (campanha…); null = PDV/mesa ou antigo. */
+  origemCanal: string | null
+  origemCampanha: string | null
+  /** Pago pelo Pix online (0148). */
+  pagamentoOnline: boolean
   canceladoMotivo: string | null
   canceladoObservacao: string | null
   canceladoPor: string | null
@@ -168,6 +173,9 @@ interface PedidoRow {
   criado_por_nome: string | null
   comanda?: { numero: number | null; senha?: number | null } | null
   lancado_via?: string | null
+  origem_canal?: string | null
+  origem_detalhe?: { campanha?: string | null; meio?: string | null } | null
+  pagamento_online?: boolean | null
   cancelado_motivo: string | null
   cancelado_observacao: string | null
   cancelado_por: string | null
@@ -199,7 +207,7 @@ export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
   forma_pagamento, cartao_tipo, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
-  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, comanda:comandas ( numero, senha ),
+  entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, origem_canal, origem_detalhe, pagamento_online, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
   preparando_em, pronto_em, em_rota_em, entregue_em, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
   pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
@@ -243,6 +251,9 @@ export function mapPedido(row: PedidoRow): Pedido {
     comandaNumero: row.comanda?.numero ?? null,
     comandaSenha: row.comanda?.senha ?? null,
     lancadoVia: row.lancado_via === 'pdv' || row.lancado_via === 'salao' ? row.lancado_via : null,
+    origemCanal: row.origem_canal ?? null,
+    origemCampanha: row.origem_detalhe?.campanha ?? (row.origem_detalhe?.meio === 'robo' ? 'robô' : null),
+    pagamentoOnline: row.pagamento_online === true,
     comandaId: row.comanda_id ?? null,
     canceladoMotivo: row.cancelado_motivo ?? null,
     canceladoObservacao: row.cancelado_observacao ?? null,
@@ -961,6 +972,8 @@ export interface PedidoDashboard {
   origemVenda: OrigemVenda
   /** Pedido de TESTE (lib/dashboard-limpeza): fica fora das análises das lojas reais (item 54). */
   teste: boolean
+  /** Origem atribuída do pedido da vitrine (item 55, 0149); null = PDV/mesa ou pedido de antes da 0149. */
+  origemCanal: string | null
 }
 
 export type OrigemVenda = 'vitrine' | 'pdv' | 'mesa'
@@ -981,7 +994,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
   // perde os de hoje sem aviso.
   const pedidos = await lerTodas<Record<string, unknown>>((de, ate) => supabase
     .from('pedidos')
-    .select('total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+    .select('total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, origem_canal, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     // Pix online ainda não pago (0148) não é venda: entra quando a API confirmar.
     .not('status', 'in', '(cancelado,aguardando_pagamento)')
@@ -1012,6 +1025,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     endereco_numero: string | null
     endereco_bairro: string | null
     endereco_cep: string | null
+    origem_canal?: string | null
     canal: string | null
     origem: string | null
     pedido_itens: { item_id: string | null; nome: string; quantidade: number; preco_unitario: number }[]
@@ -1028,6 +1042,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     enderecoCep: p.endereco_cep ?? '',
     origemVenda: origemDaVenda(p.canal, p.origem),
     teste: ehPedidoDeTeste({ clienteNome: p.cliente_nome, observacao: p.observacao, bairro: p.endereco_bairro, telefone: p.cliente_telefone }),
+    origemCanal: typeof p.origem_canal === 'string' ? p.origem_canal : null,
     itens: (p.pedido_itens ?? []).map((i) => ({
       itemId: i.item_id,
       nome: i.nome,
@@ -1105,6 +1120,9 @@ export interface NovoPedidoInput {
   chaveIdempotencia?: string
   /** De onde saiu o lançamento de mesa (0094): 'pdv' | 'salao'. Só servidor; etiqueta do Kanban. */
   lancadoVia?: 'pdv' | 'salao'
+  /** Origem do pedido da vitrine (item 55, 0149): canal + detalhe cru. Só a rota pública preenche. */
+  origemCanal?: string | null
+  origemDetalhe?: Record<string, unknown> | null
   /**
    * Código de cupom digitado pelo cliente. Só o código viaja no payload — validação,
    * cálculo de desconto e travas de uso são todos server-side. Exclusivo com `recompensaId`.
@@ -1709,6 +1727,8 @@ export async function criarPedido(
       // Pix online nasce esperando o pagamento (0147/0148): só vira "recebido" quando a API confirmar.
       status: pixOnline ? 'aguardando_pagamento' : 'recebido',
       pagamento_online: pixOnline,
+      origem_canal: input.origem === 'pdv' ? null : (input.origemCanal ?? null),
+      origem_detalhe: input.origem === 'pdv' ? null : (input.origemDetalhe ?? null),
       cliente_nome: input.cliente.nome,
       cliente_telefone: input.cliente.telefone,
       telefone_verificado: telefoneVerificado,

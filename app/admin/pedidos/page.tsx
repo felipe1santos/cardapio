@@ -26,9 +26,9 @@ import {
   Banknote,
   CreditCard,
   QrCode,
-  Monitor,
-  Smartphone,
-  Store,
+  Phone,
+  ShoppingBag,
+  Utensils,
 } from 'lucide-react'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
@@ -44,8 +44,8 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO, usaDespachoDeRotas } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
-import { etiquetasDoPedido, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
-import { EtiquetaAtendimento } from '@/components/pedidos/etiquetas-pedido'
+import { atendimentoNoCard, origemVisivelNoCard } from '@/lib/pedido-origem'
+import { IconeOrigem, IconePix } from '@/components/icones/origens'
 import { Capacete } from '@/components/icones/capacete'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
@@ -87,21 +87,21 @@ interface ColunaConfig {
 const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
   recebido: {
     label: 'Pedido Recebido',
-    headerBg: 'bg-status-pending',
+    headerBg: 'bg-[#C2410C]',
     Icon: Inbox,
     emptyTitle: 'Nenhum pedido novo',
     EmptyIcon: Inbox,
   },
   preparando: {
     label: 'Preparando',
-    headerBg: 'bg-[#024A7D]',
+    headerBg: 'bg-[#1D4ED8]',
     Icon: ChefHat,
     emptyTitle: 'Nada em preparo',
     EmptyIcon: ChefHat,
   },
   pronto: {
     label: 'Pronto p/ Despacho',
-    headerBg: 'bg-status-ready',
+    headerBg: 'bg-[#047857]',
     Icon: HandPlatter,
     emptyTitle: 'Nada pronto ainda',
     EmptyIcon: HandPlatter,
@@ -109,8 +109,6 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
 }
 
 
-/** Selo do card sem fundo: ícone + texto (2026-10-03). */
-const SELO = 'inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide'
 
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
@@ -146,6 +144,26 @@ function SubSecao({ titulo, cor, vazio, children }: { titulo: string; cor: strin
 }
 
 /** Estado vazio de uma coluna do Kanban: ilustração cinza-clara em vez de texto solto. */
+/**
+ * Botão de etapa do card (item 56): só a seta branca, à direita. Amarelo forte = aceitar; verde = próxima
+ * etapa. Fundo sólido escuro o bastante para a seta branca passar de 4,5:1; cantos pouco arredondados.
+ */
+function BotaoEtapa({ cor, rotulo, onClick }: { cor: 'aceitar' | 'avancar'; rotulo: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={rotulo}
+      title={rotulo}
+      data-testid="card-etapa"
+      data-cor={cor}
+      className={`inline-flex h-[34px] w-[88px] items-center justify-center rounded-[6px] text-white shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F2937] active:scale-[0.98] ${cor === 'aceitar' ? 'bg-[#B45309] hover:bg-[#92400E]' : 'bg-[#047857] hover:bg-[#065F46]'}`}
+    >
+      <ArrowRight className="h-[20px] w-[20px]" strokeWidth={2.6} aria-hidden />
+    </button>
+  )
+}
+
 function ColunaVazia({ Icon, titulo }: { Icon: LucideIcon; titulo: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 py-12 text-center">
@@ -944,15 +962,15 @@ export default function PedidosPage() {
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             const cfg = COLUNA_CONFIG[coluna]
-            const accent: Record<Coluna, string> = { recebido: 'border-l-status-pending', preparando: 'border-l-[#024A7D]', pronto: 'border-l-status-ready' }
+            const accent: Record<Coluna, string> = { recebido: 'border-l-[#C2410C]', preparando: 'border-l-[#1D4ED8]', pronto: 'border-l-[#047857]' }
             return (
-              <div key={coluna} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
-                <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`}>
+              <div key={coluna} className="flex flex-col overflow-hidden rounded-[12px] border border-[#E4E7EC] bg-[#F5F7FA] max-lg:flex-shrink-0 max-lg:overflow-visible" data-testid={`coluna-${coluna}`}>
+                <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`} data-testid={`coluna-cabecalho-${coluna}`}>
                   <div className="flex items-center gap-2">
-                    <cfg.Icon className="h-4 w-4" strokeWidth={2.5} />
-                    <h3 className="text-sm font-bold">{cfg.label}</h3>
+                    <cfg.Icon className="h-[18px] w-[18px]" strokeWidth={2.2} />
+                    <h3 className="text-[15px] font-bold">{cfg.label}</h3>
                   </div>
-                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold text-white">{colOrders.length}</span>
+                  <span className="min-w-[28px] rounded-full bg-white/25 px-2 py-0.5 text-center text-[12px] font-bold text-white" data-testid={`coluna-contador-${coluna}`}>{colOrders.length}</span>
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible">
                   {colOrders.map((order) => {
@@ -967,8 +985,8 @@ export default function PedidosPage() {
                     ].filter(Boolean).join(' · ')
                     const abrir = () => setDetail(selecionado ? null : order)
                     return (
-                      // Card mínimo (2026-10-03): 3 linhas. Clicar em qualquer parte abre o painel do
-                      // pedido; o botão de etapa só avança (não abre o painel).
+                      // Card do item 56 (modelo docs/kanban-56/modelo.jpeg): 3 linhas, branco, faixa à esquerda na cor
+                      // da coluna. Clicar em qualquer parte abre o painel; o botão da seta só avança.
                       <div
                         key={order.id}
                         data-testid={`pedido-${order.numero}`}
@@ -980,77 +998,87 @@ export default function PedidosPage() {
                         onClick={abrir}
                         onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir() } }}
                         className={[
-                          'cursor-pointer rounded-menuzia border border-l-[4px] px-3 pb-2 pt-2 shadow-md transition-[box-shadow,background-color] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
-                          selecionado ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/40' : 'border-border bg-white hover:bg-page/60',
+                          'kanban-card cursor-pointer rounded-[10px] border border-l-[4px] px-3 pb-2.5 pt-2.5 shadow-[0_1px_3px_rgba(16,24,40,0.10)] transition-[box-shadow,background-color] hover:shadow-[0_4px_12px_rgba(16,24,40,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                          selecionado ? 'border-primary bg-[#EEF6FC] ring-2 ring-primary/40' : 'border-[#E4E7EC] bg-white',
                           accent[coluna],
                           order.status === 'recebido' && !order.preparandoNotificado ? 'animate-new-order' : '',
                           // Som bloqueado pelo navegador: o pedido novo pisca em vermelho até alguém tocar na tela.
                           order.status === 'recebido' && !order.preparandoNotificado && alarme.somAtivo && alarme.bloqueado ? 'animate-pulse ring-4 ring-[#DC2626]' : '',
                         ].join(' ')}
                       >
-                        {/* Linha 1: número, origem, tempo e atendimento (sem fundo). */}
+                        {/* Linha 1: #número · origem (item 55) ... atendimento | tempo. */}
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
-                            {origemDoCard(order).posto === 'Salão' && <span className={`${SELO} text-[#047857]`} data-testid="selo-origem"><Store className="h-3.5 w-3.5" aria-hidden /> Salão</span>}
-                            {origemDoCard(order).posto === 'PDV' && <span className={`${SELO} text-alert-text`} data-testid="selo-origem"><Monitor className="h-3.5 w-3.5" aria-hidden /> PDV</span>}
-                            {origemDoCard(order).posto === 'Delivery' && <span className={`${SELO} text-purple`} data-testid="selo-origem"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Delivery</span>}
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="flex-shrink-0 rounded-[6px] bg-[#1F2937] px-2 py-0.5 text-[13px] font-bold text-white" data-testid="card-numero">#{order.numero}</span>
+                            {(() => {
+                              const o = origemVisivelNoCard(order)
+                              return o ? (
+                                <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] font-medium text-[#1F2937]" title={o.dica} aria-label={o.dica} data-testid="card-origem" data-origem={o.icone}>
+                                  <IconeOrigem canal={o.icone} className="h-[16px] w-[16px] flex-shrink-0" />
+                                  <span className="kc-origem-nome truncate">{o.rotulo}</span>
+                                </span>
+                              ) : null
+                            })()}
                             {order.agendadoPara && <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge>}
                           </div>
-                          <div className="flex flex-shrink-0 items-center gap-1.5">
+                          <div className="flex flex-shrink-0 items-center gap-2">
+                            {(() => {
+                              const at = atendimentoNoCard(order)
+                              return (
+                                <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] font-semibold uppercase tracking-wide text-[#1F2937]" data-testid={`etiqueta-${at === 'BALCÃO' ? 'balcao' : at.toLowerCase()}`}>
+                                  {at === 'ENTREGA' ? <Capacete className="h-[15px] w-[15px]" strokeWidth={2} /> : at === 'RETIRADA' ? <ShoppingBag className="h-[15px] w-[15px]" aria-hidden /> : <Utensils className="h-[15px] w-[15px]" aria-hidden />}
+                                  <span className="kc-atend-nome">{at}</span>
+                                </span>
+                              )
+                            })()}
+                            <span className="h-4 w-px bg-[#D0D5DD]" aria-hidden />
                             <span
-                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] font-bold tabular-nums ${corTempo}`}
+                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-bold tabular-nums ${corTempo}`}
                               title={pedidoParado(order, now) ? `Aberto há ${textoTempoPedido(idadeMs)}: ninguém fechou este pedido. Conclua ou cancele.` : 'Tempo desde que o pedido chegou'}
                               data-testid="card-tempo"
                             >
-                              <Clock className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+                              <Clock className="h-[15px] w-[15px]" strokeWidth={2.2} aria-hidden="true" />
                               {textoTempoPedido(idadeMs)}
                             </span>
-                            <EtiquetaAtendimento atendimento={etiquetasDoPedido(order).atendimento} semFundo />
                           </div>
                         </div>
-                        {/* Linha 2: cliente (+ telefone) à esquerda; ícone da forma e valor à direita. */}
-                        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <span className="min-w-0 truncate text-[13.5px] font-semibold" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
-                            {order.origem === 'pdv' && order.clienteTelefone && (
-                              <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
-                            )}
-                          </div>
-                          <div className="flex flex-shrink-0 items-center gap-1.5">
-                            {order.canal !== 'mesa' && (
-                              <span className="inline-flex text-text-subtle" title={dicaPag} aria-label={dicaPag} data-testid="card-pagamento">
-                                <IconePag className="h-[18px] w-[18px]" aria-hidden />
+                        {/* Linha 2: cliente · telefone · forma de pagamento · valor. */}
+                        <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="min-w-0 truncate text-[14px] font-bold text-[#1F2937]" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
+                            {order.clienteTelefone && (
+                              <span className="kc-tel inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap text-[12px] text-[#475467]" data-testid="card-telefone">
+                                <Phone className="h-[13px] w-[13px]" aria-hidden /> {mascararTelefoneBR(order.clienteTelefone)}
                               </span>
                             )}
-                            <span className="whitespace-nowrap text-[14px] font-bold tabular-nums text-status-ready" data-testid="card-preco">{brl(order.total)}</span>
+                          </div>
+                          <div className="flex flex-shrink-0 items-center gap-2">
+                            {order.canal !== 'mesa' && (
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-medium text-[#1F2937]" title={dicaPag} aria-label={dicaPag} data-testid="card-pagamento">
+                                {order.formaPagamento === 'pix' ? <IconePix className="h-[14px] w-[14px]" /> : <IconePag className={`h-[16px] w-[16px] ${order.formaPagamento === 'dinheiro' ? 'text-[#047857]' : 'text-[#1D4ED8]'}`} aria-hidden />}
+                                <span className="kc-pag-nome">{order.pagamentoOnline ? 'Pix online' : order.formaPagamento === 'pix' ? 'Pix' : order.formaPagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão'}</span>
+                              </span>
+                            )}
+                            <span className="whitespace-nowrap rounded-[6px] bg-[#047857] px-2 py-0.5 text-[13px] font-bold tabular-nums text-white" data-testid="card-preco">{brl(order.total)}</span>
                           </div>
                         </div>
-                        {/* Linha 3: só o botão de etapa (não abre o painel). */}
-                        <div className="mt-2 flex [&>*]:whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {/* Linha 3: só a seta, à direita (amarelo = aceitar; verde = próxima etapa). Não abre o painel. */}
+                        <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
                           {order.status === 'recebido' && (
-                            <Button variant="primary" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
-                              Aceitar <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
+                            <BotaoEtapa cor="aceitar" rotulo="Aceitar o pedido" onClick={() => avancar(order)} />
                           )}
                           {order.status === 'preparando' && (
-                            <Button variant="success" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
-                              Pronto <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
+                            <BotaoEtapa cor="avancar" rotulo="Marcar como pronto" onClick={() => avancar(order)} />
                           )}
                           {order.status === 'pronto' && order.tipo === 'retirada' && (
-                            <Button variant="success" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
-                              Entregue <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
+                            <BotaoEtapa cor="avancar" rotulo="Marcar como entregue" onClick={() => avancar(order)} />
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && !usaDespachoDeRotas(fluxo) && (
-                            <Button variant="dispatch" className="w-full gap-1.5" onClick={() => saiuSemEntregador(order)} title="Avisa o cliente no WhatsApp e conclui o pedido" data-testid="card-etapa">
-                              Saiu p/ entrega <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
+                            <BotaoEtapa cor="avancar" rotulo="Saiu para entrega (avisa o cliente no WhatsApp e conclui o pedido)" onClick={() => saiuSemEntregador(order)} />
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && (
                             <span
-                              className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-menuzia border border-[#0369A1]/25 bg-alert-bg px-2 text-[11px] font-bold uppercase tracking-wide text-alert-text lg:min-h-0 lg:py-2"
+                              className="inline-flex h-[34px] items-center gap-1.5 rounded-[6px] border border-[#0369A1]/25 bg-alert-bg px-2.5 text-[11px] font-bold uppercase tracking-wide text-alert-text"
                               data-testid="card-na-logistica"
                               title="Despacho feito no módulo de Logística"
                             >
