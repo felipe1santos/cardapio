@@ -76,7 +76,7 @@ export async function configFin(admin: SupabaseClient, restauranteId: string) {
 
 /** Saldos do turno por carteira (centavos). */
 export async function saldosDoTurno(admin: SupabaseClient, restauranteId: string, turnoId: string): Promise<Record<Carteira, number>> {
-  const s: Record<Carteira, number> = { gaveta: 0, motoboy: 0, pix_conferir: 0, cartao: 0, empresa: 0, a_receber: 0, resultado: 0 }
+  const s: Record<Carteira, number> = { gaveta: 0, motoboy: 0, pix_conferir: 0, cartao: 0, empresa: 0, a_receber: 0, resultado: 0, online: 0 }
   for (let de = 0; ; de += 1000) {
     const { data, error } = await admin.from('fin_lancamentos').select('carteira, valor_centavos').eq('restaurante_id', restauranteId).eq('turno_id', turnoId).order('id').range(de, de + 999)
     if (error) throw error
@@ -121,7 +121,29 @@ export async function pendenciasDoFechamento(admin: SupabaseClient, restauranteI
     naoPagos: Number(p.nao_pagos ?? 0),
     naoPagosCentavos: Number(p.nao_pagos_centavos ?? 0),
     pixAConferirCentavos: saldos.pix_conferir,
+    pixOnline: await pixOnlineDoTurno(admin, restauranteId, turnoId, (t?.aberto_em as string) ?? null),
   }
+}
+
+/**
+ * Pix online (0148) no fechamento — só informativo (é dinheiro na conta do Mercado Pago, não na gaveta):
+ * o que entrou com este turno aberto e o que entrou com o caixa FECHADO antes dele (adotado por este turno).
+ */
+export async function pixOnlineDoTurno(admin: SupabaseClient, restauranteId: string, turnoId: string, abertoEm: string | null) {
+  const somar = (ls: { tipo: string; valor_centavos: number }[]) => ({
+    qtd: ls.filter((l) => l.tipo === 'recebimento').length,
+    brutoCentavos: ls.filter((l) => l.tipo === 'recebimento').reduce((s, l) => s + Number(l.valor_centavos), 0),
+    taxaCentavos: -ls.filter((l) => l.tipo === 'taxa').reduce((s, l) => s + Number(l.valor_centavos), 0),
+  })
+  const { data: doTurno } = await admin.from('fin_lancamentos').select('tipo, valor_centavos').eq('restaurante_id', restauranteId).eq('turno_id', turnoId).eq('carteira', 'online')
+  let adotado = { qtd: 0, brutoCentavos: 0, taxaCentavos: 0 }
+  if (abertoEm) {
+    const { data: antes } = await admin.from('caixa_turnos').select('fechado_em').eq('restaurante_id', restauranteId).lt('aberto_em', abertoEm).not('fechado_em', 'is', null).order('aberto_em', { ascending: false }).limit(1).maybeSingle()
+    const desde = (antes?.fechado_em as string | undefined) ?? new Date(new Date(abertoEm).getTime() - 7 * 86_400_000).toISOString()
+    const { data: fora } = await admin.from('fin_lancamentos').select('tipo, valor_centavos').eq('restaurante_id', restauranteId).is('turno_id', null).eq('carteira', 'online').gte('criado_em', desde).lt('criado_em', abertoEm)
+    adotado = somar((fora ?? []) as { tipo: string; valor_centavos: number }[])
+  }
+  return { turno: somar((doTurno ?? []) as { tipo: string; valor_centavos: number }[]), caixaFechado: adotado }
 }
 
 async function auditar(ctx: ContextoFin, acao: string, entidadeId: string | null, dados: Record<string, unknown>) {
@@ -249,7 +271,7 @@ export async function fecharCaixa(ctx: ContextoFin, p: {
   }
 
   const ajuste = linhasDoAjuste(dinheiro.diferenca)
-  const resumo = { saldos, fechado_por: ctx.sessao.nome, ...(turno.resumo && typeof turno.resumo === 'object' && 'fechamento_anterior' in (turno.resumo as object) ? { fechamento_anterior: (turno.resumo as Record<string, unknown>).fechamento_anterior } : {}) }
+  const resumo = { saldos, fechado_por: ctx.sessao.nome, pix_online: pend.pixOnline, ...(turno.resumo && typeof turno.resumo === 'object' && 'fechamento_anterior' in (turno.resumo as object) ? { fechamento_anterior: (turno.resumo as Record<string, unknown>).fechamento_anterior } : {}) }
   // Tudo numa transação (fin_caixa_fechar, 0144): ajuste da contagem + turno fechado + aprovação usada + auditoria.
   const { error: eF } = await ctx.admin.rpc('fin_caixa_fechar', {
     p_restaurante: loja, p_turno: turno.id, p_chave: `fechamento:${turno.id}:${turno.reaberto_em ?? 'x'}`.slice(0, 120),

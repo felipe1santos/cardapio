@@ -8,7 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  *
  * Idempotente: a mesma `chave` devolve o grupo já gravado (clique duplo, internet instável).
  */
-export type Carteira = 'gaveta' | 'motoboy' | 'pix_conferir' | 'cartao' | 'empresa' | 'a_receber' | 'resultado'
+export type Carteira = 'gaveta' | 'motoboy' | 'pix_conferir' | 'cartao' | 'empresa' | 'a_receber' | 'resultado' | 'online'
 export type TipoLancamento =
   | 'venda' | 'recebimento' | 'troco' | 'sangria' | 'reforco' | 'despesa' | 'compra' | 'retirada' | 'perda' | 'ajuste'
   | 'troco_motoboy' | 'acerto_motoboy' | 'pendencia_motoboy' | 'estorno' | 'taxa' | 'desconto' | 'pix_confirmado'

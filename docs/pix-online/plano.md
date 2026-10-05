@@ -66,7 +66,7 @@ cliente confirma "Pix online"
   com a situação **"a devolver"**.
 - Vai um **alerta grave ao dono** (painel + WhatsApp do alerta, como os alertas do financeiro de hoje):
   "Pix de R$ X do pedido #N caiu depois de cancelado: devolva".
-- Em Financeiro › Pix online, a linha mostra o botão **"Devolver"**, com o mesmo fluxo de estorno
+- Em **Integrações › Mercado Pago**, a linha mostra o botão **"Devolver"**, com o mesmo fluxo de estorno
   (seção 4).
 - No livro-caixa, entra o recebimento (o dinheiro está na conta da loja) e, ao devolver, o estorno.
   Assim o caixa nunca esconde um valor que entrou.

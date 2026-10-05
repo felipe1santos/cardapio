@@ -983,7 +983,8 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     .from('pedidos')
     .select('total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
-    .neq('status', 'cancelado')
+    // Pix online ainda não pago (0148) não é venda: entra quando a API confirmar.
+    .not('status', 'in', '(cancelado,aguardando_pagamento)')
     .order('criado_em', { ascending: true })
     .order('id', { ascending: true })
     .range(de, ate))
@@ -1073,6 +1074,12 @@ export interface NovoPedidoInput {
   cliente: { nome: string; telefone: string }
   endereco: { rua: string; numero: string; complemento: string; bairro: string; cep: string; cidade?: string; referencia?: string }
   pagamento: FormaPagamento
+  /**
+   * Pix online (0148): o cliente paga pelo QR do Mercado Pago e o pedido nasce AGUARDANDO PAGAMENTO
+   * (não vai à cozinha/impressão/Kanban até a API confirmar). Só a rota da vitrine liga, depois de
+   * conferir no servidor que a loja oferece (lib/pagamentos/pix-online.ts › pixOnlineDaLoja).
+   */
+  pixOnline?: boolean
   trocoPara: number | null
   /** Apenas informativo — a taxa real é recalculada no servidor (resolverFrete). */
   taxaEntrega?: number
@@ -1677,6 +1684,10 @@ export async function criarPedido(
     }
   }
 
+  // Pix online: a rota da vitrine já conferiu que a loja oferece AGORA (flag + conta do Mercado Pago)
+  // antes de chamar — este arquivo também roda no navegador e não fala com o MP.
+  const pixOnline = input.pixOnline === true && input.pagamento === 'pix' && input.origem !== 'pdv'
+
   if (opcoes.gravar) {
     return opcoes.gravar({ subtotal, total, clienteNome: input.cliente.nome }, linhas)
   }
@@ -1695,7 +1706,9 @@ export async function criarPedido(
     .insert({
       restaurante_id: restauranteId,
       tipo: input.tipo,
-      status: 'recebido',
+      // Pix online nasce esperando o pagamento (0147/0148): só vira "recebido" quando a API confirmar.
+      status: pixOnline ? 'aguardando_pagamento' : 'recebido',
+      pagamento_online: pixOnline,
       cliente_nome: input.cliente.nome,
       cliente_telefone: input.cliente.telefone,
       telefone_verificado: telefoneVerificado,
@@ -1708,7 +1721,8 @@ export async function criarPedido(
       endereco_referencia: input.endereco.referencia ?? '',
       forma_pagamento: input.pagamento,
       troco_para: input.pagamento === 'dinheiro' ? input.trocoPara : null,
-      pago: input.pagamento === 'pix',
+      // Pix manual (lojas sem Pix online) segue como sempre; Pix online só é pago pela API.
+      pago: input.pagamento === 'pix' && !pixOnline,
       subtotal,
       desconto,
       taxa_entrega: taxaEntrega,
@@ -1813,6 +1827,8 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
     .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, agendado_para, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
     .eq('restaurante_id', restauranteId)
     .eq('cliente_telefone', telefone)
+    // Pix online ainda não pago (0148): aparece na lista do cliente depois que a API confirmar.
+    .neq('status', 'aguardando_pagamento')
     .order('criado_em', { ascending: false })
     .limit(50)
   if (error) throw error

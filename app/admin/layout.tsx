@@ -260,7 +260,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           carregar()
           // Aviso do navegador: só para pedido NOVO que ainda espera aceite. Mudança
           // de status do que já está na cozinha não vira notificação.
-          const novo = payload.eventType === 'INSERT' ? (payload.new as Record<string, unknown> | null) : null
+          const linha = payload.new as Record<string, unknown> | null
+          // Pix online (0148): o pedido nasce "aguardando pagamento" e chega como pedido novo quando a
+          // API confirma (UPDATE para recebido). A memória de "já avisado" evita repetir.
+          const novo = payload.eventType === 'INSERT' ? linha : payload.eventType === 'UPDATE' && linha?.pagamento_online === true ? linha : null
           // Agendado (0121) não é pedido novo agora: entra no Kanban perto do horário.
           if (!novo || novo.status !== 'recebido' || novo.agendado_para) return
           avisarPedido({

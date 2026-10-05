@@ -30,6 +30,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!p) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 })
   if (p.canal === 'mesa') return NextResponse.json({ error: 'Pedido de mesa paga no fechamento da conta.' }, { status: 409 })
   if (p.status === 'cancelado') return NextResponse.json({ error: 'Pedido cancelado.' }, { status: 409 })
+  // Pix online (0148): só a API do Mercado Pago confirma — ninguém marca pago na mão.
+  if (p.status === 'aguardando_pagamento') return NextResponse.json({ error: 'Pedido esperando o Pix online: só o Mercado Pago confirma o pagamento.' }, { status: 409 })
 
   // Total de referência do troco: a conta inteira (balcão) ou o pedido (delivery da vitrine).
   let total = Number(p.total)

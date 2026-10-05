@@ -26,6 +26,21 @@ interface Pendencias {
   motoboys: { entregadorId: string; nome: string; pedidos: number; emRota: number; esperadoCentavos: number | null }[]
   contasAbertas: number; pixAConferirCentavos: number | null
   contasAbertasCentavos?: number; naoPagos?: number; naoPagosCentavos?: number
+  /** Pix online (0148): informativo — dinheiro na conta do Mercado Pago, não na gaveta. */
+  pixOnline?: { turno: ResumoPixOnline; caixaFechado: ResumoPixOnline }
+}
+interface ResumoPixOnline { qtd: number; brutoCentavos: number; taxaCentavos: number }
+
+/** Linhas do Pix online no fechamento (o que entrou no turno e o que entrou com o caixa fechado). */
+function LinhasPixOnline({ p }: { p?: Pendencias['pixOnline'] }) {
+  if (!p || (!p.turno.qtd && !p.caixaFechado.qtd)) return null
+  return (
+    <div className="mt-[10px] rounded-[3px] bg-[#F0F7FF] px-[10px] py-[8px] text-[12.5px] text-text-main" data-testid="fechar-pix-online">
+      {p.turno.qtd > 0 && <p>Pix online no turno: {p.turno.qtd}, {brl(p.turno.brutoCentavos)} (taxa do Mercado Pago {brl(p.turno.taxaCentavos)}; líquido {brl(p.turno.brutoCentavos - p.turno.taxaCentavos)})</p>}
+      {p.caixaFechado.qtd > 0 && <p data-testid="fechar-pix-online-fechado">Pix online recebido com o caixa fechado: {p.caixaFechado.qtd}, {brl(p.caixaFechado.brutoCentavos)}</p>}
+      <p className="text-text-subtle">Fica na conta do Mercado Pago: não entra na conferência da gaveta.</p>
+    </div>
+  )
 }
 interface Linha {
   id: number; criado_em: string; carteira: string; tipo: string; valor_centavos: number; forma: string | null; origem: string
@@ -310,6 +325,7 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
             {(pend.naoPagos ?? 0) > 0 && <li>{pend.naoPagos} entrega(s) marcada(s) como não paga(s){pend.naoPagosCentavos ? ` (${brl(pend.naoPagosCentavos)})` : ''}</li>}
             {(pend.pixAConferirCentavos ?? 0) > 0 && <li>{brl(pend.pixAConferirCentavos)} em Pix a conferir — não trava: vai para a lista do dono</li>}
           </ul>
+          <LinhasPixOnline p={pend.pixOnline} />
           <p className="text-[12px] text-text-subtle">O ideal é resolver (acerto do motoboy na Logística, fechar as contas) e voltar. Fechar mesmo assim fica registrado e o dono é avisado.</p>
         </div>
       )}
@@ -334,6 +350,7 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
             <div><p className="text-text-subtle">Contado</p><p className="font-bold">{brl(fim.contado_dinheiro_centavos)}</p></div>
             <div><p className="text-text-subtle">Diferença</p><p className="font-bold">{brl(fim.diferenca_centavos)}</p></div>
           </div>
+          <LinhasPixOnline p={(fim as unknown as { resumo?: { pix_online?: Pendencias["pixOnline"] } }).resumo?.pix_online ?? fim.pendencias?.pixOnline} />
         </div>
       )}
       {erro && <p className="mt-[8px] text-[12px] font-medium text-danger" data-testid="fechar-erro">{erro}</p>}

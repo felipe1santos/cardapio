@@ -92,6 +92,7 @@ export function montarPedidoPublico(bruto: unknown): ResultadoWhitelist {
       referencia: texto(endereco.referencia),
     },
     pagamento: texto(corpo.pagamento, 30) as FormaPagamento,
+    pixOnline: corpo.pixOnline === true,
     trocoPara: typeof corpo.trocoPara === 'number' ? corpo.trocoPara : null,
     itens: Array.isArray(corpo.itens) ? (corpo.itens as NovoPedidoItemInput[]) : [],
     chaveIdempotencia: chavePedidoPublico(corpo.chavePedido) ?? undefined,

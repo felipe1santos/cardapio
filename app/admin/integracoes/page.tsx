@@ -12,6 +12,7 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja, atualizarConfigLoja } from '@/lib/queries/ajustes'
 import { validarGoogleTag, validarPixelFacebook, type ResultadoId } from '@/lib/pixels'
 import { MetaCapiCard } from '@/components/admin/meta-capi-card'
+import { MercadoPagoCard } from '@/components/admin/mercadopago-card'
 
 /**
  * Integrações (visual novo, 2026-09-28 — mesmo padrão da tela Impressão): cartões brancos
@@ -497,6 +498,8 @@ export default function IntegracoesPage() {
             <TituloSecao icone={Truck} titulo="Outros sistemas" />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <NextaCard />
+              {/* Pix online (0148): só aparece na loja com o Pix online liberado. */}
+              <MercadoPagoCard avisar={(m) => toasts.mostrar('ok', m)} />
             </div>
           </section>
         </div>

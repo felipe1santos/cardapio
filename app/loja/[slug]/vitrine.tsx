@@ -1,5 +1,6 @@
 'use client'
 
+import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
@@ -2183,6 +2184,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // carrinho já é o resumo). Define até onde o botão voltar (←) recua.
   const [checkoutMinStep, setCheckoutMinStep] = useState<CheckoutStep>(1)
   const [payMethod, setPayMethod] = useState('Pix')
+  // Pix online (0148): a loja oferece agora? (o servidor decide; loja sem a flag: false e nada muda)
+  const [pixOnline, setPixOnline] = useState(false)
+  const [pixAguardando, setPixAguardando] = useState<(PixAguardando & { concluir: () => void }) | null>(null)
   const [changeFor, setChangeFor] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
@@ -2418,6 +2422,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     [meusPedidos, allItems],
   )
 
+  useEffect(() => {
+    if (!checkoutOpen) return
+    let vivo = true
+    fetch(`/api/loja/${slug}/pix-online`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { ativo?: boolean } | null) => { if (vivo) setPixOnline(Boolean(j?.ativo)) })
+      .catch(() => { if (vivo) setPixOnline(false) })
+    return () => { vivo = false }
+  }, [checkoutOpen, slug])
+
   const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
     Pix: 'pix',
     'Cartão na entrega': 'cartao',
@@ -2473,6 +2487,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         // sujaria a comanda com um endereço que ninguém vai usar.
         endereco: tipoPedido === 'retirada' ? ENDERECO_VAZIO : endereco,
         pagamento: PAY_MAP[payMethod] ?? 'pix',
+        // Pix online: o pedido espera o pagamento pelo QR; o servidor confere se a loja oferece.
+        pixOnline: pixOnline && payMethod === 'Pix' ? true : undefined,
         trocoPara: payMethod === 'Dinheiro' ? parseMoney(changeFor) : null,
         taxaEntrega: fee,
         itens: cart.map((l) => ({
@@ -2506,6 +2522,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')
       tentativaPedido.current = null
+      if (data?.aguardandoPagamento && data?.pix && typeof data.id === 'string') {
+        setPixAguardando({ id: data.id, numero: Number(data.numero) || 0, valor: Number(data.pix.valor), qrCode: data.pix.qrCode ?? null, qrCodeBase64: data.pix.qrCodeBase64 ?? null, expiraEm: String(data.pix.expiraEm), concluir: () => concluirPedido(data, payload) })
+        setCheckoutOpen(false)
+        return
+      }
+      concluirPedido(data, payload)
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'Não foi possível enviar o pedido.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /** Pedido feito (e, no Pix online, já pago): conversão, guarda no aparelho, confirmação e sacola limpa. */
+  function concluirPedido(data: { id?: unknown; numero?: unknown }, payload: { pagamento: string; agendadoPara?: string }) {
+    {
       rastreio.current?.registrar('pedido')
       if (typeof data?.id === 'string') {
         // Mesmo event_id que o servidor manda pela API de Conversões: o Meta conta uma compra só.
@@ -2569,10 +2601,6 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       removerBeneficio()
       setFidelidadeVersao((v) => v + 1)
       setTab('pedidos')
-    } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : 'Não foi possível enviar o pedido.')
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -4322,6 +4350,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       )}
 
       {/* ── Confirmação pós-pedido + aviso pra loja no WhatsApp ───────── */}
+      {pixAguardando && (
+        <TelaPixOnline
+          slug={slug}
+          pix={pixAguardando}
+          onPago={() => { const p = pixAguardando; setPixAguardando(null); p.concluir() }}
+          onRefazer={() => { setPixAguardando(null); tentativaPedido.current = null; setCheckoutOpen(true) }}
+          onFechar={() => setPixAguardando(null)}
+        />
+      )}
       {confirmacaoAberta && (
         <>
           <div className="fixed inset-0 z-[60] bg-[#111827]/60" onClick={() => setConfirmacaoAberta(false)} />
@@ -4732,7 +4769,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               {[
                 {
                   id: 'Pix',
-                  descricao: 'Pagamento instantâneo e seguro',
+                  descricao: pixOnline ? 'Pague agora pelo app do banco (QR Code ou copia e cola)' : 'Pagamento instantâneo e seguro',
                   icon: <PixIcon className="h-6 w-6" />,
                   chip: 'bg-[#F3F4F6]',
                 },

@@ -11,6 +11,7 @@ function bancoFalso(tabelas: Record<string, Record<string, unknown>[]>): Supabas
       select: () => b,
       eq: () => b,
       neq: () => b,
+      not: () => b,
       order: () => b,
       range: (de: number, ate: number) => Promise.resolve({ data: linhas.slice(de, Math.min(ate + 1, de + 1000)), error: null }),
       then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: linhas.slice(0, 1000), error: null }).then(ok),

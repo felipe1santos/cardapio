@@ -26,6 +26,7 @@ const ROTULO_ACAO: Record<string, string> = {
   sangria: 'Sangria', retirada: 'Retirada', despesa: 'Despesa do caixa', perda: 'Perda no caixa', fechar_caixa_divergente: 'Fechar o caixa com diferença',
   fechar_caixa: 'Fechar o caixa com pendências', conta_paga: 'Pagar conta', conta_estorno: 'Estornar baixa de conta', compra_paga: 'Pagar compra de insumos',
   venda_avulsa_suspeita: 'Lançar venda parecida com pedido do sistema', estorno: 'Estornar pagamento', pagamento_entrega: 'Pagamento de entrega',
+  pix_online_devolver: 'Devolver Pix online ao cliente',
 }
 export const rotuloAcao = (a: string) => ROTULO_ACAO[a] ?? a
 
