@@ -21,12 +21,33 @@ export const PERFIL_ENVIO_PADRAO: PerfilEnvio = { intensidade: 'normal', envio: 
 export const LARGURAS_PONTOS = [384, 512, 576] as const
 
 export const ROTULO_INTENSIDADE: Record<Intensidade, string> = { normal: 'Normal', escura: 'Escura', mais_escura: 'Mais escura' }
+// Impressão v3: para impressora ESC/POS (a maioria das térmicas), o envio DIRETO é o
+// recomendado — quem manda na largura e no preto e branco é o sistema, não o driver. O
+// padrão gravado continua "driver" (comportamento de sempre); a tela recomenda o direto.
 export const ROTULO_ENVIO: Record<Envio, string> = {
-  driver: 'Driver do Windows (padrão)',
-  raw_fila: 'Direto pela fila (USB, ESC/POS)',
-  raw_rede: 'Direto pela rede (IP, ESC/POS)',
+  raw_fila: 'Direto pela fila (USB, ESC/POS) — recomendado',
+  raw_rede: 'Direto pela rede (IP:9100, ESC/POS) — recomendado',
+  driver: 'Driver do Windows (alternativa)',
 }
 export const ROTULO_MODO: Record<ModoImpressao, string> = { imagem: 'Imagem (padrão)', texto: 'Texto (compatibilidade)' }
+
+/** Envio direto para "Tentar envio direto": pela rede quando a impressora já tem IP; senão, pela fila (USB). */
+export function envioDiretoSugerido(d: { redeIp?: string | null }): Envio {
+  return d.redeIp && ehIpv4(d.redeIp) ? 'raw_rede' : 'raw_fila'
+}
+
+/**
+ * Papel efetivo do driver, em mm, pelo que o Assistente leu: o papel declarado ou, sem ele,
+ * os pontos imprimíveis (até ~400 pontos = 58 mm; 8 pontos por mm a 203 dpi).
+ */
+export function papelDoDriver(diag: Record<string, unknown> | null | undefined): number | null {
+  if (!diag) return null
+  const papel = Number(diag.papelLarguraMm)
+  if (Number.isFinite(papel) && papel > 0) return Math.round(papel)
+  const pontos = Number(diag.pontosImprimiveis)
+  if (Number.isFinite(pontos) && pontos > 0) return pontos <= 400 ? 58 : 80
+  return null
+}
 
 /** Linha do banco → perfil (coluna ausente ou valor estranho = padrão). */
 export function perfilEnvio(d: Record<string, unknown> | null | undefined): PerfilEnvio {
@@ -94,11 +115,11 @@ export function avisoDriver(d: {
   diagnostico: Record<string, unknown> | null
 }): string | null {
   if ((d.envio ?? 'driver') !== 'driver' || !d.diagnostico) return null
-  const papel = Number(d.diagnostico.papelLarguraMm)
+  const papel = papelDoDriver(d.diagnostico)
   const pontos = Number(d.diagnostico.pontosImprimiveis)
   const aplicada = d.larguraPontos ?? (d.larguraMm <= 58 ? 384 : 576)
-  if (Number.isFinite(papel) && papel > 0 && Math.abs(papel - d.larguraMm) >= 10) {
-    return `Seu driver está em ${Math.round(papel)} mm, mas a impressora é de ${d.larguraMm} mm. A comanda sai cortada à direita.`
+  if (papel !== null && Math.abs(papel - d.larguraMm) >= 10) {
+    return `Seu driver está em ${papel} mm, mas a impressora é de ${d.larguraMm} mm. A comanda sai cortada à direita.`
   }
   if (Number.isFinite(pontos) && pontos > 0 && pontos + 16 < aplicada) {
     return `O driver só imprime ${pontos} pontos de largura, e a comanda tem ${aplicada}. A comanda sai cortada à direita.`

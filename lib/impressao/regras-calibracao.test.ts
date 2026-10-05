@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { avisoDriver, ehIpv4, perfilEnvio, validarPerfilEnvio, PERFIL_ENVIO_PADRAO } from './regras-calibracao'
+import { avisoDriver, envioDiretoSugerido, papelDoDriver, ehIpv4, perfilEnvio, validarPerfilEnvio, PERFIL_ENVIO_PADRAO } from './regras-calibracao'
 
 describe('perfil de envio da impressora (0109)', () => {
   it('padrão = comportamento de sempre (driver, imagem, normal)', () => {
@@ -42,6 +42,12 @@ describe('aviso de driver com largura diferente', () => {
   it('tudo certo, sem diagnóstico ou envio direto: sem aviso', () => {
     expect(avisoDriver({ ...base, diagnostico: { papelLarguraMm: 80, pontosImprimiveis: 576 } })).toBeNull()
     expect(avisoDriver({ ...base, diagnostico: null })).toBeNull()
+    // Sem o papel declarado: os pontos do driver dizem o papel efetivo (384 = 58 mm).
+    expect(avisoDriver({ ...base, diagnostico: { pontosImprimiveis: 384 } })).toBe('Seu driver está em 58 mm, mas a impressora é de 80 mm. A comanda sai cortada à direita.')
+    expect(papelDoDriver({ pontosImprimiveis: 576 })).toBe(80)
+    expect(papelDoDriver({})).toBeNull()
+    expect(envioDiretoSugerido({ redeIp: '192.168.0.50' })).toBe('raw_rede')
+    expect(envioDiretoSugerido({ redeIp: null })).toBe('raw_fila')
     expect(avisoDriver({ ...base, envio: 'raw_fila', diagnostico: { papelLarguraMm: 58, pontosImprimiveis: 384 } })).toBeNull()
   })
 })

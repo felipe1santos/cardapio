@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import type { DispositivoVisao } from '@/lib/impressao/servico'
 import {
-  avisoDriver, ehIpv4, LARGURAS_PONTOS, ROTULO_ENVIO, ROTULO_INTENSIDADE, ROTULO_MODO,
+  avisoDriver, ehIpv4, envioDiretoSugerido, LARGURAS_PONTOS, ROTULO_ENVIO, ROTULO_INTENSIDADE, ROTULO_MODO,
   type Envio, type Intensidade, type ModoImpressao,
 } from '@/lib/impressao/regras-calibracao'
 
@@ -24,6 +24,13 @@ export function EnvioImpressora({ d, ocupado, agir, onImprimirTeste }: { d: Disp
   useEffect(() => { setQuerRede(d.envio === 'raw_rede') }, [d.envio])
   const larguraAtual = d.larguraPontos ?? (d.larguraMm === 58 ? 384 : 576)
   const aviso = avisoDriver(d)
+  // "Tentar envio direto" em UM clique: liga o direto (rede se já tem IP, senão fila USB)
+  // e já manda o teste de largura para conferir no papel. Voltar ao driver é um clique.
+  const direto = envioDiretoSugerido(d)
+  const tentarDireto = async () => {
+    const r = await agir(url, 'PATCH', { envio: direto }, `${ROTULO_ENVIO[direto].replace(/ — recomendado$/, '')} ligado. Imprimindo o teste de largura…`)
+    if (r?.ok) onImprimirTeste()
+  }
   const opcao = (ativo: boolean) =>
     ['rounded-menuzia border-2 px-2 py-2 text-[12.5px] font-semibold disabled:opacity-40', ativo ? 'border-primary bg-alert-bg/50 text-primary' : 'border-border text-text-main hover:border-primary'].join(' ')
 
@@ -37,10 +44,19 @@ export function EnvioImpressora({ d, ocupado, agir, onImprimirTeste }: { d: Disp
           <p>Ajuste o papel do driver para 80 mm (guia abaixo) ou use o envio direto: aí quem manda na largura é o sistema.</p>
           <div className="flex flex-wrap gap-2">
             <a href="/guia-impressora-80mm.html" target="_blank" rel="noopener noreferrer" className="rounded-menuzia border border-[#92400E]/40 bg-white px-2.5 py-1.5 font-semibold">Como resolver</a>
-            <button type="button" disabled={ocupado} onClick={() => void agir(url, 'PATCH', { envio: 'raw_fila' }, 'Envio direto pela fila ligado.')} data-testid="calibrar-usar-direto" className="rounded-menuzia bg-[#92400E] px-2.5 py-1.5 font-semibold text-white disabled:opacity-40">
-              Usar envio direto
+            <button type="button" disabled={ocupado} onClick={() => void tentarDireto()} data-testid="calibrar-usar-direto" className="rounded-menuzia bg-[#92400E] px-2.5 py-1.5 font-semibold text-white disabled:opacity-40">
+              Tentar envio direto
             </button>
           </div>
+        </div>
+      )}
+
+      {!aviso && d.envio === 'driver' && (
+        <div className="space-y-2 rounded-menuzia border border-primary/30 bg-alert-bg/40 px-3 py-2 text-[12.5px] text-[#075985]" data-testid="calibrar-recomenda-direto">
+          <p><b>Recomendado para impressora térmica (ESC/POS): envio direto.</b> O sistema manda a comanda pronta, na largura certa, sem depender do driver do Windows.</p>
+          <button type="button" disabled={ocupado} onClick={() => void tentarDireto()} data-testid="calibrar-tentar-direto" className="rounded-menuzia bg-[#0570AE] px-2.5 py-1.5 font-semibold text-white disabled:opacity-40">
+            Tentar envio direto
+          </button>
         </div>
       )}
 
@@ -109,7 +125,7 @@ export function EnvioImpressora({ d, ocupado, agir, onImprimirTeste }: { d: Disp
             </button>
           ))}
         </div>
-        {d.modoImpressao === 'texto' && <p className="mt-1 text-[11.5px] text-text-subtle">Texto usa as letras da própria impressora (sem logo e sem QR) e vai sempre direto, sem o driver.</p>}
+        {d.modoImpressao === 'texto' && <p className="mt-1 text-[11.5px] text-text-subtle">Texto usa as letras da própria impressora (sem logo), com os acentos na página WPC1252 (o teste de largura imprime &quot;ÇÃÉÕ&quot; para conferir), e vai sempre direto, sem o driver.</p>}
       </div>
 
       <button type="button" disabled={ocupado} onClick={onImprimirTeste} data-testid="imprimir-teste-largura" className="w-full rounded-menuzia border-2 border-primary py-2.5 text-[13px] font-bold text-primary disabled:opacity-40">
