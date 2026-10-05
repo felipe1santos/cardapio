@@ -75,10 +75,33 @@ describe('ESC/POS em imagem (envio direto)', () => {
 })
 
 describe('ESC/POS em texto (modo compatibilidade)', () => {
-  it('página de código PC850 com os acentos do português (ÇÃÉÕ)', () => {
-    expect(codificar('ÇÃÉÕ')).toEqual([0x80, 0xc7, 0x90, 0xe5])
-    expect(codificar('çãéõ áíóú âêô à ü')).toEqual([0x87, 0xc6, 0x82, 0xe4, 0x20, 0xa0, 0xa1, 0xa2, 0xa3, 0x20, 0x83, 0x88, 0x93, 0x20, 0x85, 0x20, 0x81])
-    expect(codificar('R$ 1,00 • ok')).toEqual([...Buffer.from('R$ 1,00 - ok')])
+  it('página de código WPC1252 (ESC t 16) com os acentos do português (ÇÃÉÕ)', () => {
+    expect(codificar('ÇÃÉÕ')).toEqual([0xc7, 0xc3, 0xc9, 0xd5])
+    expect(codificar('çãéõ áíóú âêô à ü')).toEqual([...Buffer.from('çãéõ áíóú âêô à ü', 'latin1')])
+    expect(codificar('R$ 1,00 • ok – já')).toEqual([...Buffer.from('R$ 1,00 ', 'latin1'), 0x95, ...Buffer.from(' ok ', 'latin1'), 0x96, ...Buffer.from(' já', 'latin1')])
+    expect(codificar('a\u00A0b 漢')).toEqual([0x61, 0x20, 0x62, 0x20, 0x3f])
+  })
+
+  it('começa com ESC @, FS . e ESC t 16', () => {
+    const b = textoEscpos({ modelo: 'cozinha', blocos: [] }, { larguraPontos: 576 })
+    expect([...b.subarray(0, 7)]).toEqual([0x1b, 0x40, 0x1c, 0x2e, 0x1b, 0x74, 0x10])
+  })
+
+  it('modelo v3 em texto: faixas, itens com valor, observação, endereço sem hífen no começo, QR', () => {
+    const { montarComandaV3 } = require('./v3.js')
+    const linhasQr = Array.from({ length: 21 }, (_, i) => (i % 2 ? '1'.repeat(21) : '0'.repeat(21)))
+    const doc = montarComandaV3({
+      numero: 135, tipo: 'entrega', canal: 'delivery', formaPagamento: 'pix', pago: true, pagamentoOnline: true, clienteNome: 'Joana', clienteTelefone: '5527992399932',
+      enderecoRua: 'Rua Muito Comprida das Flores do Campo', enderecoNumero: '1234', enderecoComplemento: 'Apto 1203 bloco B', enderecoBairro: 'Praia da Costa', enderecoCidade: 'Vila Velha/ES',
+      observacao: 'Tocar o interfone', subtotal: 29, taxaEntrega: 0, total: 29, criadoEm: '2026-10-01T23:43:00Z',
+      itens: [{ nome: 'Pão de Queijo', quantidade: 1, precoUnitario: 29, observacao: 'sem sal', complementos: [] }],
+    }, { loja: { nome: 'Padaria São João', telefone: '2733334444', endereco: 'Rua A, 1 - Centro, Vitória/ES' }, qr: { origem: 'cardapio', url: 'x', linhas: linhasQr } })
+    const b = textoEscpos(doc, { larguraPontos: 384 })
+    const t = b.toString('latin1')
+    for (const s of ['PEDIDO #135', 'ITENS', 'OBSERVAÇÃO', 'PAGAMENTO', 'CLIENTE', 'Pagamento: PIX ONLINE - PAGO', 'Tel.: (27) 99239-9932', 'OBS: sem sal', 'Obrigado pela preferência!', 'feito por Menuzia.com.br']) expect(t).toContain(s) // WPC1252 = Latin-1 nos acentos
+    const linhas = t.split('\n').map((l) => l.replace(/[\x00-\x1f]./g, '').replace(/[\x00-\x1f]/g, ''))
+    expect(linhas.some((l) => /^\s*-\s*\S/.test(l) && !/^-+$/.test(l.trim()))).toBe(false)
+    expect(b.indexOf(Buffer.from([0x1d, 0x76, 0x30]))).toBeGreaterThan(0)
   })
 
   it('duas colunas: valor sempre inteiro à direita, nome longo quebra sem invadir', () => {
@@ -87,7 +110,7 @@ describe('ESC/POS em texto (modo compatibilidade)', () => {
     expect(ls.at(-1)!.endsWith('38,90')).toBe(true)
   })
 
-  it('comanda em texto: ESC t 2, negrito, tamanho duplo, faixas invertidas, acentos, corte', () => {
+  it('comanda em texto: ESC t 16, negrito, tamanho duplo, faixas invertidas, acentos, corte', () => {
     const doc = {
       modelo: 'cozinha',
       blocos: [
@@ -99,7 +122,7 @@ describe('ESC/POS em texto (modo compatibilidade)', () => {
       ],
     }
     const b = textoEscpos(doc, { larguraPontos: 576 })
-    expect(b.indexOf(Buffer.from([0x1b, 0x74, 0x02]))).toBeGreaterThan(0)
+    expect(b.indexOf(Buffer.from([0x1b, 0x74, 0x10]))).toBeGreaterThan(0)
     expect(b.indexOf(Buffer.from([0x1d, 0x21, 0x11]))).toBeGreaterThan(0)
     expect(b.indexOf(Buffer.from([0x1d, 0x42, 0x01]))).toBeGreaterThan(0)
     expect(b.indexOf(Buffer.from(codificar('PÃO FRANCÊS')))).toBeGreaterThan(0)
@@ -113,6 +136,6 @@ describe('ESC/POS em texto (modo compatibilidade)', () => {
   it('teste de largura em texto: régua na largura toda e "ÇÃÉÕ"', () => {
     const b = textoEscpos({ modelo: 'largura', linhas: [{ rotulo: 'Largura:', valor: '384 pontos' }], instrucoes: ['Confira as duas bordas.'] }, { larguraPontos: 384 })
     expect(b.indexOf(Buffer.from('|' + '-'.repeat(30) + '|'))).toBeGreaterThan(0)
-    expect(b.indexOf(Buffer.from([0x80, 0xc7, 0x90, 0xe5]))).toBeGreaterThan(0)
+    expect(b.indexOf(Buffer.from([0xc7, 0xc3, 0xc9, 0xd5]))).toBeGreaterThan(0)
   })
 })

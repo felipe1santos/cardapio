@@ -11,8 +11,8 @@ const { montarRecibo } = require('./recibo')
 const { montarPreConta, montarTeste, colsPreConta } = require('./pre-conta')
 const { FilasPorDispositivo } = require('./fila-dispositivos')
 const { montarCalibracao, montarTesteLargura } = require('./calibracao')
-const { montarPreContaBeta, textoDoDocumento } = require('./pre-conta-beta')
-const { montarCozinhaBeta } = require('./cozinha-beta')
+// Modelo oficial v3 (0.2.0-beta.9): comanda, pré-conta e via da cozinha.
+const { montarComandaV3, montarPreContaV3, textoDoV3 } = require('./v3')
 
 // Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
 //   · sem o campo   → o Assistente de sempre, exatamente como sempre;
@@ -291,15 +291,29 @@ async function cicloDePolling() {
           : null
         let saida
         if (perfilCozinha) {
-          // Beta: comanda no modelo oficial (cozinha-beta.js, desenhada pelo ticket-canvas.js),
-          // com o desconto/horários, o QR e os dados da loja que o servidor manda só para o Beta.
+          // Beta: comanda no modelo oficial v3 (v3.js, desenhada pelo ticket-canvas.js), com o
+          // desconto/horários, o QR e os dados da loja que o servidor manda só para o Beta.
           const beta = data.cozinhaBeta || {}
-          const doc = montarCozinhaBeta(pedido, { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: beta.qr })
+          const opcoesV3 = { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: beta.qr }
+          const doc = montarComandaV3(pedido, opcoesV3)
+          // Pedido aguardando pagamento (Pix online) nunca imprime — nem chega na fila; aqui
+          // é a segunda trava. Não avisa "impresso": sai quando o pagamento for confirmado.
+          if (!doc) { log(`Pedido #${pedido.numero}: aguardando pagamento, não imprimi.`); continue }
           const tLogo = Date.now()
           const logo = perfilCozinha.imprimirLogo ? await logoParaDesenho(data.loja ? (data.loja.logoUrl ?? null) : undefined) : null
           perfilCozinha.tempos.logoMs = Date.now() - tLogo
           perfilCozinha.tempos._t0 = Date.now()
-          saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoDocumento(doc) }, paperMm, { ...perfilCozinha, copias, logo })
+          saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoV3(doc) }, paperMm, { ...perfilCozinha, copias, logo })
+          // Via da cozinha (opção da loja, 0150, desligada por padrão): sem valores, na mesma
+          // impressora, logo depois. Falhar aqui não segura a comanda (que já saiu).
+          if (configImpressao.viaCozinha === true) {
+            try {
+              const via = montarComandaV3(pedido, { ...opcoesV3, via: 'cozinha' })
+              if (via) await imprimirDocumentoBeta(impressoraAlvo, { ...via, texto: textoDoV3(via) }, paperMm, { ...perfilCozinha, tempos: { _t0: Date.now() }, copias: 1, logo })
+            } catch (e) {
+              log(`Pedido #${pedido.numero}: a via da cozinha falhou (${descreverErro(e)}).`)
+            }
+          }
         } else {
           const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
           saida = await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))
@@ -489,18 +503,18 @@ const filas = new FilasPorDispositivo(
       const doc = montarTesteLargura(t.snapshot, diagnosticos[t.nomeSistema] || {}, perfil)
       saida = await imprimirDocumentoBeta(t.nomeSistema, doc, largura, perfil)
     } else if (cozinhaTeste) {
-      const doc = montarCozinhaBeta(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
+      const doc = montarComandaV3(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
       const tLogo = Date.now()
       const logo = perfil.imprimirLogo ? await logoParaDesenho(t.logoVersao) : null
       if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
-      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoV3(doc) }, largura, { ...perfil, logo })
     } else if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
       // QR do rodapé: o do snapshot ou o que o servidor manda com o trabalho (Instagram/cardápio).
-      const doc = montarPreContaBeta({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null, loja_dados: t.loja || null })
+      const doc = montarPreContaV3({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null, loja_dados: t.loja || null })
       const tLogo = Date.now()
       const logo = perfil.imprimirLogo ? await logoParaDesenho(t.logoVersao) : null
       if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
-      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoDocumento(doc) }, largura, { ...perfil, logo })
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoV3(doc) }, largura, { ...perfil, logo })
     } else {
       saida = perfil
         ? await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false, perfil)

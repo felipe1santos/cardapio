@@ -742,7 +742,8 @@
     const W = p.largura
     const cozinha = doc.via === 'cozinha'
     // Via da cozinha: itens e observações maiores (sem valores, sobra largura).
-    const fi = cozinha ? 1.25 : 1
+    // "Fonte maior na via de produção": um pouco maiores também na comanda.
+    const fi = cozinha ? 1.25 : doc.fonteMaior ? 1.12 : 1
     const x0 = m - U(6), x1 = dir + U(7) // tracejados e linhas passam um pouco das margens
     const tracejado = (y) => {
       if (!desenhar) return

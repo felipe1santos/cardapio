@@ -7,7 +7,8 @@
 //   • imagem: a mesma comanda do ticket-canvas.js, já em 1 bit, no tamanho EXATO de pontos,
 //     em faixas (GS v 0, até 192 linhas por comando), avanço antes do corte e corte;
 //   • texto (compatibilidade): comandos nativos — negrito, tamanho duplo, alinhamento,
-//     inverso — com a página de código PC850 para os acentos (Ç Ã É Õ).
+//     inverso — com ESC @, FS . (sai do modo chinês/kanji de muitos clones) e ESC t 16
+//     (WPC1252) para os acentos (Ç Ã É Õ). Era PC850 (ESC t 2) até o beta.8.
 // Intensidade: "normal" não manda nada (= hoje). "escura"/"mais escura" mandam o comando
 // Epson de densidade (GS ( K, função 49); quem não entende ignora — e o desenho já sai
 // mais grosso de qualquer jeito (limiar do ticket-canvas.js).
@@ -72,28 +73,23 @@ function deslocar(bits, largura, altura, porLinha, d) {
 
 // ── texto (modo compatibilidade) ─────────────────────────────────────────────
 
-// PC850 (ESC t 2): as letras do português. O resto cai sem acento.
-const PC850 = {
-  'Ç': 0x80, 'ü': 0x81, 'é': 0x82, 'â': 0x83, 'ä': 0x84, 'à': 0x85, 'ç': 0x87, 'ê': 0x88, 'ë': 0x89, 'è': 0x8a, 'ï': 0x8b, 'î': 0x8c, 'ì': 0x8d,
-  'Ä': 0x8e, 'É': 0x90, 'ô': 0x93, 'ö': 0x94, 'ò': 0x95, 'û': 0x96, 'ù': 0x97, 'Ö': 0x99, 'Ü': 0x9a, 'á': 0xa0, 'í': 0xa1, 'ó': 0xa2,
-  'ú': 0xa3, 'ñ': 0xa4, 'Ñ': 0xa5, 'ª': 0xa6, 'º': 0xa7, 'Á': 0xb5, 'Â': 0xb6, 'À': 0xb7, 'ã': 0xc6, 'Ã': 0xc7, 'Ê': 0xd2, 'Ë': 0xd3,
-  'È': 0xd4, 'Í': 0xd6, 'Î': 0xd7, 'Ï': 0xd8, 'Ì': 0xde, 'Ó': 0xe0, 'Ô': 0xe2, 'Ò': 0xe3, 'õ': 0xe4, 'Õ': 0xe5, 'Ú': 0xe9, 'Û': 0xea,
-  'Ù': 0xeb, '°': 0xf8,
-}
-const TROCAS = { '•': '-', '–': '-', '—': '-', '’': "'", '‘': "'", '“': '"', '”': '"', '…': '...', ' ': ' ' }
+// WPC1252 (ESC t 16): o Latin-1 inteiro (0xA0–0xFF = o próprio código Unicode) e as aspas,
+// travessões e reticências da faixa 0x80–0x9F. O que não existe na página cai sem acento ou "?".
+const CP1252_EXTRA = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97 }
+// Página de código: ESC t 16. FS . desliga o modo de caracteres chineses (senão os acentos
+// viram ideogramas em clones de impressora asiática).
+const PAGINA_CODIGO = [0x1c, 0x2e, ESC, 0x74, 0x10]
 
 function codificar(s) {
   const out = []
   for (const ch of String(s)) {
-    if (PC850[ch] !== undefined) out.push(PC850[ch])
-    else if (TROCAS[ch]) for (const c of TROCAS[ch]) out.push(c.charCodeAt(0))
+    const c = ch.codePointAt(0)
+    if (ch === ' ') out.push(0x20)
+    else if (CP1252_EXTRA[ch] !== undefined) out.push(CP1252_EXTRA[ch])
+    else if ((c >= 0x20 && c < 0x7f) || (c >= 0xa0 && c <= 0xff)) out.push(c)
     else {
-      const c = ch.charCodeAt(0)
-      if (c >= 0x20 && c < 0x7f) out.push(c)
-      else {
-        const sem = ch.normalize('NFD').replace(/[̀-ͯ]/g, '')
-        out.push(sem && sem.charCodeAt(0) < 0x7f ? sem.charCodeAt(0) : 0x3f)
-      }
+      const sem = ch.normalize('NFD').replace(/[̀-ͯ]/g, '')
+      out.push(sem && sem.charCodeAt(0) >= 0x20 && sem.charCodeAt(0) < 0x7f ? sem.charCodeAt(0) : 0x3f)
     }
   }
   return out
@@ -149,7 +145,7 @@ function qrEscpos(linhas, larguraPontos) {
 function textoEscpos(doc, o = {}) {
   const pontos = Number(o.larguraPontos) > 0 ? Number(o.larguraPontos) : 576
   const n = Math.max(24, Math.floor(pontos / 12))
-  const b = [...INICIAR, ESC, 0x74, 0x02, ...comandoDensidade(o.intensidade)]
+  const b = [...INICIAR, ...PAGINA_CODIGO, ...comandoDensidade(o.intensidade)]
   const alinhar = (a) => b.push(ESC, 0x61, a === 'centro' ? 1 : a === 'direita' ? 2 : 0)
   const negrito = (v) => b.push(ESC, 0x45, v ? 1 : 0)
   const tamanho = (v) => b.push(GS, 0x21, v) // 0x00 normal, 0x01 altura dupla, 0x11 dupla
@@ -174,6 +170,67 @@ function textoEscpos(doc, o = {}) {
     bloco('Acentos: ÇÃÉÕ çãéõ áíú', { forte: true })
     for (const s of doc.instrucoes || []) bloco(s)
     linha('|' + '-'.repeat(n - 2) + '|')
+    b.push(...avancarECortar(o.cortar !== false))
+    return Buffer.from(b)
+  }
+
+  // Modelo oficial v3: mesmos blocos do desenho, em comandos nativos.
+  if (doc.modelo === 'v3') {
+    const tracos = () => linha('-'.repeat(n))
+    for (const k of doc.blocos || []) {
+      switch (k.t) {
+        case 'loja_nome': bloco(k.s, { centro: true, forte: true }); break
+        case 'loja_endereco': {
+          // Partes juntas com " - " enquanto cabem; a linha seguinte começa na parte.
+          alinhar('centro')
+          let cur = ''
+          for (const p of k.partes || []) {
+            const t = cur ? `${cur} - ${p}` : p
+            if (t.length <= n) { cur = t; continue }
+            if (cur) linha(cur)
+            const q = quebrarTexto(p, n); q.slice(0, -1).forEach(linha); cur = q[q.length - 1]
+          }
+          if (cur) linha(cur)
+          alinhar('esquerda')
+          break
+        }
+        case 'loja_telefone': case 'tipo': bloco(k.s, { centro: true, forte: true }); break
+        case 'data': case 'nota': case 'final': bloco(k.s, { centro: true }); break
+        case 'aviso': bloco(k.s, { centro: true, forte: true }); break
+        case 'tracejado': tracos(); break
+        case 'faixa': faixa(k.s); break
+        case 'item':
+          if (!k.primeiro) tracos()
+          negrito(true); tamanho(doc.via === 'cozinha' ? 0x11 : 0x01)
+          for (const l of duasColunas(k.texto, k.valor || '', doc.via === 'cozinha' ? Math.floor(n / 2) : n)) linha(l)
+          tamanho(0x00)
+          if (k.obs) { inverso(true); for (const l of quebrarTexto(k.obs, n)) linha(l); inverso(false) }
+          negrito(false)
+          break
+        case 'obs_geral': negrito(true); tamanho(0x01); for (const l of quebrarTexto(k.s, n)) linha(l); tamanho(0x00); negrito(false); break
+        case 'par': par(k.rotulo, k.valor); break
+        case 'linha': linha('_'.repeat(n)); break
+        case 'total':
+          negrito(true); tamanho(0x11)
+          for (const l of duasColunas(k.rotulo, k.valor, Math.floor(n / 2))) linha(l)
+          tamanho(0x00); negrito(false)
+          break
+        case 'texto': for (const l of quebrarTexto(k.s, n)) linha(l); break
+        case 'dado': {
+          const ps = k.partes || []
+          let cur = `${k.rotulo} ${ps[0] || ''}`
+          for (const p of ps.slice(1)) { const t = `${cur} - ${p}`; if (t.length <= n) cur = t; else { for (const l of quebrarTexto(cur, n)) linha(l); cur = p } }
+          for (const l of quebrarTexto(cur, n)) linha(l)
+          break
+        }
+        case 'rodape':
+          if (k.qr && Array.isArray(k.qr.linhas) && k.qr.linhas.length >= 21) b.push(...qrEscpos(k.qr.linhas, pontos))
+          if (k.frase) bloco(k.frase, { centro: true })
+          if (k.agradecimento) bloco(k.agradecimento, { centro: true, forte: true })
+          break
+        default: break
+      }
+    }
     b.push(...avancarECortar(o.cortar !== false))
     return Buffer.from(b)
   }
@@ -244,4 +301,4 @@ function textoEscpos(doc, o = {}) {
   return Buffer.from(b)
 }
 
-module.exports = { imagemEscpos, textoEscpos, codificar, duasColunas, quebrarTexto, comandoDensidade, AVANCO_ANTES_DO_CORTE, LINHAS_POR_FAIXA }
+module.exports = { imagemEscpos, textoEscpos, codificar, PAGINA_CODIGO, duasColunas, quebrarTexto, comandoDensidade, AVANCO_ANTES_DO_CORTE, LINHAS_POR_FAIXA }

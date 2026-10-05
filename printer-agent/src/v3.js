@@ -260,7 +260,8 @@ function montarComandaV3(pedido, o = {}) {
   } else {
     blocosDoRodape(b, o.qr, teste)
   }
-  return { versao: 1, modelo: 'v3', documento: 'comanda', via: cozinha ? 'cozinha' : 'cliente', teste, loja: loja.nome, blocos: b }
+  // "Fonte maior na via de produção" (opção da loja): itens um pouco maiores na comanda.
+  return { versao: 1, modelo: 'v3', documento: 'comanda', via: cozinha ? 'cozinha' : 'cliente', teste, loja: loja.nome, fonteMaior: config.fonteMaiorProducao === true, blocos: b }
 }
 
 /** "Couvert 1x15,00" a partir de "1 x R$ 15,00"; "Taxa (5%)" a partir de "5% do subtotal". */

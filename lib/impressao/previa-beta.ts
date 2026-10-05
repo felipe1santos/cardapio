@@ -11,7 +11,7 @@ import { snapshotCozinhaTeste, snapshotReciboTeste } from './recibo-teste'
 
 const DESTINO = { loja: '', impressora: '', nomeSistema: '', computador: '', larguraMm: 80, larguraPontos: null, deslocamentoPontos: 0 }
 
-export type TipoDemonstracao = 'mesa' | 'entrega' | 'retirada'
+export type TipoDemonstracao = 'mesa' | 'entrega' | 'retirada' | 'balcao'
 
 /**
  * Pedido de demonstração da comanda por tipo. Mesa = os dados de
@@ -33,6 +33,9 @@ export function pedidoDemonstracao(agora = new Date(), tipo: TipoDemonstracao = 
       extras: { ...s.extras, desconto: 0, prontoEm: null, comandaNumero: 21, atendente: 'Administrador' },
     }
   }
+  if (tipo === 'balcao') {
+    return { pedido: { ...base, tipo: 'retirada', canal: 'balcao', origem: 'pdv', senha: 12, formaPagamento: 'credito', pago: true, taxaEntrega: 0, total: 42.4, clienteNome: 'Maria Souza', clienteTelefone: '27999887766' }, extras: { ...s.extras, atendente: 'Carlos' } }
+  }
   if (tipo === 'retirada') {
     return { pedido: { ...base, tipo: 'retirada', canal: 'delivery', taxaEntrega: 0, total: 42.4, clienteNome: 'Maria Souza', clienteTelefone: '27999887766' }, extras: s.extras }
   }
@@ -40,8 +43,12 @@ export function pedidoDemonstracao(agora = new Date(), tipo: TipoDemonstracao = 
   return { pedido: base, extras: s.extras }
 }
 
-export function contaDemonstracao(loja: string, agora = new Date()) {
-  const s = snapshotReciboTeste({ ...DESTINO, loja }, '', agora)
+export function contaDemonstracao(loja: string, agora = new Date(), tipo: 'mesa' | 'balcao' = 'mesa') {
+  const s = { ...snapshotReciboTeste({ ...DESTINO, loja }, '', agora), comanda_numero: 26, atendente: 'Carlos', taxa_entrega: 0 } as Record<string, unknown>
+  if (tipo === 'balcao') Object.assign(s, { tipo: 'balcao', mesa: null, senha: 12 })
+  // Sem taxa de entrega na conta da mesa: o total da demonstração acompanha.
+  s.total = Math.round(((s.total as number) - 8) * 100) / 100
+  s.restante = Math.round(((s.total as number) - (s.pago as number)) * 100) / 100
   // Conta de verdade: sem as marcas de teste nem telefone/endereço do cliente.
   const conta: Record<string, unknown> = { ...s }
   for (const k of ['recibo_teste', 'cliente_telefone', 'endereco', 'observacao']) delete conta[k]

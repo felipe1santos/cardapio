@@ -7,6 +7,8 @@ export interface ConfigImpressao {
   fonteMaiorProducao: boolean
   multiplicarOpcoesQtd: boolean
   imprimirLogo: boolean
+  /** Impressão v3 (0150): o Assistente Beta imprime também a via da cozinha (sem valores). Desligada por padrão. */
+  viaCozinha: boolean
   ativarAssistente: boolean
   impressaoAutomatica: boolean
   aceitarPedidosAutomaticamente: boolean
@@ -20,6 +22,7 @@ interface ConfigImpressaoRow {
   impressao_fonte_maior_producao: boolean
   impressao_multiplicar_opcoes_qtd: boolean
   impressao_logo: boolean
+  impressao_via_cozinha: boolean
   impressao_ativar_assistente: boolean
   impressao_automatica: boolean
   impressao_aceitar_pedidos_automaticamente: boolean
@@ -27,7 +30,7 @@ interface ConfigImpressaoRow {
 
 const CONFIG_IMPRESSAO_SELECT = `
   impressao_mostrar_numero_item, impressao_mostrar_preco_complementos, impressao_mostrar_nome_complementos,
-  impressao_fonte_maior_producao, impressao_multiplicar_opcoes_qtd, impressao_logo,
+  impressao_fonte_maior_producao, impressao_multiplicar_opcoes_qtd, impressao_logo, impressao_via_cozinha,
   impressao_ativar_assistente,
   impressao_automatica, impressao_aceitar_pedidos_automaticamente
 `
@@ -40,6 +43,7 @@ function mapConfigImpressao(row: ConfigImpressaoRow): ConfigImpressao {
     fonteMaiorProducao: row.impressao_fonte_maior_producao,
     multiplicarOpcoesQtd: row.impressao_multiplicar_opcoes_qtd,
     imprimirLogo: row.impressao_logo,
+    viaCozinha: row.impressao_via_cozinha === true,
     ativarAssistente: row.impressao_ativar_assistente,
     impressaoAutomatica: row.impressao_automatica,
     aceitarPedidosAutomaticamente: row.impressao_aceitar_pedidos_automaticamente,
@@ -65,6 +69,7 @@ export async function atualizarConfigImpressao(supabase: SupabaseClient, restaur
   if (patch.fonteMaiorProducao !== undefined) row.impressao_fonte_maior_producao = patch.fonteMaiorProducao
   if (patch.multiplicarOpcoesQtd !== undefined) row.impressao_multiplicar_opcoes_qtd = patch.multiplicarOpcoesQtd
   if (patch.imprimirLogo !== undefined) row.impressao_logo = patch.imprimirLogo
+  if (patch.viaCozinha !== undefined) row.impressao_via_cozinha = patch.viaCozinha
   if (patch.ativarAssistente !== undefined) row.impressao_ativar_assistente = patch.ativarAssistente
   if (patch.impressaoAutomatica !== undefined) row.impressao_automatica = patch.impressaoAutomatica
   if (patch.aceitarPedidosAutomaticamente !== undefined) row.impressao_aceitar_pedidos_automaticamente = patch.aceitarPedidosAutomaticamente
@@ -216,6 +221,10 @@ export interface PedidoParaImprimir {
   enderecoReferencia: string
   observacao: string
   pago: boolean
+  /** Pix online (0148): pago pelo Mercado Pago. A comanda v3 imprime "PIX ONLINE - PAGO" só com pago = true. */
+  pagamentoOnline: boolean
+  /** Estado do pedido (a comanda v3 nunca imprime pedido aguardando pagamento). */
+  status: string
   origem: string
   mesa: string | null
   /**
@@ -273,7 +282,7 @@ export async function listarPedidosParaImprimir(
     .from('pedidos')
     .select(
       `id, numero, tipo, forma_pagamento, cartao_tipo, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
-       observacao, pago, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
+       observacao, pago, pagamento_online, status, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
        comandas ( senha ),
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
     )
@@ -303,6 +312,8 @@ export async function listarPedidosParaImprimir(
     enderecoReferencia: p.endereco_referencia ?? '',
     observacao: p.observacao,
     pago: Boolean(p.pago),
+    pagamentoOnline: (p as { pagamento_online?: boolean | null }).pagamento_online === true,
+    status: String((p as { status?: string | null }).status ?? ''),
     origem: p.origem ?? 'cardapio',
     mesa: p.mesa ?? null,
     canal: (p.canal as string | null) ?? 'delivery',

@@ -198,7 +198,7 @@ async function imprimirDireto(nomeImpressora, doc, opcoes, perfil, envio, modo, 
   const arquivo = path.join(os.tmpdir(), `${prefixo}-raw-${Date.now()}.bin`)
   fs.writeFileSync(arquivo, bytes)
   try {
-    const titulo = doc.modelo === 'cozinha' ? 'Menuzia - Comanda' : doc.modelo === 'largura' ? 'Menuzia - Teste de largura' : 'Menuzia - Pre-conta'
+    const titulo = doc.modelo === 'cozinha' || doc.documento === 'comanda' ? 'Menuzia - Comanda' : doc.modelo === 'largura' ? 'Menuzia - Teste de largura' : 'Menuzia - Pre-conta'
     const args = ['-File', PRINT_RAW_SCRIPT, '-PrinterName', nomeImpressora, '-Arquivo', arquivo, '-Titulo', titulo, '-Bloco', String(bloco), '-PausaMs', String(pausaMs)]
     if (perfil.logNome) args.push('-LogNome', perfil.logNome)
     const saida = await pelaImpressora(nomeImpressora, { acao: 'raw', impressora: nomeImpressora, arquivo, titulo, bloco, pausaMs }, perfil.logNome, args)
