@@ -30,8 +30,9 @@
   const CINZA_OBS = '#d2d2d2'
   // Largura dos modelos em pixels e a margem do texto. A comanda segue
   // docs/referencias/impressao/comanda-padrao.png (papel de 1200 px, margem 48 → ×1,025).
-  const BASE = { cozinha: 1230, pre_conta: 1020 }
-  const MARGEM = { cozinha: 49, pre_conta: 54 }
+  // Modelo oficial v3 (docs/impressao-final/referencias/*_v3.png): papel de 432 px, margem 23.
+  const BASE = { cozinha: 1230, pre_conta: 1020, v3: 432 }
+  const MARGEM = { cozinha: 49, pre_conta: 54, v3: 23 }
   // Preto e branco de verdade (B1): tudo vira 1 bit no tamanho exato de pontos. Limiar do
   // texto por intensidade; "mais escura" ainda engrossa o traço em 1 ponto.
   const INTENSIDADES = { normal: 150, escura: 185, mais_escura: 210 }
@@ -93,11 +94,13 @@
     const U = (v) => v * k // horizontal / estrutura
     const T = (v) => v * k * fe // letra e passo vertical
     const m = U(MARGEM[modelo])
-    const dir = largura - m
+    // v3: a coluna de valores termina a 20 px da borda (o texto começa a 23).
+    const dir = largura - (modelo === 'v3' ? U(20) : m)
     const capCache = new Map()
     // Pré-conta (B1): letra fina/pequena sumia na térmica. Tamanho mínimo e um traço de
     // reforço no texto regular (efeito "medium") — o desenho continua o mesmo.
     const minFonte = modelo === 'pre_conta' ? 17 : 11
+    // v3: sem reforço — o traço regular da DejaVu Sans Mono já é o do modelo.
     const reforco = modelo === 'pre_conta'
     let tamAtual = 0
     let pesoAtual = '400'
@@ -730,6 +733,250 @@
     return regua(y)
   }
 
+  // ── modelo oficial v3 (comanda_v3.png / preconta_v3.png, papel de 432 px) ──────
+  // Tudo em DejaVu Sans Mono. Distâncias = do fim da tinta do bloco anterior ao topo da
+  // tinta do próximo, medidas nos modelos; escalam pela largura real (384/512/576 pontos).
+  function layoutV3(ctx, doc, o, desenhar) {
+    const p = criarPincel(ctx, o.largura, 'v3', o.tamanhoFonte, desenhar, o)
+    const { U, T, m, dir, fonte, cap, larg, texto, ret, quebrar } = p
+    const W = p.largura
+    const cozinha = doc.via === 'cozinha'
+    // Via da cozinha: itens e observações maiores (sem valores, sobra largura).
+    const fi = cozinha ? 1.25 : 1
+    const x0 = m - U(6), x1 = dir + U(7) // tracejados e linhas passam um pouco das margens
+    const tracejado = (y) => {
+      if (!desenhar) return
+      ctx.fillStyle = '#000000'
+      const traco = U(7), vao = U(5), h = Math.max(1, Math.round(U(2)))
+      for (let x = x0; x + traco <= x1 + 0.5; x += traco + vao) ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(traco)), h)
+    }
+    const espessura = Math.max(1, Math.round(U(2)))
+    // Linhas centralizadas que quebram por palavra.
+    const centro = (s, y, passo) => {
+      const ls = quebrar(s, dir - m)
+      ls.forEach((ln, i) => texto(ln, W / 2, y + i * passo, 'center'))
+      return y + cap() + (ls.length - 1) * passo
+    }
+    // Partes de endereço: juntas com " - " enquanto cabem; a linha seguinte começa na parte
+    // (nunca com hífen). Parte maior que a linha quebra por palavra.
+    const juntarPartes = (ps, maxW, primeiraMax = maxW) => {
+      const out = []
+      let cur = ''
+      for (const parte of ps) {
+        const lim = out.length ? maxW : primeiraMax
+        const t = cur ? `${cur} - ${parte}` : parte
+        if (larg(t) <= lim) { cur = t; continue }
+        if (cur) out.push(cur)
+        const lim2 = out.length ? maxW : primeiraMax
+        if (larg(parte) <= lim2) cur = parte
+        else { const q = quebrar(parte, lim2); out.push(...q.slice(0, -1)); cur = q[q.length - 1] }
+      }
+      if (cur) out.push(cur)
+      return out
+    }
+    let y = U(16)
+    let anterior = ''
+    for (const b of doc.blocos) {
+      switch (b.t) {
+        case 'marcas': {
+          if (anterior) y += T(20)
+          p.marcas(y, U(14))
+          y += U(14)
+          break
+        }
+        case 'logo': {
+          // Sem logo (ou "Imprimir logo" desligado): nada; o nome da loja vem logo abaixo.
+          const h = topoDaLoja(ctx, p, b, o, y + (anterior ? U(12) : 0), { w: U(300), h: U(170), nomeTam: 0 }, desenhar)
+          if (!h) continue
+          y += h + (anterior ? U(12) : 0)
+          break
+        }
+        case 'loja_nome': {
+          y += anterior === 'logo' ? U(17) : anterior ? T(14) : 0
+          // Nome comprido: diminui até caber em duas linhas no máximo.
+          let tam = T(26)
+          fonte(DVSM, '700', tam)
+          while (quebrar(b.s, dir - m).length > 2 && tam > T(17)) { tam *= 0.94; fonte(DVSM, '700', tam) }
+          y = centro(b.s, y, T(32))
+          break
+        }
+        case 'loja_endereco': {
+          y += T(14)
+          fonte(DVSM, '400', T(17))
+          const ls = juntarPartes(b.partes, dir - m)
+          ls.forEach((ln, i) => texto(ln, W / 2, y + i * T(22), 'center'))
+          y += cap() + (ls.length - 1) * T(22)
+          break
+        }
+        case 'loja_telefone': {
+          y += T(17.5)
+          fonte(DVSM, '700', T(22))
+          texto(b.s, W / 2, y, 'center')
+          y += cap()
+          break
+        }
+        case 'data': {
+          y += T(17)
+          fonte(DVSM, '400', T(24))
+          y = centro(b.s, y, T(30))
+          break
+        }
+        case 'tipo': {
+          y += T(18.5)
+          fonte(DVSM, '700', T(26))
+          y = centro(b.s, y, T(32))
+          break
+        }
+        case 'aviso': {
+          y += T(16)
+          fonte(DVSM, '700', T(18))
+          y = centro(b.s, y, T(24))
+          break
+        }
+        case 'tracejado': {
+          y += b.antes === 'final' ? T(16) : b.antes === 'rodape' ? T(23) : anterior === 'aviso' ? T(14) : T(15)
+          tracejado(y)
+          y += espessura
+          break
+        }
+        case 'faixa': {
+          y += anterior === 'tracejado' ? T(10) : anterior === 'faixa' ? T(13) : anterior === 'texto' ? T(16) : anterior === 'nota' ? T(20) : T(24)
+          const h = T(46)
+          ret(0, y, W, h)
+          fonte(DVSM, '700', T(24))
+          const s = larg(b.s) > W - 2 * m ? quebrar(b.s, W - 2 * m)[0] : b.s
+          texto(s, W / 2, y + (h - cap()) / 2, 'center', '#ffffff')
+          y += h
+          break
+        }
+        case 'item': {
+          if (b.primeiro) y += T(17)
+          else { y += T(14); tracejado(y); y += espessura + T(14) }
+          // Valor (regular) na mesma linha de base do nome (negrito); o nome quebra antes de
+          // chegar a um espaço do valor.
+          fonte(DVSM, '400', T(25))
+          const wv = b.valor ? larg(b.valor) : 0
+          const capV = cap()
+          const folga = b.valor ? larg('0') : 0
+          fonte(DVSM, '700', T(28.4) * fi)
+          const c = cap()
+          const passo = T(38) * fi
+          const ls = quebrar(b.texto, dir - m - (wv ? wv + folga : 0))
+          ls.forEach((ln, i) => texto(ln, m, y + i * passo))
+          if (b.valor) { fonte(DVSM, '400', T(25)); texto(b.valor, dir, y + c - capV, 'right') }
+          y += c + (ls.length - 1) * passo
+          if (b.obs) {
+            // Observação do item: logo abaixo, em negrito, numa caixa (destaque no papel).
+            y += T(10)
+            fonte(DVSM, '700', T(23) * fi)
+            const pad = U(7), borda = Math.max(2, Math.round(U(2)))
+            const lo = quebrar(b.obs, dir - m - 2 * pad - 2 * borda)
+            const co = cap(), po = T(29) * fi
+            const h = co + (lo.length - 1) * po + 2 * pad + 2 * borda
+            ret(m, y, dir - m, borda); ret(m, y + h - borda, dir - m, borda)
+            ret(m, y, borda, h); ret(dir - borda, y, borda, h)
+            lo.forEach((ln, i) => texto(ln, m + borda + pad, y + borda + pad + i * po))
+            y += h
+          }
+          break
+        }
+        case 'obs_geral': {
+          y += T(16)
+          fonte(DVSM, '700', T(25) * fi)
+          const ls = quebrar(b.s, dir - m)
+          ls.forEach((ln, i) => texto(ln, m, y + i * T(33) * fi))
+          y += cap() + (ls.length - 1) * T(33) * fi
+          break
+        }
+        case 'par': {
+          fonte(DVSM, '400', T(26))
+          y += b.primeiro ? (anterior === 'linha' ? T(11) : T(14)) : T(33) - cap()
+          // Rótulo comprido: quebra antes de encostar no valor.
+          const wv = larg(b.valor)
+          const ls = quebrar(b.rotulo, dir - m - wv - larg('0'))
+          texto(b.valor, dir, y, 'right')
+          ls.forEach((ln, i) => texto(ln, m, y + i * T(33)))
+          y += cap() + (ls.length - 1) * T(33)
+          break
+        }
+        case 'linha': {
+          y += T(11)
+          ret(x0, y, dir + U(3) - x0, espessura)
+          y += espessura
+          break
+        }
+        case 'total': {
+          y += anterior === 'linha' ? T(15) : T(20)
+          // TOTAL grande; valor comprido diminui até caber com um espaço entre os dois.
+          let tam = T(42)
+          fonte(DVSM, '700', tam)
+          while (larg(b.rotulo) + larg(b.valor) + larg('0') > dir - m && tam > T(20)) { tam *= 0.97; fonte(DVSM, '700', tam) }
+          texto(b.rotulo, m, y)
+          texto(b.valor, dir, y, 'right')
+          y += cap()
+          break
+        }
+        case 'texto': {
+          y += anterior === 'total' ? T(27) : T(14)
+          fonte(DVSM, '400', T(26))
+          const ls = quebrar(b.s, dir - m)
+          ls.forEach((ln, i) => texto(ln, m, y + i * T(33)))
+          y += cap() + (ls.length - 1) * T(33)
+          break
+        }
+        case 'nota': {
+          y += T(22)
+          // Uma linha só, passando das margens como no modelo (14 px de cada lado); se não
+          // couber, diminui um pouco e, no limite, quebra centralizada.
+          let tam = T(15)
+          fonte(DVSM, '400', tam)
+          while (larg(b.s) > W - 2 * U(14) && tam > Math.max(12, T(12))) { tam *= 0.96; fonte(DVSM, '400', tam) }
+          const ls = quebrar(b.s, W - 2 * U(14))
+          ls.forEach((ln, i) => texto(ln, W / 2, y + i * T(19), 'center'))
+          y += cap() + (ls.length - 1) * T(19)
+          break
+        }
+        case 'dado': {
+          fonte(DVSM, '400', T(25))
+          y += b.primeiro ? T(14) : T(33) - cap()
+          // "End.: rua, nº" e as outras partes nas linhas seguintes, sem hífen no começo.
+          const wr = larg(`${b.rotulo} `)
+          const ls = juntarPartes(b.partes, dir - m, dir - m - wr)
+          ls.forEach((ln, i) => texto(i === 0 ? `${b.rotulo} ${ln}` : ln, m, y + i * T(33)))
+          y += cap() + (ls.length - 1) * T(33)
+          break
+        }
+        case 'rodape': {
+          if (b.qr) {
+            y += T(14)
+            const lado = U(125)
+            y += p.qr(b.qr.linhas, (W - lado) / 2, y, lado, b.qr.icone)
+          }
+          if (b.frase) {
+            y += b.qr ? T(12) : T(14)
+            fonte(DVSM, '400', T(17))
+            y = centro(b.frase, y, T(22))
+          }
+          if (b.agradecimento) {
+            y += b.frase ? T(19.6) : b.qr ? T(14) : T(14)
+            fonte(DVSM, '700', T(22))
+            y = centro(b.agradecimento, y, T(28))
+          }
+          break
+        }
+        case 'final': {
+          y += T(14)
+          fonte(DVSM, '400', T(17))
+          y = centro(b.s, y, T(22))
+          break
+        }
+        default: break
+      }
+      anterior = b.t
+    }
+    return y + T(22)
+  }
+
   /** Converte o desenho em 1 bit (preto/branco puro) — o driver não tem mais o que clarear. */
   function monocromatizar(ctx, w, h, reticulas, intensidade) {
     let img
@@ -966,7 +1213,7 @@
     const ctx = canvas.getContext('2d')
     const intensidade = INTENSIDADES[o.intensidade] ? o.intensidade : 'normal'
     const opcoes = { largura, tamanhoFonte: o.tamanhoFonte || 'grande', logo: o.logo || null, imprimirLogo: o.imprimirLogo !== false, intensidade, reticulas: [] }
-    const layout = doc.modelo === 'pre_conta' ? layoutPreConta : doc.modelo === 'largura' ? layoutLargura : layoutCozinha
+    const layout = doc.modelo === 'v3' ? layoutV3 : doc.modelo === 'pre_conta' ? layoutPreConta : doc.modelo === 'largura' ? layoutLargura : layoutCozinha
     canvas.width = largura
     canvas.height = 10
     const altura = Math.ceil(layout(ctx, doc, opcoes, false))
