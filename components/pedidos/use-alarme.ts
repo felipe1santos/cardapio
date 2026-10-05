@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { deveRepetir, pedidosParaTocar, reivindicarToque, REPETICAO_PADRAO, type MotivoFalhaSom } from '@/lib/alarme-pedidos'
 
 /**
- * Alarme de pedido novo do Painel de Pedidos (2026-10-03).
+ * Alarme de pedido novo do painel (2026-10-03; desde 2026-10-04 vive no layout, em toda tela —
+ * components/admin/alarme-global.tsx).
+ *
  *
  * - mp3 decodificado no Web Audio; cada toque é uma fonte nova (dois pedidos = dois sons).
  * - Navegador bloqueou o som (painel aberto sem clique): `bloqueado = true` → a tela mostra o
@@ -31,7 +33,7 @@ declare global { interface Window { __mzAlarme?: Estado } }
 const idDaAba = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random()))
 const armazenamento = () => { try { return window.localStorage } catch { return null } }
 
-export function useAlarmePedidos() {
+export function useAlarmePedidos({ ativo = true }: { ativo?: boolean } = {}) {
   const [somAtivo, setSomAtivoEstado] = useState(true)
   const [repetirSeg, setRepetirSegEstado] = useState(REPETICAO_PADRAO)
   const [bloqueado, setBloqueado] = useState(false)
@@ -80,6 +82,8 @@ export function useAlarmePedidos() {
     somRef.current = som; setSomAtivoEstado(som)
     repetirRef.current = Number.isFinite(rep) ? rep : REPETICAO_PADRAO; setRepetirSegEstado(repetirRef.current)
     setPermissaoNotif(typeof Notification === 'undefined' ? 'sem_suporte' : Notification.permission)
+    // Sem acesso ao Painel de Pedidos (ex.: garçom): nada de áudio nem aviso de bloqueio.
+    if (!ativo) return
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Ctx) { registrarFalha('sem_web_audio'); return }
     const ctx = new Ctx()
@@ -98,8 +102,8 @@ export function useAlarmePedidos() {
     void ctx.resume().then(atualizar).catch(() => {})
     fetch(SOM_SRC).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)).then((buf) => { bufferRef.current = buf })
       .catch((err) => registrarFalha('arquivo_indisponivel', String(err)))
-    return () => { ctx.onstatechange = null; void ctx.close().catch(() => {}); ctxRef.current = null }
-  }, [registrarFalha])
+    return () => { ctx.onstatechange = null; void ctx.close().catch(() => {}); ctxRef.current = null; estado().bloqueado = false; setBloqueado(false) }
+  }, [registrarFalha, ativo])
 
   /** Um toque (fonte nova a cada vez). Devolve se saiu som. */
   const tocarUmaVez = useCallback((): boolean => {
@@ -192,6 +196,7 @@ export function useAlarmePedidos() {
 
   // Wake Lock: com o painel visível, a tela não apaga.
   useEffect(() => {
+    if (!ativo) return
     const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }
     if (!nav.wakeLock) return
     const pedir = () => {
@@ -206,7 +211,7 @@ export function useAlarmePedidos() {
       document.removeEventListener('visibilitychange', vis); window.removeEventListener('pointerdown', pedir)
       void wakeRef.current?.release().catch(() => {}); wakeRef.current = null
     }
-  }, [])
+  }, [ativo])
 
   const setSomAtivo = useCallback((v: boolean) => {
     somRef.current = v; setSomAtivoEstado(v)

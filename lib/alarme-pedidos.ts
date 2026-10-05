@@ -56,3 +56,9 @@ export type MotivoFalhaSom = 'autoplay_bloqueado' | 'arquivo_indisponivel' | 'se
 
 /** Mensagem do aviso clicável enquanto o navegador não libera o som. */
 export const TEXTO_SOM_BLOQUEADO = '🔇 Clique aqui para ativar o som dos pedidos'
+
+/** Título da aba piscando quando o som não chega: "🔔 Pedido novo #12" ou "🔔 3 pedidos novos". */
+export function textoDoTituloPiscando(numeros: number[]): string {
+  if (numeros.length <= 1) return `🔔 Pedido novo${numeros[0] ? ` #${numeros[0]}` : ''}`
+  return `🔔 ${numeros.length} pedidos novos`
+}

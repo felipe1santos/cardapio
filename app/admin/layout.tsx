@@ -26,6 +26,8 @@ import { FaixaAprovacoes } from '@/components/financeiro/faixa-aprovacoes'
 import { AberturaRapidaCaixa } from '@/components/financeiro/abertura-rapida'
 import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
 import { LancadorAtendimento } from '@/components/atendimento/lancador'
+import { AlarmeProvider, AvisoSomBloqueado } from '@/components/admin/alarme-global'
+import { assinarPushPainel } from '@/lib/push/painel-cliente'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -299,8 +301,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }
 
+  // Alarme de pedido novo em toda tela do painel, para quem tem acesso ao Painel de Pedidos.
+  const alarmeAtivo = papel !== null && pode(papel, 'pedidos.delivery.ver') && caminhoPermitidoCompleto('/admin/pedidos', papel, acessos)
+
+  // Notificações já permitidas: assina também o push do painel neste aparelho (tela apagada no
+  // celular/tablet). Sem pergunta nova ao usuário; sem chaves VAPID no servidor, não faz nada.
+  useEffect(() => {
+    if (!alarmeAtivo || estadoNotificacoes !== 'ativas') return
+    void assinarPushPainel()
+  }, [alarmeAtivo, estadoNotificacoes])
+
   return (
     <MenuLateralContext.Provider value={valorDoMenu}>
+    <AlarmeProvider restauranteId={restauranteId} ativo={alarmeAtivo}>
     {/* `data-painel`: gancho da camada de celular em globals.css (alvo de toque de
         40px abaixo de lg). Nada muda no desktop — a regra vive dentro de media query. */}
     <div
@@ -311,6 +324,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     >
       {/* Aviso fixo do novo sistema de impressão: no fluxo, empurra menu e conteúdo. */}
       {mostrarAvisoNovaImpressao(pathname) && <AvisoNovaImpressao />}
+      {/* Som de pedido bloqueado pelo navegador: aviso grande em qualquer tela (some no 1º toque). */}
+      <AvisoSomBloqueado />
       <TravaSessao />
       <JanelaSairComCaixa />
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -366,6 +381,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         />
       )}
     </div>
+    </AlarmeProvider>
     </MenuLateralContext.Provider>
   )
 }

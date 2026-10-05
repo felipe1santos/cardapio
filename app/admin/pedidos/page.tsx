@@ -50,8 +50,8 @@ import { Capacete } from '@/components/icones/capacete'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
-import { useAlarmePedidos } from '@/components/pedidos/use-alarme'
-import { OPCOES_REPETICAO, TEXTO_SOM_BLOQUEADO } from '@/lib/alarme-pedidos'
+import { useAlarme } from '@/components/admin/alarme-global'
+import { OPCOES_REPETICAO } from '@/lib/alarme-pedidos'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
@@ -232,8 +232,8 @@ export default function PedidosPage() {
   // isso, a resposta mais lenta pode resolver depois e sobrescrever o estado
   // com dados desatualizados (card sumindo, alarme disparando fora de hora).
   const refetchSeq = useRef(0)
-  const alarme = useAlarmePedidos()
-  const aoAtualizarAlarme = alarme.aoAtualizarPedidos
+  // O alarme vive no layout (toca em qualquer tela do painel); aqui ficam só os controles.
+  const alarme = useAlarme()!
   const [autoAceitar, setAutoAceitar] = useState(false)
   const autoAceitarRef = useRef(false)
   const autoAceiteTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -382,13 +382,10 @@ export default function PedidosPage() {
     [supabase, agendarAutoAceite]
   )
 
-  // Toda mudança na lista (tempo real, poll, reconexão, aceite otimista) passa pelo alarme:
-  // ele toca cada pedido "recebido" que ainda não tocou e para quando a fila zera.
-  // Pedido devolvido pela cozinha (preparandoNotificado) não é "novo".
+  // O alarme tem a própria fonte dos pedidos "recebido" (components/admin/alarme-global.tsx).
   useEffect(() => {
     ordersRef.current = orders
-    aoAtualizarAlarme(orders.filter((p) => p.status === 'recebido' && !p.preparandoNotificado).map((p) => ({ id: p.id, numero: p.numero })))
-  }, [orders, aoAtualizarAlarme])
+  }, [orders])
 
   // Cleanup no unmount: timers do aceite automático (o alarme cuida de si em use-alarme).
   useEffect(() => {
@@ -912,16 +909,7 @@ export default function PedidosPage() {
           </div>
         )}
 
-        {alarme.somAtivo && alarme.bloqueado && (
-          <button
-            type="button"
-            onClick={() => void alarme.testar()}
-            className="flex w-full items-center justify-center gap-2 rounded-menuzia border border-[#FCD34D] bg-warn-bg px-3.5 py-2.5 text-[14px] font-bold text-[#B45309] hover:brightness-95"
-            data-testid="som-bloqueado"
-          >
-            {TEXTO_SOM_BLOQUEADO}
-          </button>
-        )}
+        {/* Som bloqueado: o aviso grande sai do layout, em toda tela (AvisoSomBloqueado). */}
 
         {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia ou pelo botão Métricas) */}
         {!focusMode && showStats && (
@@ -996,6 +984,8 @@ export default function PedidosPage() {
                           selecionado ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/40' : 'border-border bg-white hover:bg-page/60',
                           accent[coluna],
                           order.status === 'recebido' && !order.preparandoNotificado ? 'animate-new-order' : '',
+                          // Som bloqueado pelo navegador: o pedido novo pisca em vermelho até alguém tocar na tela.
+                          order.status === 'recebido' && !order.preparandoNotificado && alarme.somAtivo && alarme.bloqueado ? 'animate-pulse ring-4 ring-[#DC2626]' : '',
                         ].join(' ')}
                       >
                         {/* Linha 1: número, origem, tempo e atendimento (sem fundo). */}

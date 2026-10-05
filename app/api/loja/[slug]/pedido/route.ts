@@ -4,6 +4,7 @@ import { criarPedido } from '@/lib/queries/pedidos'
 import { montarPedidoPublico } from '@/lib/queries/pedido-publico'
 import { notificarPedido } from '@/lib/whatsapp'
 import { registrarPedidoDoPush } from '@/lib/push/motor'
+import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { enviarPurchaseCapi } from '@/lib/meta-capi'
 import { ipDaRequisicao } from '@/lib/limite-taxa'
 import { alertarValorManipulado, camposDeValorEnviados } from '@/lib/financeiro/manipulacao'
@@ -65,6 +66,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       throw err
     }
     notificarPedido(admin, pedido.id, 'recebido').catch((err) => console.error('[whatsapp] erro ao notificar pedido recebido', err))
+    // Push do painel (0146): a equipe ouve o pedido novo com o celular/tablet de tela apagada.
+    // Agendado não é pedido novo agora — entra no Kanban perto do horário.
+    if (!input.agendadoPara) {
+      avisarPainelPedidoNovo(admin, loja.id, { id: pedido.id, numero: pedido.numero, canal: input.tipo }).catch(() => null)
+    }
     // Pedido até 48 h depois de tocar numa notificação push: conta para o relatório da loja (0127).
     const origemPush = (bruto as { origemPush?: unknown }).origemPush
     if (typeof origemPush === 'string' && /^[0-9a-f-]{36}$/i.test(origemPush)) {

@@ -330,6 +330,26 @@ export async function corteLiberacaoAgendados(supabase: SupabaseClient, restaura
   return new Date(Date.now() + min * 60_000).toISOString()
 }
 
+/**
+ * Pedidos que o alarme do painel toca (2026-10-04): "recebido", ainda não devolvido pela cozinha, e
+ * agendado só depois de liberado — a mesma regra do Kanban. Leitura leve (id e número) para o alarme
+ * que vive no layout do painel e toca em qualquer tela.
+ */
+export async function listarRecebidosParaAlarme(supabase: SupabaseClient, restauranteId: string): Promise<{ id: string; numero: number }[]> {
+  const corte = await corteLiberacaoAgendados(supabase, restauranteId)
+  const { data, error } = await supabase
+    .from('pedidos')
+    .select('id, numero, preparando_notificado')
+    .eq('restaurante_id', restauranteId)
+    .eq('status', 'recebido')
+    .or(`agendado_para.is.null,agendado_para.lte.${corte}`)
+    .order('criado_em', { ascending: true })
+  if (error) throw error
+  return ((data ?? []) as { id: string; numero: number; preparando_notificado: boolean | null }[])
+    .filter((p) => !p.preparando_notificado)
+    .map((p) => ({ id: p.id, numero: p.numero }))
+}
+
 /** Pedidos de uma loja num conjunto de status — usado pelo portal da cozinha (admin client). */
 export async function listarPedidosPorStatus(
   supabase: SupabaseClient,
