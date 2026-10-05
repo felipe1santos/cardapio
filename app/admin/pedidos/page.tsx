@@ -87,21 +87,21 @@ interface ColunaConfig {
 const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
   recebido: {
     label: 'Pedido Recebido',
-    headerBg: 'bg-[#C2410C]',
+    headerBg: 'bg-[#FE4B11]',
     Icon: Inbox,
     emptyTitle: 'Nenhum pedido novo',
     EmptyIcon: Inbox,
   },
   preparando: {
     label: 'Preparando',
-    headerBg: 'bg-[#1D4ED8]',
+    headerBg: 'bg-[#015BB1]',
     Icon: ChefHat,
     emptyTitle: 'Nada em preparo',
     EmptyIcon: ChefHat,
   },
   pronto: {
     label: 'Pronto p/ Despacho',
-    headerBg: 'bg-[#047857]',
+    headerBg: 'bg-[#00946E]',
     Icon: HandPlatter,
     emptyTitle: 'Nada pronto ainda',
     EmptyIcon: HandPlatter,
@@ -145,8 +145,8 @@ function SubSecao({ titulo, cor, vazio, children }: { titulo: string; cor: strin
 
 /** Estado vazio de uma coluna do Kanban: ilustração cinza-clara em vez de texto solto. */
 /**
- * Botão de etapa do card (item 56): só a seta branca, à direita. Amarelo forte = aceitar; verde = próxima
- * etapa. Fundo sólido escuro o bastante para a seta branca passar de 4,5:1; cantos pouco arredondados.
+ * Botão de etapa do card (item 56): só a seta, à direita, IGUAL ao modelo (docs/kanban-56/modelo.jpeg):
+ * amarelo-claro com seta âmbar = aceitar; verde-claro com seta verde = próxima etapa.
  */
 function BotaoEtapa({ cor, rotulo, onClick }: { cor: 'aceitar' | 'avancar'; rotulo: string; onClick: () => void }) {
   return (
@@ -157,7 +157,7 @@ function BotaoEtapa({ cor, rotulo, onClick }: { cor: 'aceitar' | 'avancar'; rotu
       title={rotulo}
       data-testid="card-etapa"
       data-cor={cor}
-      className={`inline-flex h-[34px] w-[88px] items-center justify-center rounded-[6px] text-white shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F2937] active:scale-[0.98] ${cor === 'aceitar' ? 'bg-[#B45309] hover:bg-[#92400E]' : 'bg-[#047857] hover:bg-[#065F46]'}`}
+      className={`inline-flex h-[30px] w-[88px] items-center justify-center rounded-[8px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F2937] active:scale-[0.98] ${cor === 'aceitar' ? 'bg-[#FFE6A6] text-[#C2850D] hover:bg-[#FFDB85]' : 'bg-[#D3F6E0] text-[#0F713E] hover:bg-[#BDEFD0]'}`}
     >
       <ArrowRight className="h-[20px] w-[20px]" strokeWidth={2.6} aria-hidden />
     </button>
@@ -962,9 +962,9 @@ export default function PedidosPage() {
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             const cfg = COLUNA_CONFIG[coluna]
-            const accent: Record<Coluna, string> = { recebido: 'border-l-[#C2410C]', preparando: 'border-l-[#1D4ED8]', pronto: 'border-l-[#047857]' }
+            const accent: Record<Coluna, string> = { recebido: 'border-l-[#FE4B11]', preparando: 'border-l-[#015BB1]', pronto: 'border-l-[#00946E]' }
             return (
-              <div key={coluna} className="flex flex-col overflow-hidden rounded-[12px] border border-[#E4E7EC] bg-[#F5F7FA] max-lg:flex-shrink-0 max-lg:overflow-visible" data-testid={`coluna-${coluna}`}>
+              <div key={coluna} className="flex flex-col overflow-hidden rounded-[12px] border border-[#E6EDF2] bg-[#F7FCFF] max-lg:flex-shrink-0 max-lg:overflow-visible" data-testid={`coluna-${coluna}`}>
                 <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`} data-testid={`coluna-cabecalho-${coluna}`}>
                   <div className="flex items-center gap-2">
                     <cfg.Icon className="h-[18px] w-[18px]" strokeWidth={2.2} />
@@ -1009,7 +1009,7 @@ export default function PedidosPage() {
                         {/* Linha 1: #número · origem (item 55) ... atendimento | tempo. */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex min-w-0 items-center gap-2">
-                            <span className="flex-shrink-0 rounded-[6px] bg-[#1F2937] px-2 py-0.5 text-[13px] font-bold text-white" data-testid="card-numero">#{order.numero}</span>
+                            <span className="flex-shrink-0 rounded-[6px] bg-[#243549] px-2 py-0.5 text-[13px] font-bold text-white" data-testid="card-numero">#{order.numero}</span>
                             {(() => {
                               const o = origemVisivelNoCard(order)
                               return o ? (
@@ -1059,7 +1059,7 @@ export default function PedidosPage() {
                                 <span className="kc-pag-nome">{order.pagamentoOnline ? 'Pix online' : order.formaPagamento === 'pix' ? 'Pix' : order.formaPagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão'}</span>
                               </span>
                             )}
-                            <span className="whitespace-nowrap rounded-[6px] bg-[#047857] px-2 py-0.5 text-[13px] font-bold tabular-nums text-white" data-testid="card-preco">{brl(order.total)}</span>
+                            <span className="whitespace-nowrap rounded-[6px] bg-[#E3FAED] px-2 py-0.5 text-[13px] font-bold tabular-nums text-[#166534]" data-testid="card-preco">{brl(order.total)}</span>
                           </div>
                         </div>
                         {/* Linha 3: só a seta, à direita (amarelo = aceitar; verde = próxima etapa). Não abre o painel. */}

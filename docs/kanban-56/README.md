@@ -5,27 +5,20 @@ O modelo é `modelo.jpeg` (a imagem que o dono mandou). O topo continua como era
 ## O que mudou
 
 - **Colunas:**
-  - cabeçalho sólido com ícone, título e contador em pílula;
-  - corpo cinza-claro com borda suave e cantos de 12 px.
-  - As cores seguem o modelo, porém **mais escuras**, para o texto branco passar de 4,5:1 (regra 2):
-
-    | Coluna | Cor | Contraste |
-    |---|---|---|
-    | Pedido Recebido | laranja #C2410C | 5,2 |
-    | Preparando | azul #1D4ED8 | 6,7 |
-    | Pronto p/ Despacho | verde #047857 | 5,5 |
-
+  - cabeçalho sólido nas cores EXATAS do modelo: laranja #FE4B11, azul #015BB1, verde #00946E;
+  - ícone, título e contador em pílula;
+  - corpo #F7FCFF com borda suave e cantos de 12 px.
 - **Card**, sempre com 3 linhas, branco e faixa à esquerda na cor da coluna:
-  1. `#número` em pílula escura · ícone e nome da **origem** (item 55) … à direita, ícone e ENTREGA / RETIRADA / BALCÃO / MESA | ⏱ tempo.
+  1. `#número` em pílula escura (#243549) · ícone e nome da **origem** (item 55) … à direita, ícone e ENTREGA / RETIRADA / BALCÃO / MESA | ⏱ tempo.
      - Pedido da vitrine **Direto** não mostra ícone nem nome.
      - PDV, balcão e mesa mostram o canal ("PDV", "Salão").
      - A dica diz, por exemplo: "Origem: Instagram (campanha X)".
-  2. **Nome** em negrito · 📞 telefone · ícone e forma de pagamento ("Pix online" quando for o caso) · **valor em selo verde** (5,5:1).
-  3. **Botão só com a seta, à direita**, com 88 × 34 px (40 px de altura no toque):
-     - **amarelo forte** (#B45309, seta branca, 5,0:1) para aceitar;
-     - **verde** (#047857, 5,5:1) para a próxima etapa;
-     - cantos de 6 px.
+  2. **Nome** em negrito · 📞 telefone · ícone e forma de pagamento ("Pix online" quando for o caso) · valor em selo verde-claro (#E3FAED, texto verde).
+  3. **Botão só com a seta, à direita**, 88 × 30 px, cantos de 8 px, como no modelo:
+     - **amarelo-claro** #FFE6A6 com seta âmbar para aceitar;
+     - **verde-claro** #D3F6E0 com seta verde para a próxima etapa.
      - "Na logística" continua igual quando a loja usa o despacho de rotas.
+- **Cores = o modelo, exatamente** (decisão do dono, 2026-10-05): a regra de "fundo sempre escuro" saiu. Os botões e o selo do valor ficam nos tons claros da imagem.
 - **Card estreito** (menu aberto + 4ª coluna, tablet, celular): o card encolhe pela **largura dele** (container query). Primeiro some o telefone, depois os nomes (origem, pagamento, atendimento), e fica o ícone com a dica. Nada se sobrepõe.
 - **Mantido:**
   - o clique no card abre o painel lateral (sem bloquear a tela);
@@ -49,11 +42,11 @@ O modelo é `modelo.jpeg` (a imagem que o dono mandou). O topo continua como era
 ## Testes
 - `scripts/kanban/e2e-kanban-56.mjs`: **33/33**.
   - Origem certa em cada um dos 6 pedidos do modelo, sem ícone para Direto, e PDV no balcão.
-  - Dica da origem, 3 linhas, seta à direita sem ocupar a largura, cantos de 6 px.
-  - Contraste dos botões, do valor e dos 3 cabeçalhos; faixa na cor da coluna.
+  - Dica da origem, 3 linhas, seta à direita sem ocupar a largura, cantos de 8 px.
+  - Cores do modelo nos botões (amarelo-claro e verde-claro), no valor (verde-claro) e nos 3 cabeçalhos; faixa na cor da coluna.
   - O pedido novo pisca e o em preparo não.
   - Painel com a origem; a seta aceita.
   - Linha 2 sem sobreposição com 3 e com 4 colunas.
   - Tablet e celular: sem rolagem lateral e card mínimo.
-- `e2e-kanban-card`: 72/72. Foi atualizada para o desenho novo: o valor virou selo verde e o botão virou só a seta, à direita.
+- `e2e-kanban-card`: 72/72. Foi atualizada para o desenho novo: o valor virou selo verde-claro e o botão virou só a seta, à direita, nas cores do modelo.
 - Também passaram: `kanban-topo-v2` 121/121, `kanban-topo` (som e aviso) 48/48 e `alarme-global` 27/27.
