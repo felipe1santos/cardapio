@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Inter, Mulish } from "next/font/google";
+import "./fontes.css";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
@@ -9,51 +9,22 @@ import { PwaRegister } from "@/components/pwa-register";
  * os arquivos da fonte — tudo bloqueando a primeira pintura. O Lighthouse media
  * 945 ms de bloqueio e estimava 2 s de economia.
  *
- * Aqui o Next auto-hospeda os arquivos junto com o app: some a ida a
- * fonts.googleapis.com e a fonts.gstatic.com, e o CSS da fonte é inlinado.
+ * Os arquivos são servidos pelo próprio app (public/fontes): nenhuma ida a
+ * fonts.googleapis.com nem a fonts.gstatic.com, nem no navegador nem no build.
  *
  * Os pesos são exatamente os que já vinham (400–800). Existem 8 usos de
  * `font-light` e 1 de `font-black` no código, mas 300 e 900 nunca foram
  * carregados — o navegador já sintetizava. Mantendo o mesmo conjunto, nada muda
  * de aparência.
  */
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-  variable: "--font-inter",
-});
-
-/**
- * Mulish: a fonte do painel administrativo (2026-09-23).
- *
- * A referência de layout escolhida pelo dono usa Muli — o nome antigo desta
- * mesma família, hoje publicada como Mulish e sob licença aberta (SIL OFL).
- * Ela vale SÓ dentro de [data-admin-shell], fora do Kanban: a vitrine segue em
- * Montserrat e o restante do sistema em Inter, como manda o CLAUDE.md §3.
- *
- * Auto-hospedada pelo next/font, pelo mesmo motivo da Inter: nada de ida ao
- * fonts.googleapis.com bloqueando a primeira pintura.
+/*
+ * Fontes DENTRO do projeto (2026-10-07): o build do Coolify falhou duas vezes ao baixar o Google
+ * Fonts (next/font/google) e o site ficou sem fonte. As regras e os arquivos são os mesmos de antes
+ * (app/fontes.css + public/fontes/, gerados por scripts/fontes/extrair-fontes.mjs); as variáveis
+ * continuam --font-inter, --font-painel (Mulish, painel) e --font-meta (Figtree, Financeiro).
+ * Preload só do corte latino da Inter e da Mulish, como o next/font fazia (a Figtree não tinha).
  */
-const mulish = Mulish({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-  variable: "--font-painel",
-});
-
-/**
- * Figtree: a fonte da área do Financeiro no redesign "estilo Meta" (item 4b, 2026-10-04). A da Meta
- * (Optimistic) é proprietária; a Figtree é a gratuita (SIL OFL) mais parecida no desenho e nos pesos.
- * Vale SÓ dentro de .fin-meta (app/globals.css). Sem preload: só baixa quando o financeiro abre.
- */
-const figtree = Figtree({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-meta",
-  preload: false,
-});
+const PRELOAD_FONTES = ["/fontes/e4af272ccee01ff0-s.p.woff2", "/fontes/3be83a346553616c-s.p.woff2"];
 
 export const metadata: Metadata = {
   title: "Menuzia",
@@ -76,7 +47,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${mulish.variable} ${figtree.variable}`}>
+    <html lang="pt-BR" className="fonte-inter fonte-painel fonte-meta">
+      <head>
+        {PRELOAD_FONTES.map((href) => (
+          <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ))}
+      </head>
       <body className="antialiased">
         {children}
         <PwaRegister />

@@ -1,0 +1,46 @@
+{
+ "login": [
+  "Inter:400",
+  "Inter:500",
+  "Inter:600",
+  "Inter:700",
+  "Inter:800"
+ ],
+ "vitrine": [
+  "Montserrat Fallback:normal",
+  "Montserrat:400",
+  "Montserrat:500",
+  "Montserrat:600",
+  "Montserrat:700"
+ ],
+ "kanban": [
+  "Inter Fallback:normal",
+  "Inter:400",
+  "Inter:500",
+  "Inter:600",
+  "Inter:700"
+ ],
+ "dashboard": [
+  "Inter Fallback:normal",
+  "Inter:700",
+  "Mulish Fallback:normal",
+  "Mulish:400",
+  "Mulish:500",
+  "Mulish:600",
+  "Mulish:700"
+ ],
+ "financeiro": [
+  "Figtree Fallback:normal",
+  "Figtree:400",
+  "Inter Fallback:normal",
+  "Inter:700",
+  "Mulish Fallback:normal",
+  "Mulish:400",
+  "Mulish:500",
+  "Mulish:600",
+  "Mulish:700"
+ ],
+ "_origens": [
+  "/fontes/"
+ ]
+}

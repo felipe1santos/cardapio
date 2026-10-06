@@ -1,4 +1,4 @@
-import { fonteVitrine } from "@/lib/fonte-vitrine";
+import { fonteVitrine, PRELOAD_FONTE_VITRINE } from "@/lib/fonte-vitrine";
 import { VitrineSemZoom } from "@/components/vitrine-sem-zoom";
 
 /**
@@ -10,8 +10,8 @@ import { VitrineSemZoom } from "@/components/vitrine-sem-zoom";
  * Inter viajam também na vitrine. Tirar isso exigiria separar as rotas em route
  * groups com layouts raiz distintos, o que está fora do escopo desta mudança:
  * não conte com economia de bytes na vitrine por causa deste arquivo.
- * `next/font` self-hospeda o arquivo, então não há request a terceiro no
- * caminho crítico.
+ * Os arquivos são do próprio projeto (public/fontes, desde 2026-10-07): não há request a
+ * terceiro no caminho crítico.
  *
  * A configuração (família e pesos) mora em `lib/fonte-vitrine.ts`, compartilhada com o
  * cardápio da mesa/QR.
@@ -20,6 +20,7 @@ export default function LayoutVitrine({ children }: { children: React.ReactNode 
   // `vitrine-sem-zoom`: pinça e toque duplo desligados só na vitrine (globals.css).
   return (
     <div className={`${fonteVitrine.variable} vitrine-sem-zoom`}>
+      <link rel="preload" href={PRELOAD_FONTE_VITRINE} as="font" type="font/woff2" crossOrigin="anonymous" />
       <VitrineSemZoom />
       {children}
     </div>
