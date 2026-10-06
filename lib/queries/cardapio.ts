@@ -1161,6 +1161,8 @@ export interface RestauranteVitrine {
   /** Lado da foto na lista (0152); null = tamanho de antes (120/140). */
   imagemTamanho: ImagemTamanho | null
   fonteVitrine: FonteVitrine
+  /** Chave por loja (0152): vitrine e checkout no padrão iFood. Desligada = a vitrine de sempre. */
+  vitrineNova: boolean
   /** true se a loja está aceitando pedidos agora (manual ou pela grade de horário — ver lib/timezone.ts). */
   lojaAberta: boolean
   /** Texto de próxima abertura para quando a loja está fechada ("abre às 18:00"). Null = sem previsão. */
@@ -1190,7 +1192,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1224,12 +1226,12 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     facebookPixelId: data.facebook_pixel_id,
     googleTagId: data.google_tag_id,
     orderBumpMax: Number(data.order_bump_max ?? 4),
-    // 'gaveta' saiu (pendência 9): a vitrine mostra como Lista.
-    layoutCardapio: data.layout_cardapio === 'gaveta' ? 'lista' : ((data.layout_cardapio as LayoutCardapio) ?? 'categoria'),
+    layoutCardapio: (data.layout_cardapio as LayoutCardapio) ?? 'categoria',
     corTema: (data.cor_tema as string) ?? 'azul',
     imagemGrande: Boolean(data.imagem_grande),
     imagemTamanho: imagemTamanhoValido(data.vitrine_imagem_tamanho),
     fonteVitrine: fonteVitrineValida(data.vitrine_fonte),
+    vitrineNova: data.vitrine_nova === true,
     lojaAberta: lojaEstaAberta(estadoLoja),
     proximaAberturaTexto: textoProximaAbertura(estadoLoja),
     fechamentoHoraTexto: horarioFechamentoAtual(estadoLoja),

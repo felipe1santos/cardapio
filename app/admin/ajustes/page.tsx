@@ -221,6 +221,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     avisoCorFundo: null as string | null,
     avisoPulsar: false,
     layoutCardapio: 'categoria' as LayoutCardapio,
+    imagemGrande: false,
     imagemTamanho: null as ImagemTamanho | null,
     fonteVitrine: 'atual' as FonteVitrine,
     bannerFoco: FOCO_PADRAO as Foco,
@@ -268,6 +269,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         avisoPulsar: c.avisoPulsar,
         // Gaveta saiu da tela (pendência 9): quem estivesse nela aparece em Lista, que é o que a vitrine já mostra.
         layoutCardapio: c.layoutCardapio === 'gaveta' ? 'lista' : c.layoutCardapio,
+        imagemGrande: c.imagemGrande,
         imagemTamanho: c.imagemTamanho,
         fonteVitrine: c.fonteVitrine,
         bannerFoco: c.bannerFoco,
@@ -483,9 +485,10 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         avisoCorFundo: form.avisoCorFundo,
         avisoPulsar: form.avisoPulsar,
         layoutCardapio: form.layoutCardapio,
-        // null fica como está (tamanho de antes): só grava quando o dono escolhe um dos três.
-        ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}),
-        fonteVitrine: form.fonteVitrine,
+        // Vitrine nova: tamanho (null fica como está) e fonte. As outras lojas: o "imagem grande" de sempre.
+        ...(config?.vitrineNova
+          ? { ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}), fonteVitrine: form.fonteVitrine }
+          : { imagemGrande: form.imagemGrande }),
         bannerFoco: form.bannerFoco,
         bannerPromoFoco: form.bannerPromoFoco,
         horarioFuncionamento,
@@ -922,6 +925,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               ))}
             </div>
           </Field>
+          {config?.vitrineNova ? (<>
           <Field label="Tamanho da imagem na lista" hint="O lado da foto de cada item na visualização em lista.">
             <div className="grid grid-cols-3 gap-2.5" data-testid="imagem-tamanho">
               {IMAGEM_TAMANHOS.map((t) => {
@@ -980,6 +984,20 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               ))}
             </div>
           </Field>
+          </>) : (
+          <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={form.imagemGrande}
+                onChange={(e) => { setForm((f) => ({ ...f, imagemGrande: e.target.checked })); setSaved(false) }}
+                className="h-4 w-4 accent-primary"
+                data-testid="imagem-grande"
+              />
+              <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
+            </label>
+          </Field>
+          )}
         </Secao>
 
         {error && (

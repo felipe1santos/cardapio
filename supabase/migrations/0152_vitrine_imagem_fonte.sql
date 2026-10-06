@@ -18,3 +18,9 @@ alter table public.restaurantes add column if not exists vitrine_fonte text not 
 -- restaurantes tem grant por coluna: a vitrine (anon) lê; o painel (authenticated) grava a própria loja (RLS).
 grant select (vitrine_imagem_tamanho, vitrine_fonte) on public.restaurantes to anon, authenticated;
 grant update (vitrine_imagem_tamanho, vitrine_fonte) on public.restaurantes to authenticated;
+
+-- Chave por loja (2026-10-07, decisão do dono): vitrine e checkout no padrão iFood SÓ onde estiver
+-- ligada. Desligada (padrão, todas as lojas) = a vitrine e o checkout de sempre, sem nenhuma mudança.
+alter table public.restaurantes add column if not exists vitrine_nova boolean not null default false;
+grant select (vitrine_nova) on public.restaurantes to anon, authenticated;
+-- Ligar numa loja é um passo separado, feito por nós (não pelo painel): ver docs/vitrine-p9/README.md.

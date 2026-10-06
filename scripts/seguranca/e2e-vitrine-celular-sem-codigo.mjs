@@ -4,7 +4,6 @@
  *
  * Bug de 2026-09-30: depois do fallback a janela "Informe seu telefone" continuava na tela
  * e o "Continuar para pagamento" pedia o telefone de novo — o cliente não saía dali.
- * (Desde a pendência 9 o botão da sacola é "Continuar" e a primeira etapa é a Entrega.)
  *
  * Loja local sem instância de WhatsApp (ORDEM_QR_E2E: ordem-qr-e2e). No fim fecha o pedido com
  * toque duplo em "Fazer pedido" e confere que saiu UM pedido só (chave da tentativa, M24) —
@@ -47,23 +46,26 @@ try {
   await p.waitForTimeout(600)
   const adicionou = await p.getByText('Ver sacola').first().isVisible().catch(() => false)
   ok('item na sacola', adicionou)
-  // Fluxo da pendência 9 (padrão iFood): sacola → Entrega → Pagamento → "Revise o seu pedido".
-  const continuarSacola = () => p.locator('[data-testid="barra-sacola-continuar"] button').tap()
-  const barra = (re) => p.locator('[data-barra-checkout] button').filter({ hasText: re }).first()
   await p.getByText('Ver sacola').first().tap()
-  await continuarSacola()
-  const tel = p.locator('[data-testid="janela-conta"]').getByPlaceholder('(00) 00000-0000')
+  await p.getByRole('button', { name: /Continuar para pagamento/ }).last().tap()
+  const tel = p.getByPlaceholder('(00) 00000-0000').first()
   await tel.waitFor({ timeout: 5000 })
   ok('sem conta: pede o telefone', await tel.isVisible())
   await print('1-telefone')
   await tel.fill('27999887766')
-  await p.locator('[data-testid="janela-conta"] button').filter({ hasText: /^Continuar$/i }).tap()
+  await p.getByRole('button', { name: /^Continuar$/i }).first().tap()
   await p.waitForTimeout(1500)
   await print('2-depois-do-telefone')
   ok('a janela do telefone fecha (não fica presa em "Informe seu telefone")', !(await p.getByText('Informe seu telefone').isVisible().catch(() => false)))
-  ok('segue sozinho para a entrega', await p.getByTestId('etapa-entrega').isVisible().catch(() => false))
+  ok('segue sozinho para a forma de pagamento', await p.getByText('Forma de pagamento', { exact: false }).first().isVisible().catch(() => false))
 
-  const telCheckout = await p.getByTestId('etapa-entrega').getByPlaceholder('(00) 00000-0000').inputValue().catch(() => '')
+  await p.getByText('Dinheiro', { exact: true }).first().tap()
+  const troco = p.getByPlaceholder(/Ex: 50,00/).first()
+  ok('dinheiro pede troco', await troco.isVisible().catch(() => false))
+  await troco.fill('100')
+  await p.getByRole('button', { name: /Ir para endereço/ }).tap()
+  await p.waitForTimeout(600)
+  const telCheckout = await p.getByPlaceholder('(00) 00000-0000').first().inputValue().catch(() => '')
   ok('telefone informado já vem preenchido no checkout', telCheckout.replace(/\D/g, '').endsWith('27999887766'), telCheckout)
   await p.getByPlaceholder('Seu nome').fill('Cliente Celular')
   const bairro = p.getByPlaceholder(/Digite ou toque na seta|^Bairro/).first()
@@ -76,12 +78,12 @@ try {
   // Barra do botão presa ao fundo ao rolar e quando a barra de endereço do navegador
   // some/aparece (a altura da tela muda no meio da rolagem). Antes (fixed dentro de camada
   // com transform) o botão subia, abria vão branco embaixo e cobria os campos.
-  const botao = barra(/^Continuar$/)
+  const botao = p.getByRole('button', { name: /Revisar pedido/ })
   const conferirFundo = async (rotulo) => {
     const alt = p.viewportSize().height
     const caixa = await botao.boundingBox()
-    const fundo = await botao.evaluate((b) => b.closest('[data-barra-checkout]').getBoundingClientRect().bottom)
-    return { rotulo, alt, barraFundo: Math.round(fundo), botaoTopo: Math.round(caixa?.y ?? -1) }
+    const barra = await botao.evaluate((b) => b.parentElement.getBoundingClientRect().bottom)
+    return { rotulo, alt, barraFundo: Math.round(barra), botaoTopo: Math.round(caixa?.y ?? -1) }
   }
   const medidas = []
   for (const [altura, delta] of [[844, 400], [844, -300], [760, 500], [760, -800], [844, 900]]) {
@@ -94,43 +96,36 @@ try {
   // Rolado até o fim, o último campo aparece inteiro acima da barra (não fica embaixo dela).
   await p.mouse.wheel(0, 3000)
   await p.waitForTimeout(300)
-  const ref = p.locator('[data-testid="etapa-entrega"] input').last()
+  const ref = p.getByPlaceholder(/ao lado da padaria/).first()
   const cRef = await ref.boundingBox()
-  const topoBarra = await botao.evaluate((b) => b.closest('[data-barra-checkout]').getBoundingClientRect().top)
+  const topoBarra = await botao.evaluate((b) => b.parentElement.getBoundingClientRect().top)
   ok('último campo não fica escondido atrás do botão', !!cRef && cRef.y + cRef.height <= topoBarra + 1, `campo termina em ${Math.round((cRef?.y ?? 0) + (cRef?.height ?? 0))}, barra começa em ${Math.round(topoBarra)}`)
   await print('3b-endereco-rolado')
-  await botao.tap()
-  await p.waitForTimeout(800)
-
-  await p.getByTestId('pagamento-dinheiro').tap()
-  const troco = p.getByPlaceholder(/Ex: 50,00/).first()
-  ok('dinheiro pede troco', await troco.isVisible().catch(() => false))
-  await troco.fill('100')
-  await barra(/Revisar pedido/).tap()
+  await p.getByRole('button', { name: /Revisar pedido/ }).tap()
   await p.waitForTimeout(1000)
   await print('4-revisao')
-  const naRevisao = await p.getByTestId('fazer-pedido').isVisible().catch(() => false)
+  const naRevisao = await p.getByRole('button', { name: /Fazer pedido/ }).isVisible().catch(() => false)
   const erro = await p.locator('.text-danger').first().innerText().catch(() => '')
   ok('chega na revisão com "Fazer pedido" (pagamento e entrega escolhidos no celular)', naRevisao, naRevisao ? '' : erro)
 
   await p.reload({ waitUntil: 'networkidle' })
   await p.getByText('Ver sacola').first().tap()
-  await continuarSacola()
+  await p.getByRole('button', { name: /Continuar para pagamento/ }).last().tap()
   await p.waitForTimeout(800)
-  ok('depois de recarregar vai direto à entrega (não pede o telefone de novo)', !(await p.getByText('Informe seu telefone').isVisible().catch(() => false)) && await p.getByTestId('etapa-entrega').isVisible().catch(() => false))
+  ok('depois de recarregar vai direto ao pagamento (não pede o telefone de novo)', !(await p.getByText('Informe seu telefone').isVisible().catch(() => false)) && await p.getByText('Forma de pagamento', { exact: false }).first().isVisible().catch(() => false))
 
   // Fecha o pedido com toque duplo: a vitrine manda a chave da tentativa e sai 1 pedido só.
-  await p.getByPlaceholder('Seu nome').fill('Cliente Celular')
-  await p.getByPlaceholder(/Digite ou toque na seta|^Bairro/).first().fill('Centro').catch(() => {})
-  await p.getByPlaceholder('Nome da rua').fill('Rua Teste').catch(() => {})
-  await p.getByPlaceholder('123').fill('10').catch(() => {})
-  await p.waitForTimeout(1200)
-  await barra(/^Continuar$/).tap()
-  await p.waitForTimeout(600)
-  await p.getByTestId('pagamento-dinheiro').tap()
+  await p.getByText('Dinheiro', { exact: true }).first().tap()
   await p.getByPlaceholder(/Ex: 50,00/).first().fill('100')
-  await barra(/Revisar pedido/).tap()
-  const fazer = p.getByTestId('fazer-pedido')
+  await p.getByRole('button', { name: /Ir para endereço/ }).tap()
+  await p.waitForTimeout(600)
+  await p.getByPlaceholder('Seu nome').fill('Cliente Celular')
+  await p.getByPlaceholder(/Digite ou toque na seta|^Bairro/).first().fill('Centro')
+  await p.getByPlaceholder('Nome da rua').fill('Rua Teste')
+  await p.getByPlaceholder('123').fill('10')
+  await p.waitForTimeout(1200)
+  await p.getByRole('button', { name: /Revisar pedido/ }).tap()
+  const fazer = p.getByRole('button', { name: /Fazer pedido/ })
   await fazer.waitFor({ timeout: 5000 })
   const chaves = []
   p.on('request', (r) => { if (r.method() === 'POST' && /\/api\/loja\/[^/]+\/pedido$/.test(r.url())) chaves.push(JSON.parse(r.postData() ?? '{}').chavePedido ?? null) })

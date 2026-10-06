@@ -8,6 +8,7 @@ import { buscarRestaurantePorSlug } from '@/lib/queries/cardapio'
 import { TAMANHOS_CAPA, srcSetCapa } from '@/lib/imagem'
 import { resolverPaleta } from '@/lib/paletas'
 import Vitrine from './vitrine'
+import VitrineClassica from './vitrine-classica'
 
 /**
  * Casca de servidor da vitrine.
@@ -140,7 +141,11 @@ export default async function PaginaDaLoja({ params }: { params: Promise<{ slug:
           fetchPriority="high"
         />
       )}
-      <Vitrine slug={slug} restauranteInicial={loja} />
+      {/* Chave por loja (0152): só quem tem vitrine_nova vê a vitrine/checkout no padrão iFood.
+          As outras lojas seguem com a vitrine de sempre (vitrine-classica.tsx = a do main de 07/10). */}
+      {loja.vitrineNova
+        ? <Vitrine slug={slug} restauranteInicial={loja.layoutCardapio === 'gaveta' ? { ...loja, layoutCardapio: 'lista' } : loja} />
+        : <VitrineClassica slug={slug} restauranteInicial={loja} />}
     </>
   )
 }

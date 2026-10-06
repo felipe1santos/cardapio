@@ -66,12 +66,12 @@ export const ESTILO_UTIL = {
 } as const
 
 /** Desconto: verde da tag "R$ 5 off" da REF-CORES. Preço antigo: cinza claro. */
-// Selo verde sólido "-39%" (pendência 9, padrão iFood): branco sobre #0B7A3E = 5,4:1. Antes era
-// #24A96A sobre #EAFFF5 (2,9:1, abaixo do mínimo de 4,5:1).
-export const ESTILO_DESCONTO = { fundo: '#0B7A3E', cor: '#FFFFFF' } as const
-// Preço antigo riscado: #737373 = 4,7:1 no branco (o #A1A1AA de antes dava 2,6:1).
-export const COR_PRECO_ANTIGO = '#737373'
-/** Preço atual de item com desconto: o mesmo verde do selo (5,4:1 no branco). */
+export const ESTILO_DESCONTO = { fundo: '#EAFFF5', cor: '#24A96A' } as const
+export const COR_PRECO_ANTIGO = '#A1A1AA'
+// Vitrine nova (pendência 9, só onde a loja liga a chave vitrine_nova): selo verde sólido "-39%",
+// branco sobre #0B7A3E (5,4:1); preço antigo #737373 (4,7:1); preço atual no verde do selo.
+export const ESTILO_DESCONTO_NOVO = { fundo: '#0B7A3E', cor: '#FFFFFF' } as const
+export const COR_PRECO_ANTIGO_NOVO = '#737373'
 export const COR_PRECO_PROMO = '#0B7A3E'
 
 export const MAX_TOPO = 2

@@ -10,6 +10,9 @@
  *   E. Pix online (MP simulado): "Pagar agora" só com a flag; pedido abre a tela do Pix.
  *   F. Contraste ≥ 4,5:1 e peso ≤ 600 na sacola, checkout, revisão e ficha.
  *   G. 360/390/430 sem rolagem lateral; tablet e desktop.
+ *   H. Chave por loja (vitrine_nova, 07/10): sem ela, a loja segue com a vitrine/checkout de sempre —
+ *      vitrine-classica.tsx igual ao main, selo de desconto e checkout antigos, sem fonte iFood.
+ * O teste liga a chave só nas lojas que usa (p8-longa, fin-int, cantina-demo) e devolve no fim.
  * Limpa o que cria e devolve as configurações das lojas.
  *
  *   MP_SIMULADO_ARQUIVO=… node scripts/vitrine-p9/e2e-vitrine-p9.mjs [pasta-de-prints]
@@ -35,9 +38,14 @@ const res = []
 const ok = (n, c, d = '') => { res.push(!!c); console.log(`   ${c ? '✅' : '❌'} ${n}${d && !c ? ` — ${d}` : ''}`) }
 const secao = (t) => console.log(`\n── ${t} ──`)
 
-const loja = await um(`select id, vitrine_imagem_tamanho t, vitrine_fonte f, aceita_entrega e, aceita_retirada r from restaurantes where slug=$1`, [SLUG])
-const lojaPix = await um(`select id, pix_online_ativo from restaurantes where slug=$1`, [SLUG_PIX])
-const demo = await um(`select id, layout_cardapio l, vitrine_imagem_tamanho t, vitrine_fonte f from restaurantes where slug='cantina-demo'`)
+const loja = await um(`select id, vitrine_imagem_tamanho t, vitrine_fonte f, aceita_entrega e, aceita_retirada r, vitrine_nova vn from restaurantes where slug=$1`, [SLUG])
+const lojaPix = await um(`select id, pix_online_ativo, vitrine_nova vn from restaurantes where slug=$1`, [SLUG_PIX])
+const demo = await um(`select id, layout_cardapio l, vitrine_imagem_tamanho t, vitrine_fonte f, vitrine_nova vn from restaurantes where slug='cantina-demo'`)
+// Loja de controle, SEM a chave: tem de ver a vitrine de sempre.
+const SLUG_CLASSICA = 'ordem-qr-e2e'
+const classica = await um(`select id, vitrine_nova vn from restaurantes where slug=$1`, [SLUG_CLASSICA])
+await db.query(`update restaurantes set vitrine_nova=true where id = any($1)`, [[loja.id, lojaPix.id, demo.id]])
+await db.query(`update restaurantes set vitrine_nova=false where id=$1`, [classica.id])
 const TEL = '27999880099'
 const TEL_PIX = '27999880098'
 const criadosCupom = []
@@ -360,6 +368,28 @@ try {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  secao('H. Outras lojas (sem a chave): a vitrine de sempre')
+  {
+    const { execSync } = await import('node:child_process')
+    const { readFileSync } = await import('node:fs')
+    const doMain = execSync('git show origin/main:"app/loja/[slug]/vitrine.tsx"', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).replace(/\r\n/g, '\n')
+    const classicaArq = readFileSync('app/loja/[slug]/vitrine-classica.tsx', 'utf8').replace(/\r\n/g, '\n')
+    ok('vitrine-classica.tsx é igual à vitrine do main (byte a byte)', doMain === classicaArq, `${doMain.length} × ${classicaArq.length}`)
+    const { ctx, p } = await novoCelular()
+    await p.goto(`${BASE}/loja/${SLUG_CLASSICA}`, { waitUntil: 'networkidle' })
+    await p.getByText('Continuar no cardápio').first().tap({ timeout: 3000 }).catch(() => {})
+    const raiz = await p.evaluate(() => { const r = document.querySelector('.font-loja'); return { ifood: r?.classList.contains('vitrine-fonte-ifood') ?? null, fam: r ? getComputedStyle(r).fontFamily : null } })
+    ok('sem a chave: fonte de sempre (Montserrat), sem a classe iFood', raiz.ifood === false && /montserrat|vitrine/i.test(raiz.fam ?? ''), JSON.stringify(raiz))
+    const pil = await p.locator('[data-desconto]').first().evaluate((e) => ({ b: getComputedStyle(e).backgroundColor, c: getComputedStyle(e).color, svg: e.querySelectorAll('svg').length })).catch(() => null)
+    ok('sem a chave: selo de desconto de sempre (verde-claro com o ticket)', !!pil && pil.b === 'rgb(234, 255, 245)' && pil.c === 'rgb(36, 169, 106)' && pil.svg === 1, JSON.stringify(pil))
+    await p.locator('button:has-text("R$")', { hasText: 'Coca Lata' }).first().tap()
+    await p.getByRole('button', { name: /Adicionar/ }).last().tap(); await p.waitForTimeout(600)
+    await p.getByText('Ver sacola').first().tap(); await p.waitForTimeout(700)
+    ok('sem a chave: sacola de sempre (sem o topo SACOLA/Limpar, com "Continuar para pagamento")', (await p.getByTestId('topo-sacola').count()) === 0 && (await p.getByRole('button', { name: /Continuar para pagamento/ }).count()) >= 1)
+    await p.screenshot({ path: join(PRINTS, 'outra-loja-sacola-de-sempre.png') })
+    await ctx.close()
+  }
+
   secao('G. Larguras, tablet e desktop')
   for (const largura of [360, 390, 430]) {
     const { ctx, p } = await novoCelular(largura)
@@ -403,6 +433,7 @@ try {
   if (criadosBump.length) await db.query(`delete from order_bumps where id = any($1)`, [criadosBump]).catch(() => {})
   await db.query(`update restaurantes set vitrine_imagem_tamanho=$2, vitrine_fonte=$3, aceita_entrega=$4, aceita_retirada=$5 where id=$1`, [loja.id, loja.t, loja.f, loja.e, loja.r])
   await db.query(`update restaurantes set layout_cardapio=$2, vitrine_imagem_tamanho=$3, vitrine_fonte=$4 where id=$1`, [demo.id, demo.l, demo.t, demo.f])
+  for (const [id, vn] of [[loja.id, loja.vn], [lojaPix.id, lojaPix.vn], [demo.id, demo.vn], [classica.id, classica.vn]]) await db.query('update restaurantes set vitrine_nova=$2 where id=$1', [id, vn])
   await browser.close(); await db.end()
 }
 const falhas = res.filter((x) => !x).length

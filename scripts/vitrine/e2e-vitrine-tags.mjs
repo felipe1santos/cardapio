@@ -113,9 +113,8 @@ try {
       const antigo = await preco.locator('[data-preco-antigo]').evaluate((e) => ({ t: e.textContent, d: getComputedStyle(e).textDecorationLine, c: getComputedStyle(e).color, y: e.getBoundingClientRect().y }))
       const atual = await preco.locator('[data-preco-atual]').evaluate((e) => ({ t: e.textContent, y: e.getBoundingClientRect().y }))
       const pil = await preco.locator('[data-desconto]').evaluate((e) => ({ t: e.textContent, c: getComputedStyle(e).color, b: getComputedStyle(e).backgroundColor }))
-      // Pendência 9 (2026-10-06): selo verde sólido e preço antigo #737373 (contraste ≥ 4,5:1).
-      ok('desconto: original riscado cinza EM CIMA, atual embaixo + selo verde sólido -25%', antigo.t.includes('7,50') && antigo.d.includes('line-through') && antigo.c === rgb('#737373') && antigo.y < atual.y && atual.t.includes('5,63') &&
-        pil.t.trim() === '-25%' && pil.c === rgb('#FFFFFF') && pil.b === rgb('#0B7A3E'), JSON.stringify({ antigo, atual, pil }))
+      ok('desconto: original riscado cinza EM CIMA, atual embaixo + pílula verde -25%', antigo.t.includes('7,50') && antigo.d.includes('line-through') && antigo.c === rgb('#A1A1AA') && antigo.y < atual.y && atual.t.includes('5,63') &&
+        pil.t.trim() === '-25%' && pil.c === rgb('#24A96A') && pil.b === rgb('#EAFFF5'), JSON.stringify({ antigo, atual, pil }))
       ok('desconto + tags', JSON.stringify(await topo('TESTE Desconto com tags')) === '["combo_especial"]' && (await utils('TESTE Desconto com tags')).length === 2 && (await linha('TESTE Desconto com tags').locator('[data-desconto]').count()) === 1)
       ok('"A partir de" mantido', (await linha('TESTE A partir de').locator('[data-preco]').textContent()).includes('A partir de'))
       if (PRINTS) {

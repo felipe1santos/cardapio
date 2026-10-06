@@ -48,6 +48,8 @@ export interface ConfigLoja {
   imagemGrande: boolean
   imagemTamanho: ImagemTamanho | null
   fonteVitrine: FonteVitrine
+  /** Chave vitrine_nova (0152): só nela o tamanho 90/100/110 e a fonte valem (e aparecem em Ajustes). */
+  vitrineNova: boolean
   latitude: number | null
   longitude: number | null
   avaliacaoNota: number | null
@@ -106,6 +108,7 @@ interface ConfigRow {
   imagem_grande: boolean
   vitrine_imagem_tamanho?: number | null
   vitrine_fonte?: string | null
+  vitrine_nova?: boolean | null
   latitude: number | null
   longitude: number | null
   avaliacao_nota: number | null
@@ -119,7 +122,7 @@ interface ConfigRow {
   modulo_mesas_ativo: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -157,6 +160,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     imagemGrande: row.imagem_grande ?? false,
     imagemTamanho: imagemTamanhoValido(row.vitrine_imagem_tamanho),
     fonteVitrine: fonteVitrineValida(row.vitrine_fonte),
+    vitrineNova: row.vitrine_nova === true,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
     avaliacaoNota: row.avaliacao_nota === null || row.avaliacao_nota === undefined ? null : Number(row.avaliacao_nota),

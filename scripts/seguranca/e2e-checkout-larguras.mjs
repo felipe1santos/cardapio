@@ -1,9 +1,7 @@
 /**
  * E2E — checkout da vitrine no celular em 360, 390 e 414 px (Fase 1.2, 2026-09-30).
- * Desde a pendência 9 (2026-10-06) o fluxo é o do iFood: sacola → Entrega (endereço/dados e
- * opção de entrega ou retirada) → Pagamento → painel "Revise o seu pedido" → Fazer pedido.
  * Para cada largura × entrega/retirada × forma de pagamento: faz o pedido de ponta a ponta
- * e confere em CADA etapa (entrega, pagamento, revisão) que:
+ * e confere em CADA etapa (pagamento, endereço, revisão) que:
  *   · a barra do botão fica colada no fundo e por cima de nada que o cliente precise;
  *   · nenhuma barra de navegação/menu fica por cima do checkout;
  *   · a tela rola até o último campo, que fica acima da barra;
@@ -35,12 +33,10 @@ const ok = (n, c, d = '') => { res.push(!!c); console.log(`   ${c ? '✅' : '❌
 
 /** Barra do botão no fundo, nada por cima, botão recebe o toque. */
 async function conferirEtapa(p, botaoNome, rotulo, ultimoCampo) {
-  // Só a barra do checkout aberto (o fechado continua no DOM, fora da tela).
-  const botao = p.locator('[data-barra-checkout] button').filter({ hasText: botaoNome }).first()
+  const botao = p.getByRole('button', { name: botaoNome }).last()
   await botao.waitFor({ timeout: 8000 })
   const r = await botao.evaluate((b) => {
-    // A barra é o bloco marcado com data-barra-checkout (o botão fica dentro de um flex).
-    const barra = (b.closest('[data-barra-checkout]') ?? b.parentElement).getBoundingClientRect()
+    const barra = b.parentElement.getBoundingClientRect()
     const cx = b.getBoundingClientRect()
     const alvo = document.elementFromPoint(cx.left + cx.width / 2, cx.top + cx.height / 2)
     return { barraFundo: barra.bottom, alt: window.innerHeight, recebeToque: b === alvo || b.contains(alvo), visivel: cx.top >= 0 && cx.bottom <= window.innerHeight }
@@ -51,7 +47,7 @@ async function conferirEtapa(p, botaoNome, rotulo, ultimoCampo) {
   let campoOk = true
   if (ultimoCampo) {
     const c = await ultimoCampo.boundingBox()
-    const topoBarra = await botao.evaluate((b) => (b.closest('[data-barra-checkout]') ?? b.parentElement).getBoundingClientRect().top)
+    const topoBarra = await botao.evaluate((b) => b.parentElement.getBoundingClientRect().top)
     campoOk = !!c && c.y + c.height <= topoBarra + 1
   }
   const passou = Math.abs(r.barraFundo - r.alt) <= 2 && r.recebeToque && r.visivel && campoOk
@@ -77,14 +73,20 @@ try {
           await p.getByRole('button', { name: /Adicionar/ }).last().tap()
           await p.waitForTimeout(500)
           await p.getByText('Ver sacola').first().tap()
-          await p.locator('[data-testid="barra-sacola-continuar"] button').tap()
+          await p.getByRole('button', { name: tipo === 'entrega' ? /^Entrega/ : /^Retirada/ }).first().tap().catch(() => {})
+          await p.getByRole('button', { name: /Continuar para pagamento/ }).last().tap()
           const tel = p.getByPlaceholder('(00) 00000-0000').first()
           await tel.waitFor({ timeout: 8000 })
           await tel.fill(TEL)
-          await p.locator('[data-testid="janela-conta"] button').filter({ hasText: /^Continuar$/i }).tap()
+          // O botão da janela do telefone (na retirada a sacola também tem um "Continuar").
+          await p.locator('div').filter({ has: p.getByText('Informe seu telefone') }).last().getByRole('button', { name: /^Continuar$/i }).tap()
           await p.waitForTimeout(1200)
-          // Etapa Entrega: opção de entrega/retirada, dados e endereço.
-          await p.getByTestId(tipo === 'entrega' ? 'opcao-entrega-padrao' : 'opcao-retirada').tap()
+          await p.getByText(pag === 'Cartão' ? /^Cartão na (entrega|retirada)$/ : pag, { exact: pag !== 'Cartão' }).first().tap()
+          if (pag === 'Dinheiro') await p.getByPlaceholder(/Ex: 50,00/).first().fill('100')
+          await conferirEtapa(p, /Ir para endereço|Revisar pedido|Continuar/, `${rot} · pagamento`)
+          if (PRINTS) await p.screenshot({ path: join(PRINTS, `${largura}-${tipo}-${pag}-1-pagamento.png`) })
+          await p.getByRole('button', { name: /Ir para endereço|Continuar/ }).last().tap()
+          await p.waitForTimeout(600)
           await p.getByPlaceholder('Seu nome').fill('Cliente Largura')
           if (tipo === 'entrega') {
             await p.getByPlaceholder(/Digite ou toque na seta|^Bairro/).first().fill('Centro')
@@ -92,21 +94,13 @@ try {
             await p.getByPlaceholder('123').fill('10')
             await p.waitForTimeout(1000)
           }
-          await conferirEtapa(p, /^Continuar$/, `${rot} · ${tipo === 'entrega' ? 'endereço' : 'dados'}`, p.locator('[data-testid="etapa-entrega"] input').last())
-          if (PRINTS) await p.screenshot({ path: join(PRINTS, `${largura}-${tipo}-${pag}-1-entrega.png`) })
-          await p.locator('[data-barra-checkout] button').filter({ hasText: /^Continuar$/ }).first().tap()
-          await p.waitForTimeout(600)
-          // Etapa Pagamento.
-          await p.getByTestId({ Pix: 'pagamento-pix', Cartão: 'pagamento-cartao', Dinheiro: 'pagamento-dinheiro' }[pag]).tap()
-          if (pag === 'Dinheiro') await p.getByPlaceholder(/Ex: 50,00/).first().fill('100')
-          await conferirEtapa(p, /Revisar pedido/, `${rot} · pagamento`)
-          if (PRINTS) await p.screenshot({ path: join(PRINTS, `${largura}-${tipo}-${pag}-2-pagamento.png`) })
-          await p.locator('[data-barra-checkout] button').filter({ hasText: /Revisar pedido/ }).first().tap()
+          await conferirEtapa(p, /Revisar pedido/, `${rot} · ${tipo === 'entrega' ? 'endereço' : 'dados'}`, tipo === 'entrega' ? p.getByPlaceholder(/ao lado da padaria/).first() : null)
+          if (PRINTS) await p.screenshot({ path: join(PRINTS, `${largura}-${tipo}-${pag}-2-endereco.png`) })
+          await p.getByRole('button', { name: /Revisar pedido/ }).tap()
           await p.waitForTimeout(800)
-          // Painel "Revise o seu pedido".
           await conferirEtapa(p, /Fazer pedido/, `${rot} · revisão`)
           if (PRINTS) await p.screenshot({ path: join(PRINTS, `${largura}-${tipo}-${pag}-3-revisao.png`) })
-          await p.getByTestId('fazer-pedido').tap()
+          await p.getByRole('button', { name: /Fazer pedido/ }).tap()
           await p.waitForTimeout(2500)
           const pedido = (await db.query(`select id, tipo, forma_pagamento, troco_para from pedidos where restaurante_id=$1 and cliente_telefone like '%'||$2 order by criado_em desc limit 1`, [loja.id, TEL])).rows[0]
           if (pedido) criados.push(pedido.id)

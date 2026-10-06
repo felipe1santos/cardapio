@@ -1,9 +1,11 @@
 'use client'
 
-import { createContext, type ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 import {
   COR_PRECO_ANTIGO,
+  COR_PRECO_ANTIGO_NOVO,
   COR_PRECO_PROMO,
+  ESTILO_DESCONTO_NOVO,
   ESTILO_DESCONTO,
   ESTILO_SELO_MAIS_PEDIDOS,
   ROTULO_MAIS_PEDIDOS,
@@ -120,15 +122,33 @@ export function EtiquetasUtilitarias({ item, className = '' }: { item: ItemComEt
   )
 }
 
-/** Selo verde sólido do desconto ("-39%", padrão iFood — pendência 9). */
+/**
+ * Vitrine nova (pendência 9): só as lojas com a chave vitrine_nova ligada a renderizam com este
+ * contexto em true. Sem ele (todas as outras lojas), selo e preço ficam exatamente como hoje.
+ */
+export const VitrineNovaContext = createContext(false)
+
+/** Pílula verde do desconto com o ticket (REF-CORES "R$ 5 off"); na vitrine nova, selo verde sólido "-39%". */
 export function PilulaDesconto({ percentual }: { percentual: number }) {
+  const nova = useContext(VitrineNovaContext)
+  if (nova) {
+    return (
+      <span
+        data-desconto
+        className="inline-flex h-[20px] items-center whitespace-nowrap rounded-[4px] px-[6px] text-[12px] font-semibold leading-[20px]"
+        style={{ background: ESTILO_DESCONTO_NOVO.fundo, color: ESTILO_DESCONTO_NOVO.cor }}
+      >
+        -{percentual}%
+      </span>
+    )
+  }
   return (
     <span
       data-desconto
-      className="inline-flex h-[20px] items-center whitespace-nowrap rounded-[4px] px-[6px] text-[12px] font-semibold leading-[20px]"
+      className="inline-flex h-[20px] items-center gap-[4px] whitespace-nowrap rounded-[6px] px-[6px] text-[11.5px] font-bold leading-[20px]"
       style={{ background: ESTILO_DESCONTO.fundo, color: ESTILO_DESCONTO.cor }}
     >
-      -{percentual}%
+      <span className="inline-flex -rotate-45"><IconeTagSvg nome="ticket" tamanho={13} /></span>-{percentual}%
     </span>
   )
 }
@@ -139,18 +159,19 @@ export function PilulaDesconto({ percentual }: { percentual: number }) {
  * pequeno acima quando o preço depende da escolha.
  */
 export function PrecoVitrine({ price, originalPrice, aPartirDe = false }: { price: number; originalPrice?: number | null; aPartirDe?: boolean }) {
+  const nova = useContext(VitrineNovaContext)
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const off = originalPrice ? percentualDesconto(price, originalPrice) : 0
   return (
     <span className="flex flex-col items-start" data-preco>
       {aPartirDe && <span className="text-[11px] leading-[14px] text-[var(--v-secundario)]">A partir de</span>}
       {off > 0 && originalPrice && (
-        <span className="text-[12px] font-medium leading-[15px] line-through" style={{ color: COR_PRECO_ANTIGO }} data-preco-antigo>{brl(originalPrice)}</span>
+        <span className="text-[12px] font-medium leading-[15px] line-through" style={{ color: nova ? COR_PRECO_ANTIGO_NOVO : COR_PRECO_ANTIGO }} data-preco-antigo>{brl(originalPrice)}</span>
       )}
       {/* Quebra de linha permitida: no cartão estreito (destaque de 120px) a pílula do desconto desce para
           baixo do preço em vez de passar da borda e ser cortada (P8, 2026-10-04). */}
       <span className="inline-flex max-w-full flex-wrap items-center gap-x-[6px] gap-y-[4px]">
-        <span className="whitespace-nowrap text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]" style={off > 0 ? { color: COR_PRECO_PROMO } : undefined} data-preco-atual>{brl(price)}</span>
+        <span className="whitespace-nowrap text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]" style={nova && off > 0 ? { color: COR_PRECO_PROMO } : undefined} data-preco-atual>{brl(price)}</span>
         {off > 0 && <PilulaDesconto percentual={off} />}
       </span>
     </span>
