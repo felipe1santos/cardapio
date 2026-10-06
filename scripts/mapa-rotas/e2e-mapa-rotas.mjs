@@ -7,6 +7,8 @@
  *   1. loja com coordenadas, sem pedido pronto: o mapa abre na loja (não em Fortaleza);
  *   2. com pedidos prontos: enquadra loja + pedidos; geocodificação puxada para perto da loja;
  *   3. loja sem coordenadas: usa a cidade da loja; sem nada, o Brasil (nunca Fortaleza).
+ *   4. app do motoboy (RouteMap, item 2 de 07/10): abre na loja, endereço único com viés perto
+ *      dela e, se a rota não sair, volta para a loja (nunca Fortaleza).
  * O design da tela não muda (regra 4): o teste só lê o estado do mapa.
  *
  *   node scripts/mapa-rotas/e2e-mapa-rotas.mjs [prints]
@@ -65,6 +67,7 @@ const FALSO = `
 })()`
 
 const criados = []
+let entregadorTeste = null
 async function pedido(rua, n) {
   const p = await um(`insert into pedidos (restaurante_id, tipo, status, subtotal, total, cliente_nome, cliente_telefone, forma_pagamento, canal, origem, observacao, endereco_rua, endereco_numero, endereco_bairro, criado_em, preparando_notificado)
     values ($1,'entrega','pronto',30,30,$2,'27999880101','dinheiro','delivery','cardapio','',$3,$4,'Centro', now(), true) returning id`, [loja.id, `Mapa P5 ${n}`, rua, String(n)])
@@ -73,7 +76,7 @@ async function pedido(rua, n) {
 
 const browser = await chromium.launch()
 async function abrirDespacho(nome) {
-  const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: 'pt-BR' })
+  const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: 'pt-BR', serviceWorkers: 'block' })
   const p = await ctx.newPage()
   let chamouGoogle = false
   await p.route(/maps\.googleapis\.com\/maps\/api\/js/, (r) => { chamouGoogle = true; r.fulfill({ contentType: 'application/javascript', body: FALSO }) })
@@ -119,6 +122,43 @@ try {
     ok('pedidos caem perto da loja (não em Fortaleza)', ult.every((p) => perto(p, VITORIA, 0.6)) && perto(mapa?.centro, VITORIA, 0.6), JSON.stringify(mapa?.centro))
   }
 
+  secao('4. App do motoboy (portal pelo link)')
+  {
+    const ent = await um(`insert into entregadores (restaurante_id, nome, telefone, status) values ($1, 'Mapa P5 Moto', '27999880102', 'online') returning id, token`, [loja.id])
+    entregadorTeste = ent.id
+    const novoPedido = async (n) => {
+      const p = await um(`insert into pedidos (restaurante_id, tipo, status, subtotal, total, cliente_nome, cliente_telefone, forma_pagamento, canal, origem, observacao, endereco_rua, endereco_numero, endereco_bairro, entregador_id, criado_em, preparando_notificado)
+        values ($1,'entrega','em_rota',30,30,$2,'27999880103','dinheiro','delivery','cardapio','','Rua Mapa P5 Moto',$3,'Centro',$4, now(), true) returning id`, [loja.id, `Mapa P5 Moto ${n}`, String(n), ent.id])
+      criados.push(p.id)
+    }
+    const abrirPortal = async (nome) => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', serviceWorkers: 'block' })
+      const p = await ctx.newPage()
+      await p.route(/maps\.googleapis\.com\/maps\/api\/js/, (r) => r.fulfill({ contentType: 'application/javascript', body: FALSO }))
+      await p.route(/maps\.(googleapis|gstatic)\.com\/(?!maps\/api\/js)/, (r) => r.abort())
+      await p.goto(`${BASE}/entregador/${ent.token}`, { waitUntil: 'networkidle' })
+      await p.waitForTimeout(3000)
+      const mapa = await p.evaluate(() => window.__mapa ?? null)
+      await p.screenshot({ path: join(PRINTS, `${nome}.png`) })
+      await ctx.close()
+      return mapa
+    }
+    await novoPedido(1)
+    {
+      const mapa = await abrirPortal('5-motoboy-uma-parada')
+      const g = (mapa?.geocodes ?? []).find((x) => /Rua Mapa P5 Moto/.test(x.address))
+      ok('motoboy: mapa da rota aparece', !!mapa, JSON.stringify(mapa))
+      ok('motoboy: abre no Brasil/loja, nunca no centro de Fortaleza', !(mapa?.centros ?? []).some((c) => perto(c, FORTALEZA, 0.2)), JSON.stringify(mapa?.centros))
+      ok('motoboy: endereço único geocodificado com viés em volta da loja', !!g?.bounds && perto({ lat: (g.bounds[0].lat + g.bounds[1].lat) / 2, lng: (g.bounds[0].lng + g.bounds[1].lng) / 2 }, VITORIA, 0.01), JSON.stringify(g))
+      ok('motoboy: centraliza a parada perto da loja', perto(mapa?.centro, VITORIA, 0.6), JSON.stringify(mapa?.centro))
+    }
+    await novoPedido(2)
+    {
+      const mapa = await abrirPortal('6-motoboy-rota-falhou')
+      ok('motoboy: rota que não sai volta para a loja (não Fortaleza)', perto(mapa?.centro, VITORIA, 0.05) && !(mapa?.centros ?? []).some((c) => perto(c, FORTALEZA, 0.2)), JSON.stringify(mapa?.centros))
+    }
+  }
+
   secao('3. Loja sem coordenadas')
   await db.query(`delete from pedidos where id = any($1)`, [criados.splice(0)])
   await db.query(`update restaurantes set latitude=null, longitude=null where id=$1`, [loja.id])
@@ -139,6 +179,7 @@ try {
 } finally {
   if (criados.length) await db.query(`delete from pedidos where id = any($1)`, [criados])
   await db.query(`delete from pedidos where restaurante_id=$1 and cliente_nome like 'Mapa P5%'`, [loja.id])
+  if (entregadorTeste) await db.query('delete from entregadores where id=$1', [entregadorTeste]).catch(() => {})
   await db.query(`update restaurantes set usa_logistica=$2, entrega_sem_entregador=$3, latitude=$4, longitude=$5, endereco_cidade=$6, endereco_estado=$7 where id=$1`,
     [loja.id, loja.usa_logistica, loja.entrega_sem_entregador, loja.latitude, loja.longitude, loja.endereco_cidade, loja.endereco_estado])
   await browser.close(); await db.end()

@@ -141,7 +141,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
   const modoAdmin = Boolean(supabase && restauranteId && !dataSource)
 
   // Onde a loja fica (Ajustes): o mapa abre nela e enquadra loja + pedidos (antes abria em Fortaleza).
-  const [lojaMapa, setLojaMapa] = useState<RotaMapLoja | null>(null)
+  const [lojaMapa, setLojaMapa] = useState<RotaMapLoja | null | 'carregando'>(supabase && restauranteId ? 'carregando' : null)
   useEffect(() => {
     if (!supabase || !restauranteId) return
     let vivo = true
@@ -151,7 +151,8 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
       .eq('id', restauranteId)
       .maybeSingle()
       .then(({ data }) => {
-        if (!vivo || !data) return
+        if (!vivo) return
+        if (!data) { setLojaMapa(null); return }
         const lat = data.latitude === null || data.latitude === undefined ? null : Number(data.latitude)
         const lng = data.longitude === null || data.longitude === undefined ? null : Number(data.longitude)
         const cidade = [data.endereco_cidade, data.endereco_estado].filter(Boolean).join(', ') || null
@@ -841,7 +842,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
             </div>
             <div className="flex-1 p-4.5">
               {locDriver.localizacao ? (
-                <RouteMap apiKey={MAPS_KEY} origin={{ lat: locDriver.localizacao.lat, lng: locDriver.localizacao.lng }} stops={locStops} className="h-full w-full" />
+                <RouteMap apiKey={MAPS_KEY} origin={{ lat: locDriver.localizacao.lat, lng: locDriver.localizacao.lng }} stops={locStops} loja={lojaMapa} className="h-full w-full" />
               ) : (
                 <div className="flex h-full items-center justify-center rounded-menuzia border border-dashed border-border p-8 text-center text-sm text-text-subtle">
                   Localização ainda não disponível. O motoboy precisa abrir o link de acesso e permitir a localização no celular.

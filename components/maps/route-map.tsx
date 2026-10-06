@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/maps/loader'
+import { CENTRO_BRASIL, RAIO_VIES, ZOOM_BRASIL, ZOOM_LOJA, type LojaDoMapa } from '@/lib/maps/loja-mapa'
 import { LIGHT_MAP_STYLE } from '@/lib/maps/style'
 
 export interface RouteStop {
@@ -16,6 +17,8 @@ interface RouteMapProps {
   stops: RouteStop[]
   emptyMessage?: string
   className?: string
+  /** Onde a loja fica: o mapa abre nela e volta para ela se a rota não sair (antes: Fortaleza fixo). */
+  loja?: LojaDoMapa
 }
 
 function motoboyIcon(): google.maps.Icon {
@@ -46,7 +49,7 @@ function stopPinIcon(numero: number): google.maps.Icon {
 }
 
 /** Mapa estilizado Menuzia mostrando a posição do entregador e as próximas paradas, na ordem da rota. */
-export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: RouteMapProps) {
+export function RouteMap({ apiKey, origin, stops, emptyMessage, className, loja }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
@@ -54,6 +57,16 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
   const lastKeyRef = useRef<string>('')
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Posição da loja: coordenadas de Ajustes ou, sem elas, a cidade geocodificada.
+  const [posLoja, setPosLoja] = useState<google.maps.LatLng | null>(null)
+  // A rota só é traçada depois de saber onde a loja fica (ou de saber que não dá para saber):
+  // senão o endereço era procurado sem o viés e o mapa pulava para a cidade errada.
+  const [lojaPronta, setLojaPronta] = useState(false)
+  const carregandoLoja = loja === 'carregando'
+  const dadosLoja = loja && loja !== 'carregando' ? loja : null
+  const lojaLat = dadosLoja?.lat ?? null
+  const lojaLng = dadosLoja?.lng ?? null
+  const lojaCidade = dadosLoja?.cidade ?? null
 
   useEffect(() => {
     if (!apiKey || !containerRef.current) return
@@ -62,8 +75,8 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
       .then(() => {
         if (cancelled || !containerRef.current) return
         mapRef.current = new google.maps.Map(containerRef.current, {
-          center: { lat: -3.73, lng: -38.53 },
-          zoom: 13,
+          center: CENTRO_BRASIL,
+          zoom: ZOOM_BRASIL,
           styles: LIGHT_MAP_STYLE,
           disableDefaultUI: true,
           zoomControl: true,
@@ -77,10 +90,26 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
   }, [apiKey])
 
   useEffect(() => {
+    if (!ready || carregandoLoja) return
+    if (lojaLat !== null && lojaLng !== null) { setPosLoja(new google.maps.LatLng(lojaLat, lojaLng)); setLojaPronta(true); return }
+    if (!lojaCidade) { setLojaPronta(true); return }
+    let vivo = true
+    new google.maps.Geocoder().geocode({ address: `${lojaCidade}, Brasil`, region: 'BR' }, (r, st) => {
+      if (!vivo) return
+      if (st === google.maps.GeocoderStatus.OK && r?.[0]) setPosLoja(r[0].geometry.location)
+      setLojaPronta(true)
+    })
+    return () => { vivo = false }
+  }, [ready, carregandoLoja, lojaLat, lojaLng, lojaCidade])
+
+  useEffect(() => {
     const map = mapRef.current
-    if (!ready || !map) return
+    if (!ready || !map || !lojaPronta) return
+    // Até a rota chegar (ou se ela não sair), o mapa fica na loja — nunca no centro de reserva.
+    const naLoja = () => { if (posLoja) { map.setCenter(posLoja); map.setZoom(ZOOM_LOJA) } }
 
     const key = JSON.stringify({
+      loja: posLoja ? posLoja.toUrlValue() : null,
       origin: origin ? [Math.round(origin.lat * 10000), Math.round(origin.lng * 10000)] : null,
       stops: stops.map((s) => s.address),
     })
@@ -106,9 +135,10 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
         markersRef.current.push(new google.maps.Marker({ map, position: origin, icon: motoboyIcon(), zIndex: 50 }))
         map.setCenter(origin)
         map.setZoom(15)
-      }
+      } else naLoja()
       return
     }
+    if (!origin) naLoja()
 
     const bounds = new google.maps.LatLngBounds()
 
@@ -136,6 +166,7 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
         (result, status) => {
           if (status !== google.maps.DirectionsStatus.OK || !result) {
             setError('Não foi possível calcular a rota — verifique os endereços.')
+            if (!origin) naLoja()
             return
           }
           setError(null)
@@ -156,9 +187,17 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
       )
     } else {
       const geocoder = new google.maps.Geocoder()
-      geocoder.geocode({ address: stops[0].address, region: 'BR' }, (results, status) => {
+      // Endereço puxado para perto da loja (rua homônima em outro estado não ganha).
+      const vies = posLoja
+        ? new google.maps.LatLngBounds(
+            { lat: posLoja.lat() - RAIO_VIES, lng: posLoja.lng() - RAIO_VIES },
+            { lat: posLoja.lat() + RAIO_VIES, lng: posLoja.lng() + RAIO_VIES },
+          )
+        : undefined
+      geocoder.geocode({ address: stops[0].address, region: 'BR', bounds: vies }, (results, status) => {
         if (status !== google.maps.GeocoderStatus.OK || !results?.[0]) {
           setError('Não foi possível localizar o endereço da entrega.')
+          naLoja()
           return
         }
         setError(null)
@@ -168,7 +207,7 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className }: Rou
         map.setZoom(15)
       })
     }
-  }, [ready, origin, stops])
+  }, [ready, origin, stops, posLoja, lojaPronta])
 
   if (!apiKey) {
     return (

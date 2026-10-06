@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Lock, Bike, MapPin, Check, PackageCheck, Banknote, CreditCard, QrCode, Ban, WifiOff, Navigation } from 'lucide-react'
 import { enderecoCompletoPedido, type CaixaEntregador, type Pedido } from '@/lib/queries/pedidos'
 import { RouteMap } from '@/components/maps/route-map'
+import type { LojaNoMapa } from '@/lib/maps/loja-mapa'
 import { mascararTelefoneBR } from '@/lib/telefone'
 import { rotuloForma, trocoLevar } from '@/lib/pdv-pagamento'
 
@@ -24,6 +25,8 @@ const enderecoCompleto = enderecoCompletoPedido
 type PedidoApp = Pedido & { saiuParaEntregaEm?: string | null }
 interface PortalData {
   entregador: { nome: string; restauranteNome: string }
+  /** Onde a loja fica: o mapa abre nela. */
+  loja?: LojaNoMapa | null
   pedidos: PedidoApp[]
   disponiveis: Pedido[]
   despachoAberto: boolean
@@ -208,7 +211,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
         {routeStops.length > 0 && (
           <div className="mb-4 overflow-hidden rounded-menuzia border border-border bg-white">
             <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Sua rota — paradas na ordem da lista abaixo</div>
-            <RouteMap apiKey={MAPS_KEY} origin={geo} stops={routeStops} className="h-[220px] w-full" />
+            <RouteMap apiKey={MAPS_KEY} origin={geo} stops={routeStops} loja={data.loja} className="h-[220px] w-full" />
             {!geo && (
               <button onClick={atualizarLocalizacao} className="flex w-full items-center justify-center gap-1.5 border-t border-border bg-white py-2 text-xs font-semibold text-primary hover:bg-page">
                 Ativar localização para ver a rota a partir de você

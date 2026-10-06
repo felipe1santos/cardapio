@@ -13,6 +13,7 @@ import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RouteMap } from '@/components/maps/route-map'
+import { buscarLojaNoMapa, type LojaDoMapa } from '@/lib/maps/loja-mapa'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
@@ -458,6 +459,14 @@ function CampoEntregador({ rotulo, obrigatorio, dica, children }: { rotulo: stri
 export default function LogisticaPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  // Onde a loja fica: o mapa do entregador abre nela (antes: Fortaleza fixo até a rota chegar).
+  const [lojaMapa, setLojaMapa] = useState<LojaDoMapa>('carregando')
+  useEffect(() => {
+    if (!restauranteId) return
+    let vivo = true
+    void buscarLojaNoMapa(supabase, restauranteId).then((l) => { if (vivo) setLojaMapa(l) }).catch(() => { if (vivo) setLojaMapa(null) })
+    return () => { vivo = false }
+  }, [supabase, restauranteId])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -2004,6 +2013,7 @@ export default function LogisticaPage() {
                   apiKey={MAPS_KEY}
                   origin={{ lat: locationDriver.localizacao.lat, lng: locationDriver.localizacao.lng }}
                   stops={locationDriverStops}
+                  loja={lojaMapa}
                   className="h-full w-full"
                 />
               ) : (

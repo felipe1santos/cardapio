@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { buscarLojaNoMapa } from '@/lib/maps/loja-mapa'
 import {
   buscarDespachoAberto, calcularCaixaEntregadorHoje, contarEntregasConcluidasHoje, listarPedidosDisponiveisDespacho,
   listarPedidosEmRotaDoEntregador, marcarEntregaComProblema, marcarEntregaConcluida, pegarPedidoDisponivel, registrarPresencaEntregador,
@@ -54,6 +55,8 @@ export async function dadosDoPortal(admin: SupabaseClient, e: EntregadorPortal) 
     buscarDespachoAberto(admin, e.restauranteId),
     financeiroAtivo(admin, e.restauranteId),
   ])
+  // Onde a loja fica: o mapa da rota abre nela (antes: Fortaleza fixo até a rota chegar).
+  const loja = await buscarLojaNoMapa(admin, e.restauranteId).catch(() => null)
   const disponiveis = despachoAberto ? await listarPedidosDisponiveisDespacho(admin, e.restauranteId) : []
   const saiu = pedidos.length
     ? ((await admin.from('pedidos').select('id, saiu_para_entrega_em').in('id', pedidos.map((p) => p.id))).data ?? [])
@@ -61,6 +64,7 @@ export async function dadosDoPortal(admin: SupabaseClient, e: EntregadorPortal) 
   const saiuEm = new Map(saiu.map((s) => [s.id as string, (s.saiu_para_entrega_em as string | null) ?? null]))
   return {
     entregador: { nome: e.nome, restauranteNome: e.restauranteNome },
+    loja,
     pedidos: pedidos.map((p) => ({ ...p, saiuParaEntregaEm: saiuEm.get(p.id) ?? null })),
     disponiveis,
     despachoAberto,

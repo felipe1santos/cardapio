@@ -179,8 +179,8 @@ try {
 
 console.log('\n── Despacho de rotas e Cozinha ──')
 // Mapas, Cozinha, badge e botão: nenhuma alteração.
-const diff = execSync('git diff --stat origin/main -- components/maps app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
-ok('Cozinha, mapas, badge e botão sem nenhuma alteração', diff === '', diff)
+const diff = execSync('git diff --stat origin/main -- components/maps ":(exclude)components/maps/route-map.tsx" app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
+ok('Cozinha, mapas (fora o route-map, conferido abaixo), badge e botão sem nenhuma alteração', diff === '', diff)
 // Despacho de rotas (regra 4): desde a noite 3 (item 5, mapa abrindo em Fortaleza) o FUNCIONAMENTO
 // pode mudar; o design não — classes, estilo do mapa e ícones iguais aos do main.
 const superficie = (bruto) => {
@@ -188,11 +188,12 @@ const superficie = (bruto) => {
   return [
     ...(txt.match(/className=("[^"]*"|\{`[^`]*`\}|\{\[[\s\S]*?\]\.join\(' '\)\})/g) ?? []),
     (txt.match(/const LIGHT_MAP_STYLE[\s\S]*?\n\]/) ?? [''])[0],
-    (txt.match(/function pinIcon[\s\S]*?\n\}/) ?? [''])[0],
-    (txt.match(/function motoIcon[\s\S]*?\n\}/) ?? [''])[0],
+    // Ícones dos pinos/motos (pinIcon, motoIcon, motoboyIcon, stopPinIcon…).
+    ...(txt.match(/function \w*Icon\([\s\S]*?\n\}/g) ?? []),
   ].join('\n')
 }
-const despachoMudou = ['components/pedidos/rota-panel.tsx', 'components/pedidos/rota-map.tsx'].filter((arq) =>
+// O route-map (mapa do entregador, aberto também no despacho) segue a mesma regra desde 07/10.
+const despachoMudou = ['components/pedidos/rota-panel.tsx', 'components/pedidos/rota-map.tsx', 'components/maps/route-map.tsx'].filter((arq) =>
   superficie(execSync(`git show origin/main:${arq}`, { encoding: 'utf8' })) !== superficie(readFileSync(arq, 'utf8')))
 ok('"Despacho de rotas" com o design intocado (classes, estilo do mapa e ícones iguais ao main)', despachoMudou.length === 0, despachoMudou.join(', '))
 

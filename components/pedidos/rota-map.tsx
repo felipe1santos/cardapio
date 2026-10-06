@@ -32,7 +32,8 @@ interface RotaMapProps {
   drivers: RotaMapDriver[]
   onStopClick: (id: string) => void
   className?: string
-  loja?: RotaMapLoja | null
+  /** 'carregando' = ainda buscando a loja: o mapa espera antes de geocodificar (o cache guardaria o endereço sem viés). */
+  loja?: RotaMapLoja | null | 'carregando'
 }
 
 /**
@@ -106,6 +107,7 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
   const [posLoja, setPosLoja] = useState<google.maps.LatLng | null>(null)
   const lojaAplicadaRef = useRef(false)
   const lojaKeyRef = useRef('')
+  const [lojaPronta, setLojaPronta] = useState(false)
 
   clickRef.current = onStopClick
 
@@ -135,19 +137,23 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
   }, [apiKey])
 
   // Loja: coordenadas de Ajustes; sem elas, a cidade ("Cidade, UF") geocodificada.
-  const lojaLat = loja?.lat ?? null
-  const lojaLng = loja?.lng ?? null
-  const lojaCidade = loja?.cidade ?? null
+  const carregandoLoja = loja === 'carregando'
+  const dadosLoja = loja && loja !== 'carregando' ? loja : null
+  const lojaLat = dadosLoja?.lat ?? null
+  const lojaLng = dadosLoja?.lng ?? null
+  const lojaCidade = dadosLoja?.cidade ?? null
   useEffect(() => {
-    if (!ready) return
-    if (lojaLat !== null && lojaLng !== null) { setPosLoja(new google.maps.LatLng(lojaLat, lojaLng)); return }
-    if (!lojaCidade) return
+    if (!ready || carregandoLoja) return
+    if (lojaLat !== null && lojaLng !== null) { setPosLoja(new google.maps.LatLng(lojaLat, lojaLng)); setLojaPronta(true); return }
+    if (!lojaCidade) { setLojaPronta(true); return }
     let vivo = true
     new google.maps.Geocoder().geocode({ address: `${lojaCidade}, Brasil`, region: 'BR' }, (r, st) => {
-      if (vivo && st === google.maps.GeocoderStatus.OK && r?.[0]) setPosLoja(r[0].geometry.location)
+      if (!vivo) return
+      if (st === google.maps.GeocoderStatus.OK && r?.[0]) setPosLoja(r[0].geometry.location)
+      setLojaPronta(true)
     })
     return () => { vivo = false }
-  }, [ready, lojaLat, lojaLng, lojaCidade])
+  }, [ready, carregandoLoja, lojaLat, lojaLng, lojaCidade])
 
   // Sem pedido no mapa (ainda), abre na loja.
   useEffect(() => {
@@ -161,7 +167,7 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
   // Marcadores de pedido (geocodificados, coloridos por status)
   useEffect(() => {
     const map = mapRef.current
-    if (!ready || !map) return
+    if (!ready || !map || !lojaPronta) return
     let cancelled = false
     const geocoder = new google.maps.Geocoder()
     const wanted = new Set(stops.map((s) => s.id))
@@ -253,7 +259,7 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
     return () => {
       cancelled = true
     }
-  }, [ready, stops, posLoja])
+  }, [ready, stops, posLoja, lojaPronta])
 
   // Marcadores das motos (posição direta, sem geocode)
   useEffect(() => {
