@@ -9,6 +9,8 @@ export interface ConfigImpressao {
   imprimirLogo: boolean
   /** Impressão v3 (0150): o Assistente Beta imprime também a via da cozinha (sem valores). Desligada por padrão. */
   viaCozinha: boolean
+  /** QR Code do cardápio no rodapé do Beta (0151). Ligado por padrão. */
+  qr: boolean
   ativarAssistente: boolean
   impressaoAutomatica: boolean
   aceitarPedidosAutomaticamente: boolean
@@ -23,6 +25,7 @@ interface ConfigImpressaoRow {
   impressao_multiplicar_opcoes_qtd: boolean
   impressao_logo: boolean
   impressao_via_cozinha: boolean
+  impressao_qr: boolean
   impressao_ativar_assistente: boolean
   impressao_automatica: boolean
   impressao_aceitar_pedidos_automaticamente: boolean
@@ -30,7 +33,7 @@ interface ConfigImpressaoRow {
 
 const CONFIG_IMPRESSAO_SELECT = `
   impressao_mostrar_numero_item, impressao_mostrar_preco_complementos, impressao_mostrar_nome_complementos,
-  impressao_fonte_maior_producao, impressao_multiplicar_opcoes_qtd, impressao_logo, impressao_via_cozinha,
+  impressao_fonte_maior_producao, impressao_multiplicar_opcoes_qtd, impressao_logo, impressao_via_cozinha, impressao_qr,
   impressao_ativar_assistente,
   impressao_automatica, impressao_aceitar_pedidos_automaticamente
 `
@@ -44,6 +47,7 @@ function mapConfigImpressao(row: ConfigImpressaoRow): ConfigImpressao {
     multiplicarOpcoesQtd: row.impressao_multiplicar_opcoes_qtd,
     imprimirLogo: row.impressao_logo,
     viaCozinha: row.impressao_via_cozinha === true,
+    qr: row.impressao_qr !== false,
     ativarAssistente: row.impressao_ativar_assistente,
     impressaoAutomatica: row.impressao_automatica,
     aceitarPedidosAutomaticamente: row.impressao_aceitar_pedidos_automaticamente,
@@ -70,6 +74,7 @@ export async function atualizarConfigImpressao(supabase: SupabaseClient, restaur
   if (patch.multiplicarOpcoesQtd !== undefined) row.impressao_multiplicar_opcoes_qtd = patch.multiplicarOpcoesQtd
   if (patch.imprimirLogo !== undefined) row.impressao_logo = patch.imprimirLogo
   if (patch.viaCozinha !== undefined) row.impressao_via_cozinha = patch.viaCozinha
+  if (patch.qr !== undefined) row.impressao_qr = patch.qr
   if (patch.ativarAssistente !== undefined) row.impressao_ativar_assistente = patch.ativarAssistente
   if (patch.impressaoAutomatica !== undefined) row.impressao_automatica = patch.impressaoAutomatica
   if (patch.aceitarPedidosAutomaticamente !== undefined) row.impressao_aceitar_pedidos_automaticamente = patch.aceitarPedidosAutomaticamente

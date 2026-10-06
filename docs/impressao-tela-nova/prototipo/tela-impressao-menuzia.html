@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Impressão – Menuzia (protótipo)</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1C2B33; --ink-2:#465A69; --ink-3:#6B7A86;
+  --line:#DDE2E7; --line-2:#EDF0F3; --bg:#F4F6F8; --card:#FFFFFF;
+  --pri:#166FE5; --pri-dk:#0F5BC4; --pri-soft:#EAF3FE; --pri-line:#9CC3F5;
+  --ok:#0B8457; --ok-vivo:#12A367; --ok-soft:#E5F6EE;
+  --warn:#B45309; --warn-vivo:#F08C1A; --warn-soft:#FFF4E5;
+  --bad:#C62828; --bad-soft:#FDECEC;
+  --teal:#0E9488; --teal-soft:#E3F6F4; --roxo:#7C3AED; --roxo-soft:#F1EBFE;
+  --r:8px; --r-sm:6px;
+  --sh:0 1px 2px rgba(28,43,51,.06),0 1px 3px rgba(28,43,51,.04);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:linear-gradient(180deg,#EEF4FB 0,#F4F6F8 320px) no-repeat,#F4F6F8;font-family:Figtree,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+h1,h2,h3,h4,b,strong,th,summary{font-weight:600}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px;border-radius:4px}
+
+/* topo do sistema (simplificado) */
+.topo{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:5}
+.topo h1{font-size:18px;font-weight:600;margin:0}
+.topo-dir{display:flex;gap:8px;align-items:center}
+.pilula{font-size:13px;font-weight:600;color:#fff;background:#1F7A4D;padding:7px 12px;border-radius:var(--r-sm)}
+.pilula.duv{background:#B4430F}
+
+.pagina{max-width:1040px;margin:0 auto;padding:24px 24px 64px}
+
+/* cabeçalho da tela */
+.cab{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
+.cab h2{font-size:22px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+.cab p{margin:0;color:var(--ink-2)}
+.resumo{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:13px;color:var(--ink-2)}
+.resumo span{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);padding:5px 10px 5px 9px;border-radius:999px;font-weight:600;color:var(--ink)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok-vivo);flex:none}
+.dot.warn{background:#D99A2B}.dot.bad{background:var(--bad)}
+
+/* botões */
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--line);background:#fff;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn:hover{background:#F7F9FA;border-color:#C9D0D6}
+.btn:active{background:#EEF1F4}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{background:var(--pri-dk);border-color:var(--pri-dk)}
+.btn.sm{height:32px;padding:0 12px;font-size:13px}
+.btn svg{width:16px;height:16px}
+
+/* segmentado (estilo do botão "Visitas") */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;background:#fff;gap:2px}
+.seg button{border:0;background:transparent;height:30px;padding:0 14px;border-radius:5px;font-weight:600;font-size:13px;color:var(--ink-2);cursor:pointer}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--pri);color:#fff}
+
+/* seções em passos */
+.passo.ativo{border-color:var(--pri-line)}
+.passo{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:16px}
+.passo-cab{display:grid;grid-template-columns:28px 1fr auto;gap:14px;align-items:start;padding:20px 24px}
+.num{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-weight:600;font-size:13px;color:var(--ink-2)}
+.num.feito{background:var(--ok-soft);border-color:var(--ok-soft);color:var(--ok)}
+.num.atual{background:#fff;border-color:var(--pri);color:var(--pri)}
+.passo h3{margin:3px 0 2px;font-size:16px;font-weight:600}
+.passo .sub{margin:0;color:var(--ink-2);font-size:13px}
+.passo-corpo{padding:0 24px 22px 66px}
+
+/* escolha do assistente */
+.escolha{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.opcao{position:relative;text-align:left;border:1.5px solid var(--line);border-radius:var(--r);background:#fff;padding:16px 18px;cursor:pointer;transition:border-color .15s,background .15s}
+.opcao:hover{border-color:#B8C2CB}
+.opcao[aria-checked="true"]{border-color:#9AA6B1;background:#fff;box-shadow:0 1px 3px rgba(28,43,51,.10)}
+.emuso{display:none;margin:12px 0 0 28px;font-size:12.5px;font-weight:600;color:var(--ok);align-items:center;gap:6px}
+.opcao[aria-checked="true"] .emuso{display:inline-flex}
+.opcao .t{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px}
+.radio{width:18px;height:18px;border-radius:50%;border:1.5px solid #9AA6B1;display:grid;place-items:center;flex:none}
+.opcao[aria-checked="true"] .radio{border-color:var(--pri)}
+.opcao[aria-checked="true"] .radio::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--pri)}
+.opcao p{margin:8px 0 0 28px;color:var(--ink-2);font-size:13px}
+.opcao ul{margin:10px 0 0 28px;padding:0;list-style:none;font-size:13px;color:var(--ink-2)}
+.opcao li{display:flex;gap:8px;align-items:center;margin-top:4px}
+.opcao li svg{width:14px;height:14px;color:var(--ink-3);flex:none}
+.selo{font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;background:var(--line-2);color:var(--ink-2);margin-left:auto}
+.selo.rec{background:var(--ok-soft);color:var(--ok)}
+
+/* download */
+.baixar{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.arq{display:flex;align-items:center;gap:12px}
+.ico-q{width:40px;height:40px;border-radius:10px;background:var(--pri-soft);display:grid;place-items:center;flex:none}
+.ico-q svg{width:20px;height:20px;color:var(--pri)}
+.ico-q.teal{background:var(--teal-soft)}.ico-q.teal svg{color:var(--teal)}
+.ico-q.ok{background:var(--ok-soft)}.ico-q.ok svg{color:var(--ok)}
+.ico-q.warn{background:var(--warn-soft)}.ico-q.warn svg{color:var(--warn)}
+.ico-q.roxo{background:var(--roxo-soft)}.ico-q.roxo svg{color:var(--roxo)}
+.btn.verde{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.verde:hover{background:#086B46;border-color:#086B46}
+.arq b{display:block;font-size:14px}
+.arq small{color:var(--ink-3);font-size:12.5px}
+.aviso{display:flex;gap:10px;align-items:center;margin-top:10px;padding:10px 14px;background:#FDF0D5;border:1px solid #F2D49C;border-radius:var(--r);font-size:13px;color:#5E4314}
+.aviso svg{color:#9A7130}
+.aviso .btn{margin-left:auto;height:30px;font-size:12.5px;background:#fff;border-color:#E4C482;color:#5E4314}
+.pill-warn{background:#FDF0D5!important;border-color:#F2D49C!important;color:#5E4314!important}
+.aviso b{font-weight:600}
+
+/* impressoras */
+.tabela{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.linha{display:grid;grid-template-columns:1.4fr 1fr auto;gap:14px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-2)}
+.linha:first-child{border-top:0}
+.linha.cab-t{background:#F8FAFB;font-size:12.5px;font-weight:600;color:var(--ink-3);padding:9px 16px}
+.imp{display:flex;align-items:center;gap:10px}
+.imp b{font-weight:600}
+.imp small{display:block;color:var(--ink-3);font-size:12.5px}
+select.campo{height:36px;border:1px solid var(--line);border-radius:var(--r-sm);padding:0 32px 0 10px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23465A69' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;appearance:none;font:inherit;color:var(--ink);width:100%}
+.mais{margin-top:10px}
+
+/* conexão */
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bloco{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.bloco h4{margin:0 0 2px;font-size:14px;font-weight:600}
+.bloco p{margin:0 0 12px;color:var(--ink-2);font-size:13px}
+.bloco .acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.estado{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.estado.ok{color:var(--ok)} .estado.warn{color:var(--warn)}
+.bloco-cab{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.bloco-cab p{margin:0}
+
+/* opções */
+.opcoes{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border-top:1px solid var(--line-2)}
+.opt:first-child{border-top:0}
+.opt b{font-weight:600;display:block}
+.opt small{color:var(--ink-3);font-size:12.5px}
+.opt.oculta{display:none}
+.sw{position:relative;width:38px;height:22px;flex:none;border:0;padding:0;background:#C5CDD4;border-radius:11px;cursor:pointer;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.sw[aria-checked="true"]{background:var(--pri)}
+.sw[aria-checked="true"]::after{transform:translateX(16px)}
+
+/* situação geral */
+.situ{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+.situ-cab{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--line-2)}
+.situ-cab h3{margin:0;font-size:16px}
+.itens-s{display:grid;grid-template-columns:repeat(4,1fr)}
+.it{padding:16px 24px;border-left:1px solid var(--line-2)}
+.it:first-child{border-left:0}
+.it small{display:block;color:var(--ink-3);font-size:12.5px;margin-bottom:4px}
+.it b{display:flex;align-items:center;gap:8px;font-size:14px}
+.it{display:flex;gap:12px;align-items:center}
+.it .ico-q{width:36px;height:36px}
+details.tec{border-top:1px solid var(--line-2)}
+details.tec summary{cursor:pointer;padding:14px 24px;font-weight:600;color:var(--ink-2);list-style:none;display:flex;justify-content:space-between}
+details.tec summary::-webkit-details-marker{display:none}
+details.tec[open] summary .chev{transform:rotate(180deg)}
+.chev{transition:transform .15s}
+.tec-tab{padding:0 24px 18px;display:grid;grid-template-columns:200px 1fr;row-gap:8px;font-size:13px}
+.tec-tab dt{color:var(--ink-3)} .tec-tab dd{margin:0;font-family:"JetBrains Mono",monospace;font-size:12.5px}
+
+/* modal */
+.fundo{position:fixed;inset:0;background:rgba(17,26,32,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:9999}
+.fundo.aberto{display:flex}
+.modal{background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.25);display:flex;flex-direction:column;height:calc(100vh - 32px);max-height:1100px;width:min(440px,100%)}
+.m-cab{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 20px 12px}
+.m-cab h3{margin:0;font-size:16px}
+.m-cab p{margin:2px 0 0;color:var(--ink-3);font-size:12.5px}
+.fechar{border:0;background:transparent;width:32px;height:32px;border-radius:6px;cursor:pointer;display:grid;place-items:center;color:var(--ink-2)}
+.fechar:hover{background:var(--line-2)}
+.m-ctl{display:flex;flex-direction:column;gap:8px;padding:0 20px 12px;border-bottom:1px solid var(--line)}
+.m-ctl .seg{display:flex}
+.m-ctl .seg button{flex:1}
+.m-ctl select.campo{width:100%!important}
+.zoom{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.zoom button{border:0;background:#fff;height:30px;min-width:32px;padding:0 8px;cursor:pointer;font-weight:600;font-size:13px}
+.zoom button:hover{background:#F4F6F8}
+.zoom span{min-width:48px;text-align:center;font-size:13px;font-weight:600;border-left:1px solid var(--line);border-right:1px solid var(--line);line-height:30px}
+.palco{flex:1;overflow:auto;background:#E9EDF0;padding:16px;display:flex;justify-content:center;align-items:flex-start;min-height:0}
+.escala{transform-origin:top center}
+.m-rod{padding:10px 16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--ink-3)}
+
+/* papel térmico */
+.papel{width:302px;background:#fff;color:#000;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;line-height:1.35;padding:14px 0 16px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.papel .c{text-align:center;padding:0 12px}
+.papel .logo{width:58px;height:58px;margin:0 auto 6px;border-radius:50%;background:#000;color:#fff;display:grid;place-items:center;font-weight:600;font-size:20px}
+.papel .nm{font-weight:600;font-size:14px}
+.papel .pq{font-size:10px}
+.papel .tel{font-weight:600}
+.papel .tp{font-weight:600;font-size:14px;margin-top:2px}
+.papel .tr{border-top:1px dashed #000;margin:7px 12px}
+.papel .faixa{background:#000;color:#fff;text-align:center;font-weight:600;padding:4px 0;margin:8px 0 6px}
+.papel .item{display:flex;justify-content:space-between;gap:12px;padding:3px 12px;font-weight:600;font-size:14px}
+.papel .item span:last-child{font-weight:400;font-size:12px;white-space:nowrap;padding-top:2px}
+.papel .item.grande{font-size:16px}
+.papel .obs{padding:0 12px 3px 24px;font-size:12px}
+.papel .sep{border-top:1px dashed #000;margin:2px 12px}
+.papel .v{display:flex;justify-content:space-between;padding:1px 12px}
+.papel .sol{border-top:1.5px solid #000;margin:4px 12px}
+.papel .tot{display:flex;justify-content:space-between;padding:2px 12px;font-weight:600;font-size:19px}
+.papel .qr{width:74px;height:74px;margin:6px auto;background:
+  repeating-linear-gradient(90deg,#000 0 6px,#fff 6px 10px),#000;
+  -webkit-mask:repeating-linear-gradient(0deg,#000 0 6px,transparent 6px 9px);mask:repeating-linear-gradient(0deg,#000 0 6px,transparent 6px 9px)}
+.papel.antigo{font-size:12px;padding:12px 0}
+.papel.antigo .linha-a{padding:0 12px}
+
+@media (max-width:760px){
+  .pagina{padding:16px 14px 48px}
+  .cab{flex-direction:column}
+  .escolha,.grade{grid-template-columns:1fr}
+  .passo-cab{padding:16px;grid-template-columns:28px 1fr}
+  .passo-cab .lado{grid-column:1/-1}
+  .passo-corpo{padding:0 16px 18px}
+  .linha{grid-template-columns:1fr;gap:8px}
+  .linha.cab-t{display:none}
+  .itens-s{grid-template-columns:1fr 1fr}
+  .it:nth-child(3){border-left:0}
+  .it{border-top:1px solid var(--line-2)}
+  .tec-tab{grid-template-columns:1fr}
+  .baixar{flex-direction:column;align-items:stretch}
+  .topo .pilula{display:none}
+  .fundo{padding:0}
+  .modal{max-height:100vh;height:100%;border-radius:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <h1>Impressão</h1>
+  <div class="topo-dir">
+    <span class="pilula">Caixa aberto</span>
+    <span class="pilula duv">Dúvidas?</span>
+  </div>
+</header>
+
+<main class="pagina">
+
+  <div class="cab">
+    <div>
+      <h2>Impressão de pedidos</h2>
+      <p>Escolha como sua loja imprime e deixe a impressora pronta em poucos passos.</p>
+      <div class="resumo" aria-label="Situação rápida">
+        <span><i class="dot"></i>Assistente conectado</span>
+        <span><i class="dot"></i>Cozinha pronta</span>
+        <span><i class="dot"></i>Caixa pronto</span>
+        <span class="pill-warn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9A7130" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Atualização disponível</span>
+      </div>
+    </div>
+    <button class="btn" id="abrirModelo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
+      Ver modelo da impressão
+    </button>
+  </div>
+
+  <!-- 1 -->
+  <section class="passo" aria-labelledby="p1">
+    <div class="passo-cab">
+      <span class="num feito">1</span>
+      <div>
+        <h3 id="p1">Escolha o assistente</h3>
+        <p class="sub">É o programa que fica no computador da loja e envia os pedidos para a impressora.</p>
+      </div>
+    </div>
+    <div class="passo-corpo">
+      <div class="escolha" role="radiogroup" aria-label="Assistente de impressão">
+        <button class="opcao" role="radio" aria-checked="false" data-modo="antigo">
+          <span class="t"><span class="radio"></span>Assistente antigo<span class="selo">Padrão</span></span>
+          <p>O sistema de sempre. Imprime a comanda do pedido como hoje.</p>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5L20 7"/></svg>Comanda do pedido</li>
+          </ul>
+          <span class="emuso"><i class="dot"></i>Em uso na sua loja</span>
+        </button>
+        <button class="opcao" role="radio" aria-checked="true" data-modo="beta">
+          <span class="t"><span class="radio"></span>Assistente novo<span class="selo rec">Recomendado</span></span>
+          <p>Modelo novo, mais fácil de ler e com envio direto para a impressora.</p>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5L20 7"/></svg>Comanda da cozinha</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5L20 7"/></svg>Pré-conta de mesas e balcão</li>
+          </ul>
+          <span class="emuso"><i class="dot"></i>Em uso na sua loja</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="passo" aria-labelledby="p2">
+    <div class="passo-cab">
+      <span class="num feito">2</span>
+      <div>
+        <h3 id="p2">Instale no computador da loja</h3>
+        <p class="sub">Baixe, abra o arquivo e siga o instalador. Se já tiver uma versão, ela é atualizada por cima.</p>
+      </div>
+    </div>
+    <div class="passo-corpo">
+      <div class="baixar">
+        <div class="arq">
+          <span class="ico-q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          <div>
+            <b id="nomeInst">Assistente Menuzia 0.2.0-beta.9</b>
+            <small id="detInst">Windows 10 ou 11, cerca de 80 MB</small>
+          </div>
+        </div>
+        <button class="btn pri">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+          Baixar instalador
+        </button>
+      </div>
+      <div class="aviso" id="avisoVersao">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <span>Este computador está na versão <b>0.2.0-beta.7</b>. Baixe a <b>0.2.0-beta.9</b> e instale por cima, sem desinstalar.</span><button class="btn">Como atualizar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="passo" aria-labelledby="p3">
+    <div class="passo-cab">
+      <span class="num feito">3</span>
+      <div>
+        <h3 id="p3">Impressoras e o que cada uma imprime</h3>
+        <p class="sub">Escolha a impressora e diga se ela fica na cozinha ou no caixa.</p>
+      </div>
+    </div>
+    <div class="passo-corpo">
+      <div class="tabela">
+        <div class="linha cab-t"><span>Impressora</span><span>Usada para</span><span></span></div>
+        <div class="linha">
+          <div class="imp">
+            <i class="dot"></i>
+            <div><b>POS-80 Cozinha</b><small>USB, papel 80 mm, envio direto</small></div>
+          </div>
+          <div class="seg" role="group" aria-label="Uso da impressora">
+            <button aria-pressed="true">Cozinha</button><button aria-pressed="false">Caixa</button><button aria-pressed="false">Os dois</button>
+          </div>
+          <button class="btn sm">Testar</button>
+        </div>
+        <div class="linha">
+          <div class="imp">
+            <i class="dot"></i>
+            <div><b>Elgin i9 Balcão</b><small>Rede 192.168.0.120, papel 80 mm</small></div>
+          </div>
+          <div class="seg" role="group" aria-label="Uso da impressora">
+            <button aria-pressed="false">Cozinha</button><button aria-pressed="true">Caixa</button><button aria-pressed="false">Os dois</button>
+          </div>
+          <button class="btn sm">Testar</button>
+        </div>
+      </div>
+      <button class="btn sm mais">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar impressora
+      </button>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="passo ativo" aria-labelledby="p4">
+    <div class="passo-cab">
+      <span class="num atual">4</span>
+      <div>
+        <h3 id="p4">Conexão e ajuste do papel</h3>
+        <p class="sub">Só mexa aqui se a impressão sair cortada, fraca ou na largura errada.</p>
+      </div>
+    </div>
+    <div class="passo-corpo">
+      <div class="grade">
+        <div class="bloco">
+          <div class="bloco-cab"><span class="ico-q teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><div><h4>Computador da loja</h4><p>DESKTOP-BIE4TTM, conectado agora</p></div></div>
+          <div class="acoes">
+            <span class="estado ok"><i class="dot"></i>Conectado</span>
+            <button class="btn sm">Trocar computador</button>
+          </div>
+        </div>
+        <div class="bloco">
+          <div class="bloco-cab"><span class="ico-q roxo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/></svg></span><div><h4>Largura do papel</h4><p>Confira na caixa da bobina ou na etiqueta da impressora.</p></div></div>
+          <div class="acoes">
+            <div class="seg" role="group" aria-label="Largura do papel">
+              <button aria-pressed="true">80 mm</button><button aria-pressed="false">58 mm</button>
+            </div>
+          </div>
+        </div>
+        <div class="bloco">
+          <div class="bloco-cab"><span class="ico-q ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><div><h4>Forma de envio</h4><p>Envio direto é mais rápido e evita impressão cortada.</p></div></div>
+          <div class="acoes">
+            <div class="seg" role="group" aria-label="Forma de envio">
+              <button aria-pressed="true">Envio direto</button><button aria-pressed="false">Pelo Windows</button>
+            </div>
+          </div>
+        </div>
+        <div class="bloco">
+          <div class="bloco-cab"><span class="ico-q warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg></span><div><h4>Calibrar</h4><p>Imprime uma folha de teste e ajusta largura e intensidade.</p></div></div>
+          <div class="aviso" style="margin:0 0 12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Última calibração há 32 dias</span></div>
+          <div class="acoes">
+            <button class="btn sm">Calibrar impressora</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="passo" aria-labelledby="p5">
+    <div class="passo-cab">
+      <span class="num">5</span>
+      <div>
+        <h3 id="p5">O que aparece no papel</h3>
+        <p class="sub">As mudanças valem para a próxima impressão. Confira em "Ver modelo da impressão".</p>
+      </div>
+    </div>
+    <div class="passo-corpo">
+      <div class="opcoes">
+        <div class="opt"><div><b>Logo da loja</b><small>Imprime a logo em preto e branco no topo.</small></div><button class="sw" role="switch" aria-checked="true" aria-label="Logo da loja"></button></div>
+        <div class="opt"><div><b>Quantidade no item</b><small>Mostra "2x" antes do nome do produto.</small></div><button class="sw" role="switch" aria-checked="true" aria-label="Quantidade no item"></button></div>
+        <div class="opt"><div><b>Adicionais</b><small>Mostra os adicionais escolhidos pelo cliente.</small></div><button class="sw" role="switch" aria-checked="true" aria-label="Adicionais"></button></div>
+        <div class="opt"><div><b>Preço dos adicionais</b><small>Mostra o valor de cada adicional.</small></div><button class="sw" role="switch" aria-checked="false" aria-label="Preço dos adicionais"></button></div>
+        <div class="opt"><div><b>Letra maior nos itens</b><small>Facilita a leitura na cozinha.</small></div><button class="sw" role="switch" aria-checked="true" aria-label="Letra maior nos itens"></button></div>
+        <div class="opt so-beta"><div><b>Via da cozinha sem valores</b><small>Uma via a mais, só com itens e observações, logo depois da comanda.</small></div><button class="sw" role="switch" aria-checked="false" aria-label="Via da cozinha sem valores"></button></div>
+        <div class="opt so-beta"><div><b>QR Code do cardápio</b><small>No rodapé, para o cliente pedir de novo.</small></div><button class="sw" role="switch" aria-checked="true" aria-label="QR Code do cardápio"></button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- situação -->
+  <section class="situ" aria-labelledby="sit">
+    <div class="situ-cab">
+      <h3 id="sit">Situação geral</h3>
+      <button class="btn sm">Atualizar</button>
+    </div>
+    <div class="itens-s">
+      <div class="it"><span class="ico-q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><div><small>Assistente</small><b><i class="dot"></i><span id="sitAssist">Novo, conectado</span></b></div></div>
+      <div class="it"><span class="ico-q warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 13.9A4 4 0 0 1 7.5 6a5 5 0 0 1 9 0A4 4 0 0 1 18 13.9V20H6z"/></svg></span><div><small>Cozinha</small><b><i class="dot"></i>POS-80 Cozinha</b></div></div>
+      <div class="it"><span class="ico-q teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg></span><div><small>Caixa</small><b><i class="dot"></i>Elgin i9 Balcão</b></div></div>
+      <div class="it"><span class="ico-q ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span><div><small>Última impressão</small><b><i class="dot"></i>Hoje, 01:04</b></div></div>
+    </div>
+    <details class="tec">
+      <summary>Detalhes técnicos <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+      <dl class="tec-tab">
+        <dt>Versão instalada</dt><dd>0.2.0-beta.7 (disponível: 0.2.0-beta.9)</dd>
+        <dt>Computador</dt><dd>DESKTOP-BIE4TTM</dd>
+        <dt>Largura</dt><dd>576 pontos (80 mm)</dd>
+        <dt>Envio</dt><dd>RAW USB direto</dd>
+        <dt>Modo de texto</dt><dd>Imagem 1 bit</dd>
+        <dt>Últimos erros</dt><dd>Nenhum nas últimas 24 h</dd>
+      </dl>
+    </details>
+  </section>
+
+</main>
+
+<!-- MODAL -->
+<div class="fundo" id="fundo" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTit">
+    <div class="m-cab">
+      <div>
+        <h3 id="mTit">Modelo da impressão</h3>
+        <p id="mSub">Assistente novo, papel 80 mm, dados de exemplo</p>
+      </div>
+      <button class="fechar" id="fechar" aria-label="Fechar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="m-ctl">
+      <div class="seg" id="segDoc" role="group" aria-label="Documento">
+        <button aria-pressed="true" data-doc="comanda">Comanda</button>
+        <button aria-pressed="false" data-doc="preconta">Pré-conta</button>
+        <button aria-pressed="false" data-doc="cozinha">Via da cozinha</button>
+      </div>
+      <select class="campo" id="selTipo" style="width:auto" aria-label="Tipo de pedido">
+        <option value="ENTREGA">Entrega</option>
+        <option value="RETIRADA">Retirada</option>
+        <option value="MESA 04">Mesa</option>
+        <option value="BALCÃO">Balcão</option>
+      </select>
+    </div>
+    <div class="palco" id="palco"><div class="escala" id="escala"></div></div>
+    <div class="m-rod">
+      <span>100% = tamanho real</span>
+      <div class="zoom">
+        <button id="zMenos" aria-label="Diminuir">−</button>
+        <span id="zVal">100%</span>
+        <button id="zMais" aria-label="Aumentar">+</button>
+        <button id="zAjustar" style="border-left:1px solid var(--line)">Inteira</button>
+        <button id="zLargura" style="border-left:1px solid var(--line)">Largura</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const estado={modo:'beta',doc:'comanda',tipo:'ENTREGA',zoom:1};
+
+/* escolha do assistente */
+document.querySelectorAll('.opcao').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.opcao').forEach(o=>o.setAttribute('aria-checked','false'));
+  b.setAttribute('aria-checked','true');
+  estado.modo=b.dataset.modo;
+  const beta=estado.modo==='beta';
+  document.querySelectorAll('.so-beta').forEach(e=>e.classList.toggle('oculta',!beta));
+  document.getElementById('nomeInst').textContent=beta?'Assistente Menuzia 0.2.0-beta.9':'Assistente Menuzia 0.1.23';
+  document.getElementById('avisoVersao').style.display=beta?'flex':'none';
+  document.getElementById('sitAssist').textContent=beta?'Novo, conectado':'Antigo, conectado';
+}));
+
+/* segmentados e switches */
+document.querySelectorAll('.seg').forEach(g=>{
+  if(g.id==='segDoc')return;
+  g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+  }));
+});
+document.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',()=>{
+  s.setAttribute('aria-checked',s.getAttribute('aria-checked')==='true'?'false':'true');
+}));
+
+/* papel */
+function cabecalho(tipo){return `
+  <div class="c"><div class="logo">AB</div>
+  <div class="nm">ANGUS BURGUER</div>
+  <div class="pq">Av. Henrique Moscoso, 2250 - Centro</div>
+  <div class="tel">(27) 99239-9932</div>
+  <div>01/10/2026 20:43</div>
+  <div class="tp">${tipo}</div></div><div class="tr"></div>`}
+function rodape(){return `<div class="tr"></div><div class="c"><div class="qr"></div>
+  <div class="pq">Peça de novo pelo nosso cardápio</div><div style="font-weight:600">Obrigado pela preferência!</div></div>
+  <div class="tr"></div><div class="c pq">feito por Menuzia.com.br</div>`}
+const itens=[['1x Açaí Grande 500 mL (300)','19,00','sem granola'],['2x X-Egg Bacon (+ Bacon)','52,00','bem passado'],['1x Coca Lata 350ml','5,63',''],['1x Batata Frita (G)','18,00','']];
+function listaItens(semPreco,grande){return itens.map((i,n)=>`${n?'<div class="sep"></div>':''}
+  <div class="item ${grande?'grande':''}"><span>${i[0]}</span>${semPreco?'':`<span>${i[1]}</span>`}</div>${i[2]?`<div class="obs">Obs: ${i[2]}</div>`:''}`).join('')}
+
+function papelBeta(){
+  const t=estado.tipo, d=estado.doc;
+  if(d==='cozinha') return `<div class="papel">${cabecalho(t)}<div class="faixa">COZINHA #135</div><div class="faixa" style="margin-top:0">ITENS</div>${listaItens(true,true)}
+    <div class="faixa">OBSERVAÇÃO</div><div class="v">Tocar o interfone do apto 2.</div><div class="tr"></div><div class="c pq">feito por Menuzia.com.br</div></div>`;
+  if(d==='preconta') return `<div class="papel">${cabecalho(t.startsWith('MESA')?t:'MESA 04')}<div class="faixa">PRÉ-CONTA</div><div class="faixa" style="margin-top:0">ITENS</div>${listaItens(false)}
+    <div class="faixa">VALORES</div>
+    <div class="v"><span>Subtotal</span><span>R$ 94,63</span></div><div class="v"><span>Serviço (10%)</span><span>R$ 9,46</span></div>
+    <div class="v"><span>Desconto</span><span>- R$ 5,00</span></div><div class="sol"></div>
+    <div class="v"><span>Total da conta</span><span>R$ 99,09</span></div><div class="v"><span>Já pago</span><span>- R$ 50,00</span></div><div class="sol"></div>
+    <div class="tot"><span>A PAGAR</span><span>R$ 49,09</span></div><div class="c pq">Conferência de conta - não é documento fiscal</div>
+    <div class="faixa">MESA</div><div class="v"><span>Mesa: 04  Atendente: Carlos</span></div>${rodape()}</div>`;
+  const ent=t==='ENTREGA';
+  return `<div class="papel">${cabecalho(t)}<div class="faixa">PEDIDO #135</div><div class="faixa" style="margin-top:0">ITENS</div>${listaItens(false)}
+    <div class="faixa">PAGAMENTO</div>
+    <div class="v"><span>Subtotal</span><span>R$ 94,63</span></div>${ent?'<div class="v"><span>Taxa de entrega</span><span>R$ 2,40</span></div>':''}
+    <div class="sol"></div><div class="tot"><span>TOTAL</span><span>R$ ${ent?'97,03':'94,63'}</span></div>
+    <div class="v"><span>Pagamento: PIX ONLINE - PAGO</span></div>
+    <div class="faixa">CLIENTE</div><div class="v">Cliente: Maria Souza</div><div class="v">Tel.: (27) 99239-9932</div>
+    ${ent?'<div class="v">End.: Rua Jaburuna, 55</div><div class="v">Centro</div>':''}${rodape()}</div>`;
+}
+function papelAntigo(){
+  return `<div class="papel antigo"><div class="linha-a" style="text-align:center;font-weight:600">ANGUS BURGUER</div>
+  <div class="linha-a" style="text-align:center">PEDIDO #135 - ${estado.tipo}</div><div class="tr"></div>
+  ${itens.map(i=>`<div class="linha-a">${i[0]}</div><div class="linha-a" style="text-align:right">R$ ${i[1]}</div>${i[2]?`<div class="linha-a">  > ${i[2]}</div>`:''}`).join('')}
+  <div class="tr"></div><div class="linha-a" style="display:flex;justify-content:space-between;font-weight:600"><span>TOTAL</span><span>R$ 97,03</span></div>
+  <div class="linha-a">Pagamento: PIX</div><div class="tr"></div><div class="linha-a">Cliente: Maria Souza</div><div class="linha-a">Tel: (27) 99239-9932</div></div>`;
+}
+
+const fundo=document.getElementById('fundo'), palco=document.getElementById('palco'), escala=document.getElementById('escala');
+function desenhar(){
+  const beta=estado.modo==='beta';
+  escala.innerHTML=beta?papelBeta():papelAntigo();
+  document.getElementById('mSub').textContent=(beta?'Assistente novo':'Assistente antigo')+', papel 80 mm, dados de exemplo';
+  document.querySelectorAll('#segDoc button').forEach(b=>{
+    b.style.display=(!beta&&b.dataset.doc!=='comanda')?'none':'';
+  });
+  aplicarZoom();
+}
+function aplicarZoom(){
+  escala.style.transform=`scale(${estado.zoom})`;
+  const h=escala.firstElementChild?escala.firstElementChild.offsetHeight:0;
+  escala.style.height=(h*estado.zoom)+'px';
+  document.getElementById('zVal').textContent=Math.round(estado.zoom*100)+'%';
+}
+function largura(){
+  const w=escala.firstElementChild.offsetWidth, dispW=palco.clientWidth-32;
+  estado.zoom=Math.max(.4,Math.min(1.4,dispW/w));aplicarZoom();
+}
+function ajustar(){
+  const h=escala.firstElementChild.offsetHeight, w=escala.firstElementChild.offsetWidth;
+  const disp=palco.clientHeight-40, dispW=palco.clientWidth-40;
+  estado.zoom=Math.max(.4,Math.min(1.5,disp/h,dispW/w));
+  aplicarZoom();
+}
+let ultimoFoco=null;
+function abrir(){
+  ultimoFoco=document.activeElement;
+  if(estado.modo!=='beta'){estado.doc='comanda';}
+  document.querySelectorAll('#segDoc button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.doc===estado.doc?'true':'false'));
+  fundo.classList.add('aberto');fundo.setAttribute('aria-hidden','false');
+  desenhar();requestAnimationFrame(largura);
+  document.getElementById('fechar').focus();
+}
+function fechar(){fundo.classList.remove('aberto');fundo.setAttribute('aria-hidden','true');ultimoFoco&&ultimoFoco.focus();}
+document.getElementById('abrirModelo').addEventListener('click',abrir);
+document.getElementById('fechar').addEventListener('click',fechar);
+fundo.addEventListener('click',e=>{if(e.target===fundo)fechar()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&fundo.classList.contains('aberto'))fechar()});
+document.querySelectorAll('#segDoc button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#segDoc button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');estado.doc=b.dataset.doc;desenhar();requestAnimationFrame(largura);
+}));
+document.getElementById('selTipo').addEventListener('change',e=>{estado.tipo=e.target.value;desenhar();requestAnimationFrame(largura)});
+document.getElementById('zMais').addEventListener('click',()=>{estado.zoom=Math.min(2,+(estado.zoom+.1).toFixed(2));aplicarZoom()});
+document.getElementById('zMenos').addEventListener('click',()=>{estado.zoom=Math.max(.4,+(estado.zoom-.1).toFixed(2));aplicarZoom()});
+document.getElementById('zAjustar').addEventListener('click',ajustar);
+document.getElementById('zLargura').addEventListener('click',largura);
+window.addEventListener('resize',()=>{if(fundo.classList.contains('aberto'))largura()});
+</script>
+</body>
+</html>

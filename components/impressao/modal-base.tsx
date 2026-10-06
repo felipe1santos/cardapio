@@ -56,7 +56,7 @@ export function ModalBase({
   }, [])
   // No <body>, na camada máxima (regra: pop-ups sempre por cima, inclusive de outra janela).
   return (
-    <NoTopo>
+    <NoTopo classe="tela-impressao">
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0f172a]/45 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={titulo} data-testid={testid} onClick={onFechar}>
       <div ref={caixa} className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[14px] bg-white shadow-2xl sm:rounded-[12px] ${largura}`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-4 py-3.5 sm:px-5">

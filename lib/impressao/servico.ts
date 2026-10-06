@@ -384,13 +384,13 @@ export async function criarReciboTeste(
   if (ja) return { ok: true, valor: { ...ja, idempotente: true } }
   const { data: d } = await admin
     .from('impressao_dispositivos')
-    .select('id, agente_id, apelido, nome_sistema, largura_mm, largura_pontos, deslocamento_pontos, impressao_agentes ( nome, revogado_em ), restaurantes ( nome, slug, instagram_url )')
+    .select('id, agente_id, apelido, nome_sistema, largura_mm, largura_pontos, deslocamento_pontos, impressao_agentes ( nome, revogado_em ), restaurantes ( nome, slug, instagram_url, impressao_qr )')
     .eq('id', dispositivoId)
     .eq('restaurante_id', op.restauranteId)
     .maybeSingle()
   const disp = d as unknown as {
     id: string; agente_id: string; apelido: string | null; nome_sistema: string; largura_mm: number; largura_pontos: number | null; deslocamento_pontos: number
-    impressao_agentes: { nome: string; revogado_em: string | null } | null; restaurantes: { nome: string; slug: string; instagram_url: string | null } | null
+    impressao_agentes: { nome: string; revogado_em: string | null } | null; restaurantes: { nome: string; slug: string; instagram_url: string | null; impressao_qr?: boolean | null } | null
   } | null
   if (!disp) return falha(MENSAGENS.dispositivo_inexistente, 404, 'dispositivo_inexistente')
   if (!disp.impressao_agentes || disp.impressao_agentes.revogado_em) return falha(MENSAGENS.impressora_caixa_indisponivel, 409, 'impressora_caixa_indisponivel')
@@ -400,7 +400,8 @@ export async function criarReciboTeste(
     larguraMm: disp.largura_mm, larguraPontos: disp.largura_pontos, deslocamentoPontos: disp.deslocamento_pontos ?? 0,
   }
   let qr: ReturnType<typeof qrDaCozinha> | null = null
-  if (modelo === 'cozinha' && disp.restaurantes?.slug) {
+  // Opção da loja "QR Code do cardápio" (0151): desligada, o teste sai sem o QR, como o pedido real.
+  if (modelo === 'cozinha' && disp.restaurantes?.slug && disp.restaurantes.impressao_qr !== false) {
     try { qr = qrDaCozinha({ slug: disp.restaurantes.slug, instagramUrl: disp.restaurantes.instagram_url ?? null }) } catch { qr = null }
   }
   const snapshot = modelo === 'cozinha' ? snapshotCozinhaTeste(destino, op.nome, qr) : snapshotReciboTeste(destino, op.nome)
@@ -541,12 +542,13 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
   const ids = [...new Set((r.valor ?? []).map((t) => t.dispositivo_id as string))]
   type Perfil = Record<string, unknown> & { id: string; largura_pontos: number | null; deslocamento_pontos: number; tamanho_fonte: string; restaurantes: (Record<string, unknown> & { slug: string; instagram_url: string | null; impressao_logo: boolean | null }) | null }
   const { data: perfis } = ids.length
-    ? await admin.from('impressao_dispositivos').select(`id, largura_pontos, deslocamento_pontos, tamanho_fonte, ${COLUNAS_ENVIO}, restaurantes ( slug, instagram_url, impressao_logo, logo_url, ${COLUNAS_LOJA_IMPRESSAO} )`).in('id', ids)
+    ? await admin.from('impressao_dispositivos').select(`id, largura_pontos, deslocamento_pontos, tamanho_fonte, ${COLUNAS_ENVIO}, restaurantes ( slug, instagram_url, impressao_logo, impressao_qr, logo_url, ${COLUNAS_LOJA_IMPRESSAO} )`).in('id', ids)
     : { data: [] as Perfil[] }
   const perfil = new Map(((perfis ?? []) as unknown as Perfil[]).map((p) => [p.id, p]))
   const qrDe = (id: string) => {
     const loja = perfil.get(id)?.restaurantes
-    if (!loja?.slug) return null
+    // Opção da loja "QR Code do cardápio" (0151).
+    if (!loja?.slug || loja.impressao_qr === false) return null
     try { return qrDaCozinha({ slug: loja.slug, instagramUrl: loja.instagram_url ?? null }) } catch { return null }
   }
   const tamanho = (v: unknown): TrabalhoAgente['tamanhoFonte'] => (v === 'media' || v === 'pequena' ? v : 'grande')

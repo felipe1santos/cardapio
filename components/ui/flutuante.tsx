@@ -103,10 +103,72 @@ export function Flutuante({ ancora, aberto, onFechar, alinhar = 'fim', largura =
  * Leva uma janela para o <body>, na camada máxima. Quem abre por último fica por cima (o
  * portal entra no fim do <body>): uma janela aberta de dentro de outra nunca fica atrás dela.
  */
-export function NoTopo({ children }: { children: ReactNode }) {
+export function NoTopo({ children, classe = '' }: { children: ReactNode; classe?: string }) {
   const pronto = useNoNavegador()
   if (!pronto) return null
-  return createPortal(<div data-no-topo="" style={{ position: 'relative', zIndex: CAMADA_MAXIMA }}>{children}</div>, document.body)
+  return createPortal(<div data-no-topo="" className={classe} style={{ position: 'relative', zIndex: CAMADA_MAXIMA }}>{children}</div>, document.body)
+}
+
+/**
+ * Camada de janela SEM moldura (a tela desenha a própria): fundo escurecido no <body>, camada
+ * máxima, Esc e clique no fundo fecham, foco preso dentro e devolvido a quem abriu, página atrás
+ * sem rolar. `classeFundo` e `classeTema` deixam a janela herdar o visual da tela que a abriu.
+ */
+export function JanelaCrua({ aberto, onFechar, rotuloId, children, testid, classeTema = '', classeFundo = '', classeJanela = '' }: {
+  aberto: boolean
+  onFechar: () => void
+  /** id do título da janela (aria-labelledby). */
+  rotuloId: string
+  children: ReactNode
+  testid?: string
+  classeTema?: string
+  classeFundo?: string
+  /** Moldura da janela (o próprio elemento do diálogo). */
+  classeJanela?: string
+}) {
+  const pronto = useNoNavegador()
+  const caixa = useRef<HTMLDivElement>(null)
+  const fecharRef = useRef(onFechar)
+  fecharRef.current = onFechar
+  useEffect(() => {
+    if (!aberto) return
+    const antes = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const focaveis = () => [...(caixa.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])') ?? [])].filter((el) => el.offsetParent !== null)
+    requestAnimationFrame(() => (caixa.current?.querySelector<HTMLElement>('[data-foco-inicial]') ?? focaveis()[0] ?? caixa.current)?.focus())
+    const tecla = (e: KeyboardEvent) => {
+      const ativo = document.activeElement
+      if (ativo && ativo.closest('[role="dialog"]') && !caixa.current?.contains(ativo)) return
+      if (e.key === 'Escape') { e.stopPropagation(); fecharRef.current(); return }
+      if (e.key !== 'Tab') return
+      const lista = focaveis()
+      if (!lista.length) return
+      const i = lista.indexOf(document.activeElement as HTMLElement)
+      if (e.shiftKey && i <= 0) { e.preventDefault(); lista[lista.length - 1].focus() }
+      else if (!e.shiftKey && i === lista.length - 1) { e.preventDefault(); lista[0].focus() }
+    }
+    window.addEventListener('keydown', tecla, true)
+    return () => {
+      window.removeEventListener('keydown', tecla, true)
+      document.body.style.overflow = overflow
+      antes?.focus?.()
+    }
+  }, [aberto])
+  if (!pronto || !aberto) return null
+  return createPortal(
+    <div
+      className={`fixed inset-0 flex items-center justify-center bg-[rgba(17,26,32,0.55)] p-4 ${classeTema} ${classeFundo}`}
+      style={{ zIndex: CAMADA_MAXIMA }}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onFechar() }}
+      data-modal-central=""
+    >
+      <div ref={caixa} role="dialog" aria-modal="true" aria-labelledby={rotuloId} tabIndex={-1} data-testid={testid} className={`outline-none ${classeJanela}`}>
+        {children}
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 /**
@@ -115,7 +177,7 @@ export function NoTopo({ children }: { children: ReactNode }) {
  * (Tab circula) e volta para quem abriu ao fechar. A página atrás não rola; o conteúdo
  * comprido rola dentro da janela.
  */
-export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, rodape, largura = 560, testid, classeCorpo = '' }: {
+export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, rodape, largura = 560, testid, classeCorpo = '', classeTema = '' }: {
   aberto: boolean
   onFechar: () => void
   titulo: ReactNode
@@ -125,6 +187,8 @@ export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, ro
   largura?: number
   testid?: string
   classeCorpo?: string
+  /** Tema da tela que abriu (ex.: tela-impressao): fonte e pesos dela. */
+  classeTema?: string
 }) {
   const pronto = useNoNavegador()
   const caixa = useRef<HTMLDivElement>(null)
@@ -142,7 +206,7 @@ export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, ro
     const tecla = (e: KeyboardEvent) => {
       // Outra janela aberta por cima (com o foco dentro dela): o Esc e o Tab são dela.
       const ativo = document.activeElement
-      if (ativo && ativo !== document.body && !caixa.current?.contains(ativo)) return
+      if (ativo && ativo.closest('[role="dialog"]') && !caixa.current?.contains(ativo)) return
       if (e.key === 'Escape') { e.stopPropagation(); fecharRef.current(); return }
       if (e.key !== 'Tab') return
       const lista = focaveis()
@@ -162,7 +226,7 @@ export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, ro
   if (!pronto || !aberto) return null
   return createPortal(
     <div
-      className="fixed inset-0 flex items-center justify-center bg-[rgba(17,24,39,0.6)] p-3"
+      className={`fixed inset-0 flex items-center justify-center bg-[rgba(17,24,39,0.6)] p-3 ${classeTema}`}
       style={{ zIndex: CAMADA_MAXIMA }}
       onPointerDown={(e) => { if (e.target === e.currentTarget) onFechar() }}
       data-modal-central=""

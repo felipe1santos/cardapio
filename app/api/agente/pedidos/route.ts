@@ -82,7 +82,8 @@ export async function GET(request: Request) {
         lojaImpressao(admin, restauranteId).catch(() => null),
       ])
       let qr: ReturnType<typeof qrDaCozinha> | null = null
-      try { qr = lojaBeta?.slug ? qrDaCozinha(lojaBeta) : null } catch { qr = null }
+      // Opção da loja "QR Code do cardápio" (0151): desligada, a comanda sai sem o QR.
+      try { qr = lojaBeta?.slug && config?.qr !== false ? qrDaCozinha(lojaBeta) : null } catch { qr = null }
       beta = { extras, qr, loja: dadosLoja }
     }
     return NextResponse.json({
