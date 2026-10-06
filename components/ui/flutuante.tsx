@@ -100,6 +100,88 @@ export function Flutuante({ ancora, aberto, onFechar, alinhar = 'fim', largura =
 }
 
 /**
+ * Janela no CENTRO da tela, por cima de tudo (portal no <body>, camada máxima): fundo
+ * escurecido, título, botão Fechar, Esc e clique no fundo fecham, o foco fica dentro dela
+ * (Tab circula) e volta para quem abriu ao fechar. A página atrás não rola; o conteúdo
+ * comprido rola dentro da janela.
+ */
+export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, rodape, largura = 560, testid, classeCorpo = '' }: {
+  aberto: boolean
+  onFechar: () => void
+  titulo: ReactNode
+  subtitulo?: ReactNode
+  children: ReactNode
+  rodape?: ReactNode
+  largura?: number
+  testid?: string
+  classeCorpo?: string
+}) {
+  const pronto = useNoNavegador()
+  const caixa = useRef<HTMLDivElement>(null)
+  const idTitulo = useId()
+  const fecharRef = useRef(onFechar)
+  fecharRef.current = onFechar
+
+  useEffect(() => {
+    if (!aberto) return
+    const antes = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const focaveis = () => [...(caixa.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])') ?? [])].filter((el) => el.offsetParent !== null)
+    requestAnimationFrame(() => (focaveis()[0] ?? caixa.current)?.focus())
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); fecharRef.current(); return }
+      if (e.key !== 'Tab') return
+      const lista = focaveis()
+      if (!lista.length) return
+      const i = lista.indexOf(document.activeElement as HTMLElement)
+      if (e.shiftKey && i <= 0) { e.preventDefault(); lista[lista.length - 1].focus() }
+      else if (!e.shiftKey && i === lista.length - 1) { e.preventDefault(); lista[0].focus() }
+    }
+    window.addEventListener('keydown', tecla, true)
+    return () => {
+      window.removeEventListener('keydown', tecla, true)
+      document.body.style.overflow = overflow
+      antes?.focus?.()
+    }
+  }, [aberto])
+
+  if (!pronto || !aberto) return null
+  return createPortal(
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-[rgba(17,24,39,0.6)] p-3"
+      style={{ zIndex: CAMADA_MAXIMA }}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onFechar() }}
+      data-modal-central=""
+    >
+      <div
+        ref={caixa}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idTitulo}
+        tabIndex={-1}
+        data-testid={testid}
+        className="flex max-h-[calc(100dvh-24px)] w-full flex-col overflow-hidden rounded-[10px] bg-white shadow-[0_20px_48px_rgba(16,24,40,0.28)] outline-none"
+        style={{ maxWidth: largura }}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 id={idTitulo} className="text-[16px] font-bold leading-tight text-[#1C2B33]">{titulo}</h2>
+            {subtitulo && <p className="mt-0.5 text-[13px] leading-[18px] text-[#465A69]">{subtitulo}</p>}
+          </div>
+          <button type="button" onClick={onFechar} aria-label="Fechar" data-testid={testid ? `${testid}-fechar` : undefined} className="-mr-1 flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] text-[22px] leading-none text-[#465A69] hover:bg-[#F3F4F6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0A78BE]">
+            ×
+          </button>
+        </div>
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${classeCorpo}`}>{children}</div>
+        {rodape && <div className="border-t border-[#E5E7EB] px-4 py-3 sm:px-5">{rodape}</div>}
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+/**
  * Tooltip de verdade (não o `title` do navegador): aparece ao passar o mouse e no foco do
  * teclado, por cima de tudo. O filho recebe aria-describedby. Esc e rolagem escondem.
  *

@@ -1,57 +1,57 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, FlaskConical, History, Info } from 'lucide-react'
+import { CheckCircle2, ChefHat, Circle, Download, Eye, FlaskConical, Link2, Printer, ReceiptText, Settings2, Sparkles } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
-import { PreviaBeta } from '@/components/impressao/previa-beta'
 import { EnvioImpressora } from '@/components/impressao/envio-impressora'
 import { AssistenteAntigo, type AssistenteAtual } from '@/components/impressao/assistente-antigo'
+import { ModalPrevia, type DocPrevia, type LojaPrevia, type PapelPrevia } from '@/components/impressao/modal-previa'
 import {
-  AjudaDiagnostico, type TamanhoLetra, EtapaConectar, EtapaImpressoras, EtapaModo, ModalImpressoras, ModalModos, ModalPareamento, ModalTestes,
-  avaliar, situacaoComputadores, type PainelDados, type ResultadoTeste, type TipoTeste,
+  AjudaDiagnostico, type TamanhoLetra, TAMANHOS_LETRA, EtapaConectar, EtapaImpressoras, ModalImpressoras, ModalPareamento, ModalTestes,
+  nomeDisp, type PainelDados, type ResultadoTeste, type TipoTeste,
 } from '@/components/impressao/beta-cards'
-import { ROTULO_MODO_BETA } from '@/lib/impressao/rotulos'
+import { Aviso, Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
+import { ModalCentral } from '@/components/ui/flutuante'
+import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA } from '@/lib/impressao/rotulos'
 import { modoDependeDoAgente } from '@/lib/impressao/regras-modo'
+import { CONFIRMACAO_OPCAO, MODO_DA_OPCAO, TEXTO_OPCAO, opcaoDaLoja, prontidaoBeta, situacaoAntigo, situacaoBeta, type AcaoSituacao, type OpcaoImpressao, type Sinal, type Situacao } from '@/lib/impressao/opcao'
+import { VERSAO_IMPRESSAO_V3 } from '@/lib/avisos-painel'
+import { SUPORTE_MENUZIA } from '@/lib/suporte'
+import ReciboAntigo from '@/lib/impressao/recibo-antigo-canvas.js'
 import type { AgenteVisao, DispositivoVisao, Funcao, ModoBeta } from '@/lib/impressao/servico'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { garantirLogoImpressao } from '@/lib/impressao/logo-navegador'
 import {
-  atualizarConfigImpressao,
-  atualizarImpressora,
-  buscarConfigImpressao,
-  buscarStatusAgente,
-  criarImpressora,
-  listarImpressoras,
-  removerImpressora,
-  type ConfigImpressao,
-  type ImpressoraInput,
+  atualizarConfigImpressao, atualizarImpressora, buscarConfigImpressao, buscarStatusAgente, criarImpressora, listarImpressoras, removerImpressora,
+  type ConfigImpressao, type ImpressoraInput,
 } from '@/lib/queries/impressao'
 
 /**
- * Impressão — tela do cliente final, focada no Assistente Beta (reorganizada 2026-09-28):
- * à esquerda as etapas ① Conectar computador ② Impressoras (escolha em pop-up) ③ Modo de
- * operação (real só com impressoras válidas — a mesma regra do servidor) e a ajuda; à
- * direita, fixa, a pré-visualização real com as "Opções da impressão". Testes num pop-up
- * pelo botão "Testar impressão" do topo.
- * O Assistente antigo (0.1.23, token) fica atrás do botão "Assistente antigo", igual por
- * dentro. A escolha da visão é só do navegador (localStorage). Nenhuma credencial aparece;
- * o código de pareamento vence em 10 min.
+ * Impressão — tela nova (2026-10-05), no kit visual do Financeiro/Dashboard (.fin-meta):
+ *   1. "Como sua loja imprime": DUAS opções lado a lado — Assistente antigo (padrão) ou
+ *      Assistente Beta (novo). A opção é lida do modo que a loja já usa (lib/impressao/opcao):
+ *      o deploy não muda ninguém. Trocar pede confirmação; o Beta só ativa com o passo a passo
+ *      completo (instalado, conectado, impressora da Cozinha), para a loja não ficar sem papel.
+ *   2. "Situação": Assistente, versão, impressoras e última impressão, com selos; se falta algo,
+ *      UM aviso com UM botão.
+ *   3. "Modelos": "Ver comanda / pré-conta / via da cozinha" abrem a prévia em janela, no
+ *      tamanho do papel, com o MESMO desenho da impressora; "Imprimir teste".
+ *   Configurações avançadas (recolhidas): computadores, impressoras, calibração com o passo a
+ *   passo e envio direto, letra, opções da comanda e diagnóstico; no antigo, token e impressoras.
+ * Nenhuma credencial aparece; o código de pareamento vence em 10 min.
  */
 
-const CHAVE_VISAO = 'menuzia.impressao.visao'
-
-const DESCRICAO_MODO: Record<ModoBeta, string> = {
-  teste: 'Só calibração e teste. Não imprime pedido real — o Assistente atual continua com tudo.',
-  caixa: 'Imprime o Recibo/Extrato no Caixa. A cozinha continua saindo pelo Assistente atual.',
-  cozinha_caixa: 'A cozinha sai na impressora da Cozinha e o Recibo/Extrato no Caixa. O Assistente atual para de imprimir pedidos.',
-}
-
 const MOTIVO_RECUO = 'O modo voltou para a segurança porque a impressora que ele usava deixou de valer.'
+const PAPEL_PADRAO: PapelPrevia = { larguraMm: 80, larguraPontos: null, tamanhoFonte: 'grande', intensidade: 'normal' }
+const papelDe = (d: DispositivoVisao | undefined): PapelPrevia => (d ? { larguraMm: d.larguraMm <= 58 ? 58 : 80, larguraPontos: d.larguraPontos, tamanhoFonte: d.tamanhoFonte, intensidade: d.intensidade } : PAPEL_PADRAO)
+const TOM_SINAL: Record<Sinal, 'verde' | 'laranja' | 'vermelho'> = { ok: 'verde', atencao: 'laranja', erro: 'vermelho' }
+const SUPORTE_WHATSAPP_URL = `https://wa.me/${SUPORTE_MENUZIA.whatsapp}?text=${encodeURIComponent('Olá! Quero liberar o Assistente Beta (impressão nova) na minha loja.')}`
+const ROTULO_SINAL: Record<Sinal, string> = { ok: 'Tudo certo', atencao: 'Atenção', erro: 'Precisa de ação' }
 
 export function PainelImpressao() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
@@ -64,36 +64,20 @@ export function PainelImpressao() {
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<{ tom: 'ok' | 'erro' | 'alerta'; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
-  const [visao, setVisao] = useState<'novo' | 'antigo'>('novo')
   const [pareando, setPareando] = useState<{ codigo: { codigo: string; expiraEm: string } | null; erro: string | null; antes: string[]; conectado: string | null } | null>(null)
   const [escolhendo, setEscolhendo] = useState(false)
-  const [verModos, setVerModos] = useState(false)
   const [testando, setTestando] = useState(false)
   const [ajuda, setAjuda] = useState(false)
-  const [trocarModo, setTrocarModo] = useState<ModoBeta | null>(null)
   const [calibrar, setCalibrar] = useState<string | null>(null)
   const [modalImpressora, setModalImpressora] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
-  // A logo da loja continua preparada (versão de impressão); o modelo v2 do Beta imprime a logo MENUZiA.
+  const [previa, setPrevia] = useState<DocPrevia | null>(null)
+  const [dadosPrevia, setDadosPrevia] = useState<LojaPrevia | null>(null)
+  const [trocar, setTrocar] = useState<OpcaoImpressao | null>(null)
+  const [ativarBeta, setAtivarBeta] = useState(false)
+  const [avancadoAberto, setAvancadoAberto] = useState(false)
   const [, setLogoRecibo] = useState<'pronta' | 'gerada' | 'sem_logo' | 'falhou' | null>(null)
   const seq = useRef(0)
-  // Uma chave por impressora e por teste: clique duplo ou reenvio devolve o mesmo trabalho.
   const chavesTeste = useRef<Record<string, string>>({})
-
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(CHAVE_VISAO) === 'antigo') setVisao('antigo')
-    } catch {
-      /* navegador sem armazenamento: fica na visão nova */
-    }
-  }, [])
-  function trocarVisao(v: 'novo' | 'antigo') {
-    setVisao(v)
-    try {
-      localStorage.setItem(CHAVE_VISAO, v)
-    } catch {
-      /* só preferência */
-    }
-  }
 
   const carregar = useCallback(async () => {
     const minha = ++seq.current
@@ -108,9 +92,9 @@ export function PainelImpressao() {
   const pareandoAberto = !!pareando && !pareando.conectado
   useEffect(() => {
     void carregar()
-    const t = setInterval(() => void carregar(), pareandoAberto ? 2000 : 5000)
+    const t = setInterval(() => void carregar(), pareandoAberto || ativarBeta ? 2000 : 5000)
     return () => clearInterval(t)
-  }, [carregar, pareandoAberto])
+  }, [carregar, pareandoAberto, ativarBeta])
 
   useEffect(() => {
     if (!pareando || pareando.conectado || !p) return
@@ -122,6 +106,16 @@ export function PainelImpressao() {
     const t = setTimeout(() => setPareando(null), 2500)
     return () => clearTimeout(t)
   }, [pareando?.conectado])
+
+  // Dados da loja para a prévia (nome, telefone, endereço, QR e logo).
+  useEffect(() => {
+    let vivo = true
+    fetch('/api/admin/impressao/previa', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (vivo) setDadosPrevia({ loja: j?.loja ?? { nome: '', telefone: '', endereco: '' }, qr: j?.qr ?? null, logoUrl: j?.logoUrl ?? null }) })
+      .catch(() => { if (vivo) setDadosPrevia({ loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null }) })
+    return () => { vivo = false }
+  }, [])
 
   // Assistente antigo: configuração da loja e o token (só o dono lê).
   useEffect(() => {
@@ -142,9 +136,7 @@ export function PainelImpressao() {
         if (vivo) setErro('Não foi possível carregar a configuração do Assistente antigo.')
       }
     })()
-    return () => {
-      vivo = false
-    }
+    return () => { vivo = false }
   }, [supabase])
 
   // Logo do Recibo/Extrato do Beta: o navegador prepara a versão de impressão (PNG, fundo branco).
@@ -155,9 +147,7 @@ export function PainelImpressao() {
     if (!logoUrlAtual) return setLogoRecibo('sem_logo')
     let vivo = true
     void garantirLogoImpressao(logoUrlAtual).then((r) => vivo && setLogoRecibo(r))
-    return () => {
-      vivo = false
-    }
+    return () => { vivo = false }
   }, [liberado, logoUrlAtual])
 
   // Sinal do Assistente antigo (heartbeat a cada 5 s).
@@ -170,16 +160,11 @@ export function PainelImpressao() {
         if (!vivo) return
         setAtualVistoEm(s.vistoEm)
         setAtualImpressoraId(s.vistoEm && Date.now() - new Date(s.vistoEm).getTime() < 30_000 ? s.impressoraId : null)
-      } catch {
-        /* sem sinal */
-      }
+      } catch { /* sem sinal */ }
     }
     void checar()
     const t = setInterval(checar, 8000)
-    return () => {
-      vivo = false
-      clearInterval(t)
-    }
+    return () => { vivo = false; clearInterval(t) }
   }, [supabase, restauranteId])
 
   useEffect(() => {
@@ -215,10 +200,7 @@ export function PainelImpressao() {
     const ordem = (['caixa', 'cozinha'] as Funcao[]).filter((f) => novo[f] !== p.funcoes[f]).sort((a, b) => Number(novo[a] === null) - Number(novo[b] === null))
     for (const f of ordem) {
       const r = await chamar<{ modoRecuou?: ModoBeta | null }>('/api/admin/impressao/funcoes', { method: 'PUT', body: JSON.stringify({ funcao: f, dispositivoId: novo[f], confirmarCompartilhada: true }) })
-      if (!r.ok) {
-        falhou = r.erro ?? 'Não foi possível salvar.'
-        break
-      }
+      if (!r.ok) { falhou = r.erro ?? 'Não foi possível salvar.'; break }
       if (r.dados?.modoRecuou) recuo = r.dados.modoRecuou
     }
     setOcupado(false)
@@ -236,7 +218,7 @@ export function PainelImpressao() {
     if (!p) return
     const emUso = modoDependeDoAgente(p.modo, a.id, p.dispositivos.map((d) => ({ id: d.id, agenteId: d.agenteId, nomeSistema: d.nomeSistema })), p.funcoes)
     const texto = emUso
-      ? `"${a.nome}" imprime no modo "${ROTULO_MODO_BETA[p.modo]}". Ao desconectar, a loja volta para "Somente teste" na hora e a cozinha volta para o Assistente antigo. Desconectar?`
+      ? `"${a.nome}" imprime os pedidos pelo Assistente Beta. Ao desconectar, a loja volta na hora para o Assistente antigo. Desconectar?`
       : `Desconectar "${a.nome}"? Ele para de imprimir na hora e precisa ser pareado de novo.`
     if (confirm(texto)) void agir(`/api/admin/impressao/agentes/${a.id}`, 'POST', { acao: 'revogar' }, 'Computador desconectado.')
   }
@@ -252,7 +234,6 @@ export function PainelImpressao() {
       setCalibrar(d.id)
       return { ok: true }
     }
-    // Cozinha e Recibo/Extrato de teste saem no MODELO de verdade (dados de demonstração).
     const acao = tipo === 'recibo' ? 'recibo_teste' : 'cozinha_teste'
     const k = `${acao}:${d.id}`
     chavesTeste.current[k] ??= novaChave()
@@ -301,140 +282,260 @@ export function PainelImpressao() {
     }
   }
 
+  /** Troca de opção: auditada no banco (impressao_modo_definir). */
+  async function confirmarTroca(o: OpcaoImpressao) {
+    const r = await agir('/api/admin/impressao/modo', 'PUT', { modo: MODO_DA_OPCAO[o] }, o === 'beta' ? 'Pronto: a loja imprime pelo Assistente Beta.' : 'Pronto: a loja imprime pelo Assistente antigo.')
+    if (r?.ok) { setTrocar(null); setAtivarBeta(false) }
+  }
+
   const atualOnline = !!atualVistoEm && Date.now() - new Date(atualVistoEm).getTime() < 2 * 60_000
   const dCalibrar = p?.dispositivos.find((d) => d.id === calibrar) ?? null
-  const cozinhaNoBeta = p?.modo === 'cozinha_caixa'
-  const av = p ? avaliar(p) : null
-  // Modo real ligado, mas hoje ele não tem o que precisa (ex.: PC da impressora sem sinal).
-  const modoEmRisco = p && av && p.modo !== 'teste' && !av.modos[p.modo].ok ? av.modos[p.modo].motivo : null
-  const temComputador = !!p && situacaoComputadores(p).ativos.length > 0
-  const podeTestar = !!p && p.betaLiberado && temComputador
-  const motivoSemTeste = !p ? '' : !p.betaLiberado ? 'O Beta ainda não foi liberado nesta loja.' : !temComputador ? 'Conecte um computador para testar as impressoras dele.' : ''
+  const opcao: OpcaoImpressao | null = p ? opcaoDaLoja(p.modo) : null
+  const dCozinha = p?.dispositivos.find((d) => d.id === p.funcoes.cozinha)
+  const dCaixa = p?.dispositivos.find((d) => d.id === p.funcoes.caixa)
+  const impAntiga = atual ? (atual.impressoras.find((i) => i.id === atualImpressoraId) ?? atual.impressoras.find((i) => i.ativa) ?? atual.impressoras[0] ?? null) : null
+  const larguraAntiga = impAntiga?.largura ?? 48
+  const situacao: Situacao | null = !p || !opcao ? null : opcao === 'beta'
+    ? situacaoBeta(p)
+    : situacaoAntigo({ ativado: atual?.config.ativarAssistente !== false, vistoEm: atualVistoEm, online: atualOnline, impressora: impAntiga?.nome ?? null })
+  const prontidao = p ? prontidaoBeta(p) : null
+  const podeTestarBeta = !!p && p.agentes.some((a) => !a.revogado)
+
+  function executar(acao: AcaoSituacao) {
+    switch (acao) {
+      case 'instalar_beta': setAtivarBeta(true); break
+      case 'atualizar_beta': window.open(DOWNLOAD_ASSISTENTE_BETA.url, '_blank', 'noopener'); break
+      case 'parear': void abrirPareamento(); break
+      case 'escolher_impressoras': setEscolhendo(true); break
+      case 'passar_comanda': setTrocar('beta'); break
+      case 'liberar': window.open(SUPORTE_WHATSAPP_URL, '_blank', 'noopener'); break
+      case 'instalar_antigo': window.open(DOWNLOAD_ASSISTENTE_ATUAL.url, '_blank', 'noopener'); break
+      case 'ativar_antigo': void patchAtual({ ativarAssistente: true }); break
+      case 'abrir_beta': case 'abrir_antigo': setAjuda(true); break
+    }
+  }
+
+  function escolherOpcao(o: OpcaoImpressao) {
+    if (!p || o === opcao) return
+    if (o === 'beta' && !prontidao?.pronto) return setAtivarBeta(true)
+    setTrocar(o)
+  }
 
   return (
     // O <main> do painel não rola (overflow-hidden): cada página tem o próprio contêiner.
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <TopBar
-        title="Impressão"
-        breadcrumb="Cozinha e Recibo/Extrato"
-        right={
-          <div className="flex items-center gap-2">
-            {visao === 'novo' && (
-              <span title={motivoSemTeste || undefined} className="inline-flex">
+      <TopBar title="Impressão" breadcrumb="Comanda, pré-conta e impressoras" />
+      <div className="fin-meta fin-fundo min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="impressao-rolagem">
+        <div className="mx-auto w-full min-w-0 max-w-[1080px] space-y-4 p-4 pb-16 lg:p-6" data-testid="painel-impressao">
+          {aviso && (
+            <Aviso tipo={aviso.tom === 'ok' ? 'sucesso' : aviso.tom === 'alerta' ? 'atencao' : 'erro'} testid="impressao-aviso" onFechar={() => setAviso(null)}>
+              <span className="font-semibold">{aviso.texto}</span>
+            </Aviso>
+          )}
+          {erro && <Aviso tipo="erro">{erro}</Aviso>}
+
+          {!p || !opcao || !situacao ? (
+            <div className="space-y-4" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="fin-card h-[150px] animate-pulse" />)}</div>
+          ) : (
+            <>
+              {/* ── 1. Como sua loja imprime ─────────────────────────────────── */}
+              <Card titulo="Como sua loja imprime" subtitulo="Escolha um dos dois. Você pode trocar quando quiser." testid="card-opcao">
+                <div className="grid gap-3 md:grid-cols-2" role="radiogroup" aria-label="Como sua loja imprime">
+                  {(['antigo', 'beta'] as OpcaoImpressao[]).map((o) => {
+                    const ativo = opcao === o
+                    return (
+                      <button
+                        key={o}
+                        type="button"
+                        role="radio"
+                        aria-checked={ativo}
+                        onClick={() => escolherOpcao(o)}
+                        disabled={ocupado}
+                        data-testid={`opcao-${o}`}
+                        className={['relative flex min-h-[112px] w-full flex-col items-start gap-1.5 rounded-[8px] border-2 p-4 text-left transition-colors disabled:opacity-60', ativo ? 'border-[#0A78BE] bg-[#E7F5FF]' : 'border-[#CBD2D9] bg-white hover:border-[#0A78BE]'].join(' ')}
+                      >
+                        <span className="flex w-full items-center justify-between gap-2">
+                          <span className="flex items-center gap-2 text-[15px] font-bold" style={{ color: FIN_COR.texto }}>
+                            {ativo ? <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-[#0A78BE]" aria-hidden /> : <Circle className="h-5 w-5 flex-shrink-0 text-[#8595A2]" aria-hidden />}
+                            {TEXTO_OPCAO[o].titulo}
+                          </span>
+                          {o === 'beta' ? <SeloMeta tom="azul">Recomendado</SeloMeta> : <SeloMeta tom="cinza">Padrão</SeloMeta>}
+                        </span>
+                        <span className="text-[13px] leading-[18px]" style={{ color: FIN_COR.texto2 }}>{TEXTO_OPCAO[o].frase}</span>
+                        {ativo && <span className="text-[12.5px] font-semibold text-[#0868A6]" data-testid="opcao-em-uso">Em uso na sua loja</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </Card>
+
+              {/* ── 2. Situação ─────────────────────────────────────────────── */}
+              <Card
+                titulo="Situação"
+                subtitulo={opcao === 'beta' ? 'Assistente Beta: computador, versão, impressoras e última impressão.' : 'Assistente antigo: conexão, impressora e último sinal.'}
+                acoes={<SeloMeta tom={TOM_SINAL[situacao.sinal]} testid="situacao-selo">{ROTULO_SINAL[situacao.sinal]}</SeloMeta>}
+                faixa={situacao.sinal === 'ok' ? 'sucesso' : situacao.sinal === 'atencao' ? 'atencao' : 'erro'}
+                testid="card-situacao"
+              >
+                <dl className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
+                  {situacao.linhas.map((l) => (
+                    <div key={l.testid} className="flex min-w-0 items-center justify-between gap-3 border-b border-[#EFF1F3] pb-2" data-testid={l.testid}>
+                      <dt className="text-[13px]" style={{ color: FIN_COR.texto2 }}>{l.rotulo}</dt>
+                      <dd className="flex min-w-0 items-center gap-2 text-right text-[13.5px] font-semibold" style={{ color: FIN_COR.texto }}>
+                        <span className="min-w-0 truncate" title={l.valor}>{l.valor}</span>
+                        {l.sinal && <span className={['h-2.5 w-2.5 flex-shrink-0 rounded-full', l.sinal === 'ok' ? 'bg-[#006B4E]' : l.sinal === 'atencao' ? 'bg-[#D47B04]' : 'bg-[#D93616]'].join(' ')} aria-label={ROTULO_SINAL[l.sinal]} />}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {situacao.aviso && (
+                  <div className="mt-4">
+                    <Aviso
+                      tipo={situacao.aviso.tipo}
+                      titulo={situacao.aviso.titulo}
+                      testid="situacao-aviso"
+                      acao={<button type="button" className={FIN_BTN.primario} onClick={() => executar(situacao.aviso!.acao)} data-testid="situacao-acao">{situacao.aviso.rotuloAcao}</button>}
+                    >
+                      {situacao.aviso.texto}
+                    </Aviso>
+                  </div>
+                )}
+              </Card>
+
+              {/* ── 3. Modelos ──────────────────────────────────────────────── */}
+              <Card titulo="Modelos" subtitulo="Veja como sai no papel, com os dados da sua loja, antes de imprimir." testid="card-modelos">
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={FIN_BTN.contorno} onClick={() => setPrevia('comanda')} data-testid="ver-comanda"><Eye className="h-4 w-4" /> Ver comanda</button>
+                  {opcao === 'beta' && <button type="button" className={FIN_BTN.contorno} onClick={() => setPrevia('pre_conta')} data-testid="ver-pre_conta"><ReceiptText className="h-4 w-4" /> Ver pré-conta</button>}
+                  {opcao === 'beta' && <button type="button" className={FIN_BTN.contorno} onClick={() => setPrevia('via_cozinha')} data-testid="ver-via_cozinha"><ChefHat className="h-4 w-4" /> Ver via da cozinha</button>}
+                  {opcao === 'beta' && (
+                    <button type="button" className={FIN_BTN.primario} onClick={() => setTestando(true)} disabled={!podeTestarBeta} title={podeTestarBeta ? undefined : 'Conecte um computador para testar.'} data-testid="imprimir-teste">
+                      <FlaskConical className="h-4 w-4" /> Imprimir teste
+                    </button>
+                  )}
+                </div>
+                {opcao === 'antigo' && <p className="mt-2 text-[12.5px]" style={{ color: FIN_COR.texto2 }} data-testid="teste-antigo">Para imprimir um teste, use o botão “Imprimir teste” no próprio Assistente, no computador da impressora.</p>}
+                {opcao === 'beta' && atual && (
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-[8px] bg-[#EFF1F3] px-3 py-2.5" data-testid="via-cozinha">
+                    <span className="min-w-0 text-[13px]" style={{ color: FIN_COR.texto }}>
+                      <span className="font-semibold">Via da cozinha sem valores</span>
+                      <span className="block text-[12.5px]" style={{ color: FIN_COR.texto2 }}>Uma via a mais, só com os itens, logo depois da comanda. Precisa do Assistente {VERSAO_IMPRESSAO_V3.replace('0.2.0-', '')} ou mais novo.</span>
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={atual.config.viaCozinha === true}
+                      aria-label="Imprimir também a via da cozinha"
+                      disabled={!atual.podeEditar}
+                      onClick={() => void patchAtual({ viaCozinha: !atual.config.viaCozinha })}
+                      data-testid="opcao-viaCozinha"
+                      className={['relative h-[24px] w-[42px] flex-shrink-0 rounded-full transition-colors disabled:opacity-45', atual.config.viaCozinha ? 'bg-[#0A78BE]' : 'bg-[#8595A2]'].join(' ')}
+                    >
+                      <span className={['absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white shadow transition-all', atual.config.viaCozinha ? 'left-[21px]' : 'left-[3px]'].join(' ')} />
+                    </button>
+                  </div>
+                )}
+              </Card>
+
+              {/* ── Configurações avançadas (recolhidas) ───────────────────── */}
+              <section className="fin-card" data-testid="avancado">
                 <button
                   type="button"
-                  onClick={() => setTestando(true)}
-                  disabled={!podeTestar}
-                  data-testid="testar-impressao"
-                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[8px] border border-[#D1D5DB] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#1F2937] hover:border-[#0688D4] hover:text-[#0688D4] disabled:cursor-not-allowed disabled:opacity-45"
+                  onClick={() => setAvancadoAberto((v) => !v)}
+                  aria-expanded={avancadoAberto}
+                  data-testid="avancado-alternar"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
                 >
-                  <FlaskConical className="h-4 w-4" /> Testar impressão
+                  <span className="flex items-center gap-2">
+                    <Settings2 className="h-5 w-5" style={{ color: FIN_COR.texto2 }} aria-hidden />
+                    <span>
+                      <span className="block text-[15px] font-bold" style={{ color: FIN_COR.texto }}>Configurações avançadas</span>
+                      <span className="block text-[12.5px]" style={{ color: FIN_COR.texto2 }}>
+                        {opcao === 'beta' ? 'Computadores, impressoras, calibração, envio direto, letra e opções da comanda.' : 'Token, impressoras e opções do Assistente antigo.'}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="text-[13px] font-semibold text-[#0868A6]">{avancadoAberto ? 'Fechar' : 'Abrir'}</span>
                 </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => trocarVisao(visao === 'novo' ? 'antigo' : 'novo')}
-              data-testid="alternar-visao"
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[8px] px-2.5 py-1.5 text-[12.5px] font-semibold text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#111827]"
-            >
-              <History className="h-4 w-4" /> <span className="max-sm:hidden">{visao === 'novo' ? 'Assistente antigo' : 'Usar novo Assistente'}</span>
-            </button>
-          </div>
-        }
-      />
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#F6F7F9]" data-testid="impressao-rolagem">
-        <div className="mx-auto w-full min-w-0 max-w-[1240px] space-y-4 p-4 pb-16 lg:p-6" data-testid="painel-impressao">
-          <p className="text-[13px] text-[#6B7280]">Configure onde saem os pedidos da cozinha e o Recibo/Extrato do caixa.</p>
-
-          {aviso && (
-            <p role="status" data-testid="impressao-aviso" className={['rounded-[8px] border px-3 py-2 text-[13px] font-semibold', aviso.tom === 'ok' ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46]' : aviso.tom === 'alerta' ? 'border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]' : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'].join(' ')}>
-              {aviso.texto}
-            </p>
-          )}
-          {erro && <p className="rounded-[8px] border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
-
-          {visao === 'antigo' ? (
-            <AssistenteAntigo
-              atual={atual}
-              token={token}
-              vistoEm={atualVistoEm}
-              online={atualOnline}
-              impressoraEmUsoId={atualImpressoraId}
-              cozinhaNoBeta={cozinhaNoBeta}
-              onVoltar={() => trocarVisao('novo')}
-              onPatch={(x) => void patchAtual(x)}
-              onGerarToken={() => void gerarToken()}
-              onEditarImpressora={(id, input) => setModalImpressora({ id, input })}
-              onRemoverImpressora={(id) => void removerImpressoraAntiga(id)}
-            />
-          ) : !p ? (
-            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,1fr)]" aria-busy="true">
-              <div className="space-y-4">{[0, 1, 2].map((i) => <div key={i} className="h-[150px] animate-pulse rounded-[12px] border border-[#E5E7EB] bg-white" />)}</div>
-              <div className="h-[520px] animate-pulse rounded-[12px] border border-[#E5E7EB] bg-white" />
-            </div>
-          ) : (
-            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,1fr)]">
-              <div className="min-w-0 space-y-4">
-                {/* Onde a cozinha está saindo agora — para ninguém achar que a impressão parou. */}
-                <p className="flex items-start gap-2 text-[13px] text-[#4B5563]" data-testid="onde-sai-cozinha">
-                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#6B7280]" />
-                  {cozinhaNoBeta
-                    ? 'A cozinha está saindo pelo Assistente Beta.'
-                    : `A cozinha está saindo pelo Assistente antigo${atual && !atual.config.ativarAssistente ? ' (desativado)' : atualOnline ? ' (imprimindo agora)' : ''}. O Recibo/Extrato do PDV ${p.modo === 'teste' ? 'fica desligado em “Somente teste”' : 'sai pelo Beta'}.`}
-                </p>
-                {modoEmRisco && (
-                  <p className="flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-[13px] font-semibold text-[#92400E]" data-testid="modo-em-risco">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {modoEmRisco}. Enquanto isso, o Recibo/Extrato do PDV pode não sair.
-                  </p>
+                {avancadoAberto && (
+                  <div className="space-y-4 border-t border-[#EFF1F3] px-4 py-4 sm:px-5" data-testid="avancado-conteudo">
+                    {opcao === 'beta' ? (
+                      <>
+                        <EtapaConectar p={p} ocupado={ocupado} onParear={() => void abrirPareamento()} onRevogar={revogar} onRenomear={renomear} />
+                        <EtapaImpressoras p={p} onEscolher={() => setEscolhendo(true)} />
+                        <Calibrar p={p} onCalibrar={(id) => setCalibrar(id)} onLetra={(d, t) => void ajustar(d, { tamanhoFonte: t })} ocupado={ocupado} />
+                        {atual && <OpcoesComanda config={atual.config} podeEditar={atual.podeEditar} onPatch={(x) => void patchAtual(x)} />}
+                        <AjudaDiagnostico p={p} onAjudaCompleta={() => setAjuda(true)} />
+                      </>
+                    ) : (
+                      <>
+                        <AssistenteAntigo
+                          atual={atual}
+                          token={token}
+                          vistoEm={atualVistoEm}
+                          online={atualOnline}
+                          impressoraEmUsoId={atualImpressoraId}
+                          cozinhaNoBeta={false}
+                          onPatch={(x) => void patchAtual(x)}
+                          onGerarToken={() => void gerarToken()}
+                          onEditarImpressora={(id, input) => setModalImpressora({ id, input })}
+                          onRemoverImpressora={(id) => void removerImpressoraAntiga(id)}
+                        />
+                        {atual && <OpcoesComanda config={atual.config} podeEditar={atual.podeEditar} onPatch={(x) => void patchAtual(x)} />}
+                      </>
+                    )}
+                  </div>
                 )}
-                <EtapaConectar p={p} ocupado={ocupado} onParear={() => void abrirPareamento()} onRevogar={revogar} onRenomear={renomear} />
-                <EtapaImpressoras p={p} onEscolher={() => setEscolhendo(true)} />
-                <EtapaModo p={p} ocupado={ocupado} onEscolher={(m) => setTrocarModo(m)} onAjuda={() => setVerModos(true)} />
-                <AjudaDiagnostico p={p} onAjudaCompleta={() => setAjuda(true)} />
-              </div>
-              {/* Prévia fixa: acompanha a rolagem enquanto a pessoa ajusta à esquerda. */}
-              <div className="min-w-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-110px)] lg:overflow-y-auto lg:overscroll-contain">
-                <PreviaBeta
-                  p={p}
-                  ocupado={ocupado}
-                  config={atual?.config ?? null}
-                  podeEditar={atual?.podeEditar === true}
-                  onPatchConfig={(x) => void patchAtual(x)}
-                  onSalvarLetra={(d, tamanhoFonte) => ajustar(d, { tamanhoFonte })}
-                />
-              </div>
-            </div>
+              </section>
+            </>
           )}
 
           {/* ── janelas ─────────────────────────────────────────────────────────── */}
           <ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} />
           {pareando && (
-            <ModalPareamento
-              codigo={pareando.codigo}
-              erro={pareando.erro}
-              conectado={pareando.conectado}
-              onGerarOutro={() => void abrirPareamento()}
-              onFechar={() => setPareando(null)}
-            />
+            <ModalPareamento codigo={pareando.codigo} erro={pareando.erro} conectado={pareando.conectado} onGerarOutro={() => void abrirPareamento()} onFechar={() => setPareando(null)} />
           )}
           {escolhendo && p && <ModalImpressoras p={p} ocupado={ocupado} onSalvar={salvarImpressoras} onAjustar={ajustar} onAtualizar={carregar} onFechar={() => setEscolhendo(false)} />}
-          {verModos && <ModalModos onFechar={() => setVerModos(false)} />}
           {testando && p && <ModalTestes p={p} onTestar={testar} onFechar={() => setTestando(false)} />}
-          {trocarModo && p && (
-            <ConfirmarModo
-              de={p.modo}
-              para={trocarModo}
-              temCozinha={!!p.funcoes.cozinha}
-              ocupado={ocupado}
-              onCancelar={() => setTrocarModo(null)}
-              onConfirmar={async () => {
-                const m = trocarModo
-                const r = await agir('/api/admin/impressao/modo', 'PUT', { modo: m }, `Modo alterado para “${ROTULO_MODO_BETA[m]}”.`)
-                if (r?.ok) setTrocarModo(null)
-              }}
+          {opcao && (
+            <ModalPrevia
+              aberto={previa !== null}
+              onFechar={() => setPrevia(null)}
+              opcao={opcao}
+              docInicial={previa ?? 'comanda'}
+              dados={dadosPrevia}
+              config={atual?.config ?? null}
+              papelBeta={papelDe(dCozinha)}
+              papelPreConta={papelDe(dCaixa ?? dCozinha)}
+              antigo={{ larguraMm: larguraAntiga <= 40 ? 58 : 80, colunas: ReciboAntigo.colsParaFonte(impAntiga?.tamanhoFonte, larguraAntiga) }}
             />
           )}
+          {p && prontidao && (
+            <AtivarBeta
+              aberto={ativarBeta}
+              prontidao={prontidao}
+              ocupado={ocupado}
+              onFechar={() => setAtivarBeta(false)}
+              onParear={() => void abrirPareamento()}
+              onEscolher={() => setEscolhendo(true)}
+              onAtivar={() => void confirmarTroca('beta')}
+            />
+          )}
+          <ModalCentral
+            aberto={trocar !== null}
+            onFechar={() => setTrocar(null)}
+            largura={440}
+            testid="confirmar-opcao"
+            titulo={trocar === 'beta' ? 'Imprimir pelo Assistente Beta?' : 'Voltar para o Assistente antigo?'}
+            rodape={
+              <div className="flex justify-end gap-2">
+                <button type="button" className={FIN_BTN.contorno} onClick={() => setTrocar(null)}>Cancelar</button>
+                <button type="button" className={FIN_BTN.primario} disabled={ocupado} onClick={() => trocar && void confirmarTroca(trocar)} data-testid="confirmar-opcao-ok">Confirmar</button>
+              </div>
+            }
+          >
+            <p className="px-5 py-4 text-[14px] leading-[20px]" style={{ color: FIN_COR.texto }} data-testid="confirmar-opcao-texto">{trocar ? CONFIRMACAO_OPCAO[trocar] : ''}</p>
+          </ModalCentral>
           {dCalibrar && <Calibracao d={dCalibrar} ocupado={ocupado} agir={agir} onFechar={() => setCalibrar(null)} />}
           {modalImpressora && <ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAntiga} />}
         </div>
@@ -443,59 +544,142 @@ export function PainelImpressao() {
   )
 }
 
-// ─── troca de modo com confirmação explícita ────────────────────────────────
+// ─── passo a passo para ativar o Beta (a loja não fica sem impressão) ────────
 
-function ConfirmarModo({
-  de,
-  para,
-  temCozinha,
-  ocupado,
-  onCancelar,
-  onConfirmar,
-}: {
-  de: ModoBeta
-  para: ModoBeta
-  temCozinha: boolean
+function AtivarBeta({ aberto, prontidao, ocupado, onFechar, onParear, onEscolher, onAtivar }: {
+  aberto: boolean
+  prontidao: ReturnType<typeof prontidaoBeta>
   ocupado: boolean
-  onCancelar: () => void
-  onConfirmar: () => void
+  onFechar: () => void
+  onParear: () => void
+  onEscolher: () => void
+  onAtivar: () => void
 }) {
-  const [entendi, setEntendi] = useState(false)
-  const assumeCozinha = para === 'cozinha_caixa'
+  const acoes: Record<string, React.ReactNode> = {
+    instalar: <a href={DOWNLOAD_ASSISTENTE_BETA.url} className={FIN_BTN.contorno} data-testid="ativar-baixar"><Download className="h-4 w-4" /> Baixar o Assistente Beta</a>,
+    parear: <button type="button" className={FIN_BTN.contorno} onClick={onParear} disabled={ocupado} data-testid="ativar-parear"><Link2 className="h-4 w-4" /> Gerar código de conexão</button>,
+    impressoras: <button type="button" className={FIN_BTN.contorno} onClick={onEscolher} disabled={!prontidao.conectado} data-testid="ativar-impressoras"><Printer className="h-4 w-4" /> Escolher impressoras</button>,
+  }
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" data-testid="confirmar-modo">
-      <div className="w-full max-w-md rounded-t-[12px] bg-white p-4 shadow-xl sm:rounded-menuzia">
-        <h2 className="text-[15px] font-bold text-text-main">
-          Mudar de “{ROTULO_MODO_BETA[de]}” para “{ROTULO_MODO_BETA[para]}”?
-        </h2>
-        <p className="mt-2 text-[13px] text-text-main">{DESCRICAO_MODO[para]}</p>
-        {assumeCozinha && (
-          <>
-            {!temCozinha && <p className="mt-2 rounded-menuzia bg-warn-bg px-3 py-2 text-[12px] text-text-main">Escolha antes a impressora da Cozinha.</p>}
-            <p className="mt-2 text-[12px] text-text-subtle">
-              A troca é imediata e sem pedido em dobro: pedidos novos saem só no Beta. Pedidos que o Assistente atual já estava imprimindo terminam nele.
-            </p>
-            <label className="mt-3 flex items-start gap-2 text-[13px] text-text-main">
-              <input type="checkbox" checked={entendi} onChange={(e) => setEntendi(e.target.checked)} className="mt-0.5" data-testid="confirmar-cozinha-beta" />
-              Testei a impressora da Cozinha no Beta e quero que ela imprima os pedidos a partir de agora.
-            </label>
-          </>
-        )}
-        {para === 'teste' && <p className="mt-2 text-[12px] text-text-subtle">A cozinha volta na hora para o Assistente atual. Nenhum pedido se perde.</p>}
-        <div className="mt-4 flex gap-2">
-          <button type="button" onClick={onCancelar} className="flex-1 rounded-menuzia border border-border py-2.5 text-[13px] font-semibold">Cancelar</button>
-          <button
-            type="button"
-            disabled={ocupado || (assumeCozinha && (!entendi || !temCozinha))}
-            onClick={onConfirmar}
-            data-testid="confirmar-modo-ok"
-            className="flex-[2] rounded-menuzia bg-primary py-2.5 text-[13px] font-bold text-white disabled:opacity-40"
-          >
-            Confirmar
-          </button>
+    <ModalCentral
+      aberto={aberto}
+      onFechar={onFechar}
+      largura={560}
+      testid="ativar-beta"
+      titulo="Ativar o Assistente Beta"
+      subtitulo={CONFIRMACAO_OPCAO.beta}
+      rodape={
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[12.5px]" style={{ color: FIN_COR.texto2 }}>{prontidao.pronto ? 'Tudo pronto.' : 'Enquanto isso, a loja continua imprimindo pelo Assistente antigo.'}</p>
+          <div className="flex gap-2">
+            <button type="button" className={FIN_BTN.contorno} onClick={onFechar}>Agora não</button>
+            <button type="button" className={FIN_BTN.primario} disabled={!prontidao.pronto || ocupado} onClick={onAtivar} data-testid="ativar-confirmar"><Sparkles className="h-4 w-4" /> Ativar Assistente Beta</button>
+          </div>
         </div>
+      }
+    >
+      <div className="space-y-3 px-4 py-4 sm:px-5">
+        {!prontidao.liberado && (
+          <Aviso tipo="info" titulo="Falta a liberação do Beta" acao={<a href={SUPORTE_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className={FIN_BTN.contorno}>Falar com o suporte</a>}>
+            O suporte Menuzia libera o Beta para a sua loja. Os passos abaixo já podem ser feitos.
+          </Aviso>
+        )}
+        <ol className="space-y-2.5" data-testid="ativar-passos">
+          {prontidao.passos.map((passo, i) => (
+            <li key={passo.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[#CBD2D9] px-3 py-2.5" data-testid={`ativar-passo-${passo.id}`} data-feito={passo.feito ? 'sim' : 'nao'}>
+              <span className="flex min-w-0 items-center gap-2.5 text-[13.5px]" style={{ color: FIN_COR.texto }}>
+                {passo.feito
+                  ? <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-[#006B4E]" aria-label="Feito" />
+                  : <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 border-[#8595A2] text-[11px] font-bold" style={{ color: FIN_COR.texto2 }}>{i + 1}</span>}
+                <span className={passo.feito ? 'font-semibold' : ''}>{passo.titulo}</span>
+              </span>
+              {!passo.feito && acoes[passo.id]}
+            </li>
+          ))}
+        </ol>
+        <p className="text-[12.5px]" style={{ color: FIN_COR.texto2 }}>
+          Instale no computador ligado à impressora, abra o “Assistente Menuzia Beta” e digite o código de conexão.{' '}
+          <a href="/guia-impressora.html" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0868A6] underline">Guia passo a passo</a>
+        </p>
       </div>
-    </div>
+    </ModalCentral>
+  )
+}
+
+// ─── calibração e letra por impressora (Configurações avançadas) ────────────
+
+function Calibrar({ p, ocupado, onCalibrar, onLetra }: { p: PainelDados; ocupado: boolean; onCalibrar: (id: string) => void; onLetra: (d: DispositivoVisao, t: TamanhoLetra) => void }) {
+  const usadas = p.dispositivos.filter((d) => d.id === p.funcoes.cozinha || d.id === p.funcoes.caixa)
+  return (
+    <Card titulo="Calibrar e ajustar" subtitulo="Papel cortando, letra clara ou largura errada? O passo a passo resolve; o envio direto é o recomendado." testid="calibrar-impressoras">
+      {usadas.length === 0 ? (
+        <p className="text-[13px]" style={{ color: FIN_COR.texto2 }}>Escolha as impressoras primeiro.</p>
+      ) : (
+        <ul className="divide-y divide-[#EFF1F3]">
+          {usadas.map((d) => (
+            <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5" data-testid={`calibrar-${d.id}`}>
+              <span className="min-w-0 text-[13.5px]" style={{ color: FIN_COR.texto }}>
+                <span className="font-semibold">{nomeDisp(d)}</span>
+                <span className="block text-[12.5px]" style={{ color: FIN_COR.texto2 }}>
+                  {d.funcoes.map((f) => (f === 'cozinha' ? 'Cozinha' : 'Recibo/Extrato')).join(' e ')} · papel {d.larguraMm} mm · {d.envio === 'driver' ? 'pelo driver do Windows' : 'envio direto'}
+                </span>
+              </span>
+              <span className="flex flex-wrap items-center gap-2">
+                <label className="text-[12.5px]" style={{ color: FIN_COR.texto2 }}>
+                  Letra{' '}
+                  <select value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => onLetra(d, e.target.value as TamanhoLetra)} className="ml-1 h-[32px] rounded-[6px] border border-[#CBD2D9] bg-white px-2 text-[13px]" data-testid={`letra-${d.id}`}>
+                    {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+                  </select>
+                </label>
+                <button type="button" className={FIN_BTN.contorno} onClick={() => onCalibrar(d.id)} data-testid={`calibrar-abrir-${d.id}`}>Calibrar</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+// ─── opções da comanda (valem para o Beta e para o Assistente antigo) ───────
+
+type ChaveOpcao = 'mostrarNumeroItem' | 'mostrarNomeComplementos' | 'mostrarPrecoComplementos' | 'multiplicarOpcoesQtd' | 'fonteMaiorProducao' | 'imprimirLogo'
+const OPCOES_COMANDA: { chave: ChaveOpcao; rotulo: string }[] = [
+  { chave: 'imprimirLogo', rotulo: 'Imprimir a logo da loja' },
+  { chave: 'mostrarNumeroItem', rotulo: 'Mostrar a quantidade ("2x") no item' },
+  { chave: 'mostrarNomeComplementos', rotulo: 'Mostrar os adicionais' },
+  { chave: 'mostrarPrecoComplementos', rotulo: 'Mostrar o preço dos adicionais (Assistente antigo)' },
+  { chave: 'multiplicarOpcoesQtd', rotulo: 'Multiplicar os adicionais pela quantidade' },
+  { chave: 'fonteMaiorProducao', rotulo: 'Letra maior nos itens' },
+]
+
+function OpcoesComanda({ config, podeEditar, onPatch }: { config: ConfigImpressao; podeEditar: boolean; onPatch: (p: Partial<ConfigImpressao>) => void }) {
+  return (
+    <Card titulo="Opções da comanda" subtitulo="O que aparece no papel. A prévia (Ver comanda) já mostra as mudanças." testid="opcoes-impressao">
+      <ul className="divide-y divide-[#EFF1F3]">
+        {OPCOES_COMANDA.map((o) => {
+          const ligado = !!config[o.chave]
+          return (
+            <li key={o.chave} className="flex items-center justify-between gap-3 py-2">
+              <span className="text-[13.5px]" style={{ color: FIN_COR.texto }} id={`opcao-rotulo-${o.chave}`}>{o.rotulo}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={ligado}
+                aria-labelledby={`opcao-rotulo-${o.chave}`}
+                disabled={!podeEditar}
+                onClick={() => onPatch({ [o.chave]: !ligado } as Partial<ConfigImpressao>)}
+                data-testid={`opcao-${o.chave}`}
+                className={['relative h-[24px] w-[42px] flex-shrink-0 rounded-full transition-colors disabled:opacity-45', ligado ? 'bg-[#0A78BE]' : 'bg-[#8595A2]'].join(' ')}
+              >
+                <span className={['absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white shadow transition-all', ligado ? 'left-[21px]' : 'left-[3px]'].join(' ')} />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {!podeEditar && <p className="mt-1 text-[12px]" style={{ color: FIN_COR.texto2 }}>Só o dono da loja altera estas opções.</p>}
+    </Card>
   )
 }
 

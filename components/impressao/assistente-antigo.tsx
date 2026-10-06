@@ -35,7 +35,8 @@ export function AssistenteAntigo({
   online: boolean
   impressoraEmUsoId: string | null
   cozinhaNoBeta: boolean
-  onVoltar: () => void
+  /** Sem ele, sem o banner do topo (a tela nova mostra o antigo dentro das Configurações avançadas). */
+  onVoltar?: () => void
   onPatch: (patch: Partial<ConfigImpressao>) => void
   onGerarToken: () => void
   onEditarImpressora: (id: string | null, input: ImpressoraInput) => void
@@ -46,7 +47,7 @@ export function AssistenteAntigo({
   const desativado = !!atual && !atual.config.ativarAssistente
   return (
     <div className="space-y-4" data-testid="area-assistente-antigo">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] border-[0.8px] border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
+      {onVoltar && <div className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] border-[0.8px] border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
         <p className="min-w-0 text-[12.5px] text-[#92400E]">
           Você está vendo o <strong>Assistente antigo</strong> (versão {DOWNLOAD_ASSISTENTE_ATUAL.versao}, com token).
           {cozinhaNoBeta ? ' Hoje a cozinha sai pelo Beta.' : ' Ele continua imprimindo a cozinha enquanto o Beta não estiver em “Cozinha e Caixa”.'}
@@ -54,7 +55,7 @@ export function AssistenteAntigo({
         <button type="button" onClick={onVoltar} data-testid="usar-novo" className="inline-flex items-center gap-1.5 rounded-[6px] bg-[#0688D4] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#0570AE]">
           <ArrowLeft className="h-4 w-4" /> Usar novo Assistente
         </button>
-      </div>
+      </div>}
 
       <section className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
