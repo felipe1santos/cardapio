@@ -185,8 +185,9 @@ try {
     await area.scrollIntoViewIfNeeded()
     const pos = await p.evaluate(() => { const a = document.querySelector('[data-testid="dash-origem"]')?.getBoundingClientRect(); const b = document.querySelector('[data-testid="dash-analises"]')?.getBoundingClientRect(); return a && b ? { a: a.top, b: b.top } : null })
     ok(`${disp}: área própria logo acima de "Análises do período"`, pos && pos.a < pos.b, JSON.stringify(pos))
-    // tabela = pedidos do banco com origem (na janela padrão de 30 dias, só da vitrine)
-    const banco = await db.query(`select origem_canal, count(*)::int n from pedidos where restaurante_id=$1 and origem_canal is not null and status not in ('cancelado','aguardando_pagamento') and canal='delivery' and criado_em > now() - interval '30 days' group by 1`, [loja.id])
+    // tabela = pedidos do banco com origem (na janela padrão de 30 dias, só da vitrine). Pedidos "TESTE…"
+    // ficam fora do Dashboard (item 54) — outros e2e deixam alguns na loja.
+    const banco = await db.query(`select origem_canal, count(*)::int n from pedidos where restaurante_id=$1 and origem_canal is not null and status not in ('cancelado','aguardando_pagamento') and canal='delivery' and cliente_nome not ilike 'TESTE%' and criado_em > now() - interval '30 days' group by 1`, [loja.id])
     const totalBanco = banco.rows.reduce((s, x) => s + x.n, 0)
     const totalTela = Number((await p.getByTestId('origem-total-pedidos').innerText().catch(() => '-1')).replace(/\D/g, ''))
     ok(`${disp}: total de pedidos da tabela = banco (${totalBanco})`, totalTela === totalBanco, String(totalTela))

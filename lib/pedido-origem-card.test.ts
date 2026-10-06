@@ -10,8 +10,8 @@ describe('origem no card do Kanban (item 56)', () => {
   })
   it('vitrine com origem: ícone, nome curto e dica com a campanha', () => {
     expect(origemVisivelNoCard({ ...base, origemCanal: 'google_anuncio' })).toMatchObject({ icone: 'google_anuncio', rotulo: 'Google' })
-    expect(origemVisivelNoCard({ ...base, origemCanal: 'instagram', origemCampanha: 'festa' })?.dica).toBe('Origem: Instagram (campanha festa)')
-    expect(origemVisivelNoCard({ ...base, origemCanal: 'whatsapp', origemCampanha: 'robô' })?.dica).toBe('Origem: WhatsApp (robô de atendimento)')
+    expect(origemVisivelNoCard({ ...base, origemCanal: 'instagram', origemCampanha: 'festa' })?.dica).toBe('Origem: Instagram – campanha festa')
+    expect(origemVisivelNoCard({ ...base, origemCanal: 'whatsapp', origemCampanha: 'robô' })?.dica).toBe('Origem: WhatsApp – robô de atendimento')
   })
   it('PDV, balcão e mesa mostram o canal presencial', () => {
     expect(origemVisivelNoCard({ ...base, canal: 'balcao', origem: 'pdv', tipo: 'retirada' })?.rotulo).toBe('PDV')

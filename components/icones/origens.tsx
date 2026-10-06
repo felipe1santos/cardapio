@@ -1,4 +1,4 @@
-import { Globe, Link2, Megaphone, Monitor, QrCode, Store, UtensilsCrossed } from 'lucide-react'
+import { Globe, Link2, Megaphone, MessageCircle, Monitor, QrCode, Store, UtensilsCrossed } from 'lucide-react'
 
 /**
  * Ícones das origens (item 55/56): marcas desenhadas em SVG simples (sem pacote de logos) + lucide.
@@ -74,5 +74,38 @@ export function IconePix({ className = 'h-4 w-4' }: P) {
     <svg viewBox="0 0 16 16" className={className} fill="#32BCAD" aria-hidden="true">
       <path d="M11.917 11.71a2.046 2.046 0 0 1-1.454-.602l-2.1-2.1a.4.4 0 0 0-.551 0l-2.108 2.108a2.044 2.044 0 0 1-1.454.602h-.414l2.66 2.66c.83.83 2.177.83 3.007 0l2.667-2.668h-.253zM4.25 4.282c.55 0 1.066.214 1.454.602l2.108 2.108a.39.39 0 0 0 .552 0l2.1-2.1a2.044 2.044 0 0 1 1.453-.602h.253L9.503 1.623a2.127 2.127 0 0 0-3.007 0l-2.66 2.66h.414zM14.377 6.496l-1.612-1.612a.307.307 0 0 1-.114.023h-.733c-.379 0-.75.154-1.017.422l-2.1 2.1a1.005 1.005 0 0 1-1.425 0L5.268 5.32a1.448 1.448 0 0 0-1.018-.422h-.9a.306.306 0 0 1-.109-.021L1.623 6.496c-.83.83-.83 2.177 0 3.008l1.618 1.618a.305.305 0 0 1 .108-.022h.901c.38 0 .75-.153 1.018-.421L7.375 8.57a1.034 1.034 0 0 1 1.426 0l2.1 2.1c.267.268.638.421 1.017.421h.733c.04 0 .079.01.114.024l1.612-1.612c.83-.83.83-2.178 0-3.008" />
     </svg>
+  )
+}
+
+/**
+ * Selo da origem no card do Kanban (2026-10-07): quadradinho de 18 px com fundo SÓLIDO na cor da
+ * marca (escurecida até o branco dar ≥ 4,5:1) e o desenho em branco. Só origens da vitrine — quem
+ * chama já tirou Direto, PDV, Mesa e Balcão.
+ */
+const COR_SELO: Record<string, string> = {
+  instagram: '#C13584', facebook: '#0B5FCC', meta: '#0064E0', google_anuncio: '#1967D2', google_busca: '#1967D2',
+  whatsapp: '#0E7569', qrcode: '#C2410C', outros: '#4B5563',
+}
+export function SeloOrigem({ canal }: { canal: string }) {
+  const cor = COR_SELO[canal] ?? '#4B5563'
+  const desenho = (() => {
+    switch (canal) {
+      case 'instagram':
+        return <svg viewBox="0 0 24 24" className="h-[12px] w-[12px]" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="#fff" strokeWidth="2.4" /><circle cx="12" cy="12" r="4" fill="none" stroke="#fff" strokeWidth="2.4" /><circle cx="17.3" cy="6.7" r="1.5" fill="#fff" /></svg>
+      case 'facebook':
+        return <svg viewBox="0 0 24 24" className="h-[12px] w-[12px]" aria-hidden="true"><path fill="#fff" d="M13.8 22v-8.2h2.8l.4-3.3h-3.2V8.4c0-.9.3-1.6 1.6-1.6h1.7V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H7.6v3.3h2.8V22h3.4Z" /></svg>
+      case 'meta':
+        return <svg viewBox="0 0 24 24" className="h-[13px] w-[13px]" aria-hidden="true"><path fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" d="M3 15.5c0-4.5 2.3-8 4.8-8 3.6 0 5.6 9 8.6 9 1.9 0 3.6-1.6 3.6-4.5 0-3-1.6-4.5-3.4-4.5-3.3 0-5.4 9-8.8 9C5 16.5 3 15.9 3 15.5Z" /></svg>
+      case 'google_anuncio': case 'google_busca':
+        return <svg viewBox="0 0 24 24" className="h-[12px] w-[12px]" aria-hidden="true"><path fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" d="M20 12.2h-7.6M19.4 8A8.4 8.4 0 1 0 20.4 13" /></svg>
+      case 'whatsapp': return <MessageCircle className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
+      case 'qrcode': return <QrCode className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
+      default: return <Globe className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
+    }
+  })()
+  return (
+    <span className="inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]" style={{ background: cor }} data-selo-origem={canal}>
+      {desenho}
+    </span>
   )
 }

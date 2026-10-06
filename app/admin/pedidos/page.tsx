@@ -45,7 +45,7 @@ import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRA
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
 import { etiquetasDoPedido, origemVisivelNoCard, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
-import { IconeOrigem, IconePix } from '@/components/icones/origens'
+import { SeloOrigem } from '@/components/icones/origens'
 import { EtiquetaAtendimento } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
@@ -993,18 +993,21 @@ export default function PedidosPage() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
+                            {/* Origem do pedido da vitrine (item 55): só o ícone, ao lado do número, com a dica.
+                                Direto, PDV, Mesa e Balcão não mostram nada. É a única mudança no card antigo. */}
+                            {(() => {
+                              const o = order.origemCanal && order.origemCanal !== 'direto' ? origemVisivelNoCard(order) : null
+                              return o && !['pdv', 'mesa', 'balcao'].includes(o.icone) ? (
+                                <Dica texto={o.dica}>
+                                  <span className="inline-flex" aria-label={o.dica} data-testid="card-origem" data-origem={o.icone}>
+                                    <SeloOrigem canal={o.icone} />
+                                  </span>
+                                </Dica>
+                              ) : null
+                            })()}
                             {origemDoCard(order).posto === 'Salão' && <span className={`${SELO} text-[#047857]`} data-testid="selo-origem"><Store className="h-3.5 w-3.5" aria-hidden /> Salão</span>}
                             {origemDoCard(order).posto === 'PDV' && <span className={`${SELO} text-alert-text`} data-testid="selo-origem"><Monitor className="h-3.5 w-3.5" aria-hidden /> PDV</span>}
                             {origemDoCard(order).posto === 'Delivery' && <span className={`${SELO} text-purple`} data-testid="selo-origem"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Delivery</span>}
-                            {/* Origem do pedido da vitrine (item 55): ícone e nome (Meta, Instagram, Google, WhatsApp…); Direto não mostra nada. */}
-                            {(() => {
-                              const o = order.origemCanal && order.origemCanal !== 'direto' ? origemVisivelNoCard(order) : null
-                              return o ? (
-                                <span className={`${SELO} text-text-main`} title={o.dica} aria-label={o.dica} data-testid="card-origem" data-origem={o.icone}>
-                                  <IconeOrigem canal={o.icone} className="h-3.5 w-3.5" /> {o.rotulo}
-                                </span>
-                              ) : null
-                            })()}
                             {order.agendadoPara && <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge>}
                           </div>
                           <div className="flex flex-shrink-0 items-center gap-1.5">
@@ -1030,8 +1033,7 @@ export default function PedidosPage() {
                           <div className="flex flex-shrink-0 items-center gap-1.5">
                             {order.canal !== 'mesa' && (
                               <span className="inline-flex text-text-subtle" title={dicaPag} aria-label={dicaPag} data-testid="card-pagamento">
-                                {/* Ícones de pagamento do item 56 (mantidos a pedido do dono): Pix oficial, cartão azul, dinheiro verde. */}
-                                {order.formaPagamento === 'pix' ? <IconePix className="h-[16px] w-[16px]" /> : <IconePag className={`h-[18px] w-[18px] ${order.formaPagamento === 'dinheiro' ? 'text-[#047857]' : 'text-[#1D4ED8]'}`} aria-hidden />}
+                                <IconePag className="h-[18px] w-[18px]" aria-hidden />
                               </span>
                             )}
                             <span className="whitespace-nowrap text-[14px] font-bold tabular-nums text-status-ready" data-testid="card-preco">{brl(order.total)}</span>

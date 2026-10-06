@@ -128,7 +128,7 @@ export function origemVisivelNoCard(pedido: PedidoParaRotulo & { origemCanal?: s
   const canal = pedido.origemCanal
   if (!canal || canal === 'direto' || !(canal in ROTULOS_CANAL_CARD)) return null
   const rotulo = ROTULOS_CANAL_CARD[canal]
-  return { icone: canal, rotulo, dica: `Origem: ${rotulo}${pedido.origemCampanha ? ` (${pedido.origemCampanha === 'robô' ? 'robô de atendimento' : `campanha ${pedido.origemCampanha}`})` : ''}` }
+  return { icone: canal, rotulo, dica: `Origem: ${rotulo}${pedido.origemCampanha ? ` – ${pedido.origemCampanha === 'robô' ? 'robô de atendimento' : `campanha ${pedido.origemCampanha}`}` : ''}` }
 }
 /** Nomes curtos do card (o modelo do item 56 mostra "Google", "Meta", "WhatsApp"). */
 const ROTULOS_CANAL_CARD: Record<string, string> = {
