@@ -295,7 +295,13 @@ for (const vp of VIEWPORTS) {
     await page.goto(`${BASE}/admin/mesas`, { waitUntil: 'networkidle' })
     await page.waitForTimeout(1000)
     await dispensarChecklist()
-    await page.locator('button[title="Ver QR Code"]').first().click()
+    // Celular (pendência 7): as ações do cartão estão no ⋮ do canto; tablet/desktop, na fileira.
+    if (vp.width < 768) {
+      await page.locator('button[data-testid^="mesa-menu-"]').first().click()
+      await page.getByRole('menuitem', { name: 'Ver QR Code' }).click()
+    } else {
+      await page.locator('button[title="Ver QR Code"]').first().click()
+    }
     await page.locator('img[alt^="QR Code da"]').waitFor({ timeout: 15000 }).catch(() => {})
     await page.screenshot({ path: `.shots/resp-${vp.nome}-qr-mesa.png` })
     await conferir('QR da mesa', page, vp)

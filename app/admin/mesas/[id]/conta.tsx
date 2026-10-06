@@ -14,6 +14,8 @@ import { TaxasModal, taxasIniciais } from '@/components/pdv/taxas-conta'
 import { IdentificarModal } from '@/components/pdv/atendimento'
 import { ResumoEncerramentoModal } from '@/components/pdv/resumo-encerramento'
 import { chamar, mascararTelefone } from '@/components/pdv/util'
+import { FotoItem } from '@/components/pdv/foto-item'
+import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { comandaEsquecida, tempoAberta } from '@/lib/comanda-esquecida'
 
 /** A conta vista pelo PDV v2 (mesma rota do PDV): o fechamento completo mora lá. */
@@ -376,8 +378,25 @@ export function PainelConta({
                       {l.status}
                     </Badge>
                   </span>
+                  {/* Celular (pendência 7): conta mais limpa — as ações do lançamento num ⋮. */}
                   {!cancelado && (
-                    <span className="flex gap-1.5">
+                    <MenuAcoesCelular
+                      className="md:hidden"
+                      tamanho={34}
+                      rotulo={`Ações do lançamento #${l.numero}`}
+                      testid={`conta-menu-${l.numero}`}
+                      acoes={[
+                        ...(podeFazer('reimprimir') ? [{ rotulo: 'Reimprimir', icone: <Printer className="h-4 w-4" />, onClick: () => void executar('reimprimir', { pedidoId: l.id }, `Reimpressão do #${l.numero} pedida.`) }] : []),
+                        ...(podeFazer('cancelar_pedido')
+                          ? [{ rotulo: 'Cancelar lançamento', icone: <Ban className="h-4 w-4" />, perigo: true, onClick: () => setMotivoPara({ titulo: `Cancelar o lançamento #${l.numero}`, acao: async (motivo: string) => { await executar('cancelar_pedido', { pedidoId: l.id, motivo }, `Lançamento #${l.numero} cancelado.`) } }) }]
+                          : podeFazer('solicitar_cancelamento') && !pendentes.has(`${l.id}:`)
+                            ? [{ rotulo: 'Pedir cancelamento', icone: <Ban className="h-4 w-4" />, perigo: true, onClick: () => setMotivoPara({ titulo: `Pedir à gestão o cancelamento do lançamento #${l.numero}`, acao: async (motivo: string) => { await executar('solicitar_cancelamento', { pedidoId: l.id, motivo }, 'Pedido de cancelamento enviado à gestão.') } }) }]
+                            : []),
+                      ]}
+                    />
+                  )}
+                  {!cancelado && (
+                    <span className="hidden gap-1.5 md:flex">
                       {podeFazer('reimprimir') && (
                         <Button variant="ghost" className="!px-2 text-[10px]" title="Reimprimir este lançamento"
                           onClick={() => executar('reimprimir', { pedidoId: l.id }, `Reimpressão do #${l.numero} pedida.`)}>
@@ -425,8 +444,10 @@ export function PainelConta({
                           }}
                         />
                       ) : (
-                        <span className="w-[13px]" />
+                        <span className="w-[13px] max-md:hidden" />
                       )}
+                      {/* Celular: foto do produto na conta. */}
+                      <FotoItem url={i.imagemUrl} nome={i.nome} tamanho={40} className="md:hidden" />
                       <span className="min-w-0 flex-1 text-[13px]">
                         <span className={i.cancelado ? 'line-through' : ''}>
                           <strong>{i.quantidade}×</strong> {i.nome}

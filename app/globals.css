@@ -1310,3 +1310,13 @@ details.ti-tec[open] > summary .ti-chev { transform: rotate(180deg); }
   .ti-modal { max-height: 100dvh; height: 100dvh; border-radius: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .tela-impressao * { transition: none !important; } }
+
+/* Tela cheia no celular (pendência 7): o modo do painel (`data-tela-cheia` no <html>, posto pelo
+   BotaoTelaCheia) esconde o topo e o aviso de impressão. Tablet e desktop: sem regra — continua só a
+   tela cheia do navegador. O aviso de som bloqueado continua: é ele que avisa do pedido novo. */
+@media (max-width: 767.98px) {
+  html[data-tela-cheia='1'] [data-testid='topo'],
+  html[data-tela-cheia='1'] [data-testid='aviso-nova-impressao'] {
+    display: none !important;
+  }
+}

@@ -6,7 +6,6 @@ import { EVENTO_SAIR_CAIXA, sairDoPainel } from '@/lib/sessao-cliente'
 import { tempoAberto } from '@/lib/financeiro/caixa-regras'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { Dica } from '@/components/ui/flutuante'
-import { ICONES } from '@/lib/icones-painel'
 import { Janela, botao } from './apoio'
 
 /**
@@ -34,8 +33,10 @@ export function AvisoCaixa() {
     <>
     <Dica texto={texto}>
       <a href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa-celular" aria-label={texto} data-aberto={e.aberto ? '1' : '0'}
-        className={`flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] text-white md:hidden ${e.aberto ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}>
-        <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] fill-current" aria-hidden="true">{ICONES.dinheiro.map((d) => <path key={d} d={d} />)}</svg>
+        className={`flex h-[36px] flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-[4px] px-2 text-[12px] font-semibold text-white md:hidden ${e.aberto ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}>
+        {/* Pílula (pendência 7): no celular o status do caixa precisa ser lido, não adivinhado pelo ícone. */}
+        <span className="h-[7px] w-[7px] rounded-full bg-white" aria-hidden />
+        Caixa
       </a>
     </Dica>
     <a href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa"

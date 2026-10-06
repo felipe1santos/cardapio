@@ -41,6 +41,7 @@ import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaO
 import { CardProduto, ConfiguradorGarcom, PainelLancamento, SelecaoDoCliente, SemItens, brl, type DadosPizza } from './lancar'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
+import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
 
@@ -120,6 +121,8 @@ export default function MesaDetalhePage() {
   const [lancamento, setLancamento] = useState<LinhaLancamento[]>([])
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  // Celular (pendência 7): a busca vira uma lupa ao lado das categorias.
+  const [buscaAberta, setBuscaAberta] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -553,8 +556,20 @@ export default function MesaDetalhePage() {
                 <span className="hidden sm:inline">Trocar de mesa</span>
               </Button>
             ) : null}
-            <BotaoTelaCheia />
+            <BotaoTelaCheia flutuante={false} />
           </div>
+        }
+        celular={
+          <>
+            <BotaoTelaCheia />
+            <MenuAcoesCelular
+              testid="mesa-menu-acoes"
+              acoes={[
+                ...(permissoesConta.transferir_mesa && estadoConta.dados?.conta ? [{ rotulo: 'Trocar de mesa', icone: <ArrowRightLeft className="h-4 w-4" />, onClick: () => setTransferindoMesa(true) }] : []),
+                ...(somenteVisualizacao ? [{ rotulo: 'Cardápio só para ver — saiba mais', icone: <Info className="h-4 w-4" />, onClick: () => setExplicandoVisualizacao(true) }] : []),
+              ]}
+            />
+          </>
         }
       />
 
@@ -649,29 +664,30 @@ export default function MesaDetalhePage() {
           const cor = { livre: 'bg-status-ready', aguardando: 'bg-status-preparing', ocupada: 'bg-primary', limpeza: 'bg-status-pending', bloqueada: 'bg-sidebar-bg', inativa: 'bg-border' }[estado]
           const estadoTexto = ROTULO_ESTADO[estado]
           return (
-            <div className={`mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-menuzia px-4 py-3 text-white shadow-sm sm:mb-4 ${cor}`} data-resumo-mesa>
+            // Celular (pendência 7): uma faixa fina numa linha só — sem o ícone, nome menor, totais compactos.
+            <div className={`mb-3 flex items-center gap-x-3 gap-y-2 rounded-menuzia px-3 py-2 text-white shadow-sm sm:mb-4 md:flex-wrap md:gap-x-4 md:px-4 md:py-3 ${cor}`} data-resumo-mesa>
               <div className="flex min-w-0 items-center gap-3">
-                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-white/20">
+                <span className="hidden h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-white/20 md:grid">
                   <Utensils className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
                   <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">{estadoTexto}</div>
-                  <div className="truncate text-[18px] font-extrabold leading-tight">
+                  <div className="truncate text-[16px] font-extrabold leading-tight md:text-[18px]">
                     {mesa.nome}
-                    {conta?.numero ? <span className="ml-2 text-[13px] font-semibold opacity-85">Comanda #{conta.numero}</span> : null}
+                    {conta?.numero ? <span className="ml-2 text-[12px] font-semibold opacity-85 md:text-[13px]"><span className="hidden md:inline">Comanda </span>#{conta.numero}</span> : null}
                   </div>
                   {conta && <div className="text-[11px] opacity-85">Aberta {esperaTexto(conta.abertaEm, agora)}</div>}
                 </div>
               </div>
               {conta && (
-                <div className="ml-auto flex items-center gap-2">
-                  <div className="rounded-menuzia bg-white/15 px-3 py-1.5 text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">Total</div>
-                    <div className="text-[15px] font-extrabold">{brl(conta.totais.total)}</div>
+                <div className="ml-auto flex flex-shrink-0 items-center gap-1.5 md:gap-2">
+                  <div className="rounded-menuzia bg-white/15 px-2 py-1 text-right md:px-3 md:py-1.5">
+                    <div className="text-[9px] font-bold uppercase tracking-wide opacity-80 md:text-[10px]">Total</div>
+                    <div className="text-[13px] font-extrabold md:text-[15px]">{brl(conta.totais.total)}</div>
                   </div>
-                  <div className={`rounded-menuzia px-3 py-1.5 text-right ${conta.totais.restante > 0 ? 'bg-white text-text-main' : 'bg-white/15'}`}>
-                    <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">Falta pagar</div>
-                    <div className={`text-[15px] font-extrabold ${conta.totais.restante > 0 ? 'text-danger' : ''}`}>{brl(conta.totais.restante)}</div>
+                  <div className={`rounded-menuzia px-2 py-1 text-right md:px-3 md:py-1.5 ${conta.totais.restante > 0 ? 'bg-white text-text-main' : 'bg-white/15'}`}>
+                    <div className="text-[9px] font-bold uppercase tracking-wide opacity-70 md:text-[10px]">Falta pagar</div>
+                    <div className={`text-[13px] font-extrabold md:text-[15px] ${conta.totais.restante > 0 ? 'text-danger' : ''}`}>{brl(conta.totais.restante)}</div>
                   </div>
                 </div>
               )}
@@ -744,13 +760,16 @@ export default function MesaDetalhePage() {
               />
             )}
 
-            <label className="relative block">
+            <label className={`relative block ${buscaAberta || busca || categorias.length === 0 ? '' : 'max-md:hidden'}`}>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" aria-hidden />
               <input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar em todo o cardápio…"
                 aria-label="Buscar item"
+                autoFocus={buscaAberta}
+                onBlur={() => { if (!busca.trim()) setBuscaAberta(false) }}
+                data-testid="mesa-busca"
                 type="search"
                 className="h-[44px] w-full rounded-menuzia border border-border bg-main pl-9 pr-3 text-[13px] outline-none focus:border-primary lg:h-[38px]"
               />
@@ -760,6 +779,11 @@ export default function MesaDetalhePage() {
               // Único ponto com rolagem lateral da tela: os chips das categorias.
               <div className="-mx-3 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 xl:mx-0 xl:px-0 [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Categorias">
                 <div className="flex w-max gap-1.5 pb-0.5 xl:w-auto xl:flex-wrap">
+                  {!buscaAberta && !busca && (
+                    <button type="button" onClick={() => { setBuscaAberta(true); requestAnimationFrame(() => (document.querySelector('[data-testid="mesa-busca"]') as HTMLInputElement | null)?.focus()) }} aria-label="Buscar item" data-testid="mesa-lupa" className="flex min-h-[40px] w-[40px] items-center justify-center rounded-menuzia border border-border bg-main text-text-main md:hidden">
+                      <Search className="h-4 w-4" aria-hidden />
+                    </button>
+                  )}
                   {categorias.map((g) => (
                     <button
                       key={g.id}

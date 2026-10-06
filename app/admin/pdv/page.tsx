@@ -34,6 +34,9 @@ import { FotoItem } from '@/components/pdv/foto-item'
 import { ConfigurarItem, precoUnitarioPdv, type EstadoConfig } from '@/components/pdv/configurar-item'
 import { BotaoPdv, ICONES_PDV, TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
+import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
+import { AvisoCaixa } from '@/components/financeiro/aviso-caixa'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -345,6 +348,8 @@ async function erroDoFechamento(res: Response): Promise<string> {
 export default function PdvPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const router = useRouter()
+  // Pílula do caixa no celular (pendência 7): só com o financeiro ligado.
+  const sessaoPdv = useEstadoSessao()
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true)
@@ -936,7 +941,9 @@ export default function PdvPage() {
   // Tela cheia: componente compartilhado com Mesas e Comandas (só ícone no celular).
   const botaoTelaCheia = <BotaoTelaCheia />
 
+  // Celular (pendência 7): só a tela cheia à vista; "Sair do PDV" vai para o ⋮ e a pílula do caixa aparece.
   const botaoSair = (
+    <span className="hidden md:contents">
     <button
       type="button"
       onClick={() => setSairConfirm(true)}
@@ -949,6 +956,17 @@ export default function PdvPage() {
       </svg>
       <span className="hidden sm:inline">Sair</span>
     </button>
+    </span>
+  )
+  const extrasCelular = (
+    <>
+      {sessaoPdv?.financeiroAtivo && <span className="md:hidden"><AvisoCaixa /></span>}
+      <MenuAcoesCelular
+        className="md:hidden"
+        testid="pdv-menu-acoes"
+        acoes={[{ rotulo: 'Sair do PDV', onClick: () => setSairConfirm(true), perigo: true }]}
+      />
+    </>
   )
 
   return (
@@ -1222,7 +1240,7 @@ export default function PdvPage() {
           <CentralBalcao
             supabase={supabase}
             restauranteId={restauranteId}
-            acoes={<>{botaoTelaCheia}{botaoSair}</>}
+            acoes={<>{botaoTelaCheia}{botaoSair}{extrasCelular}</>}
             onVoltar={() => {
               setTelaBalcao(false)
               void recarregarMesas()
@@ -1258,6 +1276,7 @@ export default function PdvPage() {
                 </div>
                 {botaoTelaCheia}
                 {botaoSair}
+                {extrasCelular}
               </div>
             </div>
             {/* Legenda no celular: uma linha rolável, sem empurrar as mesas para baixo. */}
@@ -1366,7 +1385,7 @@ export default function PdvPage() {
                   <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-text-main" data-testid="pdv-alvo">
                     {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
                   </span>
-                  <div className="flex flex-shrink-0 items-center gap-2">{botaoTelaCheia}{botaoSair}</div>
+                  <div className="flex flex-shrink-0 items-center gap-2">{botaoTelaCheia}{botaoSair}{extrasCelular}</div>
                 </div>
             {/* Categorias à esquerda + busca à direita, numa linha só (2026-10-01). A linha não rola
                 com os produtos (só a grade rola). Telas estreitas: a busca vira uma lupa que expande. */}

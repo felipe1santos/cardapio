@@ -22,6 +22,8 @@ export interface TopBarProps {
   semTitulo?: boolean
   /** Botão de voltar no canto superior esquerdo (telas de detalhe). */
   voltar?: { rotulo: string; onClick: () => void }
+  /** Celular (abaixo de 768 px): substitui `right` — ex.: tela cheia + menu ⋮ com as ações. */
+  celular?: React.ReactNode
 }
 
 /**
@@ -30,7 +32,7 @@ export interface TopBarProps {
  * não cabe é a tela que cede: o título encolhe (reticências) e, no celular, as ações da tela
  * descem para uma segunda linha.
  */
-export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, semTitulo }: TopBarProps) {
+export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, semTitulo, celular }: TopBarProps) {
   // Abaixo de `lg` a sidebar é gaveta, e é a barra de topo que a abre. O contexto evita
   // passar a função por todas as telas do painel só para chegar aqui.
   const menu = useContext(MenuLateralContext)
@@ -79,12 +81,15 @@ export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, s
         )}
       </div>
       {right && (
-        <div className="order-3 flex min-w-0 basis-full flex-wrap items-center justify-end gap-1.5 md:order-2 md:basis-auto md:flex-shrink-0 md:flex-nowrap md:gap-2" data-testid="topo-acoes">
+        <div className={`order-3 flex min-w-0 basis-full flex-wrap items-center justify-end gap-1.5 md:order-2 md:basis-auto md:flex-shrink-0 md:flex-nowrap md:gap-2 ${celular ? 'max-md:hidden' : ''}`} data-testid="topo-acoes">
           {right}
         </div>
       )}
       <div className="order-2 flex flex-shrink-0 items-center gap-[4px] md:order-3 sm:gap-2" data-testid="topo-sistema">
         {right && <span aria-hidden className="mx-1 hidden h-[28px] w-px bg-[var(--adm-borda,#e5e7eb)] md:block" />}
+        {/* Celular (pendência 7): no lugar da fileira de ações, só o que a tela passou aqui
+            (tela cheia + menu ⋮), na mesma linha do título. Tablet e desktop não veem. */}
+        {celular && <div className="flex flex-shrink-0 items-center gap-[4px] md:hidden" data-testid="topo-celular">{celular}</div>}
         {sistema}
         <AcoesTopo />
       </div>

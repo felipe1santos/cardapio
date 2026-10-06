@@ -237,16 +237,22 @@ export function CentralBalcao({
                       <span className="min-w-0">
                         <span className="flex min-w-0 items-center gap-1.5">
                           <span className="truncate text-[14px] font-semibold text-text-main">{l.nome}</span>
-                          {l.entrega ? (
-                            <Badge tone="alert"><span className="inline-flex items-center gap-1"><Capacete className="h-3 w-3" />Entrega</span></Badge>
-                          ) : (
-                            <Badge tone="paused">Retirada</Badge>
-                          )}
+                          {/* Celular (pendência 7): no máximo 2 selos por pedido — o tipo vira só o ícone. */}
+                          <span className="hidden md:inline-flex">
+                            {l.entrega ? (
+                              <Badge tone="alert"><span className="inline-flex items-center gap-1"><Capacete className="h-3 w-3" />Entrega</span></Badge>
+                            ) : (
+                              <Badge tone="paused">Retirada</Badge>
+                            )}
+                          </span>
+                          <span className="flex-shrink-0 text-text-subtle md:hidden" aria-label={l.entrega ? 'Entrega' : 'Retirada'} title={l.entrega ? 'Entrega' : 'Retirada'} data-tipo-icone>
+                            {l.entrega ? <Capacete className="h-[14px] w-[14px]" /> : <ShoppingBag className="h-[14px] w-[14px]" aria-hidden />}
+                          </span>
                         </span>
                         {l.telefone && <span className="block text-[11px] text-text-subtle">{telefoneParcial(l.telefone)}</span>}
                         <span className="mt-1 flex flex-wrap gap-1 lg:hidden">
                           <SeloCozinha dim={dim} total={l.pedidos.length} />
-                          <SeloAtendimento dim={dim} />
+                          <span className="hidden md:contents"><SeloAtendimento dim={dim} /></span>
                           <SeloFinanceiro situacao={fin} aAcertar={acertar} />
                         </span>
                       </span>

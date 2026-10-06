@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Settings, X } from 'lucide-react'
+import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Search, Settings, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
+import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { Button } from '@/components/ui/button'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
@@ -63,6 +64,7 @@ export default function MesasPage() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const [buscaAberta, setBuscaAberta] = useState(false)
   const [filtro, setFiltro] = useState<EstadoMesa | 'todas'>('todas')
   const [setorFiltro, setSetorFiltro] = useState<string | null>(null)
   const [formAberto, setFormAberto] = useState(false)
@@ -286,11 +288,27 @@ export default function MesasPage() {
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Nova mesa</span>
               </Button>
-              <BotaoTelaCheia />
+              <BotaoTelaCheia flutuante={false} />
             </>
           ) : (
-            <BotaoTelaCheia />
+            <BotaoTelaCheia flutuante={false} />
           )
+        }
+        celular={
+          <>
+            <BotaoTelaCheia />
+            {/* Ações de gestão num menu ⋮ (o garçom não vê). */}
+            {gerencia && (
+              <MenuAcoesCelular
+                testid="mesas-menu-acoes"
+                acoes={[
+                  { rotulo: 'Nova mesa', icone: <Plus className="h-4 w-4" />, onClick: () => { setEmEdicao(null); setFormAberto(true) } },
+                  { rotulo: 'Folha de QR', icone: <Printer className="h-4 w-4" />, onClick: () => setFolhaAberta(true), desabilitada: mesas.length === 0 },
+                  { rotulo: 'Conta e pagamentos', icone: <Settings className="h-4 w-4" />, onClick: () => setConfigAberta(true) },
+                ]}
+              />
+            )}
+          </>
         }
       />
 
@@ -313,13 +331,28 @@ export default function MesasPage() {
 
         {/* Busca + filtros por estado */}
         <div className="mb-3 flex flex-col gap-2 sm:mb-4 lg:flex-row lg:flex-wrap lg:items-center">
+          {/* Celular: a busca vira uma lupa que abre o campo (pendência 7). */}
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
+            onBlur={() => { if (!busca.trim()) setBuscaAberta(false) }}
+            autoFocus={buscaAberta}
             placeholder="Buscar mesa ou setor…"
-            className="h-[44px] w-full rounded-menuzia lg:h-9 lg:w-56 border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary"
+            data-testid="mesas-busca"
+            className={`h-[44px] w-full rounded-menuzia lg:h-9 lg:w-56 border border-border bg-main px-3 text-[13px] text-text-main outline-none placeholder:text-text-subtle focus:border-primary ${buscaAberta || busca ? '' : 'max-md:hidden'}`}
           />
           <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-5 sm:px-5 lg:mx-0 lg:flex-wrap lg:px-0">
+            {!buscaAberta && !busca && (
+              <button
+                type="button"
+                onClick={() => { setBuscaAberta(true); requestAnimationFrame(() => (document.querySelector('[data-testid="mesas-busca"]') as HTMLInputElement | null)?.focus()) }}
+                aria-label="Buscar mesa ou setor"
+                data-testid="mesas-lupa"
+                className="flex min-h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-main text-text-main md:hidden"
+              >
+                <Search className="h-4 w-4" aria-hidden />
+              </button>
+            )}
             {ORDEM_FILTROS.map((f) => (
               <button
                 key={f}
@@ -449,13 +482,14 @@ export default function MesasPage() {
               )
               const classeBloco = [
                 'flex aspect-[4/3] min-w-0 flex-col rounded-menuzia p-3 text-left shadow-sm transition-all sm:aspect-square',
+                gerencia ? 'max-md:pr-11' : '',
                 tom.bloco,
                 tom.texto,
                 abre ? 'hover:brightness-105 active:scale-[0.97]' : '',
                 chamadoDaMesa ? 'ring-2 ring-danger ring-offset-2 ring-offset-page' : '',
               ].join(' ')
               return (
-                <div key={mesa.id} className="flex min-w-0 flex-col gap-1">
+                <div key={mesa.id} className="relative flex min-w-0 flex-col gap-1">
                   {abre ? (
                     <Link href={`/admin/mesas/${mesa.id}`} className={classeBloco} aria-label={`${mesa.nome} — ${ROTULO_ESTADO[mesa.estado]}`}>
                       {conteudo}
@@ -464,8 +498,24 @@ export default function MesasPage() {
                     <div className={classeBloco}>{conteudo}</div>
                   )}
 
+                  {/* Celular: sem a fileira de botões; as mesmas ações num ⋮ no canto do cartão. */}
                   {gerencia && (
-                    <div className="grid grid-cols-4 gap-1">
+                    <MenuAcoesCelular
+                      claro
+                      tamanho={34}
+                      rotulo={`Ações da ${mesa.nome}`}
+                      testid={`mesa-menu-${mesa.id}`}
+                      className="absolute right-[6px] top-[6px] md:hidden"
+                      acoes={[
+                        { rotulo: 'Ver QR Code', icone: <QrCode className="h-4 w-4" />, onClick: () => setQrDaMesa(mesa) },
+                        { rotulo: 'Editar', icone: <Pencil className="h-4 w-4" />, onClick: () => { setEmEdicao(mesa); setFormAberto(true) } },
+                        { rotulo: mesa.bloqueada ? 'Desbloquear' : 'Bloquear', icone: mesa.bloqueada ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />, onClick: () => acaoDeEstado(mesa, mesa.bloqueada ? 'desbloquear' : 'bloquear') },
+                        { rotulo: mesa.ativa ? 'Desativar' : 'Reativar', icone: <Power className="h-4 w-4" />, onClick: () => acaoDeEstado(mesa, mesa.ativa ? 'desativar' : 'reativar'), perigo: mesa.ativa },
+                      ]}
+                    />
+                  )}
+                  {gerencia && (
+                    <div className="hidden grid-cols-4 gap-1 md:grid">
                       <Button variant="outline" className="!px-0" onClick={() => setQrDaMesa(mesa)} title="Ver QR Code" aria-label={`QR Code da ${mesa.nome}`}>
                         <QrCode className="h-3.5 w-3.5" />
                       </Button>

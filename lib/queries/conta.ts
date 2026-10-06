@@ -37,6 +37,8 @@ export interface ItemDaConta {
   cancelado: boolean
   canceladoMotivo: string | null
   canceladoPor: string | null
+  /** Miniatura do produto (a do cardápio); null = sem foto ou item apagado. */
+  imagemUrl?: string | null
 }
 
 export interface LancamentoDaConta {
@@ -155,7 +157,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
     admin.rpc('comanda_totais', { p_comanda: comanda.id }),
     admin
       .from('pedidos')
-      .select('id, numero, status, total, criado_em, criado_por_nome, impresso, pedido_itens ( id, nome, quantidade, preco_unitario, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, observacao, cancelado_em, cancelado_motivo, cancelado_por_nome )')
+      .select('id, numero, status, total, criado_em, criado_por_nome, impresso, pedido_itens ( id, nome, quantidade, preco_unitario, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, observacao, cancelado_em, cancelado_motivo, cancelado_por_nome , item:itens_cardapio ( imagem_url, imagem_thumb_url ) )')
       .eq('comanda_id', comanda.id)
       .order('criado_em', { ascending: true }),
     admin
@@ -180,6 +182,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
       id: string; nome: string; quantidade: number; preco_unitario: number; complementos: { nome: string }[] | null
       tamanho_nome: string | null; sabor_nome: string | null; borda_nome: string | null; massa_nome: string | null
       observacao: string | null; cancelado_em: string | null; cancelado_motivo: string | null; cancelado_por_nome: string | null
+      item?: { imagem_url: string | null; imagem_thumb_url: string | null } | null
     }[]
   }[]).map((p) => ({
     id: p.id,
@@ -203,6 +206,7 @@ export async function buscarConta(admin: SupabaseClient, restauranteId: string, 
       cancelado: i.cancelado_em !== null,
       canceladoMotivo: i.cancelado_motivo,
       canceladoPor: i.cancelado_por_nome,
+      imagemUrl: i.item?.imagem_thumb_url ?? i.item?.imagem_url ?? null,
     })),
   }))
 

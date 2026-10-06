@@ -323,7 +323,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       data-painel
       data-admin-shell
       data-rota-kanban={pathname === '/admin/pedidos' || pathname.startsWith('/admin/pedidos/') ? 'sim' : 'nao'}
-      className="flex h-screen flex-col overflow-hidden"
+      // h-dvh: no celular 100vh passa da área visível e a barra de baixo (lançamento, PDV)
+      // ficava atrás da barra do navegador. No desktop as duas medidas são iguais.
+      className="flex h-screen flex-col overflow-hidden supports-[height:100dvh]:h-dvh"
     >
       {/* Aviso fixo do novo sistema de impressão: no fluxo, empurra menu e conteúdo. */}
       {mostrarAvisoNovaImpressao(pathname) && <AvisoNovaImpressao />}
