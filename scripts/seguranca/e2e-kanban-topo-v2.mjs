@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 /**
  * E2E — Topo do painel v2 (2026-10-03): Kanban sem título, controles só ícone com dica, botões do
  * sistema à direita numa linha só, cores vivas (contraste ≥ 4,5:1) e popups/menus/dicas SEMPRE por
@@ -306,8 +307,22 @@ try {
   }
 
   secao('5. Despacho de rotas intocado')
-  const diff = execSync('git diff --stat origin/main -- components/pedidos/rota-panel.tsx components/pedidos/rota-map.tsx', { encoding: 'utf8' }).trim()
-  ok('rota-panel.tsx e rota-map.tsx iguais ao main', diff === '', diff)
+  // Regra 4: o DESIGN do despacho não muda. Desde a noite 3 (mapa abrindo em Fortaleza, item 5) o
+  // funcionamento pode mudar; o que não pode é a superfície visual: todas as classes, o estilo do
+  // mapa e os ícones dos pinos/motos têm de ser iguais aos do main.
+  const superficie = (bruto) => {
+    const txt = bruto.replace(/\r\n/g, '\n')
+    return [
+      ...(txt.match(/className=("[^"]*"|\{`[^`]*`\}|\{\[[\s\S]*?\]\.join\(' '\)\})/g) ?? []),
+      (txt.match(/const LIGHT_MAP_STYLE[\s\S]*?\n\]/) ?? [''])[0],
+      (txt.match(/function pinIcon[\s\S]*?\n\}/) ?? [''])[0],
+      (txt.match(/function motoIcon[\s\S]*?\n\}/) ?? [''])[0],
+    ].join('\n')
+  }
+  const mudou = ['components/pedidos/rota-panel.tsx', 'components/pedidos/rota-map.tsx'].filter((arq) =>
+    superficie(execSync(`git show origin/main:${arq}`, { encoding: 'utf8' })) !== superficie(readFileSync(arq, 'utf8')))
+  const classes = superficie(readFileSync('components/pedidos/rota-panel.tsx', 'utf8')).split('className=').length
+  ok('Despacho de rotas: classes, estilo do mapa e ícones iguais ao main (design intocado)', mudou.length === 0 && classes > 20, mudou.join(', ') || String(classes))
 } catch (e) {
   ok('fluxo sem erro', false, String(e).slice(0, 400))
 } finally {

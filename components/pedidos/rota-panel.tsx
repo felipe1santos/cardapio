@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { RotaMap } from '@/components/pedidos/rota-map'
+import { RotaMap, type RotaMapLoja } from '@/components/pedidos/rota-map'
 import { RouteMap } from '@/components/maps/route-map'
 import { notificarPedido } from '@/lib/notificar'
 import { invalidarCotacaoNexta, useCotacoesNexta } from '@/lib/nexta-cotacao-cache'
@@ -139,6 +139,26 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
    * responderiam 401.
    */
   const modoAdmin = Boolean(supabase && restauranteId && !dataSource)
+
+  // Onde a loja fica (Ajustes): o mapa abre nela e enquadra loja + pedidos (antes abria em Fortaleza).
+  const [lojaMapa, setLojaMapa] = useState<RotaMapLoja | null>(null)
+  useEffect(() => {
+    if (!supabase || !restauranteId) return
+    let vivo = true
+    void supabase
+      .from('restaurantes')
+      .select('latitude, longitude, endereco_cidade, endereco_estado')
+      .eq('id', restauranteId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!vivo || !data) return
+        const lat = data.latitude === null || data.latitude === undefined ? null : Number(data.latitude)
+        const lng = data.longitude === null || data.longitude === undefined ? null : Number(data.longitude)
+        const cidade = [data.endereco_cidade, data.endereco_estado].filter(Boolean).join(', ') || null
+        setLojaMapa({ lat: Number.isFinite(lat) ? lat : null, lng: Number.isFinite(lng) ? lng : null, cidade })
+      })
+    return () => { vivo = false }
+  }, [supabase, restauranteId])
 
   useEffect(() => {
     if (!modoAdmin) return
@@ -473,7 +493,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
 
         {/* Corpo: mapa de fundo + colunas flutuantes */}
         <div className="relative flex-1 overflow-hidden bg-page">
-          <RotaMap apiKey={apiKey} stops={stops} drivers={driverMarkers} onStopClick={toggleMarcado} className="absolute inset-0 h-full w-full" />
+          <RotaMap apiKey={apiKey} stops={stops} drivers={driverMarkers} onStopClick={toggleMarcado} loja={lojaMapa} className="absolute inset-0 h-full w-full" />
 
           {/* Coluna esquerda: pedidos prontos (corpo quase transparente, título preto, cresce com o conteúdo) */}
           <aside className="absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-[288px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-menuzia border border-white/15 bg-white/5 shadow-2xl backdrop-blur-sm">

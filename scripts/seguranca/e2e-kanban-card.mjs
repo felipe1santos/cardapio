@@ -6,6 +6,7 @@
  *   node scripts/seguranca/kanban-cards-semente.mjs criar
  *   node scripts/seguranca/e2e-kanban-card.mjs
  */
+import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import pg from 'pg'
 import { chromium } from 'playwright'
@@ -177,8 +178,23 @@ try {
 }
 
 console.log('\n── Despacho de rotas e Cozinha ──')
-const diff = execSync('git diff --stat origin/main -- components/pedidos/rota-panel.tsx components/pedidos/rota-map.tsx components/maps app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
-ok('"Despacho de rotas" e Cozinha sem nenhuma alteração', diff === '', diff)
+// Mapas, Cozinha, badge e botão: nenhuma alteração.
+const diff = execSync('git diff --stat origin/main -- components/maps app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
+ok('Cozinha, mapas, badge e botão sem nenhuma alteração', diff === '', diff)
+// Despacho de rotas (regra 4): desde a noite 3 (item 5, mapa abrindo em Fortaleza) o FUNCIONAMENTO
+// pode mudar; o design não — classes, estilo do mapa e ícones iguais aos do main.
+const superficie = (bruto) => {
+  const txt = bruto.replace(/\r\n/g, '\n')
+  return [
+    ...(txt.match(/className=("[^"]*"|\{`[^`]*`\}|\{\[[\s\S]*?\]\.join\(' '\)\})/g) ?? []),
+    (txt.match(/const LIGHT_MAP_STYLE[\s\S]*?\n\]/) ?? [''])[0],
+    (txt.match(/function pinIcon[\s\S]*?\n\}/) ?? [''])[0],
+    (txt.match(/function motoIcon[\s\S]*?\n\}/) ?? [''])[0],
+  ].join('\n')
+}
+const despachoMudou = ['components/pedidos/rota-panel.tsx', 'components/pedidos/rota-map.tsx'].filter((arq) =>
+  superficie(execSync(`git show origin/main:${arq}`, { encoding: 'utf8' })) !== superficie(readFileSync(arq, 'utf8')))
+ok('"Despacho de rotas" com o design intocado (classes, estilo do mapa e ícones iguais ao main)', despachoMudou.length === 0, despachoMudou.join(', '))
 
 const falhas = res.filter((x) => !x).length
 console.log(`\n${res.length - falhas}/${res.length} verificações passaram`)
