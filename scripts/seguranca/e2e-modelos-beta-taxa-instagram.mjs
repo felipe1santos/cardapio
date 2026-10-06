@@ -341,70 +341,76 @@ try {
   for (const p of betaM.json?.pedidos ?? []) await fetch(`${BASE}/api/agente/pedidos/${p.id}/imprimir`, { method: 'POST', headers: { Authorization: `Bearer ${credCaixa}` } })
 
   // ════════════════════════════════════════════════════════════════════════════
-  secao('Pré-visualização na página Impressão (mesmo ticket-canvas do Beta) e tamanho da letra')
+  secao('Pré-visualização (tela nova: janela "Ver comanda", mesmo desenho do Beta) e tamanho da letra')
   await db.query(`update impressao_dispositivos set tamanho_fonte='grande', largura_mm=80, largura_pontos=null where id=$1`, [dispTermica])
-  await pd.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
-  await pd.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 3000 }).catch(() => {})
-  const canvasPrevia = pd.getByTestId('previa-canvas')
-  await canvasPrevia.scrollIntoViewIfNeeded()
-  // Prévia de Entrega = o pedido do "Testar Cozinha" (a de Mesa usa os dados da referência).
-  await pd.getByTestId('previa-tipo-entrega').click()
-  const medirPrevia = () => pd.waitForFunction(() => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height > 100 ? { w: c.width, h: c.height } : null }, null, { timeout: 20000 }).then((h) => h.jsonValue())
-  const pv1 = await medirPrevia()
-  ok('comanda desenhada na tela na largura da impressora da Cozinha (576 pontos)', pv1.w === 576 && pv1.h > 900, JSON.stringify(pv1))
-  // Logo do Storage (outro domínio): sem CORS o canvas ficava "sujo" e a prévia mostrava erro de fontes.
-  const erroPrevia = await pd.getByTestId('cartao-previa').getByText('Não foi possível carregar as fontes').count()
-  const pixels = await pd.evaluate(() => { try { document.querySelector('[data-testid=previa-canvas]').getContext('2d').getImageData(0, 0, 1, 1); return true } catch { return false } })
-  ok('prévia sem erro e com os pixels legíveis (logo de outro domínio com CORS)', erroPrevia === 0 && pixels)
-  // A mesma comanda desenhada fora da página (render-ticket) tem a mesma altura: é o mesmo desenho.
+  const abrirImpressao = async () => {
+    await pd.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
+    await pd.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 3000 }).catch(() => {})
+    await pd.getByTestId('card-modelos').waitFor({ timeout: 20000 })
+  }
+  // Abre "Ver <doc>", mede o desenho e fecha (Esc).
+  const medirPrevia = async (doc = 'comanda') => {
+    await pd.getByTestId(`ver-${doc}`).click()
+    await pd.getByTestId('modal-previa').waitFor({ timeout: 10000 })
+    const m = await pd.waitForFunction(() => { const c = document.querySelector('[data-testid="modal-previa-canvas"]'); return c && c.width >= 256 && c.height > 300 ? { w: c.width, h: c.height } : null }, null, { timeout: 20000 }).then((h) => h.jsonValue())
+    const legivel = await pd.evaluate(() => { try { document.querySelector('[data-testid=modal-previa-canvas]').getContext('2d').getImageData(0, 0, 1, 1); return true } catch { return false } })
+    const erro = await pd.getByTestId('modal-previa').getByText('Não foi possível desenhar').count()
+    return { ...m, legivel, erro, fechar: async () => { await pd.keyboard.press('Escape'); await pd.waitForTimeout(300) } }
+  }
+  await abrirImpressao()
+  const pv1 = await medirPrevia('comanda')
+  ok('comanda desenhada na janela na largura da impressora da Cozinha (576 pontos)', pv1.w === 576 && pv1.h > 900, JSON.stringify({ w: pv1.w, h: pv1.h }))
+  // Logo do Storage (outro domínio): sem CORS o canvas ficava "sujo".
+  ok('prévia sem erro e com os pixels legíveis (logo de outro domínio com CORS)', pv1.erro === 0 && pv1.legivel)
+  await foto(pd, 'previa-comanda-grande')
+  await pv1.fechar()
+  // A mesma comanda desenhada fora da página (render-ticket) tem a mesma medida: é o mesmo desenho.
   const { renderizarTicket } = await import('../impressao/render-ticket.mjs')
-  // Mesmos dados de demonstração da prévia (lib/impressao/previa-beta.ts → snapshotCozinhaTeste).
-  const { snapshotCozinhaTeste } = await import('../../lib/impressao/recibo-teste.ts')
-  const pedidoDemonstracao = (agora) => { const s = snapshotCozinhaTeste({ loja: '', impressora: '', nomeSistema: '', computador: '', larguraMm: 80, larguraPontos: null, deslocamentoPontos: 0 }, '', null, agora); return { pedido: { ...s.pedido, id: 'previa' }, extras: s.extras } }
-  // Impressão v3 (0.2.0-beta.9): a prévia usa o montador do modelo oficial v3.
+  // Mesmos dados de demonstração da janela (lib/impressao/demonstracao.mjs = os modelos v3).
+  const { pedidoDemonstracao } = await import('../../lib/impressao/demonstracao.mjs')
   const { montarComandaV3 } = require('../../printer-agent/src/v3.js')
-  // Mesmas entradas da tela: dados da loja e QR (rota da prévia), opções da loja (banco) e a logo.
   const pv = (await api(pd, '/api/admin/impressao/previa')).json
   const cfgRow = await um(`select impressao_mostrar_numero_item a, impressao_mostrar_preco_complementos b, impressao_mostrar_nome_complementos c, impressao_fonte_maior_producao d, impressao_multiplicar_opcoes_qtd e, impressao_logo f from restaurantes where id=$1`, [L])
   const cfgLoja = { mostrarNumeroItem: cfgRow.a, mostrarPrecoComplementos: cfgRow.b, mostrarNomeComplementos: cfgRow.c, fonteMaiorProducao: cfgRow.d, multiplicarOpcoesQtd: cfgRow.e, imprimirLogo: cfgRow.f }
   let logoRef = null
   if (pv.logoUrl) { const r = await fetch(pv.logoUrl); logoRef = `data:${r.headers.get('content-type')};base64,${Buffer.from(await r.arrayBuffer()).toString('base64')}` }
   ok('rota da prévia traz nome/telefone/endereço da loja e o QR', typeof pv.loja?.nome === 'string' && pv.loja.nome.length > 0 && Array.isArray(pv.qr?.linhas), JSON.stringify(pv.loja))
-  const dm = pedidoDemonstracao(new Date())
+  const dm = pedidoDemonstracao('entrega')
   const ref = await renderizarTicket(montarComandaV3(dm.pedido, { config: cfgLoja, lojaNome: pv.loja.nome, loja: pv.loja, extras: dm.extras, qr: pv.qr }), { larguraMm: 80, logo: logoRef, imprimirLogo: cfgLoja.imprimirLogo !== false, saida: join(SHOTS, 'previa-ref-cozinha.png') })
   ok('pré-visualização = impressão (mesma largura e altura do PNG do Beta)', ref.largura === pv1.w && ref.altura === pv1.h, `${ref.largura}x${ref.altura} vs ${pv1.w}x${pv1.h}`)
-  // Opções da impressão embaixo da prévia: mudam o desenho na hora e gravam na chave de sempre.
+  // Opções da comanda (Configurações avançadas): gravam na chave de sempre e a janela já mostra.
   const antesFonte = cfgRow.d
+  await pd.getByTestId('avancado-alternar').click()
+  ok('Configurações avançadas: as 6 opções da comanda', (await pd.getByTestId('opcoes-impressao').getByRole('switch').count()) === 6)
   await pd.getByTestId('opcao-fonteMaiorProducao').click()
-  const pvF = await pd.waitForFunction((h0) => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height !== h0 ? c.height : null }, pv1.h, { timeout: 10000 }).then((h) => h.jsonValue()).catch(() => null)
   let gravou = false
   for (let i = 0; i < 20 && !gravou; i++) {
     gravou = (await um('select impressao_fonte_maior_producao v from restaurantes where id=$1', [L]))?.v === !antesFonte
     if (!gravou) await pd.waitForTimeout(400)
   }
-  ok('"Fonte maior na via de produção": prévia muda na hora e grava impressao_fonte_maior_producao', !!pvF && gravou, `${pv1.h} → ${pvF}`)
+  const pvF = await medirPrevia('comanda')
+  ok('"Letra maior nos itens": grava impressao_fonte_maior_producao e a janela muda', gravou && pvF.h !== pv1.h, `${pv1.h} → ${pvF.h}`)
+  await pvF.fechar()
   await pd.getByTestId('opcao-fonteMaiorProducao').click()
-  await pd.waitForFunction((h0) => document.querySelector('[data-testid="previa-canvas"]')?.height === h0, pv1.h, { timeout: 10000 }).catch(() => {})
-  // v3: "Mostrar preço dos complementos" não muda o desenho (o adicional vai no nome) — 5 opções.
-  ok('aba Comanda mostra as 5 opções da comanda v3', (await pd.getByTestId('opcoes-impressao').getByRole('switch').count()) === 5)
-  await foto(pd, 'previa-comanda-grande')
-  await pd.getByTestId('previa-letra-pequena').click()
-  const pv2 = await pd.waitForFunction((h0) => { const c = document.querySelector('[data-testid="previa-canvas"]'); return c && c.height < h0 ? c.height : null }, pv1.h, { timeout: 10000 }).then((h) => h.jsonValue()).catch(() => null)
-  ok('letra pequena: a pré-visualização encolhe na hora', !!pv2 && pv2 < pv1.h, `${pv1.h} → ${pv2}`)
-  await pd.getByTestId('previa-salvar-letra').click()
+  for (let i = 0; i < 20; i++) { if ((await um('select impressao_fonte_maior_producao v from restaurantes where id=$1', [L]))?.v === antesFonte) break; await pd.waitForTimeout(400) }
+  // Letra da impressora (Calibrar e ajustar): grava a predefinição e o Beta recebe.
+  await pd.getByTestId(`letra-${dispTermica}`).selectOption('pequena')
   let salva = false
   for (let i = 0; i < 20 && !salva; i++) {
     salva = (await um('select tamanho_fonte from impressao_dispositivos where id=$1', [dispTermica]))?.tamanho_fonte === 'pequena'
     if (!salva) await pd.waitForTimeout(500)
   }
-  ok('"Salvar esta letra" grava na predefinição da impressora', salva)
+  ok('letra pequena grava na predefinição da impressora', salva)
+  await pd.waitForTimeout(5500) // a tela recarrega o painel a cada 5 s
+  const pv2 = await medirPrevia('comanda')
+  ok('letra pequena: a janela desenha menor', pv2.h < pv1.h, `${pv1.h} → ${pv2.h}`)
+  await pv2.fechar()
   const betaP = await fila(credCaixa)
   ok('o Beta passa a receber a letra pequena da impressora da Cozinha', betaP.json?.destinoCozinha?.tamanhoFonte === 'pequena', betaP.json?.destinoCozinha?.tamanhoFonte)
-  await pd.getByTestId('previa-pre_conta').click()
-  const pv3 = await medirPrevia()
-  ok('aba Pré-conta desenha a pré-conta (impressora do Recibo/Extrato, 576 pontos)', pv3.w === 576 && pv3.h > 700, JSON.stringify(pv3))
-  ok('aba Pré-conta mostra só a opção que vale para ela (logo da loja)', (await pd.getByTestId('opcoes-impressao').getByRole('switch').count()) === 1 && (await pd.getByTestId('opcao-imprimirLogo').count()) === 1)
+  const pv3 = await medirPrevia('pre_conta')
+  ok('"Ver pré-conta" desenha a pré-conta (impressora do Recibo/Extrato, 576 pontos)', pv3.w === 576 && pv3.h > 700, JSON.stringify({ w: pv3.w, h: pv3.h }))
   await foto(pd, 'previa-preconta')
+  await pv3.fechar()
   await db.query(`update impressao_dispositivos set tamanho_fonte='grande' where id=$1`, [dispTermica])
 } finally {
   await browser.close()

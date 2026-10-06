@@ -100,6 +100,16 @@ export function Flutuante({ ancora, aberto, onFechar, alinhar = 'fim', largura =
 }
 
 /**
+ * Leva uma janela para o <body>, na camada máxima. Quem abre por último fica por cima (o
+ * portal entra no fim do <body>): uma janela aberta de dentro de outra nunca fica atrás dela.
+ */
+export function NoTopo({ children }: { children: ReactNode }) {
+  const pronto = useNoNavegador()
+  if (!pronto) return null
+  return createPortal(<div data-no-topo="" style={{ position: 'relative', zIndex: CAMADA_MAXIMA }}>{children}</div>, document.body)
+}
+
+/**
  * Janela no CENTRO da tela, por cima de tudo (portal no <body>, camada máxima): fundo
  * escurecido, título, botão Fechar, Esc e clique no fundo fecham, o foco fica dentro dela
  * (Tab circula) e volta para quem abriu ao fechar. A página atrás não rola; o conteúdo
@@ -130,6 +140,9 @@ export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, ro
     const focaveis = () => [...(caixa.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])') ?? [])].filter((el) => el.offsetParent !== null)
     requestAnimationFrame(() => (focaveis()[0] ?? caixa.current)?.focus())
     const tecla = (e: KeyboardEvent) => {
+      // Outra janela aberta por cima (com o foco dentro dela): o Esc e o Tab são dela.
+      const ativo = document.activeElement
+      if (ativo && ativo !== document.body && !caixa.current?.contains(ativo)) return
       if (e.key === 'Escape') { e.stopPropagation(); fecharRef.current(); return }
       if (e.key !== 'Tab') return
       const lista = focaveis()

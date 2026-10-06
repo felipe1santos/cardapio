@@ -136,7 +136,11 @@ const AGUA = await item('Água com Gás')
 secao('1–4. Parear computador A, descobrir impressoras, atribuir funções (pela tela)')
 await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-await pGer.getByTestId('gerar-codigo').click()
+// Tela nova (2026-10-05): loja em "Somente Caixa" = opção Beta; sem computador, o aviso da
+// Situação ("Baixar e instalar o Assistente") abre o passo a passo, e o código sai dele.
+await pGer.getByTestId('situacao-acao').click()
+await pGer.getByTestId('ativar-beta').waitFor({ timeout: 10000 })
+await pGer.getByTestId('ativar-parear').click()
 const codigoA = (await pGer.getByTestId('codigo-pareamento').innerText()).trim()
 await pGer.getByTestId('modal-pareamento').getByRole('button', { name: 'Fechar', exact: true }).click() // o código não vai para screenshot
 ok('gerente gera o código na tela', /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(codigoA))
@@ -155,7 +159,8 @@ await api(pGer, `/api/admin/impressao/dispositivos/${d01.id}`, 'PATCH', { apelid
 await api(pGer, `/api/admin/impressao/dispositivos/${d02.id}`, 'PATCH', { apelido: 'Caixa 02', larguraMm: 58 })
 await pGer.reload({ waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-// Tela nova: a função de cada impressora é escolhida num pop-up e salva de uma vez.
+// Impressoras: em Configurações avançadas, num pop-up, salvas de uma vez.
+await pGer.getByTestId('avancado-alternar').click()
 await pGer.getByTestId('escolher-impressoras').click()
 // Cartão da impressora → seletor de uso (Cozinha / Caixa / Cozinha e Caixa / Não usar).
 const usar = async (nome, valor) => {
@@ -169,10 +174,9 @@ await pGer.getByTestId('salvar-impressoras').click()
 await aguardar(async () => { const f = (await painel(pGer)).funcoes; return f.cozinha === d01.id && f.caixa === d02.id })
 pn = await painel(pGer)
 ok('Cozinha → Impressora 01, Caixa → Impressora 02', pn.funcoes.cozinha === d01.id && pn.funcoes.caixa === d02.id)
-// 0100: a cozinha passa ao Beta pelo modo "Cozinha e Caixa", com confirmação explícita.
-await pGer.getByTestId('modo-cozinha_caixa').click()
-await pGer.getByTestId('confirmar-cozinha-beta').check()
-await pGer.getByTestId('confirmar-modo-ok').click()
+// 0100: a cozinha passa ao Beta ("Cozinha e Caixa") pela mesma rota da tela (o clique na tela,
+// com confirmação e passo a passo, é conferido em scripts/impressao/e2e-tela-impressao.mjs).
+ok('troca para "Cozinha e Caixa" aceita', (await api(pGer, '/api/admin/impressao/modo', 'PUT', { modo: 'cozinha_caixa' })).status === 200)
 ok('roteamento da cozinha por função ligado (opt-in, pela tela)', !!(await aguardar(async () => (await painel(pGer)).cozinhaPorFuncao)))
 await foto(pGer, 'imp-01-painel-configurado')
 
@@ -281,6 +285,8 @@ await esperar(4000)
 ok('e nada sai no PC Loja', A.impressos().length === antesB)
 await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
+// Tela nova: computadores e impressoras ficam em Configurações avançadas.
+await pGer.getByTestId('avancado-alternar').click()
 await pGer.getByTestId('escolher-impressoras').click()
 await usar('Impressora 01', 'ambas') // escolha explícita das duas funções
 await pGer.getByTestId('salvar-impressoras').click()
@@ -301,6 +307,7 @@ ok('outra loja não vê os computadores nem as impressoras desta', !(pViz2?.agen
 secao('24–25. Revogar o computador A pela tela')
 await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
+await pGer.getByTestId('avancado-alternar').click()
 await pGer.getByTestId('revogar-PC Loja').click()
 ok('A revogado', !!(await aguardar(async () => (await painel(pGer)).agentes.find((a) => a.nome === 'PC Loja')?.revogado)))
 const logA = await aguardar(() => A.logs.find((l) => l.includes('desconectado da loja')), 15000)

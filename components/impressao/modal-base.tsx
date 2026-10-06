@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
+import { NoTopo } from '@/components/ui/flutuante'
 
 /**
  * Pop-up padrão da tela Impressão: janela central no computador, folha de baixo no
@@ -53,7 +54,9 @@ export function ModalBase({
       antes?.focus?.()
     }
   }, [])
+  // No <body>, na camada máxima (regra: pop-ups sempre por cima, inclusive de outra janela).
   return (
+    <NoTopo>
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0f172a]/45 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={titulo} data-testid={testid} onClick={onFechar}>
       <div ref={caixa} className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[14px] bg-white shadow-2xl sm:rounded-[12px] ${largura}`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-4 py-3.5 sm:px-5">
@@ -72,5 +75,6 @@ export function ModalBase({
         {rodape && <div className="flex flex-wrap justify-end gap-2 border-t border-[#E5E7EB] px-4 py-3 sm:px-5">{rodape}</div>}
       </div>
     </div>
+    </NoTopo>
   )
 }

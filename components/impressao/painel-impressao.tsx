@@ -14,7 +14,7 @@ import {
   nomeDisp, type PainelDados, type ResultadoTeste, type TipoTeste,
 } from '@/components/impressao/beta-cards'
 import { Aviso, Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
-import { ModalCentral } from '@/components/ui/flutuante'
+import { ModalCentral, NoTopo } from '@/components/ui/flutuante'
 import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA } from '@/lib/impressao/rotulos'
 import { modoDependeDoAgente } from '@/lib/impressao/regras-modo'
 import { CONFIRMACAO_OPCAO, MODO_DA_OPCAO, TEXTO_OPCAO, opcaoDaLoja, prontidaoBeta, situacaoAntigo, situacaoBeta, type AcaoSituacao, type OpcaoImpressao, type Sinal, type Situacao } from '@/lib/impressao/opcao'
@@ -491,7 +491,7 @@ export function PainelImpressao() {
           )}
 
           {/* ── janelas ─────────────────────────────────────────────────────────── */}
-          <ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} />
+          <NoTopo><ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} /></NoTopo>
           {pareando && (
             <ModalPareamento codigo={pareando.codigo} erro={pareando.erro} conectado={pareando.conectado} onGerarOutro={() => void abrirPareamento()} onFechar={() => setPareando(null)} />
           )}
@@ -536,8 +536,8 @@ export function PainelImpressao() {
           >
             <p className="px-5 py-4 text-[14px] leading-[20px]" style={{ color: FIN_COR.texto }} data-testid="confirmar-opcao-texto">{trocar ? CONFIRMACAO_OPCAO[trocar] : ''}</p>
           </ModalCentral>
-          {dCalibrar && <Calibracao d={dCalibrar} ocupado={ocupado} agir={agir} onFechar={() => setCalibrar(null)} />}
-          {modalImpressora && <ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAntiga} />}
+          {dCalibrar && <NoTopo><Calibracao d={dCalibrar} ocupado={ocupado} agir={agir} onFechar={() => setCalibrar(null)} /></NoTopo>}
+          {modalImpressora && <NoTopo><ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAntiga} /></NoTopo>}
         </div>
       </div>
     </div>
