@@ -1103,8 +1103,24 @@ export async function removerComplemento(supabase: SupabaseClient, complementoId
 
 // --- Public storefront -------------------------------------------------
 
-/** `gaveta` = navegação por categoria: cartão com foto, tocar entra na categoria. */
+/**
+ * `gaveta` saiu da tela em 2026-10-06 (pendência 9): o valor continua aceito no banco e a
+ * vitrine o mostra como `lista`. Nenhuma loja usava.
+ */
 export type LayoutCardapio = 'categoria' | 'lista' | 'gaveta'
+
+/** Lado da foto do item na lista (0152). null = como antes da 0152 (120 px, 140 com imagem grande). */
+export type ImagemTamanho = 90 | 100 | 110
+export const IMAGEM_TAMANHOS: readonly ImagemTamanho[] = [90, 100, 110]
+export function imagemTamanhoValido(v: unknown): ImagemTamanho | null {
+  const n = Number(v)
+  return v !== null && v !== undefined && (IMAGEM_TAMANHOS as readonly number[]).includes(n) ? (n as ImagemTamanho) : null
+}
+/** Fonte da vitrine (0152): 'atual' = Montserrat; 'ifood' = Figtree, peso até 600. */
+export type FonteVitrine = 'atual' | 'ifood'
+export function fonteVitrineValida(v: unknown): FonteVitrine {
+  return v === 'ifood' ? 'ifood' : 'atual'
+}
 
 export interface RestauranteVitrine {
   id: string
@@ -1142,6 +1158,9 @@ export interface RestauranteVitrine {
   layoutCardapio: LayoutCardapio
   corTema: string
   imagemGrande: boolean
+  /** Lado da foto na lista (0152); null = tamanho de antes (120/140). */
+  imagemTamanho: ImagemTamanho | null
+  fonteVitrine: FonteVitrine
   /** true se a loja está aceitando pedidos agora (manual ou pela grade de horário — ver lib/timezone.ts). */
   lojaAberta: boolean
   /** Texto de próxima abertura para quando a loja está fechada ("abre às 18:00"). Null = sem previsão. */
@@ -1171,7 +1190,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1205,9 +1224,12 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     facebookPixelId: data.facebook_pixel_id,
     googleTagId: data.google_tag_id,
     orderBumpMax: Number(data.order_bump_max ?? 4),
-    layoutCardapio: (data.layout_cardapio as LayoutCardapio) ?? 'categoria',
+    // 'gaveta' saiu (pendência 9): a vitrine mostra como Lista.
+    layoutCardapio: data.layout_cardapio === 'gaveta' ? 'lista' : ((data.layout_cardapio as LayoutCardapio) ?? 'categoria'),
     corTema: (data.cor_tema as string) ?? 'azul',
     imagemGrande: Boolean(data.imagem_grande),
+    imagemTamanho: imagemTamanhoValido(data.vitrine_imagem_tamanho),
+    fonteVitrine: fonteVitrineValida(data.vitrine_fonte),
     lojaAberta: lojaEstaAberta(estadoLoja),
     proximaAberturaTexto: textoProximaAbertura(estadoLoja),
     fechamentoHoraTexto: horarioFechamentoAtual(estadoLoja),

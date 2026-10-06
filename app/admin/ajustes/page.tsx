@@ -13,7 +13,8 @@ import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { normalizarInstagram } from '@/lib/instagram'
-import { buscarRestauranteIdDoUsuario, listarGrupos, type LayoutCardapio } from '@/lib/queries/cardapio'
+import { fonteVitrine } from '@/lib/fonte-vitrine'
+import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
@@ -220,21 +221,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     avisoCorFundo: null as string | null,
     avisoPulsar: false,
     layoutCardapio: 'categoria' as LayoutCardapio,
-    imagemGrande: false,
+    imagemTamanho: null as ImagemTamanho | null,
+    fonteVitrine: 'atual' as FonteVitrine,
     bannerFoco: FOCO_PADRAO as Foco,
     bannerPromoFoco: FOCO_PADRAO as Foco,
   })
   const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
-  const [categoriasSemFoto, setCategoriasSemFoto] = useState<string[]>([])
-  // Três estados, não dois: "ainda não conferiu" (carregadas=false), "conferiu"
-  // (carregadas=true) e "tentou conferir e falhou" (erroCategorias=true). Sem o
-  // primeiro, o botão da Gaveta ficaria destravado por um instante entre a
-  // config carregar e as categorias chegarem; sem o terceiro, uma falha na
-  // leitura DESTRAVARIA o botão — e a falha mais provável é justamente a coluna
-  // imagem_url ainda não existir, que é o estado em que o cadeado mais importa
-  // (spec: nunca destravar sem checar).
-  const [categoriasCarregadas, setCategoriasCarregadas] = useState(false)
-  const [erroCategorias, setErroCategorias] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -274,20 +266,16 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         avisoCorTexto: c.avisoCorTexto,
         avisoCorFundo: c.avisoCorFundo,
         avisoPulsar: c.avisoPulsar,
-        layoutCardapio: c.layoutCardapio,
-        imagemGrande: c.imagemGrande,
+        // Gaveta saiu da tela (pendência 9): quem estivesse nela aparece em Lista, que é o que a vitrine já mostra.
+        layoutCardapio: c.layoutCardapio === 'gaveta' ? 'lista' : c.layoutCardapio,
+        imagemTamanho: c.imagemTamanho,
+        fonteVitrine: c.fonteVitrine,
         bannerFoco: c.bannerFoco,
         bannerPromoFoco: c.bannerPromoFoco,
       })
       setHorarioDias(horarioSemanaFromConfig(c.horarioFuncionamento))
       setLoaded(true)
     })
-    listarGrupos(supabase, restauranteId)
-      .then((gs) => {
-        setCategoriasSemFoto(gs.filter((g) => !g.imagemUrl).map((g) => g.nome))
-        setCategoriasCarregadas(true)
-      })
-      .catch(() => setErroCategorias(true))
   }, [supabase, restauranteId, loaded])
 
   function set(
@@ -495,7 +483,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         avisoCorFundo: form.avisoCorFundo,
         avisoPulsar: form.avisoPulsar,
         layoutCardapio: form.layoutCardapio,
-        imagemGrande: form.imagemGrande,
+        // null fica como está (tamanho de antes): só grava quando o dono escolhe um dos três.
+        ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}),
+        fonteVitrine: form.fonteVitrine,
         bannerFoco: form.bannerFoco,
         bannerPromoFoco: form.bannerPromoFoco,
         horarioFuncionamento,
@@ -910,69 +900,85 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
         <Secao titulo="Apresentação do cardápio" descricao="Como os itens aparecem para o cliente na vitrine pública.">
           <Field label="Formato da lista">
-            {/* Três colunas só quando cabem: a 375 px cada cartão fica com ~105 px
-                e a legenda ("Cartão por categoria, com foto") quebra em cinco
-                linhas de uma palavra. Empilhado, cada modo fica legível. */}
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-              <button
-                type="button"
-                onClick={() => setLayout('categoria')}
-                className={[
-                  'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                  form.layoutCardapio === 'categoria' ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                ].join(' ')}
-              >
-                <div className="text-[13px] font-semibold text-text-main">Categorias</div>
-                <div className="mt-0.5 text-[11px] text-text-subtle">Cards grandes, 2 por linha</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setLayout('lista')}
-                className={[
-                  'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                  form.layoutCardapio === 'lista' ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                ].join(' ')}
-              >
-                <div className="text-[13px] font-semibold text-text-main">Lista</div>
-                <div className="mt-0.5 text-[11px] text-text-subtle">Itens em lista compacta</div>
-              </button>
-              <button
-                type="button"
-                disabled={erroCategorias || !categoriasCarregadas || categoriasSemFoto.length > 0}
-                onClick={() => setLayout('gaveta')}
-                className={[
-                  'rounded-menuzia border px-3.5 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                  form.layoutCardapio === 'gaveta' ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                ].join(' ')}
-              >
-                <div className="text-[13px] font-semibold text-text-main">Gaveta</div>
-                <div className="mt-0.5 text-[11px] text-text-subtle">Cartão por categoria, com foto</div>
-              </button>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="formato-cardapio">
+              {([
+                ['categoria', 'Categorias', 'Cards grandes, 2 por linha'],
+                ['lista', 'Lista', 'Itens em lista compacta'],
+              ] as const).map(([valor, titulo, legenda]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  aria-pressed={form.layoutCardapio === valor}
+                  data-testid={`formato-${valor}`}
+                  onClick={() => setLayout(valor)}
+                  className={[
+                    'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                    form.layoutCardapio === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                  ].join(' ')}
+                >
+                  <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                  <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                </button>
+              ))}
             </div>
-            {erroCategorias && (
-              <p className="mt-2 rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] leading-relaxed text-danger">
-                Não conseguimos verificar as fotos das categorias. Recarregue a página.
-              </p>
-            )}
-            {!erroCategorias && categoriasSemFoto.length > 0 && (
-              <p className="mt-2 rounded-menuzia bg-alert-bg px-3 py-2 text-[12px] leading-relaxed text-alert-text">
-                O modo Gaveta precisa de uma foto em cada categoria.{' '}
-                {categoriasSemFoto.length === 1 ? 'Falta' : 'Faltam'} {categoriasSemFoto.length}:{' '}
-                {categoriasSemFoto.join(' · ')}.{' '}
-                <a href="/admin/cardapio" className="font-semibold underline">Subir fotos no cardápio</a>.
-              </p>
-            )}
           </Field>
-          <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
-            <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
-              <input
-                type="checkbox"
-                checked={form.imagemGrande}
-                onChange={(e) => setForm((f) => ({ ...f, imagemGrande: e.target.checked }))}
-                className="h-4 w-4 accent-primary"
-              />
-              <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
-            </label>
+          <Field label="Tamanho da imagem na lista" hint="O lado da foto de cada item na visualização em lista.">
+            <div className="grid grid-cols-3 gap-2.5" data-testid="imagem-tamanho">
+              {IMAGEM_TAMANHOS.map((t) => {
+                const ativo = form.imagemTamanho === t
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={ativo}
+                    data-testid={`imagem-tamanho-${t}`}
+                    onClick={() => { setForm((f) => ({ ...f, imagemTamanho: t })); setSaved(false) }}
+                    className={[
+                      'flex flex-col items-center gap-2 rounded-menuzia border px-2 py-3 transition-colors',
+                      ativo ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                    ].join(' ')}
+                  >
+                    {/* Prévia em escala: a maior (110) ocupa 55 px. */}
+                    <span
+                      aria-hidden
+                      className="rounded-[4px] bg-[#D1D5DB]"
+                      style={{ width: `${t / 2}px`, height: `${t / 2}px` }}
+                    />
+                    <span className="text-[13px] font-semibold text-text-main">{t}×{t}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {form.imagemTamanho === null && (
+              <p className="mt-2 text-[12px] leading-relaxed text-text-subtle" data-testid="imagem-tamanho-antigo">
+                Sua loja usa o tamanho de antes ({config?.imagemGrande ? '140×140' : '120×120'}). Escolha um dos três para trocar.
+              </p>
+            )}
+            <PreviaLinhaItem tamanho={form.imagemTamanho ?? (config?.imagemGrande ? 140 : 120)} fonte={form.fonteVitrine} />
+          </Field>
+          <Field label="Fonte da vitrine" hint="Vale para a vitrine inteira: home, itens, sacola e pedido.">
+            <div className={`${fonteVitrine.variable} grid grid-cols-2 gap-2.5`} data-testid="fonte-vitrine">
+              {([
+                ['atual', 'Atual', 'var(--font-vitrine)'],
+                ['ifood', 'Estilo iFood', 'var(--font-meta)'],
+              ] as const).map(([valor, titulo, familia]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  aria-pressed={form.fonteVitrine === valor}
+                  data-testid={`fonte-${valor}`}
+                  onClick={() => { setForm((f) => ({ ...f, fonteVitrine: valor })); setSaved(false) }}
+                  className={[
+                    'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                    form.fonteVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                  ].join(' ')}
+                >
+                  <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                  <div className="mt-1 text-[15px] font-semibold text-text-main" style={{ fontFamily: familia }}>X-Burguer Duplo</div>
+                  <div className="text-[12px] text-text-subtle" style={{ fontFamily: familia }}>Pão, 2 carnes, queijo · R$ 32,90</div>
+                </button>
+              ))}
+            </div>
           </Field>
         </Secao>
 
@@ -2027,6 +2033,34 @@ export default function AjustesPage() {
             </>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Prévia de uma linha da lista da vitrine (Ajustes › Tamanho da imagem), com as medidas da
+ * vitrine em px (nome 14/600, descrição 12/400, foto com canto de 8px) e a fonte escolhida.
+ * A Montserrat vem de `fonteVitrine.variable` (só esta tela do painel a baixa); a Figtree já
+ * está na raiz como --font-meta.
+ */
+function PreviaLinhaItem({ tamanho, fonte }: { tamanho: number; fonte: FonteVitrine }) {
+  const familia = fonte === 'ifood' ? 'var(--font-meta), Figtree, sans-serif' : 'var(--font-vitrine), Montserrat, sans-serif'
+  return (
+    <div className={`${fonteVitrine.variable} mt-3`} data-testid="previa-linha-item">
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Prévia na vitrine</div>
+      <div className="flex gap-[12px] rounded-menuzia border border-border bg-white py-[16px] pl-[16px] pr-[8px]" style={{ fontFamily: familia }}>
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] font-semibold leading-[16px] text-[#3D3D3D]">X-Burguer Duplo</div>
+          <div className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[#5C5C5C]">Pão brioche, dois hambúrgueres de 120 g, queijo cheddar e molho da casa.</div>
+          <div className="mt-[8px] text-[14px] font-semibold text-[#3D3D3D]">R$ 32,90</div>
+        </div>
+        <div
+          aria-hidden
+          data-testid="previa-foto"
+          className="flex-shrink-0 rounded-[8px] bg-[linear-gradient(135deg,#F59E0B,#B45309)]"
+          style={{ width: `${tamanho}px`, height: `${tamanho}px` }}
+        />
       </div>
     </div>
   )

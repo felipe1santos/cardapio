@@ -82,7 +82,8 @@ try {
     ok('topo junto do nome (mesma linha ou logo abaixo); utilitárias abaixo da descrição e acima do preço', pilY >= nomeY - 4 && pilY < descY && utilY > descY && utilY < precoBox.y)
     const antigo = await linha.locator('[data-preco-antigo]').boundingBox()
     const desconto = linha.locator('[data-desconto]')
-    ok('preço com desconto: antigo riscado EM CIMA, atual + pílula com ticket', antigo && antigo.y < (await desconto.boundingBox()).y && /-25%/.test(await desconto.innerText()) && (await desconto.locator('svg').count()) === 1)
+    // Pendência 9: selo verde sólido do iFood (branco sobre #0B7A3E), sem o ticket.
+    ok('preço com desconto: antigo riscado EM CIMA, atual + selo verde sólido -25%', antigo && antigo.y < (await desconto.boundingBox()).y && /-25%/.test(await desconto.innerText()) && (await desconto.evaluate((e) => getComputedStyle(e).backgroundColor)) === 'rgb(11, 122, 62)')
     const icones = await linha.locator('[data-etiqueta] svg').count()
     const externos = await linha.locator('img[src^="http"]').count()
     ok('ícones SVG embutidos (Phosphor), nada de CDN nem emoji', icones >= 4 && externos === 0, String(icones))
