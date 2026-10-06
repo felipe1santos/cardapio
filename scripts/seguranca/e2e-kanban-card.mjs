@@ -50,7 +50,8 @@ try {
     const m = await p.evaluate(() => {
       const transparente = (el) => { const c = getComputedStyle(el).backgroundColor; return c === 'rgba(0, 0, 0, 0)' || c === 'transparent' }
       const pronto = [...document.querySelectorAll('[data-testid="card-etapa"]')].find((x) => /pronto/i.test(x.getAttribute('aria-label') ?? x.textContent))
-      const verde = pronto ? getComputedStyle(pronto).color : null
+      // Noite 3: o botão virou verde sólido com seta branca; o verde do Pronto é o fundo dele.
+      const verde = pronto ? getComputedStyle(pronto).backgroundColor : null
       return [...document.querySelectorAll('[data-testid^="pedido-"]')].map((card) => {
         const q = (s) => card.querySelector(s)
         const filhos = [...card.children].filter((c) => c.getBoundingClientRect().height > 0)
@@ -78,7 +79,8 @@ try {
     ok('troco no tooltip ("Troco p/ R$ 200,00")', m.some((c) => /Troco p\/ R\$\s?200,00/.test(c.pag?.title ?? '')))
     ok('mesa sem ícone de pagamento', !m.find((c) => c.nome?.startsWith('TESTE Card Mesa'))?.pag)
     // Item 56: valor em selo verde-claro, como no modelo.
-    ok('preço em selo verde-claro do modelo (#E3FAED), texto verde negrito', m.every((c) => c.preco.fundo === 'rgb(227, 250, 237)' && c.preco.cor === 'rgb(22, 101, 52)' && c.preco.peso >= 700), `${m[0].preco.fundo} / ${m[0].preco.cor}`)
+    // Peso 600 = máximo da regra 6 (telas redesenhadas, noite 3).
+    ok('preço em selo verde-claro do modelo (#E3FAED), texto verde semibold (600)', m.every((c) => c.preco.fundo === 'rgb(227, 250, 237)' && c.preco.cor === 'rgb(22, 101, 52)' && c.preco.peso === 600), `${m[0].preco.fundo} / ${m[0].preco.cor}`)
     // Item 56: só a seta, alinhada à direita, sem ocupar a largura toda.
     ok('linha 3: só o botão da seta, à direita (não ocupa a largura toda)', m.every((c) => c.botao?.direita && c.botao.seta), texto(m.filter((c) => !(c.botao?.direita && c.botao?.seta)).map((c) => c.nome)))
     ok('cursor de mão no card', m.every((c) => c.cursor === 'pointer'))

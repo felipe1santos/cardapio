@@ -23,8 +23,8 @@ import { textoTempoPedido } from '@/lib/tempo-pedido'
  */
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const hora = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null)
-// Mesmo verde da seta de próxima etapa do card (item 56, modelo).
-const VERDE = 'text-[#0F713E]'
+// Mesmo verde do botão de próxima etapa do card (item 56; sólido desde a noite 3).
+const VERDE = 'text-[#15803D]'
 const TITULO = 'mb-2 text-[12px] font-bold uppercase tracking-wide text-text-subtle'
 
 type Etapa = { id: string; rotulo: string; quando: string | null }

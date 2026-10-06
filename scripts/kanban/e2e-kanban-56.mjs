@@ -90,10 +90,14 @@ try {
       })
       ok('card com 3 linhas', m0.n === 3, String(m0.n))
       ok('botão só com a seta, à direita, sem ocupar a largura toda', m0.b && m0.b.w < m0.cardW / 2 && m0.b.direita <= 16 && !/Aceitar/i.test(m0.txt.split('\n').pop()), JSON.stringify(m0.b))
-      ok('cantos do botão como no modelo (8px)', m0.b?.raio === '8px', m0.b?.raio)
-      ok('botão de aceitar igual ao modelo: amarelo-claro #FFE6A6, seta âmbar', hexDe(m0.b.fundo) === '#ffe6a6' && hexDe(m0.b.cor) === '#c2850d', `${hexDe(m0.b.fundo)} / ${hexDe(m0.b.cor)}`)
+      // Noite 3 (2026-10-06): o dono pediu os botões do modelo mais vivos — fundo sólido, seta branca,
+      // cantos menos arredondados — com contraste ≥ 4,5:1.
+      ok('cantos do botão menos arredondados (4px)', m0.b?.raio === '4px', m0.b?.raio)
+      ok('botão de aceitar: amarelo sólido #A16207, seta branca, contraste ≥ 4,5', hexDe(m0.b.fundo) === '#a16207' && hexDe(m0.b.cor) === '#ffffff' && contraste(hexDe(m0.b.fundo), '#ffffff') >= 4.5, `${hexDe(m0.b.fundo)} / ${hexDe(m0.b.cor)}`)
       const verde = await p.getByTestId(`pedido-${MODELO[2].numero}`).getByTestId('card-etapa').evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).color, b.getAttribute('data-cor')])
-      ok('botão de próxima etapa igual ao modelo: verde-claro #D3F6E0, seta verde', hexDe(verde[0]) === '#d3f6e0' && hexDe(verde[1]) === '#0f713e' && verde[2] === 'avancar', `${hexDe(verde[0])} / ${hexDe(verde[1])}`)
+      ok('botão de próxima etapa: verde sólido #15803D, seta branca, contraste ≥ 4,5', hexDe(verde[0]) === '#15803d' && hexDe(verde[1]) === '#ffffff' && verde[2] === 'avancar' && contraste(hexDe(verde[0]), '#ffffff') >= 4.5, `${hexDe(verde[0])} / ${hexDe(verde[1])}`)
+      const pesoMax = await p.getByTestId(`pedido-${MODELO[0].numero}`).evaluate((el) => Math.max(...[...el.querySelectorAll('*')].filter((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())).map((e) => Number(getComputedStyle(e).fontWeight))))
+      ok('card com peso de fonte até 600 (regra 6)', pesoMax <= 600, String(pesoMax))
       ok('telefone e forma de pagamento na linha 2', m0.tel && /Dinheiro/.test(m0.txt))
       const preco = await p.getByTestId(`pedido-${MODELO[0].numero}`).getByTestId('card-preco').evaluate((e) => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color])
       ok(`valor em selo verde-claro como no modelo (${hexDe(preco[0])} / ${hexDe(preco[1])})`, hexDe(preco[0]) === '#e3faed')

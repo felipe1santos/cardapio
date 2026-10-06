@@ -157,7 +157,10 @@ function BotaoEtapa({ cor, rotulo, onClick }: { cor: 'aceitar' | 'avancar'; rotu
       title={rotulo}
       data-testid="card-etapa"
       data-cor={cor}
-      className={`inline-flex h-[30px] w-[88px] items-center justify-center rounded-[8px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F2937] active:scale-[0.98] ${cor === 'aceitar' ? 'bg-[#FFE6A6] text-[#C2850D] hover:bg-[#FFDB85]' : 'bg-[#D3F6E0] text-[#0F713E] hover:bg-[#BDEFD0]'}`}
+      // Noite 3 (2026-10-06), pedido do dono: fundo sólido mais vivo, seta BRANCA e cantos menos
+      // arredondados. Amarelo-ouro #A16207 (4,9:1 com o branco) e verde #15803D (5,0:1); antes eram
+      // os tons claros do modelo com seta colorida (a do aceitar dava 2,6:1).
+      className={`inline-flex h-[30px] w-[88px] items-center justify-center rounded-[4px] text-white shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F2937] active:scale-[0.98] ${cor === 'aceitar' ? 'bg-[#A16207] hover:bg-[#854D0E]' : 'bg-[#15803D] hover:bg-[#166534]'}`}
     >
       <ArrowRight className="h-[20px] w-[20px]" strokeWidth={2.6} aria-hidden />
     </button>
@@ -968,9 +971,9 @@ export default function PedidosPage() {
                 <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`} data-testid={`coluna-cabecalho-${coluna}`}>
                   <div className="flex items-center gap-2">
                     <cfg.Icon className="h-[18px] w-[18px]" strokeWidth={2.2} />
-                    <h3 className="text-[15px] font-bold">{cfg.label}</h3>
+                    <h3 className="text-[15px] font-semibold">{cfg.label}</h3>
                   </div>
-                  <span className="min-w-[28px] rounded-full bg-white/25 px-2 py-0.5 text-center text-[12px] font-bold text-white" data-testid={`coluna-contador-${coluna}`}>{colOrders.length}</span>
+                  <span className="min-w-[28px] rounded-full bg-white/25 px-2 py-0.5 text-center text-[12px] font-semibold text-white" data-testid={`coluna-contador-${coluna}`}>{colOrders.length}</span>
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible">
                   {colOrders.map((order) => {
@@ -1009,7 +1012,7 @@ export default function PedidosPage() {
                         {/* Linha 1: #número · origem (item 55) ... atendimento | tempo. */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex min-w-0 items-center gap-2">
-                            <span className="flex-shrink-0 rounded-[6px] bg-[#243549] px-2 py-0.5 text-[13px] font-bold text-white" data-testid="card-numero">#{order.numero}</span>
+                            <span className="flex-shrink-0 rounded-[6px] bg-[#243549] px-2 py-0.5 text-[13px] font-semibold text-white" data-testid="card-numero">#{order.numero}</span>
                             {(() => {
                               const o = origemVisivelNoCard(order)
                               return o ? (
@@ -1033,7 +1036,7 @@ export default function PedidosPage() {
                             })()}
                             <span className="h-4 w-px bg-[#D0D5DD]" aria-hidden />
                             <span
-                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-bold tabular-nums ${corTempo}`}
+                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold tabular-nums ${corTempo}`}
                               title={pedidoParado(order, now) ? `Aberto há ${textoTempoPedido(idadeMs)}: ninguém fechou este pedido. Conclua ou cancele.` : 'Tempo desde que o pedido chegou'}
                               data-testid="card-tempo"
                             >
@@ -1045,7 +1048,7 @@ export default function PedidosPage() {
                         {/* Linha 2: cliente · telefone · forma de pagamento · valor. */}
                         <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
                           <div className="flex min-w-0 items-center gap-2.5">
-                            <span className="min-w-0 truncate text-[14px] font-bold text-[#1F2937]" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
+                            <span className="min-w-0 truncate text-[14px] font-semibold text-[#1F2937]" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
                             {order.clienteTelefone && (
                               <span className="kc-tel inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap text-[12px] text-[#475467]" data-testid="card-telefone">
                                 <Phone className="h-[13px] w-[13px]" aria-hidden /> {mascararTelefoneBR(order.clienteTelefone)}
@@ -1059,7 +1062,7 @@ export default function PedidosPage() {
                                 <span className="kc-pag-nome">{order.pagamentoOnline ? 'Pix online' : order.formaPagamento === 'pix' ? 'Pix' : order.formaPagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão'}</span>
                               </span>
                             )}
-                            <span className="whitespace-nowrap rounded-[6px] bg-[#E3FAED] px-2 py-0.5 text-[13px] font-bold tabular-nums text-[#166534]" data-testid="card-preco">{brl(order.total)}</span>
+                            <span className="whitespace-nowrap rounded-[6px] bg-[#E3FAED] px-2 py-0.5 text-[13px] font-semibold tabular-nums text-[#166534]" data-testid="card-preco">{brl(order.total)}</span>
                           </div>
                         </div>
                         {/* Linha 3: só a seta, à direita (amarelo = aceitar; verde = próxima etapa). Não abre o painel. */}
@@ -1078,7 +1081,7 @@ export default function PedidosPage() {
                           )}
                           {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && (
                             <span
-                              className="inline-flex h-[34px] items-center gap-1.5 rounded-[6px] border border-[#0369A1]/25 bg-alert-bg px-2.5 text-[11px] font-bold uppercase tracking-wide text-alert-text"
+                              className="inline-flex h-[34px] items-center gap-1.5 rounded-[6px] border border-[#0369A1]/25 bg-alert-bg px-2.5 text-[11px] font-semibold uppercase tracking-wide text-alert-text"
                               data-testid="card-na-logistica"
                               title="Despacho feito no módulo de Logística"
                             >
