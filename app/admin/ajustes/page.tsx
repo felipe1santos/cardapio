@@ -900,7 +900,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
         <Secao titulo="Apresentação do cardápio" descricao="Como os itens aparecem para o cliente na vitrine pública.">
           <Field label="Formato da lista">
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="formato-lista">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="formato-cardapio">
               {([
                 ['categoria', 'Categorias', 'Cards grandes, 2 por linha'],
                 ['lista', 'Lista', 'Itens em lista compacta'],

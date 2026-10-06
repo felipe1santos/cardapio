@@ -2876,7 +2876,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const valorLinhaFrete = freteRotulo ? (
     <span className="text-text-subtle">{freteRotulo}</span>
   ) : fee === 0 ? (
-    <span className="font-semibold text-[#16A34A]">{tipoPedido === 'retirada' ? 'Sem taxa' : 'Grátis'}</span>
+    <span className="font-semibold text-[#0B7A3E]">{tipoPedido === 'retirada' ? 'Sem taxa' : 'Grátis'}</span>
   ) : (
     <span className="text-text-subtle">{brl(fee)}</span>
   )
@@ -2989,6 +2989,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       </div>
     </div>
   ) : null
+
+  // Benefício já mostrado num cartão "Aplicado" acima: a faixa verde só repetiria (fica só o aviso da retirada).
+  const beneficioNosCartoes = Boolean((recompensaSelecionada && premiosSacola.some((r) => r.id === recompensaSelecionada.id)) || (cupomAplicado && cuponsSacola.some((c) => c.codigo === cupomAplicado.codigo)))
 
   // Quanto o cliente economiza: desconto dos itens em promoção + cupom/prêmio.
   const economiaItens = cart.reduce((soma, l) => { const o = originalDaLinha(l); return o === null ? soma : soma + (o - l.unit * l.qty) }, 0)
@@ -3797,7 +3800,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {orderBumpsBlock}
                 {cuponsBlock}
-                {beneficioBanner}
+                {(!beneficioNosCartoes || beneficioInutilNaRetirada) && beneficioBanner}
                 {resumoValores}
 
                 {tipoPedido === 'entrega' && freteRotulo !== null && (
@@ -4465,7 +4468,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
       {/* ── Product sheet overlay ─────────────────────────────────────── */}
       {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={closeProductSheet} />}
-      <div className={['fixed inset-y-0 left-1/2 z-50 flex h-dvh w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden bg-white transition-all duration-300 lg:inset-y-auto lg:bottom-auto lg:top-1/2 lg:h-auto lg:max-h-[85vh] lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+      <div data-testid="ficha-produto" className={['fixed inset-y-0 left-1/2 z-50 flex h-dvh w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden bg-white transition-all duration-300 lg:inset-y-auto lg:bottom-auto lg:top-1/2 lg:h-auto lg:max-h-[85vh] lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
         {productSheet && (
           <>
             <button onClick={closeProductSheet} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
@@ -4780,7 +4783,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 <button
                   onClick={addToCart}
                   disabled={!gruposValidos}
-                  className={['flex flex-1 items-center justify-between rounded-lg px-5 py-3.5 text-[15px] font-semibold text-white transition-all', gruposValidos ? 'bg-[var(--tema-primaria)] shadow-sm hover:bg-[var(--tema-dark)] active:scale-[0.98]' : 'cursor-not-allowed bg-border'].join(' ')}
+                  className={['flex flex-1 items-center justify-between rounded-lg px-5 py-3.5 text-[15px] font-semibold text-white transition-all', gruposValidos ? 'bg-[var(--tema-dark)] shadow-sm hover:brightness-90 active:scale-[0.98]' : 'cursor-not-allowed bg-border'].join(' ')}
                 >
                   <span>{editingLineKey ? 'Salvar alterações' : 'Adicionar'}</span>
                   <span>{brl(unitPrice * qty)}</span>
@@ -4928,7 +4931,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     <span className="font-medium text-text-main">
                       Frete{freteCalc?.fonte === 'raio' && freteCalc.distanciaKm != null ? ` · ~${freteCalc.distanciaKm} km` : ''}
                     </span>
-                    <span className="font-semibold text-price-text">{fee === 0 ? 'Grátis' : brl(fee)}</span>
+                    <span className="font-semibold text-[#0B7A3E]">{fee === 0 ? 'Grátis' : brl(fee)}</span>
                   </div>
                 ) : (
                   <div className="mt-3 rounded border border-danger bg-danger/10 px-3 py-3">
@@ -5014,7 +5017,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           key={o.t}
                           type="button"
                           onClick={() => setAgendarEscolhido(o.v)}
-                          className={['rounded-lg border px-3 py-2.5 text-[14px] font-semibold transition-colors', agendarEscolhido === o.v ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)] text-[var(--tema-primaria)]' : 'border-border text-text-main'].join(' ')}
+                          className={['rounded-lg border px-3 py-2.5 text-[14px] font-semibold transition-colors', agendarEscolhido === o.v ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)] text-[var(--tema-dark)]' : 'border-border text-text-main'].join(' ')}
                         >
                           {o.t}
                         </button>
@@ -5152,7 +5155,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       <button
                         onClick={() => validarCupomCheckout()}
                         disabled={cupomValidando || !cupomCodigoInput.trim()}
-                        className="flex-shrink-0 rounded-md bg-[var(--tema-primaria)] px-4 text-[12px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-50"
+                        className="flex-shrink-0 rounded-md bg-[var(--tema-dark)] px-4 text-[12px] font-semibold uppercase tracking-wide text-white transition-colors hover:brightness-90 disabled:opacity-50"
                       >
                         {cupomValidando ? 'Validando…' : 'Aplicar'}
                       </button>
@@ -5163,7 +5166,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         {cupomErro === MOTIVO_LOGIN_CUPOM && (
                           <button
                             onClick={() => setContaOpen(true)}
-                            className="mt-1.5 block w-full rounded bg-[var(--tema-primaria)] px-3 py-2 text-center text-[12px] font-semibold text-white transition-colors hover:bg-[var(--tema-dark)]"
+                            className="mt-1.5 block w-full rounded bg-[var(--tema-dark)] px-3 py-2 text-center text-[12px] font-semibold text-white transition-colors hover:brightness-90"
                           >
                             Entrar com meu telefone
                           </button>

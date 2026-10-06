@@ -61,7 +61,7 @@ export function StepperRedondo({
   desabilitaMenos?: boolean; desabilitaMais?: boolean; rotulo?: string; tamanho?: number
 }) {
   const lixeira = lixeiraNoUm && qtd <= 1
-  const botao = 'flex flex-shrink-0 items-center justify-center rounded-full text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-light)] active:scale-95 disabled:text-[#C4C4C4] disabled:hover:bg-transparent'
+  const botao = 'flex flex-shrink-0 items-center justify-center rounded-full text-[var(--tema-dark)] transition-colors hover:bg-[var(--tema-light)] active:scale-95 disabled:text-[#C4C4C4] disabled:hover:bg-transparent'
   return (
     <div className="flex flex-shrink-0 items-center rounded-full border border-[#E5E5E5] bg-white" data-stepper>
       <button
