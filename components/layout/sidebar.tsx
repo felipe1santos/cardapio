@@ -160,7 +160,8 @@ export function Sidebar({
             </span>
           </button>
           {avisos}
-          <button type="button" onClick={onAbrirLoja} aria-label={`Abrir a ficha de ${loja.nome}`} className="hidden h-[32px] w-[18px] flex-shrink-0 place-items-center lg:grid">
+          {/* Área de toque de 44×44 (pendência 7); as margens negativas mantêm o lugar de 18×32 no layout. */}
+          <button type="button" onClick={onAbrirLoja} aria-label={`Abrir a ficha de ${loja.nome}`} className="-mx-[13px] -my-[6px] hidden h-[44px] w-[44px] flex-shrink-0 place-items-center lg:grid">
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-texto-suave)]" aria-hidden="true">
               {ICONES.seta.map((d) => (<path key={d} d={d} />))}
             </svg>

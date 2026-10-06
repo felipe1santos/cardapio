@@ -25,7 +25,21 @@ exigirLoopback(DB_URL, BASE)
 const db = new pg.Client({ connectionString: DB_URL }); await db.connect()
 const um = async (q, a = []) => (await db.query(q, a)).rows[0]
 const loja = await um(`select id, pdv_v2 from restaurantes where slug=$1`, [E2E_LOJA])
-const ocupada = await um(`select m.id from mesas m join comandas c on c.mesa_id=m.id and c.status='aberta' where m.restaurante_id=$1 limit 1`, [loja.id])
+// Uma mesa ocupada com 1 item com foto na conta. Se a loja semeada não tiver (a semente do
+// verificar-responsivo-mesas zera tudo), o teste abre uma comanda e apaga no fim.
+let ocupada = await um(`select m.id from mesas m join comandas c on c.mesa_id=m.id and c.status='aberta' where m.restaurante_id=$1 limit 1`, [loja.id])
+const criadoParaTeste = { comanda: null, pedido: null }
+if (!ocupada) {
+  const mesa = await um(`select id from mesas where restaurante_id=$1 and ativa and bloqueada_em is null and limpeza_desde is null order by nome limit 1`, [loja.id])
+  const item = await um(`select id, nome, preco from itens_cardapio where restaurante_id=$1 and imagem_url is not null order by nome limit 1`, [loja.id])
+    ?? await um(`select id, nome, preco from itens_cardapio where restaurante_id=$1 order by nome limit 1`, [loja.id])
+  const com = await um(`insert into comandas (restaurante_id, tipo, mesa_id, cliente_nome) values ($1,'mesa',$2,'P7 Mesa') returning id`, [loja.id, mesa.id])
+  const ped = await um(`insert into pedidos (restaurante_id, tipo, status, subtotal, total, cliente_nome, canal, origem, comanda_id, observacao, preparando_notificado)
+    values ($1,'retirada','recebido',$2,$2,'P7 Mesa','mesa','pdv',$3,'',true) returning id`, [loja.id, Number(item.preco) || 10, com.id])
+  await db.query(`insert into pedido_itens (pedido_id, item_id, nome, quantidade, preco_unitario) values ($1,$2,$3,1,$4)`, [ped.id, item.id, item.nome, Number(item.preco) || 10])
+  Object.assign(criadoParaTeste, { comanda: com.id, pedido: ped.id })
+  ocupada = { id: mesa.id }
+}
 const res = []
 const ok = (n, c, d = '') => { res.push(!!c); console.log(`   ${c ? '✅' : '❌'} ${n}${d && !c ? ` — ${d}` : ''}`) }
 const secao = (t) => console.log(`\n── ${t} ──`)
@@ -51,6 +65,8 @@ try {
   {
     const { ctx, p } = await entrar(USU.dono, 390, 844)
     await ir(p, '/admin/mesas')
+    // Os ⋮ e o menu do topo só aparecem depois de saber o papel do usuário.
+    await p.getByTestId('mesas-menu-acoes').waitFor({ timeout: 15000 }).catch(() => {})
     const topo = p.getByTestId('topo')
     ok('topo: só tela cheia e ⋮ à vista (Nova mesa/Folha/Conta escondidos)', await visivel(topo.getByTestId('topo-celular').getByTestId('botao-tela-cheia')) && await visivel(p.getByTestId('mesas-menu-acoes')) && !(await visivel(topo.getByRole('button', { name: 'Nova mesa' }))) && !(await visivel(topo.getByRole('button', { name: 'Folha de QR' }))))
     const box = await topo.boundingBox()
@@ -75,9 +91,11 @@ try {
     const nomes = await p.locator('a[aria-label*="—"], div.flex.aspect-\\[4\\/3\\]').allInnerTexts()
     ok('filtra pelo texto', nomes.length > 0 && nomes.every((t) => /Varanda/i.test(t)), nomes.join(' | ').slice(0, 200))
     await p.getByTestId('mesas-busca').fill('')
-    await p.locator('body').tap({ position: { x: 5, y: 400 } }).catch(() => {})
+    // Tira o foco sem tocar na tela (um toque em lugar fixo podia cair num cartão e abrir a mesa).
+    await p.getByTestId('mesas-busca').evaluate((e) => e.blur())
     await p.waitForTimeout(300)
     // cartões
+    await p.locator('button[data-testid^="mesa-menu-"]').first().waitFor({ timeout: 15000 }).catch(() => {})
     const fileiras = await p.locator('main .grid-cols-4').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 0).length)
     ok('cartões sem a fileira de botões', fileiras === 0, String(fileiras))
     const menuCard = p.locator('[data-testid^="mesa-menu-"]').filter({ hasNot: p.locator('[role="menu"]') }).first()
@@ -178,6 +196,8 @@ try {
   ok('execução sem exceção', false, String(e).slice(0, 300))
 } finally {
   await db.query(`delete from comandas where restaurante_id=$1 and cliente_nome='P7 Balcao Selos'`, [loja.id]).catch(() => {})
+  if (criadoParaTeste.pedido) await db.query('delete from pedidos where id=$1', [criadoParaTeste.pedido]).catch(() => {})
+  if (criadoParaTeste.comanda) await db.query('delete from comandas where id=$1', [criadoParaTeste.comanda]).catch(() => {})
   await db.query(`update restaurantes set pdv_v2=$2 where id=$1`, [loja.id, loja.pdv_v2])
   await browser.close(); await db.end()
 }

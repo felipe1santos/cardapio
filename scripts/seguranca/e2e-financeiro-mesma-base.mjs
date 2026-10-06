@@ -218,8 +218,21 @@ if (!servidor) {
     ok('sem rolagem lateral', m.estouro <= 0, String(m.estouro))
     const st = cel.p.getByTestId('aviso-caixa-celular')
     const caixaBox = await st.boundingBox()
-    ok('status do caixa no topo do celular (compacto, cor viva, à direita)', await st.isVisible() && !!caixaBox && caixaBox.y < 60 && caixaBox.x > 195
-      && (await st.evaluate((e) => getComputedStyle(e).backgroundColor)) === 'rgb(21, 128, 61)' === ((await st.getAttribute('data-aberto')) === '1'), texto(caixaBox))
+    // A faixa vermelha "Toque aqui para ativar o som" (navegador sem som) fica ACIMA do topo e empurra
+    // tudo para baixo: o "y < 60" vale medido a partir do topo do painel, sem a faixa. E a pílula tem de
+    // estar dentro do topo, na mesma linha do título.
+    const lugar = await cel.p.evaluate(() => {
+      const faixa = document.querySelector('[data-testid="som-bloqueado"]')
+      const fr = faixa ? faixa.getBoundingClientRect() : null
+      const topo = document.querySelector('[data-testid="topo"]')?.getBoundingClientRect()
+      const titulo = document.querySelector('[data-testid="topo"] h1')?.getBoundingClientRect()
+      return { faixa: fr && fr.height > 0 ? Math.round(fr.bottom) : 0, topo: topo && { y: topo.y, b: topo.bottom }, titulo: titulo && titulo.y + titulo.height / 2 }
+    })
+    const yNoTopo = caixaBox ? caixaBox.y - lugar.faixa : 999
+    const dentroDoTopo = !!caixaBox && !!lugar.topo && caixaBox.y >= lugar.topo.y - 1 && caixaBox.y + caixaBox.height <= lugar.topo.b + 1
+    const naLinhaDoTitulo = !!caixaBox && lugar.titulo != null && Math.abs(caixaBox.y + caixaBox.height / 2 - lugar.titulo) <= 10
+    ok('status do caixa no topo do celular (compacto, cor viva, à direita)', await st.isVisible() && !!caixaBox && yNoTopo < 60 && dentroDoTopo && naLinhaDoTitulo && caixaBox.x > 195
+      && (await st.evaluate((e) => getComputedStyle(e).backgroundColor)) === 'rgb(21, 128, 61)' === ((await st.getAttribute('data-aberto')) === '1'), texto({ ...caixaBox, ...lugar }))
     ok('status do caixa com dica e rótulo acessível', /Caixa (aberto|fechado)/.test((await st.getAttribute('aria-label')) ?? ''))
     if (PRINTS) await cel.p.screenshot({ path: join(PRINTS, 'mesma-base-dashboard-celular.png'), fullPage: true })
     for (const s of ['caixa', 'fluxo', 'cmv', 'contas', 'movimentacoes', 'motoboys', 'pix', 'auditoria', 'risco', 'regras']) {
