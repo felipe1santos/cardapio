@@ -137,18 +137,20 @@ try {
     await p.getByRole('button', { name: /Adicionar/ }).last().tap().catch(() => {})
     await p.waitForTimeout(600)
     await p.getByText('Ver sacola').first().tap()
-    await p.getByRole('button', { name: /Continuar para pagamento/ }).last().tap()
-    const tel = p.getByPlaceholder('(00) 00000-0000').first()
-    if (await tel.isVisible({ timeout: 2500 }).catch(() => false)) { await tel.fill('27999887755'); await p.getByRole('button', { name: /^Continuar$/i }).first().tap() }
-    await p.getByText('Dinheiro', { exact: true }).first().tap()
-    await p.getByRole('button', { name: /Ir para endereço/ }).tap()
+    // Fluxo da pendência 9: sacola → Entrega → Pagamento → "Revise o seu pedido".
+    await p.locator('[data-testid="barra-sacola-continuar"] button').tap()
+    const tel = p.locator('[data-testid="janela-conta"]').getByPlaceholder('(00) 00000-0000')
+    if (await tel.isVisible({ timeout: 2500 }).catch(() => false)) { await tel.fill('27999887755'); await p.locator('[data-testid="janela-conta"] button').filter({ hasText: /^Continuar$/i }).tap() }
     await p.getByPlaceholder('Seu nome').fill('Cliente origem vitrine')
     await p.getByPlaceholder(/Digite ou toque na seta|^Bairro/).first().fill('Centro').catch(() => {})
     await p.getByPlaceholder('Nome da rua').fill('Rua Teste').catch(() => {})
     await p.getByPlaceholder('123').fill('10').catch(() => {})
-    await p.getByRole('button', { name: /Revisar pedido/ }).tap()
+    await p.waitForTimeout(800)
+    await p.locator('[data-barra-checkout] button').filter({ hasText: /^Continuar$/ }).first().tap()
+    await p.getByTestId('pagamento-dinheiro').tap()
+    await p.locator('[data-barra-checkout] button').filter({ hasText: /Revisar pedido/ }).first().tap()
     const espera = p.waitForResponse((r) => r.url().endsWith(`/api/loja/${SLUG}/pedido`) && r.request().method() === 'POST', { timeout: 15000 })
-    await p.getByRole('button', { name: /Fazer pedido/ }).tap()
+    await p.getByTestId('fazer-pedido').tap()
     const resp = await espera.catch(() => null)
     const j = resp ? await resp.json().catch(() => null) : null
     if (j?.id) criados.push(j.id)

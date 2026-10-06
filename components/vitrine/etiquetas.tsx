@@ -3,6 +3,7 @@
 import { createContext, type ReactNode } from 'react'
 import {
   COR_PRECO_ANTIGO,
+  COR_PRECO_PROMO,
   ESTILO_DESCONTO,
   ESTILO_SELO_MAIS_PEDIDOS,
   ROTULO_MAIS_PEDIDOS,
@@ -119,15 +120,15 @@ export function EtiquetasUtilitarias({ item, className = '' }: { item: ItemComEt
   )
 }
 
-/** Pílula verde do desconto com o ticket (REF-CORES "R$ 5 off"). */
+/** Selo verde sólido do desconto ("-39%", padrão iFood — pendência 9). */
 export function PilulaDesconto({ percentual }: { percentual: number }) {
   return (
     <span
       data-desconto
-      className="inline-flex h-[20px] items-center gap-[4px] whitespace-nowrap rounded-[6px] px-[6px] text-[11.5px] font-bold leading-[20px]"
+      className="inline-flex h-[20px] items-center whitespace-nowrap rounded-[4px] px-[6px] text-[12px] font-semibold leading-[20px]"
       style={{ background: ESTILO_DESCONTO.fundo, color: ESTILO_DESCONTO.cor }}
     >
-      <span className="inline-flex -rotate-45"><IconeTagSvg nome="ticket" tamanho={13} /></span>-{percentual}%
+      -{percentual}%
     </span>
   )
 }
@@ -149,7 +150,7 @@ export function PrecoVitrine({ price, originalPrice, aPartirDe = false }: { pric
       {/* Quebra de linha permitida: no cartão estreito (destaque de 120px) a pílula do desconto desce para
           baixo do preço em vez de passar da borda e ser cortada (P8, 2026-10-04). */}
       <span className="inline-flex max-w-full flex-wrap items-center gap-x-[6px] gap-y-[4px]">
-        <span className="whitespace-nowrap text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]" data-preco-atual>{brl(price)}</span>
+        <span className="whitespace-nowrap text-[14px] font-semibold leading-[20px] text-[var(--v-texto)]" style={off > 0 ? { color: COR_PRECO_PROMO } : undefined} data-preco-atual>{brl(price)}</span>
         {off > 0 && <PilulaDesconto percentual={off} />}
       </span>
     </span>

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { LayoutCardapio } from './cardapio'
+import { imagemTamanhoValido, fonteVitrineValida, type LayoutCardapio, type ImagemTamanho, type FonteVitrine } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { composeEndereco } from '@/lib/endereco'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
@@ -46,6 +46,8 @@ export interface ConfigLoja {
   layoutCardapio: LayoutCardapio
   corTema: string
   imagemGrande: boolean
+  imagemTamanho: ImagemTamanho | null
+  fonteVitrine: FonteVitrine
   latitude: number | null
   longitude: number | null
   avaliacaoNota: number | null
@@ -102,6 +104,8 @@ interface ConfigRow {
   layout_cardapio: LayoutCardapio
   cor_tema: string
   imagem_grande: boolean
+  vitrine_imagem_tamanho?: number | null
+  vitrine_fonte?: string | null
   latitude: number | null
   longitude: number | null
   avaliacao_nota: number | null
@@ -115,7 +119,7 @@ interface ConfigRow {
   modulo_mesas_ativo: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -151,6 +155,8 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     layoutCardapio: row.layout_cardapio ?? 'categoria',
     corTema: row.cor_tema ?? 'azul',
     imagemGrande: row.imagem_grande ?? false,
+    imagemTamanho: imagemTamanhoValido(row.vitrine_imagem_tamanho),
+    fonteVitrine: fonteVitrineValida(row.vitrine_fonte),
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
     avaliacaoNota: row.avaliacao_nota === null || row.avaliacao_nota === undefined ? null : Number(row.avaliacao_nota),
@@ -210,6 +216,8 @@ export interface ConfigLojaPatch {
   layoutCardapio?: LayoutCardapio
   corTema?: string
   imagemGrande?: boolean
+  imagemTamanho?: ImagemTamanho | null
+  fonteVitrine?: FonteVitrine
   horarioFuncionamento?: HorarioFuncionamento
   usaLogistica?: boolean
   entregaSemEntregador?: boolean
@@ -295,6 +303,8 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.layoutCardapio !== undefined) row.layout_cardapio = patch.layoutCardapio
   if (patch.corTema !== undefined) row.cor_tema = patch.corTema
   if (patch.imagemGrande !== undefined) row.imagem_grande = patch.imagemGrande
+  if (patch.imagemTamanho !== undefined) row.vitrine_imagem_tamanho = patch.imagemTamanho
+  if (patch.fonteVitrine !== undefined) row.vitrine_fonte = patch.fonteVitrine
   if (patch.horarioFuncionamento !== undefined) row.horario_funcionamento = patch.horarioFuncionamento
   if (patch.usaLogistica !== undefined) row.usa_logistica = patch.usaLogistica
   if (patch.entregaSemEntregador !== undefined) row.entrega_sem_entregador = patch.entregaSemEntregador

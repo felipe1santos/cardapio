@@ -79,6 +79,17 @@ html:has(.vitrine-sem-zoom) {
   font-family: var(--font-vitrine), 'Montserrat', sans-serif;
 }
 
+/* Fonte "Estilo iFood" (Ajustes › Fonte da vitrine, 0152): Figtree, a gratuita (SIL OFL) mais
+   parecida com a do iFood, já carregada na raiz como --font-meta (sem preload). Mesmos tamanhos;
+   peso máximo 600 — o que viria em 700+ (font-bold, <b>, negrito do texto da loja) cai para 600. */
+.font-loja.vitrine-fonte-ifood,
+.font-loja.vitrine-fonte-ifood * {
+  font-family: var(--font-meta), 'Figtree', system-ui, sans-serif;
+}
+.font-loja.vitrine-fonte-ifood :is(b, strong, h1, h2, h3, h4, .font-bold, .font-extrabold, .font-black, [style*="font-weight: 700"]) {
+  font-weight: 600 !important;
+}
+
 /* Escala tipográfica e paleta da vitrine.
    ---------------------------------------
    Os valores vêm da referência de cardápio de delivery que o dono escolheu

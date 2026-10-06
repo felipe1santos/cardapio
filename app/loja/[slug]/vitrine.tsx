@@ -2,7 +2,9 @@
 
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
+import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
+import { CAMADA_MAXIMA } from '@/components/ui/flutuante'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
@@ -88,6 +90,17 @@ interface ToastItem {
 type Tab = 'home' | 'cart' | 'pedidos' | 'cupons'
 /** 0 = Resumo do pedido (só no desktop), 1 = Pagamento, 2 = Endereço, 3 = Revisar. */
 type CheckoutStep = 0 | 1 | 2 | 3
+
+/**
+ * Ordem das etapas (pendência 9, padrão iFood): resumo (só desktop) → entrega/dados (2) →
+ * pagamento (1) → "Revise o seu pedido" (3, painel por cima do pagamento). Os números ficam
+ * os mesmos de antes — cada validação continua presa à sua etapa —, só a sequência mudou.
+ */
+const ORDEM_CHECKOUT: CheckoutStep[] = [0, 2, 1, 3]
+const proximaEtapa = (s: CheckoutStep): CheckoutStep => ORDEM_CHECKOUT[Math.min(ORDEM_CHECKOUT.indexOf(s) + 1, ORDEM_CHECKOUT.length - 1)]!
+const etapaAnterior = (s: CheckoutStep): CheckoutStep => ORDEM_CHECKOUT[Math.max(ORDEM_CHECKOUT.indexOf(s) - 1, 0)]!
+/** Prazo mostrado na entrega (o mesmo "30–45 min" do cabeçalho da loja). */
+const PRAZO_ENTREGA = '30–45 min'
 
 const ENDERECO_VAZIO: EnderecoCliente = { rua: '', numero: '', complemento: '', bairro: '', cep: '', cidade: '', referencia: '' }
 
@@ -315,31 +328,31 @@ interface ContextoGaveta {
 function GrupoHeader({ titulo, regra, obrigatorio, contador, atendido = false, grudado = false }: { titulo: string; regra?: string; obrigatorio: boolean; contador?: string; atendido?: boolean; grudado?: boolean }) {
   return (
     <div className={[
-      '-mx-4.5 mb-2.5 flex items-start justify-between gap-2 border-y border-border bg-[#F9FAFB] px-4.5 py-2.5',
+      '-mx-4.5 mb-2.5 flex items-center justify-between gap-2 bg-[#F2F2F2] px-4.5 py-[12px]',
       // Grudado no topo da ficha: a lista de sabores desta loja tem 75 linhas,
       // e no meio da rolagem o cliente perdia de vista quantos ainda podia
       // escolher — a informação que decide o próximo toque.
       grudado ? 'sticky top-0 z-10 shadow-[0_1px_0_rgba(0,0,0,0.04)]' : '',
     ].join(' ')}>
       <div className="min-w-0">
-        <h3 className="text-[15px] font-bold leading-tight text-text-main">{titulo}</h3>
-        {regra && <div className="mt-0.5 text-[12px] text-text-subtle">{regra}</div>}
+        <h3 className="text-[16px] font-semibold leading-[20px] text-[#3D3D3D]">{titulo}</h3>
+        {regra && <div className="mt-[2px] text-[13px] leading-[16px] text-[#5C5C5C]">{regra}</div>}
       </div>
       <div className="flex flex-shrink-0 items-center gap-1.5">
         {/* Contador aceso no mesmo verde da seleção: confirma o que já foi escolhido. */}
         {contador && (
-          <span className={['rounded px-1.5 py-[3px] text-[10px] font-bold transition-colors', atendido ? 'bg-promo-bg text-promo' : 'bg-border text-text-main'].join(' ')}>
+          <span className={['rounded-[4px] px-1.5 py-[3px] text-[11px] font-semibold transition-colors', atendido ? 'bg-[#0B7A3E] text-white' : 'bg-white text-[#3D3D3D]'].join(' ')}>
             {contador}
           </span>
         )}
         {/* Cumprido o mínimo, o vermelho de "Obrigatório" vira um check verde —
             o alerta some junto com o motivo dele. */}
         {atendido ? (
-          <span className="flex h-[19px] w-[19px] items-center justify-center rounded-full bg-promo text-white" aria-label="Escolha concluída">
+          <span className="flex h-[20px] w-[20px] items-center justify-center rounded-full bg-[#0B7A3E] text-white" aria-label="Escolha concluída">
             <Check className="h-3 w-3" strokeWidth={3.5} />
           </span>
         ) : (
-          <span className={['rounded px-2 py-[3px] text-[10px] font-bold uppercase tracking-wide', obrigatorio ? 'bg-[#DC2626] text-white' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>
+          <span className={['rounded-[4px] px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide', obrigatorio ? 'bg-[#3F3E3E] text-white' : 'bg-white text-[#525252]'].join(' ')}>
             {obrigatorio ? 'Obrigatório' : 'Opcional'}
           </span>
         )}
@@ -630,12 +643,13 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
  * Foto de 120px (e não as 76 de antes) é o que dá ao prato o mesmo peso visual
  * que ele tem nos aplicativos de delivery — é a foto que vende.
  *
- * `imagemGrande` (ajuste da loja) sobe a foto para 140px; sem ele, 120.
+ * O lado da foto vem de Ajustes › Tamanho da imagem (0152): 90, 100 ou 110. Loja que ainda
+ * não escolheu fica como antes: 120, ou 140 com "imagem grande".
  *
  * As medidas vão em px e não nos utilitários em rem: a base do painel é 87,5%,
  * e cada `gap-3`/`py-4`/`leading-4` chegaria 12,5% menor (ver app/globals.css).
  */
-function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCardapio; onClick: () => void; imagemGrande?: boolean }) {
+function ProductListRow({ item, onClick, tamanhoImagem = 120 }: { item: ItemCardapio; onClick: () => void; tamanhoImagem?: number }) {
   return (
     <button
       onClick={onClick}
@@ -660,21 +674,21 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
         </div>
       </div>
       <div className="relative flex-shrink-0">
-        <ProductThumb item={item} size={imagemGrande ? 140 : 120} />
+        <ProductThumb item={item} size={tamanhoImagem} />
         {ehMaisPedidos(item) && <SeloMaisPedidos raio={8} />}
       </div>
     </button>
   )
 }
 
-function ItemsGrid({ items, layout, onSelect, imagemGrande = false }: { items: ItemCardapio[]; layout: LayoutCardapio; onSelect: (item: ItemCardapio) => void; imagemGrande?: boolean }) {
+function ItemsGrid({ items, layout, onSelect, tamanhoImagem = 120 }: { items: ItemCardapio[]; layout: LayoutCardapio; onSelect: (item: ItemCardapio) => void; tamanhoImagem?: number }) {
   if (layout === 'lista') {
     // Sem cartão em volta: a lista é uma folha branca com linhas separadas por
     // um fio, como na referência. O contorno duplicava a moldura do conteúdo.
     return (
       <div className="bg-white">
         {items.map((item) => (
-          <ProductListRow key={item.id} item={item} onClick={() => onSelect(item)} imagemGrande={imagemGrande} />
+          <ProductListRow key={item.id} item={item} onClick={() => onSelect(item)} tamanhoImagem={tamanhoImagem} />
         ))}
       </div>
     )
@@ -2179,10 +2193,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // ── Checkout ──────────────────────────────────────────────────────────────
   const [checkoutOpen, setCheckoutOpen] = useState(false)
-  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>(1)
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>(2)
   // Primeiro passo do fluxo aberto: 0 no desktop (resumo) e 1 no mobile (a aba
   // carrinho já é o resumo). Define até onde o botão voltar (←) recua.
-  const [checkoutMinStep, setCheckoutMinStep] = useState<CheckoutStep>(1)
+  const [checkoutMinStep, setCheckoutMinStep] = useState<CheckoutStep>(2)
+  // "Limpar" da sacola pede confirmação (some tudo de uma vez).
+  const [confirmarLimpar, setConfirmarLimpar] = useState(false)
   const [payMethod, setPayMethod] = useState('Pix')
   // Pix online (0148): a loja oferece agora? (o servidor decide; loja sem a flag: false e nada muda)
   const [pixOnline, setPixOnline] = useState(false)
@@ -2647,7 +2663,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         }
       }
     }
-    if (checkoutStep === 3 && agendando) {
+    // Agendamento fica na etapa de entrega ("quando você quer receber").
+    if (checkoutStep === 2 && agendando) {
       if (!agData || !agHora) {
         setCheckoutError('Escolha o dia e o horário do agendamento.')
         return
@@ -2663,13 +2680,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       rastrearConversao('AddPaymentInfo', parametrosDoCarrinho(cart.map((l) => ({ itemId: l.itemId, qty: l.qty, unit: l.unit })), total), novoEventId('api'),
         { formaPagamento: PAY_MAP[payMethod] ?? undefined })
     }
-    if (checkoutStep < 3) { setCheckoutStep((s) => (s + 1) as CheckoutStep); return }
+    if (checkoutStep !== 3) { setCheckoutStep(proximaEtapa(checkoutStep)); return }
     submitOrder()
   }
 
   function checkoutBack() {
-    if (checkoutStep > checkoutMinStep) { setCheckoutError(null); setCheckoutStep((s) => (s - 1) as CheckoutStep); return }
+    if (ORDEM_CHECKOUT.indexOf(checkoutStep) > ORDEM_CHECKOUT.indexOf(checkoutMinStep)) { setCheckoutError(null); setCheckoutStep(etapaAnterior(checkoutStep)); return }
     setCheckoutOpen(false)
+  }
+
+  /** "Continuar" da sacola (celular): a sacola já é o resumo — entra na entrega. */
+  function continuarDaSacola() {
+    if (!clienteSessao) { checkoutAposLogin.current = 2; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
+    setCheckoutOpen(true); setCheckoutMinStep(2); setCheckoutStep(2); setCheckoutError(null)
   }
 
   // ── Botão voltar do celular ───────────────────────────────────────────────
@@ -2689,6 +2712,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   /** Fecha a camada mais alta. Devolve false quando já estamos na raiz. */
   const fecharCamadaDoTopo = (): boolean => {
     if (saidaAberta) { setSaidaAberta(false); return true }
+    if (confirmarLimpar) { setConfirmarLimpar(false); return true }
     if (premioModal) { fecharPremioModal(); return true }
     if (confirmacaoAberta) { setConfirmacaoAberta(false); return true }
     if (productSheet) { closeProductSheet(); return true }
@@ -2795,7 +2819,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     ganhouFreteGratis ? (
       <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#16A34A]/30 bg-[#DCFCE7] px-3 py-2">
         <Truck className="h-[15px] w-[15px] flex-shrink-0 text-[#16A34A]" strokeWidth={2.2} />
-        <span className="text-[12px] font-bold leading-[16px] text-[#15803D]">Você ganhou entrega grátis! 🎉</span>
+        <span className="text-[12px] font-semibold leading-[16px] text-[#15803D]">Você ganhou entrega grátis! 🎉</span>
       </div>
     ) : (
       <div className="mb-3 rounded-lg border border-[#16A34A]/30 bg-[#F0FDF4] px-3 py-2">
@@ -2837,7 +2861,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             ].join(' ')}
             aria-pressed={tipoPedido === op.id}
           >
-            <div className={['text-[14px] font-bold', tipoPedido === op.id ? 'text-[var(--tema-primaria)]' : 'text-text-main'].join(' ')}>{op.titulo}</div>
+            <div className={['text-[14px] font-semibold', tipoPedido === op.id ? 'text-[var(--tema-primaria)]' : 'text-text-main'].join(' ')}>{op.titulo}</div>
             <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{op.desc}</div>
           </button>
         ))}
@@ -2852,7 +2876,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const valorLinhaFrete = freteRotulo ? (
     <span className="text-text-subtle">{freteRotulo}</span>
   ) : fee === 0 ? (
-    <span className="font-bold text-[#16A34A]">{tipoPedido === 'retirada' ? 'Sem taxa' : 'Grátis'}</span>
+    <span className="font-semibold text-[#16A34A]">{tipoPedido === 'retirada' ? 'Sem taxa' : 'Grátis'}</span>
   ) : (
     <span className="text-text-subtle">{brl(fee)}</span>
   )
@@ -2871,7 +2895,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     <div className={`mb-4 flex items-center gap-2.5 rounded-lg border px-3.5 py-3 ${beneficioInutilNaRetirada ? 'border-warn bg-warn-bg' : 'border-[#16A34A]/30 bg-[#F0FDF4]'}`}>
       <Gift className={`h-5 w-5 flex-shrink-0 ${beneficioInutilNaRetirada ? 'text-warn' : 'text-[#16A34A]'}`} strokeWidth={2} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-bold text-[#15803D]">
+        <div className="truncate text-[13px] font-semibold text-[#15803D]">
           {recompensaSelecionada
             ? `Prêmio: ${premioLabelCampanha({ premioTipo: recompensaSelecionada.premioTipo, premioValor: recompensaSelecionada.premioValor }, recompensaSelecionada.premioItemNome)}`
             : `Cupom ${cupomAplicado?.codigo} aplicado${desconto > 0 ? ` – ${brl(desconto)}` : ''}`}
@@ -2892,32 +2916,102 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     </div>
   ) : null
 
-  // Order bumps — "Peça também" (aba carrinho mobile + resumo do checkout desktop).
+  // "Peça também" (sacola + resumo do checkout desktop): carrossel com foto, preço e "+".
   const orderBumpsBlock = orderBumps.length > 0 ? (
-    <div className="mb-5">
-      <h3 className="mb-2.5 text-[13.5px] font-bold uppercase tracking-wide text-text-subtle">Peça também</h3>
-      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] lg:flex-wrap">
-        {orderBumps.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => quickAddOrderBump(item)}
-            className="group flex w-[110px] flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white transition-all duration-150 hover:border-[var(--tema-primaria)] hover:shadow-lg active:scale-[0.97]"
-          >
-            <div className="h-[72px] w-full overflow-hidden">
-              <ProductThumb item={item} size={110} />
-            </div>
-            <div className="flex flex-1 flex-col p-2">
-              <div className="line-clamp-2 min-h-[30px] text-[11.5px] font-semibold leading-snug text-text-main"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
-              <div className="mt-0.5 text-[11.5px] font-bold text-promo">{brl(item.promocaoPreco ?? item.preco)}</div>
-              <div className="mt-1.5 rounded bg-[var(--tema-primaria)] py-1 text-center text-[10.5px] font-bold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
-                + Adicionar
+    <div className="mb-[24px]" data-testid="peca-tambem">
+      <TituloSecao>Peça também</TituloSecao>
+      <div className="-mx-[16px] flex gap-[12px] overflow-x-auto px-[16px] pb-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {orderBumps.map((item) => {
+          const preco = item.promocaoPreco ?? item.preco
+          const comDesconto = item.promocaoPreco !== null && item.promocaoPreco !== undefined && item.promocaoPreco < item.preco
+          const nome = nomeLimpo(item.nomeFormatado ?? item.nome)
+          return (
+            <div key={item.id} className="w-[120px] flex-shrink-0" data-bump>
+              <button onClick={() => quickAddOrderBump(item)} aria-label={`Adicionar ${nome}`} className="relative block h-[120px] w-[120px] overflow-hidden rounded-[8px] border border-[#EFEFEF]">
+                <ProductThumb item={item} size={120} />
+                <span className="absolute bottom-[6px] right-[6px] flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white text-[20px] font-semibold leading-none text-[var(--tema-dark)] shadow-md">+</span>
+              </button>
+              <div className="mt-[6px] flex flex-wrap items-baseline gap-x-[4px]">
+                <span className="text-[14px] font-semibold" style={{ color: comDesconto ? VERDE_DESCONTO : '#3D3D3D' }}>{brl(preco)}</span>
+                {comDesconto && <span className="text-[11px] line-through" style={{ color: '#737373' }}>{brl(item.preco)}</span>}
               </div>
+              <div className="mt-[2px] line-clamp-2 text-[12px] leading-[16px] text-[#5C5C5C]"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
             </div>
-          </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   ) : null
+
+  // Cupons e prêmios que o cliente pode usar agora, aplicáveis com 1 toque na própria sacola.
+  // Prêmio de fidelidade = benefício do clube (diamante/selo roxo); cupom da loja = código.
+  const premiosSacola = fidelidade?.recompensas.filter((r) => r.podeResgatarHoje) ?? []
+  const cuponsSacola = fidelidade?.cuponsPublicos ?? []
+  const cuponsBlock = cart.length > 0 && (premiosSacola.length > 0 || cuponsSacola.length > 0) ? (
+    <div className="mb-[24px]" data-testid="cupons-sacola">
+      <TituloSecao>Cupons disponíveis</TituloSecao>
+      <div className="-mx-[16px] flex gap-[10px] overflow-x-auto px-[16px] pb-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {premiosSacola.map((r) => {
+          const aplicado = recompensaSelecionada?.id === r.id
+          return (
+            <div key={r.id} data-cupom-sacola="premio" className={['flex w-[236px] flex-shrink-0 flex-col rounded-[8px] border bg-white p-[12px]', aplicado ? 'border-[#6D28D9]' : 'border-[#E5E5E5]'].join(' ')}>
+              <SeloRoxo>Clube</SeloRoxo>
+              <div className="mt-[8px] line-clamp-2 text-[14px] font-semibold leading-[18px] text-[#3D3D3D] first-letter:uppercase">{premioLabelCampanha({ premioTipo: r.premioTipo, premioValor: r.premioValor }, r.premioItemNome)}</div>
+              <div className="mt-[2px] truncate text-[12px] text-[#5C5C5C]">{r.campanhaNome}</div>
+              <button
+                onClick={() => (aplicado ? removerBeneficio() : usarRecompensa(r))}
+                data-testid={aplicado ? 'cupom-sacola-remover' : 'cupom-sacola-aplicar'}
+                className={['mt-[10px] rounded-[6px] py-[8px] text-[13px] font-semibold transition-colors', aplicado ? 'border border-[#6D28D9] bg-white text-[#6D28D9]' : 'bg-[#6D28D9] text-white hover:bg-[#5B21B6]'].join(' ')}
+              >
+                {aplicado ? 'Aplicado · remover' : 'Aplicar'}
+              </button>
+            </div>
+          )
+        })}
+        {cuponsSacola.map((c) => {
+          const aplicado = cupomAplicado?.codigo === c.codigo
+          return (
+            <div key={c.id} data-cupom-sacola="cupom" className={['flex w-[236px] flex-shrink-0 flex-col rounded-[8px] border bg-white p-[12px]', aplicado ? 'border-[#0B7A3E]' : 'border-[#E5E5E5]'].join(' ')}>
+              <span className="self-start rounded-[4px] border border-dashed border-[#5C5C5C] px-[6px] py-[2px] text-[12px] font-semibold tracking-[0.08em] text-[#3D3D3D]">{c.codigo}</span>
+              <div className="mt-[8px] line-clamp-2 text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{labelCupom(c)}</div>
+              <div className="mt-[2px] truncate text-[12px] text-[#5C5C5C]">{c.valorMinimoPedido != null ? `Pedido mínimo ${brl(c.valorMinimoPedido)}` : (c.descricao || 'Cupom da loja')}</div>
+              <button
+                onClick={() => (aplicado ? removerBeneficio() : void aplicarCupomDaAba(c.codigo))}
+                disabled={resgatando === c.codigo}
+                data-testid={aplicado ? 'cupom-sacola-remover' : 'cupom-sacola-aplicar'}
+                className={['mt-[10px] rounded-[6px] py-[8px] text-[13px] font-semibold transition-colors disabled:opacity-60', aplicado ? 'border border-[#0B7A3E] bg-white text-[#0B7A3E]' : 'bg-[#0B7A3E] text-white hover:bg-[#096634]'].join(' ')}
+              >
+                {resgatando === c.codigo ? 'Aplicando…' : aplicado ? 'Aplicado · remover' : 'Aplicar'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  ) : null
+
+  // Quanto o cliente economiza: desconto dos itens em promoção + cupom/prêmio.
+  const economiaItens = cart.reduce((soma, l) => { const o = originalDaLinha(l); return o === null ? soma : soma + (o - l.unit * l.qty) }, 0)
+  const economia = economiaItens + desconto
+  const resumoValores = (
+    <div className="mb-[16px]" data-testid="resumo-valores">
+      <TituloSecao>Resumo de valores</TituloSecao>
+      <LinhaValor rotulo="Subtotal" valor={brl(subtotal + economiaItens)} testid="linha-subtotal" />
+      {economiaItens > 0 && <LinhaValor rotulo="Descontos nos itens" valor={`-${brl(economiaItens)}`} verde testid="linha-desconto-itens" />}
+      {desconto > 0 && (
+        <LinhaValor
+          rotulo={<span className="inline-flex items-center gap-[4px]">{recompensaSelecionada && <DiamanteRoxo />}{cupomAplicado ? `Cupom ${cupomAplicado.codigo}` : 'Prêmio do clube'}</span>}
+          valor={`-${brl(desconto)}`}
+          verde
+          testid="linha-desconto-cupom"
+        />
+      )}
+      {beneficio?.tipo === 'item_gratis' && <LinhaValor rotulo="Item grátis" valor={nomeLimpo(beneficio.itemNome) || 'prêmio'} verde />}
+      <LinhaValor rotulo={rotuloLinhaFrete} valor={valorLinhaFrete} testid="linha-frete" />
+      <div className="mt-[6px] border-t border-[#EFEFEF] pt-[8px]"><LinhaValor rotulo="Total" valor={brl(total)} forte testid="linha-total" /></div>
+    </div>
+  )
+  const legendaTotal = tipoPedido === 'entrega' && !freteRotulo ? 'Total com entrega' : 'Total'
 
   // ── Contagens de fidelidade (banner de resgate + badge do ícone Cupons) ───
   const premiosProntosHoje = fidelidade?.recompensas.filter((r) => r.podeResgatarHoje).length ?? 0
@@ -2935,56 +3029,55 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
    * Total ORIGINAL da linha quando o item está com desconto (preço riscado na sacola).
    * Só item de preço único: tamanho/sabor têm preço próprio e o desconto não se aplica.
    */
-  const originalDaLinha = (line: CartLine): number | null => {
+  function originalDaLinha(line: CartLine): number | null {
     if (line.tamanhoNome || line.saborNome) return null
     const it = allItems.find((x) => x.id === line.itemId)
     if (!it || it.promocaoPreco === null || it.promocaoPreco === undefined || !(it.promocaoPreco < it.preco)) return null
     return (line.unit + (it.preco - it.promocaoPreco)) * line.qty
   }
 
-  /** Linha do carrinho — clicável pra editar (complementos, observação, quantidade). */
-  const renderCartLine = (line: CartLine, hasBorder: boolean) => (
-    <div key={line.key} className={['flex items-start gap-3 p-3.5', hasBorder ? 'border-b border-border' : ''].join(' ')}>
-      <button onClick={() => editCartLine(line)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-label={`Editar ${nomeLimpo(line.name)}`}>
-        <div className="h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-md border border-border">
-          <ProductThumb item={{ nome: nomeLimpo(line.name), imagemUrl: line.imagemUrl }} size={84} />
-        </div>
+  /**
+   * Linha da sacola (padrão iFood): foto, nome, detalhes e preço (o antigo riscado ao lado);
+   * à direita o lápis (edita complementos/observação) e o − 1 + — com 1 unidade o − vira lixeira.
+   */
+  const renderCartLine = (line: CartLine, hasBorder: boolean) => {
+    const nome = nomeLimpo(line.name)
+    const original = originalDaLinha(line)
+    const adicionais = (() => {
+      if (line.addons.length === 0) return null
+      const contagem = new Map<string, number>()
+      for (const a of line.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
+      return nomeLimpo([...contagem].map(([n, qtd]) => (qtd > 1 ? `${qtd}x ${n}` : n)).join(', '))
+    })()
+    return (
+      <div key={line.key} data-linha-sacola className={['flex items-start gap-[12px] py-[14px]', hasBorder ? 'border-b border-[#EFEFEF]' : ''].join(' ')}>
+        <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} className="h-[56px] w-[56px] flex-shrink-0 overflow-hidden rounded-[8px] border border-[#EFEFEF]">
+          <ProductThumb item={{ nome, imagemUrl: line.imagemUrl }} size={56} />
+        </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-1.5">
-            <span className="min-w-0 text-[15px] font-bold leading-snug">{nomeLimpo(line.name)}</span>
-            <Pencil className="mt-0.5 h-3 w-3 flex-shrink-0 text-text-subtle/60" strokeWidth={2} />
-          </div>
+          <div className="text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{nome}</div>
           {(line.tamanhoNome || line.saborNome) && (
-            <div className="mt-0.5 truncate text-[12.5px] font-medium text-text-subtle">
-              {nomeLimpo([line.tamanhoNome, line.saborNome].filter(Boolean).join(' · '))}
-            </div>
+            <div className="mt-[2px] truncate text-[12px] leading-[16px] text-[#5C5C5C]">{nomeLimpo([line.tamanhoNome, line.saborNome].filter(Boolean).join(' · '))}</div>
           )}
           {(line.bordaNome || line.massaNome) && (
-            <div className="mt-0.5 truncate text-[12.5px] text-text-subtle">{nomeLimpo([line.bordaNome, line.massaNome].filter(Boolean).join(', '))}</div>
+            <div className="mt-[2px] truncate text-[12px] leading-[16px] text-[#5C5C5C]">{nomeLimpo([line.bordaNome, line.massaNome].filter(Boolean).join(', '))}</div>
           )}
-          {line.addons.length > 0 && (
-            <div className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-text-subtle">
-              {(() => {
-                const contagem = new Map<string, number>()
-                for (const a of line.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
-                return nomeLimpo([...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', '))
-              })()}
-            </div>
-          )}
-          {line.obs && <div className="mt-0.5 truncate text-[12px] italic text-text-subtle">&ldquo;{line.obs}&rdquo;</div>}
-          {originalDaLinha(line) !== null && (
-            <div className="mt-1.5 text-[12px] font-medium leading-[15px] line-through" style={{ color: '#A1A1AA' }} data-preco-antigo>{brl(originalDaLinha(line)!)}</div>
-          )}
-          <div className={[originalDaLinha(line) !== null ? 'mt-0' : 'mt-1.5', 'text-[15px] font-bold text-promo'].join(' ')}>{brl(line.unit * line.qty)}</div>
+          {adicionais && <div className="mt-[2px] line-clamp-2 text-[12px] leading-[16px] text-[#5C5C5C]">{adicionais}</div>}
+          {line.obs && <div className="mt-[2px] truncate text-[12px] italic leading-[16px] text-[#5C5C5C]">&ldquo;{line.obs}&rdquo;</div>}
+          <div className="mt-[6px] flex flex-wrap items-baseline gap-x-[6px]">
+            <span className="text-[14px] font-semibold" style={{ color: original !== null ? VERDE_DESCONTO : '#3D3D3D' }} data-preco-linha>{brl(line.unit * line.qty)}</span>
+            {original !== null && <span className="text-[12px] line-through" style={{ color: '#737373' }} data-preco-antigo>{brl(original)}</span>}
+          </div>
         </div>
-      </button>
-      <div className="flex flex-shrink-0 items-center rounded-md border border-border bg-white">
-        <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[38px] w-[38px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
-        <span className="w-[28px] text-center text-[14px] font-bold">{line.qty}</span>
-        <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[38px] w-[38px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">+</button>
+        <div className="flex flex-shrink-0 flex-col items-end gap-[8px]">
+          <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} data-editar-linha className="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[var(--tema-dark)] hover:bg-[var(--tema-light)]">
+            <Pencil className="h-[16px] w-[16px]" strokeWidth={2} />
+          </button>
+          <StepperRedondo qtd={line.qty} onMenos={() => changeLineQty(line.key, -1)} onMais={() => changeLineQty(line.key, 1)} lixeiraNoUm rotulo={nome} tamanho={30} />
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   // ── Erro ───────────────────────────────────────────────────────────────────
   // Não há mais tela de "carregando" cobrindo tudo: o restaurante chega pronto do
@@ -3032,6 +3125,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // A busca desliga a gaveta de propósito — é a saída de quem não quer navegar
   // e precisa varrer o cardápio inteiro.
   const gavetaAtiva = restaurante.layoutCardapio === 'gaveta' && !search.trim()
+  // Lado da foto na lista: Ajustes (0152) ou, sem escolha, o tamanho de antes.
+  const tamanhoImagem = restaurante.imagemTamanho ?? (restaurante.imagemGrande ? 140 : 120)
 
   // Categoria aberta já resolvida no grupo (null = grade de cartões, ou modo sem
   // gaveta). Resolver aqui, e não dentro do bloco de render, é o que deixa o
@@ -3085,7 +3180,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   return (
     <LojaEtiquetasContext.Provider value={etiquetasLoja}>
     <div
-      className="font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]"
+      className={`font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}`}
+      data-fonte-vitrine={restaurante.fonteVitrine}
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
     >
       <style>{`@keyframes toast-pop-top{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes cupons-piscar{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.15)}}`}</style>
@@ -3489,7 +3585,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <h2 className="text-[17px] font-bold tracking-tight">Promoções</h2>
                   <span className="text-[12px] font-bold text-[#15803D]" data-contador-promocoes>{promoItems.length} {promoItems.length === 1 ? 'item' : 'itens'}</span>
                 </div>
-                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={(i) => openProduct(i, gavetaAtiva ? { capaUrl: null, capaFoco: FOCO_PADRAO } : undefined)} imagemGrande={restaurante.imagemGrande} />
+                <ItemsGrid items={promoItems} layout={restaurante.layoutCardapio} onSelect={(i) => openProduct(i, gavetaAtiva ? { capaUrl: null, capaFoco: FOCO_PADRAO } : undefined)} tamanhoImagem={tamanhoImagem} />
               </div>
             )}
 
@@ -3519,7 +3615,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   {/* Item aberto de dentro de uma categoria da gaveta também
                       recebe a ficha do modo gaveta — só que com a foto do
                       próprio item, que aqui o cliente acabou de ver no cartão. */}
-                  <ItemsGrid items={catGaveta.itens} layout="categoria" onSelect={(i) => openProduct(i, { capaUrl: null, capaFoco: FOCO_PADRAO })} imagemGrande={restaurante.imagemGrande} />
+                  <ItemsGrid items={catGaveta.itens} layout="categoria" onSelect={(i) => openProduct(i, { capaUrl: null, capaFoco: FOCO_PADRAO })} tamanhoImagem={tamanhoImagem} />
                 </div>
               )
             )}
@@ -3534,7 +3630,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   {/* Título centralizado, 16/600: na referência ele funciona como
                       divisória entre blocos de produtos, não como manchete. */}
                   <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">{cat.nome}</h2>
-                  <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} imagemGrande={restaurante.imagemGrande} />
+                  <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} tamanhoImagem={tamanhoImagem} />
                 </div>
               ))}
             {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
@@ -3551,9 +3647,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <div className="sticky top-20 pt-4">
                 <div className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
                   <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
-                    <span className="text-[15px] font-bold">Sua sacola</span>
+                    <span className="text-[15px] font-semibold">Sua sacola</span>
                     {cartCount > 0 && (
-                      <span className="rounded-full bg-[var(--tema-primaria)] px-2.5 py-0.5 text-[11px] font-bold text-white">
+                      <span className="rounded-full bg-[var(--tema-primaria)] px-2.5 py-0.5 text-[11px] font-semibold text-white">
                         {cartCount} {cartCount === 1 ? 'item' : 'itens'}
                       </span>
                     )}
@@ -3582,12 +3678,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <span className="text-text-subtle">{rotuloLinhaFrete}</span>
                             {valorLinhaFrete}
                           </div>
-                          <div className="flex items-center justify-between pt-1 text-[15px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
+                          <div className="flex items-center justify-between pt-1 text-[15px] font-semibold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
                         </div>
                         {tipoPedido === 'entrega' && freteRotulo !== null && (
                         <button
                           onClick={() => setFreteOpen(true)}
-                          className="mb-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-[12px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
+                          className="mb-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-[12px] font-semibold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
                         >
                           <Truck className="h-4 w-4" strokeWidth={2} />
                           Calcular taxa de entrega
@@ -3600,9 +3696,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
                             setCheckoutOpen(true); setCheckoutMinStep(0); setCheckoutStep(0); setCheckoutError(null)
                           }}
-                          className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-4 py-3.5 text-[14px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex w-full items-center justify-between rounded-lg bg-[#0B7A3E] px-4 py-3.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:bg-[#096634] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <span>Continuar para pagamento</span>
+                          <span>Continuar</span>
                           <span>{brl(total)}</span>
                         </button>
                       </div>
@@ -3615,32 +3711,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </>
         )}
 
-        {/* ── CART header: minimal ── */}
+        {/* ── Topo da sacola (padrão iFood): voltar, "SACOLA" e "Limpar" ── */}
         {tab === 'cart' && (
-          <div className="flex h-16 items-center gap-3 border-b border-border bg-white px-4 lg:hidden">
-            {/* Logo junto do nome: no meio do checkout o cliente precisa ver de
-                qual loja é a sacola, não só ler. */}
-            <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-[#F3F4F6]">
-              {restaurante.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={restaurante.logoUrl} alt={storeName} loading="eager" decoding="async" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--tema-primaria)] to-[var(--tema-dark)] text-sm font-extrabold text-white">
-                  {storeName.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Sua sacola</div>
-              <div className="truncate text-[14px] font-bold">{storeName}</div>
-            </div>
-            <button
-              onClick={() => setTab('home')}
-              className="flex flex-shrink-0 items-center gap-1.5 rounded border border-border bg-white px-3 py-2 text-[12px] font-semibold text-text-subtle transition-colors hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-95"
-            >
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
-              Continuar comprando
+          <div className="flex h-[56px] items-center border-b border-[#EFEFEF] bg-white px-[8px] lg:mx-auto lg:mt-[24px] lg:max-w-[600px] lg:rounded-t-[12px] lg:border lg:border-[#EFEFEF]" data-testid="topo-sacola">
+            <button onClick={() => setTab('home')} aria-label="Voltar ao cardápio" className="flex h-[40px] w-[40px] items-center justify-center rounded-full text-[var(--tema-dark)] hover:bg-[var(--tema-light)]">
+              <ChevronLeft className="h-[24px] w-[24px]" strokeWidth={2.2} />
             </button>
+            <h1 className="flex-1 text-center text-[14px] font-semibold uppercase tracking-[0.08em] text-[#3D3D3D]">Sacola</h1>
+            {cart.length > 0 ? (
+              <button onClick={() => setConfirmarLimpar(true)} className="h-[40px] min-w-[56px] px-[8px] text-[14px] font-semibold text-[var(--tema-dark)]" data-testid="limpar-sacola">Limpar</button>
+            ) : <span className="w-[56px]" />}
           </div>
         )}
 
@@ -3670,18 +3750,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
         {tab === 'pedidos' && (
           <div className="flex h-14 items-center border-b border-border bg-white px-4 lg:hidden">
-            <h2 className="text-base font-bold">Meus pedidos</h2>
+            <h2 className="text-base font-semibold">Meus pedidos</h2>
           </div>
         )}
         {tab === 'cupons' && (
           <div className="flex h-14 items-center border-b border-border bg-white px-4 lg:hidden">
-            <h2 className="text-base font-bold">Cupons</h2>
+            <h2 className="text-base font-semibold">Cupons</h2>
           </div>
         )}
 
-        {/* ── CART tab ──────────────────────────────────────────────────── */}
+        {/* ── Sacola (padrão iFood) ─────────────────────────────────────── */}
         {tab === 'cart' && (
-          <div className="px-4 pt-4 lg:px-8 lg:pt-8">
+          <div className="bg-white lg:mx-auto lg:mb-[24px] lg:max-w-[600px] lg:rounded-b-[12px] lg:border lg:border-t-0 lg:border-[#EFEFEF]">
             {cart.length === 0 ? (
               <EstadoVazio
                 emoji="🛍️"
@@ -3690,67 +3770,49 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 acao={{ label: 'Ver cardápio', onClick: () => setTab('home') }}
               />
             ) : (
-              <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-6">
-                <div>
-                  <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">
-                    {cartCount} item{cartCount !== 1 ? 's' : ''} no carrinho
-                  </p>
-
-                  {/* Lines */}
-                  <div className="mb-5 overflow-hidden rounded-lg border border-border bg-white">
-                    {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
+              <div className="px-[16px] pb-[24px]" data-testid="sacola">
+                <div className="flex items-center gap-[12px] border-b border-[#EFEFEF] py-[16px]" data-testid="sacola-loja">
+                  <div className="h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-[8px] border border-[#EFEFEF] bg-[#F5F5F5]">
+                    {restaurante.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={restaurante.logoUrl} alt={storeName} loading="eager" decoding="async" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-[var(--tema-dark)] text-[18px] font-semibold text-white">{storeName.charAt(0).toUpperCase()}</div>
+                    )}
                   </div>
-
-                  {/* Order bumps — "Peça também" */}
-                  {orderBumpsBlock}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[16px] font-semibold leading-[20px] text-[#1F1F1F]">{storeName}</div>
+                    <button onClick={() => setTab('home')} className="mt-[2px] text-[14px] font-semibold text-[var(--tema-dark)]" data-testid="adicionar-mais-itens">Adicionar mais itens</button>
+                  </div>
                 </div>
 
-                <div className="lg:sticky lg:top-24">
-                  {canalSelector}
-                  {freteGratisBanner}
-                  {beneficioBanner}
+                {freteGratisBanner && <div className="mt-[16px]">{freteGratisBanner}</div>}
 
-                  {/* Summary */}
-                  {/* Mesmo bloco de valores do Revisar pedido (padrão de todas as etapas). */}
-                  <div className="mb-4 rounded-lg border border-border bg-white p-4">
-                    <div className="flex justify-between py-1 text-[14px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
-                    {desconto > 0 && (
-                      <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]"><span>Desconto</span><span>-{brl(desconto)}</span></div>
-                    )}
-                    <div className="flex justify-between py-1 text-[14px]">
-                      <span className="text-text-subtle">{rotuloLinhaFrete}</span>
-                      {valorLinhaFrete}
-                    </div>
-                    <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
+                <div className="pt-[16px]">
+                  <TituloSecao>Itens adicionados</TituloSecao>
+                  <div className="mb-[16px]">
+                    {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
                   </div>
-                  {tipoPedido === 'entrega' && freteRotulo !== null && (
-                    <button
-                      onClick={() => setFreteOpen(true)}
-                      className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-5 py-3 text-[13px] font-bold text-text-main transition-all hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)] active:scale-[0.98]"
-                    >
-                      <Truck className="h-[18px] w-[18px]" strokeWidth={2} />
-                      Calcular taxa de entrega
-                    </button>
-                  )}
+                </div>
 
+                {orderBumpsBlock}
+                {cuponsBlock}
+                {beneficioBanner}
+                {resumoValores}
+
+                {tipoPedido === 'entrega' && freteRotulo !== null && (
                   <button
-                    onClick={() => setTab('home')}
-                    className="flex w-full items-center justify-center rounded-lg border-2 border-[var(--tema-primaria)] bg-white px-5 py-3 text-[14px] font-bold text-[var(--tema-primaria)] transition-all hover:bg-[var(--tema-light)] active:scale-[0.98]"
+                    onClick={() => setFreteOpen(true)}
+                    className="mb-[16px] flex w-full items-center justify-center gap-[8px] rounded-[8px] border border-[#E5E5E5] bg-white px-[16px] py-[12px] text-[14px] font-semibold text-[#3D3D3D] transition-colors hover:border-[var(--tema-primaria)]"
                   >
-                    Continuar comprando
+                    <Truck className="h-[18px] w-[18px]" strokeWidth={2} />
+                    Calcular taxa de entrega
                   </button>
-                  <button
-                    disabled={!restaurante.lojaAberta && !restaurante.somenteAgendado}
-                    onClick={() => {
-                      if (!clienteSessao) { checkoutAposLogin.current = 1; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
-                      // Mobile: a aba carrinho já é o resumo — entra direto no pagamento.
-                      setCheckoutOpen(true); setCheckoutMinStep(1); setCheckoutStep(1); setCheckoutError(null)
-                    }}
-                    className="mt-2.5 flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span>Continuar para pagamento</span>
-                    <span>{brl(total)}</span>
-                  </button>
+                )}
+
+                {/* Desktop: a barra fixa do celular mora no rodapé (lg:hidden); aqui ela vai no fim. */}
+                <div className="hidden border-t border-[#EFEFEF] pt-[16px] lg:block">
+                  <BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={!restaurante.lojaAberta && !restaurante.somenteAgendado} />
                 </div>
               </div>
             )}
@@ -4174,6 +4236,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <span className="text-sm font-bold">{brl(total)}</span>
           </button>
         )}
+        {tab === 'cart' && cart.length > 0 && (
+          <div className="pointer-events-auto border-t border-[#EFEFEF] bg-white px-[16px] py-[12px] shadow-[0_-4px_20px_rgba(0,0,0,0.07)]" data-testid="barra-sacola-continuar">
+            <BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={!restaurante.lojaAberta && !restaurante.somenteAgendado} />
+          </div>
+        )}
         <nav
           className="nav-rodape pointer-events-auto w-full border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]"
           data-testid="nav-rodape"
@@ -4424,7 +4491,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               }
               <div className="p-4.5">
                 <NomeComEtiquetas item={productSheet}>
-                  <h2 className="text-xl font-bold tracking-tight"><NomeItem texto={productSheet.nomeFormatado ?? productSheet.nome} /></h2>
+                  <h2 className="text-xl font-semibold tracking-tight"><NomeItem texto={productSheet.nomeFormatado ?? productSheet.nome} /></h2>
                 </NomeComEtiquetas>
                 <DescricaoItem texto={productSheet.descricao} className="my-2 text-[13px] leading-[19px] text-[var(--v-secundario)]" />
                 <EtiquetasUtilitarias item={productSheet} className="mb-2" />
@@ -4452,7 +4519,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           {fichaGaveta && aPartirDe !== undefined && (
                             <span className="relative flex-shrink-0 text-right text-[11px] leading-tight text-text-subtle">
                               a partir de<br />
-                              <span className={['text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(aPartirDe)}</span>
+                              <span className={['text-[14px] font-semibold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(aPartirDe)}</span>
                             </span>
                           )}
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
@@ -4499,10 +4566,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <div className="text-[14.5px] font-semibold leading-snug">{nomeLimpo(sabor.nome)}</div>
                             {sabor.descricao && <div className="mt-0.5 text-[12px] leading-snug text-text-subtle">{nomeLimpo(sabor.descricao)}</div>}
                           </div>
-                          <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(preco)}</span>
+                          <span className={['relative flex-shrink-0 text-[14px] font-semibold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(preco)}</span>
                           <span
                             className={[
-                              'relative flex h-5 w-5 flex-shrink-0 items-center justify-center border-2 text-[11px] font-bold text-white transition-colors',
+                              'relative flex h-5 w-5 flex-shrink-0 items-center justify-center border-2 text-[11px] font-semibold text-white transition-colors',
                               // Quadrado numerado quando dá pra escolher vários: o número
                               // mostra a ordem em que o sabor entra no nome da pizza.
                               maxSaboresAtual > 1 ? 'rounded-menuzia' : 'rounded-full',
@@ -4539,7 +4606,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <button key={borda.id} onClick={() => setSelectedBordaId(borda.id)} className={linhaOpcao}>
                               <FlashSelecao ativo={isSelected} />
                               <span className="relative flex-1 text-[14.5px] font-semibold">{nomeLimpo(borda.nome)}</span>
-                              <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(borda.preco)}</span>
+                              <span className={['relative flex-shrink-0 text-[14px] font-semibold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(borda.preco)}</span>
                               <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -4565,7 +4632,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <button key={massa.id} onClick={() => setSelectedMassaId(massa.id)} className={linhaOpcao}>
                               <FlashSelecao ativo={isSelected} />
                               <span className="relative flex-1 text-[14.5px] font-semibold">{nomeLimpo(massa.nome)}</span>
-                              <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(massa.preco)}</span>
+                              <span className={['relative flex-shrink-0 text-[14px] font-semibold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(massa.preco)}</span>
                               <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                                 {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                               </span>
@@ -4586,7 +4653,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         <button key={tamanho.id} onClick={() => setSelectedTamanhoId(tamanho.id)} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-3 text-left last:border-none">
                           <FlashSelecao ativo={isSelected} />
                           <span className="relative flex-1 text-[14.5px] font-semibold">{nomeLimpo(tamanho.nome)}</span>
-                          <span className={['relative text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(tamanho.preco)}</span>
+                          <span className={['relative text-[14px] font-semibold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>{brl(tamanho.preco)}</span>
                           <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors', isSelected ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                             {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
                           </span>
@@ -4625,10 +4692,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={comp.imagemUrl} alt={comp.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                             )}
-                            <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', isSelected ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{nomeLimpo(comp.nome)}</span>
+                            <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', isSelected ? 'font-semibold text-promo-dark' : 'font-semibold'].join(' ')}>{nomeLimpo(comp.nome)}</span>
                             {comp.preco > 0
-                              ? <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(comp.preco)}</span>
-                              : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold transition-colors', isSelected ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
+                              ? <span className={['relative flex-shrink-0 text-[14px] font-semibold transition-colors', isSelected ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(comp.preco)}</span>
+                              : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold transition-colors', isSelected ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
                             }
                           </>
                         )
@@ -4638,10 +4705,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             <div key={comp.id} className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 overflow-hidden rounded border-b border-border px-2 py-2.5 last:border-none">
                               <FlashSelecao ativo={isSelected} chave={qtdSel} />
                               {conteudo}
-                              <div className="relative flex flex-shrink-0 items-center rounded border border-border bg-white">
-                                <button onClick={() => changeCompQty(grupo.id, comp.id, -1, grupo.maxEscolhas)} disabled={qtdSel === 0} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
-                                <span className={['w-[24px] text-center text-[14px] font-bold', isSelected ? 'text-text-main' : 'text-text-subtle/50'].join(' ')}>{qtdSel}</span>
-                                <button onClick={() => changeCompQty(grupo.id, comp.id, 1, grupo.maxEscolhas)} disabled={!podeMais} className="flex h-[34px] w-[34px] items-center justify-center text-lg font-semibold text-[var(--tema-primaria)] disabled:text-border">+</button>
+                              <div className="relative">
+                                <StepperRedondo
+                                  qtd={qtdSel}
+                                  onMenos={() => changeCompQty(grupo.id, comp.id, -1, grupo.maxEscolhas)}
+                                  onMais={() => changeCompQty(grupo.id, comp.id, 1, grupo.maxEscolhas)}
+                                  desabilitaMenos={qtdSel === 0}
+                                  desabilitaMais={!podeMais}
+                                  rotulo={nomeLimpo(comp.nome)}
+                                  tamanho={32}
+                                />
                               </div>
                             </div>
                           )
@@ -4681,10 +4754,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={addon.imagemUrl} alt={addon.nome} loading="lazy" decoding="async" width={56} height={56} className="relative h-14 w-14 flex-shrink-0 rounded border border-border object-cover" />
                         )}
-                        <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', selectedAddons.has(addon.nome) ? 'font-bold text-promo-dark' : 'font-semibold'].join(' ')}>{nomeLimpo(addon.nome)}</span>
+                        <span className={['relative min-w-0 flex-1 text-[14.5px] leading-snug transition-colors', selectedAddons.has(addon.nome) ? 'font-semibold text-promo-dark' : 'font-semibold'].join(' ')}>{nomeLimpo(addon.nome)}</span>
                         {addon.preco > 0
-                          ? <span className={['relative flex-shrink-0 text-[14px] font-bold transition-colors', selectedAddons.has(addon.nome) ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(addon.preco)}</span>
-                          : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold transition-colors', selectedAddons.has(addon.nome) ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
+                          ? <span className={['relative flex-shrink-0 text-[14px] font-semibold transition-colors', selectedAddons.has(addon.nome) ? 'text-promo' : 'text-text-main'].join(' ')}>+ {brl(addon.preco)}</span>
+                          : <span className={['relative flex-shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold transition-colors', selectedAddons.has(addon.nome) ? 'bg-promo-bg text-promo' : 'bg-[#F3F4F6] text-text-subtle'].join(' ')}>Grátis</span>
                         }
                         <span className={['relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors', selectedAddons.has(addon.nome) ? 'border-promo bg-promo' : 'border-border'].join(' ')}>
                           {selectedAddons.has(addon.nome) && <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>}
@@ -4695,7 +4768,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 )}
 
                 <div className="mt-5">
-                  <h3 className="mb-2.5 text-[15px] font-bold">Observações</h3>
+                  <h3 className="mb-2.5 text-[15px] font-semibold">Observações</h3>
                   <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: sem cebola, ponto da batata…" className="min-h-[60px] w-full resize-none rounded border border-border p-2.5 text-sm outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
               </div>
@@ -4703,15 +4776,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <div className="flex flex-shrink-0 flex-col gap-2 border-t border-border p-4.5 pb-[max(env(safe-area-inset-bottom),1.125rem)]">
               {!gruposValidos && <p className="text-center text-[11px] font-medium text-danger">Preencha todos os campos obrigatórios para continuar.</p>}
               <div className="flex items-center gap-3.5">
-                <div className="flex items-center rounded border border-border">
-                  <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] disabled:text-border">−</button>
-                  <span className="w-[34px] text-center text-[15px] font-bold">{qty}</span>
-                  <button onClick={() => setQty((q) => q + 1)} className="flex h-[44px] w-[40px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)]">+</button>
-                </div>
+                <StepperRedondo qtd={qty} onMenos={() => setQty((q) => Math.max(1, q - 1))} onMais={() => setQty((q) => q + 1)} desabilitaMenos={qty <= 1} rotulo="quantidade" tamanho={40} />
                 <button
                   onClick={addToCart}
                   disabled={!gruposValidos}
-                  className={['flex flex-1 items-center justify-between rounded-lg px-5 py-3.5 text-[15px] font-bold text-white transition-all', gruposValidos ? 'bg-[var(--tema-primaria)] shadow-sm hover:bg-[var(--tema-dark)] active:scale-[0.98]' : 'cursor-not-allowed bg-border'].join(' ')}
+                  className={['flex flex-1 items-center justify-between rounded-lg px-5 py-3.5 text-[15px] font-semibold text-white transition-all', gruposValidos ? 'bg-[var(--tema-primaria)] shadow-sm hover:bg-[var(--tema-dark)] active:scale-[0.98]' : 'cursor-not-allowed bg-border'].join(' ')}
                 >
                   <span>{editingLineKey ? 'Salvar alterações' : 'Adicionar'}</span>
                   <span>{brl(unitPrice * qty)}</span>
@@ -4722,245 +4791,61 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         )}
       </div>
 
-      {/* ── Checkout screen ───────────────────────────────────────────── */}
-      {/* No celular o checkout aberto rola no PRÓPRIO documento (a home fica escondida): é
+      {/* ── Checkout (padrão iFood): entrega → pagamento → "Revise o seu pedido" ─────
+          No celular o checkout aberto rola no PRÓPRIO documento (a home fica escondida): é
           isso que deixa a barra do navegador recolher ao rolar. Fechado, ou no desktop, segue
           como camada fixa por cima (2026-10-01). */}
       <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 max-lg:relative max-lg:overflow-visible lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`} data-testid="checkout">
         <div className="mx-auto flex min-h-dvh max-w-[600px] flex-col bg-white lg:block lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
-          <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-white px-3.5">
-            <button onClick={checkoutBack} className="flex h-[34px] w-[34px] items-center justify-center rounded bg-[#F3F4F6] text-lg">←</button>
-            <span className="text-base font-bold">{checkoutStep === 0 ? 'Resumo do pedido' : checkoutStep === 1 ? 'Pagamento' : checkoutStep === 2 ? (tipoPedido === 'retirada' ? 'Seus dados' : 'Endereço') : 'Revisar pedido'}</span>
+          <div className="sticky top-0 z-10 flex h-[56px] items-center gap-[8px] border-b border-[#EFEFEF] bg-white px-[8px]">
+            <button onClick={checkoutBack} aria-label="Voltar" className="flex h-[40px] w-[40px] items-center justify-center rounded-full text-[var(--tema-dark)] hover:bg-[var(--tema-light)]">
+              <ChevronLeft className="h-[24px] w-[24px]" strokeWidth={2.2} />
+            </button>
+            <span className="flex-1 text-center text-[14px] font-semibold uppercase tracking-[0.08em] text-[#3D3D3D]" data-testid="titulo-etapa">
+              {checkoutStep === 0 ? 'Resumo do pedido' : checkoutStep === 2 ? (tipoPedido === 'retirada' ? 'Retirada' : 'Entrega') : 'Pagamento'}
+            </span>
+            <span className="w-[40px]" />
           </div>
-          <div className="flex gap-2 px-4 py-4">
-            {(checkoutMinStep === 0 ? [0, 1, 2, 3] : [1, 2, 3]).map((step) => (
-              <div key={step} className={`h-1 flex-1 rounded-full ${checkoutStep >= step ? 'bg-[var(--tema-primaria)]' : 'bg-border'}`} />
+          <div className="flex gap-[6px] px-[16px] py-[12px]">
+            {(checkoutMinStep === 0 ? ORDEM_CHECKOUT : ORDEM_CHECKOUT.slice(1)).map((step) => (
+              <div key={step} className={`h-[4px] flex-1 rounded-full ${ORDEM_CHECKOUT.indexOf(checkoutStep) >= ORDEM_CHECKOUT.indexOf(step) ? 'bg-[var(--tema-primaria)]' : 'bg-[#E5E5E5]'}`} />
             ))}
           </div>
 
-          {checkoutStep === 0 && (
-            <div className="px-4 pb-5">
-              {/* Itens da sacola — mesma renderização do painel lateral/aba carrinho */}
-              <div className="mb-5 overflow-hidden rounded-lg border border-border bg-white">
+          {/* Etapas só com o checkout aberto: fechado ele fica fora da tela, e campos escondidos
+              (o telefone de "Seus dados") disputavam com os da janela da conta. */}
+          {checkoutOpen && checkoutStep === 0 && (
+            <div className="px-[16px] pb-[20px]" data-testid="etapa-resumo">
+              <TituloSecao>Itens adicionados</TituloSecao>
+              <div className="mb-[16px]">
                 {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
               </div>
-
-              {/* Valores */}
-              <div className="mb-5 rounded-lg border border-border bg-white p-4">
-                <div className="flex justify-between py-1 text-[14px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
-                {desconto > 0 && (
-                  <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]">
-                    <span>Desconto</span><span>-{brl(desconto)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between py-1 text-[14px]">
-                  <span className="text-text-subtle">{rotuloLinhaFrete}</span>
-                  {valorLinhaFrete}
-                </div>
-                <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
-              </div>
-
-              {/* Order bumps — "Peça também" */}
               {orderBumpsBlock}
+              {cuponsBlock}
+              {resumoValores}
             </div>
           )}
 
-          {checkoutStep === 1 && (
-            <div className="px-4 pb-5">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Forma de pagamento</h3>
-              {[
-                {
-                  id: 'Pix',
-                  descricao: pixOnline ? 'Pague agora pelo app do banco (QR Code ou copia e cola)' : 'Pagamento instantâneo e seguro',
-                  icon: <PixIcon className="h-6 w-6" />,
-                  chip: 'bg-[#F3F4F6]',
-                },
-                {
-                  id: 'Cartão na entrega',
-                  descricao: tipoPedido === 'retirada' ? 'Crédito ou débito na maquininha, ao retirar' : 'Crédito ou débito na maquininha',
-                  icon: <CreditCard className="h-6 w-6 text-[#1D4ED8]" strokeWidth={1.8} />,
-                  chip: 'bg-[#F3F4F6]',
-                },
-                {
-                  id: 'Dinheiro',
-                  descricao: tipoPedido === 'retirada' ? 'Pague em espécie ao retirar' : 'Pague em espécie na entrega',
-                  icon: <Banknote className="h-6 w-6 text-[#16A34A]" strokeWidth={1.8} />,
-                  chip: 'bg-[#F3F4F6]',
-                },
-              ].map((opt) => (
-                <button key={opt.id} onClick={() => setPayMethod(opt.id)}
-                  className={['mb-3 flex w-full items-center gap-3.5 rounded-lg border-2 p-4 text-left transition-all active:scale-[0.99]', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)] shadow-sm' : 'border-border bg-white hover:border-text-subtle/40'].join(' ')}>
-                  <span className={['flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg', opt.chip].join(' ')}>{opt.icon}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold text-text-main">{rotuloPagamento(opt.id, tipoPedido)}</span>
-                    <span className="mt-0.5 block text-[12px] text-text-subtle">{opt.descricao}</span>
-                  </span>
-                  <span className={['flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full border-2', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)]' : 'border-border'].join(' ')}>
-                    {payMethod === opt.id && <span className="h-2 w-2 rounded-full bg-white" />}
-                  </span>
-                </button>
-              ))}
-              {payMethod === 'Dinheiro' && (
-                <div className="mt-1 rounded-lg border border-border bg-white p-4">
-                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Troco para quanto?</label>
-                  <p className="mb-2 text-[12px] text-text-subtle">Deixe em branco se não precisar de troco.</p>
-                  <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00" inputMode="decimal"
-                    className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                </div>
-              )}
-
-              {/* Cupom ou prêmio de fidelidade */}
-              <div className="mt-5 rounded-lg border border-border bg-white p-4">
-                <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-text-subtle">Cupom ou prêmio</h3>
-                {recompensaSelecionada || cupomAplicado ? (
-                  <div className="flex items-center gap-2.5 rounded border border-[#16A34A]/40 bg-[#DCFCE7] px-3 py-2.5">
-                    <Gift className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-bold text-[#15803D]">
-                        {recompensaSelecionada
-                          ? `Prêmio: ${premioLabelCampanha({ premioTipo: recompensaSelecionada.premioTipo, premioValor: recompensaSelecionada.premioValor }, recompensaSelecionada.premioItemNome)}`
-                          : `Cupom ${cupomAplicado?.codigo}`}
-                      </div>
-                      <div className="truncate text-[12px] text-[#15803D]/80">
-                        {beneficio?.tipo === 'item_gratis'
-                          ? `Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`
-                          : beneficio?.tipo === 'entrega_gratis'
-                            ? 'Entrega grátis neste pedido'
-                            : `-${brl(desconto)} no pedido`}
-                        {!recompensaSelecionada && cupomAplicado?.descricao ? ` · ${cupomAplicado.descricao}` : ''}
-                      </div>
-                    </div>
-                    <button onClick={removerBeneficio} aria-label="Remover cupom ou prêmio" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] text-text-subtle shadow-sm transition-colors hover:text-danger">✕</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex gap-2">
-                      <input
-                        value={cupomCodigoInput}
-                        onChange={(e) => { setCupomCodigoInput(e.target.value.toUpperCase()); setCupomErro(null) }}
-                        placeholder="Código do cupom"
-                        autoCapitalize="characters"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        className="w-full rounded-md border border-border p-3 text-[14px] font-bold uppercase tracking-widest outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal focus:border-[var(--tema-primaria)]"
-                      />
-                      <button
-                        onClick={() => validarCupomCheckout()}
-                        disabled={cupomValidando || !cupomCodigoInput.trim()}
-                        className="flex-shrink-0 rounded-md bg-[var(--tema-primaria)] px-4 text-[12px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-50"
-                      >
-                        {cupomValidando ? 'Validando…' : 'Aplicar'}
-                      </button>
-                    </div>
-                    {cupomErro && (
-                      <div className="mt-2 rounded border border-danger/30 bg-danger-bg px-2.5 py-2 text-[12px] font-medium text-danger">
-                        {cupomErro}
-                        {cupomErro === MOTIVO_LOGIN_CUPOM && (
-                          <button
-                            onClick={() => setContaOpen(true)}
-                            className="mt-1.5 block w-full rounded bg-[var(--tema-primaria)] px-3 py-2 text-center text-[12px] font-bold text-white transition-colors hover:bg-[var(--tema-dark)]"
-                          >
-                            Entrar com meu telefone
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Resumo compacto pra ancorar a decisão */}
-              <div className="mt-5 rounded-lg border border-border bg-white px-4 py-3.5">
-                {desconto > 0 && (
-                  <div className="mb-1.5 flex items-center justify-between text-[13px] font-semibold text-[#16A34A]">
-                    <span>Desconto</span><span>-{brl(desconto)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px] font-semibold text-text-subtle">Total do pedido</span>
-                  <span className="text-[16px] font-bold text-[#16A34A]">{brl(total)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {checkoutStep === 2 && (
-            <div className="px-4 pb-5">
-              <div className="rounded-lg border border-border bg-white p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seus dados</h3>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Nome *</label>
-                    <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
-                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Telefone</label>
-                    <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: mascararTelefoneBR(e.target.value) }))} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel" maxLength={16}
-                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Retirada não tem endereço de entrega: no lugar do formulário,
-                  o cliente precisa saber ONDE buscar. */}
-              {tipoPedido === 'retirada' && (
-                <div className="mt-4 rounded-lg border border-border bg-white p-4">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Retirada no local</h3>
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]">
-                      <MapPin className="h-5 w-5 text-text-subtle" strokeWidth={1.8} />
-                    </span>
-                    <div className="min-w-0 text-[14px] leading-relaxed">
-                      <div className="font-semibold text-text-main">{restaurante?.nome}</div>
-                      <div className="text-text-subtle">
-                        {restaurante?.endereco?.trim() || 'Confirme o endereço com a loja.'}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="mt-3 rounded border border-border bg-page/60 px-3 py-2.5 text-[12px] text-text-subtle">
-                    Avisaremos quando o pedido estiver pronto para retirada. Não há taxa de entrega.
-                  </p>
-                </div>
-              )}
-
-              {/* Endereço salvo (último pedido/perfil): resumo com opção de trocar */}
+          {checkoutOpen && checkoutStep === 2 && (
+            <div className="px-[16px] pb-[20px]" data-testid="etapa-entrega">
               {tipoPedido === 'entrega' && (
-              enderecoSalvoOrigem && !mostrarFormEndereco && endereco.rua && endereco.numero && endereco.bairro ? (
-                <div className="mt-4 rounded-lg border border-border bg-white p-4">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
-                  <div className="rounded-md border border-border bg-page/60 p-3">
-                    <p className="text-[15px] font-semibold text-text-main">
-                      {endereco.rua}, {endereco.numero}
-                      {endereco.complemento ? ` · ${endereco.complemento}` : ''}
-                    </p>
-                    <p className="mt-0.5 text-[13px] text-text-subtle">
-                      {endereco.bairro}
-                      {endereco.cep ? ` · CEP ${endereco.cep}` : ''}
-                    </p>
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => setMostrarFormEndereco(true)}
-                      className="flex-1 rounded-md border border-border px-3 py-2.5 text-[13px] font-semibold text-text-main transition-colors hover:bg-page"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEndereco(comCidadePadrao(ENDERECO_VAZIO))
-                        setCepSemBairro(false)
-                        setMostrarFormEndereco(true)
-                      }}
-                      className="flex-1 rounded-md border border-[var(--tema-primaria)] px-3 py-2.5 text-[13px] font-semibold text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-primaria)]/5"
-                    >
-                      Trocar endereço
-                    </button>
-                  </div>
-                </div>
-              ) : (
+                enderecoSalvoOrigem && !mostrarFormEndereco && endereco.rua && endereco.numero && endereco.bairro ? (
+                  <section className="mb-[20px]">
+                    <TituloSecao>Entregar no endereço</TituloSecao>
+                    <div className="flex items-start gap-[12px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]" data-testid="endereco-resumo">
+                      <MapPin className="mt-[2px] h-[20px] w-[20px] flex-shrink-0 text-[#3D3D3D]" strokeWidth={1.8} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{endereco.rua}, {endereco.numero}</p>
+                        <p className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">
+                          {[endereco.complemento, endereco.bairro, endereco.cep ? `CEP ${endereco.cep}` : ''].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      <button onClick={() => setMostrarFormEndereco(true)} className="flex-shrink-0 px-[4px] text-[14px] font-semibold text-[var(--tema-dark)]" data-testid="trocar-endereco">Trocar</button>
+                    </div>
+                  </section>
+                ) : (
               <div className="mt-4 rounded-lg border border-border bg-white p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Endereço de entrega</h3>
+                <h3 className="mb-[12px] text-[16px] font-semibold leading-[20px] text-[#1F1F1F]">Entregar no endereço</h3>
                 {/* CEP primeiro: ao preencher, busca rua/bairro/cidade sozinho */}
                 <div>
                   <label className="mb-1.5 block text-[13px] font-semibold text-text-main">CEP</label>
@@ -5027,7 +4912,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <p className="mt-1.5 text-[12px] text-text-subtle">Opcional — ajuda quem vai entregar a achar você mais rápido.</p>
                 </div>
               </div>
-              ))}
+                )
+              )}
               {/* Status do frete calculado */}
               {tipoPedido === 'entrega' && (endereco.bairro.trim() || endereco.cep.replace(/\D/g, '').length === 8) && (
                 freteStatus === 'calculando' ? (
@@ -5042,7 +4928,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     <span className="font-medium text-text-main">
                       Frete{freteCalc?.fonte === 'raio' && freteCalc.distanciaKm != null ? ` · ~${freteCalc.distanciaKm} km` : ''}
                     </span>
-                    <span className="font-bold text-price-text">{fee === 0 ? 'Grátis' : brl(fee)}</span>
+                    <span className="font-semibold text-price-text">{fee === 0 ? 'Grátis' : brl(fee)}</span>
                   </div>
                 ) : (
                   <div className="mt-3 rounded border border-danger bg-danger/10 px-3 py-3">
@@ -5059,7 +4945,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                             href={`https://wa.me/${numeroWaLoja()}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-1.5 rounded bg-[#16A34A] px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#15803D]"
+                            className="inline-flex items-center justify-center gap-1.5 rounded bg-[#16A34A] px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#15803D]"
                           >
                             Falar com a loja no WhatsApp
                           </a>
@@ -5069,13 +4955,57 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </div>
                 )
               )}
-            </div>
-          )}
 
-          {checkoutStep === 3 && (
-            <div className="px-4 pb-5">
+              {tipoPedido === 'retirada' && (
+                <section className="mb-[20px]" data-testid="retirada-local">
+                  <TituloSecao>Retirar na loja</TituloSecao>
+                  <div className="flex items-start gap-[12px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]">
+                    <Store className="mt-[2px] h-[20px] w-[20px] flex-shrink-0 text-[#3D3D3D]" strokeWidth={1.8} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{restaurante?.nome}</p>
+                      <p className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">{restaurante?.endereco?.trim() || 'Confirme o endereço com a loja.'}</p>
+                      <p className="mt-[6px] text-[12px] leading-[16px] text-[#5C5C5C]">Avisaremos quando o pedido estiver pronto. Não há taxa de entrega.</p>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {(aceitaEntrega || aceitaRetirada) && (
+                <section className="mt-[20px] mb-[12px]" data-testid="opcoes-entrega">
+                  <TituloSecao>Opções de entrega</TituloSecao>
+                  {aceitaEntrega && (
+                    <OpcaoRadio
+                      ativo={tipoPedido === 'entrega'}
+                      onClick={() => setTipoPedido('entrega')}
+                      titulo="Padrão"
+                      subtitulo={agendando ? 'Entrega agendada' : `Hoje, ${PRAZO_ENTREGA}`}
+                      direita={tipoPedido === 'entrega' ? (freteRotulo ?? (fee === 0 ? 'Grátis' : brl(fee))) : undefined}
+                      icone={<Truck className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} />}
+                      testid="opcao-entrega-padrao"
+                    />
+                  )}
+                  {aceitaRetirada && (
+                    <OpcaoRadio
+                      ativo={tipoPedido === 'retirada'}
+                      onClick={() => setTipoPedido('retirada')}
+                      titulo="Retirar na loja"
+                      subtitulo="Você busca no balcão"
+                      direita="Grátis"
+                      icone={<Store className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} />}
+                      testid="opcao-retirada"
+                    />
+                  )}
+                </section>
+              )}
+              {aceitaEntrega && aceitaRetirada && tipoPedido === 'entrega' && (
+                <button onClick={() => setTipoPedido('retirada')} className="mb-[20px] flex w-full items-center justify-between gap-[8px] rounded-[8px] bg-[#F5F5F5] px-[14px] py-[12px] text-left text-[13px] font-semibold text-[#3D3D3D]" data-testid="atalho-retirada">
+                  <span>Taxa grátis retirando o seu pedido na loja</span>
+                  <ChevronRight className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2} />
+                </button>
+              )}
+
               {restaurante.podeAgendar && (
-                <div className="mb-3 rounded-lg border border-border bg-white p-4" data-testid="checkout-agendamento">
+                <div className="mb-[20px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]" data-testid="checkout-agendamento">
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Quando você quer {tipoPedido === 'retirada' ? 'retirar' : 'receber'}?</h3>
                   {!restaurante.somenteAgendado && (
                     <div className="mb-3 grid grid-cols-2 gap-2">
@@ -5116,93 +5046,136 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   )}
                 </div>
               )}
-              {/* Itens do pedido — com foto e detalhes, fáceis de conferir */}
-              <div className="rounded-lg border border-border bg-white p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seu pedido</h3>
-                {cart.map((l, i) => (
-                  <div key={l.key} className={['flex items-start gap-3 py-3', i < cart.length - 1 ? 'border-b border-border' : 'pb-1'].join(' ')}>
-                    <div className="h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-md">
-                      <ProductThumb item={{ nome: nomeLimpo(l.name), imagemUrl: l.imagemUrl }} size={48} />
-                    </div>
+
+              <section className="mt-[8px]">
+                <TituloSecao>Seus dados</TituloSecao>
+              <div className="rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Nome *</label>
+                    <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Telefone</label>
+                    <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: mascararTelefoneBR(e.target.value) }))} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel" maxLength={16}
+                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                  </div>
+                </div>
+              </div>
+
+              </section>
+            </div>
+          )}
+
+          {checkoutOpen && (checkoutStep === 1 || checkoutStep === 3) && (
+            <div className="px-[16px] pb-[20px]" data-testid="etapa-pagamento">
+              {pixOnline && (
+                <section className="mb-[20px]" data-testid="pagar-agora">
+                  <TituloSecao>Pagar agora</TituloSecao>
+                  <OpcaoRadio
+                    ativo={payMethod === 'Pix'}
+                    onClick={() => setPayMethod('Pix')}
+                    titulo={rotuloPagamento('Pix', tipoPedido)}
+                    subtitulo="Pix online: pague agora pelo app do banco (QR Code ou copia e cola)"
+                    icone={<PixIcon className="h-[20px] w-[20px]" />}
+                    testid="pagamento-pix-online"
+                  />
+                </section>
+              )}
+              <section className="mb-[20px]" data-testid="pagar-na-entrega">
+                <TituloSecao>{tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'}</TituloSecao>
+                {!pixOnline && (
+                  <OpcaoRadio ativo={payMethod === 'Pix'} onClick={() => setPayMethod('Pix')} titulo={rotuloPagamento('Pix', tipoPedido)} subtitulo="Pagamento instantâneo e seguro" icone={<PixIcon className="h-[20px] w-[20px]" />} testid="pagamento-pix" />
+                )}
+                <OpcaoRadio
+                  ativo={payMethod === 'Cartão na entrega'}
+                  onClick={() => setPayMethod('Cartão na entrega')}
+                  titulo={rotuloPagamento('Cartão na entrega', tipoPedido)}
+                  subtitulo={tipoPedido === 'retirada' ? 'Crédito ou débito na maquininha, ao retirar' : 'Crédito ou débito na maquininha'}
+                  icone={<CreditCard className="h-[20px] w-[20px] text-[#1D4ED8]" strokeWidth={1.8} />}
+                  testid="pagamento-cartao"
+                />
+                <OpcaoRadio
+                  ativo={payMethod === 'Dinheiro'}
+                  onClick={() => setPayMethod('Dinheiro')}
+                  titulo={rotuloPagamento('Dinheiro', tipoPedido)}
+                  subtitulo={tipoPedido === 'retirada' ? 'Pague em espécie ao retirar' : 'Pague em espécie na entrega'}
+                  icone={<Banknote className="h-[20px] w-[20px] text-[#0B7A3E]" strokeWidth={1.8} />}
+                  testid="pagamento-dinheiro"
+                />
+              {payMethod === 'Dinheiro' && (
+                <div className="mt-1 rounded-lg border border-border bg-white p-4">
+                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Troco para quanto?</label>
+                  <p className="mb-2 text-[12px] text-text-subtle">Deixe em branco se não precisar de troco.</p>
+                  <input value={changeFor} onChange={(e) => setChangeFor(e.target.value)} placeholder="Ex: 50,00" inputMode="decimal"
+                    className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
+                </div>
+              )}
+
+              </section>
+              {/* Cupom ou prêmio de fidelidade */}
+              <div className="mb-[20px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]" data-testid="cupom-codigo">
+                <h3 className="mb-[10px] text-[16px] font-semibold leading-[20px] text-[#1F1F1F]">Cupom</h3>
+                {recompensaSelecionada || cupomAplicado ? (
+                  <div className="flex items-center gap-2.5 rounded border border-[#16A34A]/40 bg-[#DCFCE7] px-3 py-2.5">
+                    <Gift className="h-5 w-5 flex-shrink-0 text-[#16A34A]" strokeWidth={2} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-semibold leading-snug">
-                        {l.qty}× {nomeLimpo(l.name)}
-                        {(l.tamanhoNome || l.saborNome) && <span className="font-normal text-text-subtle"> · {nomeLimpo([l.tamanhoNome, l.saborNome].filter(Boolean).join(' - '))}</span>}
+                      <div className="truncate text-[13px] font-semibold text-[#15803D]">
+                        {recompensaSelecionada
+                          ? `Prêmio: ${premioLabelCampanha({ premioTipo: recompensaSelecionada.premioTipo, premioValor: recompensaSelecionada.premioValor }, recompensaSelecionada.premioItemNome)}`
+                          : `Cupom ${cupomAplicado?.codigo}`}
                       </div>
-                      {l.addons.length > 0 && (
-                        <div className="mt-0.5 text-[13px] leading-snug text-text-subtle">
-                          {(() => {
-                            const contagem = new Map<string, number>()
-                            for (const a of l.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
-                            return nomeLimpo([...contagem].map(([nome, qtd]) => (qtd > 1 ? `${qtd}x ${nome}` : nome)).join(', '))
-                          })()}
-                        </div>
-                      )}
-                      {l.obs && <div className="mt-0.5 text-[13px] italic text-text-subtle">&ldquo;{l.obs}&rdquo;</div>}
+                      <div className="truncate text-[12px] text-[#15803D]/80">
+                        {beneficio?.tipo === 'item_gratis'
+                          ? `Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`
+                          : beneficio?.tipo === 'entrega_gratis'
+                            ? 'Entrega grátis neste pedido'
+                            : `-${brl(desconto)} no pedido`}
+                        {!recompensaSelecionada && cupomAplicado?.descricao ? ` · ${cupomAplicado.descricao}` : ''}
+                      </div>
                     </div>
-                    <span className="flex flex-shrink-0 flex-col items-end">
-                      {originalDaLinha(l) !== null && <span className="text-[12px] font-medium leading-[15px] line-through" style={{ color: '#A1A1AA' }}>{brl(originalDaLinha(l)!)}</span>}
-                      <span className="text-[15px] font-bold">{brl(l.unit * l.qty)}</span>
-                    </span>
+                    <button onClick={removerBeneficio} aria-label="Remover cupom ou prêmio" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[13px] text-text-subtle shadow-sm transition-colors hover:text-danger">✕</button>
                   </div>
-                ))}
-              </div>
-
-              {/* Valores */}
-              <div className="mt-4 rounded-lg border border-border bg-white p-4">
-                <div className="flex justify-between py-1 text-[14px] text-text-subtle"><span>Subtotal</span><span>{brl(subtotal)}</span></div>
-                {desconto > 0 && (
-                  <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]">
-                    <span>Desconto{cupomAplicado ? ` (${cupomAplicado.codigo})` : ' (prêmio)'}</span><span>-{brl(desconto)}</span>
-                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        value={cupomCodigoInput}
+                        onChange={(e) => { setCupomCodigoInput(e.target.value.toUpperCase()); setCupomErro(null) }}
+                        placeholder="Código do cupom"
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        className="w-full rounded-md border border-border p-3 text-[14px] font-semibold uppercase tracking-widest outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal focus:border-[var(--tema-primaria)]"
+                      />
+                      <button
+                        onClick={() => validarCupomCheckout()}
+                        disabled={cupomValidando || !cupomCodigoInput.trim()}
+                        className="flex-shrink-0 rounded-md bg-[var(--tema-primaria)] px-4 text-[12px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)] disabled:opacity-50"
+                      >
+                        {cupomValidando ? 'Validando…' : 'Aplicar'}
+                      </button>
+                    </div>
+                    {cupomErro && (
+                      <div className="mt-2 rounded border border-danger/30 bg-danger-bg px-2.5 py-2 text-[12px] font-medium text-danger">
+                        {cupomErro}
+                        {cupomErro === MOTIVO_LOGIN_CUPOM && (
+                          <button
+                            onClick={() => setContaOpen(true)}
+                            className="mt-1.5 block w-full rounded bg-[var(--tema-primaria)] px-3 py-2 text-center text-[12px] font-semibold text-white transition-colors hover:bg-[var(--tema-dark)]"
+                          >
+                            Entrar com meu telefone
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
-                {beneficio?.tipo === 'item_gratis' && (
-                  <div className="flex justify-between py-1 text-[14px] font-semibold text-[#16A34A]">
-                    <span>Item grátis</span><span className="truncate pl-3">{nomeLimpo(beneficio.itemNome) || 'prêmio'}</span>
-                  </div>
-                )}
-                <div className="flex justify-between py-1 text-[14px]">
-                  <span className="text-text-subtle">{rotuloLinhaFrete}</span>
-                  {valorLinhaFrete}
-                </div>
-                <div className="mt-2 flex justify-between border-t border-border pt-3 text-[18px] font-bold"><span>Total</span><span className="text-[#16A34A]">{brl(total)}</span></div>
               </div>
 
-              {/* Entrega & pagamento */}
-              <div className="mt-4 rounded-lg border border-border bg-white p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">
-                  {tipoPedido === 'retirada' ? 'Retirada' : 'Entrega'} &amp; pagamento
-                </h3>
-                <div className="flex items-center gap-3.5 pb-3.5">
-                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]"><MapPin className="h-[22px] w-[22px] text-text-subtle" strokeWidth={1.8} /></span>
-                  {tipoPedido === 'retirada' ? (
-                    <div className="min-w-0 text-[14px] leading-relaxed">
-                      <div className="font-semibold">Retirar em {restaurante?.nome}</div>
-                      <div className="text-text-subtle">{restaurante?.endereco?.trim() || 'Combine o local com a loja'}</div>
-                    </div>
-                  ) : (
-                    <div className="min-w-0 text-[14px] leading-relaxed">
-                      <div className="font-semibold">{endereco.rua}, {endereco.numero}{endereco.complemento && ` · ${endereco.complemento}`}</div>
-                      <div className="text-text-subtle">{endereco.bairro || 'Entrega'} · ~30–45 min</div>
-                      {endereco.referencia.trim() && <div className="text-text-subtle">Ref.: {endereco.referencia}</div>}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3.5 border-t border-border pt-3.5">
-                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-[#F3F4F6]">
-                    {payMethod === 'Pix' ? <PixIcon className="h-[22px] w-[22px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[22px] w-[22px] text-[#16A34A]" strokeWidth={1.8} /> : <CreditCard className="h-[22px] w-[22px] text-[#1D4ED8]" strokeWidth={1.8} />}
-                  </span>
-                  <div className="text-[14px]">
-                    <div className="font-semibold">{rotuloPagamento(payMethod, tipoPedido)}</div>
-                    {payMethod === 'Dinheiro' && changeFor && <div className="text-text-subtle">Troco para R$ {changeFor}</div>}
-                    {payMethod === 'Dinheiro' && !changeFor && <div className="text-text-subtle">Sem troco</div>}
-                    {payMethod === 'Pix' && <div className="text-text-subtle">Pagamento instantâneo</div>}
-                    {payMethod === 'Cartão na entrega' && <div className="text-text-subtle">{tipoPedido === 'retirada' ? 'Na maquininha, ao retirar' : 'Na maquininha, na entrega'}</div>}
-                  </div>
-                </div>
-              </div>
 
-              <p className="mt-4 text-center text-[13px] text-text-subtle">Confira os dados acima antes de confirmar o pedido. 😉</p>
+              {resumoValores}
             </div>
           )}
 
@@ -5210,18 +5183,107 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               transform (a gaveta desliza), fixed vira relativo à camada: no celular, quando a
               barra de endereço do navegador some/aparece ao rolar, o botão subia, abria um vão
               branco embaixo e cobria os campos — e a mensagem de erro, que cresce a barra,
-              ficava por cima do conteúdo (o espaço reservado era fixo). */}
-          <div className="sticky bottom-0 z-10 mt-auto w-full border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:pb-4">
-            {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
-            <button onClick={checkoutNext} disabled={submitting}
-              // Padrão do Revisar pedido em todas as etapas: verde, largo, valor à direita (2026-10-01).
-              className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] disabled:opacity-60 active:scale-[0.98]">
-              <span>{submitting ? 'Enviando…' : checkoutStep === 0 ? 'Ir para pagamento' : checkoutStep === 1 ? (tipoPedido === 'retirada' ? 'Continuar' : 'Ir para endereço') : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
-              {!submitting && <span>{brl(total)}</span>}
-            </button>
-          </div>
+              ficava por cima do conteúdo (o espaço reservado era fixo). Na revisão (3) quem
+              tem o botão é o painel "Revise o seu pedido". */}
+          {checkoutStep !== 3 && (
+            <div className="sticky bottom-0 z-10 mt-auto w-full border-t border-[#EFEFEF] bg-white p-[16px] pb-[max(env(safe-area-inset-bottom),16px)] lg:pb-[16px]" data-barra-checkout>
+              {checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
+              <BarraTotal
+                total={brl(total)}
+                legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`}
+                economia={economia > 0 ? brl(economia) : null}
+                botao={submitting ? 'Enviando…' : checkoutStep === 1 ? 'Revisar pedido' : 'Continuar'}
+                onClick={checkoutNext}
+                desabilitado={submitting}
+              />
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── "Revise o seu pedido" (etapa 3): painel por cima do pagamento ──
+          Fora da camada do checkout de propósito: ela tem transform, e um fixed lá dentro
+          ficaria preso a ela em vez de à tela. */}
+      {checkoutOpen && checkoutStep === 3 && (
+        <div className="fixed inset-0 flex items-end justify-center bg-[rgba(17,24,39,0.55)] lg:items-center lg:p-6" style={{ zIndex: CAMADA_MAXIMA }} onClick={checkoutBack} data-testid="revise-pedido">
+          <div role="dialog" aria-modal="true" aria-labelledby="titulo-revise" onClick={(e) => e.stopPropagation()} className="flex max-h-[92dvh] w-full max-w-[600px] flex-col rounded-t-[16px] bg-white shadow-2xl lg:max-w-[480px] lg:rounded-[12px]">
+            <div className="flex-1 overflow-y-auto px-[20px] pt-[12px]">
+              <div className="mx-auto mb-[12px] h-[4px] w-[40px] rounded-full bg-[#D4D4D4] lg:hidden" />
+              <h2 id="titulo-revise" className="mb-[8px] text-[18px] font-semibold leading-[24px] text-[#1F1F1F]">Revise o seu pedido</h2>
+              <div className="divide-y divide-[#EFEFEF]">
+                <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-entrega">
+                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]">{tipoPedido === 'retirada' ? <Store className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /> : <MapPin className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} />}</span>
+                  <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
+                    <div className="font-semibold text-[#3D3D3D]">
+                      {agendando && agData && agHora
+                        ? `Agendado: ${agDias?.find((d) => d.data === agData)?.rotulo ?? agData} às ${agHora}`
+                        : tipoPedido === 'retirada' ? 'Retirar na loja' : `Entrega hoje · ${PRAZO_ENTREGA}`}
+                    </div>
+                    <div className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">
+                      {tipoPedido === 'retirada'
+                        ? (restaurante?.endereco?.trim() || restaurante?.nome)
+                        : `${endereco.rua}, ${endereco.numero}${endereco.complemento ? ` · ${endereco.complemento}` : ''} · ${endereco.bairro}`}
+                    </div>
+                    {tipoPedido === 'entrega' && endereco.referencia.trim() && <div className="text-[12px] leading-[16px] text-[#5C5C5C]">Ref.: {endereco.referencia}</div>}
+                  </div>
+                </div>
+                <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-pagamento">
+                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]">
+                    {payMethod === 'Pix' ? <PixIcon className="h-[18px] w-[18px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[18px] w-[18px] text-[#0B7A3E]" strokeWidth={1.8} /> : <CreditCard className="h-[18px] w-[18px] text-[#1D4ED8]" strokeWidth={1.8} />}
+                  </span>
+                  <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
+                    <div className="font-semibold text-[#3D3D3D]">{payMethod === 'Pix' && pixOnline ? 'Pagar agora · Pix online' : rotuloPagamento(payMethod, tipoPedido)}</div>
+                    <div className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">
+                      {payMethod === 'Dinheiro' ? (changeFor ? `Troco para R$ ${changeFor}` : 'Sem troco')
+                        : payMethod === 'Pix' ? (pixOnline ? 'O QR Code aparece logo depois de fazer o pedido' : 'Pagamento instantâneo')
+                        : tipoPedido === 'retirada' ? 'Na maquininha, ao retirar' : 'Na maquininha, na entrega'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-itens">
+                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]"><HandPlatter className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /></span>
+                  <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
+                    <div className="font-semibold text-[#3D3D3D]">{cartCount} {cartCount === 1 ? 'item' : 'itens'}</div>
+                    <div className="mt-[2px] line-clamp-2 text-[12px] leading-[16px] text-[#5C5C5C]">{cart.map((l) => `${l.qty}× ${nomeLimpo(l.name)}`).join(', ')}</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-dados">
+                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]"><User className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /></span>
+                  <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
+                    <div className="font-semibold text-[#3D3D3D]">{cliente.nome}</div>
+                    {cliente.telefone && <div className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">{cliente.telefone}</div>}
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-[#EFEFEF] py-[12px]">
+                {economia > 0 && <LinhaValor rotulo="Economia" valor={brl(economia)} verde testid="revise-economia" />}
+                <LinhaValor rotulo={legendaTotal} valor={brl(total)} forte testid="revise-total" />
+              </div>
+            </div>
+            <div className="border-t border-[#EFEFEF] bg-white p-[16px] pb-[max(env(safe-area-inset-bottom),16px)]" data-barra-checkout>
+              {checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
+              <button onClick={checkoutNext} disabled={submitting} className="flex w-full items-center justify-center rounded-[8px] bg-[#0B7A3E] px-[20px] py-[14px] text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-[#096634] active:scale-[0.98] disabled:opacity-60" data-testid="fazer-pedido">
+                {submitting ? 'Enviando…' : 'Fazer pedido'}
+              </button>
+              <button onClick={checkoutBack} disabled={submitting} className="mt-[8px] w-full py-[10px] text-[14px] font-semibold text-[var(--tema-dark)]" data-testid="alterar-pedido">Alterar pedido</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmação do "Limpar" da sacola ── */}
+      {confirmarLimpar && (
+        <div className="fixed inset-0 flex items-center justify-center bg-[rgba(17,24,39,0.55)] p-[16px]" style={{ zIndex: CAMADA_MAXIMA }} onClick={() => setConfirmarLimpar(false)} data-testid="confirmar-limpar">
+          <div role="dialog" aria-modal="true" aria-labelledby="titulo-limpar" onClick={(e) => e.stopPropagation()} className="w-full max-w-[360px] rounded-[12px] bg-white p-[20px] shadow-2xl">
+            <h2 id="titulo-limpar" className="text-[16px] font-semibold text-[#1F1F1F]">Limpar a sacola?</h2>
+            <p className="mt-[6px] text-[14px] leading-[20px] text-[#5C5C5C]">{cartCount === 1 ? 'O item sai' : `Os ${cartCount} itens saem`} da sacola.</p>
+            <div className="mt-[16px] flex gap-[8px]">
+              <button onClick={() => setConfirmarLimpar(false)} className="flex-1 rounded-[8px] border border-[#E5E5E5] py-[12px] text-[14px] font-semibold text-[#3D3D3D]">Cancelar</button>
+              <button onClick={() => { setCart([]); setConfirmarLimpar(false) }} className="flex-1 rounded-[8px] bg-[#B91C1C] py-[12px] text-[14px] font-semibold text-white" data-testid="confirmar-limpar-sim">Limpar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Frete calculator overlay ──────────────────────────────────── */}
       {freteOpen && <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setFreteOpen(false)} />}
@@ -5272,7 +5334,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
       {/* ── Conta do cliente overlay ──────────────────────────────────── */}
       {contaOpen && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#111827]/60 p-4" onClick={() => setContaOpen(false)}>
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#111827]/60 p-4" onClick={() => setContaOpen(false)} data-testid="janela-conta">
           <div className="flex max-h-[88dvh] w-full max-w-[480px] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-border p-4.5">
               <h2 className="text-base font-bold">Minha conta</h2>
