@@ -44,7 +44,7 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
     const q = new URLSearchParams(window.location.search).get('mercadopago')
     if (!q || avisouRetorno.current) return
     avisouRetorno.current = true
-    const msg: Record<string, string> = { conectado: 'Conta do Mercado Pago conectada.', falhou: 'Não foi possível conectar. Tente de novo.', cancelado: 'Conexão cancelada.', sem_permissao: 'Só o dono conecta a conta de pagamentos.', nao_configurado: 'O Pix online ainda não foi configurado no servidor.' }
+    const msg: Record<string, string> = { conectado: 'Conta do Mercado Pago conectada.', conectado_sem_chave: 'Conta conectada, mas falta a chave Pix no Mercado Pago.', falhou: 'Não foi possível conectar. Tente de novo.', cancelado: 'Conexão cancelada.', sem_permissao: 'Só o dono conecta a conta de pagamentos.', nao_configurado: 'O Pix online ainda não foi configurado no servidor.' }
     avisar(msg[q] ?? q)
   }, [avisar])
 
@@ -57,6 +57,15 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
     const r = await fetch('/api/admin/pix-online', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ validadeMin: min }) })
     if (r.ok) { avisar(`Validade do Pix: ${min} minutos.`); void carregar() }
   }
+  async function verificarChave() {
+    setOcupado(true)
+    const r = await fetch('/api/admin/pix-online', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'verificar_chave' }) }).catch(() => null)
+    const j = r ? await r.json().catch(() => ({})) : {}
+    setOcupado(false)
+    avisar(j.resultado === 'ok' ? 'Chave Pix encontrada. O Pix online voltou para a vitrine.' : j.resultado === 'sem_chave' ? 'Ainda sem chave Pix no Mercado Pago.' : 'Não foi possível verificar agora. Tente de novo.')
+    void carregar()
+  }
+
   async function confirmarDevolucao(a: AprovacaoDada) {
     if (!devolver) return
     setOcupado(true); setErro(null)
@@ -90,7 +99,17 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
         <div className="mt-[12px] text-[13px] text-text-main" data-testid="mp-conta">
           <p>Conta {c.apelido ?? ''} ••••{c.final}{c.email ? ` · ${c.email}` : ''}{c.ambiente === 'teste' ? ' (TESTE)' : ''}</p>
           {c.desde && <p className="text-text-subtle">Desde {new Date(c.desde).toLocaleDateString('pt-BR')}</p>}
-          {c.erro && <p className="mt-[4px] font-semibold text-[#B91C1C]">{c.erro}. Conecte de novo.</p>}
+          {c.erro === 'sem_chave_pix' ? (
+            <div className="mt-[8px] rounded-[8px] border border-[#FCD34D] bg-[#FEF3C7] px-[12px] py-[10px] text-[#92400E]" data-testid="mp-sem-chave">
+              <p className="font-semibold">Cadastre uma chave Pix no app do Mercado Pago</p>
+              <p className="mt-[2px] text-[12.5px]">Sem chave Pix o Mercado Pago não gera o QR. Enquanto isso, a vitrine não oferece o Pix online. Cadastrou? Verifique de novo.</p>
+              {e.podeConectar && (
+                <button type="button" onClick={() => void verificarChave()} disabled={ocupado} className="mt-[8px] h-[36px] rounded-[3px] bg-[#92400E] px-[12px] text-[12px] font-semibold uppercase tracking-wide text-white hover:bg-[#78350F] disabled:opacity-60" data-testid="mp-verificar-chave">
+                  {ocupado ? 'Verificando…' : 'Verificar de novo'}
+                </button>
+              )}
+            </div>
+          ) : c.erro ? <p className="mt-[4px] font-semibold text-[#B91C1C]">{c.erro}. Conecte de novo.</p> : null}
         </div>
       ) : null}
 

@@ -5,7 +5,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { pode } from '@/lib/auth/permissoes'
 import { contaPublica, desconectar } from '@/lib/pagamentos/contas'
 import { mpConfigurado } from '@/lib/pagamentos/mercadopago'
-import { devolverPix } from '@/lib/pagamentos/pix-online'
+import { devolverPix, verificarChavePix } from '@/lib/pagamentos/pix-online'
 import { podeConectarPagamentos } from '@/lib/pagamentos/permissao'
 import { registrarAuditoria } from '@/lib/auditoria'
 
@@ -70,6 +70,12 @@ export async function DELETE() {
 export async function POST(request: Request) {
   const s = await sessaoDoPainel(); if (s.erro) return s.erro
   const corpo = (await request.json().catch(() => null)) as { acao?: unknown; pagamentoId?: unknown; motivo?: unknown; aprovacao?: { aprovadorId?: unknown; pin?: unknown; remotaId?: unknown } } | null
+  // "Verificar de novo" a chave Pix (depois de cadastrar no app do MP).
+  if (corpo?.acao === 'verificar_chave') {
+    if (!podeConectarPagamentos(s.sessao.papel)) return NextResponse.json({ error: 'Só o dono' }, { status: 403 })
+    const r = await verificarChavePix(getAdminSupabase(), s.sessao.restauranteId)
+    return NextResponse.json({ resultado: r })
+  }
   if (corpo?.acao !== 'devolver' || typeof corpo.pagamentoId !== 'string') return NextResponse.json({ error: 'Pedido inválido' }, { status: 400 })
   const a = corpo.aprovacao ?? {}
   const r = await devolverPix(getAdminSupabase(), {

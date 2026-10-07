@@ -2,6 +2,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getCurrentSession } from '@/lib/auth/session'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { concluirConexao } from '@/lib/pagamentos/contas'
+import { verificarChavePix } from '@/lib/pagamentos/pix-online'
 import { podeConectarPagamentos, redirecionar } from '@/lib/pagamentos/permissao'
 import { registrarAuditoria } from '@/lib/auditoria'
 
@@ -27,5 +28,8 @@ export async function GET(request: Request) {
     acao: r.ok ? 'pix_online.conta_conectada' : 'pix_online.conexao_recusada', entidade: 'pagamentos_contas', entidadeId: sessao.restauranteId,
     dados: r.ok ? {} : { motivo: r.motivo },
   })
-  return voltar(r.ok ? 'conectado' : 'falhou')
+  if (!r.ok) return voltar('falhou')
+  // Conta sem chave Pix: o MP não gera QR. Conecta, mas avisa e a vitrine não oferece o Pix online.
+  const chave = await verificarChavePix(admin, sessao.restauranteId)
+  return voltar(chave === 'sem_chave' ? 'conectado_sem_chave' : 'conectado')
 }

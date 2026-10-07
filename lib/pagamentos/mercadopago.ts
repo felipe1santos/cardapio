@@ -126,7 +126,7 @@ interface EstadoSim {
   contas: Record<string, { userId: string; refresh: string; expiraEm: string; apelido: string }> // por access token
   codigos: Record<string, { userId: string; desafio?: string }>
   pagamentos: Record<string, { id: string; token: string; userId: string; status: string; valor: number; referencia: string; expiraEm: string; idem: string; taxa: number; reembolsos: string[] }>
-  falhas?: { renovar?: boolean; consultar?: boolean }
+  falhas?: { renovar?: boolean; consultar?: boolean; semChavePix?: boolean }
 }
 const arquivoSim = () => process.env.MP_SIMULADO_ARQUIVO || ''
 export function lerSim(): EstadoSim {
@@ -168,8 +168,12 @@ const provedorSimulado: ProvedorMp = {
   async conta(token) { const c = contaSim(token); return { id: c.userId, apelido: c.apelido, email: `vendedor${c.userId}@teste.local` } },
   async criarPix(token, p) {
     const c = contaSim(token); const e = lerSim()
+    // Conta sem chave Pix (o erro real do MP, visto no teste de 2026-10-07).
+    if (e.falhas?.semChavePix) throw new ErroMp(400, 'MP 400: Collector user without key enabled for QR render (simulado)')
     const igual = Object.values(e.pagamentos).find((x) => x.idem === p.idempotencia && x.token === token)
-    const pg = igual ?? { id: String(1_000_000_000 + Math.floor(Math.random() * 1e9)), token, userId: c.userId, status: 'pending', valor: p.valor, referencia: p.referencia, expiraEm: p.expiraEm, idem: p.idempotencia, taxa: Math.round(p.valor * 0.99) / 100, reembolsos: [] }
+    // Igual ao MP real: vencimento de Pix abaixo de 30 min nasce cancelado.
+    const curto = Date.parse(p.expiraEm) - Date.now() < 30 * 60_000
+    const pg = igual ?? { id: String(1_000_000_000 + Math.floor(Math.random() * 1e9)), token, userId: c.userId, status: curto ? 'cancelled' : 'pending', valor: p.valor, referencia: p.referencia, expiraEm: p.expiraEm, idem: p.idempotencia, taxa: Math.round(p.valor * 0.99) / 100, reembolsos: [] }
     e.pagamentos[pg.id] = pg; gravarSim(e)
     const qr = `00020126SIMULADO${pg.id}5204000053039865406${p.valor.toFixed(2)}6304ABCD`
     // QR de verdade (PNG) do código simulado — a tela mostra igual ao do MP.

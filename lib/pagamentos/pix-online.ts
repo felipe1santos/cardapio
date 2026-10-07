@@ -30,10 +30,54 @@ export async function pixOnlineDaLoja(admin: SupabaseClient, restauranteId: stri
   const validadeMin = Number(data?.pix_online_validade_min ?? 15)
   if (!data?.pix_online_ativo || !mpConfigurado()) return { ativo: false, validadeMin }
   const conta = await contaPublica(admin, restauranteId)
-  return { ativo: conta.conectada, validadeMin }
+  // Conta sem chave Pix: o MP recusa gerar o QR. A vitrine não oferece "Pagar agora" até a chave existir.
+  return { ativo: conta.conectada && conta.erro !== ERRO_SEM_CHAVE_PIX, validadeMin }
+}
+
+/** Marca em pagamentos_contas.erro: a conta conectada não tem chave Pix (o MP não gera QR). */
+export const ERRO_SEM_CHAVE_PIX = 'sem_chave_pix'
+/** O erro do MP quando a conta não tem chave Pix: "Collector user without key enabled for QR render". */
+export function erroDeChavePix(e: unknown): boolean {
+  return e instanceof ErroMp && e.status === 400 && /without key enabled|key enabled for qr/i.test(e.message)
+}
+async function marcarChavePix(admin: SupabaseClient, restauranteId: string, temChave: boolean) {
+  if (temChave) await admin.from('pagamentos_contas').update({ erro: null }).eq('restaurante_id', restauranteId).eq('erro', ERRO_SEM_CHAVE_PIX)
+  else await admin.from('pagamentos_contas').update({ erro: ERRO_SEM_CHAVE_PIX }).eq('restaurante_id', restauranteId).eq('status', 'conectada')
+}
+
+/**
+ * O MP não tem API de "chaves Pix". A sondagem cria uma cobrança Pix de R$ 1,00 (31 min) e a CANCELA
+ * na hora — ninguém paga, nada é cobrado. Sem chave, o MP recusa já na criação.
+ */
+export async function verificarChavePix(admin: SupabaseClient, restauranteId: string): Promise<'ok' | 'sem_chave' | 'erro'> {
+  const agora = new Date()
+  try {
+    const cob = await comTokenDaLoja(admin, restauranteId, (token) => provedorMp().criarPix(token, {
+      valor: 1, descricao: 'Verificacao da chave Pix (Menuzia) - nao pague', referencia: `verificacao-chave-pix:${restauranteId}`,
+      expiraEm: expiracaoMp(vencimentoNoMp(agora, agora)), email: 'verificacao@pagamentos.menuzia.com.br',
+      notificacaoUrl: null, idempotencia: `verificacao-chave-pix:${restauranteId}:${agora.getTime()}`,
+    }))
+    await comTokenDaLoja(admin, restauranteId, (token) => provedorMp().cancelar(token, cob.id)).catch(() => null)
+    await marcarChavePix(admin, restauranteId, true)
+    return 'ok'
+  } catch (e) {
+    if (erroDeChavePix(e)) { await marcarChavePix(admin, restauranteId, false); return 'sem_chave' }
+    console.error('[pix-online] verificação da chave Pix:', (e as Error).message?.slice(0, 160))
+    return 'erro'
+  }
 }
 
 /** Expiração no formato que o MP aceita, com o fuso de São Paulo: 2026-10-04T23:15:00.000-03:00. */
+/**
+ * O Mercado Pago exige vencimento de Pix de no mínimo 30 min: abaixo disso ele devolve a cobrança já
+ * "cancelled" (achado no teste real de 2026-10-07, prazo de 5 min). O MP recebe max(prazo, 31 min);
+ * o pedido continua vencendo pelo prazo da loja — a verificação periódica cancela no MP o que passar.
+ */
+export const MIN_VENCIMENTO_MP_MIN = 31
+export function vencimentoNoMp(expiraLocal: Date, agora: Date): Date {
+  return new Date(Math.max(expiraLocal.getTime(), agora.getTime() + MIN_VENCIMENTO_MP_MIN * 60_000))
+}
+
 export function expiracaoMp(d: Date): string {
   const sp = new Date(d.getTime() - 3 * 3_600_000)
   return sp.toISOString().replace('Z', '-03:00')
@@ -56,13 +100,21 @@ export async function criarCobrancaPix(admin: SupabaseClient, p: { restauranteId
 
   const { validadeMin } = await pixOnlineDaLoja(admin, p.restauranteId)
   const { data: loja } = await admin.from('restaurantes').select('nome').eq('id', p.restauranteId).maybeSingle()
-  const expira = new Date(Date.now() + validadeMin * 60_000)
+  const agora = new Date()
+  const expira = new Date(agora.getTime() + validadeMin * 60_000)
   const valor = Number(ped.total)
-  const cob = await comTokenDaLoja(admin, p.restauranteId, (token) => provedorMp().criarPix(token, {
-    valor, descricao: `Pedido #${ped.numero} - ${(loja?.nome ?? 'Menuzia').slice(0, 60)}`, referencia: ped.id,
-    expiraEm: expiracaoMp(expira), email: `pedido-${ped.id.slice(0, 8)}@pagamentos.menuzia.com.br`,
-    notificacaoUrl: webhookUrlMp(), idempotencia: `pedido:${ped.id}`,
-  }))
+  let cob: Awaited<ReturnType<ReturnType<typeof provedorMp>['criarPix']>>
+  try {
+    cob = await comTokenDaLoja(admin, p.restauranteId, (token) => provedorMp().criarPix(token, {
+      valor, descricao: `Pedido #${ped.numero} - ${(loja?.nome ?? 'Menuzia').slice(0, 60)}`, referencia: ped.id,
+      expiraEm: expiracaoMp(vencimentoNoMp(expira, agora)), email: `pedido-${ped.id.slice(0, 8)}@pagamentos.menuzia.com.br`,
+      notificacaoUrl: webhookUrlMp(), idempotencia: `pedido:${ped.id}`,
+    }))
+  } catch (e) {
+    if (erroDeChavePix(e)) await marcarChavePix(admin, p.restauranteId, false)
+    throw e
+  }
+  await marcarChavePix(admin, p.restauranteId, true)
   const conta = await tokenDaLoja(admin, p.restauranteId)
   const linha = {
     restaurante_id: p.restauranteId, pedido_id: ped.id, mp_payment_id: cob.id, mp_user_id: conta?.mpUserId ?? null, valor,

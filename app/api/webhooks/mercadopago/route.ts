@@ -22,6 +22,11 @@ export async function POST(request: Request) {
   const requestId = request.headers.get('x-request-id')?.slice(0, 120) ?? null
   const admin = getAdminSupabase()
 
+  // Notificação no formato antigo do MP (IPN: ?topic=…&id=…, sem x-signature e sem "type"): não usamos —
+  // o webhook assinado e a verificação periódica já cobrem. 200 sem gravar nada, para não poluir o registro
+  // nem o MP reenviar. Com "type" e sem assinatura válida continua 401 e registrado (pode ser tentativa de fraude).
+  if (!request.headers.get('x-signature') && !tipo) return NextResponse.json({ ok: true, ignorado: 'formato_antigo' })
+
   const valida = assinaturaMpValida({ xSignature: request.headers.get('x-signature'), requestId, dataId, segredo: process.env.MP_WEBHOOK_SECRET })
   if (!valida) {
     await admin.from('pagamentos_eventos').insert({ tipo, acao: corpo?.action?.slice(0, 60) ?? null, mp_id: dataId, request_id: requestId, assinatura_valida: false, resultado: 'assinatura_invalida' })

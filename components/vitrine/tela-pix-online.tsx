@@ -14,6 +14,8 @@ export interface PixAguardando {
 type Situacao = 'aguardando' | 'pago' | 'expirado' | 'pago_apos_cancelado'
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+/** Hora-limite no fuso da loja (Brasília), não no do aparelho. */
+const horaBrasilia = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
 
 export function TelaPixOnline({ slug, pix, onPago, onRefazer, onFechar }: {
   slug: string; pix: PixAguardando; onPago: () => void; onRefazer: () => void; onFechar: () => void
@@ -21,12 +23,15 @@ export function TelaPixOnline({ slug, pix, onPago, onRefazer, onFechar }: {
   const [situacao, setSituacao] = useState<Situacao>('aguardando')
   const [qr, setQr] = useState({ codigo: pix.qrCode, imagem: pix.qrCodeBase64 })
   const [copiado, setCopiado] = useState(false)
+  // Relógio do servidor: o vencimento é dele. Aparelho com a hora errada não pode adiantar nem
+  // atrasar o contador (o cabeçalho Date de cada consulta calibra a diferença).
+  const desvio = useRef(0)
   const [agora, setAgora] = useState(() => Date.now())
   const avisou = useRef(false)
   const expira = new Date(pix.expiraEm).getTime()
   const restante = Math.max(0, Math.floor((expira - agora) / 1000))
 
-  useEffect(() => { const t = setInterval(() => setAgora(Date.now()), 1000); return () => clearInterval(t) }, [])
+  useEffect(() => { const t = setInterval(() => setAgora(Date.now() + desvio.current), 1000); return () => clearInterval(t) }, [])
 
   useEffect(() => {
     if (situacao !== 'aguardando') return
@@ -34,6 +39,8 @@ export function TelaPixOnline({ slug, pix, onPago, onRefazer, onFechar }: {
     const ler = async () => {
       try {
         const r = await fetch(`/api/loja/${slug}/pedido/${pix.id}/pix`, { cache: 'no-store' })
+        const data = Date.parse(r.headers.get('date') ?? '')
+        if (Number.isFinite(data)) { const d = data - Date.now(); desvio.current = Math.abs(d) > 2000 ? d : 0 }
         if (!r.ok || !vivo) return
         const j = (await r.json()) as { situacao: Situacao; qrCode: string | null; qrCodeBase64: string | null }
         if (j.qrCode) setQr({ codigo: j.qrCode, imagem: j.qrCodeBase64 })
@@ -74,9 +81,12 @@ export function TelaPixOnline({ slug, pix, onPago, onRefazer, onFechar }: {
         {situacao === 'aguardando' && (
           <>
             <p className="text-[14px] text-[#5C5C5C]">Pedido #{pix.numero}</p>
-            <p className="mt-[2px] text-[28px] font-bold text-[#1F1F1F]" data-testid="pix-valor">{brl(pix.valor)}</p>
-            <p className={`mt-[6px] text-[14px] font-semibold ${restante <= 60 ? 'text-[#B91C1C]' : 'text-[#3D3D3D]'}`} data-testid="pix-contador" aria-live="polite">
-              {restante > 0 ? `Pague em até ${mm}:${ss}` : 'Tempo esgotado — conferindo…'}
+            <p className="mt-[2px] text-[28px] font-semibold text-[#1F1F1F]" data-testid="pix-valor">{brl(pix.valor)}</p>
+            <p className="mt-[6px] text-[14px] font-semibold text-[#3D3D3D]" data-testid="pix-horario">
+              Pague até {horaBrasilia.format(expira)} <span className="font-normal text-[#5C5C5C]">(horário de Brasília)</span>
+            </p>
+            <p className={`mt-[2px] text-[13px] tabular-nums ${restante <= 60 ? 'font-semibold text-[#B91C1C]' : 'text-[#5C5C5C]'}`} data-testid="pix-contador" aria-live="polite">
+              {restante > 0 ? `Faltam ${mm}:${ss}` : 'Tempo esgotado — conferindo…'}
             </p>
             {qr.imagem && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -98,20 +108,20 @@ export function TelaPixOnline({ slug, pix, onPago, onRefazer, onFechar }: {
         {situacao === 'pago' && (
           <div className="mt-[40px] flex flex-col items-center" data-testid="pix-pago">
             <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[#16884D] text-white"><Check className="h-[40px] w-[40px]" /></span>
-            <p className="mt-[16px] text-[20px] font-bold text-[#1F1F1F]">Pagamento confirmado!</p>
+            <p className="mt-[16px] text-[20px] font-semibold text-[#1F1F1F]">Pagamento confirmado!</p>
             <p className="mt-[4px] text-[14px] text-[#5C5C5C]">Pedido #{pix.numero} enviado para a loja.</p>
           </div>
         )}
         {situacao === 'expirado' && (
           <div className="mt-[40px] flex flex-col items-center" data-testid="pix-expirado">
-            <p className="text-[20px] font-bold text-[#1F1F1F]">O tempo para pagar acabou</p>
+            <p className="text-[20px] font-semibold text-[#1F1F1F]">O tempo para pagar acabou</p>
             <p className="mt-[6px] text-[14px] text-[#5C5C5C]">O pedido #{pix.numero} foi cancelado e nada foi cobrado.</p>
             <button type="button" onClick={onRefazer} className="mt-[20px] h-[52px] w-full rounded-[8px] bg-[#1446AB] px-[20px] text-[16px] font-semibold text-white" data-testid="pix-refazer">Fazer o pedido de novo</button>
           </div>
         )}
         {situacao === 'pago_apos_cancelado' && (
           <div className="mt-[40px] flex flex-col items-center" data-testid="pix-pago-depois">
-            <p className="text-[20px] font-bold text-[#1F1F1F]">Recebemos seu Pix depois do prazo</p>
+            <p className="text-[20px] font-semibold text-[#1F1F1F]">Recebemos seu Pix depois do prazo</p>
             <p className="mt-[6px] text-[14px] text-[#5C5C5C]">O pedido #{pix.numero} já tinha sido cancelado. A loja foi avisada e vai devolver o valor.</p>
           </div>
         )}

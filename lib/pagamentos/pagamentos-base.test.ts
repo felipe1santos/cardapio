@@ -72,4 +72,10 @@ describe('Pix online: conferência do pagamento (antifraude)', async () => {
   it('expiração no fuso de São Paulo', () => {
     expect(expiracaoMp(new Date('2026-10-05T02:15:00.000Z'))).toBe('2026-10-04T23:15:00.000-03:00')
   })
+  it('MP recebe no mínimo 31 min, mesmo com prazo da loja de 5 (abaixo de 30 ele cancela na hora)', async () => {
+    const { vencimentoNoMp } = await import('./pix-online')
+    const agora = new Date('2026-10-07T06:00:00.000Z')
+    expect(vencimentoNoMp(new Date('2026-10-07T06:05:00.000Z'), agora).toISOString()).toBe('2026-10-07T06:31:00.000Z')
+    expect(vencimentoNoMp(new Date('2026-10-07T06:45:00.000Z'), agora).toISOString()).toBe('2026-10-07T06:45:00.000Z')
+  })
 })
