@@ -90,12 +90,10 @@ export function MensagensAutomaticas({ onToast, onAtivoMudou }: { onToast: (tom:
       <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-[#eef0f3] px-4 py-3.5">
           <div>
-            <h3 className="text-[14px] font-bold text-[#1f2937]">Envio automático do status do pedido</h3>
-            <p className="mt-0.5 text-[12.5px] text-[#5b6472]">O cliente recebe no WhatsApp cada etapa do pedido.</p>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <SeloAtivo ativo={cfg.ativo} />
-            <ToggleSwitch checked={cfg.ativo} disabled={salvando} rotulo="Envio automático" onChange={(v) => void gravar({ ...cfg, ativo: v }, v ? 'Envio automático ligado.' : 'Envio automático desligado.')} />
+            <h3 className="text-[14px] font-bold text-[#1f2937]">Avisos de status do pedido</h3>
+            <p className="mt-0.5 text-[12.5px] text-[#5b6472]">O cliente recebe no WhatsApp cada etapa do pedido, sempre que o WhatsApp da loja estiver conectado. Edite os textos abaixo.</p>
+            {/* Sem chave geral desde a noite 5: loja que já tinha desligado continua sem envio até o suporte decidir. */}
+            {cfg.ativo === false && <p className="mt-1.5 inline-flex rounded-[4px] bg-[#fff7ed] px-2 py-1 text-[12px] font-semibold text-[#9a3412]" data-testid="envio-pausado-suporte">Envio pausado nesta loja. Fale com o suporte para religar.</p>}
           </div>
         </div>
         <div className="grid gap-4 px-4 py-3.5 md:grid-cols-2">

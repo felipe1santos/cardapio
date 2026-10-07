@@ -16,7 +16,7 @@ import { Agendamentos, ListaCampanhas, type AcoesCampanha } from '@/components/a
 import { useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
 import { BoasPraticas } from '@/components/admin/campanhas/boas-praticas'
 import { Ajuda, Confirmar } from '@/components/admin/campanhas/comum'
-import { Lightbulb, Power, Send } from 'lucide-react'
+import { Lightbulb, Send } from 'lucide-react'
 
 // Campanhas = só DISPARO (2026-10-06). Mensagens automáticas, notificações do app e modelos foram para
 // Ajustes; os endereços antigos (?aba=automaticas|notificacoes|modelos) redirecionam para lá.
@@ -313,13 +313,8 @@ export default function CampanhasPage() {
   }, [])
   const toasts = useToasts()
   const [boasPraticas, setBoasPraticas] = useState(false)
-  const [automaticoLigado, setAutomaticoLigado] = useState<boolean | null>(null)
   const [confirmacao, setConfirmacao] = useState<{ tipo: 'cancelar' | 'excluir'; c: Campanha } | null>(null)
   const modelos = useModelos(restauranteId)
-  // Status do envio automático no topo (Ligado/Desligado), sem esperar abrir a seção.
-  useEffect(() => {
-    fetch('/api/admin/campanhas/automaticas', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) setAutomaticoLigado(j.config.ativo) }, () => {})
-  }, [])
 
   // Uploads
   const [uploadingImagem, setUploadingImagem] = useState(false)
@@ -515,14 +510,9 @@ export default function CampanhasPage() {
         right={<span className="hidden sm:inline-flex"><Ajuda texto="Campanhas para os clientes da loja pelo WhatsApp, na hora ou agendadas. Mensagens automáticas, modelos e notificações do app ficam em Ajustes." /></span>}
       />
 
-      {/* Barra de ações: envio automático, boas práticas e o disparo. */}
-      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--adm-borda)] bg-white px-4 py-2.5 sm:px-5">
-        <button type="button" onClick={() => { window.location.href = '/admin/ajustes?aba=mensagens' }} data-testid="status-automatico"
-          className={`inline-flex h-9 items-center gap-2 rounded-[5px] border px-3 text-[12.5px] font-bold ${automaticoLigado === false ? 'border-[#fdba74] bg-[#fff7ed] text-[#c2410c]' : 'border-[#86efac] bg-[#f0fdf4] text-[#15803d]'}`}
-          title="Envio automático do status do pedido">
-          <Power className="h-4 w-4" />
-          {automaticoLigado === null ? 'Envio automático' : automaticoLigado ? 'Envio automático ligado' : 'Envio automático desligado'}
-        </button>
+      {/* Barra de ações: boas práticas e o disparo. (O "Envio automático" saiu: os avisos de status
+          do pedido saem sempre que o WhatsApp da loja está conectado — noite 5.) */}
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-b border-[var(--adm-borda)] bg-white px-4 py-2.5 sm:px-5">
         <div className="flex gap-2">
           <button type="button" onClick={() => setBoasPraticas(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="abrir-boas-praticas">
             <Lightbulb className="h-4 w-4" /> Boas práticas
