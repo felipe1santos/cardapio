@@ -3,6 +3,7 @@ import { normalizarTelefone } from './clientes'
 import {
   podeResgatarHoje,
   resumoProgresso,
+  validarCupom,
   type CampanhaFidelidade,
   type HistoricoCliente,
   type ProgressoCliente,
@@ -259,7 +260,8 @@ const CUPOM_SELECT = `
   itens_cardapio ( nome, imagem_url )
 `
 
-const CUPONS_PUBLICOS_SELECT = `id, codigo, descricao, tipo, valor, valor_minimo_pedido, validade_inicio, validade_fim, dias_semana, itens_cardapio ( nome, imagem_url )`
+// publico/dias_inatividade/uso único/limite: só para filtrar quem pode usar (não vão para a vitrine).
+const CUPONS_PUBLICOS_SELECT = `id, codigo, descricao, ativo, tipo, valor, valor_minimo_pedido, validade_inicio, validade_fim, dias_semana, publico, dias_inatividade, uso_unico_por_cliente, max_usos, usos, itens_cardapio ( nome, imagem_url )`
 
 // ─── CRUD: Campanhas de fidelidade ─────────────────────────────────────────
 
@@ -529,7 +531,35 @@ export async function buscarFidelidadeCliente(admin: SupabaseClient, restaurante
     }
   })
 
-  const cuponsPublicos = mapCuponsPublicos(cuponsRows ?? [], hojeISO, diaSemana)
+  // Cliente identificado: só os cupons que ELE pode usar (mesma regra do /cupom/validar). Antes a sacola
+  // oferecia, por exemplo, um cupom de "recompra" a quem pede toda semana, e o "Aplicar" respondia com
+  // erro (2026-10-06). O pedido mínimo fica de fora: depende da sacola e a validação avisa na hora.
+  const [hist, { data: usos, error: usosError }] = await Promise.all([
+    buscarHistoricoCliente(admin, restauranteId, telefone),
+    admin.from('cupom_usos').select('cupom_id').eq('restaurante_id', restauranteId).eq('cliente_telefone', telefone),
+  ])
+  if (usosError) throw usosError
+  const usados = new Set((usos ?? []).map((u: { cupom_id: string }) => u.cupom_id))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const elegiveis = (cuponsRows ?? []).filter((row: any) => validarCupom(
+    {
+      ativo: row.ativo ?? true,
+      tipo: row.tipo,
+      valor: row.valor != null ? Number(row.valor) : null,
+      publico: row.publico ?? 'todos',
+      diasInatividade: row.dias_inatividade ?? null,
+      diasSemana: row.dias_semana ?? [],
+      validadeInicio: row.validade_inicio,
+      validadeFim: row.validade_fim,
+      valorMinimoPedido: null,
+      usoUnicoPorCliente: Boolean(row.uso_unico_por_cliente),
+      maxUsos: row.max_usos ?? null,
+      usos: row.usos ?? 0,
+    },
+    { ...hist, jaUsouEsteCupom: usados.has(row.id) },
+    { subtotal: Number.MAX_SAFE_INTEGER, diaSemana, hojeISO },
+  ).ok)
+  const cuponsPublicos = mapCuponsPublicos(elegiveis, hojeISO, diaSemana)
 
   return { campanhas, recompensas, cuponsPublicos }
 }

@@ -1658,7 +1658,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         setCupomAplicado(data.cupom)
         setCupomCodigoInput(data.cupom.codigo)
         setCupomErro(null)
-        setSucessoResgate('Cupom aplicado!')
+        // No resumo do pedido (checkout aberto) o efeito que leva à sacola atrapalharia: só o aviso.
+        if (checkoutOpen) showToast(`Cupom ${data.cupom.codigo} aplicado!`)
+        else setSucessoResgate('Cupom aplicado!')
+      } else if (data.motivo === MOTIVO_LOGIN_CUPOM) {
+        // Cupom exclusivo (primeiro pedido / volta): entrar pelo telefone e depois aplicar de novo.
+        setCupomCodigoInput(codigo)
+        showToast('Entre com seu telefone para usar este cupom.')
+        setContaOpen(true)
       } else {
         showToast(data.motivo ?? data.error ?? 'Este cupom não pode ser usado agora.')
       }
@@ -4511,8 +4518,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       )}
 
       {/* ── Product sheet overlay ─────────────────────────────────────── */}
-      {productSheet && <div className="fixed inset-0 z-40 bg-[#111827]/60" onClick={closeProductSheet} />}
-      <div data-testid="ficha-produto" className={['fixed inset-y-0 left-1/2 z-50 flex h-dvh w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden bg-white transition-all duration-300 lg:inset-y-auto lg:bottom-auto lg:top-1/2 lg:h-auto lg:max-h-[85vh] lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
+      {/* Aberta de dentro do checkout ("Peça também" ou o lápis do resumo, no desktop): a ficha e o fundo dela
+          sobem acima do checkout (z-60). Antes abriam ATRÁS dele e não dava para escolher os complementos. */}
+      {productSheet && <div className={['fixed inset-0 bg-[#111827]/60', checkoutOpen ? 'z-[66]' : 'z-40'].join(' ')} onClick={closeProductSheet} data-testid="ficha-fundo" />}
+      <div data-testid="ficha-produto" className={[checkoutOpen ? 'z-[67]' : 'z-50', 'fixed inset-y-0 left-1/2 flex h-dvh w-full max-w-[600px] -translate-x-1/2 flex-col overflow-hidden bg-white transition-all duration-300 lg:inset-y-auto lg:bottom-auto lg:top-1/2 lg:h-auto lg:max-h-[85vh] lg:max-w-[520px] lg:-translate-y-1/2 lg:rounded', productSheet ? 'translate-y-0 lg:opacity-100 lg:scale-100' : 'translate-y-full lg:opacity-0 lg:scale-95 lg:pointer-events-none'].join(' ')}>
         {productSheet && (
           <>
             <button onClick={closeProductSheet} className="absolute right-3.5 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/90 text-xl font-light shadow-md">×</button>
