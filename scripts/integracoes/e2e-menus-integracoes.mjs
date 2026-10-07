@@ -116,7 +116,14 @@ try {
   await db.query(`update restaurantes set evolution_instance=null, facebook_pixel_id=null, pix_online_ativo=true where id=$1`, [loja.id])
   {
     const { ctx, p } = await logar('dono.dash54')
+    // Hotfix 2026-10-07: a tela relia tudo em loop (centenas de req/s). Parada, lê no máximo poucas vezes.
+    let leituras = 0
+    const contar = (r) => { if (/\/api\/admin\/(whatsapp\/status|pix-online|integracoes\/meta-capi|nexta\/config)/.test(r.url())) leituras++ }
+    p.on('request', contar)
     await ir(p, '/admin/integracoes'); await p.waitForTimeout(800)
+    const base = leituras; await p.waitForTimeout(8000)
+    ok('parada por 8 s: nenhuma releitura em loop', leituras - base <= 2 && base <= 12, `${base} na carga, +${leituras - base} em 8 s`)
+    p.off('request', contar)
     ok('faixa "Sentiu falta de alguma integração?" com "+ Sugerir integração"', await p.getByTestId('faixa-sugerir').isVisible() && /Sentiu falta de alguma integração\?/.test(await p.getByTestId('faixa-sugerir').innerText()))
     const href = await p.getByTestId('sugerir-integracao').getAttribute('href')
     ok('"Sugerir integração" abre o WhatsApp do suporte com a frase', href?.startsWith('https://wa.me/5527992534407?text=') && decodeURIComponent(href.split('text=')[1]) === 'Gostaria de sugerir a integração: ', href)
