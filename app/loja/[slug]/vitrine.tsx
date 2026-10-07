@@ -49,6 +49,7 @@ import {
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { instanteDoHorario, textoAgendado, type DiaAgendamento } from '@/lib/agendamento'
+import { motivoBloqueioSacola, type ConferenciaLinha } from '@/lib/sacola-conferencia'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
@@ -2225,6 +2226,70 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [agData, setAgData] = useState('')
   const [agHora, setAgHora] = useState('')
   const agendando = Boolean(restaurante?.somenteAgendado) || (Boolean(restaurante?.podeAgendar) && agendarEscolhido)
+
+  // ── Conferência da sacola (noite 5) ───────────────────────────────────────
+  // A sacola fica guardada no aparelho por até 24 h: item pausado, esgotado, fora do dia/horário,
+  // removido ou com preço novo só aparecia no "Fazer pedido" ("Item … não está disponível"), sem
+  // saída. O servidor confere com a MESMA regra do pedido; agendado confere para o horário escolhido.
+  const [conferencia, setConferencia] = useState<Record<string, ConferenciaLinha>>({})
+  const cartAtual = useRef(cart)
+  cartAtual.current = cart
+  const rodadaConferencia = useRef(0)
+  const agendadoParaAtual = agendando && agData && agHora ? instanteDoHorario(agData, agHora) : undefined
+  const conferirSacola = useCallback(async (): Promise<ConferenciaLinha[]> => {
+    const linhas = cartAtual.current
+    if (!slug || linhas.length === 0) { setConferencia({}); return [] }
+    const rodada = ++rodadaConferencia.current
+    try {
+      const r = await fetch(`/api/loja/${slug}/sacola/conferir`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+        body: JSON.stringify({
+          agendadoPara: agendadoParaAtual,
+          itens: linhas.map((l) => ({ chave: l.key, itemId: l.itemId, complementos: l.addons.map((a) => a.nome), tamanhoNome: l.tamanhoNome, saborNome: l.saborNome, bordaNome: l.bordaNome, massaNome: l.massaNome, precoUnitario: l.unit })),
+        }),
+      })
+      if (!r.ok || rodada !== rodadaConferencia.current) return []
+      const j = (await r.json()) as { linhas: ConferenciaLinha[] }
+      const mapa = Object.fromEntries(j.linhas.map((x) => [x.chave, x]))
+      setConferencia(mapa)
+      // Preço mudou: atualiza a linha e avisa (o pedido sairia pelo preço novo de qualquer jeito).
+      const mudaram = j.linhas.filter((x) => x.ok && x.precoAnterior !== undefined && x.precoAtual !== undefined)
+      if (mudaram.length > 0) {
+        setCart((prev) => prev.map((l) => { const c = mapa[l.key]; return c?.ok && c.precoAnterior !== undefined && c.precoAtual !== undefined ? { ...l, unit: c.precoAtual } : l }))
+        const linha = linhas.find((l) => l.key === mudaram[0].chave)
+        showToast(mudaram.length === 1 && linha ? `O preço de ${nomeLimpo(linha.name)} mudou para ${brl(mudaram[0].precoAtual!)}.` : 'Alguns preços da sacola mudaram e já foram atualizados.')
+      }
+      return j.linhas
+    } catch { return [] }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, agendadoParaAtual])
+  const assinaturaSacola = cart.map((l) => `${l.key}:${l.qty}`).join('|')
+  useEffect(() => {
+    if (!cartRestaurado) return
+    const t = setTimeout(() => { void conferirSacola() }, 400)
+    return () => clearTimeout(t)
+  }, [assinaturaSacola, cartRestaurado, conferirSacola, tab])
+  const linhasIndisponiveis = cart.filter((l) => conferencia[l.key] && !conferencia[l.key].ok)
+  const bloqueioSacola = motivoBloqueioSacola(linhasIndisponiveis.length)
+  function removerLinha(key: string) { setCart((prev) => prev.filter((l) => l.key !== key)) }
+  /** Aviso com "Remover item e continuar" (revisão e passos do checkout). */
+  const avisoIndisponivel = () => linhasIndisponiveis.length === 0 ? null : (
+    <div className="mb-[10px] rounded-[8px] border border-[#F3B4AE] bg-[#FDECEC] px-[12px] py-[10px]" data-testid="revise-indisponivel">
+      <p className="text-[13px] font-semibold text-[#B42318]">
+        {linhasIndisponiveis.length === 1 ? `"${nomeLimpo(linhasIndisponiveis[0].name)}" ficou indisponível.` : `${linhasIndisponiveis.length} itens ficaram indisponíveis.`}
+      </p>
+      <p className="mt-[2px] text-[12.5px] text-[#7A271A]">{conferencia[linhasIndisponiveis[0].key]?.motivo} O resto do pedido continua.</p>
+      <button onClick={removerIndisponiveis} className="mt-[8px] w-full rounded-[8px] bg-[#B42318] px-[14px] py-[10px] text-[14px] font-semibold text-white hover:bg-[#912018]" data-testid="remover-e-continuar">
+        {linhasIndisponiveis.length === 1 ? 'Remover item e continuar' : 'Remover itens e continuar'}
+      </button>
+    </div>
+  )
+  function removerIndisponiveis() {
+    const fora = new Set(linhasIndisponiveis.map((l) => l.key))
+    setCart((prev) => prev.filter((l) => !fora.has(l.key)))
+    setCheckoutError(null)
+    if (cart.length === fora.size) { setCheckoutOpen(false); setTab('home') }
+  }
   useEffect(() => {
     if (!checkoutOpen || !restaurante?.podeAgendar) return
     let vivo = true
@@ -2566,7 +2631,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       }
       concluirPedido(data, payload)
     } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : 'Não foi possível enviar o pedido.')
+      const msg = err instanceof Error ? err.message : 'Não foi possível enviar o pedido.'
+      setCheckoutError(msg)
+      // Ficou indisponível entre a sacola e o "Fazer pedido": a conferência marca a linha e a
+      // revisão oferece "Remover item e continuar".
+      if (/disponível|outro horário|não encontrado|neste canal|opção/i.test(msg)) void conferirSacola()
     } finally {
       setSubmitting(false)
     }
@@ -2699,6 +2768,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       rastrearConversao('AddPaymentInfo', parametrosDoCarrinho(cart.map((l) => ({ itemId: l.itemId, qty: l.qty, unit: l.unit })), total), novoEventId('api'),
         { formaPagamento: PAY_MAP[payMethod] ?? undefined })
     }
+    if (bloqueioSacola) { setCheckoutError(bloqueioSacola); return }
     if (checkoutStep !== 3) { setCheckoutStep(proximaEtapa(checkoutStep)); return }
     submitOrder()
   }
@@ -2710,6 +2780,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   /** "Continuar" da sacola (celular): a sacola já é o resumo — entra na entrega. */
   function continuarDaSacola() {
+    if (bloqueioSacola) { showToast(bloqueioSacola); return }
     if (!clienteSessao) { checkoutAposLogin.current = 2; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
     setCheckoutOpen(true); setCheckoutMinStep(2); setCheckoutStep(2); setCheckoutError(null)
   }
@@ -3078,13 +3149,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       for (const a of line.addons) contagem.set(a.nome, (contagem.get(a.nome) ?? 0) + 1)
       return nomeLimpo([...contagem].map(([n, qtd]) => (qtd > 1 ? `${qtd}x ${n}` : n)).join(', '))
     })()
+    const conf = conferencia[line.key]
+    const fora = !!conf && !conf.ok
     return (
-      <div key={line.key} data-linha-sacola className={['flex items-start gap-[12px] py-[14px]', hasBorder ? 'border-b border-[#EFEFEF]' : ''].join(' ')}>
-        <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} className="h-[56px] w-[56px] flex-shrink-0 overflow-hidden rounded-[8px] border border-[#EFEFEF]">
+      <div key={line.key} data-linha-sacola data-indisponivel={fora ? 'sim' : undefined} className={['flex items-start gap-[12px] py-[14px]', hasBorder ? 'border-b border-[#EFEFEF]' : ''].join(' ')}>
+        <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} disabled={fora} className={['h-[56px] w-[56px] flex-shrink-0 overflow-hidden rounded-[8px] border border-[#EFEFEF]', fora ? 'opacity-40 grayscale' : ''].join(' ')}>
           <ProductThumb item={{ nome, imagemUrl: line.imagemUrl }} size={56} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{nome}</div>
+          <div className={`text-[14px] font-semibold leading-[18px] ${fora ? 'text-[#5C5C5C] line-through' : 'text-[#3D3D3D]'}`}>{nome}</div>
+          {fora && (
+            <div className="mt-[4px] inline-flex rounded-[6px] bg-[#FDECEC] px-[8px] py-[2px] text-[12px] font-semibold text-[#B42318]" data-testid="linha-indisponivel">
+              {conf.tipo === 'indisponivel' ? 'Indisponível no momento' : conf.motivo}
+            </div>
+          )}
           {(line.tamanhoNome || line.saborNome) && (
             <div className="mt-[2px] truncate text-[12px] leading-[16px] text-[#5C5C5C]">{nomeLimpo([line.tamanhoNome, line.saborNome].filter(Boolean).join(' · '))}</div>
           )}
@@ -3098,12 +3176,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             {original !== null && <span className="text-[12px] line-through" style={{ color: '#737373' }} data-preco-antigo>{brl(original)}</span>}
           </div>
         </div>
+        {fora ? (
+          <button onClick={() => removerLinha(line.key)} className="flex-shrink-0 rounded-[8px] border border-[#B42318] px-[12px] py-[6px] text-[13px] font-semibold text-[#B42318] hover:bg-[#FDECEC]" data-testid="remover-indisponivel">
+            Remover
+          </button>
+        ) : (
         <div className="flex flex-shrink-0 flex-col items-end gap-[8px]">
           <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} data-editar-linha className="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[var(--tema-dark)] hover:bg-[var(--tema-light)]">
             <Pencil className="h-[16px] w-[16px]" strokeWidth={2} />
           </button>
           <StepperRedondo qtd={line.qty} onMenos={() => changeLineQty(line.key, -1)} onMais={() => changeLineQty(line.key, 1)} lixeiraNoUm rotulo={nome} tamanho={30} />
         </div>
+        )}
       </div>
     )
   }
@@ -3719,8 +3803,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           Calcular taxa de entrega
                         </button>
                         )}
+                        {bloqueioSacola && <p className="mb-2 rounded-[6px] bg-[#FDECEC] px-3 py-2 text-[12.5px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}
                         <button
-                          disabled={!restaurante.lojaAberta && !restaurante.somenteAgendado}
+                          disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola}
                           onClick={() => {
                             if (!clienteSessao) { checkoutAposLogin.current = 0; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
@@ -3842,7 +3927,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {/* Desktop: a barra fixa do celular mora no rodapé (lg:hidden); aqui ela vai no fim. */}
                 <div className="hidden border-t border-[#EFEFEF] pt-[16px] lg:block">
-                  <BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={!restaurante.lojaAberta && !restaurante.somenteAgendado} />
+                  <>{bloqueioSacola && <p className="mb-[8px] rounded-[6px] bg-[#FDECEC] px-[12px] py-[8px] text-[13px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}<BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola} /></>
                 </div>
               </div>
             )}
@@ -4308,7 +4393,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         )}
         {tab === 'cart' && cart.length > 0 && (
           <div className="pointer-events-auto border-t border-[#EFEFEF] bg-white px-[16px] py-[12px] shadow-[0_-4px_20px_rgba(0,0,0,0.07)]" data-testid="barra-sacola-continuar">
-            <BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={!restaurante.lojaAberta && !restaurante.somenteAgendado} />
+            <>{bloqueioSacola && <p className="mb-[8px] rounded-[6px] bg-[#FDECEC] px-[12px] py-[8px] text-[13px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}<BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola} /></>
           </div>
         )}
         <nav
@@ -5253,14 +5338,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               tem o botão é o painel "Revise o seu pedido". */}
           {checkoutStep !== 3 && (
             <div className="sticky bottom-0 z-10 mt-auto w-full border-t border-[#EFEFEF] bg-white p-[16px] pb-[max(env(safe-area-inset-bottom),16px)] lg:pb-[16px]" data-barra-checkout>
-              {checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
+              {linhasIndisponiveis.length > 0 ? avisoIndisponivel() : checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
               <BarraTotal
                 total={brl(total)}
                 legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`}
                 economia={economia > 0 ? brl(economia) : null}
                 botao={submitting ? 'Enviando…' : checkoutStep === 1 ? 'Revisar pedido' : 'Continuar'}
                 onClick={checkoutNext}
-                desabilitado={submitting}
+                desabilitado={submitting || linhasIndisponiveis.length > 0}
               />
             </div>
           )}
@@ -5327,8 +5412,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               </div>
             </div>
             <div className="border-t border-[#EFEFEF] bg-white p-[16px] pb-[max(env(safe-area-inset-bottom),16px)]" data-barra-checkout>
-              {checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
-              <button onClick={checkoutNext} disabled={submitting} className="flex w-full items-center justify-center rounded-[8px] bg-[#0B7A3E] px-[20px] py-[14px] text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-[#096634] active:scale-[0.98] disabled:opacity-60" data-testid="fazer-pedido">
+              {linhasIndisponiveis.length > 0 ? avisoIndisponivel() : checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
+              <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0} className="flex w-full items-center justify-center rounded-[8px] bg-[#0B7A3E] px-[20px] py-[14px] text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-[#096634] active:scale-[0.98] disabled:opacity-60" data-testid="fazer-pedido">
                 {submitting ? 'Enviando…' : 'Fazer pedido'}
               </button>
               <button onClick={checkoutBack} disabled={submitting} className="mt-[8px] w-full py-[10px] text-[14px] font-semibold text-[var(--tema-dark)]" data-testid="alterar-pedido">Alterar pedido</button>

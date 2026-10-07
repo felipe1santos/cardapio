@@ -1200,83 +1200,19 @@ export interface OpcoesCriarPedido {
   gravar?: (totais: { subtotal: number; total: number; clienteNome: string }, linhas: LinhaPedidoGravada[]) => Promise<{ id: string; numero: number }>
 }
 
-export async function criarPedido(
+/**
+ * Confere e precifica as linhas do pedido (item existe e está disponível no dia/horário/canal,
+ * tamanho, sabores, opções e preço). Usada pelo criarPedido e pela conferência da sacola da
+ * vitrine (sacola guardada com item pausado/esgotado/fora do horário ou com preço mudado):
+ * a mesma regra nos dois lugares. Lança Error com a mensagem para o cliente.
+ */
+export async function precificarLinhas(
   admin: SupabaseClient,
   restauranteId: string,
-  input: NovoPedidoInput,
-  opcoes: OpcoesCriarPedido = {},
-): Promise<{ id: string; numero: number }> {
-  if (input.itens.length === 0) throw new Error('Pedido sem itens')
-  // Quantidade fora da faixa virava NaN ou estourava o int de pedido_itens depois de o
-  // pedido já existir (pedido sem itens na cozinha). Mesmo teto da rota pública.
-  if (input.itens.some((l) => !Number.isFinite(l.quantidade) || l.quantidade < 1 || l.quantidade > 999)) {
-    throw new Error('Quantidade por item deve ser de 1 a 999.')
-  }
-  if (input.cupomCodigo && input.recompensaId) throw new Error('Use apenas um cupom ou prêmio por pedido.')
-  // Cupom e prêmio reservam uso antes do insert e devolvem se ele falhar — lógica que
-  // vive no caminho de gravação padrão. Conta presencial não usa nenhum dos dois.
-  if (opcoes.gravar && (input.cupomCodigo || input.recompensaId)) throw new Error('Cupom e prêmio não valem em conta presencial.')
-  // Telefone é como a loja fala com o cliente e como ele volta à própria conta.
-  // Número com dígito sobrando entrava e ficava gravado assim para sempre: a
-  // confirmação ia para um número que não existe e ele nunca mais se reconhecia.
-  {
-    const motivo = motivoTelefoneDoPedido(input.cliente.telefone, input.origem)
-    if (motivo) throw new Error(motivo)
-  }
-
-  const { data: lojaRow, error: lojaError } = await admin
-    .from('restaurantes')
-    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min')
-    .eq('id', restauranteId)
-    .single()
-  if (lojaError) throw lojaError
-
-  const canal = canalDoPedido(input)
-  const lojaAberta = lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })
-
-  // Agendamento (0121): só a vitrine agenda. Tudo conferido aqui de novo — a tela só
-  // mostra os horários válidos, mas um POST direto não pode escolher outro.
-  let agendadoPara: string | null = null
-  if (input.agendadoPara) {
-    if (input.origem === 'pdv' || canal === 'mesa') throw new Error('Agendamento só vale para pedidos da vitrine.')
-    const config = configAgendamento(lojaRow as unknown as Record<string, unknown>)
-    const t = new Date(input.agendadoPara)
-    let ocupacao = new Map<string, number>()
-    if (config.limite !== null && !Number.isNaN(t.getTime())) {
-      const { count } = await admin
-        .from('pedidos')
-        .select('id', { count: 'exact', head: true })
-        .eq('restaurante_id', restauranteId)
-        .eq('agendado_para', t.toISOString())
-        .neq('status', 'cancelado')
-      ocupacao = new Map([[t.toISOString(), count ?? 0]])
-    }
-    const motivo = motivoAgendamentoInvalido(config, lojaRow.horario_funcionamento ?? null, input.agendadoPara, input.tipo, lojaAberta, new Date(), ocupacao)
-    if (motivo) throw new Error(motivo)
-    agendadoPara = t.toISOString()
-  }
-  // Referência de horário dos itens: a hora agendada (o cliente come às 19h, não agora).
-  const referenciaItens = agendadoPara ? new Date(agendadoPara) : undefined
-
-  // Horário de funcionamento é regra de VITRINE: é o que impede o cliente de pedir de
-  // casa às 4h. Mesa é atendimento presencial lançado por funcionário autenticado que
-  // está dentro da loja — se a loja pausou o delivery, o salão continua servindo.
-  // O balcão (PDV) fica como sempre esteve, para não mudar o comportamento de quem já usa.
-  if (canal !== 'mesa' && !lojaAberta && !agendadoPara) {
-    throw new Error('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
-  }
-  // Canal server-authoritative: a vitrine já esconde o que a loja desligou, mas
-  // uma aba aberta antes da mudança (ou um POST direto) não pode furar a regra.
-  // O PDV é balcão e fica de fora — ele registra o que aconteceu na loja física.
-  if (input.origem !== 'pdv') {
-    if (input.tipo === 'entrega' && (lojaRow.aceita_entrega ?? true) === false) {
-      throw new Error('A loja não está aceitando pedidos para entrega no momento.')
-    }
-    if (input.tipo === 'retirada' && (lojaRow.aceita_retirada ?? false) === false) {
-      throw new Error('A loja não está aceitando pedidos para retirada no momento.')
-    }
-  }
-
+  input: Pick<NovoPedidoInput, 'itens' | 'origem'>,
+  ctx: { referenciaItens?: Date; canal: ReturnType<typeof canalDoPedido>; pizzaCalculoPreco: string | null | undefined },
+) {
+  const { referenciaItens, canal } = ctx
   const itemIds = [...new Set(input.itens.map((i) => i.itemId))]
   const { data: itensDb, error: itensError } = await admin
     .from('itens_cardapio')
@@ -1297,7 +1233,7 @@ export async function criarPedido(
   const byId = new Map((itensDb ?? []).map((i) => [i.id, i]))
 
   const precisaCatalogoPizza = (itensDb ?? []).some((i) => i.tipo_item === 'pizza')
-  const regraPizza: RegraPrecoPizza = lojaRow.pizza_calculo_preco === 'maior' ? 'maior' : 'media'
+  const regraPizza: RegraPrecoPizza = ctx.pizzaCalculoPreco === 'maior' ? 'maior' : 'media'
   let tamanhosPizza: TamanhoCatalogo[] = []
   let bordasPizza: { nome: string; preco: number }[] = []
   let massasPizza: { nome: string; preco: number }[] = []
@@ -1316,7 +1252,7 @@ export async function criarPedido(
     massasPizza = (massasRes.data ?? []).map((m) => ({ nome: m.nome, preco: Number(m.preco) }))
   }
 
-  const linhas = input.itens.map((linha) => {
+  return input.itens.map((linha) => {
     const item = byId.get(linha.itemId)
     if (!item) throw new Error(`Item ${linha.itemId} não encontrado nesta loja`)
     if (item.status !== 'disponivel') throw new Error(`Item "${item.nome}" não está disponível`)
@@ -1445,6 +1381,86 @@ export async function criarPedido(
       massa_nome: massaNome,
     }
   })
+}
+
+export async function criarPedido(
+  admin: SupabaseClient,
+  restauranteId: string,
+  input: NovoPedidoInput,
+  opcoes: OpcoesCriarPedido = {},
+): Promise<{ id: string; numero: number }> {
+  if (input.itens.length === 0) throw new Error('Pedido sem itens')
+  // Quantidade fora da faixa virava NaN ou estourava o int de pedido_itens depois de o
+  // pedido já existir (pedido sem itens na cozinha). Mesmo teto da rota pública.
+  if (input.itens.some((l) => !Number.isFinite(l.quantidade) || l.quantidade < 1 || l.quantidade > 999)) {
+    throw new Error('Quantidade por item deve ser de 1 a 999.')
+  }
+  if (input.cupomCodigo && input.recompensaId) throw new Error('Use apenas um cupom ou prêmio por pedido.')
+  // Cupom e prêmio reservam uso antes do insert e devolvem se ele falhar — lógica que
+  // vive no caminho de gravação padrão. Conta presencial não usa nenhum dos dois.
+  if (opcoes.gravar && (input.cupomCodigo || input.recompensaId)) throw new Error('Cupom e prêmio não valem em conta presencial.')
+  // Telefone é como a loja fala com o cliente e como ele volta à própria conta.
+  // Número com dígito sobrando entrava e ficava gravado assim para sempre: a
+  // confirmação ia para um número que não existe e ele nunca mais se reconhecia.
+  {
+    const motivo = motivoTelefoneDoPedido(input.cliente.telefone, input.origem)
+    if (motivo) throw new Error(motivo)
+  }
+
+  const { data: lojaRow, error: lojaError } = await admin
+    .from('restaurantes')
+    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min')
+    .eq('id', restauranteId)
+    .single()
+  if (lojaError) throw lojaError
+
+  const canal = canalDoPedido(input)
+  const lojaAberta = lojaEstaAberta({ statusLoja: lojaRow.status_loja ?? 'automatico', horarioFuncionamento: lojaRow.horario_funcionamento ?? null })
+
+  // Agendamento (0121): só a vitrine agenda. Tudo conferido aqui de novo — a tela só
+  // mostra os horários válidos, mas um POST direto não pode escolher outro.
+  let agendadoPara: string | null = null
+  if (input.agendadoPara) {
+    if (input.origem === 'pdv' || canal === 'mesa') throw new Error('Agendamento só vale para pedidos da vitrine.')
+    const config = configAgendamento(lojaRow as unknown as Record<string, unknown>)
+    const t = new Date(input.agendadoPara)
+    let ocupacao = new Map<string, number>()
+    if (config.limite !== null && !Number.isNaN(t.getTime())) {
+      const { count } = await admin
+        .from('pedidos')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurante_id', restauranteId)
+        .eq('agendado_para', t.toISOString())
+        .neq('status', 'cancelado')
+      ocupacao = new Map([[t.toISOString(), count ?? 0]])
+    }
+    const motivo = motivoAgendamentoInvalido(config, lojaRow.horario_funcionamento ?? null, input.agendadoPara, input.tipo, lojaAberta, new Date(), ocupacao)
+    if (motivo) throw new Error(motivo)
+    agendadoPara = t.toISOString()
+  }
+  // Referência de horário dos itens: a hora agendada (o cliente come às 19h, não agora).
+  const referenciaItens = agendadoPara ? new Date(agendadoPara) : undefined
+
+  // Horário de funcionamento é regra de VITRINE: é o que impede o cliente de pedir de
+  // casa às 4h. Mesa é atendimento presencial lançado por funcionário autenticado que
+  // está dentro da loja — se a loja pausou o delivery, o salão continua servindo.
+  // O balcão (PDV) fica como sempre esteve, para não mudar o comportamento de quem já usa.
+  if (canal !== 'mesa' && !lojaAberta && !agendadoPara) {
+    throw new Error('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
+  }
+  // Canal server-authoritative: a vitrine já esconde o que a loja desligou, mas
+  // uma aba aberta antes da mudança (ou um POST direto) não pode furar a regra.
+  // O PDV é balcão e fica de fora — ele registra o que aconteceu na loja física.
+  if (input.origem !== 'pdv') {
+    if (input.tipo === 'entrega' && (lojaRow.aceita_entrega ?? true) === false) {
+      throw new Error('A loja não está aceitando pedidos para entrega no momento.')
+    }
+    if (input.tipo === 'retirada' && (lojaRow.aceita_retirada ?? false) === false) {
+      throw new Error('A loja não está aceitando pedidos para retirada no momento.')
+    }
+  }
+
+  const linhas = await precificarLinhas(admin, restauranteId, input, { referenciaItens, canal, pizzaCalculoPreco: lojaRow.pizza_calculo_preco })
 
   // 3 × 19,90 em ponto flutuante dá 59,699999…: "frete grátis acima de R$ 59,70" e o
   // mínimo do cupom falhavam por um centavo que não existe.

@@ -44,6 +44,7 @@ import {
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { instanteDoHorario, textoAgendado, type DiaAgendamento } from '@/lib/agendamento'
+import { motivoBloqueioSacola, type ConferenciaLinha } from '@/lib/sacola-conferencia'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
@@ -2199,6 +2200,58 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [agData, setAgData] = useState('')
   const [agHora, setAgHora] = useState('')
   const agendando = Boolean(restaurante?.somenteAgendado) || (Boolean(restaurante?.podeAgendar) && agendarEscolhido)
+
+  // ── Conferência da sacola (noite 5) ───────────────────────────────────────
+  // A sacola fica guardada no aparelho por até 24 h: item pausado, esgotado, fora do dia/horário,
+  // removido ou com preço novo só aparecia no "Fazer pedido" ("Item … não está disponível"), sem
+  // saída. O servidor confere com a MESMA regra do pedido; agendado confere para o horário escolhido.
+  const [conferencia, setConferencia] = useState<Record<string, ConferenciaLinha>>({})
+  const cartAtual = useRef(cart)
+  cartAtual.current = cart
+  const rodadaConferencia = useRef(0)
+  const agendadoParaAtual = agendando && agData && agHora ? instanteDoHorario(agData, agHora) : undefined
+  const conferirSacola = useCallback(async (): Promise<ConferenciaLinha[]> => {
+    const linhas = cartAtual.current
+    if (!slug || linhas.length === 0) { setConferencia({}); return [] }
+    const rodada = ++rodadaConferencia.current
+    try {
+      const r = await fetch(`/api/loja/${slug}/sacola/conferir`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+        body: JSON.stringify({
+          agendadoPara: agendadoParaAtual,
+          itens: linhas.map((l) => ({ chave: l.key, itemId: l.itemId, complementos: l.addons.map((a) => a.nome), tamanhoNome: l.tamanhoNome, saborNome: l.saborNome, bordaNome: l.bordaNome, massaNome: l.massaNome, precoUnitario: l.unit })),
+        }),
+      })
+      if (!r.ok || rodada !== rodadaConferencia.current) return []
+      const j = (await r.json()) as { linhas: ConferenciaLinha[] }
+      const mapa = Object.fromEntries(j.linhas.map((x) => [x.chave, x]))
+      setConferencia(mapa)
+      // Preço mudou: atualiza a linha e avisa (o pedido sairia pelo preço novo de qualquer jeito).
+      const mudaram = j.linhas.filter((x) => x.ok && x.precoAnterior !== undefined && x.precoAtual !== undefined)
+      if (mudaram.length > 0) {
+        setCart((prev) => prev.map((l) => { const c = mapa[l.key]; return c?.ok && c.precoAnterior !== undefined && c.precoAtual !== undefined ? { ...l, unit: c.precoAtual } : l }))
+        const linha = linhas.find((l) => l.key === mudaram[0].chave)
+        showToast(mudaram.length === 1 && linha ? `O preço de ${nomeLimpo(linha.name)} mudou para ${brl(mudaram[0].precoAtual!)}.` : 'Alguns preços da sacola mudaram e já foram atualizados.')
+      }
+      return j.linhas
+    } catch { return [] }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, agendadoParaAtual])
+  const assinaturaSacola = cart.map((l) => `${l.key}:${l.qty}`).join('|')
+  useEffect(() => {
+    if (!cartRestaurado) return
+    const t = setTimeout(() => { void conferirSacola() }, 400)
+    return () => clearTimeout(t)
+  }, [assinaturaSacola, cartRestaurado, conferirSacola, tab])
+  const linhasIndisponiveis = cart.filter((l) => conferencia[l.key] && !conferencia[l.key].ok)
+  const bloqueioSacola = motivoBloqueioSacola(linhasIndisponiveis.length)
+  function removerLinha(key: string) { setCart((prev) => prev.filter((l) => l.key !== key)) }
+  function removerIndisponiveis() {
+    const fora = new Set(linhasIndisponiveis.map((l) => l.key))
+    setCart((prev) => prev.filter((l) => !fora.has(l.key)))
+    setCheckoutError(null)
+    if (cart.length === fora.size) { setCheckoutOpen(false); setTab('home') }
+  }
   useEffect(() => {
     if (!checkoutOpen || !restaurante?.podeAgendar) return
     let vivo = true
@@ -2533,7 +2586,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       }
       concluirPedido(data, payload)
     } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : 'Não foi possível enviar o pedido.')
+      const msg = err instanceof Error ? err.message : 'Não foi possível enviar o pedido.'
+      setCheckoutError(msg)
+      if (/disponível|outro horário|não encontrado|neste canal|opção/i.test(msg)) void conferirSacola()
     } finally {
       setSubmitting(false)
     }
@@ -2665,6 +2720,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       rastrearConversao('AddPaymentInfo', parametrosDoCarrinho(cart.map((l) => ({ itemId: l.itemId, qty: l.qty, unit: l.unit })), total), novoEventId('api'),
         { formaPagamento: PAY_MAP[payMethod] ?? undefined })
     }
+    if (bloqueioSacola) { setCheckoutError(bloqueioSacola); return }
     if (checkoutStep < 3) { setCheckoutStep((s) => (s + 1) as CheckoutStep); return }
     submitOrder()
   }
@@ -2945,17 +3001,25 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }
 
   /** Linha do carrinho — clicável pra editar (complementos, observação, quantidade). */
-  const renderCartLine = (line: CartLine, hasBorder: boolean) => (
-    <div key={line.key} className={['flex items-start gap-3 p-3.5', hasBorder ? 'border-b border-border' : ''].join(' ')}>
-      <button onClick={() => editCartLine(line)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-label={`Editar ${nomeLimpo(line.name)}`}>
+  const renderCartLine = (line: CartLine, hasBorder: boolean) => {
+    const conf = conferencia[line.key]
+    const fora = !!conf && !conf.ok
+    return (
+    <div key={line.key} data-linha-sacola data-indisponivel={fora ? 'sim' : undefined} className={['flex items-start gap-3 p-3.5', hasBorder ? 'border-b border-border' : ''].join(' ')}>
+      <button onClick={() => editCartLine(line)} disabled={fora} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-label={`Editar ${nomeLimpo(line.name)}`}>
         <div className="h-[84px] w-[84px] flex-shrink-0 overflow-hidden rounded-md border border-border">
           <ProductThumb item={{ nome: nomeLimpo(line.name), imagemUrl: line.imagemUrl }} size={84} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-1.5">
-            <span className="min-w-0 text-[15px] font-bold leading-snug">{nomeLimpo(line.name)}</span>
-            <Pencil className="mt-0.5 h-3 w-3 flex-shrink-0 text-text-subtle/60" strokeWidth={2} />
+            <span className={`min-w-0 text-[15px] font-bold leading-snug ${fora ? 'text-text-subtle line-through' : ''}`}>{nomeLimpo(line.name)}</span>
+            {!fora && <Pencil className="mt-0.5 h-3 w-3 flex-shrink-0 text-text-subtle/60" strokeWidth={2} />}
           </div>
+          {fora && (
+            <div className="mt-1 inline-flex rounded bg-[#FDECEC] px-2 py-0.5 text-[12px] font-semibold text-[#B42318]" data-testid="linha-indisponivel">
+              {conf.tipo === 'indisponivel' ? 'Indisponível no momento' : conf.motivo}
+            </div>
+          )}
           {(line.tamanhoNome || line.saborNome) && (
             <div className="mt-0.5 truncate text-[12.5px] font-medium text-text-subtle">
               {nomeLimpo([line.tamanhoNome, line.saborNome].filter(Boolean).join(' · '))}
@@ -2980,13 +3044,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           <div className={[originalDaLinha(line) !== null ? 'mt-0' : 'mt-1.5', 'text-[15px] font-bold text-promo'].join(' ')}>{brl(line.unit * line.qty)}</div>
         </div>
       </button>
+      {fora ? (
+        <button onClick={() => removerLinha(line.key)} className="flex-shrink-0 rounded-md border border-[#B42318] px-3 py-2 text-[13px] font-semibold text-[#B42318] hover:bg-[#FDECEC]" data-testid="remover-indisponivel">Remover</button>
+      ) : (
       <div className="flex flex-shrink-0 items-center rounded-md border border-border bg-white">
         <button onClick={() => changeLineQty(line.key, -1)} className="flex h-[38px] w-[38px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">−</button>
         <span className="w-[28px] text-center text-[14px] font-bold">{line.qty}</span>
         <button onClick={() => changeLineQty(line.key, 1)} className="flex h-[38px] w-[38px] items-center justify-center text-xl font-semibold text-[var(--tema-primaria)] hover:bg-[#F3F4F6] active:bg-border">+</button>
       </div>
+      )}
     </div>
-  )
+    )
+  }
 
   // ── Erro ───────────────────────────────────────────────────────────────────
   // Não há mais tela de "carregando" cobrindo tudo: o restaurante chega pronto do
@@ -3596,7 +3665,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         </button>
                         )}
                         <button
-                          disabled={!restaurante.lojaAberta && !restaurante.somenteAgendado}
+                          disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola}
                           onClick={() => {
                             if (!clienteSessao) { checkoutAposLogin.current = 0; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
@@ -3604,7 +3673,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           }}
                           className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-4 py-3.5 text-[14px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <span>Continuar para pagamento</span>
+                          <span>{bloqueioSacola ? 'Remova o item indisponível' : 'Continuar para pagamento'}</span>
                           <span>{brl(total)}</span>
                         </button>
                       </div>
@@ -3742,7 +3811,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     Continuar comprando
                   </button>
                   <button
-                    disabled={!restaurante.lojaAberta && !restaurante.somenteAgendado}
+                    disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola}
                     onClick={() => {
                       if (!clienteSessao) { checkoutAposLogin.current = 1; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                       // Mobile: a aba carrinho já é o resumo — entra direto no pagamento.
@@ -3750,7 +3819,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     }}
                     className="mt-2.5 flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span>Continuar para pagamento</span>
+                    <span>{bloqueioSacola ? 'Remova o item indisponível' : 'Continuar para pagamento'}</span>
                     <span>{brl(total)}</span>
                   </button>
                 </div>
@@ -5209,8 +5278,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               branco embaixo e cobria os campos — e a mensagem de erro, que cresce a barra,
               ficava por cima do conteúdo (o espaço reservado era fixo). */}
           <div className="sticky bottom-0 z-10 mt-auto w-full border-t border-border bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:pb-4">
-            {checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
-            <button onClick={checkoutNext} disabled={submitting}
+            {linhasIndisponiveis.length > 0 ? (
+              <div className="mb-2.5 rounded-md border border-[#F3B4AE] bg-[#FDECEC] px-3 py-2.5" data-testid="revise-indisponivel">
+                <p className="text-[13px] font-semibold text-[#B42318]">
+                  {linhasIndisponiveis.length === 1 ? `"${nomeLimpo(linhasIndisponiveis[0].name)}" ficou indisponível.` : `${linhasIndisponiveis.length} itens ficaram indisponíveis.`}
+                </p>
+                <p className="mt-0.5 text-[12.5px] text-[#7A271A]">{conferencia[linhasIndisponiveis[0].key]?.motivo} O resto do pedido continua.</p>
+                <button onClick={removerIndisponiveis} className="mt-2 w-full rounded-md bg-[#B42318] px-3.5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#912018]" data-testid="remover-e-continuar">
+                  {linhasIndisponiveis.length === 1 ? 'Remover item e continuar' : 'Remover itens e continuar'}
+                </button>
+              </div>
+            ) : checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
+            <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0}
               // Padrão do Revisar pedido em todas as etapas: verde, largo, valor à direita (2026-10-01).
               className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-bold text-white shadow-sm transition-all hover:bg-[#15803D] disabled:opacity-60 active:scale-[0.98]">
               <span>{submitting ? 'Enviando…' : checkoutStep === 0 ? 'Ir para pagamento' : checkoutStep === 1 ? (tipoPedido === 'retirada' ? 'Continuar' : 'Ir para endereço') : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>
