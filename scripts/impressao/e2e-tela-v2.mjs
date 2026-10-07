@@ -162,6 +162,33 @@ try {
   const ped = await agente('/api/agente/pedidos')
   ok('a impressão segue a função: comanda na impressora da Cozinha', ped.json?.destinoCozinha?.nomeSistema === 'POS-80C', JSON.stringify(ped.json?.destinoCozinha))
   ok('Comanda de entrega chega ao Assistente (mesmo computador)', ped.json?.destinoEntrega?.nomeSistema === 'POS-80C', JSON.stringify(ped.json?.destinoEntrega))
+
+  secao('item 59: QR certo em cada comanda (fila do Assistente)')
+  {
+    await db.query("update restaurantes set impressao_qr = true where id = $1", [L])
+    const novo = (tipo) => um(`insert into pedidos (restaurante_id, tipo, status, subtotal, total, cliente_nome, cliente_telefone, forma_pagamento, canal, origem, observacao, endereco_rua, endereco_numero, endereco_bairro, criado_em)
+      values ($1,$2,'preparando',30,30,'TESTE 59 QR','27999990059','pix','delivery','cardapio','','Rua Teste 59','1','Centro', now()) returning id`, [L, tipo])
+    const pe = await novo('entrega'), pr = await novo('retirada')
+    // A fila só leva pedido com item.
+    for (const x of [pe, pr]) await db.query("insert into pedido_itens (pedido_id, nome, preco_unitario, quantidade) values ($1, 'TESTE item 59', 30, 1)", [x.id])
+    let fila = null
+    for (let i = 0; i < 6 && !(fila?.qrPorPedido?.[pe.id]); i++) { fila = (await agente('/api/agente/pedidos')).json?.cozinhaBeta ?? null; if (!fila?.qrPorPedido?.[pe.id]) await new Promise((r) => setTimeout(r, 800)) }
+    const qe = fila?.qrPorPedido?.[pe.id], qrr = fila?.qrPorPedido?.[pr.id]
+    ok('ENTREGA: QR da rota (/r/<código>, sem dado pessoal) com "Entregador: leia no app Menuzia"', qe?.origem === 'rota' && /\/r\/[A-Za-z0-9_-]{35}$/.test(qe?.url ?? '') && qe?.frase === 'Entregador: leia no app Menuzia' && !/TESTE|2799/.test(qe?.url ?? ''), JSON.stringify(qe && { ...qe, linhas: undefined }))
+    ok('RETIRADA: QR do cardápio com "Peça de novo pelo nosso cardápio"', qrr?.origem === 'cardapio' && /\/loja\/cantina-demo$/.test(qrr?.url ?? '') && qrr?.frase === 'Peça de novo pelo nosso cardápio', JSON.stringify(qrr && { ...qrr, linhas: undefined }))
+    ok('Assistente beta.9 segue com o QR de sempre (campo antigo intacto)', !!fila?.qr && ['instagram', 'cardapio'].includes(fila.qr.origem), JSON.stringify(fila?.qr?.origem))
+    if (qe) {
+      const r = await fetch(`${BASE}${new URL(qe.url).pathname}`, { redirect: 'manual' })
+      ok('QR da entrega lido por uma câmera comum → cardápio da loja', r.status === 302 && new URL(r.headers.get('location')).pathname === '/loja/cantina-demo', `${r.status} ${r.headers.get('location')}`)
+    }
+    await db.query("update restaurantes set impressao_qr = false where id = $1", [L])
+    const semQr = (await agente('/api/agente/pedidos')).json?.cozinhaBeta
+    if (semQr?.qrPorPedido) ok('QR do cardápio desligado: retirada sem QR, entrega mantém o QR da rota', !semQr.qrPorPedido[pr.id] && (semQr.qrPorPedido[pe.id]?.origem === 'rota' || !(pe.id in semQr.qrPorPedido)), JSON.stringify(Object.keys(semQr.qrPorPedido)))
+    await db.query("update restaurantes set impressao_qr = true where id = $1", [L])
+    await db.query("update pedidos set status = 'cancelado' where id = any($1::uuid[])", [[pe.id, pr.id]])
+    const pv = (await api('/api/admin/impressao/previa')).json
+    ok('prévia: QR da rota para a entrega e do cardápio para retirada/balcão/mesa', pv?.qrRota?.origem === 'rota' && pv?.qrCardapio?.origem === 'cardapio' && ['instagram', 'cardapio'].includes(pv?.qr?.origem), JSON.stringify({ r: pv?.qrRota?.origem, c: pv?.qrCardapio?.origem, q: pv?.qr?.origem }))
+  }
   const res = await api('/api/admin/impressao/resumo')
   ok('apelido no resto do sistema: topo diz "Cozinha: Cozinha principal"', res.json?.beta && res.json.cozinha === 'Cozinha principal' && res.json.online, JSON.stringify(res.json))
   await abrir()
@@ -173,6 +200,11 @@ try {
   secao('Testar impressão')
   await p.getByTestId('testar-impressao').click()
   await p.getByTestId('modal-teste').waitFor({ timeout: 8000 })
+  const linhasTeste = await p.getByTestId('modal-teste').locator('[data-testid^="linha-teste-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')))
+  ok('modal só com "Testar cozinha" e "Testar pré-conta"', linhasTeste.join(',') === 'linha-teste-cozinha,linha-teste-recibo', linhasTeste.join(','))
+  const txtTeste = await p.getByTestId('modal-teste').innerText()
+  ok('modal com os títulos certos e "Imprimir teste"', /Testar cozinha/.test(txtTeste) && /Testar pré-conta/.test(txtTeste) && (txtTeste.match(/Imprimir teste/g) ?? []).length === 2)
+  ok('nada de calibração, largura ou envio no modal (só em Avançado)', !/calibr|largura|envio/i.test(txtTeste), txtTeste.slice(0, 200))
   await p.getByTestId('linha-teste-cozinha').getByRole('button', { name: /Imprimir|Testar|Enviar/ }).first().click()
   await p.waitForTimeout(1500)
   const tr = await um("select count(*)::int n from impressao_trabalhos where restaurante_id=$1 and dispositivo_id=$2 and tipo='teste_impressora'", [L, dPos])
@@ -216,7 +248,9 @@ try {
   await p.waitForTimeout(800)
   ok('switch grava no banco', (await um('select impressao_qr q from restaurantes where id=$1', [L])).q === false)
   const h2 = await alturaPrevia()
-  ok('e a prévia muda (sem o QR, papel mais curto)', h2 < h1, `${h1} → ${h2}`)
+  // Item 59: a comanda de ENTREGA (a da prévia) leva o QR da rota, que é operacional e não
+  // depende do QR do cardápio — o papel não muda. A retirada perde o QR (conferido na fila acima).
+  ok('comanda de entrega mantém o QR da rota com o QR do cardápio desligado', h2 === h1, `${h1} → ${h2}`)
   await p.getByTestId('opcao-qr').click()
   await p.waitForTimeout(600)
 
@@ -242,7 +276,7 @@ try {
     const u = await p.getByTestId('modal-previa-canvas').evaluate((c) => c.toDataURL('image/png'))
     writeFileSync(join(PRINTS, 'modal-comanda.png'), Buffer.from(u.split(',')[1], 'base64'))
     const d0 = pedidoDemonstracao('entrega')
-    const docT = montarComandaV3(d0.pedido, { config: cfg, lojaNome: dados.json.loja.nome, loja: dados.json.loja, extras: d0.extras, qr: cfg.qr === false ? null : dados.json.qr, via: 'cliente' })
+    const docT = montarComandaV3(d0.pedido, { config: cfg, lojaNome: dados.json.loja.nome, loja: dados.json.loja, extras: d0.extras, qr: dados.json.qrRota, via: 'cliente' })
     await renderizarTicket(docT, { larguraMm: 80, logo: null, imprimirLogo: cfg.imprimirLogo !== false, saida: join(PRINTS, 'ref-comanda.png') })
     const d = await dif1bit(join(PRINTS, 'modal-comanda.png'), join(PRINTS, 'ref-comanda.png'))
     ok('prévia = desenho do Assistente (renderizador real)', d.mesmo, d.txt)

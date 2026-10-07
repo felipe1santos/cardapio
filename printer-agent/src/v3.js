@@ -100,7 +100,9 @@ function arroba(url) {
 function blocosDoRodape(b, qrBruto, teste) {
   const qr = qrBruto && Array.isArray(qrBruto.linhas) && qrBruto.linhas.length >= 21 ? qrBruto : null
   const insta = qr && qr.origem === 'instagram' ? arroba(qr.url) : ''
-  const frase = insta ? `Siga a gente no Instagram ${insta}` : qr ? 'Peça de novo pelo nosso cardápio' : ''
+  // Item 59 (beta.10): a legenda pode vir do servidor (QR da rota: "Entregador: leia no app Menuzia").
+  const frase = qr && typeof qr.frase === 'string' && qr.frase.trim() ? qr.frase.trim().slice(0, 60)
+    : insta ? `Siga a gente no Instagram ${insta}` : qr ? 'Peça de novo pelo nosso cardápio' : ''
   b.push({ t: 'tracejado', antes: 'rodape' })
   b.push({
     t: 'rodape',

@@ -295,7 +295,8 @@ async function cicloDePolling() {
           // Beta: comanda no modelo oficial v3 (v3.js, desenhada pelo ticket-canvas.js), com o
           // desconto/horários, o QR e os dados da loja que o servidor manda só para o Beta.
           const beta = data.cozinhaBeta || {}
-          const opcoesV3 = { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: beta.qr }
+          // Item 59 (beta.10): QR por pedido — entrega = QR da rota; retirada/balcão/mesa = cardápio.
+          const opcoesV3 = { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: (beta.qrPorPedido && beta.qrPorPedido[pedido.id]) || beta.qr }
           const doc = montarComandaV3(pedido, opcoesV3)
           // Pedido aguardando pagamento (Pix online) nunca imprime — nem chega na fila; aqui
           // é a segunda trava. Não avisa "impresso": sai quando o pagamento for confirmado.

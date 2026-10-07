@@ -10,6 +10,9 @@ import { notificarPedido } from '@/lib/whatsapp'
 import { processarFidelidadePedidoEntregue, reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 import { aplicarEfeitosStatusPedidoComTrava } from '@/lib/pedido-eventos'
 import { mensagemDeErroConta } from '@/lib/conta'
+import { registrarAuditoria } from '@/lib/auditoria'
+import { lerEntradaDoQr } from '@/lib/motoboy/qr-rota'
+import { enderecoCompletoPedido } from '@/lib/queries/pedidos'
 
 /**
  * Motoboy (Fase 3, 0136): o MESMO serviço atende o link/QR antigo (token) e o app com login. Quem
@@ -59,13 +62,28 @@ export async function dadosDoPortal(admin: SupabaseClient, e: EntregadorPortal) 
   const loja = await buscarLojaNoMapa(admin, e.restauranteId).catch(() => null)
   const disponiveis = despachoAberto ? await listarPedidosDisponiveisDespacho(admin, e.restauranteId) : []
   const saiu = pedidos.length
-    ? ((await admin.from('pedidos').select('id, saiu_para_entrega_em').in('id', pedidos.map((p) => p.id))).data ?? [])
+    ? ((await admin.from('pedidos').select('id, saiu_para_entrega_em, entrega_latitude, entrega_longitude').in('id', pedidos.map((p) => p.id))).data ?? [])
     : []
-  const saiuEm = new Map(saiu.map((s) => [s.id as string, (s.saiu_para_entrega_em as string | null) ?? null]))
+  const saiuEm = new Map(saiu.map((s) => [s.id as string, s as { saiu_para_entrega_em: string | null; entrega_latitude: number | null; entrega_longitude: number | null }]))
+  // Item 59 (tela inicial nova): logo da loja, foto e situação do motoboy.
+  const [{ data: rest }, { data: ent }] = await Promise.all([
+    admin.from('restaurantes').select('logo_url').eq('id', e.restauranteId).maybeSingle(),
+    admin.from('entregadores').select('foto_url, status').eq('id', e.id).maybeSingle(),
+  ])
   return {
-    entregador: { nome: e.nome, restauranteNome: e.restauranteNome },
+    entregador: {
+      nome: e.nome, restauranteNome: e.restauranteNome,
+      logoUrl: ((rest as { logo_url?: string | null } | null)?.logo_url) ?? null,
+      fotoUrl: ((ent as { foto_url?: string | null } | null)?.foto_url) ?? null,
+      status: ((ent as { status?: string } | null)?.status) ?? 'online',
+    },
     loja,
-    pedidos: pedidos.map((p) => ({ ...p, saiuParaEntregaEm: saiuEm.get(p.id) ?? null })),
+    pedidos: pedidos.map((p) => {
+      const s = saiuEm.get(p.id)
+      const lat = s?.entrega_latitude === null || s?.entrega_latitude === undefined ? null : Number(s.entrega_latitude)
+      const lng = s?.entrega_longitude === null || s?.entrega_longitude === undefined ? null : Number(s.entrega_longitude)
+      return { ...p, saiuParaEntregaEm: s?.saiu_para_entrega_em ?? null, coordenadas: lat !== null && lng !== null ? { lat, lng } : null }
+    }),
     disponiveis,
     despachoAberto,
     concluidosHoje,
@@ -83,6 +101,43 @@ export async function heartbeat(admin: SupabaseClient, e: EntregadorPortal, corp
 
 const nomeDoMotoboy = (e: EntregadorPortal) => `Motoboy ${e.nome}`.slice(0, 120)
 
+/**
+ * Item 59 — o motoboy leu o QR da comanda (ou digitou o número). Diz o que pode acontecer, sem
+ * mudar nada: "pegar" (pronto, sem motoboy, despacho aberto), "seu" (já está na rota dele) ou
+ * "bloqueado" com o motivo em português. Quem pega mesmo é a ação "pegar" de sempre.
+ */
+export async function lerQrDaEntrega(admin: SupabaseClient, e: EntregadorPortal, texto: unknown): Promise<Resultado> {
+  const entrada = lerEntradaDoQr(texto)
+  if (!entrada) return { ok: false, erro: 'Este QR não é de uma comanda de entrega da Menuzia.', status: 400, codigo: 'qr_invalido' }
+  const sel = 'id, numero, restaurante_id, tipo, status, entregador_id, cliente_nome, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_referencia, total, entrega_latitude, entrega_longitude'
+  const q = admin.from('pedidos').select(sel)
+  const { data: p } = entrada.tipo === 'codigo'
+    ? await q.eq('id', entrada.pedidoId).maybeSingle()
+    // Número digitado: só na loja do motoboy (o número se repete entre lojas).
+    : await q.eq('restaurante_id', e.restauranteId).eq('numero', entrada.numero).order('criado_em', { ascending: false }).limit(1).maybeSingle()
+  if (!p) return { ok: false, erro: entrada.tipo === 'numero' ? `Pedido #${entrada.numero} não encontrado na sua loja.` : 'Pedido não encontrado.', status: 404, codigo: 'nao_encontrado' }
+  const r = p as Record<string, unknown> & { id: string; numero: number; restaurante_id: string; tipo: string; status: string; entregador_id: string | null }
+  const resumo = {
+    id: r.id, numero: r.numero, cliente: (r.cliente_nome as string) || 'Cliente', bairro: (r.endereco_bairro as string) || '',
+    endereco: enderecoCompletoPedido({ enderecoRua: (r.endereco_rua as string) ?? '', enderecoNumero: (r.endereco_numero as string) ?? '', enderecoComplemento: (r.endereco_complemento as string) ?? '', enderecoBairro: (r.endereco_bairro as string) ?? '', enderecoCidade: (r.endereco_cidade as string) ?? '' } as never),
+    total: Number(r.total),
+  }
+  const bloqueio = (codigo: string, erro: string) => ({ ok: true as const, dados: { situacao: 'bloqueado', codigo, motivo: erro, pedido: { numero: r.numero } } })
+  if (r.restaurante_id !== e.restauranteId) return bloqueio('outra_loja', 'Este pedido é de outra loja.')
+  if (r.entregador_id === e.id && r.status === 'em_rota') return { ok: true, dados: { situacao: 'seu', pedido: resumo } }
+  if (r.tipo !== 'entrega') return bloqueio('nao_entrega', `O pedido #${r.numero} não é de entrega.`)
+  if (r.status === 'cancelado') return bloqueio('cancelado', `O pedido #${r.numero} foi cancelado.`)
+  if (r.status === 'entregue') return bloqueio('entregue', `O pedido #${r.numero} já foi entregue.`)
+  if (r.status === 'recebido' || r.status === 'preparando') return bloqueio('em_preparo', `O pedido #${r.numero} ainda está em preparo. Espere a cozinha marcar como pronto.`)
+  if (r.status === 'aguardando_pagamento') return bloqueio('aguardando_pagamento', `O pedido #${r.numero} ainda espera o pagamento.`)
+  if (r.entregador_id && r.entregador_id !== e.id) return bloqueio('outro_motoboy', `O pedido #${r.numero} já está com outro motoboy.`)
+  if (r.status !== 'pronto') return bloqueio('indisponivel', `O pedido #${r.numero} não está disponível para entrega.`)
+  const { data: ent } = await admin.from('entregadores').select('status').eq('id', e.id).maybeSingle()
+  if ((ent as { status?: string } | null)?.status === 'offline') return bloqueio('pausado', 'Você está como Offline (pausado) na loja. Peça ao operador para te colocar como Disponível.')
+  if (!(await buscarDespachoAberto(admin, e.restauranteId))) return bloqueio('despacho_fechado', 'O despacho aberto está desligado na loja: só o operador atribui as entregas agora.')
+  return { ok: true, dados: { situacao: 'pegar', pedido: resumo, coordenadas: r.entrega_latitude !== null && r.entrega_longitude !== null ? { lat: Number(r.entrega_latitude), lng: Number(r.entrega_longitude) } : null } }
+}
+
 export async function acaoNoPedido(admin: SupabaseClient, e: EntregadorPortal, pedidoId: string, acao: string, corpo: Record<string, unknown> | null): Promise<Resultado> {
   if (!/^[0-9a-f-]{36}$/i.test(pedidoId)) return { ok: false, erro: 'Pedido inválido.', status: 400 }
   try {
@@ -99,6 +154,11 @@ export async function acaoNoPedido(admin: SupabaseClient, e: EntregadorPortal, p
       if (!(await buscarDespachoAberto(admin, e.restauranteId))) return { ok: false, erro: 'O despacho não está aberto no momento.', status: 403 }
       await pegarPedidoDisponivel(admin, pedidoId, e.id, e.restauranteId)
       notificarPedido(admin, pedidoId, 'em_rota').catch((err) => console.error('[whatsapp] em rota', err))
+      // Item 59: quem pegou (pela lista ou pelo QR da comanda) fica na auditoria.
+      registrarAuditoria(admin, {
+        restauranteId: e.restauranteId, usuarioId: e.usuarioId ?? undefined, usuarioNome: nomeDoMotoboy(e),
+        acao: 'pedido.motoboy_pegou', entidade: 'pedido', entidadeId: pedidoId, dados: { entregador_id: e.id, via: corpo?.via === 'qr' ? 'qr' : 'lista' },
+      }).catch((err) => console.error('[auditoria] motoboy pegou', err))
       return { ok: true }
     }
     if (acao === 'problema') {

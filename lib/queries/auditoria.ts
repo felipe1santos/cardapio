@@ -31,6 +31,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'balcao.entrega_ativada': 'Ativou dados de entrega',
   'comanda.identificou': 'Corrigiu nome/telefone do cliente',
   'pedido.entregue_forcado': 'Marcou como entregue no fechamento',
+  'pedido.motoboy_pegou': 'Motoboy pegou a entrega (lista ou QR da comanda)',
   'mesa.liberou': 'Liberou a mesa',
   'conta.cupom_aplicado': 'Aplicou cupom na conta',
   'conta.cupom_removido': 'Removeu cupom da conta',

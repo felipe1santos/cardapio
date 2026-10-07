@@ -137,6 +137,7 @@ try {
       await p.route(/maps\.googleapis\.com\/maps\/api\/js/, (r) => r.fulfill({ contentType: 'application/javascript', body: FALSO }))
       await p.route(/maps\.(googleapis|gstatic)\.com\/(?!maps\/api\/js)/, (r) => r.abort())
       await p.goto(`${BASE}/entregador/${ent.token}`, { waitUntil: 'networkidle' })
+      await p.getByTestId('motoboy-card-entregas').click({ timeout: 10000 }).catch(() => {}) // item 59: tela inicial com atalhos
       await p.waitForTimeout(3000)
       const mapa = await p.evaluate(() => window.__mapa ?? null)
       await p.screenshot({ path: join(PRINTS, `${nome}.png`) })

@@ -136,3 +136,21 @@ describe('v3 — pré-conta', () => {
     expect(rotuloDaTaxa('Rolha', '')).toBe('Rolha')
   })
 })
+
+describe('item 59: legenda do QR vinda do servidor (beta.10)', () => {
+  const linhas = Array.from({ length: 21 }, () => '1'.repeat(21))
+  it('QR da rota: "Entregador: leia no app Menuzia", sem ícone', () => {
+    const doc = montarComandaV3(base, { config: {}, lojaNome: 'Loja', loja, qr: { origem: 'rota', url: 'https://app.menuzia.com.br/r/x', linhas, frase: 'Entregador: leia no app Menuzia' } })
+    const r = blocos(doc, 'rodape')[0] as { frase: string; qr: { icone: string } }
+    expect(r.frase).toBe('Entregador: leia no app Menuzia')
+    expect(r.qr.icone).toBe('')
+  })
+  it('sem frase: comportamento de sempre (cardápio)', () => {
+    const doc = montarComandaV3(base, { config: {}, lojaNome: 'Loja', loja, qr: { origem: 'cardapio', url: 'https://app.menuzia.com.br/loja/x', linhas } })
+    expect((blocos(doc, 'rodape')[0] as { frase: string }).frase).toBe('Peça de novo pelo nosso cardápio')
+  })
+  it('via da cozinha continua sem QR', () => {
+    const doc = montarComandaV3(base, { config: {}, lojaNome: 'Loja', loja, via: 'cozinha', qr: { origem: 'rota', url: 'x', linhas, frase: 'Entregador: leia no app Menuzia' } })
+    expect(blocos(doc, 'rodape').length).toBe(0)
+  })
+})

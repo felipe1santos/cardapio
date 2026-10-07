@@ -148,7 +148,7 @@ export function PainelImpressao() {
     let vivo = true
     fetch('/api/admin/impressao/previa', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (vivo) setDadosPrevia({ loja: j?.loja ?? { nome: '', telefone: '', endereco: '' }, qr: j?.qr ?? null, logoUrl: j?.logoUrl ?? null }) })
+      .then((j) => { if (vivo) setDadosPrevia({ loja: j?.loja ?? { nome: '', telefone: '', endereco: '' }, qr: j?.qr ?? null, qrCardapio: j?.qrCardapio ?? null, qrRota: j?.qrRota ?? null, logoUrl: j?.logoUrl ?? null }) })
       .catch(() => { if (vivo) setDadosPrevia({ loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null }) })
     return () => { vivo = false }
   }, [])

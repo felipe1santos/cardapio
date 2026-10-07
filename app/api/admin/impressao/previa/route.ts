@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { contextoImpressao, semCache } from '@/lib/impressao/contexto'
-import { COLUNAS_LOJA_IMPRESSAO, dadosLojaImpressao, qrDaCozinha } from '@/lib/impressao/cozinha-beta'
+import { COLUNAS_LOJA_IMPRESSAO, dadosLojaImpressao, qrDaCozinha, qrDaRotaImpressa, qrDoCardapio } from '@/lib/impressao/cozinha-beta'
 import { BUCKET, caminhoLogoDaLoja, caminhoLogoImpressao, chaveLogo } from '@/lib/impressao/logo-loja'
 
 /**
@@ -18,6 +18,12 @@ export async function GET() {
   if (loja?.slug) {
     try { qr = qrDaCozinha({ slug: loja.slug, instagramUrl: loja.instagram_url ?? null }) } catch { qr = null }
   }
+  // Item 59: o QR que cada tipo leva (Assistente beta.10+). Pré-conta = `qr` (Instagram ou cardápio);
+  // retirada, balcão e mesa = cardápio; entrega = QR da rota (de um pedido de demonstração).
+  let qrCardapio: ReturnType<typeof qrDaCozinha> | null = null
+  let qrRota: ReturnType<typeof qrDaCozinha> | null = null
+  try { qrCardapio = loja?.slug ? qrDoCardapio(loja.slug) : null } catch { qrCardapio = null }
+  try { qrRota = qrDaRotaImpressa('00000000-0000-4000-8000-000000000059') } catch { qrRota = null }
   let logoUrl: string | null = null
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (loja?.logo_url && caminhoLogoDaLoja(loja.logo_url, base, ctx.op.restauranteId)) {
@@ -27,5 +33,5 @@ export async function GET() {
     const { data: arquivos } = await ctx.admin.storage.from(BUCKET).list(pasta, { limit: 20 })
     if ((arquivos ?? []).some((f) => `${pasta}/${f.name}` === caminho)) logoUrl = `${base}/storage/v1/object/public/${BUCKET}/${caminho}`
   }
-  return NextResponse.json({ loja: dadosLojaImpressao(loja), qr, logoUrl }, { headers: semCache })
+  return NextResponse.json({ loja: dadosLojaImpressao(loja), qr, qrCardapio, qrRota, logoUrl }, { headers: semCache })
 }

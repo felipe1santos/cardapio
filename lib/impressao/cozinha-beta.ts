@@ -1,6 +1,7 @@
 import QRCode from 'qrcode'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { linkDaLoja } from '@/lib/mensageria/robo'
+import { urlDaRota } from '@/lib/motoboy/qr-rota'
 
 /**
  * Dados que SÓ o Assistente Beta recebe junto da ficha da cozinha (modelo novo da
@@ -14,8 +15,14 @@ import { linkDaLoja } from '@/lib/mensageria/robo'
  */
 
 export interface QrCozinha {
-  origem: 'instagram' | 'cardapio'
+  /** 'rota' (item 59): o QR da comanda de ENTREGA — o motoboy lê no app e pega a entrega. */
+  origem: 'instagram' | 'cardapio' | 'rota'
   url: string
+  /**
+   * Legenda embaixo do QR (item 59, Assistente beta.10+). Sem ela, o Assistente escolhe pela
+   * URL como sempre (Instagram → "Siga a gente…", senão "Peça de novo pelo nosso cardápio").
+   */
+  frase?: string
   /** Lado da matriz em módulos. */
   tamanho: number
   /** Uma string por linha, '1' = módulo preto. */
@@ -24,14 +31,12 @@ export interface QrCozinha {
 
 const cacheQr = new Map<string, QrCozinha>()
 
-export function qrDaCozinha(loja: { slug: string; instagramUrl: string | null }): QrCozinha {
-  const origem: QrCozinha['origem'] = loja.instagramUrl ? 'instagram' : 'cardapio'
-  const url = loja.instagramUrl ?? linkDaLoja(loja.slug)
-  const chave = `${origem}|${url}`
+function montar(origem: QrCozinha['origem'], url: string, frase?: string): QrCozinha {
+  const chave = `${origem}|${url}|${frase ?? ''}`
   const pronto = cacheQr.get(chave)
   if (pronto) return pronto
   // Instagram leva o ícone no meio (como o modelo): correção alta para o miolo coberto
-  // continuar legível. Cardápio sem ícone: média, módulos maiores no mesmo espaço.
+  // continuar legível. Cardápio e rota sem ícone: média, módulos maiores no mesmo espaço.
   const qr = QRCode.create(url, { errorCorrectionLevel: origem === 'instagram' ? 'H' : 'M' })
   const n = qr.modules.size
   const linhas: string[] = []
@@ -40,10 +45,25 @@ export function qrDaCozinha(loja: { slug: string; instagramUrl: string | null })
     for (let x = 0; x < n; x++) s += qr.modules.get(y, x) ? '1' : '0'
     linhas.push(s)
   }
-  const r = { origem, url, tamanho: n, linhas }
+  const r: QrCozinha = { origem, url, tamanho: n, linhas, ...(frase ? { frase } : {}) }
   if (cacheQr.size > 200) cacheQr.clear()
   cacheQr.set(chave, r)
   return r
+}
+
+/** QR de sempre (Assistente até o beta.9 e a pré-conta): Instagram da loja, senão o cardápio. */
+export function qrDaCozinha(loja: { slug: string; instagramUrl: string | null }): QrCozinha {
+  return loja.instagramUrl ? montar('instagram', loja.instagramUrl) : montar('cardapio', linkDaLoja(loja.slug))
+}
+
+/** Item 59: retirada, balcão e mesa — sempre o cardápio ("Peça de novo pelo nosso cardápio"). */
+export function qrDoCardapio(slug: string): QrCozinha {
+  return montar('cardapio', linkDaLoja(slug), 'Peça de novo pelo nosso cardápio')
+}
+
+/** Item 59: comanda de ENTREGA — link assinado da rota, sem dado pessoal. */
+export function qrDaRotaImpressa(pedidoId: string): QrCozinha {
+  return montar('rota', urlDaRota(pedidoId), 'Entregador: leia no app Menuzia')
 }
 
 export interface ExtrasCozinhaBeta {

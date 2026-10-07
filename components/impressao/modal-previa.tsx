@@ -29,7 +29,7 @@ const ROTULO_TIPO: Record<Tipo, string> = { entrega: 'Entrega', retirada: 'Retir
 const PX_POR_MM = 96 / 25.4
 
 export interface PapelPrevia { larguraMm: 58 | 80; larguraPontos: number | null; tamanhoFonte: 'grande' | 'media' | 'pequena'; intensidade: 'normal' | 'escura' | 'mais_escura' }
-export interface LojaPrevia { loja: { nome: string; telefone: string; endereco: string; linha1?: string; cidade?: string }; qr: unknown; logoUrl: string | null }
+export interface LojaPrevia { loja: { nome: string; telefone: string; endereco: string; linha1?: string; cidade?: string }; qr: unknown; qrCardapio?: unknown; qrRota?: unknown; logoUrl: string | null }
 
 let fontes: Promise<unknown> | null = null
 const carregarFontes = () => (fontes ??= TicketMenuzia.carregarRecursos('/impressao/fonts').catch((e: unknown) => { fontes = null; throw e }))
@@ -73,6 +73,9 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
   const papel = opcao === 'antigo' ? null : doc === 'pre_conta' ? papelPreConta : papelBeta
   const imprimirLogo = config?.imprimirLogo !== false
   const qr = config?.qr === false ? null : dados?.qr ?? null
+  // Item 59 — o mesmo QR que o servidor manda por pedido: entrega = QR da rota (sai mesmo com o QR
+  // do cardápio desligado); retirada, balcão e mesa = cardápio; pré-conta = Instagram ou cardápio.
+  const qrComanda = tipoVisto === 'entrega' ? dados?.qrRota ?? null : config?.qr === false ? null : dados?.qrCardapio ?? qr
   const chaveCfg = config ? [config.mostrarNumeroItem, config.mostrarNomeComplementos, config.mostrarPrecoComplementos, config.multiplicarOpcoesQtd, config.fonteMaiorProducao, config.imprimirLogo, config.qr].join('') : ''
 
   useEffect(() => {
@@ -97,7 +100,7 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
         ? montarPreContaV3({ ...contaDemonstracao(dados.loja.nome, tipoVisto === 'balcao' ? 'balcao' : 'mesa'), qr, loja_dados: dados.loja })
         : (() => {
             const d = pedidoDemonstracao(tipoVisto)
-            return montarComandaV3(d.pedido, { config: config ?? {}, lojaNome: dados.loja.nome, loja: dados.loja, extras: d.extras, qr, via: doc === 'via_cozinha' ? 'cozinha' : 'cliente' })
+            return montarComandaV3(d.pedido, { config: config ?? {}, lojaNome: dados.loja.nome, loja: dados.loja, extras: d.extras, qr: qrComanda, via: doc === 'via_cozinha' ? 'cozinha' : 'cliente' })
           })()
       if (!docTicket) return
       setMedida(TicketMenuzia.desenhar(c, docTicket, { larguraMm: papel.larguraMm, larguraPontos: papel.larguraPontos, tamanhoFonte: papel.tamanhoFonte, logo, imprimirLogo, intensidade: papel.intensidade }))

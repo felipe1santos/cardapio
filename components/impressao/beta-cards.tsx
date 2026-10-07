@@ -516,8 +516,8 @@ export function ModalModos({ onFechar }: { onFechar: () => void }) {
 
 export type TipoTeste = 'cozinha' | 'recibo' | 'calibrar'
 const TESTE: Record<TipoTeste, { titulo: string; texto: string; funcao: Funcao | null; botao: string; icone: typeof ChefHat }> = {
-  cozinha: { titulo: 'Testar Cozinha', texto: 'Comanda de demonstração na impressora da cozinha.', funcao: 'cozinha', botao: 'Imprimir teste', icone: ChefHat },
-  recibo: { titulo: 'Testar Recibo/Extrato', texto: 'Recibo/Extrato de demonstração.', funcao: 'caixa', botao: 'Imprimir teste', icone: ReceiptText },
+  cozinha: { titulo: 'Testar cozinha', texto: 'Comanda de demonstração na impressora da cozinha.', funcao: 'cozinha', botao: 'Imprimir teste', icone: ChefHat },
+  recibo: { titulo: 'Testar pré-conta', texto: 'Pré-conta de demonstração na impressora do caixa.', funcao: 'caixa', botao: 'Imprimir teste', icone: ReceiptText },
   calibrar: { titulo: 'Calibrar impressora', texto: 'Passo a passo para o papel sair inteiro, sem cortar a direita.', funcao: null, botao: 'Começar', icone: Ruler },
 }
 export type ResultadoTeste = { ok: boolean; erro?: string | null }
@@ -548,7 +548,8 @@ export function ModalTestes({ p, onTestar, onFechar }: {
     <ModalBase titulo="Testar impressão" subtitulo="Os testes saem no papel, mas não criam pedido, conta nem pagamento." onFechar={onFechar} testid="modal-teste" largura="max-w-xl"
       rodape={<button type="button" onClick={onFechar} className={SECUNDARIO}>Fechar</button>}>
       <ul className="space-y-2.5">
-        {(['cozinha', 'recibo', 'calibrar'] as TipoTeste[]).map((t) => {
+        {/* Só os dois testes: calibração, largura e envio ficam SÓ em Avançado. */}
+        {(['cozinha', 'recibo'] as TipoTeste[]).map((t) => {
           const cfg = TESTE[t]
           const Icone = cfg.icone
           const d = opcoes.find((x) => x.id === escolha[t])

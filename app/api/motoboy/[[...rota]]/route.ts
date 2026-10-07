@@ -3,7 +3,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { buscarEntregadorPorUsuario } from '@/lib/queries/pedidos'
-import { acaoNoPedido, dadosDoPortal, heartbeat } from '@/lib/motoboy/servico'
+import { acaoNoPedido, dadosDoPortal, heartbeat, lerQrDaEntrega } from '@/lib/motoboy/servico'
 
 /**
  * App do motoboy COM LOGIN (0136) — mesmas regras do link/QR (lib/motoboy/servico), mas quem é o
@@ -11,6 +11,7 @@ import { acaoNoPedido, dadosDoPortal, heartbeat } from '@/lib/motoboy/servico'
  *   GET  /api/motoboy                         → rota, "dinheiro comigo", histórico de hoje
  *   GET  /api/motoboy/manifest                → PWA (nome da loja)
  *   POST /api/motoboy/heartbeat
+ *   POST /api/motoboy/qr                      → item 59: leu o QR da comanda (ou digitou o número)
  *   POST /api/motoboy/pedidos/<id>/<saiu|entregar|problema|pegar>
  */
 async function quem() {
@@ -61,6 +62,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ rot
   if (rota.length === 1 && rota[0] === 'heartbeat') {
     await heartbeat(q.admin, q.entregador, corpo).catch(() => {})
     return NextResponse.json({ ok: true })
+  }
+  if (rota.length === 1 && rota[0] === 'qr') {
+    const r = await lerQrDaEntrega(q.admin, q.entregador, corpo?.texto)
+    if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
+    return NextResponse.json({ ok: true, ...(r.dados ?? {}) })
   }
   if (rota.length === 3 && rota[0] === 'pedidos') {
     const r = await acaoNoPedido(q.admin, q.entregador, rota[1], rota[2], corpo)

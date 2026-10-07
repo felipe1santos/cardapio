@@ -212,6 +212,7 @@ try {
   await foto(ger.p, '07-pedidos-em-rota')
   const motoP = await browser.newPage({ viewport: { width: 390, height: 844 } })
   await motoP.goto(`${BASE}/entregador/${moto.token}`, { waitUntil: 'networkidle' })
+  await motoP.getByTestId('motoboy-card-entregas').click({ timeout: 10000 }).catch(() => {}) // item 59: tela inicial com atalhos
   await motoP.waitForTimeout(1500)
   ok('motoboy: "Levar R$ … de troco" no pedido em rota', /levar/i.test(await motoP.locator('body').innerText()))
   await foto(motoP, '08-motoboy'); await motoP.close()

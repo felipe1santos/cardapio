@@ -5,7 +5,7 @@ import { lerAgenteToken } from '@/lib/agente-token'
 import { identificarAgente } from '@/lib/impressao/credenciais'
 import { destinoCozinha, destinoEntrega } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
-import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
+import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaCozinha, qrDaRotaImpressa, qrDoCardapio, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
 import { esperarComBusca } from '@/lib/impressao/despertador'
 import { anunciaEsperaLonga } from '@/lib/impressao/espera-longa'
 
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
     // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.
     // Nome, telefone e endereço da loja para o rodapé (0.2.0-beta.6+).
-    let beta: { extras: Record<string, unknown>; qr: ReturnType<typeof qrDaCozinha> | null; loja: LojaImpressao | null } | undefined
+    let beta: { extras: Record<string, unknown>; qr: ReturnType<typeof qrDaCozinha> | null; qrPorPedido?: Record<string, ReturnType<typeof qrDaCozinha>>; loja: LojaImpressao | null } | undefined
     if (souDono) {
       const ids = (pedidos as { id?: string }[]).map((p) => p.id).filter((id): id is string => typeof id === 'string')
       const [extras, lojaBeta, dadosLoja] = await Promise.all([
@@ -84,7 +84,18 @@ export async function GET(request: Request) {
       let qr: ReturnType<typeof qrDaCozinha> | null = null
       // Opção da loja "QR Code do cardápio" (0151): desligada, a comanda sai sem o QR.
       try { qr = lojaBeta?.slug && config?.qr !== false ? qrDaCozinha(lojaBeta) : null } catch { qr = null }
-      beta = { extras, qr, loja: dadosLoja }
+      // Item 59 (Assistente beta.10+; o beta.9 ignora e segue com `qr`): um QR por pedido, com a
+      // legenda. ENTREGA = QR da rota (o motoboy lê no app; operacional, sai mesmo com o QR do
+      // cardápio desligado). Retirada, balcão e mesa = cardápio (respeita a opção da loja).
+      const qrPorPedido: Record<string, ReturnType<typeof qrDaCozinha>> = {}
+      for (const p of pedidos as { id?: string; tipo?: string }[]) {
+        if (typeof p.id !== 'string') continue
+        try {
+          if (p.tipo === 'entrega') qrPorPedido[p.id] = qrDaRotaImpressa(p.id)
+          else if (lojaBeta?.slug && config?.qr !== false) qrPorPedido[p.id] = qrDoCardapio(lojaBeta.slug)
+        } catch { /* sem QR neste pedido */ }
+      }
+      beta = { extras, qr, qrPorPedido, loja: dadosLoja }
     }
     // Comanda de entrega (0158, beta.10+): só quando a impressora dela é deste mesmo computador.
     const entrega = souDono ? await destinoEntrega(admin, restauranteId).catch(() => null) : null

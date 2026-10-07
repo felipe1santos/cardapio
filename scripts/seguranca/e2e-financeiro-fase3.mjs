@@ -153,6 +153,7 @@ try {
 
   secao('3. App: card com troco em destaque, sair, entregar em DINHEIRO (troco calculado)')
   await ir(motoA.p, `${BASE}/motoboy`)
+  await motoA.p.getByTestId('motoboy-card-entregas').click({ timeout: 10000 }).catch(() => {}) // item 59: tela inicial com atalhos
   const card1 = motoA.p.getByTestId(`motoboy-pedido-${p1.numero}`)
   await card1.waitFor({ timeout: 15000 }).catch(() => {})
   const txtCard = await card1.innerText().catch(() => '')
@@ -178,6 +179,7 @@ try {
   ok('sem pendência automática (o registro manda)', !(await um(`select 1 from fin_lancamentos where pedido_id=$1 and tipo='pendencia_motoboy'`, [p1.id])))
   ok('"Dinheiro comigo" = troco levado + recebido − troco dado', (await saldoMoto(mA.id)) === trocoEntregue + 10000 - trocoNec, `${await saldoMoto(mA.id)}`)
   await ir(motoA.p, `${BASE}/motoboy`)
+  await motoA.p.getByTestId('motoboy-card-historico').click({ timeout: 10000 }).catch(() => {}) // item 59: tela inicial com atalhos
   ok('histórico do turno no app', /#\d+/.test(await motoA.p.getByTestId('motoboy-historico').innerText().catch(() => '')))
   await foto(motoA.p, '04-app-historico')
 
@@ -245,6 +247,7 @@ try {
   secao('7. "Não consegui entregar" com motivo')
   const p6 = await delivery('F3 Nao Entregue', 'pix'); await despachar(p6.id, mA.id)
   await ir(motoA.p, `${BASE}/motoboy`)
+  await motoA.p.getByTestId('motoboy-card-entregas').click({ timeout: 10000 }).catch(() => {}) // item 59: tela inicial com atalhos
   const card6 = motoA.p.getByTestId(`motoboy-pedido-${p6.numero}`)
   await card6.waitFor({ timeout: 15000 }).catch(() => {})
   await card6.getByTestId('motoboy-nao-entreguei').click()
@@ -259,6 +262,7 @@ try {
   await motoA.ctx.close(); motoA = null
   motoIos = await logar(loginA, SENHA_MOTO, { ...devices['iPhone 13'] })
   await ir(motoIos.p, `${BASE}/motoboy`)
+  await motoIos.p.getByTestId('motoboy-card-entregas').click({ timeout: 10000 }).catch(() => {}) // item 59: tela inicial com atalhos
   const card7 = motoIos.p.getByTestId(`motoboy-pedido-${p7.numero}`)
   await card7.waitFor({ timeout: 15000 }).catch(() => {})
   await foto(motoIos.p, '06-app-iphone')
