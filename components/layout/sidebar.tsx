@@ -71,6 +71,15 @@ const NAV_ICONS: Record<string, string[]> = {
   '/admin/ajustes': ICONES.ajustes,
 }
 
+/** Fonte, cores e forma dos submenus (submenu-vertical.tsx) no menu principal; letra 14px e respiro
+ *  de 10px (e não 14,5/12) para "Painel de Pedidos" e "Ver meu cardápio" caberem inteiros em 232px. */
+const FONTE_MENU = { fontFamily: 'var(--font-submenu), var(--font-painel), system-ui, sans-serif' }
+const ITEM_MENU = [
+  'flex min-h-[40px] items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] text-left text-[14px] leading-[20px] transition-colors',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0688D4]',
+].join(' ')
+const ITEM_ATIVO = 'bg-[#EEF0F3] font-semibold text-[#1F2937]'
+const ITEM_INATIVO = 'font-medium text-[#4B5563] hover:bg-[#F6F7F9] hover:text-[#1F2937]'
 
 export function Sidebar({
   items,
@@ -183,7 +192,9 @@ export function Sidebar({
         </div>
       )}
 
-      <nav className="flex flex-1 flex-col overflow-y-auto py-2">
+      {/* Mesmo desenho dos submenus (components/admin/submenu-vertical.tsx, noite 5): fonte Nunito,
+          ícone Material preenchido cinza, item ativo com fundo cinza-claro arredondado. */}
+      <nav data-menu-principal="" style={FONTE_MENU} className="flex flex-1 flex-col gap-[2px] overflow-y-auto px-2 py-3">
         {items.map((item) => {
           // Prefixo, não igualdade: seções com subpáginas (ex.: /admin/integracoes/nexta)
           // precisam manter o item do menu destacado.
@@ -193,18 +204,11 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={[
-                // Linha reta de ponta a ponta, sem pílula: o item ativo é marcado
-                // pela borda esquerda na cor de marca (padrão Menuzia, CLAUDE.md §3).
-                'flex min-h-[36px] items-center gap-3 border-l-[3px] pl-[13px] pr-3 text-left text-[13.5px] leading-none transition-colors',
-                'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]',
-                isActive
-                  ? 'border-[var(--adm-azul)] bg-[var(--adm-azul-claro)] font-semibold text-[var(--adm-azul-escuro)]'
-                  : 'border-transparent font-normal text-[var(--adm-menu-texto)] hover:bg-[var(--adm-hover)]',
-              ].join(' ')}
+              aria-current={isActive ? 'page' : undefined}
+              className={[ITEM_MENU, isActive ? ITEM_ATIVO : ITEM_INATIVO].join(' ')}
             >
               {iconPath && (
-                <svg viewBox="0 0 24 24" className="h-[19px] w-[19px] flex-shrink-0 fill-current" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className={['h-[20px] w-[20px] flex-shrink-0 fill-current', isActive ? 'text-[#374151]' : 'text-[#4B5563]'].join(' ')} aria-hidden="true">
                   {iconPath.map((d) => (
                     <path key={d} d={d} />
                   ))}
@@ -212,12 +216,12 @@ export function Sidebar({
               )}
               <span className="truncate">{item.label}</span>
               {item.novidade && (
-                <span className="flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10px] font-bold text-[var(--adm-alta)]">
+                <span className="flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10.5px] font-semibold leading-[14px] text-[var(--adm-alta)]">
                   Novo
                 </span>
               )}
               {item.badge !== undefined && item.badge > 0 && (
-                <span className="ml-auto flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-azul)] px-1 text-[11px] font-bold text-white">
+                <span className="ml-auto flex h-[20px] min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-azul)] px-1.5 text-[11px] font-semibold text-white">
                   {item.badge > 99 ? '99+' : item.badge}
                 </span>
               )}
@@ -227,14 +231,14 @@ export function Sidebar({
       </nav>
 
       {storeSlug && (
-        <div className="mb-1 mt-1 flex items-center border-t border-[var(--adm-borda)] pt-1 pr-2">
+        <div style={FONTE_MENU} className="mb-1 mt-1 flex items-center gap-0.5 border-t border-[var(--adm-borda)] px-2 pt-2">
         <a
           href={`/loja/${storeSlug}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex min-h-[36px] min-w-0 flex-1 items-center gap-3 border-l-[3px] border-transparent pl-[13px] pr-3 text-[13.5px] font-normal leading-none text-[var(--adm-menu-texto)] transition-colors hover:bg-[var(--adm-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--adm-azul)]"
+          className={['min-w-0 flex-1', ITEM_MENU, ITEM_INATIVO].join(' ')}
         >
-          <svg viewBox="0 0 24 24" className="h-[19px] w-[19px] flex-shrink-0 fill-current" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#4B5563]" aria-hidden="true">
             {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
           </svg>
           <span className="truncate">Ver meu cardápio</span>

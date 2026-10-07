@@ -18,16 +18,18 @@ describe('Sidebar', () => {
 
   /**
    * O menu ficou claro (tema do painel, 2026-09-23): o item ativo deixou de ser
-   * "azul sobre escuro" e passou a ser azul sobre uma pílula azul-clara. O que
+   * "azul sobre escuro" e passou a ser azul sobre uma pílula azul-clara; na noite 5 ganhou o desenho dos submenus (fundo cinza-claro). O que
    * o teste guarda é o contraste do ativo contra os outros, não o nome da cor.
    */
   it('marks the active item with the active styling', () => {
     render(<Sidebar items={ITEMS} activeHref="/pedidos" />)
     const active = screen.getByText('Painel de Pedidos').closest('a')
     const inativo = screen.getByText('Dashboard').closest('a')
-    expect(active?.className).toContain('--adm-azul-claro')
+    expect(active?.className).toContain('bg-[#EEF0F3]')
+    expect(active?.getAttribute('aria-current')).toBe('page')
     expect(active?.className).toContain('font-semibold')
-    expect(inativo?.className).not.toContain('--adm-azul-claro')
+    expect(inativo?.className).not.toContain('bg-[#EEF0F3]')
+    expect(inativo?.getAttribute('aria-current')).toBeNull()
   })
 
   it('o menu começa no card da loja: sem a faixa da marca (2026-09-30)', () => {
